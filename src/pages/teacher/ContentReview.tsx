@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, Flag, RefreshCw, ArrowRight, Plus, Calendar } from "lucide-react";
+import { Check, Flag, RefreshCw, ArrowRight, ArrowLeft, Plus, Calendar } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const ContentReview = () => {
@@ -51,75 +51,87 @@ const ContentReview = () => {
   );
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="font-heading text-3xl font-bold">Review Generated Content</h1>
-          <p className="text-muted-foreground">Approve, edit, or flag AI-generated course content</p>
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+      <div className="w-full max-w-4xl">
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="font-heading text-3xl font-bold">Review Generated Content</h1>
+            <p className="text-muted-foreground">Approve, edit, or flag AI-generated course content</p>
+          </div>
+          <Button variant="outline" size="sm"><Plus className="mr-1 h-4 w-4" /> Add Custom</Button>
         </div>
-        <Button variant="outline" size="sm"><Plus className="mr-1 h-4 w-4" /> Add Custom</Button>
-      </div>
 
-      <Tabs defaultValue="concepts">
-        <TabsList className="mb-6">
-          <TabsTrigger value="concepts">Concepts & Explanations</TabsTrigger>
-          <TabsTrigger value="practice">Practice Problems</TabsTrigger>
-          <TabsTrigger value="exam">Exam Simulation Bank</TabsTrigger>
-        </TabsList>
+        <Tabs defaultValue="concepts">
+          <TabsList className="mb-6">
+            <TabsTrigger value="concepts">Concepts & Explanations</TabsTrigger>
+            <TabsTrigger value="practice">Practice Problems</TabsTrigger>
+            <TabsTrigger value="exam">Exam Simulation Bank</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="concepts" className="space-y-3">
-          {items.filter((i) => i.type === "concept").map(renderItem)}
-        </TabsContent>
-        <TabsContent value="practice" className="space-y-3">
-          {items.filter((i) => i.type === "practice").map(renderItem)}
-        </TabsContent>
-        <TabsContent value="exam" className="space-y-3">
-          {items.filter((i) => i.type === "exam").map(renderItem)}
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="concepts" className="space-y-3">
+            {items.filter((i) => i.type === "concept").map(renderItem)}
+          </TabsContent>
+          <TabsContent value="practice" className="space-y-3">
+            {items.filter((i) => i.type === "practice").map(renderItem)}
+          </TabsContent>
+          <TabsContent value="exam" className="space-y-3">
+            {items.filter((i) => i.type === "exam").map(renderItem)}
+          </TabsContent>
+        </Tabs>
 
-      <div className="mt-8">
-        {!showPublish ? (
-          <Button onClick={() => setShowPublish(true)}>
-            Publish Course <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5" /> Publish Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>Sections</Label>
-                  <Select value={publishSection} onValueChange={setPublishSection}>
-                    <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Sections</SelectItem>
-                      <SelectItem value="a">Section A</SelectItem>
-                      <SelectItem value="b">Section B</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Start Date</Label>
-                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>End Date</Label>
-                  <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                </div>
-              </div>
-              <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-sm font-medium">Enrollment Code</p>
-                <p className="font-mono text-lg font-bold text-primary">NEXTOS301</p>
-              </div>
-              <Button onClick={() => navigate("/teacher/courses/enrollment")}>
-                Publish & Set Up Enrollment <ArrowRight className="ml-2 h-4 w-4" />
+        <div className="mt-8">
+          {!showPublish ? (
+            <div className="flex justify-between">
+              <Button variant="ghost" onClick={() => navigate("/teacher/setup/settings")}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
-            </CardContent>
-          </Card>
-        )}
+              <Button onClick={() => setShowPublish(true)}>
+                Publish Course <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5" /> Publish Settings</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label>Sections</Label>
+                    <Select value={publishSection} onValueChange={setPublishSection}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Sections</SelectItem>
+                        <SelectItem value="a">Section A</SelectItem>
+                        <SelectItem value="b">Section B</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Start Date</Label>
+                    <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Date</Label>
+                    <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                  </div>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-sm font-medium">Enrollment Code</p>
+                  <p className="font-mono text-lg font-bold text-primary">NEXTOS301</p>
+                </div>
+                <div className="flex justify-between">
+                  <Button variant="ghost" onClick={() => setShowPublish(false)}>
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Back
+                  </Button>
+                  <Button onClick={() => navigate("/teacher/setup/enrollment")}>
+                    Publish & Set Up Enrollment <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );

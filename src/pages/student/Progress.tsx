@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TrendingUp, Target, Flame, BookOpen, Briefcase, ArrowRight } from "lucide-react";
+import { TrendingUp, Target, Flame, BookOpen, Briefcase, Construction } from "lucide-react";
 
 const StudentProgress = () => {
   const { studentProfile } = useApp();
@@ -14,12 +14,6 @@ const StudentProgress = () => {
     { month: "Sep 2025", level: "Intermediate", active: false },
     { month: "Oct 2025", level: "Advanced", active: false },
     { month: "Nov 2025", level: "Expert", active: false },
-  ];
-
-  const employabilityJourney = [
-    { stage: "Beginner", progress: 100, description: "Foundational concepts" },
-    { stage: "Developing", progress: 45, description: "Applied skills & projects" },
-    { stage: "Prepared", progress: 0, description: "Industry-ready" },
   ];
 
   return (
@@ -32,7 +26,10 @@ const StudentProgress = () => {
       <Tabs defaultValue="learning">
         <TabsList className="mb-6">
           <TabsTrigger value="learning"><BookOpen className="mr-1 h-4 w-4" /> Learning Journey</TabsTrigger>
-          <TabsTrigger value="employability"><Briefcase className="mr-1 h-4 w-4" /> Employability Readiness</TabsTrigger>
+          <TabsTrigger value="employability">
+            <Briefcase className="mr-1 h-4 w-4" /> Employability Readiness
+            <Badge variant="secondary" className="ml-2 text-[10px]">WIP</Badge>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="learning" className="space-y-6">
@@ -109,24 +106,15 @@ const StudentProgress = () => {
 
         <TabsContent value="employability" className="space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Briefcase className="h-5 w-5" /> Employability Journey</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {employabilityJourney.map((stage, i) => (
-                <div key={stage.stage}>
-                  <div className="mb-1 flex justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{stage.stage}</span>
-                      {stage.progress === 100 && <Badge variant="default" className="text-[10px]">Complete</Badge>}
-                      {stage.progress > 0 && stage.progress < 100 && <Badge variant="secondary" className="text-[10px]">In Progress</Badge>}
-                    </div>
-                    <span className="text-muted-foreground">{stage.progress}%</span>
-                  </div>
-                  <Progress value={stage.progress} className="h-2" />
-                  <p className="mt-1 text-xs text-muted-foreground">{stage.description}</p>
-                </div>
-              ))}
+            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+                <Construction className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="font-heading text-xl font-semibold mb-2">Work in Progress</h3>
+              <p className="text-sm text-muted-foreground max-w-md">
+                Employability Readiness tracking is currently under development. Soon you'll be able to track your journey from Beginner to Industry-Prepared with personalized skill assessments.
+              </p>
+              <Badge variant="secondary" className="mt-4">Coming Soon</Badge>
             </CardContent>
           </Card>
         </TabsContent>

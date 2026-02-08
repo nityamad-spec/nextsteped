@@ -8,9 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Send, Plus, History, Lightbulb, Eye, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal } from "lucide-react";
+import { Send, Plus, History, Lightbulb, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal } from "lucide-react";
 
 const AIChat = () => {
   const [searchParams] = useSearchParams();
@@ -25,8 +23,6 @@ const AIChat = () => {
   const [mode, setMode] = useState<"learning" | "exam">(initialMode);
   const [input, setInput] = useState("");
   const [showHistory, setShowHistory] = useState(false);
-  const [showSteps, setShowSteps] = useState(false);
-  const [citeSources, setCiteSources] = useState(true);
   const [showCodeTerminal, setShowCodeTerminal] = useState(false);
   const [codeInput, setCodeInput] = useState("");
   const [codeResult, setCodeResult] = useState<string | null>(null);
@@ -193,14 +189,6 @@ const AIChat = () => {
           <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
             <Lightbulb className="h-3 w-3" /> Ask for Hint
           </Button>
-          <div className="flex items-center gap-1.5">
-            <Switch id="steps" checked={showSteps} onCheckedChange={setShowSteps} className="scale-75" />
-            <Label htmlFor="steps" className="text-xs cursor-pointer">Show Steps</Label>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Switch id="cite" checked={citeSources} onCheckedChange={setCiteSources} className="scale-75" />
-            <Label htmlFor="cite" className="text-xs cursor-pointer">Cite Sources</Label>
-          </div>
           <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 ml-auto" onClick={() => setShowCodeTerminal(!showCodeTerminal)}>
             <Terminal className="h-3 w-3" /> Code Terminal
           </Button>

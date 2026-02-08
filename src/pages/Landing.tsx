@@ -24,7 +24,7 @@ const Landing = () => {
           Next<span className="text-primary">Step</span>
         </h1>
         <p className="mt-4 max-w-md text-lg text-muted-foreground">
-          Your AI-powered learning companion for courses, exam prep, and career readiness.
+          Your AI-powered learning companion for courses and exam prep.
         </p>
       </motion.div>
 

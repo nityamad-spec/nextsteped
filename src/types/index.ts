@@ -4,7 +4,6 @@ export interface TeacherProfile {
   name: string;
   department: string;
   courses: string[];
-  teachingStyle: string;
 }
 
 export interface StudentProfile {
@@ -69,7 +68,6 @@ export interface ChatSession {
 export interface TASettings {
   hintLadder: boolean;
   knowledgeSources: "uploaded" | "uploaded_and_web";
-  citationRequired: boolean;
   plagiarismWarnings: boolean;
   examTimeLimit: number;
   examDifficulty: "Easy" | "Medium" | "Hard" | "Mixed";
