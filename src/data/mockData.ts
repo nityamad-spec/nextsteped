@@ -125,12 +125,22 @@ export const mockDashboard: DashboardMetrics = {
 export const defaultTASettings: TASettings = {
   hintLadder: true,
   knowledgeSources: "uploaded_and_web",
-  citationRequired: true,
   plagiarismWarnings: true,
   examTimeLimit: 60,
   examDifficulty: "Mixed",
   examQuestionMix: "40% MCQ, 30% Short Answer, 30% Problem Solving",
 };
+
+export const availableDepartments = [
+  "Computer Science",
+  "Electrical Engineering",
+  "Mathematics",
+  "Information Systems",
+  "Data Science",
+  "Software Engineering",
+  "Mechanical Engineering",
+  "Physics",
+];
 
 export const mockLearningChatMessages: ChatMessage[] = [
   {

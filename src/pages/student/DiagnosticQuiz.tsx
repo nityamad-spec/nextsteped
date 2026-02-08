@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Check, X, BookOpen, Brain, Target } from "lucide-react";
+import { ArrowRight, ArrowLeft, Check, Brain, Target } from "lucide-react";
 
 const DiagnosticQuiz = () => {
   const { studentProfile, setStudentProfile, setDiagnosticComplete } = useApp();
@@ -15,8 +15,7 @@ const DiagnosticQuiz = () => {
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [answers, setAnswers] = useState<number[]>([]);
-  const [showResult, setShowResult] = useState(false);
-  const [phase, setPhase] = useState<"quiz" | "result" | "plan">("quiz");
+  const [phase, setPhase] = useState<"quiz" | "result">("quiz");
 
   const questions = mockQuizQuestions.slice(0, 7);
   const question = questions[currentQ];
@@ -63,44 +62,6 @@ const DiagnosticQuiz = () => {
                   <div key={t} className="flex items-center gap-2 text-sm text-muted-foreground"><Target className="h-4 w-4 text-accent" />{t}</div>
                 ))}
               </div>
-              <Button onClick={() => setPhase("plan")} className="mt-6 w-full">See Your Learning Plan <ArrowRight className="ml-2 h-4 w-4" /></Button>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-    );
-  }
-
-  if (phase === "plan") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-lg">
-          <Card>
-            <CardContent className="p-8">
-              <h2 className="font-heading text-2xl font-bold text-center mb-6">Your Plan This Week</h2>
-              <div className="space-y-4">
-                <div className="flex items-start gap-3 rounded-lg border p-4">
-                  <BookOpen className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium">Concept Refresher</p>
-                    <p className="text-xs text-muted-foreground">Virtual Memory — Paging & Address Translation (25 min)</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 rounded-lg border p-4">
-                  <Target className="h-5 w-5 text-accent mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium">Applied Practice Set</p>
-                    <p className="text-xs text-muted-foreground">Page Replacement Algorithms — LRU vs FIFO (30 min)</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 rounded-lg border p-4 opacity-60">
-                  <Brain className="h-5 w-5 text-muted-foreground mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium">Exam Simulation (Optional)</p>
-                    <p className="text-xs text-muted-foreground">Midterm practice — Scheduling & Memory (60 min)</p>
-                  </div>
-                </div>
-              </div>
               <Button onClick={() => { setDiagnosticComplete(true); navigate("/student/home"); }} className="mt-6 w-full">
                 Go to Home <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -141,9 +102,14 @@ const DiagnosticQuiz = () => {
                 ))}
               </div>
             </motion.div>
-            <Button onClick={handleAnswer} disabled={selected === null} className="mt-4 w-full">
-              {currentQ < questions.length - 1 ? "Next Question" : "Finish Quiz"} <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
+            <div className="mt-4 flex justify-between">
+              <Button variant="ghost" onClick={() => { if (currentQ > 0) { setCurrentQ(currentQ - 1); setSelected(null); setAnswers(answers.slice(0, -1)); } else { navigate("/student/onboarding"); } }}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+              </Button>
+              <Button onClick={handleAnswer} disabled={selected === null}>
+                {currentQ < questions.length - 1 ? "Next Question" : "Finish Quiz"} <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

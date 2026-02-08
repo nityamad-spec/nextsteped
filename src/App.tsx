@@ -27,7 +27,7 @@ const queryClient = new QueryClient();
 
 function TeacherRedirect() {
   const { teacherOnboarded } = useApp();
-  return <Navigate to={teacherOnboarded ? "/teacher/courses" : "/teacher/onboarding"} replace />;
+  return <Navigate to={teacherOnboarded ? "/teacher/courses/dashboard" : "/teacher/onboarding"} replace />;
 }
 
 function StudentRedirect() {
@@ -47,14 +47,16 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Landing />} />
 
-            {/* Teacher routes */}
+            {/* Teacher setup routes (standalone, no layout) */}
             <Route path="/teacher" element={<TeacherRedirect />} />
             <Route path="/teacher/onboarding" element={<TeacherOnboarding />} />
+            <Route path="/teacher/setup/syllabus" element={<CourseCreation />} />
+            <Route path="/teacher/setup/settings" element={<AITASettings />} />
+            <Route path="/teacher/setup/content" element={<ContentReview />} />
+            <Route path="/teacher/setup/enrollment" element={<StudentEnrollment />} />
+
+            {/* Teacher dashboard routes (inside layout) */}
             <Route element={<TeacherLayout />}>
-              <Route path="/teacher/courses" element={<CourseCreation />} />
-              <Route path="/teacher/courses/settings" element={<AITASettings />} />
-              <Route path="/teacher/courses/content" element={<ContentReview />} />
-              <Route path="/teacher/courses/enrollment" element={<StudentEnrollment />} />
               <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
               <Route path="/teacher/content-library" element={<ComingSoon title="Content Library" description="Manage and organize all your teaching materials in one place." />} />
               <Route path="/teacher/insights" element={<ComingSoon title="Student Insights" description="Deep analytics on student performance and engagement." />} />
