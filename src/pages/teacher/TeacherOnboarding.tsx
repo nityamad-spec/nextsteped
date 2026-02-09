@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, ArrowLeft, User } from "lucide-react";
+import { ArrowRight, ArrowLeft, User, Upload, FileText, BookOpen, Check } from "lucide-react";
 
 const TeacherOnboarding = () => {
   const { setTeacherProfile, setCurrentCourse } = useApp();
@@ -19,8 +19,10 @@ const TeacherOnboarding = () => {
   const [term, setTerm] = useState("");
   const [sections, setSections] = useState("");
   const [objectives, setObjectives] = useState("");
+  const [syllabusUploaded, setSyllabusUploaded] = useState(false);
+  const [materialsUploaded, setMaterialsUploaded] = useState(false);
 
-  const isValid = name.trim() && department && courseCode && term;
+  const isValid = name.trim() && department && courseCode && term && syllabusUploaded;
 
   const handleContinue = () => {
     const selectedCourse = availableCourses.find((c) => c.code === courseCode);
@@ -40,13 +42,13 @@ const TeacherOnboarding = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-xl">
         <div className="mb-8 text-center">
           <h1 className="font-heading text-3xl font-bold">
             Welcome to Next<span className="text-primary">Step</span>
           </h1>
-          <p className="mt-2 text-muted-foreground">Set up your profile and course details</p>
+          <p className="mt-2 text-muted-foreground">Set up your profile, course, and upload materials</p>
         </div>
 
         <Card>
@@ -56,8 +58,8 @@ const TeacherOnboarding = () => {
                 <User className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle>Professor Profile</CardTitle>
-                <CardDescription>Your information and course details</CardDescription>
+                <CardTitle>Professor Profile & Course Setup</CardTitle>
+                <CardDescription>Your information, course details, and materials</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -120,12 +122,58 @@ const TeacherOnboarding = () => {
                 />
               </div>
 
+              {/* Syllabus Upload */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Syllabus Upload</Label>
+                <div
+                  onClick={() => setSyllabusUploaded(true)}
+                  className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
+                    syllabusUploaded ? "border-primary/50 bg-primary/5" : "border-muted hover:border-primary/30 hover:bg-muted/50"
+                  }`}
+                >
+                  {syllabusUploaded ? (
+                    <>
+                      <Check className="h-6 w-6 text-primary" />
+                      <span className="text-sm font-medium text-primary">Syllabus uploaded</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-6 w-6 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Click to upload PDF or DOC</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Teaching Materials Upload */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Teaching Materials <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <div
+                  onClick={() => setMaterialsUploaded(true)}
+                  className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
+                    materialsUploaded ? "border-primary/50 bg-primary/5" : "border-muted hover:border-primary/30 hover:bg-muted/50"
+                  }`}
+                >
+                  {materialsUploaded ? (
+                    <>
+                      <Check className="h-6 w-6 text-primary" />
+                      <span className="text-sm font-medium text-primary">Materials uploaded</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-6 w-6 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Upload slides, readings, problem sets, past exams</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
               <div className="flex justify-between pt-2">
                 <Button variant="ghost" onClick={() => navigate("/")}>
                   <ArrowLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
                 <Button onClick={handleContinue} disabled={!isValid}>
-                  Continue to Syllabus <ArrowRight className="ml-2 h-4 w-4" />
+                  Continue to Syllabus Review <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </motion.div>

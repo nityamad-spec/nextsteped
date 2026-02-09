@@ -11,8 +11,11 @@ import TeacherOnboarding from "./pages/teacher/TeacherOnboarding";
 import CourseCreation from "./pages/teacher/CourseCreation";
 import AITASettings from "./pages/teacher/AITASettings";
 import ContentReview from "./pages/teacher/ContentReview";
-import StudentEnrollment from "./pages/teacher/StudentEnrollment";
 import CourseDashboard from "./pages/teacher/CourseDashboard";
+import StudentInsights from "./pages/teacher/StudentInsights";
+import Assessments from "./pages/teacher/Assessments";
+import SettingsIntegrity from "./pages/teacher/SettingsIntegrity";
+import Support from "./pages/teacher/Support";
 import StudentOnboarding from "./pages/student/StudentOnboarding";
 import DiagnosticQuiz from "./pages/student/DiagnosticQuiz";
 import StudentHome from "./pages/student/StudentHome";
@@ -53,16 +56,15 @@ const App = () => (
             <Route path="/teacher/setup/syllabus" element={<CourseCreation />} />
             <Route path="/teacher/setup/settings" element={<AITASettings />} />
             <Route path="/teacher/setup/content" element={<ContentReview />} />
-            <Route path="/teacher/setup/enrollment" element={<StudentEnrollment />} />
 
             {/* Teacher dashboard routes (inside layout) */}
             <Route element={<TeacherLayout />}>
               <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
+              <Route path="/teacher/insights" element={<StudentInsights />} />
               <Route path="/teacher/content-library" element={<ComingSoon title="Content Library" description="Manage and organize all your teaching materials in one place." />} />
-              <Route path="/teacher/insights" element={<ComingSoon title="Student Insights" description="Deep analytics on student performance and engagement." />} />
-              <Route path="/teacher/assessments" element={<ComingSoon title="Assessments" description="Create and manage assessments, quizzes, and exams." />} />
-              <Route path="/teacher/settings" element={<ComingSoon title="Settings / Integrity" description="Configure academic integrity settings and preferences." />} />
-              <Route path="/teacher/support" element={<ComingSoon title="Support" description="Get help and access documentation." />} />
+              <Route path="/teacher/assessments" element={<Assessments />} />
+              <Route path="/teacher/settings" element={<SettingsIntegrity />} />
+              <Route path="/teacher/support" element={<Support />} />
             </Route>
 
             {/* Student routes */}

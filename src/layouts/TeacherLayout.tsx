@@ -1,14 +1,13 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { BookOpen, Library, Users, ClipboardCheck, Settings, HelpCircle, LogOut, ShieldCheck, UserCog } from "lucide-react";
+import { BookOpen, Library, Users, ClipboardCheck, Settings, HelpCircle, LogOut } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Badge } from "@/components/ui/badge";
 
 const teacherNav = [
   { title: "Courses", path: "/teacher/courses/dashboard", icon: BookOpen },
-  { title: "Content Library", path: "/teacher/content-library", icon: Library },
   { title: "Student Insights", path: "/teacher/insights", icon: Users },
+  { title: "Content Library", path: "/teacher/content-library", icon: Library },
   { title: "Assessments", path: "/teacher/assessments", icon: ClipboardCheck },
   { title: "Settings / Integrity", path: "/teacher/settings", icon: Settings },
   { title: "Support", path: "/teacher/support", icon: HelpCircle },
@@ -39,18 +38,15 @@ const TeacherLayout = () => {
           <Outlet />
         </main>
         <nav className="flex border-t bg-card">
-          {teacherNav.slice(0, 5).map((item) => {
-            const isActive = location.pathname.startsWith(item.path);
-            return (
-              <NavLink key={item.path} to={item.path} end={false}
-                className="flex flex-1 flex-col items-center gap-1 py-2 text-muted-foreground"
-                activeClassName="text-primary"
-              >
-                <item.icon className="h-5 w-5" />
-                <span className="text-[10px]">{item.title.split(" ")[0]}</span>
-              </NavLink>
-            );
-          })}
+          {teacherNav.slice(0, 5).map((item) => (
+            <NavLink key={item.path} to={item.path} end={false}
+              className="flex flex-1 flex-col items-center gap-1 py-2 text-muted-foreground"
+              activeClassName="text-primary"
+            >
+              <item.icon className="h-5 w-5" />
+              <span className="text-[10px]">{item.title.split(" ")[0]}</span>
+            </NavLink>
+          ))}
         </nav>
       </div>
     );
@@ -83,16 +79,6 @@ const TeacherLayout = () => {
         </nav>
 
         <div className="border-t p-3 space-y-1">
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground/50 cursor-not-allowed">
-            <UserCog className="h-4 w-4" />
-            <span>TA / Coordinator</span>
-            <Badge variant="secondary" className="ml-auto text-[10px]">Soon</Badge>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground/50 cursor-not-allowed">
-            <ShieldCheck className="h-4 w-4" />
-            <span>Dept Admin</span>
-            <Badge variant="secondary" className="ml-auto text-[10px]">Soon</Badge>
-          </div>
           <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent">
             <LogOut className="h-4 w-4" />
             Switch Role
