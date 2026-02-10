@@ -92,21 +92,12 @@ const StudentProgress = () => {
             </CardContent>
           </Card>
 
-          {/* Overall + Topic Mastery */}
+          {/* Topic Mastery */}
           <Card>
             <CardHeader>
               <CardTitle>Topic Mastery</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Overall mastery bar */}
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <div className="mb-2 flex justify-between text-sm font-medium">
-                  <span>Overall Mastery</span>
-                  <span className="text-primary">{avgMastery}%</span>
-                </div>
-                <Progress value={avgMastery} className="h-3" />
-              </div>
-              {/* Individual topics */}
               <div className="space-y-3">
                 {mockTopics.map((topic) => (
                   <div key={topic.id}>

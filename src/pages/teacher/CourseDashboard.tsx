@@ -7,15 +7,15 @@ import { Users, MessageSquare, AlertTriangle, TrendingUp, Send, BookOpen, BarCha
 
 const masteryColors: Record<string, string> = {
   Beginner: "bg-destructive/20 text-destructive",
-  Intermediate: "bg-warning/20 text-warning",
-  Advanced: "bg-primary/20 text-primary",
+  Developing: "bg-warning/20 text-warning",
+  Proficient: "bg-primary/20 text-primary",
   Expert: "bg-success/20 text-success",
 };
 
 const masteryBarColors: Record<string, string> = {
   Beginner: "[&>div]:bg-destructive",
-  Intermediate: "[&>div]:bg-warning",
-  Advanced: "[&>div]:bg-primary",
+  Developing: "[&>div]:bg-warning",
+  Proficient: "[&>div]:bg-primary",
   Expert: "[&>div]:bg-success",
 };
 
@@ -61,6 +61,7 @@ const CourseDashboard = () => {
             <div>
               <p className="text-2xl font-bold">{d.atRiskCount}</p>
               <p className="text-xs text-muted-foreground">At-Risk Learners</p>
+              <Badge variant="secondary" className="text-[10px] mt-1">In Progress</Badge>
             </div>
           </CardContent>
         </Card>

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, ClipboardCheck, BookOpen, Flag, AlertTriangle } from "lucide-react";
+import { Plus, ClipboardCheck, BookOpen, Flag, AlertTriangle, Info } from "lucide-react";
 
 interface CustomQuestion {
   id: string;
@@ -38,14 +38,7 @@ const Assessments = () => {
     if (!newQuestion.trim() || !newTopic) return;
     setCustomQuestions((prev) => [
       ...prev,
-      {
-        id: `cq${Date.now()}`,
-        question: newQuestion,
-        topic: newTopic,
-        difficulty: newDifficulty,
-        mandatory: newMandatory,
-        examType: newExamType,
-      },
+      { id: `cq${Date.now()}`, question: newQuestion, topic: newTopic, difficulty: newDifficulty, mandatory: newMandatory, examType: newExamType },
     ]);
     setNewQuestion("");
     setNewTopic("");
@@ -61,6 +54,17 @@ const Assessments = () => {
         <p className="text-muted-foreground">Manage quizzes, exams, and add custom questions</p>
       </div>
 
+      {/* Illustrative notice */}
+      <div className="mb-6 flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
+        <Info className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-foreground">Preview / Illustrative View</p>
+          <p className="text-xs text-muted-foreground">
+            The questions, assessments, and exam simulations shown below are illustrative examples — not an exhaustive list. The AI TA dynamically generates and personalizes content based on individual student responses and progress.
+          </p>
+        </div>
+      </div>
+
       <Tabs defaultValue="quizzes">
         <TabsList className="mb-6">
           <TabsTrigger value="quizzes">Quiz Bank</TabsTrigger>
@@ -72,7 +76,7 @@ const Assessments = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" /> Quiz Questions</CardTitle>
-              <CardDescription>Questions used in student diagnostic and practice quizzes</CardDescription>
+              <CardDescription>Illustrative questions used in student diagnostic and practice quizzes. Content adapts based on student performance.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {mockQuizQuestions.map((q) => (
@@ -101,7 +105,7 @@ const Assessments = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" /> Exam Simulations</CardTitle>
-              <CardDescription>Exam content visible to students in exam prep mode</CardDescription>
+              <CardDescription>Sample exam content visible to students in exam prep mode. This is a preview — actual exams are personalized per student.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {examItems.map((item) => (
@@ -124,7 +128,7 @@ const Assessments = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Plus className="h-5 w-5" /> Custom Questions</CardTitle>
-                  <CardDescription>Add your own questions. Mark them as mandatory for quizzes or flag as exam-type for student visibility.</CardDescription>
+                  <CardDescription>Add your own questions and flag them for student assessments.</CardDescription>
                 </div>
                 <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
                   <Plus className="mr-1 h-4 w-4" /> Add Question
@@ -132,6 +136,21 @@ const Assessments = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Flag legend */}
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Question Flags:</p>
+                <div className="flex flex-wrap gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="default" className="text-[10px]"><Flag className="mr-1 h-3 w-3" /> Mandatory</Badge>
+                    <span className="text-[10px] text-muted-foreground">— Question will always appear in student assessments</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="secondary" className="text-[10px] border-warning/50 bg-warning/10 text-warning"><AlertTriangle className="mr-1 h-3 w-3" /> Exam-Type</Badge>
+                    <span className="text-[10px] text-muted-foreground">— Flags the type of question that will appear in exams (visible to students)</span>
+                  </div>
+                </div>
+              </div>
+
               {showAdd && (
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-4">
                   <div className="space-y-2">
@@ -174,8 +193,8 @@ const Assessments = () => {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <Label>Mandatory in Quizzes</Label>
-                        <p className="text-xs text-muted-foreground">This question will always appear in student quizzes</p>
+                        <Label>Mandatory Question</Label>
+                        <p className="text-xs text-muted-foreground">This question will always appear in student assessments</p>
                       </div>
                       <Switch checked={newMandatory} onCheckedChange={setNewMandatory} />
                     </div>
