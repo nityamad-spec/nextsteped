@@ -36,7 +36,6 @@ const AIChat = () => {
   const activeChat = chats.find((c) => c.id === activeChatId) || null;
 
   useEffect(() => {
-    // Seed initial chat if none exists for learning mode
     if (mode === "learning" && learningChats.length === 0) {
       const initialChat: ChatSession = {
         id: "initial-learning",
@@ -95,7 +94,6 @@ const AIChat = () => {
     setChats(chats.map((c) => (c.id === activeChat.id ? updatedChat : c)));
     setInput("");
 
-    // Mock AI response
     setTimeout(() => {
       const aiMsg: ChatMessage = {
         id: `msg-${Date.now() + 1}`, role: "assistant", timestamp: Date.now(),
@@ -129,31 +127,37 @@ const AIChat = () => {
 
   return (
     <div className="flex h-[calc(100vh-57px)] md:h-screen">
-      {/* Chat History Sidebar */}
+      {/* Chat History Sidebar — filtered by mode */}
       {showHistory && (
         <div className="w-64 border-r bg-sidebar p-3 space-y-2">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold">Chat History</h3>
+            <h3 className="text-sm font-semibold">
+              {mode === "learning" ? "Learning" : "Exam Prep"} History
+            </h3>
             <button onClick={() => setShowHistory(false)}><ChevronLeft className="h-4 w-4" /></button>
           </div>
           <Button variant="outline" size="sm" className="w-full" onClick={createNewChat}>
             <Plus className="mr-1 h-3 w-3" /> New Chat
           </Button>
           <div className="space-y-1 mt-2">
-            {chats.map((chat) => (
-              <button
-                key={chat.id}
-                onClick={() => { setActiveChatId(chat.id); setShowHistory(false); }}
-                className={`w-full rounded-lg px-3 py-2 text-left text-xs transition-colors ${
-                  chat.id === activeChatId ? "bg-sidebar-accent font-medium" : "hover:bg-sidebar-accent/50"
-                }`}
-              >
-                <p className="truncate">{chat.title}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {new Date(chat.updatedAt).toLocaleDateString()}
-                </p>
-              </button>
-            ))}
+            {chats.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">No {mode === "learning" ? "learning" : "exam prep"} chats yet</p>
+            ) : (
+              chats.map((chat) => (
+                <button
+                  key={chat.id}
+                  onClick={() => { setActiveChatId(chat.id); setShowHistory(false); }}
+                  className={`w-full rounded-lg px-3 py-2 text-left text-xs transition-colors ${
+                    chat.id === activeChatId ? "bg-sidebar-accent font-medium" : "hover:bg-sidebar-accent/50"
+                  }`}
+                >
+                  <p className="truncate">{chat.title}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {chat.messages.length} messages • {new Date(chat.updatedAt).toLocaleDateString()}
+                  </p>
+                </button>
+              ))
+            )}
           </div>
         </div>
       )}
@@ -166,7 +170,7 @@ const AIChat = () => {
             <button onClick={() => setShowHistory(!showHistory)} className="rounded p-1.5 hover:bg-muted">
               <History className="h-4 w-4" />
             </button>
-            <Tabs value={mode} onValueChange={(v) => setMode(v as "learning" | "exam")}>
+            <Tabs value={mode} onValueChange={(v) => { setMode(v as "learning" | "exam"); setShowHistory(false); }}>
               <TabsList className="h-8">
                 <TabsTrigger value="learning" className="text-xs px-3 h-6">
                   <BookOpen className="mr-1 h-3 w-3" /> Learning
