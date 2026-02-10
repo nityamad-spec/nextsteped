@@ -8,7 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Send, Plus, History, Lightbulb, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Send, Plus, History, Lightbulb, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, Settings2 } from "lucide-react";
 
 const AIChat = () => {
   const [searchParams] = useSearchParams();
@@ -24,9 +27,16 @@ const AIChat = () => {
   const [input, setInput] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [showCodeTerminal, setShowCodeTerminal] = useState(false);
+  const [showExamConfig, setShowExamConfig] = useState(false);
   const [codeInput, setCodeInput] = useState("");
   const [codeResult, setCodeResult] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Exam config state
+  const [examNumQuestions, setExamNumQuestions] = useState(20);
+  const [examLength, setExamLength] = useState(60);
+  const [examQuestionMix, setExamQuestionMix] = useState("mixed");
+  const [usePresetFormat, setUsePresetFormat] = useState(true);
 
   const chats = mode === "learning" ? learningChats : examChats;
   const setChats = mode === "learning" ? setLearningChats : setExamChats;
@@ -38,24 +48,16 @@ const AIChat = () => {
   useEffect(() => {
     if (mode === "learning" && learningChats.length === 0) {
       const initialChat: ChatSession = {
-        id: "initial-learning",
-        title: "Virtual Memory Discussion",
-        mode: "learning",
-        messages: mockLearningChatMessages,
-        createdAt: Date.now() - 300000,
-        updatedAt: Date.now(),
+        id: "initial-learning", title: "Virtual Memory Discussion", mode: "learning",
+        messages: mockLearningChatMessages, createdAt: Date.now() - 300000, updatedAt: Date.now(),
       };
       setLearningChats([initialChat]);
       setActiveLearningChatId(initialChat.id);
     }
     if (mode === "exam" && examChats.length === 0) {
       const initialChat: ChatSession = {
-        id: "initial-exam",
-        title: "Midterm Exam Prep",
-        mode: "exam",
-        messages: mockExamChatMessages,
-        createdAt: Date.now() - 100000,
-        updatedAt: Date.now(),
+        id: "initial-exam", title: "Midterm Exam Prep", mode: "exam",
+        messages: mockExamChatMessages, createdAt: Date.now() - 100000, updatedAt: Date.now(),
       };
       setExamChats([initialChat]);
       setActiveExamChatId(initialChat.id);
@@ -72,15 +74,12 @@ const AIChat = () => {
       title: mode === "learning" ? "New Learning Session" : "New Exam Prep",
       mode,
       messages: [{
-        id: `welcome-${Date.now()}`,
-        role: "assistant",
-        timestamp: Date.now(),
+        id: `welcome-${Date.now()}`, role: "assistant", timestamp: Date.now(),
         content: mode === "learning"
           ? "👋 Hi! I'm your AI Teaching Assistant for **Operating Systems**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?"
           : "🎯 **Exam Prep Mode Active**\n\nWelcome to exam preparation. I'll help you practice with timed questions, review your weak areas, and build exam confidence.\n\nReady to set up a simulation or practice specific topics?",
       }],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: Date.now(), updatedAt: Date.now(),
     };
     setChats([...chats, newChat]);
     setActiveChatId(newChat.id);
@@ -127,7 +126,7 @@ const AIChat = () => {
 
   return (
     <div className="flex h-[calc(100vh-57px)] md:h-screen">
-      {/* Chat History Sidebar — filtered by mode */}
+      {/* Chat History Sidebar */}
       {showHistory && (
         <div className="w-64 border-r bg-sidebar p-3 space-y-2">
           <div className="flex items-center justify-between mb-2">
@@ -170,7 +169,7 @@ const AIChat = () => {
             <button onClick={() => setShowHistory(!showHistory)} className="rounded p-1.5 hover:bg-muted">
               <History className="h-4 w-4" />
             </button>
-            <Tabs value={mode} onValueChange={(v) => { setMode(v as "learning" | "exam"); setShowHistory(false); }}>
+            <Tabs value={mode} onValueChange={(v) => { setMode(v as "learning" | "exam"); setShowHistory(false); setShowExamConfig(false); }}>
               <TabsList className="h-8">
                 <TabsTrigger value="learning" className="text-xs px-3 h-6">
                   <BookOpen className="mr-1 h-3 w-3" /> Learning
@@ -181,12 +180,85 @@ const AIChat = () => {
               </TabsList>
             </Tabs>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {mode === "exam" && (
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowExamConfig(!showExamConfig)}>
+                <Settings2 className="mr-1 h-3 w-3" /> Exam Settings
+              </Button>
+            )}
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={createNewChat}>
               <Plus className="mr-1 h-3 w-3" /> New Chat
             </Button>
           </div>
         </div>
+
+        {/* Exam Configuration Panel */}
+        {mode === "exam" && showExamConfig && (
+          <div className="border-b bg-muted/20 p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Exam Simulation Settings</h3>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={usePresetFormat ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setUsePresetFormat(true)}
+                >
+                  Professor's Format
+                </Button>
+                <Button
+                  variant={!usePresetFormat ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setUsePresetFormat(false)}
+                >
+                  Custom
+                </Button>
+              </div>
+            </div>
+
+            {usePresetFormat ? (
+              <div className="rounded-lg border bg-primary/5 border-primary/20 p-3">
+                <p className="text-xs font-medium">Using professor's pre-defined format:</p>
+                <p className="text-xs text-muted-foreground mt-1">60 min · Mixed (MCQ + Short Answer + Problem Solving) · Medium difficulty</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Number of Questions</Label>
+                    <div className="flex items-center gap-3">
+                      <Slider value={[examNumQuestions]} onValueChange={(v) => setExamNumQuestions(v[0])} min={5} max={50} step={5} className="flex-1" />
+                      <span className="text-xs font-bold w-8">{examNumQuestions}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Time Limit (min)</Label>
+                    <div className="flex items-center gap-3">
+                      <Slider value={[examLength]} onValueChange={(v) => setExamLength(v[0])} min={15} max={180} step={15} className="flex-1" />
+                      <span className="text-xs font-bold w-12">{examLength} min</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Question Mix</Label>
+                    <Select value={examQuestionMix} onValueChange={setExamQuestionMix}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="mixed">Mixed</SelectItem>
+                        <SelectItem value="mcq_only">MCQ Only</SelectItem>
+                        <SelectItem value="short_answer">Short Answer Only</SelectItem>
+                        <SelectItem value="problem_solving">Problem Solving Only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button size="sm" className="text-xs" onClick={() => setShowExamConfig(false)}>
+                  Apply & Start Simulation
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Controls bar */}
         <div className="flex flex-wrap items-center gap-3 border-b px-4 py-2 text-xs">

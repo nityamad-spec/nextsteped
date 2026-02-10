@@ -6,19 +6,23 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { ArrowRight, ArrowLeft, Eye, MessageSquare, Lightbulb, BookOpen, Clock } from "lucide-react";
 
 const AITASettings = () => {
   const { taSettings, setTASettings } = useApp();
   const navigate = useNavigate();
   const [settings, setSettings] = useState(taSettings);
+  const [examLength, setExamLength] = useState(60);
+  const [examQuestionTypes, setExamQuestionTypes] = useState("mixed");
 
   const update = (partial: Partial<typeof settings>) => {
     setSettings((s) => ({ ...s, ...partial }));
   };
 
   const handleSave = () => {
-    setTASettings(settings);
+    setTASettings({ ...settings, examTimeLimit: examLength, examQuestionMix: examQuestionTypes });
     navigate("/teacher/setup/content");
   };
 
@@ -80,15 +84,52 @@ const AITASettings = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" /> Exam Simulation Rules</CardTitle>
+              <CardDescription>Configure exam parameters that students can use as a pre-defined format</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-3 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-6">
-                <Clock className="h-8 w-8 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">To Be Determined</p>
-                  <p className="text-xs text-muted-foreground">Exam simulation rules (time limits, difficulty, question mix) will be configurable in a future update.</p>
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Exam Length (minutes)</Label>
+                <div className="flex items-center gap-4">
+                  <Slider
+                    value={[examLength]}
+                    onValueChange={(v) => setExamLength(v[0])}
+                    min={15}
+                    max={180}
+                    step={15}
+                    className="flex-1"
+                  />
+                  <span className="w-16 text-right text-sm font-bold">{examLength} min</span>
                 </div>
-                <Badge variant="secondary" className="ml-auto shrink-0">TBD</Badge>
+                <p className="text-xs text-muted-foreground">Students will have this as the default timed exam length</p>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Question Types</Label>
+                <Select value={examQuestionTypes} onValueChange={setExamQuestionTypes}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mixed">Mixed (MCQ + Short Answer + Problem Solving)</SelectItem>
+                    <SelectItem value="mcq_only">Multiple Choice Only</SelectItem>
+                    <SelectItem value="short_answer">Short Answer Only</SelectItem>
+                    <SelectItem value="problem_solving">Problem Solving Only</SelectItem>
+                    <SelectItem value="mcq_short">MCQ + Short Answer</SelectItem>
+                    <SelectItem value="mcq_problem">MCQ + Problem Solving</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Define the mix of question types for exam simulations</p>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Exam Difficulty</Label>
+                <Select value={settings.examDifficulty} onValueChange={(v: any) => update({ examDifficulty: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Easy">Easy</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="Hard">Hard</SelectItem>
+                    <SelectItem value="Mixed">Mixed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
@@ -118,6 +159,9 @@ const AITASettings = () => {
                   <p className="text-xs text-muted-foreground">
                     Knowledge: {settings.knowledgeSources === "uploaded" ? "Course materials only" : "Course materials + web sources"}
                     {settings.plagiarismWarnings && " · Plagiarism warnings active in exam mode"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Exam format: {examLength} min · {examQuestionTypes === "mixed" ? "MCQ + Short Answer + Problem Solving" : examQuestionTypes.replace(/_/g, " ")} · {settings.examDifficulty} difficulty
                   </p>
                 </div>
               </div>

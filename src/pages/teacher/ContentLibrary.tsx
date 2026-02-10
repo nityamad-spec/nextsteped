@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Globe, Download, ExternalLink, Upload, BookOpen, Presentation, FileSpreadsheet } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FileText, Globe, Download, ExternalLink, Upload, BookOpen, Presentation, FileSpreadsheet, X, RefreshCw } from "lucide-react";
 
 const uploadedFiles = [
   { id: "u1", name: "CS301_Syllabus_Fall2025.pdf", type: "Syllabus", size: "2.4 MB", uploadedAt: "Aug 10, 2025", icon: FileText },
@@ -14,7 +15,7 @@ const uploadedFiles = [
   { id: "u6", name: "Textbook_Readings_Ch1-4.pdf", type: "Reading", size: "15.3 MB", uploadedAt: "Aug 10, 2025", icon: BookOpen },
 ];
 
-const webResources = [
+const initialWebResources = [
   { id: "w1", title: "Operating Systems: Three Easy Pieces", source: "ostep.org", category: "Textbook", description: "Free online textbook covering virtualization, concurrency, and persistence. Excellent supplement for Modules 1-4.", url: "#", relevance: "High" },
   { id: "w2", title: "MIT 6.828: Operating System Engineering", source: "MIT OpenCourseWare", category: "Course Material", description: "Lab-based OS course with xv6. Great reference for hands-on exercises on process management and file systems.", url: "#", relevance: "High" },
   { id: "w3", title: "CPU Scheduling Algorithms Visualizer", source: "github.com", category: "Interactive Tool", description: "Interactive web tool for visualizing FCFS, SJF, Round Robin, and Priority scheduling. Helps students understand time quantum effects.", url: "#", relevance: "High" },
@@ -24,20 +25,48 @@ const webResources = [
   { id: "w7", title: "Concurrency Patterns in Modern Systems", source: "acm.org", category: "Research Paper", description: "Recent survey on concurrency models — helps update syllabus with current industry approaches to synchronization.", url: "#", relevance: "Low" },
 ];
 
+const replacementResources = [
+  { id: "w8", title: "GeeksforGeeks: OS Concepts", source: "geeksforgeeks.org", category: "Tutorial", description: "Comprehensive tutorials on OS concepts with practice problems and interview questions.", url: "#", relevance: "Medium" },
+  { id: "w9", title: "Computer Systems: A Programmer's Perspective", source: "csapp.cs.cmu.edu", category: "Textbook", description: "Deep dive into how computer systems work from a programmer's perspective, with labs.", url: "#", relevance: "High" },
+  { id: "w10", title: "Operating System Concepts (Silberschatz) — Slides", source: "os-book.com", category: "Slides", description: "Official slides and supplemental materials for the widely-used Silberschatz textbook.", url: "#", relevance: "High" },
+];
+
 const ContentLibrary = () => {
   const [tab, setTab] = useState("uploaded");
+  const [webResources, setWebResources] = useState(initialWebResources);
+  const [selectedResources, setSelectedResources] = useState<Set<string>>(new Set());
+  const [replacementIdx, setReplacementIdx] = useState(0);
+
+  const toggleSelected = (id: string) => {
+    setSelectedResources(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const dismissResource = (id: string) => {
+    setSelectedResources(prev => { const next = new Set(prev); next.delete(id); return next; });
+    if (replacementIdx < replacementResources.length) {
+      const replacement = replacementResources[replacementIdx];
+      setWebResources(prev => prev.map(r => r.id === id ? replacement : r));
+      setReplacementIdx(prev => prev + 1);
+    } else {
+      setWebResources(prev => prev.filter(r => r.id !== id));
+    }
+  };
 
   return (
     <div className="p-6">
       <div className="mb-6">
         <h1 className="font-heading text-3xl font-bold">Content Library</h1>
-        <p className="text-muted-foreground">Your uploaded materials and curated web resources for course improvement</p>
+        <p className="text-muted-foreground">Your uploaded materials and curated resources for course improvement</p>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="mb-6">
           <TabsTrigger value="uploaded"><Upload className="mr-1 h-4 w-4" /> Uploaded Materials</TabsTrigger>
-          <TabsTrigger value="web"><Globe className="mr-1 h-4 w-4" /> Web-Sourced Resources</TabsTrigger>
+          <TabsTrigger value="web"><Globe className="mr-1 h-4 w-4" /> Additional Teaching Resources</TabsTrigger>
         </TabsList>
 
         <TabsContent value="uploaded" className="space-y-3">
@@ -71,7 +100,7 @@ const ContentLibrary = () => {
             <div>
               <p className="text-sm font-medium text-foreground">AI-Curated Resources</p>
               <p className="text-xs text-muted-foreground">
-                These web resources were selected based on your course syllabus and objectives. Use them to improve your course materials, create better student resources, or upskill on modern topics.
+                These resources were selected based on your course syllabus and objectives. Check the box to mark a resource as useful or being used, or dismiss it with ✕ to get a replacement suggestion.
               </p>
             </div>
           </div>
@@ -79,13 +108,22 @@ const ContentLibrary = () => {
           {webResources.map((resource) => (
             <Card key={resource.id}>
               <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="pt-0.5">
+                    <Checkbox
+                      checked={selectedResources.has(resource.id)}
+                      onCheckedChange={() => toggleSelected(resource.id)}
+                    />
+                  </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-sm font-medium">{resource.title}</h3>
                       <Badge variant={resource.relevance === "High" ? "default" : resource.relevance === "Medium" ? "secondary" : "outline"} className="text-[10px]">
                         {resource.relevance} Relevance
                       </Badge>
+                      {selectedResources.has(resource.id) && (
+                        <Badge variant="outline" className="text-[10px] border-success/50 bg-success/10 text-success">Using</Badge>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mb-2">{resource.description}</p>
                     <div className="flex items-center gap-2">
@@ -93,9 +131,14 @@ const ContentLibrary = () => {
                       <span className="text-[10px] text-muted-foreground">{resource.source}</span>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" className="h-8 text-xs shrink-0">
-                    <ExternalLink className="mr-1 h-3 w-3" /> View
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button variant="outline" size="sm" className="h-8 text-xs">
+                      <ExternalLink className="mr-1 h-3 w-3" /> View
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive" onClick={() => dismissResource(resource.id)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

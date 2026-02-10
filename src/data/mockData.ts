@@ -118,7 +118,7 @@ export const mockDashboard: DashboardMetrics = {
   activeStudents: 47,
   totalSessions: 312,
   topMisunderstood: ["Virtual Memory", "Deadlocks", "Synchronization", "Page Replacement", "Semaphores"],
-  masteryDistribution: { Beginner: 8, Intermediate: 18, Advanced: 15, Expert: 6 },
+  masteryDistribution: { Beginner: 8, Developing: 18, Proficient: 15, Expert: 6 },
   atRiskCount: 5,
 };
 
