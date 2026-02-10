@@ -105,12 +105,27 @@ const ContentReview = () => {
             </TabsList>
 
             <TabsContent value="lessons" className="space-y-3">
+              <div className="flex justify-end mb-2">
+                <Button variant="outline" size="sm" onClick={() => setItems(prev => prev.map(i => i.type === "concept" ? { ...i, approved: true } : i))}>
+                  <Check className="mr-1 h-3.5 w-3.5" /> Approve All Lesson Plans
+                </Button>
+              </div>
               {items.filter((i) => i.type === "concept").map(renderItem)}
             </TabsContent>
             <TabsContent value="practice" className="space-y-3">
+              <div className="flex justify-end mb-2">
+                <Button variant="outline" size="sm" onClick={() => setItems(prev => prev.map(i => i.type === "practice" ? { ...i, approved: true } : i))}>
+                  <Check className="mr-1 h-3.5 w-3.5" /> Approve All Practice Problems
+                </Button>
+              </div>
               {items.filter((i) => i.type === "practice").map(renderItem)}
             </TabsContent>
             <TabsContent value="exam" className="space-y-3">
+              <div className="flex justify-end mb-2">
+                <Button variant="outline" size="sm" onClick={() => setItems(prev => prev.map(i => i.type === "exam" ? { ...i, approved: true } : i))}>
+                  <Check className="mr-1 h-3.5 w-3.5" /> Approve All Exam Simulations
+                </Button>
+              </div>
               {items.filter((i) => i.type === "exam").map(renderItem)}
             </TabsContent>
           </Tabs>

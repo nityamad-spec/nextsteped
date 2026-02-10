@@ -4,10 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TrendingUp, Target, Flame, BookOpen, Briefcase, Construction } from "lucide-react";
+import { TrendingUp, Target, Flame, BookOpen, Briefcase, Construction, ArrowRight, Brain, BarChart3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 const StudentProgress = () => {
   const { studentProfile } = useApp();
+  const navigate = useNavigate();
+  const avgMastery = Math.round(mockTopics.reduce((sum, t) => sum + (t.mastery || 0), 0) / mockTopics.length);
 
   const learningJourney = [
     { month: "Aug 2025", level: "Beginner", active: true },
@@ -33,6 +37,37 @@ const StudentProgress = () => {
         </TabsList>
 
         <TabsContent value="learning" className="space-y-6">
+          {/* Stats Row — top */}
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Card>
+              <CardContent className="flex items-center gap-3 p-4">
+                <Flame className="h-5 w-5 text-accent" />
+                <div>
+                  <p className="text-xl font-bold">4 days</p>
+                  <p className="text-xs text-muted-foreground">Learning Streak 🔥</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="flex items-center gap-3 p-4">
+                <Target className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="text-xl font-bold">62%</p>
+                  <p className="text-xs text-muted-foreground">Exam Readiness</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="flex items-center gap-3 p-4">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="text-xl font-bold">{avgMastery}%</p>
+                  <p className="text-xs text-muted-foreground">Overall Mastery</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           {/* Timeline */}
           <Card>
             <CardHeader>
@@ -57,51 +92,95 @@ const StudentProgress = () => {
             </CardContent>
           </Card>
 
-          {/* Topic Mastery */}
+          {/* Overall + Topic Mastery */}
           <Card>
             <CardHeader>
               <CardTitle>Topic Mastery</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {mockTopics.map((topic) => (
-                <div key={topic.id}>
-                  <div className="mb-1 flex justify-between text-sm">
-                    <span>{topic.name}</span>
-                    <span className="text-muted-foreground">{topic.mastery}%</span>
-                  </div>
-                  <Progress value={topic.mastery} className="h-2" />
+            <CardContent className="space-y-4">
+              {/* Overall mastery bar */}
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <div className="mb-2 flex justify-between text-sm font-medium">
+                  <span>Overall Mastery</span>
+                  <span className="text-primary">{avgMastery}%</span>
                 </div>
-              ))}
+                <Progress value={avgMastery} className="h-3" />
+              </div>
+              {/* Individual topics */}
+              <div className="space-y-3">
+                {mockTopics.map((topic) => (
+                  <div key={topic.id}>
+                    <div className="mb-1 flex justify-between text-sm">
+                      <span>{topic.name}</span>
+                      <span className="text-muted-foreground">{topic.mastery}%</span>
+                    </div>
+                    <Progress value={topic.mastery} className="h-2" />
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
 
-          {/* Stats Row */}
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Card>
-              <CardContent className="flex items-center gap-3 p-4">
-                <Flame className="h-5 w-5 text-accent" />
-                <div>
-                  <p className="text-xl font-bold">4 days</p>
-                  <p className="text-xs text-muted-foreground">Learning Streak 🔥</p>
+          {/* What to do next */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-accent" /> What To Do Next</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div
+                className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate("/student/chat")}
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                  <BookOpen className="h-4 w-4" />
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex items-center gap-3 p-4">
-                <Target className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-xl font-bold">62%</p>
-                  <p className="text-xs text-muted-foreground">Exam Readiness</p>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Practice Virtual Memory Concepts</p>
+                  <p className="text-xs text-muted-foreground">Your weakest area — targeted practice recommended</p>
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-sm font-medium mb-1">What to do next</p>
-                <p className="text-xs text-muted-foreground">Practice Virtual Memory concepts — your weakest area</p>
-              </CardContent>
-            </Card>
-          </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div
+                className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate("/student/chat")}
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                  <TrendingUp className="h-4 w-4" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Continue Synchronization Module</p>
+                  <p className="text-xs text-muted-foreground">You're making progress — keep the momentum going</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div
+                className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate("/student/chat?mode=exam")}
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Brain className="h-4 w-4" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Take an Exam Simulation</p>
+                  <p className="text-xs text-muted-foreground">Midterm in 6 days — practice under timed conditions</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div
+                className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate("/student/chat")}
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <BookOpen className="h-4 w-4" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Switch to Deadlocks Module</p>
+                  <p className="text-xs text-muted-foreground">Low mastery (30%) — review the four Coffman conditions</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="employability" className="space-y-6">
