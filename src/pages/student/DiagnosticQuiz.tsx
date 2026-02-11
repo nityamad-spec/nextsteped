@@ -14,17 +14,27 @@ const DiagnosticQuiz = () => {
   const navigate = useNavigate();
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
+  const [confidence, setConfidence] = useState<string | null>(null);
   const [answers, setAnswers] = useState<number[]>([]);
+  const [confidences, setConfidences] = useState<string[]>([]);
   const [phase, setPhase] = useState<"quiz" | "result">("quiz");
 
   const questions = mockQuizQuestions.slice(0, 7);
   const question = questions[currentQ];
 
+  const confidenceLevels = [
+    { value: "very_confident", label: "Very Confident", icon: "💪" },
+    { value: "somewhat_confident", label: "Somewhat Confident", icon: "🤔" },
+    { value: "guessing", label: "Just Guessing", icon: "🎲" },
+  ];
+
   const handleAnswer = () => {
-    if (selected === null) return;
+    if (selected === null || confidence === null) return;
     const newAnswers = [...answers, selected];
     setAnswers(newAnswers);
+    setConfidences([...confidences, confidence]);
     setSelected(null);
+    setConfidence(null);
 
     if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
@@ -101,12 +111,34 @@ const DiagnosticQuiz = () => {
                   </button>
                 ))}
               </div>
+
+              {selected !== null && (
+                <div className="mt-4 border-t pt-4">
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">How confident are you in your answer?</p>
+                  <div className="flex gap-2">
+                    {confidenceLevels.map((level) => (
+                      <button
+                        key={level.value}
+                        onClick={() => setConfidence(level.value)}
+                        className={`flex-1 rounded-lg border px-3 py-2 text-center text-xs transition-colors ${
+                          confidence === level.value
+                            ? "border-primary bg-primary/5 font-medium"
+                            : "hover:bg-muted"
+                        }`}
+                      >
+                        <span className="block text-base">{level.icon}</span>
+                        {level.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </motion.div>
             <div className="mt-4 flex justify-between">
-              <Button variant="ghost" onClick={() => { if (currentQ > 0) { setCurrentQ(currentQ - 1); setSelected(null); setAnswers(answers.slice(0, -1)); } else { navigate("/student/onboarding"); } }}>
+              <Button variant="ghost" onClick={() => { if (currentQ > 0) { setCurrentQ(currentQ - 1); setSelected(null); setConfidence(null); setAnswers(answers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); } else { navigate("/student/onboarding"); } }}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
-              <Button onClick={handleAnswer} disabled={selected === null}>
+              <Button onClick={handleAnswer} disabled={selected === null || confidence === null}>
                 {currentQ < questions.length - 1 ? "Next Question" : "Finish Quiz"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
