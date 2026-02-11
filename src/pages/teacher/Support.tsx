@@ -87,7 +87,7 @@ const Support = () => {
                 <p className="text-sm font-medium">support@nextstep.ai</p>
                 <p className="text-xs text-muted-foreground">NextStep Support Team</p>
               </div>
-              <Badge variant="secondary" className="ml-auto text-xs">Avg response: 4 hours</Badge>
+              
             </div>
             <div className="space-y-2">
               <Label>Subject</Label>

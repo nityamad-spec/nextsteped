@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/contexts/AppContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -6,19 +6,75 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { ArrowRight, ArrowLeft, Eye, MessageSquare, Lightbulb, BookOpen, Clock } from "lucide-react";
+import { ArrowRight, ArrowLeft, Eye, MessageSquare, Lightbulb, BookOpen, Calculator, Check, Pencil } from "lucide-react";
+
+const questionEstimate = (length: number, mix: string, difficulty: string) => {
+  const base = Math.round(length / 3);
+  const diffMod = difficulty === "Easy" ? 1.3 : difficulty === "Hard" ? 0.7 : 1;
+  const total = Math.max(5, Math.round(base * diffMod));
+
+  let breakdown: Record<string, number> = {};
+  if (mix === "mixed") {
+    breakdown = { MCQ: Math.round(total * 0.4), "Short Answer": Math.round(total * 0.3), "Problem Solving": total - Math.round(total * 0.4) - Math.round(total * 0.3) };
+  } else if (mix === "mcq_only") {
+    breakdown = { MCQ: total };
+  } else if (mix === "short_answer") {
+    breakdown = { "Short Answer": total };
+  } else if (mix === "problem_solving") {
+    breakdown = { "Problem Solving": total };
+  } else if (mix === "mcq_short") {
+    breakdown = { MCQ: Math.round(total * 0.5), "Short Answer": total - Math.round(total * 0.5) };
+  } else if (mix === "mcq_problem") {
+    breakdown = { MCQ: Math.round(total * 0.5), "Problem Solving": total - Math.round(total * 0.5) };
+  }
+  return { total, breakdown };
+};
 
 const AITASettings = () => {
   const { taSettings, setTASettings } = useApp();
   const navigate = useNavigate();
   const [settings, setSettings] = useState(taSettings);
-  const [examLength, setExamLength] = useState(60);
-  const [examQuestionTypes, setExamQuestionTypes] = useState("mixed");
+  const [examLength, setExamLength] = useState(taSettings.examTimeLimit || 60);
+  const [examQuestionTypes, setExamQuestionTypes] = useState(taSettings.examQuestionMix?.includes("MCQ") ? "mixed" : "mixed");
+  const [editingEstimate, setEditingEstimate] = useState(false);
+
+  const estimate = useMemo(() => questionEstimate(examLength, examQuestionTypes, settings.examDifficulty), [examLength, examQuestionTypes, settings.examDifficulty]);
+  const [customBreakdown, setCustomBreakdown] = useState<Record<string, number>>(estimate.breakdown);
+  const [estimateApproved, setEstimateApproved] = useState(false);
 
   const update = (partial: Partial<typeof settings>) => {
     setSettings((s) => ({ ...s, ...partial }));
+    setEstimateApproved(false);
+  };
+
+  const handleExamLengthChange = (v: number) => {
+    setExamLength(v);
+    setEstimateApproved(false);
+  };
+
+  const handleExamTypeChange = (v: string) => {
+    setExamQuestionTypes(v);
+    setEstimateApproved(false);
+  };
+
+  // Sync custom breakdown when estimate changes
+  const activeBreakdown = editingEstimate ? customBreakdown : estimate.breakdown;
+  const activeTotal = Object.values(activeBreakdown).reduce((s, n) => s + n, 0);
+
+  const handleApproveEstimate = () => {
+    if (editingEstimate) {
+      setEditingEstimate(false);
+    }
+    setEstimateApproved(true);
+  };
+
+  const handleEditEstimate = () => {
+    setCustomBreakdown({ ...estimate.breakdown });
+    setEditingEstimate(true);
+    setEstimateApproved(false);
   };
 
   const handleSave = () => {
@@ -92,7 +148,7 @@ const AITASettings = () => {
                 <div className="flex items-center gap-4">
                   <Slider
                     value={[examLength]}
-                    onValueChange={(v) => setExamLength(v[0])}
+                    onValueChange={(v) => handleExamLengthChange(v[0])}
                     min={15}
                     max={180}
                     step={15}
@@ -100,12 +156,11 @@ const AITASettings = () => {
                   />
                   <span className="w-16 text-right text-sm font-bold">{examLength} min</span>
                 </div>
-                <p className="text-xs text-muted-foreground">Students will have this as the default timed exam length</p>
               </div>
 
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Question Types</Label>
-                <Select value={examQuestionTypes} onValueChange={setExamQuestionTypes}>
+                <Select value={examQuestionTypes} onValueChange={handleExamTypeChange}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="mixed">Mixed (MCQ + Short Answer + Problem Solving)</SelectItem>
@@ -116,7 +171,6 @@ const AITASettings = () => {
                     <SelectItem value="mcq_problem">MCQ + Problem Solving</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Define the mix of question types for exam simulations</p>
               </div>
 
               <div className="space-y-3">
@@ -131,10 +185,56 @@ const AITASettings = () => {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Estimated Question Count Preview */}
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Calculator className="h-4 w-4 text-primary" />
+                    <Label className="text-sm font-medium">Estimated Questions</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!editingEstimate && (
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleEditEstimate}>
+                        <Pencil className="mr-1 h-3 w-3" /> Edit
+                      </Button>
+                    )}
+                    <Button
+                      variant={estimateApproved ? "outline" : "default"}
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={handleApproveEstimate}
+                    >
+                      {estimateApproved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve"}
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Based on {examLength} min, {settings.examDifficulty} difficulty — estimated <span className="font-bold text-foreground">{activeTotal} questions</span>
+                </p>
+                <div className="space-y-2">
+                  {Object.entries(activeBreakdown).map(([type, count]) => (
+                    <div key={type} className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">{type}</span>
+                      {editingEstimate ? (
+                        <Input
+                          type="number"
+                          min={0}
+                          className="h-7 w-16 text-xs text-right"
+                          value={count}
+                          onChange={(e) => setCustomBreakdown(prev => ({ ...prev, [type]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                        />
+                      ) : (
+                        <span className="text-sm font-bold">{count}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          {/* Student Experience Preview — stacked below */}
+          {/* Student Experience Preview */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base"><Eye className="h-4 w-4" /> Student Experience Preview</CardTitle>
@@ -161,7 +261,7 @@ const AITASettings = () => {
                     {settings.plagiarismWarnings && " · Plagiarism warnings active in exam mode"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Exam format: {examLength} min · {examQuestionTypes === "mixed" ? "MCQ + Short Answer + Problem Solving" : examQuestionTypes.replace(/_/g, " ")} · {settings.examDifficulty} difficulty
+                    Exam format: {examLength} min · {activeTotal} questions · {settings.examDifficulty} difficulty
                   </p>
                 </div>
               </div>

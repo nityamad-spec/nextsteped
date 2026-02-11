@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { mockDashboard, mockTopics } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,8 +20,20 @@ const masteryBarColors: Record<string, string> = {
   Expert: "[&>div]:bg-success",
 };
 
+const topicDetails: Record<string, { correct: number; wrong: number; total: number }> = {
+  "Process Management": { correct: 142, wrong: 28, total: 170 },
+  "CPU Scheduling": { correct: 98, wrong: 32, total: 130 },
+  "Memory Management": { correct: 67, wrong: 48, total: 115 },
+  "Virtual Memory": { correct: 45, wrong: 62, total: 107 },
+  "File Systems": { correct: 58, wrong: 42, total: 100 },
+  "Synchronization": { correct: 33, wrong: 54, total: 87 },
+  "Deadlocks": { correct: 25, wrong: 58, total: 83 },
+  "I/O Systems": { correct: 48, wrong: 39, total: 87 },
+};
+
 const CourseDashboard = () => {
   const d = mockDashboard;
+  const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
 
   return (
     <div className="p-6">
@@ -53,7 +66,7 @@ const CourseDashboard = () => {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="opacity-50">
           <CardContent className="flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
               <AlertTriangle className="h-5 w-5" />
@@ -78,7 +91,6 @@ const CourseDashboard = () => {
         </Card>
       </div>
 
-      {/* All sections stacked as rows */}
       <div className="space-y-6">
         <Card>
           <CardHeader>
@@ -105,19 +117,42 @@ const CourseDashboard = () => {
           <CardHeader>
             <CardTitle>Concept Mastery Heatmap</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {mockTopics.map((topic) => (
-                <div key={topic.id} className={`rounded-lg p-3 text-center ${
-                  (topic.mastery || 0) >= 70 ? "bg-success/10" : (topic.mastery || 0) >= 50 ? "bg-warning/10" : "bg-destructive/10"
-                }`}>
+                <button
+                  key={topic.id}
+                  onClick={() => setExpandedTopic(expandedTopic === topic.name ? null : topic.name)}
+                  className={`rounded-lg p-3 text-center transition-all cursor-pointer ${
+                    (topic.mastery || 0) >= 70 ? "bg-success/10 hover:bg-success/20" : (topic.mastery || 0) >= 50 ? "bg-warning/10 hover:bg-warning/20" : "bg-destructive/10 hover:bg-destructive/20"
+                  } ${expandedTopic === topic.name ? "ring-2 ring-primary" : ""}`}
+                >
                   <p className="text-xs font-medium">{topic.name}</p>
                   <p className={`text-lg font-bold ${
                     (topic.mastery || 0) >= 70 ? "text-success" : (topic.mastery || 0) >= 50 ? "text-warning" : "text-destructive"
                   }`}>{topic.mastery}%</p>
-                </div>
+                </button>
               ))}
             </div>
+            {expandedTopic && topicDetails[expandedTopic] && (
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
+                <p className="text-sm font-medium">{expandedTopic} — Question Breakdown</p>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-lg font-bold">{topicDetails[expandedTopic].total}</p>
+                    <p className="text-xs text-muted-foreground">Total Questions</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-success">{topicDetails[expandedTopic].correct}</p>
+                    <p className="text-xs text-muted-foreground">Answered Correctly</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-destructive">{topicDetails[expandedTopic].wrong}</p>
+                    <p className="text-xs text-muted-foreground">Answered Wrong</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -5,11 +5,15 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Settings, Lightbulb, ShieldCheck, BookOpen, Clock, Save } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Settings, Lightbulb, ShieldCheck, BookOpen, Save } from "lucide-react";
 
 const SettingsIntegrity = () => {
   const { taSettings, setTASettings } = useApp();
   const [settings, setSettings] = useState(taSettings);
+  const [examLength, setExamLength] = useState(taSettings.examTimeLimit || 60);
+  const [examQuestionTypes, setExamQuestionTypes] = useState("mixed");
   const [saved, setSaved] = useState(false);
 
   const update = (partial: Partial<typeof settings>) => {
@@ -18,7 +22,7 @@ const SettingsIntegrity = () => {
   };
 
   const handleSave = () => {
-    setTASettings(settings);
+    setTASettings({ ...settings, examTimeLimit: examLength, examQuestionMix: examQuestionTypes });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -28,7 +32,7 @@ const SettingsIntegrity = () => {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="font-heading text-3xl font-bold">Settings / Integrity</h1>
-          <p className="text-muted-foreground">Adjust AI TA behavior and academic integrity settings</p>
+          <p className="text-muted-foreground">Adjust AI TA behavior, exam rules, and academic integrity settings</p>
         </div>
         <Button onClick={handleSave}>
           <Save className="mr-2 h-4 w-4" /> {saved ? "Saved!" : "Save Changes"}
@@ -92,15 +96,50 @@ const SettingsIntegrity = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" /> Exam Simulation Rules</CardTitle>
+            <CardDescription>Update exam parameters that define the pre-defined format for students</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-6">
-              <Clock className="h-8 w-8 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">To Be Determined</p>
-                <p className="text-xs text-muted-foreground">Exam simulation rules will be configurable in a future update.</p>
+          <CardContent className="space-y-6">
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Exam Length (minutes)</Label>
+              <div className="flex items-center gap-4">
+                <Slider
+                  value={[examLength]}
+                  onValueChange={(v) => { setExamLength(v[0]); setSaved(false); }}
+                  min={15}
+                  max={180}
+                  step={15}
+                  className="flex-1"
+                />
+                <span className="w-16 text-right text-sm font-bold">{examLength} min</span>
               </div>
-              <Badge variant="secondary" className="ml-auto shrink-0">TBD</Badge>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Question Types</Label>
+              <Select value={examQuestionTypes} onValueChange={(v) => { setExamQuestionTypes(v); setSaved(false); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mixed">Mixed (MCQ + Short Answer + Problem Solving)</SelectItem>
+                  <SelectItem value="mcq_only">Multiple Choice Only</SelectItem>
+                  <SelectItem value="short_answer">Short Answer Only</SelectItem>
+                  <SelectItem value="problem_solving">Problem Solving Only</SelectItem>
+                  <SelectItem value="mcq_short">MCQ + Short Answer</SelectItem>
+                  <SelectItem value="mcq_problem">MCQ + Problem Solving</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Exam Difficulty</Label>
+              <Select value={settings.examDifficulty} onValueChange={(v: any) => update({ examDifficulty: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Easy">Easy</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="Hard">Hard</SelectItem>
+                  <SelectItem value="Mixed">Mixed</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
