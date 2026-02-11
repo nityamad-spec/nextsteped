@@ -1,19 +1,9 @@
+import { useState } from "react";
 import { mockDashboard, mockTopics } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Users, TrendingUp, TrendingDown, Clock, BookOpen, MessageSquare, BarChart3, AlertTriangle, Activity, ArrowUp, ArrowDown, Minus } from "lucide-react";
-
-const anonymousStudents = [
-  { id: "S001", mastery: 88, sessions: 24, lastActive: "2 hours ago", status: "On Track", streak: 7, level: "Expert" },
-  { id: "S002", mastery: 72, sessions: 18, lastActive: "1 day ago", status: "On Track", streak: 3, level: "Proficient" },
-  { id: "S003", mastery: 45, sessions: 8, lastActive: "3 days ago", status: "Needs Attention", level: "Developing" },
-  { id: "S004", mastery: 91, sessions: 31, lastActive: "5 hours ago", status: "On Track", streak: 12, level: "Expert" },
-  { id: "S005", mastery: 38, sessions: 5, lastActive: "5 days ago", status: "Needs Attention", level: "Beginner" },
-  { id: "S006", mastery: 67, sessions: 15, lastActive: "1 day ago", status: "On Track", streak: 2, level: "Proficient" },
-  { id: "S007", mastery: 54, sessions: 11, lastActive: "2 days ago", status: "Needs Attention", streak: 1, level: "Developing" },
-  { id: "S008", mastery: 82, sessions: 22, lastActive: "3 hours ago", status: "On Track", streak: 5, level: "Proficient" },
-];
+import { Users, TrendingUp, Clock, BarChart3, AlertTriangle, Activity, ArrowUp, ArrowDown } from "lucide-react";
 
 const weeklyEngagement = [
   { week: "Week 1", active: 45, sessions: 89 },
@@ -24,31 +14,10 @@ const weeklyEngagement = [
   { week: "Week 6", active: 41, sessions: 98 },
 ];
 
-const topQuestionTopics = [
-  { topic: "Virtual Memory", questions: 87, avgCorrect: 42 },
-  { topic: "Deadlocks", questions: 74, avgCorrect: 38 },
-  { topic: "Synchronization", questions: 65, avgCorrect: 51 },
-  { topic: "Page Replacement", questions: 58, avgCorrect: 45 },
-  { topic: "CPU Scheduling", questions: 52, avgCorrect: 72 },
-];
-
 const masteryMovement = [
-  { period: "Week 3 → Week 4", movements: [
-    { from: "Beginner", to: "Developing", count: 3, direction: "up" as const },
-    { from: "Developing", to: "Proficient", count: 2, direction: "up" as const },
-    { from: "Proficient", to: "Developing", count: 1, direction: "down" as const },
-  ]},
-  { period: "Week 4 → Week 5", movements: [
-    { from: "Beginner", to: "Developing", count: 2, direction: "up" as const },
-    { from: "Developing", to: "Proficient", count: 4, direction: "up" as const },
-    { from: "Proficient", to: "Expert", count: 1, direction: "up" as const },
-    { from: "Developing", to: "Beginner", count: 1, direction: "down" as const },
-  ]},
-  { period: "Week 5 → Week 6", movements: [
-    { from: "Beginner", to: "Developing", count: 2, direction: "up" as const },
-    { from: "Developing", to: "Proficient", count: 1, direction: "up" as const },
-    { from: "Expert", to: "Proficient", count: 1, direction: "down" as const },
-  ]},
+  { period: "Week 3 → 4", up: 5, down: 1, stayed: 41 },
+  { period: "Week 4 → 5", up: 7, down: 1, stayed: 39 },
+  { period: "Week 5 → 6", up: 3, down: 1, stayed: 43 },
 ];
 
 const levelColors: Record<string, string> = {
@@ -58,8 +27,20 @@ const levelColors: Record<string, string> = {
   Expert: "bg-success/10 text-success",
 };
 
+const topicDetails: Record<string, { correct: number; wrong: number; total: number }> = {
+  "Process Management": { correct: 142, wrong: 28, total: 170 },
+  "CPU Scheduling": { correct: 98, wrong: 32, total: 130 },
+  "Memory Management": { correct: 67, wrong: 48, total: 115 },
+  "Virtual Memory": { correct: 45, wrong: 62, total: 107 },
+  "File Systems": { correct: 58, wrong: 42, total: 100 },
+  "Synchronization": { correct: 33, wrong: 54, total: 87 },
+  "Deadlocks": { correct: 25, wrong: 58, total: 83 },
+  "I/O Systems": { correct: 48, wrong: 39, total: 87 },
+};
+
 const StudentInsights = () => {
   const d = mockDashboard;
+  const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
 
   return (
     <div className="p-6">
@@ -107,7 +88,7 @@ const StudentInsights = () => {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="opacity-50">
           <CardContent className="flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
               <AlertTriangle className="h-5 w-5" />
@@ -115,13 +96,14 @@ const StudentInsights = () => {
             <div>
               <p className="text-2xl font-bold">{d.atRiskCount}</p>
               <p className="text-xs text-muted-foreground">At-Risk Students</p>
+              <Badge variant="secondary" className="text-[10px] mt-1">In Progress</Badge>
             </div>
           </CardContent>
         </Card>
       </div>
 
       <div className="space-y-6">
-        {/* Weekly Engagement Trend */}
+        {/* Weekly Engagement */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Weekly Engagement</CardTitle>
@@ -145,58 +127,32 @@ const StudentInsights = () => {
           </CardContent>
         </Card>
 
-        {/* Mastery Level Movement Tracking */}
+        {/* Simplified Mastery Level Movement */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" /> Mastery Level Movement</CardTitle>
-            <CardDescription>Track how students move across mastery levels over time — identify both progress and regression</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {masteryMovement.map((period) => (
-              <div key={period.period} className="rounded-lg border p-4">
-                <p className="text-sm font-medium mb-3">{period.period}</p>
-                <div className="space-y-2">
-                  {period.movements.map((m, i) => (
-                    <div key={i} className="flex items-center gap-3 text-sm">
-                      <div className="flex items-center gap-1">
-                        {m.direction === "up" ? (
-                          <ArrowUp className="h-4 w-4 text-success" />
-                        ) : (
-                          <ArrowDown className="h-4 w-4 text-destructive" />
-                        )}
-                      </div>
-                      <span className="font-mono text-xs text-muted-foreground w-6">{m.count}×</span>
-                      <Badge variant="outline" className={`text-[10px] ${levelColors[m.from]}`}>{m.from}</Badge>
-                      <span className="text-muted-foreground">→</span>
-                      <Badge variant="outline" className={`text-[10px] ${levelColors[m.to]}`}>{m.to}</Badge>
-                      {m.direction === "down" && (
-                        <Badge variant="destructive" className="text-[10px] ml-auto">Regression</Badge>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Topic Performance */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" /> Topic Performance</CardTitle>
-            <CardDescription>Which topics students struggle with most — consider adjusting depth or adding resources</CardDescription>
+            <CardDescription>Classroom-level trends — how many students moved up, down, or stayed at their mastery level each week</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {topQuestionTopics.map((t) => (
-                <div key={t.topic} className="flex items-center gap-4 rounded-lg border p-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{t.topic}</p>
-                    <p className="text-xs text-muted-foreground">{t.questions} questions asked</p>
-                  </div>
-                  <div className="text-right">
-                    <p className={`text-lg font-bold ${t.avgCorrect >= 60 ? "text-success" : t.avgCorrect >= 45 ? "text-warning" : "text-destructive"}`}>{t.avgCorrect}%</p>
-                    <p className="text-xs text-muted-foreground">avg correct</p>
+              {masteryMovement.map((period) => (
+                <div key={period.period} className="flex items-center gap-4 rounded-lg border p-4">
+                  <span className="text-sm font-medium w-24 shrink-0">{period.period}</span>
+                  <div className="flex flex-1 gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <ArrowUp className="h-4 w-4 text-success" />
+                      <span className="text-sm font-bold text-success">{period.up}</span>
+                      <span className="text-xs text-muted-foreground">moved up</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <ArrowDown className="h-4 w-4 text-destructive" />
+                      <span className="text-sm font-bold text-destructive">{period.down}</span>
+                      <span className="text-xs text-muted-foreground">moved down</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold text-muted-foreground">{period.stayed}</span>
+                      <span className="text-xs text-muted-foreground">stayed</span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -204,60 +160,48 @@ const StudentInsights = () => {
           </CardContent>
         </Card>
 
-        {/* Concept Mastery Heatmap */}
+        {/* Concept Mastery Heatmap with click-to-detail */}
         <Card>
           <CardHeader>
             <CardTitle>Concept Mastery Heatmap</CardTitle>
-            <CardDescription>Class-wide mastery per topic — low mastery areas may need syllabus adjustment</CardDescription>
+            <CardDescription>Class-wide mastery per topic — click a topic for question breakdown</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {mockTopics.map((topic) => (
-                <div key={topic.id} className={`rounded-lg p-3 text-center ${
-                  (topic.mastery || 0) >= 70 ? "bg-success/10" : (topic.mastery || 0) >= 50 ? "bg-warning/10" : "bg-destructive/10"
-                }`}>
+                <button
+                  key={topic.id}
+                  onClick={() => setExpandedTopic(expandedTopic === topic.name ? null : topic.name)}
+                  className={`rounded-lg p-3 text-center transition-all cursor-pointer ${
+                    (topic.mastery || 0) >= 70 ? "bg-success/10 hover:bg-success/20" : (topic.mastery || 0) >= 50 ? "bg-warning/10 hover:bg-warning/20" : "bg-destructive/10 hover:bg-destructive/20"
+                  } ${expandedTopic === topic.name ? "ring-2 ring-primary" : ""}`}
+                >
                   <p className="text-xs font-medium">{topic.name}</p>
                   <p className={`text-lg font-bold ${
                     (topic.mastery || 0) >= 70 ? "text-success" : (topic.mastery || 0) >= 50 ? "text-warning" : "text-destructive"
                   }`}>{topic.mastery}%</p>
-                </div>
+                </button>
               ))}
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Anonymous Student Roster */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Anonymous Student Roster</CardTitle>
-            <CardDescription>Individual performance — identities are hidden to protect student privacy</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {anonymousStudents.map((s) => (
-                <div key={s.id} className="flex items-center gap-4 rounded-lg border p-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-bold font-mono">
-                    {s.id}
+            {expandedTopic && topicDetails[expandedTopic] && (
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
+                <p className="text-sm font-medium">{expandedTopic} — Question Breakdown</p>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-lg font-bold">{topicDetails[expandedTopic].total}</p>
+                    <p className="text-xs text-muted-foreground">Total Questions</p>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">Student {s.id}</p>
-                      <Badge variant="outline" className={`text-[10px] ${levelColors[s.level]}`}>{s.level}</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Last active: {s.lastActive}</p>
+                  <div>
+                    <p className="text-lg font-bold text-success">{topicDetails[expandedTopic].correct}</p>
+                    <p className="text-xs text-muted-foreground">Answered Correctly</p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right hidden sm:block">
-                      <p className="text-sm font-bold">{s.mastery}%</p>
-                      <p className="text-xs text-muted-foreground">{s.sessions} sessions</p>
-                    </div>
-                    <Badge variant={s.status === "Needs Attention" ? "destructive" : "outline"} className="text-xs">
-                      {s.status}
-                    </Badge>
+                  <div>
+                    <p className="text-lg font-bold text-destructive">{topicDetails[expandedTopic].wrong}</p>
+                    <p className="text-xs text-muted-foreground">Answered Wrong</p>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
