@@ -124,7 +124,12 @@ const TeacherOnboarding = () => {
 
               {/* Syllabus Upload */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Syllabus Upload</Label>
+                <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Syllabus & Guidelines Upload</Label>
+                <p className="text-xs text-muted-foreground">Upload the following documents:</p>
+                <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
+                  <li>Course Syllabus</li>
+                  <li>AICTE Guidelines</li>
+                </ul>
                 <div
                   onClick={() => setSyllabusUploaded(true)}
                   className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
@@ -134,7 +139,7 @@ const TeacherOnboarding = () => {
                   {syllabusUploaded ? (
                     <>
                       <Check className="h-6 w-6 text-primary" />
-                      <span className="text-sm font-medium text-primary">Syllabus uploaded</span>
+                      <span className="text-sm font-medium text-primary">Documents uploaded</span>
                     </>
                   ) : (
                     <>
@@ -148,6 +153,13 @@ const TeacherOnboarding = () => {
               {/* Teaching Materials Upload */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Teaching Materials <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <p className="text-xs text-muted-foreground">Upload any of the following:</p>
+                <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
+                  <li>Teaching & Lesson Plans</li>
+                  <li>Presentation Materials (slides, decks)</li>
+                  <li>Course Resources (readings, problem sets, past exams)</li>
+                  <li>Any other supplementary materials</li>
+                </ul>
                 <div
                   onClick={() => setMaterialsUploaded(true)}
                   className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
@@ -162,7 +174,7 @@ const TeacherOnboarding = () => {
                   ) : (
                     <>
                       <Upload className="h-6 w-6 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">Upload slides, readings, problem sets, past exams</span>
+                      <span className="text-sm text-muted-foreground">Click to upload files</span>
                     </>
                   )}
                 </div>
@@ -173,7 +185,7 @@ const TeacherOnboarding = () => {
                   <ArrowLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
                 <Button onClick={handleContinue} disabled={!isValid}>
-                  Continue to Syllabus Review <ArrowRight className="ml-2 h-4 w-4" />
+                  Continue to Teaching Plan Review <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </motion.div>
