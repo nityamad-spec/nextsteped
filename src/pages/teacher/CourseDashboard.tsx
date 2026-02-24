@@ -2,9 +2,8 @@ import { useState } from "react";
 import { mockDashboard, mockTopics } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Users, MessageSquare, AlertTriangle, TrendingUp, Send, BookOpen, BarChart3 } from "lucide-react";
+import { Users, MessageSquare, AlertTriangle, TrendingUp, BarChart3 } from "lucide-react";
 
 const masteryColors: Record<string, string> = {
   Beginner: "bg-destructive/20 text-destructive",
@@ -42,7 +41,7 @@ const CourseDashboard = () => {
         <p className="text-muted-foreground">Operating Systems — Command Center</p>
       </div>
 
-      {/* Stats row */}
+      {/* Stats row — Avg Mastery is now 2nd */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
@@ -52,29 +51,7 @@ const CourseDashboard = () => {
             <div>
               <p className="text-2xl font-bold">{d.activeStudents}</p>
               <p className="text-xs text-muted-foreground">Active Students</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
-              <MessageSquare className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{d.totalSessions}</p>
-              <p className="text-xs text-muted-foreground">Total Sessions</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="opacity-50">
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{d.atRiskCount}</p>
-              <p className="text-xs text-muted-foreground">At-Risk Learners</p>
-              <Badge variant="secondary" className="text-[10px] mt-1">In Progress</Badge>
+              <p className="text-[10px] text-muted-foreground/70">Students currently enrolled and active in the course</p>
             </div>
           </CardContent>
         </Card>
@@ -86,6 +63,32 @@ const CourseDashboard = () => {
             <div>
               <p className="text-2xl font-bold">72%</p>
               <p className="text-xs text-muted-foreground">Avg Mastery</p>
+              <p className="text-[10px] text-muted-foreground/70">Average mastery level across all enrolled students</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
+              <MessageSquare className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{d.totalSessions}</p>
+              <p className="text-xs text-muted-foreground">Total Sessions</p>
+              <p className="text-[10px] text-muted-foreground/70">AI TA chat sessions initiated by students</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="opacity-50">
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{d.atRiskCount}</p>
+              <p className="text-xs text-muted-foreground">At-Risk Learners</p>
+              <p className="text-[10px] text-muted-foreground/70">Students falling behind based on engagement & scores</p>
+              <Badge variant="secondary" className="text-[10px] mt-1">In Progress</Badge>
             </div>
           </CardContent>
         </Card>
@@ -118,6 +121,23 @@ const CourseDashboard = () => {
             <CardTitle>Concept Mastery Heatmap</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Legend */}
+            <div className="flex flex-wrap items-center gap-4 rounded-lg border bg-muted/30 px-4 py-2.5">
+              <span className="text-xs font-medium text-muted-foreground">Legend:</span>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded bg-success/60" />
+                <span className="text-xs text-muted-foreground">≥ 70% — Mastered</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded bg-warning/60" />
+                <span className="text-xs text-muted-foreground">50–69% — Developing</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded bg-destructive/60" />
+                <span className="text-xs text-muted-foreground">{"< 50%"} — Needs Attention</span>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {mockTopics.map((topic) => (
                 <button
@@ -153,39 +173,6 @@ const CourseDashboard = () => {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Misunderstood Concepts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {d.topMisunderstood.map((concept, i) => (
-                <div key={concept} className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
-                  <span className="font-mono text-xs text-muted-foreground">{i + 1}.</span>
-                  <span>{concept}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm">
-              <Send className="mr-2 h-4 w-4" /> Broadcast Message
-            </Button>
-            <Button variant="outline" size="sm">
-              <BookOpen className="mr-2 h-4 w-4" /> Push Practice Set
-            </Button>
-            <Button variant="outline" size="sm">
-              <MessageSquare className="mr-2 h-4 w-4" /> Add Concept Note
-            </Button>
           </CardContent>
         </Card>
       </div>

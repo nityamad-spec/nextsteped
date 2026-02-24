@@ -1,8 +1,9 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { BookOpen, Library, Users, ClipboardCheck, Settings, HelpCircle, LogOut } from "lucide-react";
+import { BookOpen, Library, Users, ClipboardCheck, Settings, HelpCircle, LogOut, Send, MessageSquare } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Button } from "@/components/ui/button";
 
 const teacherNav = [
   { title: "Courses", path: "/teacher/courses/dashboard", icon: BookOpen },
@@ -77,6 +78,20 @@ const TeacherLayout = () => {
             </NavLink>
           ))}
         </nav>
+
+        {/* Quick Actions */}
+        <div className="border-t p-3 space-y-1.5">
+          <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Quick Actions</p>
+          <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-sm text-sidebar-foreground">
+            <Send className="h-3.5 w-3.5" /> Broadcast Message
+          </Button>
+          <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-sm text-sidebar-foreground">
+            <BookOpen className="h-3.5 w-3.5" /> Push Practice Set
+          </Button>
+          <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-sm text-sidebar-foreground">
+            <MessageSquare className="h-3.5 w-3.5" /> Add Concept Note
+          </Button>
+        </div>
 
         <div className="border-t p-3 space-y-1">
           <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent">
