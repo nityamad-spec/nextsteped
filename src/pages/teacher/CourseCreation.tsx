@@ -35,23 +35,23 @@ type WeekPlan = {
 
 const typeLabels: Record<string, string> = {
   textbook: "Textbook",
-  lab: "Lab",
+  exercise: "Interactive Exercise",
+  lab: "Interactive Exercise",
+  tool: "Interactive Exercise",
   "case-study": "Case Study",
-  exercise: "Exercise",
   article: "Article & Industry Context",
   news: "Article & Industry Context",
-  tool: "Article & Industry Context",
   video: "Video",
 };
 
 const typeColors: Record<string, string> = {
   textbook: "bg-secondary text-secondary-foreground",
+  exercise: "bg-primary/10 text-primary",
   lab: "bg-primary/10 text-primary",
+  tool: "bg-primary/10 text-primary",
   "case-study": "bg-accent/20 text-accent-foreground",
-  exercise: "bg-accent/20 text-accent-foreground",
   article: "bg-muted text-muted-foreground",
   news: "bg-muted text-muted-foreground",
-  tool: "bg-muted text-muted-foreground",
   video: "bg-destructive/10 text-destructive",
 };
 
@@ -66,7 +66,7 @@ const initialPlan: WeekPlan[] = [
   ]},
   { id: "w2", week: 2, dates: "Jan 20 & 22", topic: "Process Scheduling: FCFS, SJF, Round Robin", resources: [
     { id: "r3", title: "Textbook Ch. 3", action: "Assign chapter 3 as pre-lecture reading on scheduling algorithms", type: "textbook", accepted: true },
-    { id: "r4", title: "Scheduling Simulator", action: "Use in a 20-min live demo to visualize FCFS vs Round Robin", type: "tool", accepted: true },
+    { id: "r4", title: "Scheduling Simulator", action: "Use in a 20-min live demo to visualize FCFS vs Round Robin", type: "exercise", accepted: true },
     { id: "r5", title: "How Google Redesigned Its Scheduling Algorithm (2024)", action: "Helpful article to read as you prep for this lecture — covers real-world scheduling at scale", type: "article", source: "ACM Queue", accepted: null },
   ]},
   { id: "w3", week: 3, dates: "Jan 27 & 29", topic: "Advanced Scheduling & Real-World Applications", resources: [
@@ -75,8 +75,8 @@ const initialPlan: WeekPlan[] = [
   ]},
   { id: "w4", week: 4, dates: "Feb 3 & 5", topic: "Threads & Concurrency Fundamentals", resources: [
     { id: "r8", title: "Textbook Ch. 4", action: "Assign chapter 4 on threads and concurrency models", type: "textbook", accepted: true },
-    { id: "r9", title: "POSIX Threads Tutorial", action: "Share as a hands-on reference for students to practice pthreads outside class", type: "tool", accepted: true },
-    { id: "r9b", title: "Thread Sanitizer (TSan)", action: "Integrate this tool into your lab setup — students can use it to detect race conditions in their code", type: "tool", accepted: null },
+    { id: "r9", title: "POSIX Threads Tutorial", action: "Share as a hands-on reference for students to practice pthreads outside class", type: "exercise", accepted: true },
+    { id: "r9b", title: "Thread Sanitizer (TSan)", action: "Integrate this tool into your lab setup — students can use it to detect race conditions in their code", type: "exercise", accepted: null },
   ]},
   { id: "w5", week: 5, dates: "Feb 10 & 12", topic: "Synchronization: Mutexes, Semaphores, Monitors", resources: [
     { id: "r10", title: "Textbook Ch. 5", action: "Assign chapter 5 on synchronization primitives", type: "textbook", accepted: true },
@@ -85,7 +85,7 @@ const initialPlan: WeekPlan[] = [
   ]},
   { id: "w6", week: 6, dates: "Feb 17 & 19", topic: "Deadlock Prevention & Detection", resources: [
     { id: "r13", title: "Textbook Ch. 6", action: "Assign chapter 6 on deadlock concepts and prevention strategies", type: "textbook", accepted: true },
-    { id: "r14", title: "Deadlock Visualization Tool", action: "Demo in class to visually show how deadlocks form and resolve", type: "tool", accepted: true },
+    { id: "r14", title: "Deadlock Visualization Tool", action: "Demo in class to visually show how deadlocks form and resolve", type: "exercise", accepted: true },
     { id: "r15", title: "The 2023 CrowdStrike Kernel Crash", action: "Discuss this real-world case study showing how a kernel-level bug caused global outages", type: "case-study", accepted: null },
   ]},
   { id: "w7", week: 7, dates: "Feb 24 & 26", topic: "Midterm Review & Exam", resources: [
@@ -98,7 +98,7 @@ const initialPlan: WeekPlan[] = [
   ]},
   { id: "w9", week: 9, dates: "Mar 10 & 12", topic: "Paging, Segmentation & Address Translation", resources: [
     { id: "r20", title: "Textbook Ch. 8", action: "Assign chapter 8 on paging and segmentation", type: "textbook", accepted: true },
-    { id: "r21", title: "Page Table Simulator", action: "Use in a 20-min demo to show address translation step by step", type: "tool", accepted: true },
+    { id: "r21", title: "Page Table Simulator", action: "Use in a 20-min demo to show address translation step by step", type: "exercise", accepted: true },
     { id: "r22", title: "Memory Safety in Rust vs C for OS Development", action: "Timely article related to this week's topic — helpful background reading as you prep for lecture", type: "news", source: "The Register", accepted: null },
   ]},
   { id: "w10", week: 10, dates: "Mar 17 & 19", topic: "Memory Allocation Strategies", resources: [
@@ -128,7 +128,7 @@ const initialPlan: WeekPlan[] = [
   { id: "w15", week: 15, dates: "Apr 21 & 23", topic: "Emerging Trends: WASM Runtimes, Unikernels", resources: [
     { id: "r37", title: "Research Papers", action: "Assign selected papers on WASM runtimes and unikernels for class discussion", type: "article", accepted: true },
     { id: "r38", title: "Hands-On Demo", action: "Run a live demo of a WASM runtime to make emerging concepts tangible", type: "lab", accepted: true },
-    { id: "r39", title: "MIT 6.S081 xv6 Labs", action: "Share as supplementary practice — students can work through these OS labs independently", type: "tool", source: "MIT OCW", accepted: null },
+    { id: "r39", title: "MIT 6.S081 xv6 Labs", action: "Share as supplementary practice — students can work through these OS labs independently", type: "exercise", source: "MIT OCW", accepted: null },
   ]},
   { id: "w16", week: 16, dates: "Apr 28 & 30", topic: "Final Review & Exam", resources: [
     { id: "r40", title: "Comprehensive Review", action: "Distribute final review covering all semester topics", type: "textbook", accepted: true },
@@ -141,8 +141,8 @@ const replacementPool: Omit<Resource, "id">[] = [
   { title: "Linux OOM Killer in Production", action: "Review real incidents where the Linux Out-of-Memory killer caused unexpected behavior — ties into memory management", type: "case-study", accepted: null },
   { title: "Apple's Transition to ARM: OS Implications", action: "Article on architecture-level OS changes for Apple Silicon — helpful lecture prep reading", type: "article", source: "Ars Technica", accepted: null },
   { title: "WebAssembly System Interface (WASI) Spec Update", action: "Recent article on emerging OS abstraction layers — useful context for WASM runtimes discussion", type: "news", source: "W3C", accepted: null },
-  { title: "Valgrind Memory Profiler", action: "Integrate this tool into lab sessions — students can profile memory usage and detect leaks in their C programs", type: "tool", accepted: null },
-  { title: "OS Visualization Toolkit", action: "Use this interactive tool to demo process states, page tables, and scheduling queues in class", type: "tool", accepted: null },
+  { title: "Valgrind Memory Profiler", action: "Integrate this tool into lab sessions — students can profile memory usage and detect leaks in their C programs", type: "exercise", accepted: null },
+  { title: "OS Visualization Toolkit", action: "Use this interactive tool to demo process states, page tables, and scheduling queues in class", type: "exercise", accepted: null },
 ];
 
 const CourseCreation = () => {
@@ -243,6 +243,20 @@ const CourseCreation = () => {
     setWeeks((prev) => [...prev, newWeek]);
     setExpandedWeeks((prev) => [...prev, newWeek.id]);
     startEditWeek(newWeek);
+  };
+
+  const addResourceToWeek = (weekId: string, type: Resource["type"]) => {
+    const newResource: Resource = {
+      id: makeId(),
+      title: "",
+      action: "",
+      type,
+      accepted: true,
+    };
+    setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: [...w.resources, newResource] } : w));
+    setEditingResourceId(newResource.id);
+    setEditResourceTitle("");
+    setEditResourceAction("");
   };
 
   const handleExport = (format: "pdf" | "word") => {
@@ -513,6 +527,18 @@ const CourseCreation = () => {
                               </div>
                             );
                           })}
+                          {/* Add resource buttons */}
+                          <div className="flex gap-2 pt-1">
+                            <Button size="sm" variant="outline" onClick={() => addResourceToWeek(wp.id, "exercise")} className="h-7 text-[10px] border-dashed">
+                              <Plus className="h-3 w-3 mr-1" /> Exercise
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => addResourceToWeek(wp.id, "case-study")} className="h-7 text-[10px] border-dashed">
+                              <Plus className="h-3 w-3 mr-1" /> Case Study
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => addResourceToWeek(wp.id, "article")} className="h-7 text-[10px] border-dashed">
+                              <Plus className="h-3 w-3 mr-1" /> Article
+                            </Button>
+                          </div>
                         </div>
                       </motion.div>
                     )}
