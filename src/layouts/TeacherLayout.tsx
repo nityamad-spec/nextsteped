@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { BookOpen, Library, Users, ClipboardCheck, Settings, HelpCircle, LogOut, Send, MessageSquare } from "lucide-react";
+import { BookOpen, Library, Users, ClipboardCheck, Settings, HelpCircle, LogOut, Send, MessageSquare, FileText } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -10,6 +10,7 @@ const teacherNav = [
   { title: "Student Insights", path: "/teacher/insights", icon: Users },
   { title: "Content Library", path: "/teacher/content-library", icon: Library },
   { title: "Assessments", path: "/teacher/assessments", icon: ClipboardCheck },
+  { title: "Edit Lesson Plan", path: "/teacher/lesson-plan", icon: FileText },
   { title: "Settings / Integrity", path: "/teacher/settings", icon: Settings },
   { title: "Support", path: "/teacher/support", icon: HelpCircle },
 ];

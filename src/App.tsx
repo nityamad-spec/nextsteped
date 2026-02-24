@@ -16,6 +16,7 @@ import ContentLibrary from "./pages/teacher/ContentLibrary";
 import CourseDashboard from "./pages/teacher/CourseDashboard";
 import StudentInsights from "./pages/teacher/StudentInsights";
 import Assessments from "./pages/teacher/Assessments";
+import LessonPlan from "./pages/teacher/LessonPlan";
 import SettingsIntegrity from "./pages/teacher/SettingsIntegrity";
 import Support from "./pages/teacher/Support";
 import StudentOnboarding from "./pages/student/StudentOnboarding";
@@ -66,6 +67,7 @@ const App = () => (
               <Route path="/teacher/insights" element={<StudentInsights />} />
               <Route path="/teacher/content-library" element={<ContentLibrary />} />
               <Route path="/teacher/assessments" element={<Assessments />} />
+              <Route path="/teacher/lesson-plan" element={<LessonPlan />} />
               <Route path="/teacher/settings" element={<SettingsIntegrity />} />
               <Route path="/teacher/support" element={<Support />} />
             </Route>
