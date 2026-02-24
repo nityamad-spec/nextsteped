@@ -155,7 +155,7 @@ const TeacherOnboarding = () => {
                 <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Teaching Materials</Label>
                 <p className="text-xs text-muted-foreground">Upload your teaching materials:</p>
                 <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
-                  <li>Lesson Plans</li>
+                  <li>Teaching Plans</li>
                   <li>Slides & Decks</li>
                   <li>Past Exams</li>
                   <li>Other Materials</li>

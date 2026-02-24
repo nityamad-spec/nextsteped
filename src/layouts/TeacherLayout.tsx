@@ -10,7 +10,7 @@ const teacherNav = [
   { title: "Student Insights", path: "/teacher/insights", icon: Users },
   { title: "Content Library", path: "/teacher/content-library", icon: Library },
   { title: "Assessments", path: "/teacher/assessments", icon: ClipboardCheck },
-  { title: "Lesson Plan", path: "/teacher/lesson-plan", icon: FileText },
+  { title: "Teaching Plan", path: "/teacher/teaching-plan", icon: FileText },
   { title: "Settings / Integrity", path: "/teacher/settings", icon: Settings },
   { title: "Support", path: "/teacher/support", icon: HelpCircle },
 ];
