@@ -5,9 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
-import { Settings, Lightbulb, ShieldCheck, BookOpen, Save } from "lucide-react";
+import { Settings, Lightbulb, ShieldCheck, Save } from "lucide-react";
 
 const SettingsIntegrity = () => {
   const { taSettings, setTASettings } = useApp();
@@ -93,56 +91,6 @@ const SettingsIntegrity = () => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" /> Exam Simulation Rules</CardTitle>
-            <CardDescription>Update exam parameters that define the pre-defined format for students</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Exam Length (minutes)</Label>
-              <div className="flex items-center gap-4">
-                <Slider
-                  value={[examLength]}
-                  onValueChange={(v) => { setExamLength(v[0]); setSaved(false); }}
-                  min={15}
-                  max={180}
-                  step={15}
-                  className="flex-1"
-                />
-                <span className="w-16 text-right text-sm font-bold">{examLength} min</span>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Question Types</Label>
-              <Select value={examQuestionTypes} onValueChange={(v) => { setExamQuestionTypes(v); setSaved(false); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mixed">Mixed (MCQ + Short Answer + Problem Solving)</SelectItem>
-                  <SelectItem value="mcq_only">Multiple Choice Only</SelectItem>
-                  <SelectItem value="short_answer">Short Answer Only</SelectItem>
-                  <SelectItem value="problem_solving">Problem Solving Only</SelectItem>
-                  <SelectItem value="mcq_short">MCQ + Short Answer</SelectItem>
-                  <SelectItem value="mcq_problem">MCQ + Problem Solving</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Exam Difficulty</Label>
-              <Select value={settings.examDifficulty} onValueChange={(v: any) => update({ examDifficulty: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Easy">Easy</SelectItem>
-                  <SelectItem value="Medium">Medium</SelectItem>
-                  <SelectItem value="Hard">Hard</SelectItem>
-                  <SelectItem value="Mixed">Mixed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
