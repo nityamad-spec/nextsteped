@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, ClipboardCheck, BookOpen, Info, Pencil, Trash2, Upload, FileText } from "lucide-react";
+import { Plus, ClipboardCheck, BookOpen, Info, Pencil, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -151,7 +151,7 @@ const Assessments = () => {
         <TabsList className="mb-6">
           <TabsTrigger value="practice">Practice Questions</TabsTrigger>
           <TabsTrigger value="exams">Exam Simulations</TabsTrigger>
-          <TabsTrigger value="lessons">Edit Lesson Plan</TabsTrigger>
+          
         </TabsList>
 
         <TabsContent value="practice" className="space-y-4">
@@ -192,42 +192,6 @@ const Assessments = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="lessons" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Edit Lesson Plan</CardTitle>
-              <CardDescription>Update your lesson content, edit existing materials, or upload new resources for students.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-lg border bg-muted/30 p-6 text-center space-y-3">
-                <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">Upload New Materials</p>
-                  <p className="text-xs text-muted-foreground">Drag and drop or click to upload slides, notes, or supplementary materials</p>
-                </div>
-                <Button variant="outline" size="sm">
-                  <Upload className="mr-2 h-4 w-4" /> Choose Files
-                </Button>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Current Materials</p>
-                {["Course Syllabus — Operating Systems", "Module 1: Process Management Slides", "Module 2: Memory Management Notes", "Module 3: File Systems & Storage", "Module 4: Concurrency & Synchronization"].map((item, i) => (
-                  <div key={i} className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">{item}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">Edit</Button>
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive">Remove</Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       {/* Add/Edit Dialog */}
