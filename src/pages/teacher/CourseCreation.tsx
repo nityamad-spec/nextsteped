@@ -161,6 +161,7 @@ const CourseCreation = () => {
   const [showConfig, setShowConfig] = useState(false);
   const [replacementIdx, setReplacementIdx] = useState(0);
   const [undoStack, setUndoStack] = useState<{ weekId: string; replacementId: string; resource: Resource }[]>([]);
+  const [planApproved, setPlanApproved] = useState(false);
 
   // Auto-advance from generating
   useState(() => {
@@ -578,14 +579,19 @@ const CourseCreation = () => {
         </Button>
 
         {/* Navigation */}
-        <div className="flex justify-between pb-8">
-          <Button variant="ghost" onClick={() => navigate("/teacher/onboarding")}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
-          </Button>
-          <Button onClick={() => navigate("/teacher/setup/settings")}>
-            Configure AI TA Settings <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
+         <div className="flex justify-between pb-8">
+           <Button variant="ghost" onClick={() => navigate("/teacher/onboarding")}>
+             <ArrowLeft className="mr-2 h-4 w-4" /> Back
+           </Button>
+           <div className="flex items-center gap-2">
+             <Button variant={planApproved ? "default" : "outline"} onClick={() => setPlanApproved(true)} disabled={planApproved}>
+               <Check className="mr-1 h-4 w-4" /> {planApproved ? "Plan Approved" : "Approve Plan"}
+             </Button>
+             <Button onClick={() => navigate("/teacher/setup/settings")} disabled={!planApproved}>
+               Configure AI TA Settings <ArrowRight className="ml-2 h-4 w-4" />
+             </Button>
+           </div>
+         </div>
       </div>
     </div>
   );

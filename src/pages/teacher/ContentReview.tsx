@@ -23,6 +23,11 @@ const ContentReview = () => {
   const [customDifficulty, setCustomDifficulty] = useState("Medium");
   const [customTopic, setCustomTopic] = useState("");
 
+  const practiceItems = items.filter((i) => i.type === "practice");
+  const examItems = items.filter((i) => i.type === "exam");
+  const allPracticeApproved = practiceItems.length > 0 && practiceItems.every((i) => i.approved);
+  const allExamApproved = examItems.length > 0 && examItems.every((i) => i.approved);
+
   const toggleApprove = (id: string) => {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, approved: !i.approved } : i)));
   };
@@ -95,8 +100,14 @@ const ContentReview = () => {
 
         <Tabs defaultValue="practice">
           <TabsList className="mb-4">
-            <TabsTrigger value="practice">Practice Problems</TabsTrigger>
-            <TabsTrigger value="exam">Exam Simulation</TabsTrigger>
+            <TabsTrigger value="practice">
+              Practice Problems
+              {allPracticeApproved && <Check className="ml-1.5 h-3.5 w-3.5 text-success" />}
+            </TabsTrigger>
+            <TabsTrigger value="exam">
+              Exam Simulation
+              {allExamApproved && <Check className="ml-1.5 h-3.5 w-3.5 text-success" />}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="practice" className="space-y-3">
@@ -108,7 +119,7 @@ const ContentReview = () => {
                 <Check className="mr-1 h-3.5 w-3.5" /> Approve All
               </Button>
             </div>
-            {items.filter((i) => i.type === "practice").map(renderItem)}
+            {practiceItems.map(renderItem)}
           </TabsContent>
           <TabsContent value="exam" className="space-y-3">
             <div className="flex justify-end gap-2 mb-1">
@@ -119,16 +130,29 @@ const ContentReview = () => {
                 <Check className="mr-1 h-3.5 w-3.5" /> Approve All
               </Button>
             </div>
-            {items.filter((i) => i.type === "exam").map(renderItem)}
+            {examItems.map(renderItem)}
           </TabsContent>
         </Tabs>
+
+        {/* Approval status message */}
+        {!(allPracticeApproved && allExamApproved) && (
+          <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-center">
+            <p className="text-sm text-warning">
+              {!allPracticeApproved && !allExamApproved
+                ? "Approve all practice problems and exam simulations to proceed."
+                : !allPracticeApproved
+                  ? "Approve all practice problems to proceed."
+                  : "Approve all exam simulations to proceed."}
+            </p>
+          </div>
+        )}
 
         {/* Navigation */}
         <div className="flex justify-between pb-8">
           <Button variant="ghost" onClick={() => navigate("/teacher/setup/settings")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
-          <Button onClick={() => navigate("/teacher/setup/publish")}>
+          <Button onClick={() => navigate("/teacher/setup/publish")} disabled={!(allPracticeApproved && allExamApproved)}>
             Next <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
