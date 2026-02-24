@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, ClipboardCheck, BookOpen, Info, Pencil, Trash2 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Plus, ClipboardCheck, BookOpen, Info, Pencil, Trash2, Settings } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,56 @@ interface EditableQuestion {
   correctIndex?: number;
   explanation?: string;
 }
+
+const ExamSimulationRules = () => {
+  const [examLength, setExamLength] = useState(60);
+  const [examQuestionTypes, setExamQuestionTypes] = useState("mixed");
+  const [examDifficulty, setExamDifficulty] = useState("Mixed");
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Settings className="h-5 w-5" /> Exam Simulation Rules</CardTitle>
+        <CardDescription>Configure exam parameters that define the format for students</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Exam Length (minutes)</Label>
+          <div className="flex items-center gap-4">
+            <Slider value={[examLength]} onValueChange={(v) => setExamLength(v[0])} min={15} max={180} step={15} className="flex-1" />
+            <span className="w-16 text-right text-sm font-bold">{examLength} min</span>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Question Types</Label>
+          <Select value={examQuestionTypes} onValueChange={setExamQuestionTypes}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="mixed">Mixed (MCQ + Short Answer + Problem Solving)</SelectItem>
+              <SelectItem value="mcq_only">Multiple Choice Only</SelectItem>
+              <SelectItem value="short_answer">Short Answer Only</SelectItem>
+              <SelectItem value="problem_solving">Problem Solving Only</SelectItem>
+              <SelectItem value="mcq_short">MCQ + Short Answer</SelectItem>
+              <SelectItem value="mcq_problem">MCQ + Problem Solving</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Exam Difficulty</Label>
+          <Select value={examDifficulty} onValueChange={setExamDifficulty}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Easy">Easy</SelectItem>
+              <SelectItem value="Medium">Medium</SelectItem>
+              <SelectItem value="Hard">Hard</SelectItem>
+              <SelectItem value="Mixed">Mixed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 const Assessments = () => {
   const [practiceQuestions, setPracticeQuestions] = useState<EditableQuestion[]>(
@@ -190,6 +241,8 @@ const Assessments = () => {
               {examQuestions.map((q) => renderQuestion("exams", q))}
             </CardContent>
           </Card>
+
+          <ExamSimulationRules />
         </TabsContent>
 
       </Tabs>

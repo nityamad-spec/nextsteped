@@ -138,6 +138,10 @@ const TeachingPlan = () => {
   const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
   const [editResourceTitle, setEditResourceTitle] = useState("");
   const [editResourceAction, setEditResourceAction] = useState("");
+  const [hasChanges, setHasChanges] = useState(false);
+  const [approved, setApproved] = useState(false);
+
+  const markChanged = () => { setHasChanges(true); setApproved(false); };
 
   const toggleWeek = (id: string) => {
     setExpandedWeeks((prev) => prev.includes(id) ? prev.filter((w) => w !== id) : [...prev, id]);
@@ -154,10 +158,11 @@ const TeachingPlan = () => {
     if (!editingWeekId) return;
     setWeeks((prev) => prev.map((w) => w.id === editingWeekId ? { ...w, topic: editTopic, dates: editDates } : w));
     setEditingWeekId(null);
+    markChanged();
   };
 
   const deleteWeek = (id: string) => {
-    setWeeks((prev) => prev.filter((w) => w.id !== id).map((w, i) => ({ ...w, week: i + 1 })));
+    setWeeks((prev) => prev.filter((w) => w.id !== id).map((w, i) => ({ ...w, week: i + 1 }))); markChanged();
   };
 
   const addWeek = () => {
@@ -168,7 +173,7 @@ const TeachingPlan = () => {
       topic: "New Topic",
       resources: [],
     };
-    setWeeks((prev) => [...prev, newWeek]);
+    setWeeks((prev) => [...prev, newWeek]); markChanged();
     setExpandedWeeks((prev) => [...prev, newWeek.id]);
     startEditWeek(newWeek);
   };
@@ -186,15 +191,16 @@ const TeachingPlan = () => {
       resources: w.resources.map((r) => r.id === editingResourceId ? { ...r, title: editResourceTitle, action: editResourceAction } : r),
     } : w));
     setEditingResourceId(null);
+    markChanged();
   };
 
   const deleteResource = (weekId: string, resourceId: string) => {
-    setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: w.resources.filter((r) => r.id !== resourceId) } : w));
+    setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: w.resources.filter((r) => r.id !== resourceId) } : w)); markChanged();
   };
 
   const addResourceToWeek = (weekId: string, type: Resource["type"]) => {
     const newResource: Resource = { id: makeId(), title: "", action: "", type };
-    setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: [...w.resources, newResource] } : w));
+    setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: [...w.resources, newResource] } : w)); markChanged();
     setEditingResourceId(newResource.id);
     setEditResourceTitle("");
     setEditResourceAction("");
@@ -220,8 +226,6 @@ const TeachingPlan = () => {
     URL.revokeObjectURL(url);
   };
 
-  const [approved, setApproved] = useState(false);
-
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -241,7 +245,7 @@ const TeachingPlan = () => {
               <DropdownMenuItem onClick={() => handleExport("word")}>Export as Word</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="sm" variant={approved ? "default" : "outline"} onClick={() => setApproved(!approved)}>
+          <Button size="sm" variant={approved ? "default" : "outline"} onClick={() => { setApproved(true); setHasChanges(false); }} disabled={!hasChanges && !approved ? true : approved}>
             <Check className="mr-1 h-4 w-4" /> {approved ? "Approved" : "Approve Plan"}
           </Button>
           <Button size="sm" onClick={addWeek}>
