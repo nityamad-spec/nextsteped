@@ -15,6 +15,7 @@ import {
 type Resource = {
   id: string;
   title: string;
+  action: string; // actionable description for the professor
   type: "textbook" | "lab" | "case-study" | "exercise" | "article" | "news" | "tool" | "video";
   source?: string;
   accepted: boolean | null;
@@ -56,85 +57,85 @@ const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 
 const initialPlan: WeekPlan[] = [
   { id: "w1", week: 1, dates: "Jan 13 & 15", topic: "Introduction to OS Concepts & Process Lifecycle", resources: [
-    { id: "r1", title: "Textbook Ch. 1-2", type: "textbook", accepted: true },
-    { id: "r2", title: "AICTE Module 1 Guide", type: "textbook", accepted: true },
+    { id: "r1", title: "Textbook Ch. 1-2", action: "Assign chapters 1-2 as required reading before class", type: "textbook", accepted: true },
+    { id: "r2", title: "AICTE Module 1 Guide", action: "Reference AICTE guidelines to align lecture with curriculum standards", type: "textbook", accepted: true },
   ]},
   { id: "w2", week: 2, dates: "Jan 20 & 22", topic: "Process Scheduling: FCFS, SJF, Round Robin", resources: [
-    { id: "r3", title: "Textbook Ch. 3", type: "textbook", accepted: true },
-    { id: "r4", title: "Scheduling Simulator", type: "tool", accepted: true },
-    { id: "r5", title: "How Google Redesigned Its Scheduling Algorithm (2024)", type: "article", source: "ACM Queue", accepted: null },
+    { id: "r3", title: "Textbook Ch. 3", action: "Assign chapter 3 as pre-lecture reading on scheduling algorithms", type: "textbook", accepted: true },
+    { id: "r4", title: "Scheduling Simulator", action: "Use in a 20-min live demo to visualize FCFS vs Round Robin", type: "tool", accepted: true },
+    { id: "r5", title: "How Google Redesigned Its Scheduling Algorithm (2024)", action: "Helpful article to read as you prep for this lecture — covers real-world scheduling at scale", type: "article", source: "ACM Queue", accepted: null },
   ]},
   { id: "w3", week: 3, dates: "Jan 27 & 29", topic: "Advanced Scheduling & Real-World Applications", resources: [
-    { id: "r6", title: "Lab: Scheduling Algorithms", type: "lab", accepted: true },
-    { id: "r7", title: "Kubernetes Pod Scheduling Under Load", type: "case-study", accepted: null },
+    { id: "r6", title: "Scheduling Algorithms Lab", action: "Include a 30-min in-class lab where students implement and compare scheduling algorithms", type: "lab", accepted: true },
+    { id: "r7", title: "Kubernetes Pod Scheduling Under Load", action: "Review this case study as an industry example of how K8s applies CPU scheduling concepts", type: "case-study", accepted: null },
   ]},
   { id: "w4", week: 4, dates: "Feb 3 & 5", topic: "Threads & Concurrency Fundamentals", resources: [
-    { id: "r8", title: "Textbook Ch. 4", type: "textbook", accepted: true },
-    { id: "r9", title: "POSIX Threads Tutorial", type: "tool", accepted: true },
+    { id: "r8", title: "Textbook Ch. 4", action: "Assign chapter 4 on threads and concurrency models", type: "textbook", accepted: true },
+    { id: "r9", title: "POSIX Threads Tutorial", action: "Share as a hands-on reference for students to practice pthreads outside class", type: "tool", accepted: true },
   ]},
   { id: "w5", week: 5, dates: "Feb 10 & 12", topic: "Synchronization: Mutexes, Semaphores, Monitors", resources: [
-    { id: "r10", title: "Textbook Ch. 5", type: "textbook", accepted: true },
-    { id: "r11", title: "Producer-Consumer Lab", type: "lab", accepted: true },
-    { id: "r12", title: "Race Condition Bug in a Banking App", type: "exercise", accepted: null },
+    { id: "r10", title: "Textbook Ch. 5", action: "Assign chapter 5 on synchronization primitives", type: "textbook", accepted: true },
+    { id: "r11", title: "Producer-Consumer Lab", action: "Run a 30-min hands-on lab implementing the producer-consumer problem", type: "lab", accepted: true },
+    { id: "r12", title: "Race Condition Bug in a Banking App", action: "Use as an interactive debugging exercise — students trace a concurrency bug in a simulated banking system", type: "exercise", accepted: null },
   ]},
   { id: "w6", week: 6, dates: "Feb 17 & 19", topic: "Deadlock Prevention & Detection", resources: [
-    { id: "r13", title: "Textbook Ch. 6", type: "textbook", accepted: true },
-    { id: "r14", title: "Deadlock Visualization Tool", type: "tool", accepted: true },
-    { id: "r15", title: "The 2023 CrowdStrike Kernel Crash", type: "case-study", accepted: null },
+    { id: "r13", title: "Textbook Ch. 6", action: "Assign chapter 6 on deadlock concepts and prevention strategies", type: "textbook", accepted: true },
+    { id: "r14", title: "Deadlock Visualization Tool", action: "Demo in class to visually show how deadlocks form and resolve", type: "tool", accepted: true },
+    { id: "r15", title: "The 2023 CrowdStrike Kernel Crash", action: "Discuss this real-world case study showing how a kernel-level bug caused global outages", type: "case-study", accepted: null },
   ]},
   { id: "w7", week: 7, dates: "Feb 24 & 26", topic: "Midterm Review & Exam", resources: [
-    { id: "r16", title: "Review Sheet", type: "textbook", accepted: true },
-    { id: "r17", title: "Practice Exam", type: "exercise", accepted: true },
+    { id: "r16", title: "Review Sheet", action: "Distribute comprehensive review sheet covering weeks 1-6", type: "textbook", accepted: true },
+    { id: "r17", title: "Practice Exam", action: "Assign as a take-home practice exam before the midterm", type: "exercise", accepted: true },
   ]},
   { id: "w8", week: 8, dates: "Mar 3 & 5", topic: "Physical & Virtual Memory Concepts", resources: [
-    { id: "r18", title: "Textbook Ch. 7", type: "textbook", accepted: true },
-    { id: "r19", title: "Memory Hierarchy Slides", type: "textbook", accepted: true },
+    { id: "r18", title: "Textbook Ch. 7", action: "Assign chapter 7 on memory hierarchy and virtual memory basics", type: "textbook", accepted: true },
+    { id: "r19", title: "Memory Hierarchy Slides", action: "Use these slides to walk through the memory hierarchy in lecture", type: "textbook", accepted: true },
   ]},
   { id: "w9", week: 9, dates: "Mar 10 & 12", topic: "Paging, Segmentation & Address Translation", resources: [
-    { id: "r20", title: "Textbook Ch. 8", type: "textbook", accepted: true },
-    { id: "r21", title: "Page Table Simulator", type: "tool", accepted: true },
-    { id: "r22", title: "Memory Safety in Rust vs C for OS Development", type: "news", source: "The Register", accepted: null },
+    { id: "r20", title: "Textbook Ch. 8", action: "Assign chapter 8 on paging and segmentation", type: "textbook", accepted: true },
+    { id: "r21", title: "Page Table Simulator", action: "Use in a 20-min demo to show address translation step by step", type: "tool", accepted: true },
+    { id: "r22", title: "Memory Safety in Rust vs C for OS Development", action: "Timely article related to this week's topic — helpful background reading as you prep for lecture", type: "news", source: "The Register", accepted: null },
   ]},
   { id: "w10", week: 10, dates: "Mar 17 & 19", topic: "Memory Allocation Strategies", resources: [
-    { id: "r23", title: "Lab: Build a Memory Allocator in C", type: "lab", accepted: true },
-    { id: "r24", title: "Textbook Ch. 9", type: "textbook", accepted: true },
-    { id: "r25", title: "AWS Memory Optimization at Scale", type: "case-study", accepted: null },
+    { id: "r23", title: "Build a Memory Allocator in C", action: "Include a 45-min in-class lab where students implement a basic memory allocator", type: "lab", accepted: true },
+    { id: "r24", title: "Textbook Ch. 9", action: "Assign chapter 9 on memory allocation strategies", type: "textbook", accepted: true },
+    { id: "r25", title: "AWS Memory Optimization at Scale", action: "Review this case study on how AWS tunes virtual memory for millions of EC2 instances", type: "case-study", accepted: null },
   ]},
   { id: "w11", week: 11, dates: "Mar 24 & 26", topic: "File System Design & Implementation", resources: [
-    { id: "r26", title: "Textbook Ch. 10-11", type: "textbook", accepted: true },
-    { id: "r27", title: "EXT4 Case Study", type: "case-study", accepted: true },
-    { id: "r28", title: "Building a Mini File System in C", type: "exercise", accepted: null },
+    { id: "r26", title: "Textbook Ch. 10-11", action: "Assign chapters 10-11 on file system design and implementation", type: "textbook", accepted: true },
+    { id: "r27", title: "EXT4 Case Study", action: "Walk through the EXT4 file system as a real-world design example in lecture", type: "case-study", accepted: true },
+    { id: "r28", title: "Building a Mini File System in C", action: "Assign as a coding exercise where students implement a simplified file system with inodes", type: "exercise", accepted: null },
   ]},
   { id: "w12", week: 12, dates: "Mar 31 & Apr 2", topic: "Modern Storage: NVMe, SSDs & I/O Systems", resources: [
-    { id: "r29", title: "Industry White Paper", type: "article", accepted: true },
-    { id: "r30", title: "Storage Benchmark Lab", type: "lab", accepted: true },
+    { id: "r29", title: "Industry White Paper", action: "Reference in lecture to provide industry context on modern storage technologies", type: "article", accepted: true },
+    { id: "r30", title: "Storage Benchmark Lab", action: "Run a hands-on lab comparing I/O performance across storage types", type: "lab", accepted: true },
   ]},
   { id: "w13", week: 13, dates: "Apr 7 & 9", topic: "Security & Protection in Operating Systems", resources: [
-    { id: "r31", title: "Textbook Ch. 14", type: "textbook", accepted: true },
-    { id: "r32", title: "CVE Case Studies", type: "case-study", accepted: true },
-    { id: "r33", title: "The Rise of eBPF in Modern Operating Systems", type: "article", source: "LWN.net", accepted: null },
+    { id: "r31", title: "Textbook Ch. 14", action: "Assign chapter 14 on OS security and protection mechanisms", type: "textbook", accepted: true },
+    { id: "r32", title: "CVE Case Studies", action: "Discuss 2-3 real CVEs in class to illustrate OS vulnerability patterns", type: "case-study", accepted: true },
+    { id: "r33", title: "The Rise of eBPF in Modern Operating Systems", action: "Article on cutting-edge kernel technology — useful background reading for lecture prep", type: "article", source: "LWN.net", accepted: null },
   ]},
   { id: "w14", week: 14, dates: "Apr 14 & 16", topic: "Virtualization & Cloud OS Concepts", resources: [
-    { id: "r34", title: "Hypervisor Comparison Article", type: "article", accepted: true },
-    { id: "r35", title: "Docker Lab", type: "lab", accepted: true },
-    { id: "r36", title: "NVIDIA GPU Virtualization Deep Dive", type: "article", source: "NVIDIA Dev Blog", accepted: null },
+    { id: "r34", title: "Hypervisor Comparison Article", action: "Use as a reference when discussing Type 1 vs Type 2 hypervisors", type: "article", accepted: true },
+    { id: "r35", title: "Docker Lab", action: "Include a 30-min hands-on lab where students containerize a simple application", type: "lab", accepted: true },
+    { id: "r36", title: "NVIDIA GPU Virtualization Deep Dive", action: "Article on GPU virtualization — helpful context as you prep for the virtualization lecture", type: "article", source: "NVIDIA Dev Blog", accepted: null },
   ]},
   { id: "w15", week: 15, dates: "Apr 21 & 23", topic: "Emerging Trends: WASM Runtimes, Unikernels", resources: [
-    { id: "r37", title: "Research Papers", type: "article", accepted: true },
-    { id: "r38", title: "Hands-On Demo", type: "lab", accepted: true },
-    { id: "r39", title: "MIT 6.S081 xv6 Labs", type: "tool", source: "MIT OCW", accepted: null },
+    { id: "r37", title: "Research Papers", action: "Assign selected papers on WASM runtimes and unikernels for class discussion", type: "article", accepted: true },
+    { id: "r38", title: "Hands-On Demo", action: "Run a live demo of a WASM runtime to make emerging concepts tangible", type: "lab", accepted: true },
+    { id: "r39", title: "MIT 6.S081 xv6 Labs", action: "Share as supplementary practice — students can work through these OS labs independently", type: "tool", source: "MIT OCW", accepted: null },
   ]},
   { id: "w16", week: 16, dates: "Apr 28 & 30", topic: "Final Review & Exam", resources: [
-    { id: "r40", title: "Comprehensive Review", type: "textbook", accepted: true },
-    { id: "r41", title: "Practice Final", type: "exercise", accepted: true },
+    { id: "r40", title: "Comprehensive Review", action: "Distribute final review covering all semester topics", type: "textbook", accepted: true },
+    { id: "r41", title: "Practice Final", action: "Assign as a take-home practice exam before the final", type: "exercise", accepted: true },
   ]},
 ];
 
 const replacementPool: Omit<Resource, "id">[] = [
-  { title: "Netflix Chaos Monkey: Testing OS Resilience", type: "case-study", accepted: null },
-  { title: "Linux OOM Killer in Production", type: "case-study", accepted: null },
-  { title: "Apple's Transition to ARM: OS Implications", type: "article", source: "Ars Technica", accepted: null },
-  { title: "WebAssembly System Interface (WASI) Spec Update", type: "news", source: "W3C", accepted: null },
+  { title: "Netflix Chaos Monkey: Testing OS Resilience", action: "Discuss how Netflix intentionally crashes processes to build resilient systems — great case study for deadlock/recovery topics", type: "case-study", accepted: null },
+  { title: "Linux OOM Killer in Production", action: "Review real incidents where the Linux Out-of-Memory killer caused unexpected behavior — ties into memory management", type: "case-study", accepted: null },
+  { title: "Apple's Transition to ARM: OS Implications", action: "Article on architecture-level OS changes for Apple Silicon — helpful lecture prep reading", type: "article", source: "Ars Technica", accepted: null },
+  { title: "WebAssembly System Interface (WASI) Spec Update", action: "Recent article on emerging OS abstraction layers — useful context for WASM runtimes discussion", type: "news", source: "W3C", accepted: null },
 ];
 
 const CourseCreation = () => {
@@ -233,8 +234,6 @@ const CourseCreation = () => {
     );
   }
 
-  const aiResourceCount = weeks.reduce((acc, w) => acc + w.resources.filter((r) => r.accepted === null).length, 0);
-
   return (
     <div className="flex min-h-screen items-start justify-center bg-background px-4 py-8">
       <div className="w-full max-w-4xl space-y-5">
@@ -245,26 +244,16 @@ const CourseCreation = () => {
           </h1>
         </div>
 
-        {/* Intro Card */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
-                <CardTitle className="text-xl">AI Teaching Plan</CardTitle>
-              </div>
-              <Button variant="outline" size="sm" onClick={handleExport}>
-                <Download className="mr-1.5 h-3.5 w-3.5" /> Export
-              </Button>
-            </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              We've analyzed your uploaded materials to draft a semester lesson plan.
-              {aiResourceCount > 0 && (
-                <span className="ml-1">Review <Badge variant="secondary" className="text-xs mx-1">{aiResourceCount}</Badge> AI-suggested resources below.</span>
-              )}
-            </p>
-          </CardHeader>
-        </Card>
+        {/* Intro — no card, just text */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <h2 className="text-xl font-semibold">AI Teaching Plan</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            We've analyzed your uploaded materials to draft a semester-long lesson plan. Review the weekly breakdown below, accept or replace AI suggestions, and edit as needed.
+          </p>
+        </div>
 
         {/* Semester Config */}
         <div className="flex items-center justify-between">
@@ -294,6 +283,14 @@ const CourseCreation = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Lesson Plan subhead with export */}
+        <div className="flex items-center justify-between pt-2">
+          <h3 className="text-base font-semibold">Lesson Plan</h3>
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download className="mr-1.5 h-3.5 w-3.5" /> Export Plan
+          </Button>
+        </div>
 
         {/* Lesson Plan */}
         <Reorder.Group axis="y" values={weeks} onReorder={(newOrder) => setWeeks(newOrder.map((w, i) => ({ ...w, week: i + 1 })))}>
@@ -365,44 +362,51 @@ const CourseCreation = () => {
                         )}
 
                         {/* Resources */}
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                           <p className="text-xs font-medium text-muted-foreground">Resources & Materials</p>
                           {wp.resources.map((r) => {
                             const isAI = r.accepted === null;
                             return (
                               <div
                                 key={r.id}
-                                className={`flex items-center justify-between gap-2 rounded-md px-3 py-2 text-xs border ${
-                                  isAI ? "border-accent/30 bg-accent/5" : r.accepted ? "border-border bg-background" : "border-border bg-background"
+                                className={`rounded-md px-3 py-2.5 text-xs border ${
+                                  isAI ? "border-accent/30 bg-accent/5" : "border-border bg-background"
                                 }`}
                               >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  {isAI && <Sparkles className="h-3 w-3 text-primary shrink-0" />}
-                                  {r.accepted === true && <Check className="h-3 w-3 text-primary shrink-0" />}
-                                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${typeColors[r.type] || "bg-muted text-muted-foreground"}`}>
-                                    {typeLabels[r.type]}
-                                  </span>
-                                  <span className="truncate">{r.title}</span>
-                                  {r.source && <span className="text-muted-foreground shrink-0">· {r.source}</span>}
-                                </div>
-                                {isAI && (
-                                  <div className="flex gap-1 shrink-0">
-                                    <button
-                                      onClick={() => handleResourceAction(wp.id, r.id, true)}
-                                      className="rounded p-1 hover:bg-primary/10 transition-colors"
-                                      title="Accept"
-                                    >
-                                      <ThumbsUp className="h-3 w-3" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleResourceAction(wp.id, r.id, false)}
-                                      className="rounded p-1 hover:bg-destructive/10 hover:text-destructive transition-colors"
-                                      title="Replace"
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </button>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-start gap-2 min-w-0">
+                                    {isAI && <Sparkles className="h-3 w-3 text-primary shrink-0 mt-0.5" />}
+                                    {r.accepted === true && <Check className="h-3 w-3 text-primary shrink-0 mt-0.5" />}
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${typeColors[r.type] || "bg-muted text-muted-foreground"}`}>
+                                          {typeLabels[r.type]}
+                                        </span>
+                                        <span className="font-medium">{r.title}</span>
+                                        {r.source && <span className="text-muted-foreground">· {r.source}</span>}
+                                      </div>
+                                      <p className="text-muted-foreground mt-1 leading-relaxed">{r.action}</p>
+                                    </div>
                                   </div>
-                                )}
+                                  {isAI && (
+                                    <div className="flex gap-1 shrink-0">
+                                      <button
+                                        onClick={() => handleResourceAction(wp.id, r.id, true)}
+                                        className="rounded p-1 hover:bg-primary/10 transition-colors"
+                                        title="Accept"
+                                      >
+                                        <ThumbsUp className="h-3 w-3" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleResourceAction(wp.id, r.id, false)}
+                                        className="rounded p-1 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                                        title="Replace"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}
