@@ -38,9 +38,9 @@ const typeLabels: Record<string, string> = {
   lab: "Lab",
   "case-study": "Case Study",
   exercise: "Exercise",
-  article: "Article",
-  news: "News",
-  tool: "Tool",
+  article: "Article & Industry Context",
+  news: "Article & Industry Context",
+  tool: "Article & Industry Context",
   video: "Video",
 };
 
@@ -51,7 +51,7 @@ const typeColors: Record<string, string> = {
   exercise: "bg-accent/20 text-accent-foreground",
   article: "bg-muted text-muted-foreground",
   news: "bg-muted text-muted-foreground",
-  tool: "bg-primary/10 text-primary",
+  tool: "bg-muted text-muted-foreground",
   video: "bg-destructive/10 text-destructive",
 };
 
@@ -149,7 +149,7 @@ const CourseCreation = () => {
   const navigate = useNavigate();
   const [phase, setPhase] = useState<"generating" | "plan">("generating");
   const [weeks, setWeeks] = useState<WeekPlan[]>(initialPlan);
-  const [expandedWeeks, setExpandedWeeks] = useState<string[]>(["w1"]);
+  const [expandedWeeks, setExpandedWeeks] = useState<string[]>([]);
   const [editingWeekId, setEditingWeekId] = useState<string | null>(null);
   const [editTopic, setEditTopic] = useState("");
   const [editDates, setEditDates] = useState("");
