@@ -9,8 +9,12 @@ import { Label } from "@/components/ui/label";
 import {
   Check, X, ArrowRight, ArrowLeft, Sparkles, Loader2,
   ChevronDown, ChevronUp, ThumbsUp, Download, Pencil, GripVertical,
-  BookOpen, Newspaper, Plus, Trash2,
+  BookOpen, Newspaper, Plus, Trash2, Undo2, FileText, FileDown,
+  FlaskConical, LibraryBig, Lightbulb,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type Resource = {
   id: string;
@@ -146,10 +150,14 @@ const CourseCreation = () => {
   const [editingWeekId, setEditingWeekId] = useState<string | null>(null);
   const [editTopic, setEditTopic] = useState("");
   const [editDates, setEditDates] = useState("");
+  const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
+  const [editResourceTitle, setEditResourceTitle] = useState("");
+  const [editResourceAction, setEditResourceAction] = useState("");
   const [totalWeeks, setTotalWeeks] = useState(16);
   const [classesPerWeek, setClassesPerWeek] = useState(2);
   const [showConfig, setShowConfig] = useState(false);
   const [replacementIdx, setReplacementIdx] = useState(0);
+  const [undoStack, setUndoStack] = useState<{ weekId: string; resourceId: string; resource: Resource }[]>([]);
 
   // Auto-advance from generating
   useState(() => {
@@ -176,6 +184,12 @@ const CourseCreation = () => {
     if (accepted) {
       setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: w.resources.map((r) => r.id === resourceId ? { ...r, accepted: true } : r) } : w));
     } else {
+      // Save to undo stack before replacing
+      const week = weeks.find((w) => w.id === weekId);
+      const resource = week?.resources.find((r) => r.id === resourceId);
+      if (resource) {
+        setUndoStack((prev) => [...prev.slice(-9), { weekId, resourceId, resource: { ...resource } }]);
+      }
       const replacement = replacementPool[replacementIdx % replacementPool.length];
       setReplacementIdx((i) => i + 1);
       setWeeks((prev) => prev.map((w) => w.id === weekId ? {
@@ -183,7 +197,39 @@ const CourseCreation = () => {
         resources: w.resources.map((r) => r.id === resourceId ? { ...replacement, id: makeId(), accepted: null } : r),
       } : w));
     }
-  }, [replacementIdx]);
+  }, [replacementIdx, weeks]);
+
+  const handleUndo = () => {
+    if (undoStack.length === 0) return;
+    const last = undoStack[undoStack.length - 1];
+    setUndoStack((prev) => prev.slice(0, -1));
+    // Find the week and replace the resource at the same position
+    setWeeks((prev) => prev.map((w) => {
+      if (w.id !== last.weekId) return w;
+      // The original resource was replaced, so we find the replacement (last AI resource) and swap back
+      const aiResources = w.resources.filter((r) => r.accepted === null);
+      if (aiResources.length > 0) {
+        const lastAI = aiResources[aiResources.length - 1];
+        return { ...w, resources: w.resources.map((r) => r.id === lastAI.id ? last.resource : r) };
+      }
+      return { ...w, resources: [...w.resources, last.resource] };
+    }));
+  };
+
+  const startEditResource = (r: Resource) => {
+    setEditingResourceId(r.id);
+    setEditResourceTitle(r.title);
+    setEditResourceAction(r.action);
+  };
+
+  const saveEditResource = (weekId: string) => {
+    if (!editingResourceId) return;
+    setWeeks((prev) => prev.map((w) => w.id === weekId ? {
+      ...w,
+      resources: w.resources.map((r) => r.id === editingResourceId ? { ...r, title: editResourceTitle, action: editResourceAction } : r),
+    } : w));
+    setEditingResourceId(null);
+  };
 
   const deleteWeek = (id: string) => {
     setWeeks((prev) => prev.filter((w) => w.id !== id).map((w, i) => ({ ...w, week: i + 1 })));
@@ -202,14 +248,15 @@ const CourseCreation = () => {
     startEditWeek(newWeek);
   };
 
-  const handleExport = () => {
+  const handleExport = (format: "pdf" | "word") => {
     let content = "AI TEACHING PLAN - Operating Systems\n";
     content += `${totalWeeks} Weeks · ${classesPerWeek} classes/week\n\n`;
     weeks.forEach((w) => {
       content += `Week ${w.week} (${w.dates}): ${w.topic}\n`;
       w.resources.forEach((r) => {
-        const status = r.accepted === true ? "✓" : r.accepted === null ? "AI" : "";
-        content += `  ${status} [${typeLabels[r.type]}] ${r.title}${r.source ? ` (${r.source})` : ""}\n`;
+        const status = r.accepted === true ? "✓" : r.accepted === null ? "★" : "";
+        content += `  ${status} [${typeLabels[r.type]}] ${r.title}\n`;
+        content += `    → ${r.action}\n`;
       });
       content += "\n";
     });
@@ -217,7 +264,7 @@ const CourseCreation = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "lesson-plan.txt";
+    a.download = format === "pdf" ? "lesson-plan.pdf" : "lesson-plan.doc";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -244,7 +291,7 @@ const CourseCreation = () => {
           </h1>
         </div>
 
-        {/* Intro — no card, just text */}
+        {/* Intro */}
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
@@ -255,7 +302,50 @@ const CourseCreation = () => {
           </p>
         </div>
 
-        {/* Semester Config */}
+        {/* Action types legend */}
+        <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium bg-primary/5 border-primary/20 text-primary">
+            <FlaskConical className="h-3.5 w-3.5" /> Interactive Exercises
+          </div>
+          <div className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium bg-primary/5 border-primary/20 text-primary">
+            <LibraryBig className="h-3.5 w-3.5" /> Case Studies
+          </div>
+          <div className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium bg-primary/5 border-primary/20 text-primary">
+            <Newspaper className="h-3.5 w-3.5" /> Articles & Industry Context
+          </div>
+          <div className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium bg-primary/5 border-primary/20 text-primary">
+            <Lightbulb className="h-3.5 w-3.5" /> Recommended Resources
+          </div>
+        </div>
+
+        {/* Lesson Plan subhead with export + undo */}
+        <div className="flex items-center justify-between pt-2">
+          <h2 className="text-xl font-semibold">Lesson Plan</h2>
+          <div className="flex items-center gap-2">
+            {undoStack.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={handleUndo} className="text-xs">
+                <Undo2 className="mr-1 h-3.5 w-3.5" /> Undo
+              </Button>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Download className="mr-1.5 h-3.5 w-3.5" /> Export Plan
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExport("pdf")}>
+                  <FileText className="mr-2 h-4 w-4" /> Export as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("word")}>
+                  <FileDown className="mr-2 h-4 w-4" /> Export as Word
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* Semester Config — under Lesson Plan */}
         <div className="flex items-center justify-between">
           <button
             onClick={() => setShowConfig(!showConfig)}
@@ -284,15 +374,7 @@ const CourseCreation = () => {
           </Card>
         )}
 
-        {/* Lesson Plan subhead with export */}
-        <div className="flex items-center justify-between pt-2">
-          <h3 className="text-base font-semibold">Lesson Plan</h3>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="mr-1.5 h-3.5 w-3.5" /> Export Plan
-          </Button>
-        </div>
-
-        {/* Lesson Plan */}
+        {/* Lesson Plan Weeks */}
         <Reorder.Group axis="y" values={weeks} onReorder={(newOrder) => setWeeks(newOrder.map((w, i) => ({ ...w, week: i + 1 })))}>
           <div className="space-y-2">
             {weeks.map((wp) => {
@@ -318,7 +400,7 @@ const CourseCreation = () => {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           {aiResources.length > 0 && (
-                            <Badge className={`text-[10px] ${aiTag}`}>
+                            <Badge className="text-[10px] bg-primary/15 text-primary border-primary/30 border font-medium">
                               <Sparkles className="h-2.5 w-2.5 mr-0.5" />{aiResources.length} suggestion{aiResources.length > 1 ? "s" : ""}
                             </Badge>
                           )}
@@ -334,7 +416,7 @@ const CourseCreation = () => {
                         animate={{ height: "auto", opacity: 1 }}
                         className="border-t px-4 py-3 space-y-3"
                       >
-                        {/* Edit mode */}
+                        {/* Edit week mode */}
                         {isEditing ? (
                           <div className="space-y-2 p-3 rounded-md bg-muted/30 border">
                             <div className="space-y-1">
@@ -366,47 +448,74 @@ const CourseCreation = () => {
                           <p className="text-xs font-medium text-muted-foreground">Resources & Materials</p>
                           {wp.resources.map((r) => {
                             const isAI = r.accepted === null;
+                            const isEditingThis = editingResourceId === r.id;
                             return (
                               <div
                                 key={r.id}
                                 className={`rounded-md px-3 py-2.5 text-xs border ${
-                                  isAI ? "border-accent/30 bg-accent/5" : "border-border bg-background"
+                                  isAI ? "border-primary/30 bg-primary/5" : "border-border bg-background"
                                 }`}
                               >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex items-start gap-2 min-w-0">
-                                    {isAI && <Sparkles className="h-3 w-3 text-primary shrink-0 mt-0.5" />}
-                                    {r.accepted === true && <Check className="h-3 w-3 text-primary shrink-0 mt-0.5" />}
-                                    <div className="min-w-0">
-                                      <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${typeColors[r.type] || "bg-muted text-muted-foreground"}`}>
-                                          {typeLabels[r.type]}
-                                        </span>
-                                        <span className="font-medium">{r.title}</span>
-                                        {r.source && <span className="text-muted-foreground">· {r.source}</span>}
-                                      </div>
-                                      <p className="text-muted-foreground mt-1 leading-relaxed">{r.action}</p>
+                                {isEditingThis ? (
+                                  <div className="space-y-2">
+                                    <div className="space-y-1">
+                                      <Label className="text-[10px]">Title</Label>
+                                      <Input value={editResourceTitle} onChange={(e) => setEditResourceTitle(e.target.value)} className="h-7 text-xs" />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label className="text-[10px]">Action / Description</Label>
+                                      <Input value={editResourceAction} onChange={(e) => setEditResourceAction(e.target.value)} className="h-7 text-xs" />
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button size="sm" onClick={() => saveEditResource(wp.id)} className="h-6 text-[10px] px-2">Save</Button>
+                                      <Button size="sm" variant="ghost" onClick={() => setEditingResourceId(null)} className="h-6 text-[10px] px-2">Cancel</Button>
                                     </div>
                                   </div>
-                                  {isAI && (
+                                ) : (
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-start gap-2 min-w-0">
+                                      {isAI && <Sparkles className="h-3 w-3 text-primary shrink-0 mt-0.5" />}
+                                      {r.accepted === true && <Check className="h-3 w-3 text-primary shrink-0 mt-0.5" />}
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${typeColors[r.type] || "bg-muted text-muted-foreground"}`}>
+                                            {typeLabels[r.type]}
+                                          </span>
+                                          <span className="font-medium">{r.title}</span>
+                                          {r.source && <span className="text-muted-foreground">· {r.source}</span>}
+                                        </div>
+                                        <p className="text-muted-foreground mt-1 leading-relaxed">{r.action}</p>
+                                      </div>
+                                    </div>
                                     <div className="flex gap-1 shrink-0">
                                       <button
-                                        onClick={() => handleResourceAction(wp.id, r.id, true)}
-                                        className="rounded p-1 hover:bg-primary/10 transition-colors"
-                                        title="Accept"
+                                        onClick={() => startEditResource(r)}
+                                        className="rounded p-1 hover:bg-muted transition-colors"
+                                        title="Edit resource"
                                       >
-                                        <ThumbsUp className="h-3 w-3" />
+                                        <Pencil className="h-3 w-3" />
                                       </button>
-                                      <button
-                                        onClick={() => handleResourceAction(wp.id, r.id, false)}
-                                        className="rounded p-1 hover:bg-destructive/10 hover:text-destructive transition-colors"
-                                        title="Replace"
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </button>
+                                      {isAI && (
+                                        <>
+                                          <button
+                                            onClick={() => handleResourceAction(wp.id, r.id, true)}
+                                            className="rounded p-1 hover:bg-primary/10 transition-colors"
+                                            title="Accept"
+                                          >
+                                            <ThumbsUp className="h-3 w-3" />
+                                          </button>
+                                          <button
+                                            onClick={() => handleResourceAction(wp.id, r.id, false)}
+                                            className="rounded p-1 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                                            title="Replace"
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </button>
+                                        </>
+                                      )}
                                     </div>
-                                  )}
-                                </div>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
