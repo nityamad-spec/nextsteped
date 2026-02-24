@@ -10,7 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Check, Flag, RefreshCw, ArrowRight, ArrowLeft, Plus, Calendar, UserPlus, Upload, Copy, Info } from "lucide-react";
+import { Check, Flag, RefreshCw, ArrowRight, ArrowLeft, Plus, Calendar, UserPlus, Upload, Copy, Info, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const ContentReview = () => {
@@ -26,10 +28,15 @@ const ContentReview = () => {
   const [endDate, setEndDate] = useState("");
 
   // Enrollment state
-  const [diagnosticRequired, setDiagnosticRequired] = useState(true);
   const [weeklyNudges, setWeeklyNudges] = useState(true);
   const [csvUploaded, setCsvUploaded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [addCustomOpen, setAddCustomOpen] = useState(false);
+  const [customType, setCustomType] = useState<"practice" | "exam">("practice");
+  const [customTitle, setCustomTitle] = useState("");
+  const [customContent, setCustomContent] = useState("");
+  const [customDifficulty, setCustomDifficulty] = useState("Medium");
+  const [customTopic, setCustomTopic] = useState("");
 
   const toggleApprove = (id: string) => {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, approved: !i.approved } : i)));
@@ -42,6 +49,26 @@ const ContentReview = () => {
     navigator.clipboard.writeText(currentCourse?.enrollmentCode || "NEXTOS301");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleAddCustom = () => {
+    if (!customTitle.trim()) return;
+    const newItem: ContentItem = {
+      id: `custom-${Date.now()}`,
+      type: customType,
+      title: customTitle,
+      content: customContent,
+      difficulty: customDifficulty as "Easy" | "Medium" | "Hard",
+      topic: customTopic || "General",
+      approved: true,
+      flagged: false,
+    };
+    setItems((prev) => [...prev, newItem]);
+    setCustomTitle("");
+    setCustomContent("");
+    setCustomDifficulty("Medium");
+    setCustomTopic("");
+    setAddCustomOpen(false);
   };
 
   const handleFinish = () => {
@@ -78,12 +105,9 @@ const ContentReview = () => {
       <div className="w-full max-w-4xl space-y-8">
         {/* Section 1: Review Generated Content */}
         <div>
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h1 className="font-heading text-3xl font-bold">Review Generated Content</h1>
-              <p className="text-muted-foreground">Approve, edit, or flag AI-generated course content</p>
-            </div>
-            <Button variant="outline" size="sm"><Plus className="mr-1 h-4 w-4" /> Add Custom</Button>
+          <div className="mb-6">
+            <h1 className="font-heading text-3xl font-bold">Review Generated Content</h1>
+            <p className="text-muted-foreground">Approve, edit, or flag AI-generated course content</p>
           </div>
 
           {/* Personalization note */}
@@ -98,32 +122,33 @@ const ContentReview = () => {
           </div>
 
           <Tabs defaultValue="lessons">
-            <TabsList className="mb-6">
+            <TabsList className="mb-4">
               <TabsTrigger value="lessons">Lesson Plan</TabsTrigger>
               <TabsTrigger value="practice">Practice Problems</TabsTrigger>
               <TabsTrigger value="exam">Exam Simulation</TabsTrigger>
             </TabsList>
 
             <TabsContent value="lessons" className="space-y-3">
-              <div className="flex justify-end mb-2">
-                <Button variant="outline" size="sm" onClick={() => setItems(prev => prev.map(i => i.type === "concept" ? { ...i, approved: true } : i))}>
-                  <Check className="mr-1 h-3.5 w-3.5" /> Approve All Lesson Plans
-                </Button>
-              </div>
               {items.filter((i) => i.type === "concept").map(renderItem)}
             </TabsContent>
             <TabsContent value="practice" className="space-y-3">
-              <div className="flex justify-end mb-2">
+              <div className="flex justify-end gap-2 mb-1">
+                <Button variant="outline" size="sm" onClick={() => { setCustomType("practice"); setAddCustomOpen(true); }}>
+                  <Plus className="mr-1 h-3.5 w-3.5" /> Add Custom
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => setItems(prev => prev.map(i => i.type === "practice" ? { ...i, approved: true } : i))}>
-                  <Check className="mr-1 h-3.5 w-3.5" /> Approve All Practice Problems
+                  <Check className="mr-1 h-3.5 w-3.5" /> Approve All
                 </Button>
               </div>
               {items.filter((i) => i.type === "practice").map(renderItem)}
             </TabsContent>
             <TabsContent value="exam" className="space-y-3">
-              <div className="flex justify-end mb-2">
+              <div className="flex justify-end gap-2 mb-1">
+                <Button variant="outline" size="sm" onClick={() => { setCustomType("exam"); setAddCustomOpen(true); }}>
+                  <Plus className="mr-1 h-3.5 w-3.5" /> Add Custom
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => setItems(prev => prev.map(i => i.type === "exam" ? { ...i, approved: true } : i))}>
-                  <Check className="mr-1 h-3.5 w-3.5" /> Approve All Exam Simulations
+                  <Check className="mr-1 h-3.5 w-3.5" /> Approve All
                 </Button>
               </div>
               {items.filter((i) => i.type === "exam").map(renderItem)}
@@ -192,10 +217,10 @@ const ContentReview = () => {
             <div className="space-y-3 pt-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Diagnostic Quiz Required</Label>
+                  <Label>Diagnostic Quiz</Label>
                   <p className="text-xs text-muted-foreground">Students take a placement quiz on first login</p>
                 </div>
-                <Switch checked={diagnosticRequired} onCheckedChange={setDiagnosticRequired} />
+                <Badge variant="secondary" className="text-xs">Required</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <div>
@@ -218,6 +243,46 @@ const ContentReview = () => {
           </Button>
         </div>
       </div>
+
+      {/* Add Custom Dialog */}
+      <Dialog open={addCustomOpen} onOpenChange={setAddCustomOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Custom {customType === "practice" ? "Practice Problem" : "Exam Simulation"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input placeholder="Enter title..." value={customTitle} onChange={(e) => setCustomTitle(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea placeholder="Enter description..." value={customContent} onChange={(e) => setCustomContent(e.target.value)} />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Topic</Label>
+                <Input placeholder="e.g. Memory Management" value={customTopic} onChange={(e) => setCustomTopic(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Difficulty</Label>
+                <Select value={customDifficulty} onValueChange={setCustomDifficulty}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Easy">Easy</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="Hard">Hard</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAddCustomOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddCustom} disabled={!customTitle.trim()}>Add</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
