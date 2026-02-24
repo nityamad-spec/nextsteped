@@ -76,6 +76,7 @@ const initialPlan: WeekPlan[] = [
   { id: "w4", week: 4, dates: "Feb 3 & 5", topic: "Threads & Concurrency Fundamentals", resources: [
     { id: "r8", title: "Textbook Ch. 4", action: "Assign chapter 4 on threads and concurrency models", type: "textbook", accepted: true },
     { id: "r9", title: "POSIX Threads Tutorial", action: "Share as a hands-on reference for students to practice pthreads outside class", type: "tool", accepted: true },
+    { id: "r9b", title: "Thread Sanitizer (TSan)", action: "Integrate this tool into your lab setup — students can use it to detect race conditions in their code", type: "tool", accepted: null },
   ]},
   { id: "w5", week: 5, dates: "Feb 10 & 12", topic: "Synchronization: Mutexes, Semaphores, Monitors", resources: [
     { id: "r10", title: "Textbook Ch. 5", action: "Assign chapter 5 on synchronization primitives", type: "textbook", accepted: true },
@@ -140,6 +141,8 @@ const replacementPool: Omit<Resource, "id">[] = [
   { title: "Linux OOM Killer in Production", action: "Review real incidents where the Linux Out-of-Memory killer caused unexpected behavior — ties into memory management", type: "case-study", accepted: null },
   { title: "Apple's Transition to ARM: OS Implications", action: "Article on architecture-level OS changes for Apple Silicon — helpful lecture prep reading", type: "article", source: "Ars Technica", accepted: null },
   { title: "WebAssembly System Interface (WASI) Spec Update", action: "Recent article on emerging OS abstraction layers — useful context for WASM runtimes discussion", type: "news", source: "W3C", accepted: null },
+  { title: "Valgrind Memory Profiler", action: "Integrate this tool into lab sessions — students can profile memory usage and detect leaks in their C programs", type: "tool", accepted: null },
+  { title: "OS Visualization Toolkit", action: "Use this interactive tool to demo process states, page tables, and scheduling queues in class", type: "tool", accepted: null },
 ];
 
 const CourseCreation = () => {
@@ -157,7 +160,7 @@ const CourseCreation = () => {
   const [classesPerWeek, setClassesPerWeek] = useState(2);
   const [showConfig, setShowConfig] = useState(false);
   const [replacementIdx, setReplacementIdx] = useState(0);
-  const [undoStack, setUndoStack] = useState<{ weekId: string; resourceId: string; resource: Resource }[]>([]);
+  const [undoStack, setUndoStack] = useState<{ weekId: string; replacementId: string; resource: Resource }[]>([]);
 
   // Auto-advance from generating
   useState(() => {
@@ -187,14 +190,15 @@ const CourseCreation = () => {
       // Save to undo stack before replacing
       const week = weeks.find((w) => w.id === weekId);
       const resource = week?.resources.find((r) => r.id === resourceId);
-      if (resource) {
-        setUndoStack((prev) => [...prev.slice(-9), { weekId, resourceId, resource: { ...resource } }]);
-      }
       const replacement = replacementPool[replacementIdx % replacementPool.length];
+      const newId = makeId();
+      if (resource) {
+        setUndoStack((prev) => [...prev.slice(-9), { weekId, replacementId: newId, resource: { ...resource } }]);
+      }
       setReplacementIdx((i) => i + 1);
       setWeeks((prev) => prev.map((w) => w.id === weekId ? {
         ...w,
-        resources: w.resources.map((r) => r.id === resourceId ? { ...replacement, id: makeId(), accepted: null } : r),
+        resources: w.resources.map((r) => r.id === resourceId ? { ...replacement, id: newId, accepted: null } : r),
       } : w));
     }
   }, [replacementIdx, weeks]);
@@ -203,16 +207,9 @@ const CourseCreation = () => {
     if (undoStack.length === 0) return;
     const last = undoStack[undoStack.length - 1];
     setUndoStack((prev) => prev.slice(0, -1));
-    // Find the week and replace the resource at the same position
     setWeeks((prev) => prev.map((w) => {
       if (w.id !== last.weekId) return w;
-      // The original resource was replaced, so we find the replacement (last AI resource) and swap back
-      const aiResources = w.resources.filter((r) => r.accepted === null);
-      if (aiResources.length > 0) {
-        const lastAI = aiResources[aiResources.length - 1];
-        return { ...w, resources: w.resources.map((r) => r.id === lastAI.id ? last.resource : r) };
-      }
-      return { ...w, resources: [...w.resources, last.resource] };
+      return { ...w, resources: w.resources.map((r) => r.id === last.replacementId ? last.resource : r) };
     }));
   };
 
