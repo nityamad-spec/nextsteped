@@ -297,7 +297,7 @@ const CourseCreation = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = format === "pdf" ? "lesson-plan.pdf" : "lesson-plan.doc";
+    a.download = format === "pdf" ? "teaching-plan.pdf" : "teaching-plan.doc";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -331,7 +331,7 @@ const CourseCreation = () => {
             <h2 className="text-xl font-semibold">AI Teaching Plan</h2>
           </div>
           <p className="text-sm text-muted-foreground">
-            We've analyzed your uploaded materials to draft a semester-long lesson plan. Review the weekly breakdown below, accept or replace AI suggestions, and edit as needed.
+            We've analyzed your uploaded materials to draft a semester-long teaching plan. Review the weekly breakdown below, accept or replace AI suggestions, and edit as needed.
           </p>
         </div>
 
@@ -348,9 +348,9 @@ const CourseCreation = () => {
           </div>
         </div>
 
-        {/* Lesson Plan subhead with export + undo */}
-        <div className="flex items-center justify-between pt-2">
-          <h2 className="text-xl font-semibold">Lesson Plan</h2>
+         {/* Teaching Plan subhead with export + undo */}
+         <div className="flex items-center justify-between pt-2">
+           <h2 className="text-xl font-semibold">Teaching Plan</h2>
           <div className="flex items-center gap-2">
             {undoStack.length > 0 && (
               <Button variant="ghost" size="sm" onClick={handleUndo} className="text-xs">
@@ -375,7 +375,7 @@ const CourseCreation = () => {
           </div>
         </div>
 
-        {/* Semester Config — under Lesson Plan */}
+        {/* Semester Config — under Teaching Plan */}
         <div className="flex items-center justify-between">
           <button
             onClick={() => setShowConfig(!showConfig)}
@@ -404,7 +404,7 @@ const CourseCreation = () => {
           </Card>
         )}
 
-        {/* Lesson Plan Weeks */}
+        {/* Teaching Plan Weeks */}
         <Reorder.Group axis="y" values={weeks} onReorder={(newOrder) => setWeeks(newOrder.map((w, i) => ({ ...w, week: i + 1 })))}>
           <div className="space-y-2">
             {weeks.map((wp) => {
