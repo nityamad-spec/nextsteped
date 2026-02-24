@@ -83,7 +83,7 @@ const AITASettings = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+    <div className="min-h-screen bg-background px-4 py-8">
       <div className="w-full max-w-3xl">
         <div className="mb-8 text-center">
           <h1 className="font-heading text-3xl font-bold">AI TA Settings</h1>

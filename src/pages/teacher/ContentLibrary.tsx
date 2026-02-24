@@ -1,10 +1,6 @@
-import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Checkbox } from "@/components/ui/checkbox";
-import { FileText, Globe, Download, ExternalLink, Upload, BookOpen, Presentation, FileSpreadsheet, X, RefreshCw } from "lucide-react";
+import { FileText, Download, BookOpen, Presentation, FileSpreadsheet, Upload } from "lucide-react";
 
 const uploadedFiles = [
   { id: "u1", name: "CS301_Syllabus_Fall2025.pdf", type: "Syllabus", size: "2.4 MB", uploadedAt: "Aug 10, 2025", icon: FileText },
@@ -15,136 +11,43 @@ const uploadedFiles = [
   { id: "u6", name: "Textbook_Readings_Ch1-4.pdf", type: "Reading", size: "15.3 MB", uploadedAt: "Aug 10, 2025", icon: BookOpen },
 ];
 
-const initialWebResources = [
-  { id: "w1", title: "Operating Systems: Three Easy Pieces", source: "ostep.org", category: "Textbook", description: "Free online textbook covering virtualization, concurrency, and persistence. Excellent supplement for Modules 1-4.", url: "#", relevance: "High" },
-  { id: "w2", title: "MIT 6.828: Operating System Engineering", source: "MIT OpenCourseWare", category: "Course Material", description: "Lab-based OS course with xv6. Great reference for hands-on exercises on process management and file systems.", url: "#", relevance: "High" },
-  { id: "w3", title: "CPU Scheduling Algorithms Visualizer", source: "github.com", category: "Interactive Tool", description: "Interactive web tool for visualizing FCFS, SJF, Round Robin, and Priority scheduling. Helps students understand time quantum effects.", url: "#", relevance: "High" },
-  { id: "w4", title: "Page Replacement Algorithm Simulator", source: "educative.io", category: "Interactive Tool", description: "Step-by-step visualization of FIFO, LRU, and Optimal page replacement with custom reference strings.", url: "#", relevance: "Medium" },
-  { id: "w5", title: "Modern Operating Systems by Tanenbaum — Lecture Notes", source: "university-resources.org", category: "Lecture Notes", description: "Comprehensive lecture notes aligned with Tanenbaum's textbook. Covers deadlocks and synchronization in depth.", url: "#", relevance: "Medium" },
-  { id: "w6", title: "Linux Kernel Development Guide", source: "kernel.org", category: "Professional Development", description: "Understanding real-world OS implementation. Useful for upskilling on modern kernel design patterns.", url: "#", relevance: "Medium" },
-  { id: "w7", title: "Concurrency Patterns in Modern Systems", source: "acm.org", category: "Research Paper", description: "Recent survey on concurrency models — helps update syllabus with current industry approaches to synchronization.", url: "#", relevance: "Low" },
-];
-
-const replacementResources = [
-  { id: "w8", title: "GeeksforGeeks: OS Concepts", source: "geeksforgeeks.org", category: "Tutorial", description: "Comprehensive tutorials on OS concepts with practice problems and interview questions.", url: "#", relevance: "Medium" },
-  { id: "w9", title: "Computer Systems: A Programmer's Perspective", source: "csapp.cs.cmu.edu", category: "Textbook", description: "Deep dive into how computer systems work from a programmer's perspective, with labs.", url: "#", relevance: "High" },
-  { id: "w10", title: "Operating System Concepts (Silberschatz) — Slides", source: "os-book.com", category: "Slides", description: "Official slides and supplemental materials for the widely-used Silberschatz textbook.", url: "#", relevance: "High" },
-];
-
 const ContentLibrary = () => {
-  const [tab, setTab] = useState("uploaded");
-  const [webResources, setWebResources] = useState(initialWebResources);
-  const [selectedResources, setSelectedResources] = useState<Set<string>>(new Set());
-  const [replacementIdx, setReplacementIdx] = useState(0);
-
-  const toggleSelected = (id: string) => {
-    setSelectedResources(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const dismissResource = (id: string) => {
-    setSelectedResources(prev => { const next = new Set(prev); next.delete(id); return next; });
-    if (replacementIdx < replacementResources.length) {
-      const replacement = replacementResources[replacementIdx];
-      setWebResources(prev => prev.map(r => r.id === id ? replacement : r));
-      setReplacementIdx(prev => prev + 1);
-    } else {
-      setWebResources(prev => prev.filter(r => r.id !== id));
-    }
-  };
-
   return (
     <div className="p-6">
       <div className="mb-6">
         <h1 className="font-heading text-3xl font-bold">Content Library</h1>
-        <p className="text-muted-foreground">Your uploaded materials and curated resources for course improvement</p>
+        <p className="text-muted-foreground">Your uploaded materials for the course</p>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="mb-6">
-          <TabsTrigger value="uploaded"><Upload className="mr-1 h-4 w-4" /> Uploaded Materials</TabsTrigger>
-          <TabsTrigger value="web"><Globe className="mr-1 h-4 w-4" /> Additional Teaching Resources</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="uploaded" className="space-y-3">
-          <Card>
-            <CardHeader>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
               <CardTitle className="text-base">Your Uploaded Files</CardTitle>
               <CardDescription>Syllabus, slides, problem sets, and other teaching materials you've uploaded</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {uploadedFiles.map((file) => (
-                <div key={file.id} className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <file.icon className="h-5 w-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">{file.type} • {file.size} • Uploaded {file.uploadedAt}</p>
-                  </div>
-                  <Button variant="ghost" size="sm" className="h-8 text-xs">
-                    <Download className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="web" className="space-y-3">
-          <div className="mb-4 flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
-            <Globe className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-foreground">AI-Curated Resources</p>
-              <p className="text-xs text-muted-foreground">
-                These resources were selected based on your course syllabus and objectives. Check the box to mark a resource as useful or being used, or dismiss it with ✕ to get a replacement suggestion.
-              </p>
             </div>
+            <Button variant="outline" size="sm">
+              <Upload className="mr-2 h-4 w-4" /> Upload New
+            </Button>
           </div>
-
-          {webResources.map((resource) => (
-            <Card key={resource.id}>
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <div className="pt-0.5">
-                    <Checkbox
-                      checked={selectedResources.has(resource.id)}
-                      onCheckedChange={() => toggleSelected(resource.id)}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-sm font-medium">{resource.title}</h3>
-                      <Badge variant={resource.relevance === "High" ? "default" : resource.relevance === "Medium" ? "secondary" : "outline"} className="text-[10px]">
-                        {resource.relevance} Relevance
-                      </Badge>
-                      {selectedResources.has(resource.id) && (
-                        <Badge variant="outline" className="text-[10px] border-success/50 bg-success/10 text-success">Using</Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-2">{resource.description}</p>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-[10px]">{resource.category}</Badge>
-                      <span className="text-[10px] text-muted-foreground">{resource.source}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="outline" size="sm" className="h-8 text-xs">
-                      <ExternalLink className="mr-1 h-3 w-3" /> View
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive" onClick={() => dismissResource(resource.id)}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {uploadedFiles.map((file) => (
+            <div key={file.id} className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <file.icon className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{file.name}</p>
+                <p className="text-xs text-muted-foreground">{file.type} • {file.size} • Uploaded {file.uploadedAt}</p>
+              </div>
+              <Button variant="ghost" size="sm" className="h-8 text-xs">
+                <Download className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           ))}
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 };

@@ -5,8 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   ChevronDown, ChevronUp, Pencil, Trash2, Plus, Upload, FileText,
-  Check, X, BookOpen, FlaskConical, Newspaper, LibraryBig,
+  Check, X, BookOpen, FlaskConical, Newspaper, LibraryBig, FileDown,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type Resource = {
   id: string;
@@ -197,6 +200,28 @@ const TeachingPlan = () => {
     setEditResourceAction("");
   };
 
+  const handleExport = (format: "pdf" | "word") => {
+    let content = "TEACHING PLAN - Operating Systems\n";
+    content += `${weeks.length} Weeks\n\n`;
+    weeks.forEach((w) => {
+      content += `Week ${w.week} (${w.dates}): ${w.topic}\n`;
+      w.resources.forEach((r) => {
+        content += `  [${typeLabels[r.type]}] ${r.title}\n`;
+        content += `    → ${r.action}\n`;
+      });
+      content += "\n";
+    });
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = format === "pdf" ? "teaching-plan.pdf" : "teaching-plan.doc";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const [approved, setApproved] = useState(false);
+
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -204,9 +229,25 @@ const TeachingPlan = () => {
           <h1 className="font-heading text-3xl font-bold">Teaching Plan</h1>
           <p className="text-muted-foreground">Your confirmed semester plan — edit topics, resources, and materials</p>
         </div>
-        <Button size="sm" onClick={addWeek}>
-          <Plus className="mr-1 h-4 w-4" /> Add Week
-        </Button>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <FileDown className="mr-1 h-4 w-4" /> Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => handleExport("pdf")}>Export as PDF</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("word")}>Export as Word</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button size="sm" variant={approved ? "default" : "outline"} onClick={() => setApproved(!approved)}>
+            <Check className="mr-1 h-4 w-4" /> {approved ? "Approved" : "Approve Plan"}
+          </Button>
+          <Button size="sm" onClick={addWeek}>
+            <Plus className="mr-1 h-4 w-4" /> Add Week
+          </Button>
+        </div>
       </div>
 
       {/* Upload section */}
