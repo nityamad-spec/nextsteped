@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings, Lightbulb, ShieldCheck, Save, Calendar, UserPlus, Upload, Copy } from "lucide-react";
+import { Settings, Lightbulb, ShieldCheck, Save, Calendar, UserPlus, Upload, Copy, FileText } from "lucide-react";
 
 const SettingsIntegrity = () => {
   const { taSettings, setTASettings, currentCourse } = useApp();
@@ -154,14 +154,27 @@ const SettingsIntegrity = () => {
 
             <div className="text-center text-xs text-muted-foreground">or</div>
 
+            {/* Current roster */}
+            {csvUploaded && (
+              <div className="rounded-lg border bg-primary/5 p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">student_roster_fall2025.csv</span>
+                  </div>
+                  <Badge variant="secondary" className="text-xs">47 students</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">Uploaded during initial setup</p>
+              </div>
+            )}
+
+            {/* Upload new roster */}
             <div
               onClick={() => setCsvUploaded(true)}
-              className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
-                csvUploaded ? "border-primary/50 bg-primary/5" : "hover:border-primary/30"
-              }`}
+              className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors hover:border-primary/30"
             >
               <Upload className="h-6 w-6 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">{csvUploaded ? "Student roster uploaded (47 students)" : "Upload student roster (CSV)"}</span>
+              <span className="text-sm text-muted-foreground">{csvUploaded ? "Upload additional roster (CSV)" : "Upload student roster (CSV)"}</span>
             </div>
 
             <div className="space-y-3 pt-2">
