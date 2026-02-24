@@ -10,7 +10,7 @@ import {
   Check, X, ArrowRight, ArrowLeft, Sparkles, Loader2,
   ChevronDown, ChevronUp, ThumbsUp, Download, Pencil, GripVertical,
   BookOpen, Newspaper, Plus, Trash2, Undo2, FileText, FileDown,
-  FlaskConical, LibraryBig, Lightbulb,
+  FlaskConical, LibraryBig,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -309,9 +309,6 @@ const CourseCreation = () => {
           </div>
           <div className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium bg-primary/5 border-primary/20 text-primary">
             <Newspaper className="h-3.5 w-3.5" /> Articles & Industry Context
-          </div>
-          <div className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium bg-primary/5 border-primary/20 text-primary">
-            <Lightbulb className="h-3.5 w-3.5" /> Recommended Resources
           </div>
         </div>
 
