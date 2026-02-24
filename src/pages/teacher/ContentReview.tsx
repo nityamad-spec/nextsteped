@@ -61,10 +61,10 @@ const ContentReview = () => {
           <span className="text-xs text-muted-foreground">{item.topic}</span>
         </div>
         <div className="flex gap-1">
-          <button onClick={() => toggleApprove(item.id)} className={`rounded p-1.5 transition-colors ${item.approved ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
+          <button onClick={() => toggleApprove(item.id)} className={`rounded p-1.5 transition-colors ${item.approved ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`} title="Approve">
             <Check className="h-3.5 w-3.5" />
           </button>
-          <button onClick={() => removeItem(item.id)} className="rounded p-1.5 transition-colors hover:bg-destructive/10 hover:text-destructive">
+          <button onClick={() => removeItem(item.id)} className="rounded p-1.5 transition-colors hover:bg-destructive/10 hover:text-destructive" title="Remove">
             <X className="h-3.5 w-3.5" />
           </button>
         </div>

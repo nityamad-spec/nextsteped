@@ -1,12 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Upload, FileText } from "lucide-react";
+import { Upload, FileText, Pencil, Trash2 } from "lucide-react";
 
 const LessonPlan = () => {
   return (
     <div className="p-6">
       <div className="mb-8">
-        <h1 className="font-heading text-3xl font-bold">Edit Lesson Plan</h1>
+        <h1 className="font-heading text-3xl font-bold">Lesson Plan</h1>
         <p className="text-muted-foreground">Update your lesson content, edit existing materials, or upload new resources</p>
       </div>
 
@@ -40,8 +40,12 @@ const LessonPlan = () => {
                   <span className="text-sm">{item}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">Edit</Button>
-                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive">Remove</Button>
+                  <button className="rounded p-1.5 hover:bg-muted" title="Edit">
+                    <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                  <button className="rounded p-1.5 hover:bg-destructive/10 hover:text-destructive" title="Remove">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
             ))}
