@@ -22,7 +22,7 @@ const TeacherOnboarding = () => {
   const [syllabusUploaded, setSyllabusUploaded] = useState(false);
   const [materialsUploaded, setMaterialsUploaded] = useState(false);
 
-  const isValid = name.trim() && department && courseCode && term && syllabusUploaded;
+  const isValid = name.trim() && department && courseCode && term && syllabusUploaded && materialsUploaded;
 
   const handleContinue = () => {
     const selectedCourse = availableCourses.find((c) => c.code === courseCode);
@@ -152,13 +152,13 @@ const TeacherOnboarding = () => {
 
               {/* Teaching Materials Upload */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Teaching Materials <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                <p className="text-xs text-muted-foreground">Upload any of the following:</p>
+                <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Teaching Materials</Label>
+                <p className="text-xs text-muted-foreground">Upload your teaching materials:</p>
                 <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
-                  <li>Teaching & Lesson Plans</li>
-                  <li>Presentation Materials (slides, decks)</li>
-                  <li>Course Resources (readings, problem sets, past exams)</li>
-                  <li>Any other supplementary materials</li>
+                  <li>Lesson Plans</li>
+                  <li>Slides & Decks</li>
+                  <li>Past Exams</li>
+                  <li>Other Materials</li>
                 </ul>
                 <div
                   onClick={() => setMaterialsUploaded(true)}
