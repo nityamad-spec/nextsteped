@@ -209,8 +209,30 @@ const CourseCreation = () => {
     setUndoStack((prev) => prev.slice(0, -1));
     setWeeks((prev) => prev.map((w) => {
       if (w.id !== last.weekId) return w;
-      return { ...w, resources: w.resources.map((r) => r.id === last.replacementId ? last.resource : r) };
+      // Try to find the replacement resource
+      const hasReplacement = w.resources.some((r) => r.id === last.replacementId);
+      if (hasReplacement) {
+        return { ...w, resources: w.resources.map((r) => r.id === last.replacementId ? last.resource : r) };
+      }
+      // Resource was removed (not replaced) — add it back
+      return { ...w, resources: [...w.resources, last.resource] };
     }));
+  };
+
+  const handleRemoveResource = (weekId: string, resourceId: string) => {
+    const week = weeks.find((w) => w.id === weekId);
+    const resource = week?.resources.find((r) => r.id === resourceId);
+    if (!resource) return;
+    const isAI = resource.accepted === null;
+    if (isAI) {
+      // AI suggestion: replace with new suggestion
+      handleResourceAction(weekId, resourceId, false);
+    } else {
+      // Non-AI resource: remove and save to undo
+      const removedId = makeId(); // placeholder for undo tracking
+      setUndoStack((prev) => [...prev.slice(-9), { weekId, replacementId: removedId, resource: { ...resource } }]);
+      setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: w.resources.filter((r) => r.id !== resourceId) } : w));
+    }
   };
 
   const startEditResource = (r: Resource) => {
@@ -504,23 +526,21 @@ const CourseCreation = () => {
                                         <Pencil className="h-3 w-3" />
                                       </button>
                                       {isAI && (
-                                        <>
-                                          <button
-                                            onClick={() => handleResourceAction(wp.id, r.id, true)}
-                                            className="rounded p-1 hover:bg-primary/10 transition-colors"
-                                            title="Accept"
-                                          >
-                                            <ThumbsUp className="h-3 w-3" />
-                                          </button>
-                                          <button
-                                            onClick={() => handleResourceAction(wp.id, r.id, false)}
-                                            className="rounded p-1 hover:bg-destructive/10 hover:text-destructive transition-colors"
-                                            title="Replace"
-                                          >
-                                            <X className="h-3 w-3" />
-                                          </button>
-                                        </>
+                                        <button
+                                          onClick={() => handleResourceAction(wp.id, r.id, true)}
+                                          className="rounded p-1 hover:bg-primary/10 transition-colors"
+                                          title="Accept"
+                                        >
+                                          <ThumbsUp className="h-3 w-3" />
+                                        </button>
                                       )}
+                                      <button
+                                        onClick={() => handleRemoveResource(wp.id, r.id)}
+                                        className="rounded p-1 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                                        title={isAI ? "Replace with new suggestion" : "Remove"}
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
                                     </div>
                                   </div>
                                 )}
@@ -528,7 +548,10 @@ const CourseCreation = () => {
                             );
                           })}
                           {/* Add resource buttons */}
-                          <div className="flex gap-2 pt-1">
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            <Button size="sm" variant="outline" onClick={() => addResourceToWeek(wp.id, "textbook")} className="h-7 text-[10px] border-dashed">
+                              <Plus className="h-3 w-3 mr-1" /> Textbook
+                            </Button>
                             <Button size="sm" variant="outline" onClick={() => addResourceToWeek(wp.id, "exercise")} className="h-7 text-[10px] border-dashed">
                               <Plus className="h-3 w-3 mr-1" /> Exercise
                             </Button>
