@@ -3,55 +3,137 @@ import { mockQuizQuestions, mockContentItems } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Plus, ClipboardCheck, BookOpen, Flag, AlertTriangle, Info } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Plus, ClipboardCheck, BookOpen, Info, Pencil, Trash2, Upload, FileText } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 
-interface CustomQuestion {
+type QuestionType = "MCQ" | "Short Answer" | "Code Practice";
+
+interface EditableQuestion {
   id: string;
   question: string;
   topic: string;
   difficulty: "Easy" | "Medium" | "Hard";
-  mandatory: boolean;
-  examType: boolean;
+  type: QuestionType;
+  options?: string[];
+  correctIndex?: number;
+  explanation?: string;
 }
 
 const Assessments = () => {
-  const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([
-    { id: "cq1", question: "Explain the difference between preemptive and non-preemptive scheduling with examples.", topic: "CPU Scheduling", difficulty: "Medium", mandatory: true, examType: true },
-    { id: "cq2", question: "Write pseudocode for the Banker's Algorithm for deadlock avoidance.", topic: "Deadlocks", difficulty: "Hard", mandatory: false, examType: true },
-  ]);
-
-  const [showAdd, setShowAdd] = useState(false);
-  const [newQuestion, setNewQuestion] = useState("");
-  const [newTopic, setNewTopic] = useState("");
-  const [newDifficulty, setNewDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
-  const [newMandatory, setNewMandatory] = useState(false);
-  const [newExamType, setNewExamType] = useState(false);
+  const [practiceQuestions, setPracticeQuestions] = useState<EditableQuestion[]>(
+    mockQuizQuestions.map((q) => ({ ...q, type: "MCQ" as QuestionType }))
+  );
 
   const examItems = mockContentItems.filter((i) => i.type === "exam");
+  const [examQuestions, setExamQuestions] = useState<EditableQuestion[]>(
+    examItems.map((item) => ({
+      id: item.id,
+      question: item.title,
+      topic: item.topic,
+      difficulty: item.difficulty,
+      type: "Short Answer" as QuestionType,
+      explanation: item.content,
+    }))
+  );
 
-  const handleAddQuestion = () => {
-    if (!newQuestion.trim() || !newTopic) return;
-    setCustomQuestions((prev) => [
-      ...prev,
-      { id: `cq${Date.now()}`, question: newQuestion, topic: newTopic, difficulty: newDifficulty, mandatory: newMandatory, examType: newExamType },
-    ]);
-    setNewQuestion("");
-    setNewTopic("");
-    setNewMandatory(false);
-    setNewExamType(false);
-    setShowAdd(false);
+  // Add/Edit dialog state
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogTab, setDialogTab] = useState<"practice" | "exams">("practice");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formQuestion, setFormQuestion] = useState("");
+  const [formTopic, setFormTopic] = useState("");
+  const [formDifficulty, setFormDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
+  const [formType, setFormType] = useState<QuestionType>("MCQ");
+
+  const openAddDialog = (tab: "practice" | "exams") => {
+    setDialogTab(tab);
+    setEditingId(null);
+    setFormQuestion("");
+    setFormTopic("");
+    setFormDifficulty("Medium");
+    setFormType("MCQ");
+    setDialogOpen(true);
   };
+
+  const openEditDialog = (tab: "practice" | "exams", q: EditableQuestion) => {
+    setDialogTab(tab);
+    setEditingId(q.id);
+    setFormQuestion(q.question);
+    setFormTopic(q.topic);
+    setFormDifficulty(q.difficulty);
+    setFormType(q.type);
+    setDialogOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!formQuestion.trim() || !formTopic) return;
+    const setter = dialogTab === "practice" ? setPracticeQuestions : setExamQuestions;
+    if (editingId) {
+      setter((prev) => prev.map((q) => q.id === editingId ? { ...q, question: formQuestion, topic: formTopic, difficulty: formDifficulty, type: formType } : q));
+    } else {
+      setter((prev) => [...prev, { id: `q${Date.now()}`, question: formQuestion, topic: formTopic, difficulty: formDifficulty, type: formType }]);
+    }
+    setDialogOpen(false);
+  };
+
+  const handleDelete = (tab: "practice" | "exams", id: string) => {
+    const setter = tab === "practice" ? setPracticeQuestions : setExamQuestions;
+    setter((prev) => prev.filter((q) => q.id !== id));
+  };
+
+  const typeBadgeColor = (type: QuestionType) => {
+    switch (type) {
+      case "MCQ": return "bg-primary/10 text-primary";
+      case "Short Answer": return "bg-warning/10 text-warning";
+      case "Code Practice": return "bg-accent/10 text-accent";
+    }
+  };
+
+  const renderQuestion = (tab: "practice" | "exams", q: EditableQuestion) => (
+    <div key={q.id} className="rounded-lg border p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant={q.difficulty === "Easy" ? "secondary" : q.difficulty === "Hard" ? "destructive" : "outline"} className="text-xs">
+            {q.difficulty}
+          </Badge>
+          <Badge variant="outline" className={`text-[10px] ${typeBadgeColor(q.type)}`}>{q.type}</Badge>
+          <span className="text-xs text-muted-foreground">{q.topic}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={() => openEditDialog(tab, q)} className="rounded p-1.5 hover:bg-muted">
+            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+          <button onClick={() => handleDelete(tab, q.id)} className="rounded p-1.5 hover:bg-destructive/10 hover:text-destructive">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      <p className="text-sm font-medium">{q.question}</p>
+      {q.options && q.type === "MCQ" && (
+        <div className="mt-2 space-y-1">
+          {q.options.map((opt, i) => (
+            <p key={i} className={`text-xs ${i === q.correctIndex ? "text-success font-medium" : "text-muted-foreground"}`}>
+              {String.fromCharCode(65 + i)}. {opt}
+            </p>
+          ))}
+        </div>
+      )}
+      {q.explanation && q.type !== "MCQ" && (
+        <p className="mt-1.5 text-xs text-muted-foreground">{q.explanation}</p>
+      )}
+    </div>
+  );
 
   return (
     <div className="p-6">
       <div className="mb-8">
         <h1 className="font-heading text-3xl font-bold">Assessments</h1>
-        <p className="text-muted-foreground">Manage quizzes, exams, and add custom questions</p>
+        <p className="text-muted-foreground">Manage practice questions, exams, and lesson materials</p>
       </div>
 
       {/* Illustrative notice */}
@@ -60,43 +142,33 @@ const Assessments = () => {
         <div>
           <p className="text-sm font-medium text-foreground">Preview / Illustrative View</p>
           <p className="text-xs text-muted-foreground">
-            The questions, assessments, and exam simulations shown below are illustrative examples — not an exhaustive list. The AI TA dynamically generates and personalizes content based on individual student responses and progress.
+            The questions and assessments shown below are illustrative examples. The AI TA dynamically generates and personalizes content based on individual student responses and progress.
           </p>
         </div>
       </div>
 
-      <Tabs defaultValue="quizzes">
+      <Tabs defaultValue="practice">
         <TabsList className="mb-6">
-          <TabsTrigger value="quizzes">Quiz Bank</TabsTrigger>
+          <TabsTrigger value="practice">Practice Questions</TabsTrigger>
           <TabsTrigger value="exams">Exam Simulations</TabsTrigger>
-          <TabsTrigger value="custom">Custom Questions</TabsTrigger>
+          <TabsTrigger value="lessons">Edit Lesson Plan</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="quizzes" className="space-y-4">
+        <TabsContent value="practice" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" /> Quiz Questions</CardTitle>
-              <CardDescription>Illustrative questions used in student diagnostic and practice quizzes. Content adapts based on student performance.</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" /> Practice Questions</CardTitle>
+                  <CardDescription>These are illustrative questions used in student learning mode under the AI TA chat. Questions are a mix of multiple choice, short answer, and code practice.</CardDescription>
+                </div>
+                <Button size="sm" onClick={() => openAddDialog("practice")}>
+                  <Plus className="mr-1 h-4 w-4" /> Add Question
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {mockQuizQuestions.map((q) => (
-                <div key={q.id} className="rounded-lg border p-4">
-                  <div className="mb-2 flex items-center gap-2">
-                    <Badge variant={q.difficulty === "Easy" ? "secondary" : q.difficulty === "Hard" ? "destructive" : "outline"} className="text-xs">
-                      {q.difficulty}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">{q.topic}</span>
-                  </div>
-                  <p className="text-sm font-medium">{q.question}</p>
-                  <div className="mt-2 space-y-1">
-                    {q.options.map((opt, i) => (
-                      <p key={i} className={`text-xs ${i === q.correctIndex ? "text-success font-medium" : "text-muted-foreground"}`}>
-                        {String.fromCharCode(65 + i)}. {opt}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              {practiceQuestions.map((q) => renderQuestion("practice", q))}
             </CardContent>
           </Card>
         </TabsContent>
@@ -104,140 +176,117 @@ const Assessments = () => {
         <TabsContent value="exams" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" /> Exam Simulations</CardTitle>
-              <CardDescription>Sample exam content visible to students in exam prep mode. This is a preview — actual exams are personalized per student.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {examItems.map((item) => (
-                <div key={item.id} className="rounded-lg border p-4">
-                  <div className="mb-2 flex items-center gap-2">
-                    <Badge variant="destructive" className="text-xs">{item.difficulty}</Badge>
-                    <span className="text-xs text-muted-foreground">{item.topic}</span>
-                  </div>
-                  <h4 className="text-sm font-medium">{item.title}</h4>
-                  <p className="mt-1 text-xs text-muted-foreground">{item.content}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="custom" className="space-y-4">
-          <Card>
-            <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="flex items-center gap-2"><Plus className="h-5 w-5" /> Custom Questions</CardTitle>
-                  <CardDescription>Add your own questions and flag them for student assessments.</CardDescription>
+                  <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" /> Exam Simulations</CardTitle>
+                  <CardDescription>Sample exam content visible to students in exam prep mode. Includes multiple choice, short answer, and code practice questions.</CardDescription>
                 </div>
-                <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
+                <Button size="sm" onClick={() => openAddDialog("exams")}>
                   <Plus className="mr-1 h-4 w-4" /> Add Question
                 </Button>
               </div>
             </CardHeader>
+            <CardContent className="space-y-3">
+              {examQuestions.map((q) => renderQuestion("exams", q))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="lessons" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Edit Lesson Plan</CardTitle>
+              <CardDescription>Update your lesson content, edit existing materials, or upload new resources for students.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-4">
-              {/* Flag legend */}
-              <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Question Flags:</p>
-                <div className="flex flex-wrap gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="default" className="text-[10px]"><Flag className="mr-1 h-3 w-3" /> Mandatory</Badge>
-                    <span className="text-[10px] text-muted-foreground">— Question will always appear in student assessments</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="secondary" className="text-[10px] border-warning/50 bg-warning/10 text-warning"><AlertTriangle className="mr-1 h-3 w-3" /> Exam-Type</Badge>
-                    <span className="text-[10px] text-muted-foreground">— Flags the type of question that will appear in exams (visible to students)</span>
-                  </div>
+              <div className="rounded-lg border bg-muted/30 p-6 text-center space-y-3">
+                <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">Upload New Materials</p>
+                  <p className="text-xs text-muted-foreground">Drag and drop or click to upload slides, notes, or supplementary materials</p>
                 </div>
+                <Button variant="outline" size="sm">
+                  <Upload className="mr-2 h-4 w-4" /> Choose Files
+                </Button>
               </div>
 
-              {showAdd && (
-                <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-4">
-                  <div className="space-y-2">
-                    <Label>Question</Label>
-                    <textarea
-                      className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      placeholder="Enter your question..."
-                      value={newQuestion}
-                      onChange={(e) => setNewQuestion(e.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Topic</Label>
-                      <Select value={newTopic} onValueChange={setNewTopic}>
-                        <SelectTrigger><SelectValue placeholder="Select topic" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Process Management">Process Management</SelectItem>
-                          <SelectItem value="CPU Scheduling">CPU Scheduling</SelectItem>
-                          <SelectItem value="Memory Management">Memory Management</SelectItem>
-                          <SelectItem value="Virtual Memory">Virtual Memory</SelectItem>
-                          <SelectItem value="File Systems">File Systems</SelectItem>
-                          <SelectItem value="Synchronization">Synchronization</SelectItem>
-                          <SelectItem value="Deadlocks">Deadlocks</SelectItem>
-                        </SelectContent>
-                      </Select>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Current Materials</p>
+                {["Course Syllabus — Operating Systems", "Module 1: Process Management Slides", "Module 2: Memory Management Notes", "Module 3: File Systems & Storage", "Module 4: Concurrency & Synchronization"].map((item, i) => (
+                  <div key={i} className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{item}</span>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Difficulty</Label>
-                      <Select value={newDifficulty} onValueChange={(v: any) => setNewDifficulty(v)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Easy">Easy</SelectItem>
-                          <SelectItem value="Medium">Medium</SelectItem>
-                          <SelectItem value="Hard">Hard</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">Edit</Button>
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive">Remove</Button>
                     </div>
                   </div>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Mandatory Question</Label>
-                        <p className="text-xs text-muted-foreground">This question will always appear in student assessments</p>
-                      </div>
-                      <Switch checked={newMandatory} onCheckedChange={setNewMandatory} />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Exam-Type Question</Label>
-                        <p className="text-xs text-muted-foreground">Flag as the type of question that will appear in exams (visible to students)</p>
-                      </div>
-                      <Switch checked={newExamType} onCheckedChange={setNewExamType} />
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>Cancel</Button>
-                    <Button size="sm" onClick={handleAddQuestion} disabled={!newQuestion.trim() || !newTopic}>Add Question</Button>
-                  </div>
-                </div>
-              )}
-
-              {customQuestions.map((q) => (
-                <div key={q.id} className="rounded-lg border p-4">
-                  <div className="mb-2 flex items-center gap-2 flex-wrap">
-                    <Badge variant={q.difficulty === "Easy" ? "secondary" : q.difficulty === "Hard" ? "destructive" : "outline"} className="text-xs">
-                      {q.difficulty}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">{q.topic}</span>
-                    {q.mandatory && (
-                      <Badge variant="default" className="text-[10px]">
-                        <Flag className="mr-1 h-3 w-3" /> Mandatory
-                      </Badge>
-                    )}
-                    {q.examType && (
-                      <Badge variant="secondary" className="text-[10px] border-warning/50 bg-warning/10 text-warning">
-                        <AlertTriangle className="mr-1 h-3 w-3" /> Exam-Type
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-sm font-medium">{q.question}</p>
-                </div>
-              ))}
+                ))}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingId ? "Edit" : "Add"} Question</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Question</Label>
+              <Textarea placeholder="Enter your question..." value={formQuestion} onChange={(e) => setFormQuestion(e.target.value)} />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Topic</Label>
+                <Select value={formTopic} onValueChange={setFormTopic}>
+                  <SelectTrigger><SelectValue placeholder="Select topic" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Process Management">Process Management</SelectItem>
+                    <SelectItem value="CPU Scheduling">CPU Scheduling</SelectItem>
+                    <SelectItem value="Memory Management">Memory Management</SelectItem>
+                    <SelectItem value="Virtual Memory">Virtual Memory</SelectItem>
+                    <SelectItem value="File Systems">File Systems</SelectItem>
+                    <SelectItem value="Synchronization">Synchronization</SelectItem>
+                    <SelectItem value="Deadlocks">Deadlocks</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Difficulty</Label>
+                <Select value={formDifficulty} onValueChange={(v: any) => setFormDifficulty(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Easy">Easy</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="Hard">Hard</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={formType} onValueChange={(v: any) => setFormType(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MCQ">Multiple Choice</SelectItem>
+                    <SelectItem value="Short Answer">Short Answer</SelectItem>
+                    <SelectItem value="Code Practice">Code Practice</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={!formQuestion.trim() || !formTopic}>{editingId ? "Save Changes" : "Add Question"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
