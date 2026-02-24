@@ -6,10 +6,12 @@ import { Input } from "@/components/ui/input";
 import {
   ChevronDown, ChevronUp, Pencil, Trash2, Plus, Upload, FileText,
   Check, X, BookOpen, FlaskConical, Newspaper, LibraryBig, FileDown,
+  Presentation, FileSpreadsheet, Download,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Resource = {
   id: string;
@@ -254,25 +256,52 @@ const TeachingPlan = () => {
         </div>
       </div>
 
-      {/* Upload section */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base"><Upload className="h-5 w-5" /> Upload New Materials</CardTitle>
-          <CardDescription>Add new slides, notes, or supplementary materials to your teaching plan</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border-2 border-dashed bg-muted/30 p-6 text-center space-y-2">
-            <Upload className="mx-auto h-6 w-6 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Drag files here or click to browse</p>
-            <Button variant="outline" size="sm">
-              <Upload className="mr-2 h-4 w-4" /> Choose Files
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="plan" className="mb-6">
+        <TabsList className="mb-4">
+          <TabsTrigger value="plan">Weekly Plan</TabsTrigger>
+          <TabsTrigger value="materials">Uploaded Materials</TabsTrigger>
+        </TabsList>
 
-      {/* Week-by-week plan */}
-      <div className="space-y-2">
+        <TabsContent value="materials" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base"><FileText className="h-5 w-5" /> Course Materials</CardTitle>
+                  <CardDescription>Syllabus, slides, problem sets, and other teaching materials</CardDescription>
+                </div>
+                <Button variant="outline" size="sm">
+                  <Upload className="mr-2 h-4 w-4" /> Upload New
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {[
+                { name: "CS301_Syllabus_Fall2025.pdf", type: "Syllabus", size: "2.4 MB", date: "Aug 10, 2025", icon: FileText },
+                { name: "Module1_Process_Management_Slides.pptx", type: "Slides", size: "8.1 MB", date: "Aug 10, 2025", icon: Presentation },
+                { name: "Module2_Memory_Management_Slides.pptx", type: "Slides", size: "6.7 MB", date: "Aug 10, 2025", icon: Presentation },
+                { name: "Past_Midterm_Exam_2024.pdf", type: "Past Exam", size: "1.2 MB", date: "Aug 10, 2025", icon: FileText },
+                { name: "Problem_Set_1_Scheduling.pdf", type: "Problem Set", size: "540 KB", date: "Aug 10, 2025", icon: FileSpreadsheet },
+                { name: "Textbook_Readings_Ch1-4.pdf", type: "Reading", size: "15.3 MB", date: "Aug 10, 2025", icon: BookOpen },
+              ].map((file, i) => (
+                <div key={i} className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <file.icon className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">{file.type} • {file.size} • Uploaded {file.date}</p>
+                  </div>
+                  <Button variant="ghost" size="sm" className="h-8">
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="plan" className="space-y-2">
         {weeks.map((wp) => {
           const isExpanded = expandedWeeks.includes(wp.id);
           const isEditing = editingWeekId === wp.id;
@@ -371,7 +400,8 @@ const TeachingPlan = () => {
             </Card>
           );
         })}
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

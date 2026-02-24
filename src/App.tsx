@@ -12,7 +12,7 @@ import CourseCreation from "./pages/teacher/CourseCreation";
 import AITASettings from "./pages/teacher/AITASettings";
 import ContentReview from "./pages/teacher/ContentReview";
 import PublishEnrollment from "./pages/teacher/PublishEnrollment";
-import ContentLibrary from "./pages/teacher/ContentLibrary";
+
 import CourseDashboard from "./pages/teacher/CourseDashboard";
 import StudentInsights from "./pages/teacher/StudentInsights";
 import Assessments from "./pages/teacher/Assessments";
@@ -65,7 +65,7 @@ const App = () => (
             <Route element={<TeacherLayout />}>
               <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
               <Route path="/teacher/insights" element={<StudentInsights />} />
-              <Route path="/teacher/content-library" element={<ContentLibrary />} />
+              
               <Route path="/teacher/assessments" element={<Assessments />} />
               <Route path="/teacher/teaching-plan" element={<TeachingPlan />} />
               <Route path="/teacher/settings" element={<SettingsIntegrity />} />
