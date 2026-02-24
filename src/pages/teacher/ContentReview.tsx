@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, Flag, RefreshCw, ArrowRight, ArrowLeft, Plus, Info } from "lucide-react";
+import { Check, ArrowRight, ArrowLeft, Plus, Info, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,9 +25,6 @@ const ContentReview = () => {
 
   const toggleApprove = (id: string) => {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, approved: !i.approved } : i)));
-  };
-  const toggleFlag = (id: string) => {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, flagged: !i.flagged } : i)));
   };
 
   const handleAddCustom = () => {
@@ -50,8 +47,12 @@ const ContentReview = () => {
     setAddCustomOpen(false);
   };
 
+  const removeItem = (id: string) => {
+    setItems((prev) => prev.filter((i) => i.id !== id));
+  };
+
   const renderItem = (item: ContentItem) => (
-    <div key={item.id} className={`rounded-lg border p-4 ${item.flagged ? "border-destructive/30 bg-destructive/5" : item.approved ? "border-primary/20" : ""}`}>
+    <div key={item.id} className={`rounded-lg border p-4 ${item.approved ? "border-primary/20" : ""}`}>
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Badge variant={item.difficulty === "Easy" ? "secondary" : item.difficulty === "Hard" ? "destructive" : "outline"} className="text-xs">
@@ -63,10 +64,9 @@ const ContentReview = () => {
           <button onClick={() => toggleApprove(item.id)} className={`rounded p-1.5 transition-colors ${item.approved ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
             <Check className="h-3.5 w-3.5" />
           </button>
-          <button onClick={() => toggleFlag(item.id)} className={`rounded p-1.5 transition-colors ${item.flagged ? "bg-destructive text-destructive-foreground" : "hover:bg-muted"}`}>
-            <Flag className="h-3.5 w-3.5" />
+          <button onClick={() => removeItem(item.id)} className="rounded p-1.5 transition-colors hover:bg-destructive/10 hover:text-destructive">
+            <X className="h-3.5 w-3.5" />
           </button>
-          <button className="rounded p-1.5 hover:bg-muted"><RefreshCw className="h-3.5 w-3.5" /></button>
         </div>
       </div>
       <h4 className="text-sm font-medium">{item.title}</h4>
