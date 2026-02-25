@@ -6,8 +6,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 
 const teacherNav = [
-  { title: "Courses", path: "/teacher/courses/dashboard", icon: BookOpen },
-  { title: "Student Insights", path: "/teacher/insights", icon: Users },
+  { title: "Course Dashboard", path: "/teacher/courses/dashboard", icon: BookOpen },
   { title: "Teaching Plan", path: "/teacher/teaching-plan", icon: FileText },
   { title: "Assessments", path: "/teacher/assessments", icon: ClipboardCheck },
   { title: "Settings / Integrity", path: "/teacher/settings", icon: Settings },

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { mockDashboard, mockTopics } from "@/data/mockData";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Users, MessageSquare, AlertTriangle, TrendingUp, BarChart3 } from "lucide-react";
+import { Users, MessageSquare, AlertTriangle, TrendingUp, BarChart3, ArrowUp, ArrowDown, Minus, Shield } from "lucide-react";
 
 const masteryColors: Record<string, string> = {
   Beginner: "bg-destructive/20 text-destructive",
@@ -30,6 +30,15 @@ const topicDetails: Record<string, { correct: number; wrong: number; total: numb
   "I/O Systems": { correct: 48, wrong: 39, total: 87 },
 };
 
+const weeklyData = [
+  { week: "Week 1", active: 45, sessions: 89, up: 0, down: 0, stayed: 45 },
+  { week: "Week 2", active: 44, sessions: 102, up: 3, down: 1, stayed: 40 },
+  { week: "Week 3", active: 42, sessions: 95, up: 4, down: 2, stayed: 36 },
+  { week: "Week 4", active: 40, sessions: 78, up: 5, down: 1, stayed: 34 },
+  { week: "Week 5", active: 43, sessions: 112, up: 7, down: 1, stayed: 35 },
+  { week: "Week 6", active: 41, sessions: 98, up: 3, down: 1, stayed: 37 },
+];
+
 const CourseDashboard = () => {
   const d = mockDashboard;
   const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
@@ -39,6 +48,10 @@ const CourseDashboard = () => {
       <div className="mb-8">
         <h1 className="font-heading text-3xl font-bold">Course Dashboard</h1>
         <p className="text-muted-foreground">Operating Systems — Command Center</p>
+        <div className="mt-2 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+          <Shield className="h-4 w-4 text-primary shrink-0" />
+          <p className="text-xs text-muted-foreground">All student data is anonymized to protect privacy and encourage authentic engagement with the AI TA.</p>
+        </div>
       </div>
 
       {/* Stats row — Avg Mastery is now 2nd */}
@@ -95,6 +108,67 @@ const CourseDashboard = () => {
       </div>
 
       <div className="space-y-6">
+        {/* Weekly Engagement & Mastery Movement */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Weekly Engagement & Mastery Movement</CardTitle>
+            <CardDescription>Track student activity and mastery level changes each week</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Legend */}
+            <div className="flex flex-wrap items-center gap-4 rounded-lg border bg-muted/30 px-4 py-2.5">
+              <span className="text-xs font-medium text-muted-foreground">Legend:</span>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded bg-primary/60" />
+                <span className="text-xs text-muted-foreground">Sessions (bar)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <ArrowUp className="h-3 w-3 text-success" />
+                <span className="text-xs text-muted-foreground">Moved Up</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <ArrowDown className="h-3 w-3 text-destructive" />
+                <span className="text-xs text-muted-foreground">Moved Down</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Minus className="h-3 w-3 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Stayed</span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {weeklyData.map((w) => (
+                <div key={w.week} className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-center gap-4">
+                    <span className="w-16 text-sm font-medium text-muted-foreground">{w.week}</span>
+                    <div className="flex-1">
+                      <Progress value={(w.sessions / 120) * 100} className="h-3" />
+                    </div>
+                    <div className="flex gap-4 text-xs text-muted-foreground shrink-0">
+                      <span>{w.active} active</span>
+                      <span>{w.sessions} sessions</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 pl-20">
+                    <div className="flex items-center gap-1">
+                      <ArrowUp className="h-3.5 w-3.5 text-success" />
+                      <span className="text-xs font-semibold text-success">{w.up}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <ArrowDown className="h-3.5 w-3.5 text-destructive" />
+                      <span className="text-xs font-semibold text-destructive">{w.down}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Minus className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs font-semibold text-muted-foreground">{w.stayed}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Mastery Distribution</CardTitle>
@@ -119,6 +193,7 @@ const CourseDashboard = () => {
         <Card>
           <CardHeader>
             <CardTitle>Concept Mastery Heatmap</CardTitle>
+            <CardDescription>Class-wide mastery per topic — click a topic for question breakdown</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Legend */}
