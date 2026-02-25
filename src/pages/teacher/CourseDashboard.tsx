@@ -3,7 +3,7 @@ import { mockDashboard, mockTopics } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Users, MessageSquare, AlertTriangle, TrendingUp, BarChart3, ArrowUp, ArrowDown, Minus, Shield } from "lucide-react";
+import { Users, MessageSquare, AlertTriangle, TrendingUp, BarChart3, ArrowUp, ArrowDown, Minus, Shield, ChevronDown } from "lucide-react";
 
 const masteryColors: Record<string, string> = {
   Beginner: "bg-destructive/20 text-destructive",
@@ -31,17 +31,18 @@ const topicDetails: Record<string, { correct: number; wrong: number; total: numb
 };
 
 const weeklyData = [
-  { week: "Week 1", active: 45, sessions: 89, up: 0, down: 0, stayed: 45, beginner: 20, developing: 15, proficient: 8, expert: 2 },
-  { week: "Week 2", active: 44, sessions: 102, up: 3, down: 1, stayed: 40, beginner: 17, developing: 16, proficient: 9, expert: 2 },
-  { week: "Week 3", active: 42, sessions: 95, up: 4, down: 2, stayed: 36, beginner: 14, developing: 15, proficient: 10, expert: 3 },
-  { week: "Week 4", active: 40, sessions: 78, up: 5, down: 1, stayed: 34, beginner: 10, developing: 14, proficient: 12, expert: 4 },
-  { week: "Week 5", active: 43, sessions: 112, up: 7, down: 1, stayed: 35, beginner: 8, developing: 13, proficient: 15, expert: 7 },
-  { week: "Week 6", active: 41, sessions: 98, up: 3, down: 1, stayed: 37, beginner: 6, developing: 12, proficient: 14, expert: 9 },
+  { week: "Week 1", active: 45, sessions: 89, up: 0, down: 0, stayed: 45, beginner: 20, developing: 15, proficient: 8, expert: 2, insight: "" },
+  { week: "Week 2", active: 44, sessions: 102, up: 3, down: 1, stayed: 40, beginner: 17, developing: 16, proficient: 9, expert: 2, insight: "3 students moved up — early momentum is building." },
+  { week: "Week 3", active: 42, sessions: 95, up: 4, down: 2, stayed: 36, beginner: 14, developing: 15, proficient: 10, expert: 3, insight: "2 students dropped a level. Consider reviewing Week 3 material (Advanced Scheduling) for common pain points." },
+  { week: "Week 4", active: 40, sessions: 78, up: 5, down: 1, stayed: 34, beginner: 10, developing: 14, proficient: 12, expert: 4, insight: "Strong upward movement. Sessions dipped — students may be consolidating knowledge independently." },
+  { week: "Week 5", active: 43, sessions: 112, up: 7, down: 1, stayed: 35, beginner: 8, developing: 13, proficient: 15, expert: 7, insight: "Highest engagement week. 7 students leveled up — the Synchronization topic is resonating well." },
+  { week: "Week 6", active: 41, sessions: 98, up: 3, down: 1, stayed: 37, beginner: 6, developing: 12, proficient: 14, expert: 9, insight: "Steady progress. Beginner count is decreasing — the class is maturing overall." },
 ];
 
 const CourseDashboard = () => {
   const d = mockDashboard;
   const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
+  const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
 
   return (
     <div className="p-6">
@@ -134,83 +135,97 @@ const CourseDashboard = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Weekly Engagement</CardTitle>
-            <CardDescription>Student activity, mastery movement, and level distribution per week</CardDescription>
+            <CardDescription>Click a week to see mastery level breakdown and AI-generated insights</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Compact legend */}
             <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
               <span className="font-medium">Movement:</span>
-              <span className="text-success">▲ Up</span>
-              <span className="text-destructive">▼ Down</span>
+              <span className="text-success">▲ Moved Up</span>
+              <span className="text-destructive">▼ Moved Down</span>
               <span>— Stayed</span>
-              <span className="text-muted-foreground/40">|</span>
-              <span className="font-medium">Levels:</span>
-              <span className="text-destructive">Beginner</span>
-              <span className="text-warning">Developing</span>
-              <span className="text-primary">Proficient</span>
-              <span className="text-success">Expert</span>
-            </div>
-
-            {/* Table-style header */}
-            <div className="hidden sm:grid sm:grid-cols-12 gap-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              <div className="col-span-1">Week</div>
-              <div className="col-span-2 text-center">Activity</div>
-              <div className="col-span-4 text-center">Mastery Movement</div>
-              <div className="col-span-5 text-center">Mastery Level Distribution</div>
             </div>
 
             <div className="space-y-2">
-              {weeklyData.map((w) => (
-                <div key={w.week} className="rounded-lg border p-3 sm:grid sm:grid-cols-12 sm:items-center gap-2">
-                  {/* Week label */}
-                  <div className="col-span-1 text-sm font-semibold text-foreground mb-2 sm:mb-0">{w.week.replace("Week ", "W")}</div>
-                  
-                  {/* Activity stats */}
-                  <div className="col-span-2 flex sm:flex-col items-center sm:items-center gap-2 sm:gap-0.5 mb-2 sm:mb-0">
-                    <div className="flex items-center gap-1">
-                      <Users className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-sm font-bold">{w.active}</span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground">{w.sessions} sessions</span>
-                  </div>
+              {weeklyData.map((w) => {
+                const isExpanded = expandedWeek === w.week;
+                return (
+                  <div
+                    key={w.week}
+                    className={`rounded-lg border transition-all cursor-pointer hover:border-primary/30 ${isExpanded ? "border-primary/40 bg-muted/20" : ""}`}
+                    onClick={() => setExpandedWeek(isExpanded ? null : w.week)}
+                  >
+                    {/* Main row */}
+                    <div className="flex items-center gap-4 p-3">
+                      {/* Week label */}
+                      <span className="w-14 text-sm font-semibold text-foreground shrink-0">{w.week}</span>
 
-                  {/* Mastery movement */}
-                  <div className="col-span-4 flex items-center justify-center gap-3 mb-2 sm:mb-0">
-                    <div className="flex items-center gap-1 rounded-md bg-success/10 px-2 py-1">
-                      <ArrowUp className="h-3 w-3 text-success" />
-                      <span className="text-xs font-bold text-success">{w.up}</span>
-                      <span className="text-[10px] text-success/70">up</span>
-                    </div>
-                    <div className="flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-1">
-                      <ArrowDown className="h-3 w-3 text-destructive" />
-                      <span className="text-xs font-bold text-destructive">{w.down}</span>
-                      <span className="text-[10px] text-destructive/70">dn</span>
-                    </div>
-                    <div className="flex items-center gap-1 rounded-md bg-muted px-2 py-1">
-                      <Minus className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs font-bold text-muted-foreground">{w.stayed}</span>
-                    </div>
-                  </div>
+                      {/* Activity */}
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="flex items-center gap-1">
+                          <Users className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-sm font-bold">{w.active}</span>
+                          <span className="text-[10px] text-muted-foreground">active</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">{w.sessions} sessions</span>
+                      </div>
 
-                  {/* Mastery level distribution - stacked bar */}
-                  <div className="col-span-5">
-                    <div className="flex h-6 w-full overflow-hidden rounded-full">
-                      <div className="flex items-center justify-center bg-destructive/70 text-[10px] font-bold text-white" style={{ width: `${(w.beginner / w.active) * 100}%` }}>
-                        {w.beginner > 3 && w.beginner}
-                      </div>
-                      <div className="flex items-center justify-center bg-warning/70 text-[10px] font-bold text-white" style={{ width: `${(w.developing / w.active) * 100}%` }}>
-                        {w.developing > 3 && w.developing}
-                      </div>
-                      <div className="flex items-center justify-center bg-primary/70 text-[10px] font-bold text-white" style={{ width: `${(w.proficient / w.active) * 100}%` }}>
-                        {w.proficient > 3 && w.proficient}
-                      </div>
-                      <div className="flex items-center justify-center bg-success/70 text-[10px] font-bold text-white" style={{ width: `${(w.expert / w.active) * 100}%` }}>
-                        {w.expert > 3 && w.expert}
+                      {/* Mastery movement */}
+                      <div className="flex items-center gap-2 ml-auto shrink-0">
+                        <div className="flex items-center gap-1 rounded-md bg-success/10 px-2 py-1">
+                          <ArrowUp className="h-3 w-3 text-success" />
+                          <span className="text-xs font-bold text-success">{w.up}</span>
+                        </div>
+                        <div className="flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-1">
+                          <ArrowDown className="h-3 w-3 text-destructive" />
+                          <span className="text-xs font-bold text-destructive">{w.down}</span>
+                        </div>
+                        <div className="flex items-center gap-1 rounded-md bg-muted px-2 py-1">
+                          <Minus className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs font-bold text-muted-foreground">{w.stayed}</span>
+                        </div>
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                       </div>
                     </div>
+
+                    {/* Expanded detail */}
+                    {isExpanded && (
+                      <div className="border-t px-4 py-3 space-y-3">
+                        {/* Mastery level distribution */}
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Mastery Level Distribution</p>
+                          <div className="grid grid-cols-4 gap-2">
+                            <div className="rounded-lg bg-destructive/10 p-2.5 text-center">
+                              <p className="text-lg font-bold text-destructive">{w.beginner}</p>
+                              <p className="text-[10px] text-destructive/80">Beginner</p>
+                            </div>
+                            <div className="rounded-lg bg-warning/10 p-2.5 text-center">
+                              <p className="text-lg font-bold text-warning">{w.developing}</p>
+                              <p className="text-[10px] text-warning/80">Developing</p>
+                            </div>
+                            <div className="rounded-lg bg-primary/10 p-2.5 text-center">
+                              <p className="text-lg font-bold text-primary">{w.proficient}</p>
+                              <p className="text-[10px] text-primary/80">Proficient</p>
+                            </div>
+                            <div className="rounded-lg bg-success/10 p-2.5 text-center">
+                              <p className="text-lg font-bold text-success">{w.expert}</p>
+                              <p className="text-[10px] text-success/80">Expert</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* AI Insight */}
+                        {w.insight && (
+                          <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+                            <TrendingUp className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+                            <p className="text-xs text-muted-foreground">{w.insight}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
