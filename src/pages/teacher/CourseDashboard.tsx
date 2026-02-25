@@ -19,15 +19,15 @@ const masteryBarColors: Record<string, string> = {
   Expert: "[&>div]:bg-success",
 };
 
-const topicDetails: Record<string, { correct: number; wrong: number; total: number }> = {
-  "Process Management": { correct: 142, wrong: 28, total: 170 },
-  "CPU Scheduling": { correct: 98, wrong: 32, total: 130 },
-  "Memory Management": { correct: 67, wrong: 48, total: 115 },
-  "Virtual Memory": { correct: 45, wrong: 62, total: 107 },
-  "File Systems": { correct: 58, wrong: 42, total: 100 },
-  "Synchronization": { correct: 33, wrong: 54, total: 87 },
-  "Deadlocks": { correct: 25, wrong: 58, total: 83 },
-  "I/O Systems": { correct: 48, wrong: 39, total: 87 },
+const topicInsights: Record<string, { level: string; summary: string; detail: string }> = {
+  "Process Management": { level: "Mastered", summary: "Students demonstrate strong understanding of process lifecycle, creation, and termination.", detail: "Most students can explain context switching, PCBs, and process states. This topic can serve as a foundation to reinforce related concepts like scheduling." },
+  "CPU Scheduling": { level: "Mastered", summary: "Solid grasp of scheduling algorithms across the class.", detail: "Students can compare FCFS, SJF, and Round Robin effectively. A few still struggle with priority inversion edge cases." },
+  "Memory Management": { level: "Developing", summary: "Mixed understanding — allocation strategies are a common stumbling block.", detail: "Students understand basic concepts but have difficulty with fragmentation analysis and choosing between paging vs segmentation in applied scenarios." },
+  "Virtual Memory": { level: "Needs Attention", summary: "Significant gaps in page replacement and demand paging concepts.", detail: "Many students confuse page faults with segmentation faults. Consider revisiting TLB mechanics and running the Page Table Simulator again." },
+  "File Systems": { level: "Developing", summary: "Students understand structure but struggle with implementation details.", detail: "EXT4 case study helped with design intuition, but inode allocation and journaling concepts need reinforcement." },
+  "Synchronization": { level: "Needs Attention", summary: "Concurrency primitives remain challenging for most students.", detail: "Producer-consumer and readers-writers problems are frequently confused. The mutex vs semaphore distinction needs more practice." },
+  "Deadlocks": { level: "Needs Attention", summary: "Deadlock detection is understood, but prevention strategies are weak.", detail: "Students can identify deadlocks in diagrams but struggle to apply Banker's algorithm or explain resource ordering in practice." },
+  "I/O Systems": { level: "Developing", summary: "Reasonable understanding of I/O models, weaker on modern storage.", detail: "DMA and interrupt-driven I/O are well understood. NVMe and SSD internals from the industry white paper need more discussion." },
 };
 
 const weeklyData = [
@@ -233,7 +233,7 @@ const CourseDashboard = () => {
         <Card>
           <CardHeader>
             <CardTitle>Concept Mastery Heatmap</CardTitle>
-            <CardDescription>Class-wide mastery per topic — click a topic for question breakdown</CardDescription>
+            <CardDescription>Class-wide mastery per topic — click a topic for detailed breakdown</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Legend */}
@@ -269,25 +269,25 @@ const CourseDashboard = () => {
                 </button>
               ))}
             </div>
-            {expandedTopic && topicDetails[expandedTopic] && (
-              <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-                <p className="text-sm font-medium">{expandedTopic} — Question Breakdown</p>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <p className="text-lg font-bold">{topicDetails[expandedTopic].total}</p>
-                    <p className="text-xs text-muted-foreground">Total Questions</p>
+            {expandedTopic && topicInsights[expandedTopic] && (() => {
+              const t = topicInsights[expandedTopic];
+              const mastery = mockTopics.find(tp => tp.name === expandedTopic)?.mastery || 0;
+              const levelColor = mastery >= 70 ? "text-success" : mastery >= 50 ? "text-warning" : "text-destructive";
+              const levelBg = mastery >= 70 ? "bg-success/10" : mastery >= 50 ? "bg-warning/10" : "bg-destructive/10";
+              return (
+                <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">{expandedTopic}</p>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${levelBg} ${levelColor}`}>{t.level}</span>
                   </div>
-                  <div>
-                    <p className="text-lg font-bold text-success">{topicDetails[expandedTopic].correct}</p>
-                    <p className="text-xs text-muted-foreground">Answered Correctly</p>
-                  </div>
-                  <div>
-                    <p className="text-lg font-bold text-destructive">{topicDetails[expandedTopic].wrong}</p>
-                    <p className="text-xs text-muted-foreground">Answered Wrong</p>
+                  <p className="text-sm text-foreground">{t.summary}</p>
+                  <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+                    <TrendingUp className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+                    <p className="text-xs text-muted-foreground">{t.detail}</p>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </CardContent>
         </Card>
       </div>
