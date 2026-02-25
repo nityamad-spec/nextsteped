@@ -26,7 +26,11 @@ const StudentOnboarding = () => {
       learnerLevel: "Beginner",
       topicBaseline: {},
     });
-    setCurrentCourse(mockCourse);
+    if (selectedCourse) {
+      setCurrentCourse({ ...mockCourse, id: selectedCourse.code.toLowerCase(), name: selectedCourse.name });
+    } else {
+      setCurrentCourse(mockCourse);
+    }
     setStudentOnboarded(true);
     navigate("/student/diagnostic");
   };
