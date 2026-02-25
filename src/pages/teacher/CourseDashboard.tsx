@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { mockDashboard, mockTopics } from "@/data/mockData";
+import { useApp } from "@/contexts/AppContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -43,12 +44,13 @@ const CourseDashboard = () => {
   const d = mockDashboard;
   const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
+  const { currentCourse } = useApp();
 
   return (
     <div className="p-6">
       <div className="mb-8">
         <h1 className="font-heading text-3xl font-bold">Course Dashboard</h1>
-        <p className="text-muted-foreground">Operating Systems — Command Center</p>
+        <p className="text-muted-foreground">{currentCourse?.name || "Course"} — Student Insights</p>
         <div className="mt-2 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
           <Shield className="h-4 w-4 text-primary shrink-0" />
           <p className="text-xs text-muted-foreground">All student data is anonymized to protect privacy and encourage authentic engagement with the Teaching Assistant.</p>
