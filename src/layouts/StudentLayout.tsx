@@ -1,6 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { Home, MessageSquare, Mic, TrendingUp, Briefcase, LogOut, BookOpen, Brain } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
+import { availableCourses } from "@/data/mockData";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ const studentNav = [
 
 const StudentLayout = () => {
   const { currentCourse, studentProfile, resetAll } = useApp();
+  const courseName = currentCourse?.name || availableCourses.find(c => c.code === studentProfile?.courseCode)?.name || "Course";
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -39,7 +41,7 @@ const StudentLayout = () => {
         <header className="flex items-center justify-between border-b px-4 py-3">
           <div>
             <h1 className="font-heading text-lg font-bold">Next<span className="text-primary">Step</span></h1>
-            {currentCourse && <p className="text-xs text-muted-foreground">{currentCourse.name}</p>}
+            <p className="text-xs text-muted-foreground">{courseName}</p>
           </div>
           <button onClick={handleLogout} className="text-muted-foreground"><LogOut className="h-5 w-5" /></button>
         </header>
@@ -76,9 +78,7 @@ const StudentLayout = () => {
         <div className="border-b p-4">
           <h1 className="font-heading text-xl font-bold">Next<span className="text-primary">Step</span></h1>
           <p className="mt-0.5 text-xs text-muted-foreground">Student View</p>
-          {currentCourse && (
-            <p className="mt-1 text-xs font-medium text-primary">{currentCourse.name}</p>
-          )}
+          <p className="mt-1 text-xs font-medium text-primary">{courseName}</p>
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
