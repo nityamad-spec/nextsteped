@@ -60,12 +60,11 @@ const DiagnosticQuiz = () => {
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
                 <Brain className="h-8 w-8 text-primary" />
               </div>
-              <h2 className="font-heading text-2xl font-bold">Diagnostic Complete</h2>
-              <p className="mt-2 text-muted-foreground">You got {score} out of {questions.length} correct</p>
-              <Badge className="mt-3 text-base px-4 py-1">{studentProfile?.learnerLevel}</Badge>
-              <p className="mt-4 text-sm text-muted-foreground">
-                Your strengths and areas to improve will be shown on your home page and will keep updating as you learn.
+              <h2 className="font-heading text-2xl font-bold">Thank You!</h2>
+              <p className="mt-2 text-muted-foreground">
+                You've completed the diagnostic quiz. Now it's time to dive in — start learning, practice with the AI TA, and watch your understanding grow.
               </p>
+              <Badge className="mt-3 text-base px-4 py-1">{studentProfile?.learnerLevel}</Badge>
               <Button onClick={() => { setDiagnosticComplete(true); navigate("/student/home"); }} className="mt-6 w-full">
                 Go to Home <ArrowRight className="ml-2 h-4 w-4" />
               </Button>

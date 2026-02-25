@@ -106,7 +106,7 @@ const StudentLayout = () => {
             <BookOpen className="h-4 w-4" /> Start Learning Session
           </Button>
           <Button variant="ghost" onClick={() => navigate("/student/chat?mode=exam")} className="w-full justify-start gap-2" size="sm">
-            <Brain className="h-4 w-4" /> Take Exam Simulation
+            <Brain className="h-4 w-4" /> Exam Simulation
           </Button>
           <Button variant="ghost" onClick={() => navigate("/student/progress")} className="w-full justify-start gap-2" size="sm">
             <TrendingUp className="h-4 w-4" /> View Progress
