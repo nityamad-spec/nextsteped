@@ -261,7 +261,7 @@ const CourseDashboard = () => {
                   <button
                     key={topic.id}
                     onClick={() => setExpandedTopic(expandedTopic === topic.name ? null : topic.name)}
-                    className={`rounded-lg border border-l-4 ${borderColor} bg-card p-3 text-center transition-all cursor-pointer hover:bg-muted/50 ${expandedTopic === topic.name ? "ring-2 ring-primary" : ""}`}
+                    className={`rounded-lg border border-l-4 ${borderColor} bg-card p-3 text-center transition-all cursor-pointer hover:bg-muted/50 h-20 flex flex-col items-center justify-center ${expandedTopic === topic.name ? "ring-2 ring-primary" : ""}`}
                   >
                     <p className="text-xs font-medium">{topic.name}</p>
                     <p className={`text-lg font-bold ${
