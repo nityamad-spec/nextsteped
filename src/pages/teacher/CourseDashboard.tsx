@@ -130,65 +130,83 @@ const CourseDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Weekly Engagement & Mastery Movement */}
+        {/* Weekly Engagement */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Weekly Engagement & Mastery Movement</CardTitle>
-            <CardDescription>Track student activity and mastery level changes each week</CardDescription>
+            <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Weekly Engagement</CardTitle>
+            <CardDescription>Student activity, mastery movement, and level distribution per week</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Legend */}
-            <div className="flex flex-wrap items-center gap-4 rounded-lg border bg-muted/30 px-4 py-2.5">
-              <span className="text-xs font-medium text-muted-foreground">Legend:</span>
-              <div className="flex items-center gap-1.5">
-                <ArrowUp className="h-3 w-3 text-success" />
-                <span className="text-xs text-muted-foreground">Moved Up</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <ArrowDown className="h-3 w-3 text-destructive" />
-                <span className="text-xs text-muted-foreground">Moved Down</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Minus className="h-3 w-3 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Stayed</span>
-              </div>
-              <span className="text-xs text-muted-foreground">|</span>
-              <span className={`text-xs px-1.5 py-0.5 rounded ${masteryColors["Beginner"]}`}>B</span>
-              <span className={`text-xs px-1.5 py-0.5 rounded ${masteryColors["Developing"]}`}>D</span>
-              <span className={`text-xs px-1.5 py-0.5 rounded ${masteryColors["Proficient"]}`}>P</span>
-              <span className={`text-xs px-1.5 py-0.5 rounded ${masteryColors["Expert"]}`}>E</span>
-              <span className="text-xs text-muted-foreground">= Mastery Levels</span>
+            {/* Compact legend */}
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+              <span className="font-medium">Movement:</span>
+              <span className="text-success">▲ Up</span>
+              <span className="text-destructive">▼ Down</span>
+              <span>— Stayed</span>
+              <span className="text-muted-foreground/40">|</span>
+              <span className="font-medium">Levels:</span>
+              <span className="text-destructive">Beginner</span>
+              <span className="text-warning">Developing</span>
+              <span className="text-primary">Proficient</span>
+              <span className="text-success">Expert</span>
             </div>
 
-            <div className="space-y-3">
+            {/* Table-style header */}
+            <div className="hidden sm:grid sm:grid-cols-12 gap-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="col-span-1">Week</div>
+              <div className="col-span-2 text-center">Activity</div>
+              <div className="col-span-4 text-center">Mastery Movement</div>
+              <div className="col-span-5 text-center">Mastery Level Distribution</div>
+            </div>
+
+            <div className="space-y-2">
               {weeklyData.map((w) => (
-                <div key={w.week} className="rounded-lg border p-3 space-y-2">
-                  <div className="flex items-center gap-4">
-                    <span className="w-16 text-sm font-medium text-muted-foreground">{w.week}</span>
-                    <div className="flex gap-4 text-xs text-muted-foreground">
-                      <span>{w.active} active</span>
-                      <span>{w.sessions} sessions</span>
+                <div key={w.week} className="rounded-lg border p-3 sm:grid sm:grid-cols-12 sm:items-center gap-2">
+                  {/* Week label */}
+                  <div className="col-span-1 text-sm font-semibold text-foreground mb-2 sm:mb-0">{w.week.replace("Week ", "W")}</div>
+                  
+                  {/* Activity stats */}
+                  <div className="col-span-2 flex sm:flex-col items-center sm:items-center gap-2 sm:gap-0.5 mb-2 sm:mb-0">
+                    <div className="flex items-center gap-1">
+                      <Users className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-sm font-bold">{w.active}</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">{w.sessions} sessions</span>
+                  </div>
+
+                  {/* Mastery movement */}
+                  <div className="col-span-4 flex items-center justify-center gap-3 mb-2 sm:mb-0">
+                    <div className="flex items-center gap-1 rounded-md bg-success/10 px-2 py-1">
+                      <ArrowUp className="h-3 w-3 text-success" />
+                      <span className="text-xs font-bold text-success">{w.up}</span>
+                      <span className="text-[10px] text-success/70">up</span>
+                    </div>
+                    <div className="flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-1">
+                      <ArrowDown className="h-3 w-3 text-destructive" />
+                      <span className="text-xs font-bold text-destructive">{w.down}</span>
+                      <span className="text-[10px] text-destructive/70">dn</span>
+                    </div>
+                    <div className="flex items-center gap-1 rounded-md bg-muted px-2 py-1">
+                      <Minus className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs font-bold text-muted-foreground">{w.stayed}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 pl-20 flex-wrap">
-                    <div className="flex items-center gap-1">
-                      <ArrowUp className="h-3.5 w-3.5 text-success" />
-                      <span className="text-xs font-semibold text-success">{w.up}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <ArrowDown className="h-3.5 w-3.5 text-destructive" />
-                      <span className="text-xs font-semibold text-destructive">{w.down}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Minus className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs font-semibold text-muted-foreground">{w.stayed}</span>
-                    </div>
-                    <span className="text-muted-foreground/40">|</span>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${masteryColors["Beginner"]}`}>{w.beginner}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${masteryColors["Developing"]}`}>{w.developing}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${masteryColors["Proficient"]}`}>{w.proficient}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${masteryColors["Expert"]}`}>{w.expert}</span>
+
+                  {/* Mastery level distribution - stacked bar */}
+                  <div className="col-span-5">
+                    <div className="flex h-6 w-full overflow-hidden rounded-full">
+                      <div className="flex items-center justify-center bg-destructive/70 text-[10px] font-bold text-white" style={{ width: `${(w.beginner / w.active) * 100}%` }}>
+                        {w.beginner > 3 && w.beginner}
+                      </div>
+                      <div className="flex items-center justify-center bg-warning/70 text-[10px] font-bold text-white" style={{ width: `${(w.developing / w.active) * 100}%` }}>
+                        {w.developing > 3 && w.developing}
+                      </div>
+                      <div className="flex items-center justify-center bg-primary/70 text-[10px] font-bold text-white" style={{ width: `${(w.proficient / w.active) * 100}%` }}>
+                        {w.proficient > 3 && w.proficient}
+                      </div>
+                      <div className="flex items-center justify-center bg-success/70 text-[10px] font-bold text-white" style={{ width: `${(w.expert / w.active) * 100}%` }}>
+                        {w.expert > 3 && w.expert}
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const ContentReview = () => {
   const navigate = useNavigate();
 
+  const [activeTab, setActiveTab] = useState("practice");
   const [items, setItems] = useState<ContentItem[]>(mockContentItems);
   const [addCustomOpen, setAddCustomOpen] = useState(false);
   const [customType, setCustomType] = useState<"practice" | "exam">("practice");
@@ -98,7 +99,7 @@ const ContentReview = () => {
           </div>
         </div>
 
-        <Tabs defaultValue="practice">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-4">
             <TabsTrigger value="practice">
               Practice Problems
@@ -115,8 +116,16 @@ const ContentReview = () => {
               <Button variant="outline" size="sm" onClick={() => { setCustomType("practice"); setAddCustomOpen(true); }}>
                 <Plus className="mr-1 h-3.5 w-3.5" /> Add Custom
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setItems(prev => prev.map(i => i.type === "practice" ? { ...i, approved: true } : i))}>
-                <Check className="mr-1 h-3.5 w-3.5" /> Approve All
+              <Button
+                variant={allPracticeApproved ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setItems(prev => prev.map(i => i.type === "practice" ? { ...i, approved: true } : i));
+                  // Auto-switch to exam tab after approving all practice
+                  setTimeout(() => setActiveTab("exam"), 400);
+                }}
+              >
+                <Check className="mr-1 h-3.5 w-3.5" /> {allPracticeApproved ? "All Approved ✓" : "Approve All"}
               </Button>
             </div>
             {practiceItems.map(renderItem)}
@@ -126,8 +135,12 @@ const ContentReview = () => {
               <Button variant="outline" size="sm" onClick={() => { setCustomType("exam"); setAddCustomOpen(true); }}>
                 <Plus className="mr-1 h-3.5 w-3.5" /> Add Custom
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setItems(prev => prev.map(i => i.type === "exam" ? { ...i, approved: true } : i))}>
-                <Check className="mr-1 h-3.5 w-3.5" /> Approve All
+              <Button
+                variant={allExamApproved ? "default" : "outline"}
+                size="sm"
+                onClick={() => setItems(prev => prev.map(i => i.type === "exam" ? { ...i, approved: true } : i))}
+              >
+                <Check className="mr-1 h-3.5 w-3.5" /> {allExamApproved ? "All Approved ✓" : "Approve All"}
               </Button>
             </div>
             {examItems.map(renderItem)}
