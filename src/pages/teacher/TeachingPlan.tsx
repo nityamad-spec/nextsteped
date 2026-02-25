@@ -247,7 +247,7 @@ const TeachingPlan = () => {
               <DropdownMenuItem onClick={() => handleExport("word")}>Export as Word</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="sm" variant={approved ? "default" : "outline"} onClick={() => { setApproved(true); setHasChanges(false); }} disabled={!hasChanges && !approved ? true : approved}>
+          <Button size="sm" variant={approved ? "default" : "outline"} onClick={() => { setApproved(true); setHasChanges(false); }} disabled={approved}>
             <Check className="mr-1 h-4 w-4" /> {approved ? "Approved" : "Approve Plan"}
           </Button>
           <Button size="sm" onClick={addWeek}>

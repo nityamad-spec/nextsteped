@@ -588,7 +588,7 @@ const CourseCreation = () => {
                <Check className="mr-1 h-4 w-4" /> {planApproved ? "Plan Approved" : "Approve Plan"}
              </Button>
              <Button onClick={() => navigate("/teacher/setup/settings")} disabled={!planApproved}>
-               Configure AI TA Settings <ArrowRight className="ml-2 h-4 w-4" />
+               Configure TA Settings <ArrowRight className="ml-2 h-4 w-4" />
              </Button>
            </div>
          </div>

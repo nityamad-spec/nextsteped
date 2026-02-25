@@ -86,7 +86,7 @@ const AITASettings = () => {
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="w-full max-w-3xl">
         <div className="mb-8 text-center">
-          <h1 className="font-heading text-3xl font-bold">AI TA Settings</h1>
+          <h1 className="font-heading text-3xl font-bold">Teaching Assistant Settings</h1>
           <p className="text-muted-foreground">Configure how the AI Teaching Assistant interacts with your students</p>
         </div>
 
@@ -244,11 +244,11 @@ const AITASettings = () => {
               <div className="rounded-lg border bg-muted/30 p-4">
                 <div className="mb-3 flex items-center gap-2">
                   <MessageSquare className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">AI TA Chat</span>
+                   <span className="text-sm font-medium">Teaching Assistant Chat</span>
                 </div>
                 <div className="space-y-3">
                   <div className="rounded-lg bg-primary/10 p-3 text-xs">
-                    <p className="font-medium text-primary">AI TA</p>
+                    <p className="font-medium text-primary">Teaching Assistant</p>
                     <p className="mt-1 text-foreground">I can help you understand this concept! Let me break it down step by step...</p>
                     {settings.hintLadder && <p className="mt-1 italic text-muted-foreground">💡 Hint available — try first!</p>}
                   </div>
