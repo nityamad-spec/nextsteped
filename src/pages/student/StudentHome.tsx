@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { BarChart3, Target, Flame, Check, ChevronDown, ChevronUp, BookOpen, TrendingUp, Brain, ArrowRight, FlaskConical, LibraryBig, Newspaper, Download } from "lucide-react";
-import { mockTopics } from "@/data/mockData";
+import { mockTopics, availableCourses } from "@/data/mockData";
 import { Button } from "@/components/ui/button";
 
 const typeLabels: Record<string, string> = {
@@ -129,6 +129,7 @@ const StudentHome = () => {
   const { studentProfile, currentCourse } = useApp();
   const navigate = useNavigate();
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([]);
+  const courseName = currentCourse?.name || availableCourses.find(c => c.code === studentProfile?.courseCode)?.name || "Course";
 
   const avgMastery = Math.round(mockTopics.reduce((sum, t) => sum + (t.mastery || 0), 0) / mockTopics.length);
 
@@ -145,7 +146,7 @@ const StudentHome = () => {
         </h1>
         <div className="mt-2 flex items-center gap-2">
           <Badge variant="outline" className="text-sm">{studentProfile?.learnerLevel || "Beginner"}</Badge>
-          <span className="text-sm text-muted-foreground">{currentCourse?.name || "Course"}</span>
+          <span className="text-sm text-muted-foreground">{courseName}</span>
         </div>
       </motion.div>
 
