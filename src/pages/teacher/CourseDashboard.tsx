@@ -19,15 +19,15 @@ const masteryBarColors: Record<string, string> = {
   Expert: "[&>div]:bg-success",
 };
 
-const topicInsights: Record<string, { level: string; summary: string; detail: string }> = {
-  "Process Management": { level: "Mastered", summary: "Students demonstrate strong understanding of process lifecycle, creation, and termination.", detail: "Most students can explain context switching, PCBs, and process states. This topic can serve as a foundation to reinforce related concepts like scheduling." },
-  "CPU Scheduling": { level: "Mastered", summary: "Solid grasp of scheduling algorithms across the class.", detail: "Students can compare FCFS, SJF, and Round Robin effectively. A few still struggle with priority inversion edge cases." },
-  "Memory Management": { level: "Developing", summary: "Mixed understanding — allocation strategies are a common stumbling block.", detail: "Students understand basic concepts but have difficulty with fragmentation analysis and choosing between paging vs segmentation in applied scenarios." },
-  "Virtual Memory": { level: "Needs Attention", summary: "Significant gaps in page replacement and demand paging concepts.", detail: "Many students confuse page faults with segmentation faults. Consider revisiting TLB mechanics and running the Page Table Simulator again." },
-  "File Systems": { level: "Developing", summary: "Students understand structure but struggle with implementation details.", detail: "EXT4 case study helped with design intuition, but inode allocation and journaling concepts need reinforcement." },
-  "Synchronization": { level: "Needs Attention", summary: "Concurrency primitives remain challenging for most students.", detail: "Producer-consumer and readers-writers problems are frequently confused. The mutex vs semaphore distinction needs more practice." },
-  "Deadlocks": { level: "Needs Attention", summary: "Deadlock detection is understood, but prevention strategies are weak.", detail: "Students can identify deadlocks in diagrams but struggle to apply Banker's algorithm or explain resource ordering in practice." },
-  "I/O Systems": { level: "Developing", summary: "Reasonable understanding of I/O models, weaker on modern storage.", detail: "DMA and interrupt-driven I/O are well understood. NVMe and SSD internals from the industry white paper need more discussion." },
+const topicInsights: Record<string, { beginner: number; developing: number; proficient: number; expert: number; summary: string; detail: string }> = {
+  "Process Management": { beginner: 2, developing: 4, proficient: 15, expert: 24, summary: "Students demonstrate strong understanding of process lifecycle, creation, and termination.", detail: "Most students can explain context switching, PCBs, and process states. This topic can serve as a foundation to reinforce related concepts like scheduling." },
+  "CPU Scheduling": { beginner: 3, developing: 6, proficient: 18, expert: 18, summary: "Solid grasp of scheduling algorithms across the class.", detail: "Students can compare FCFS, SJF, and Round Robin effectively. A few still struggle with priority inversion edge cases." },
+  "Memory Management": { beginner: 8, developing: 14, proficient: 15, expert: 8, summary: "Mixed understanding — allocation strategies are a common stumbling block.", detail: "Students understand basic concepts but have difficulty with fragmentation analysis and choosing between paging vs segmentation in applied scenarios." },
+  "Virtual Memory": { beginner: 15, developing: 14, proficient: 10, expert: 6, summary: "Significant gaps in page replacement and demand paging concepts.", detail: "Many students confuse page faults with segmentation faults. Consider revisiting TLB mechanics and running the Page Table Simulator again." },
+  "File Systems": { beginner: 7, developing: 16, proficient: 14, expert: 8, summary: "Students understand structure but struggle with implementation details.", detail: "EXT4 case study helped with design intuition, but inode allocation and journaling concepts need reinforcement." },
+  "Synchronization": { beginner: 18, developing: 13, proficient: 10, expert: 4, summary: "Concurrency primitives remain challenging for most students.", detail: "Producer-consumer and readers-writers problems are frequently confused. The mutex vs semaphore distinction needs more practice." },
+  "Deadlocks": { beginner: 20, developing: 12, proficient: 8, expert: 5, summary: "Deadlock detection is understood, but prevention strategies are weak.", detail: "Students can identify deadlocks in diagrams but struggle to apply Banker's algorithm or explain resource ordering in practice." },
+  "I/O Systems": { beginner: 6, developing: 13, proficient: 16, expert: 10, summary: "Reasonable understanding of I/O models, weaker on modern storage.", detail: "DMA and interrupt-driven I/O are well understood. NVMe and SSD internals from the industry white paper need more discussion." },
 };
 
 const weeklyData = [
@@ -272,14 +272,41 @@ const CourseDashboard = () => {
             {expandedTopic && topicInsights[expandedTopic] && (() => {
               const t = topicInsights[expandedTopic];
               const mastery = mockTopics.find(tp => tp.name === expandedTopic)?.mastery || 0;
+              const total = t.beginner + t.developing + t.proficient + t.expert;
+              const levelLabel = mastery >= 70 ? "Mastered" : mastery >= 50 ? "Developing" : "Needs Attention";
               const levelColor = mastery >= 70 ? "text-success" : mastery >= 50 ? "text-warning" : "text-destructive";
               const levelBg = mastery >= 70 ? "bg-success/10" : mastery >= 50 ? "bg-warning/10" : "bg-destructive/10";
+              const notMastered = t.beginner + t.developing;
               return (
-                <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+                <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold">{expandedTopic}</p>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${levelBg} ${levelColor}`}>{t.level}</span>
+                    <div>
+                      <p className="text-sm font-semibold">{expandedTopic}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{mastery}% class mastery · {notMastered} of {total} students have not yet reached Proficient level</p>
+                    </div>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${levelBg} ${levelColor}`}>{levelLabel}</span>
                   </div>
+
+                  {/* Student distribution */}
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="rounded-lg bg-destructive/10 p-2.5 text-center">
+                      <p className="text-lg font-bold text-destructive">{t.beginner}</p>
+                      <p className="text-[10px] text-destructive/80">Beginner</p>
+                    </div>
+                    <div className="rounded-lg bg-warning/10 p-2.5 text-center">
+                      <p className="text-lg font-bold text-warning">{t.developing}</p>
+                      <p className="text-[10px] text-warning/80">Developing</p>
+                    </div>
+                    <div className="rounded-lg bg-primary/10 p-2.5 text-center">
+                      <p className="text-lg font-bold text-primary">{t.proficient}</p>
+                      <p className="text-[10px] text-primary/80">Proficient</p>
+                    </div>
+                    <div className="rounded-lg bg-success/10 p-2.5 text-center">
+                      <p className="text-lg font-bold text-success">{t.expert}</p>
+                      <p className="text-[10px] text-success/80">Expert</p>
+                    </div>
+                  </div>
+
                   <p className="text-sm text-foreground">{t.summary}</p>
                   <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
                     <TrendingUp className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
