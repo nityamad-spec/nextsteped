@@ -254,20 +254,22 @@ const CourseDashboard = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {mockTopics.map((topic) => (
-                <button
-                  key={topic.id}
-                  onClick={() => setExpandedTopic(expandedTopic === topic.name ? null : topic.name)}
-                  className={`rounded-lg p-3 text-center transition-all cursor-pointer ${
-                    (topic.mastery || 0) >= 70 ? "bg-success/10 hover:bg-success/20" : (topic.mastery || 0) >= 50 ? "bg-warning/10 hover:bg-warning/20" : "bg-destructive/10 hover:bg-destructive/20"
-                  } ${expandedTopic === topic.name ? "ring-2 ring-primary" : ""}`}
-                >
-                  <p className="text-xs font-medium">{topic.name}</p>
-                  <p className={`text-lg font-bold ${
-                    (topic.mastery || 0) >= 70 ? "text-success" : (topic.mastery || 0) >= 50 ? "text-warning" : "text-destructive"
-                  }`}>{topic.mastery}%</p>
-                </button>
-              ))}
+              {mockTopics.map((topic) => {
+                const m = topic.mastery || 0;
+                const borderColor = m >= 70 ? "border-l-success" : m >= 50 ? "border-l-warning" : "border-l-destructive";
+                return (
+                  <button
+                    key={topic.id}
+                    onClick={() => setExpandedTopic(expandedTopic === topic.name ? null : topic.name)}
+                    className={`rounded-lg border border-l-4 ${borderColor} bg-card p-3 text-center transition-all cursor-pointer hover:bg-muted/50 ${expandedTopic === topic.name ? "ring-2 ring-primary" : ""}`}
+                  >
+                    <p className="text-xs font-medium">{topic.name}</p>
+                    <p className={`text-lg font-bold ${
+                      m >= 70 ? "text-success" : m >= 50 ? "text-warning" : "text-destructive"
+                    }`}>{topic.mastery}%</p>
+                  </button>
+                );
+              })}
             </div>
             {expandedTopic && topicInsights[expandedTopic] && (() => {
               const t = topicInsights[expandedTopic];
