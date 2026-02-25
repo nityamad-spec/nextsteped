@@ -354,6 +354,9 @@ const AIChat = () => {
               <Send className="h-4 w-4" />
             </Button>
           </div>
+          <p className="mt-2 text-[11px] text-muted-foreground text-center">
+            Your conversations are private and anonymized. Professors cannot see your individual chat data or responses.
+          </p>
         </div>
       </div>
     </div>

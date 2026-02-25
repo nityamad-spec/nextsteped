@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 
 const studentNav = [
   { title: "Home", path: "/student/home", icon: Home, enabled: true },
-  { title: "AI TA Chat", path: "/student/chat", icon: MessageSquare, enabled: true },
+  { title: "Ask NextStep", path: "/student/chat", icon: MessageSquare, enabled: true },
   { title: "Progress", path: "/student/progress", icon: TrendingUp, enabled: true },
   { title: "Interview Prep", path: "/student/interview", icon: Mic, enabled: false, badge: "Soon" },
   { title: "Employers", path: "/student/employers", icon: Briefcase, enabled: false, badge: "Later" },
