@@ -126,7 +126,7 @@ const lessonPlan: WeekPlan[] = [
 const currentWeek = 5;
 
 const StudentHome = () => {
-  const { studentProfile } = useApp();
+  const { studentProfile, currentCourse } = useApp();
   const navigate = useNavigate();
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([]);
 
@@ -145,7 +145,7 @@ const StudentHome = () => {
         </h1>
         <div className="mt-2 flex items-center gap-2">
           <Badge variant="outline" className="text-sm">{studentProfile?.learnerLevel || "Beginner"}</Badge>
-          <span className="text-sm text-muted-foreground">Operating Systems</span>
+          <span className="text-sm text-muted-foreground">{currentCourse?.name || "Course"}</span>
         </div>
       </motion.div>
 
