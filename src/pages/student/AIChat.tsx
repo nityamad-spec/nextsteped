@@ -344,7 +344,7 @@ const AIChat = () => {
         <div className="border-t p-4">
           <div className="flex gap-2">
             <Input
-              placeholder={mode === "learning" ? "Ask your AI TA anything..." : "Ask about exam topics or start a simulation..."}
+              placeholder={mode === "learning" ? "Ask your Teaching Assistant anything..." : "Ask about exam topics or start a simulation..."}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}

@@ -63,7 +63,7 @@ const DiagnosticQuiz = () => {
               </div>
               <h2 className="font-heading text-2xl font-bold">Thank You!</h2>
               <p className="mt-2 text-muted-foreground">
-                You've completed the diagnostic quiz. Now it's time to dive in — start learning, practice with the AI TA, and watch your understanding grow.
+                You've completed the diagnostic quiz. Now it's time to dive in — start learning, practice with the Teaching Assistant, and watch your understanding grow.
               </p>
               <div className="mt-4 flex items-center justify-center gap-3">
                 <Badge className="text-base px-4 py-1">{studentProfile?.learnerLevel}</Badge>

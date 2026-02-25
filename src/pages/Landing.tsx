@@ -45,7 +45,7 @@ const Landing = () => {
           <div className="text-center">
             <h2 className="text-xl font-semibold text-foreground">I'm a Professor</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Create courses, set up your AI TA, and monitor student progress.
+              Create courses, set up your Teaching Assistant, and monitor student progress.
             </p>
           </div>
           <div className="mt-2 flex items-center gap-1 text-sm font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">

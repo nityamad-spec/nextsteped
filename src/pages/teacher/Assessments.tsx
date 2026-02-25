@@ -193,7 +193,7 @@ const Assessments = () => {
         <div>
           <p className="text-sm font-medium text-foreground">Preview / Illustrative View</p>
           <p className="text-xs text-muted-foreground">
-            The questions and assessments shown below are illustrative examples. The AI TA dynamically generates and personalizes content based on individual student responses and progress.
+            The questions and assessments shown below are illustrative examples. The Teaching Assistant dynamically generates and personalizes content based on individual student responses and progress.
           </p>
         </div>
       </div>
@@ -211,7 +211,7 @@ const Assessments = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" /> Practice Questions</CardTitle>
-                  <CardDescription>These are illustrative questions used in student learning mode under the AI TA chat. Questions are a mix of multiple choice, short answer, and code practice.</CardDescription>
+                  <CardDescription>These are illustrative questions used in student learning mode under the Teaching Assistant chat. Questions are a mix of multiple choice, short answer, and code practice.</CardDescription>
                 </div>
                 <Button size="sm" onClick={() => openAddDialog("practice")}>
                   <Plus className="mr-1 h-4 w-4" /> Add Question

@@ -44,7 +44,7 @@ const SettingsIntegrity = () => {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="font-heading text-3xl font-bold">Settings / Integrity</h1>
-          <p className="text-muted-foreground">Adjust AI TA behavior, academic integrity, and course enrollment</p>
+          <p className="text-muted-foreground">Adjust Teaching Assistant behavior, academic integrity, and course enrollment</p>
         </div>
         <Button onClick={handleSave}>
           <Save className="mr-2 h-4 w-4" /> {saved ? "Saved!" : "Save Changes"}
