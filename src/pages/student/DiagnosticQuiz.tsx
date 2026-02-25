@@ -7,34 +7,35 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, ArrowLeft, Check, Brain, Target } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { ArrowRight, ArrowLeft, Brain } from "lucide-react";
+
+const confidenceLabels: Record<number, string> = {
+  0: "Just Guessing",
+  50: "Somewhat Confident",
+  100: "Very Confident",
+};
 
 const DiagnosticQuiz = () => {
   const { studentProfile, setStudentProfile, setDiagnosticComplete } = useApp();
   const navigate = useNavigate();
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
-  const [confidence, setConfidence] = useState<string | null>(null);
+  const [confidence, setConfidence] = useState<number>(50);
   const [answers, setAnswers] = useState<number[]>([]);
-  const [confidences, setConfidences] = useState<string[]>([]);
+  const [confidences, setConfidences] = useState<number[]>([]);
   const [phase, setPhase] = useState<"quiz" | "result">("quiz");
 
   const questions = mockQuizQuestions.slice(0, 7);
   const question = questions[currentQ];
 
-  const confidenceLevels = [
-    { value: "very_confident", label: "Very Confident", icon: "💪" },
-    { value: "somewhat_confident", label: "Somewhat Confident", icon: "🤔" },
-    { value: "guessing", label: "Just Guessing", icon: "🎲" },
-  ];
-
   const handleAnswer = () => {
-    if (selected === null || confidence === null) return;
+    if (selected === null) return;
     const newAnswers = [...answers, selected];
     setAnswers(newAnswers);
     setConfidences([...confidences, confidence]);
     setSelected(null);
-    setConfidence(null);
+    setConfidence(50);
 
     if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
@@ -59,19 +60,12 @@ const DiagnosticQuiz = () => {
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
                 <Brain className="h-8 w-8 text-primary" />
               </div>
-              <h2 className="font-heading text-2xl font-bold">Diagnostic Complete!</h2>
+              <h2 className="font-heading text-2xl font-bold">Diagnostic Complete</h2>
               <p className="mt-2 text-muted-foreground">You got {score} out of {questions.length} correct</p>
               <Badge className="mt-3 text-base px-4 py-1">{studentProfile?.learnerLevel}</Badge>
-              <div className="mt-6 space-y-2 text-left">
-                <p className="text-sm font-medium">Topic Strengths</p>
-                {["Process Management", "CPU Scheduling"].map((t) => (
-                  <div key={t} className="flex items-center gap-2 text-sm text-muted-foreground"><Check className="h-4 w-4 text-success" />{t}</div>
-                ))}
-                <p className="mt-3 text-sm font-medium">Areas to Improve</p>
-                {["Virtual Memory", "Deadlocks", "Synchronization"].map((t) => (
-                  <div key={t} className="flex items-center gap-2 text-sm text-muted-foreground"><Target className="h-4 w-4 text-accent" />{t}</div>
-                ))}
-              </div>
+              <p className="mt-4 text-sm text-muted-foreground">
+                Your strengths and areas to improve will be shown on your home page and will keep updating as you learn.
+              </p>
               <Button onClick={() => { setDiagnosticComplete(true); navigate("/student/home"); }} className="mt-6 w-full">
                 Go to Home <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -95,7 +89,7 @@ const DiagnosticQuiz = () => {
         <Card>
           <CardContent className="p-6">
             <motion.div key={currentQ} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-              <Badge variant="secondary" className="mb-3">{question.topic} • {question.difficulty}</Badge>
+              <Badge variant="secondary" className="mb-3">{question.topic} — {question.difficulty}</Badge>
               <p className="mb-4 text-sm font-medium">{question.question}</p>
               <div className="space-y-2">
                 {question.options.map((opt, i) => (
@@ -114,31 +108,33 @@ const DiagnosticQuiz = () => {
 
               {selected !== null && (
                 <div className="mt-4 border-t pt-4">
-                  <p className="mb-2 text-xs font-medium text-muted-foreground">How confident are you in your answer?</p>
-                  <div className="flex gap-2">
-                    {confidenceLevels.map((level) => (
-                      <button
-                        key={level.value}
-                        onClick={() => setConfidence(level.value)}
-                        className={`flex-1 rounded-lg border px-3 py-2 text-center text-xs transition-colors ${
-                          confidence === level.value
-                            ? "border-primary bg-primary/5 font-medium"
-                            : "hover:bg-muted"
-                        }`}
-                      >
-                        <span className="block text-base">{level.icon}</span>
-                        {level.label}
-                      </button>
-                    ))}
+                  <p className="mb-3 text-xs font-medium text-muted-foreground">How confident are you in your answer?</p>
+                  <div className="px-2">
+                    <Slider
+                      value={[confidence]}
+                      onValueChange={(val) => setConfidence(val[0])}
+                      min={0}
+                      max={100}
+                      step={50}
+                      className="mb-2"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Just Guessing</span>
+                      <span>Somewhat Confident</span>
+                      <span>Very Confident</span>
+                    </div>
                   </div>
+                  <p className="mt-2 text-center text-sm font-medium text-primary">
+                    {confidenceLabels[confidence] || "Somewhat Confident"}
+                  </p>
                 </div>
               )}
             </motion.div>
             <div className="mt-4 flex justify-between">
-              <Button variant="ghost" onClick={() => { if (currentQ > 0) { setCurrentQ(currentQ - 1); setSelected(null); setConfidence(null); setAnswers(answers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); } else { navigate("/student/onboarding"); } }}>
+              <Button variant="ghost" onClick={() => { if (currentQ > 0) { setCurrentQ(currentQ - 1); setSelected(null); setConfidence(50); setAnswers(answers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); } else { navigate("/student/onboarding"); } }}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
-              <Button onClick={handleAnswer} disabled={selected === null || confidence === null}>
+              <Button onClick={handleAnswer} disabled={selected === null}>
                 {currentQ < questions.length - 1 ? "Next Question" : "Finish Quiz"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>

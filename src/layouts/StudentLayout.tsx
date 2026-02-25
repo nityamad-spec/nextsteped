@@ -1,15 +1,16 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Home, MessageSquare, Mic, TrendingUp, Briefcase, LogOut } from "lucide-react";
+import { Home, MessageSquare, Mic, TrendingUp, Briefcase, LogOut, BookOpen, Brain } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const studentNav = [
   { title: "Home", path: "/student/home", icon: Home, enabled: true },
   { title: "AI TA Chat", path: "/student/chat", icon: MessageSquare, enabled: true },
-  { title: "Interview Prep", path: "/student/interview", icon: Mic, enabled: false, badge: "Soon" },
   { title: "Progress", path: "/student/progress", icon: TrendingUp, enabled: true },
+  { title: "Interview Prep", path: "/student/interview", icon: Mic, enabled: false, badge: "Soon" },
   { title: "Employers", path: "/student/employers", icon: Briefcase, enabled: false, badge: "Later" },
 ];
 
@@ -97,6 +98,20 @@ const StudentLayout = () => {
             )
           ))}
         </nav>
+
+        {/* Quick Actions */}
+        <div className="border-t p-3 space-y-1.5">
+          <p className="px-3 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Quick Actions</p>
+          <Button onClick={() => navigate("/student/chat")} className="w-full justify-start gap-2" size="sm" variant="ghost">
+            <BookOpen className="h-4 w-4" /> Start Learning Session
+          </Button>
+          <Button variant="ghost" onClick={() => navigate("/student/chat?mode=exam")} className="w-full justify-start gap-2" size="sm">
+            <Brain className="h-4 w-4" /> Take Exam Simulation
+          </Button>
+          <Button variant="ghost" onClick={() => navigate("/student/progress")} className="w-full justify-start gap-2" size="sm">
+            <TrendingUp className="h-4 w-4" /> View Progress
+          </Button>
+        </div>
 
         {studentProfile && (
           <div className="border-t p-4">
