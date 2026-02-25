@@ -25,6 +25,14 @@ const StudentLayout = () => {
     navigate("/");
   };
 
+  const handleStartLearning = () => {
+    navigate("/student/chat?mode=learning&newchat=true");
+  };
+
+  const handleExamSimulation = () => {
+    navigate("/student/chat?mode=exam&newchat=true");
+  };
+
   if (isMobile) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
@@ -102,10 +110,10 @@ const StudentLayout = () => {
         {/* Quick Actions */}
         <div className="border-t p-3 space-y-1.5">
           <p className="px-3 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Quick Actions</p>
-          <Button onClick={() => navigate("/student/chat")} className="w-full justify-start gap-2" size="sm" variant="ghost">
+          <Button onClick={handleStartLearning} className="w-full justify-start gap-2" size="sm" variant="ghost">
             <BookOpen className="h-4 w-4" /> Start Learning Session
           </Button>
-          <Button variant="ghost" onClick={() => navigate("/student/chat?mode=exam")} className="w-full justify-start gap-2" size="sm">
+          <Button variant="ghost" onClick={handleExamSimulation} className="w-full justify-start gap-2" size="sm">
             <Brain className="h-4 w-4" /> Exam Simulation
           </Button>
           <Button variant="ghost" onClick={() => navigate("/student/progress")} className="w-full justify-start gap-2" size="sm">
