@@ -45,6 +45,36 @@ const AIChat = () => {
 
   const activeChat = chats.find((c) => c.id === activeChatId) || null;
 
+  // Handle ?newchat=true param to auto-create new chat
+  useEffect(() => {
+    const shouldNewChat = searchParams.get("newchat") === "true";
+    if (shouldNewChat) {
+      const targetMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
+      setMode(targetMode);
+      // Create new chat immediately
+      const newChat: ChatSession = {
+        id: `chat-${Date.now()}`,
+        title: targetMode === "learning" ? "New Learning Session" : "New Exam Prep",
+        mode: targetMode,
+        messages: [{
+          id: `welcome-${Date.now()}`, role: "assistant", timestamp: Date.now(),
+          content: targetMode === "learning"
+            ? "Hi! I'm your AI Teaching Assistant for **Operating Systems**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?"
+            : "**Exam Prep Mode Active**\n\nWelcome to exam preparation. I'll help you practice with timed questions, review your weak areas, and build exam confidence.\n\nReady to set up a simulation or practice specific topics?",
+        }],
+        createdAt: Date.now(), updatedAt: Date.now(),
+      };
+      if (targetMode === "learning") {
+        setLearningChats([...learningChats, newChat]);
+        setActiveLearningChatId(newChat.id);
+      } else {
+        setExamChats([...examChats, newChat]);
+        setActiveExamChatId(newChat.id);
+      }
+      return;
+    }
+  }, []);
+
   useEffect(() => {
     if (mode === "learning" && learningChats.length === 0) {
       const initialChat: ChatSession = {
@@ -76,8 +106,8 @@ const AIChat = () => {
       messages: [{
         id: `welcome-${Date.now()}`, role: "assistant", timestamp: Date.now(),
         content: mode === "learning"
-          ? "👋 Hi! I'm your AI Teaching Assistant for **Operating Systems**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?"
-          : "🎯 **Exam Prep Mode Active**\n\nWelcome to exam preparation. I'll help you practice with timed questions, review your weak areas, and build exam confidence.\n\nReady to set up a simulation or practice specific topics?",
+          ? "Hi! I'm your AI Teaching Assistant for **Operating Systems**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?"
+          : "**Exam Prep Mode Active**\n\nWelcome to exam preparation. I'll help you practice with timed questions, review your weak areas, and build exam confidence.\n\nReady to set up a simulation or practice specific topics?",
       }],
       createdAt: Date.now(), updatedAt: Date.now(),
     };
@@ -97,7 +127,7 @@ const AIChat = () => {
       const aiMsg: ChatMessage = {
         id: `msg-${Date.now() + 1}`, role: "assistant", timestamp: Date.now(),
         content: mode === "learning"
-          ? "That's a great question! Let me break this down for you.\n\n### Key Concept\nThe answer involves understanding how the OS manages resources efficiently. Here's a step-by-step explanation:\n\n1. **First**, the system checks the current state\n2. **Then**, it applies the scheduling algorithm\n3. **Finally**, it updates the process table\n\n**Try this**: Can you think of a scenario where this approach might cause a problem?\n\n💡 *Hint: Think about what happens when multiple processes compete for the same resource.*"
+          ? "That's a great question! Let me break this down for you.\n\n### Key Concept\nThe answer involves understanding how the OS manages resources efficiently. Here's a step-by-step explanation:\n\n1. **First**, the system checks the current state\n2. **Then**, it applies the scheduling algorithm\n3. **Finally**, it updates the process table\n\n**Try this**: Can you think of a scenario where this approach might cause a problem?\n\n*Hint: Think about what happens when multiple processes compete for the same resource.*"
           : "Let's work through this problem.\n\n**Question**: Given a reference string `7, 0, 1, 2, 0, 3, 0, 4, 2, 3` and 3 page frames, how many page faults occur using FIFO?\n\nTake your time — use the scratchpad if needed. When you're ready, share your answer and reasoning.",
       };
       const updatedChats = chats.map((c) => (c.id === activeChat.id ? { ...c, messages: [...c.messages, userMsg, aiMsg], updatedAt: Date.now() } : c));
@@ -109,8 +139,8 @@ const AIChat = () => {
     if (!codeInput.trim()) return;
     setCodeResult(
       codeInput.includes("FCFS") || codeInput.includes("fcfs")
-        ? "✅ Correct! Your FCFS implementation correctly calculates waiting times. Average waiting time: 8.5ms"
-        : "⚠️ Not quite. Check your scheduling logic — remember FCFS processes jobs in arrival order. Try again!"
+        ? "Correct! Your FCFS implementation correctly calculates waiting times. Average waiting time: 8.5ms"
+        : "Not quite. Check your scheduling logic — remember FCFS processes jobs in arrival order. Try again!"
     );
   };
 
@@ -128,31 +158,31 @@ const AIChat = () => {
     <div className="flex h-[calc(100vh-57px)] md:h-screen">
       {/* Chat History Sidebar */}
       {showHistory && (
-        <div className="w-64 border-r bg-sidebar p-3 space-y-2">
-          <div className="flex items-center justify-between mb-2">
+        <div className="w-72 border-r bg-sidebar p-4 space-y-3">
+          <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold">
               {mode === "learning" ? "Learning" : "Exam Prep"} History
             </h3>
             <button onClick={() => setShowHistory(false)}><ChevronLeft className="h-4 w-4" /></button>
           </div>
           <Button variant="outline" size="sm" className="w-full" onClick={createNewChat}>
-            <Plus className="mr-1 h-3 w-3" /> New Chat
+            <Plus className="mr-1 h-4 w-4" /> New Chat
           </Button>
-          <div className="space-y-1 mt-2">
+          <div className="space-y-1 mt-3">
             {chats.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">No {mode === "learning" ? "learning" : "exam prep"} chats yet</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No {mode === "learning" ? "learning" : "exam prep"} chats yet</p>
             ) : (
               chats.map((chat) => (
                 <button
                   key={chat.id}
                   onClick={() => { setActiveChatId(chat.id); setShowHistory(false); }}
-                  className={`w-full rounded-lg px-3 py-2 text-left text-xs transition-colors ${
+                  className={`w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
                     chat.id === activeChatId ? "bg-sidebar-accent font-medium" : "hover:bg-sidebar-accent/50"
                   }`}
                 >
                   <p className="truncate">{chat.title}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {chat.messages.length} messages • {new Date(chat.updatedAt).toLocaleDateString()}
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {chat.messages.length} messages · {new Date(chat.updatedAt).toLocaleDateString()}
                   </p>
                 </button>
               ))
@@ -163,45 +193,44 @@ const AIChat = () => {
 
       {/* Main Chat Area */}
       <div className="flex flex-1 flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b px-4 py-2">
-          <div className="flex items-center gap-2">
-            <button onClick={() => setShowHistory(!showHistory)} className="rounded p-1.5 hover:bg-muted">
-              <History className="h-4 w-4" />
+        {/* Header - improved visibility */}
+        <div className="flex items-center justify-between border-b px-5 py-3">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setShowHistory(!showHistory)} className="rounded-lg p-2 hover:bg-muted transition-colors" title="Chat History">
+              <History className="h-5 w-5" />
             </button>
             <Tabs value={mode} onValueChange={(v) => { setMode(v as "learning" | "exam"); setShowHistory(false); setShowExamConfig(false); }}>
-              <TabsList className="h-8">
-                <TabsTrigger value="learning" className="text-xs px-3 h-6">
-                  <BookOpen className="mr-1 h-3 w-3" /> Learning
+              <TabsList className="h-10">
+                <TabsTrigger value="learning" className="text-sm px-5 h-8 gap-2">
+                  <BookOpen className="h-4 w-4" /> Learning
                 </TabsTrigger>
-                <TabsTrigger value="exam" className="text-xs px-3 h-6">
-                  <Clock className="mr-1 h-3 w-3" /> Exam Prep
+                <TabsTrigger value="exam" className="text-sm px-5 h-8 gap-2">
+                  <Clock className="h-4 w-4" /> Exam Prep
                 </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
           <div className="flex items-center gap-2">
             {mode === "exam" && (
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowExamConfig(!showExamConfig)}>
-                <Settings2 className="mr-1 h-3 w-3" /> Exam Settings
+              <Button variant="outline" size="sm" className="h-9 text-sm" onClick={() => setShowExamConfig(!showExamConfig)}>
+                <Settings2 className="mr-2 h-4 w-4" /> Exam Settings
               </Button>
             )}
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={createNewChat}>
-              <Plus className="mr-1 h-3 w-3" /> New Chat
+            <Button variant="outline" size="sm" className="h-9 text-sm" onClick={createNewChat}>
+              <Plus className="mr-2 h-4 w-4" /> New Chat
             </Button>
           </div>
         </div>
 
         {/* Exam Configuration Panel */}
         {mode === "exam" && showExamConfig && (
-          <div className="border-b bg-muted/20 p-4 space-y-4">
+          <div className="border-b bg-muted/20 p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">Exam Simulation Settings</h3>
               <div className="flex items-center gap-2">
                 <Button
                   variant={usePresetFormat ? "default" : "outline"}
                   size="sm"
-                  className="h-7 text-xs"
                   onClick={() => setUsePresetFormat(true)}
                 >
                   Professor's Format
@@ -209,7 +238,6 @@ const AIChat = () => {
                 <Button
                   variant={!usePresetFormat ? "default" : "outline"}
                   size="sm"
-                  className="h-7 text-xs"
                   onClick={() => setUsePresetFormat(false)}
                 >
                   Custom
@@ -218,31 +246,31 @@ const AIChat = () => {
             </div>
 
             {usePresetFormat ? (
-              <div className="rounded-lg border bg-primary/5 border-primary/20 p-3">
-                <p className="text-xs font-medium">Using professor's pre-defined format:</p>
-                <p className="text-xs text-muted-foreground mt-1">60 min · Mixed (MCQ + Short Answer + Problem Solving) · Medium difficulty</p>
+              <div className="rounded-lg border bg-primary/5 border-primary/20 p-4">
+                <p className="text-sm font-medium">Using professor's pre-defined format:</p>
+                <p className="text-sm text-muted-foreground mt-1">60 min · Mixed (MCQ + Short Answer + Problem Solving) · Medium difficulty</p>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
-                    <Label className="text-xs">Number of Questions</Label>
+                    <Label className="text-sm">Number of Questions</Label>
                     <div className="flex items-center gap-3">
                       <Slider value={[examNumQuestions]} onValueChange={(v) => setExamNumQuestions(v[0])} min={5} max={50} step={5} className="flex-1" />
-                      <span className="text-xs font-bold w-8">{examNumQuestions}</span>
+                      <span className="text-sm font-bold w-8">{examNumQuestions}</span>
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs">Time Limit (min)</Label>
+                    <Label className="text-sm">Time Limit (min)</Label>
                     <div className="flex items-center gap-3">
                       <Slider value={[examLength]} onValueChange={(v) => setExamLength(v[0])} min={15} max={180} step={15} className="flex-1" />
-                      <span className="text-xs font-bold w-12">{examLength} min</span>
+                      <span className="text-sm font-bold w-12">{examLength} min</span>
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs">Question Mix</Label>
+                    <Label className="text-sm">Question Mix</Label>
                     <Select value={examQuestionMix} onValueChange={setExamQuestionMix}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="mixed">Mixed</SelectItem>
                         <SelectItem value="mcq_only">MCQ Only</SelectItem>
@@ -252,7 +280,7 @@ const AIChat = () => {
                     </Select>
                   </div>
                 </div>
-                <Button size="sm" className="text-xs" onClick={() => setShowExamConfig(false)}>
+                <Button size="sm" onClick={() => setShowExamConfig(false)}>
                   Apply & Start Simulation
                 </Button>
               </div>
@@ -261,12 +289,12 @@ const AIChat = () => {
         )}
 
         {/* Controls bar */}
-        <div className="flex flex-wrap items-center gap-3 border-b px-4 py-2 text-xs">
-          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
-            <Lightbulb className="h-3 w-3" /> Ask for Hint
+        <div className="flex flex-wrap items-center gap-3 border-b px-5 py-2.5">
+          <Button variant="ghost" size="sm" className="h-9 text-sm gap-2">
+            <Lightbulb className="h-4 w-4" /> Ask for Hint
           </Button>
-          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 ml-auto" onClick={() => setShowCodeTerminal(!showCodeTerminal)}>
-            <Terminal className="h-3 w-3" /> Code Terminal
+          <Button variant="ghost" size="sm" className="h-9 text-sm gap-2 ml-auto" onClick={() => setShowCodeTerminal(!showCodeTerminal)}>
+            <Terminal className="h-4 w-4" /> Code Terminal
           </Button>
         </div>
 
@@ -283,7 +311,7 @@ const AIChat = () => {
                 <MessageSquare className="mx-auto h-12 w-12 text-muted-foreground/30" />
                 <p className="mt-3 text-sm text-muted-foreground">No active chat. Start a new conversation!</p>
                 <Button variant="outline" size="sm" className="mt-3" onClick={createNewChat}>
-                  <Plus className="mr-1 h-3 w-3" /> New Chat
+                  <Plus className="mr-1 h-4 w-4" /> New Chat
                 </Button>
               </div>
             </div>
@@ -295,19 +323,19 @@ const AIChat = () => {
           <div className="border-t bg-muted/30 p-4">
             <div className="mb-2 flex items-center gap-2">
               <Terminal className="h-4 w-4 text-primary" />
-              <span className="text-xs font-medium">Interactive Code Terminal</span>
-              <button onClick={() => setShowCodeTerminal(false)} className="ml-auto text-xs text-muted-foreground hover:text-foreground">Close</button>
+              <span className="text-sm font-medium">Interactive Code Terminal</span>
+              <button onClick={() => setShowCodeTerminal(false)} className="ml-auto text-sm text-muted-foreground hover:text-foreground">Close</button>
             </div>
             <textarea
-              className="w-full rounded-md border bg-background p-3 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full rounded-md border bg-background p-3 font-mono text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               rows={4}
               placeholder="Write your code here... (e.g., implement FCFS scheduler)"
               value={codeInput}
               onChange={(e) => setCodeInput(e.target.value)}
             />
             <div className="mt-2 flex items-center gap-2">
-              <Button size="sm" onClick={handleCodeSubmit} className="text-xs">Run & Check</Button>
-              {codeResult && <p className={`text-xs ${codeResult.startsWith("✅") ? "text-success" : "text-accent"}`}>{codeResult}</p>}
+              <Button size="sm" onClick={handleCodeSubmit}>Run & Check</Button>
+              {codeResult && <p className={`text-sm ${codeResult.startsWith("Correct") ? "text-success" : "text-accent"}`}>{codeResult}</p>}
             </div>
           </div>
         )}

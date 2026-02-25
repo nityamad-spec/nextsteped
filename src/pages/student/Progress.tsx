@@ -2,7 +2,6 @@ import { useApp } from "@/contexts/AppContext";
 import { mockTopics } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TrendingUp, Target, Flame, BookOpen, Briefcase, Construction, BarChart3, Check } from "lucide-react";
 
@@ -37,7 +36,7 @@ const StudentProgress = () => {
         </TabsList>
 
         <TabsContent value="learning" className="space-y-6">
-          {/* Stats Row — reordered: mastery, readiness, streak */}
+          {/* Stats Row */}
           <div className="grid gap-4 sm:grid-cols-3">
             <Card>
               <CardContent className="flex items-center gap-3 p-4">
@@ -134,26 +133,6 @@ const StudentProgress = () => {
                     {i < learningJourney.length - 1 && (
                       <div className="mx-2 h-0.5 w-12 bg-muted sm:w-20" />
                     )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Topic Mastery */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Topic Mastery</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                {mockTopics.map((topic) => (
-                  <div key={topic.id}>
-                    <div className="mb-1 flex justify-between text-sm">
-                      <span>{topic.name}</span>
-                      <span className="text-muted-foreground">{topic.mastery}%</span>
-                    </div>
-                    <Progress value={topic.mastery} className="h-2" />
                   </div>
                 ))}
               </div>
