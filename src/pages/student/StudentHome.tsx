@@ -1,19 +1,45 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useApp } from "@/contexts/AppContext";
 import { mockTopics } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, Brain, Clock, ArrowRight, Sparkles, TrendingUp, Target, Flame, Users, BarChart3 } from "lucide-react";
+import { BarChart3, Target, Flame, Users, Check, ChevronDown, ChevronUp, BookOpen } from "lucide-react";
+
+// Lesson plan data (same as professor view)
+const lessonPlan = [
+  { week: 1, topic: "Introduction to OS Concepts & Process Lifecycle", dates: "Jan 13 & 15" },
+  { week: 2, topic: "Process Scheduling: FCFS, SJF, Round Robin", dates: "Jan 20 & 22" },
+  { week: 3, topic: "Advanced Scheduling & Real-World Applications", dates: "Jan 27 & 29" },
+  { week: 4, topic: "Threads & Concurrency Fundamentals", dates: "Feb 3 & 5" },
+  { week: 5, topic: "Synchronization: Mutexes, Semaphores, Monitors", dates: "Feb 10 & 12" },
+  { week: 6, topic: "Deadlock Prevention & Detection", dates: "Feb 17 & 19" },
+  { week: 7, topic: "Midterm Review & Exam", dates: "Feb 24 & 26" },
+  { week: 8, topic: "Physical & Virtual Memory Concepts", dates: "Mar 3 & 5" },
+  { week: 9, topic: "Paging, Segmentation & Address Translation", dates: "Mar 10 & 12" },
+  { week: 10, topic: "Memory Allocation Strategies", dates: "Mar 17 & 19" },
+  { week: 11, topic: "File System Design & Implementation", dates: "Mar 24 & 26" },
+  { week: 12, topic: "Modern Storage: NVMe, SSDs & I/O Systems", dates: "Mar 31 & Apr 2" },
+  { week: 13, topic: "Security & Protection in Operating Systems", dates: "Apr 7 & 9" },
+  { week: 14, topic: "Virtualization & Cloud OS Concepts", dates: "Apr 14 & 16" },
+  { week: 15, topic: "Emerging Trends: WASM Runtimes, Unikernels", dates: "Apr 21 & 23" },
+  { week: 16, topic: "Final Review & Exam", dates: "Apr 28 & 30" },
+];
+
+const currentWeek = 5;
 
 const StudentHome = () => {
   const { studentProfile } = useApp();
   const navigate = useNavigate();
+  const [showAllWeeks, setShowAllWeeks] = useState(false);
 
-  const weakTopics = [...mockTopics].sort((a, b) => (a.mastery || 0) - (b.mastery || 0)).slice(0, 3);
   const avgMastery = Math.round(mockTopics.reduce((sum, t) => sum + (t.mastery || 0), 0) / mockTopics.length);
+
+  // Topics from diagnostic
+  const strengths = mockTopics.filter((t) => (t.mastery || 0) >= 70).slice(0, 3);
+  const weaknesses = [...mockTopics].sort((a, b) => (a.mastery || 0) - (b.mastery || 0)).slice(0, 3);
 
   return (
     <div className="p-6">
@@ -24,11 +50,11 @@ const StudentHome = () => {
         </h1>
         <div className="mt-2 flex items-center gap-2">
           <Badge variant="outline" className="text-sm">{studentProfile?.learnerLevel || "Beginner"}</Badge>
-          <span className="text-sm text-muted-foreground">• Operating Systems</span>
+          <span className="text-sm text-muted-foreground">Operating Systems</span>
         </div>
       </motion.div>
 
-      {/* Stats overview */}
+      {/* Stats overview - reordered: mastery, readiness, streak, sessions */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-6 grid gap-3 grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
@@ -38,28 +64,7 @@ const StudentHome = () => {
             <div>
               <p className="text-xl font-bold">{avgMastery}%</p>
               <p className="text-[11px] text-muted-foreground">Overall Mastery</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
-              <Flame className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-xl font-bold">4 days</p>
-              <p className="text-[11px] text-muted-foreground">Learning Streak</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-success/10 text-success">
-              <Users className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-xl font-bold">3</p>
-              <p className="text-[11px] text-muted-foreground">Sessions This Week</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Your average understanding across all topics</p>
             </div>
           </CardContent>
         </Card>
@@ -71,109 +76,140 @@ const StudentHome = () => {
             <div>
               <p className="text-xl font-bold">62%</p>
               <p className="text-[11px] text-muted-foreground">Exam Readiness</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">How prepared you are for your next exam</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
+              <Flame className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-xl font-bold">4 days</p>
+              <p className="text-[11px] text-muted-foreground">Learning Streak</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Consecutive days you've used the platform</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-success/10 text-success">
+              <Users className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-xl font-bold">3</p>
+              <p className="text-[11px] text-muted-foreground">Sessions This Week</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Number of learning sessions completed this week</p>
             </div>
           </CardContent>
         </Card>
       </motion.div>
 
-      {/* Action cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card className="group cursor-pointer transition-shadow hover:shadow-md h-full" onClick={() => navigate("/student/chat")}>
-            <CardContent className="p-5">
-              <div className="mb-3 flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <BookOpen className="h-5 w-5" />
-                </div>
-                <Badge variant="secondary" className="text-xs">Continue</Badge>
+      {/* Lesson Plan Progress */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-primary" />
+                <p className="text-sm font-medium">Lesson Plan Progress</p>
               </div>
-              <h3 className="font-medium">Continue where you left off</h3>
-              <p className="mt-1 text-xs text-muted-foreground">Virtual Memory — Page Replacement Algorithms</p>
-              <p className="mt-2 text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" /> ~15 min remaining</p>
-            </CardContent>
-          </Card>
-        </motion.div>
+              <span className="text-sm text-muted-foreground">Week {currentWeek} of {lessonPlan.length}</span>
+            </div>
+            <Progress value={(currentWeek / lessonPlan.length) * 100} className="h-2 mb-1" />
+            <p className="text-xs text-muted-foreground">Currently covering: {lessonPlan[currentWeek - 1].topic}</p>
+          </CardContent>
+        </Card>
+      </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <Card className="group cursor-pointer transition-shadow hover:shadow-md h-full" onClick={() => navigate("/student/chat")}>
-            <CardContent className="p-5">
-              <div className="mb-3 flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
-                  <Sparkles className="h-5 w-5" />
-                </div>
-                <Badge variant="secondary" className="text-xs">Recommended</Badge>
+      {/* Strengths & Weaknesses from diagnostic */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-6 grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Check className="h-4 w-4 text-primary" /> Topic Strengths
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {strengths.length > 0 ? strengths.map((t) => (
+              <div key={t.id} className="flex items-center justify-between rounded-lg border p-2.5">
+                <span className="text-sm">{t.name}</span>
+                <Badge variant="secondary" className="text-xs">{t.mastery}%</Badge>
               </div>
-              <h3 className="font-medium">CPU Scheduling Practice</h3>
-              <p className="mt-1 text-xs text-muted-foreground">Round Robin & SJF comparison exercises</p>
-              <p className="mt-2 text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" /> 20 min</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <Card className="group cursor-pointer border-accent/20 transition-shadow hover:shadow-md h-full" onClick={() => navigate("/student/chat?mode=exam")}>
-            <CardContent className="p-5">
-              <div className="mb-3 flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-                  <Brain className="h-5 w-5" />
-                </div>
-                <Badge variant="destructive" className="text-xs">6 days</Badge>
+            )) : (
+              <p className="text-sm text-muted-foreground">Complete more sessions to identify strengths</p>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Target className="h-4 w-4 text-accent" /> Areas to Improve
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {weaknesses.map((t) => (
+              <div key={t.id} className="flex items-center justify-between rounded-lg border p-2.5">
+                <span className="text-sm">{t.name}</span>
+                <Badge variant="outline" className="text-xs">{t.mastery}%</Badge>
               </div>
-              <h3 className="font-medium">Exam 1 — Take a Simulation</h3>
-              <p className="mt-1 text-xs text-muted-foreground">Midterm: Scheduling & Memory Management</p>
-              <p className="mt-2 text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" /> 60 min</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
+            ))}
+          </CardContent>
+        </Card>
+        <p className="sm:col-span-2 text-xs text-muted-foreground">
+          These will keep updating as you learn and use the AI chatbot.
+        </p>
+      </motion.div>
 
-      {/* Recommended topics & quick actions */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="lg:col-span-2">
-          <Card>
-            <CardHeader>
+      {/* Full Lesson Plan */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-base">
-                <Target className="h-4 w-4 text-accent" /> Recommended Topics to Review
+                <BookOpen className="h-4 w-4 text-primary" /> Course Lesson Plan
               </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {weakTopics.map((topic) => (
-                <div key={topic.id} className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate("/student/chat")}>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-medium">{topic.name}</p>
-                      <span className="text-xs text-muted-foreground">{topic.mastery}%</span>
-                    </div>
-                    <Progress value={topic.mastery} className="h-1.5" />
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-          <Card className="h-full">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className="h-4 w-4 text-primary" /> Quick Actions
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button onClick={() => navigate("/student/chat")} className="w-full justify-start gap-2" size="sm">
-                <BookOpen className="h-4 w-4" /> Start Learning Session
-              </Button>
-              <Button variant="outline" onClick={() => navigate("/student/chat?mode=exam")} className="w-full justify-start gap-2" size="sm">
-                <Brain className="h-4 w-4" /> Take Exam Simulation
-              </Button>
-              <Button variant="outline" onClick={() => navigate("/student/progress")} className="w-full justify-start gap-2" size="sm">
-                <TrendingUp className="h-4 w-4" /> View Progress
-              </Button>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
+              <button
+                onClick={() => setShowAllWeeks(!showAllWeeks)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showAllWeeks ? "Collapse" : "Show all weeks"}
+                {showAllWeeks ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              </button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {(showAllWeeks ? lessonPlan : lessonPlan.slice(0, 6)).map((week) => (
+              <div
+                key={week.week}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                  week.week === currentWeek
+                    ? "bg-primary/10 border border-primary/20 font-medium"
+                    : week.week < currentWeek
+                    ? "text-muted-foreground"
+                    : ""
+                }`}
+              >
+                <Badge
+                  variant={week.week === currentWeek ? "default" : "outline"}
+                  className="shrink-0 text-xs w-16 justify-center"
+                >
+                  Week {week.week}
+                </Badge>
+                <span className="text-xs text-muted-foreground shrink-0 w-24">{week.dates}</span>
+                <span className="flex-1 truncate">{week.topic}</span>
+                {week.week === currentWeek && (
+                  <Badge variant="secondary" className="text-[10px] shrink-0">Current</Badge>
+                )}
+                {week.week < currentWeek && (
+                  <Check className="h-3.5 w-3.5 text-primary shrink-0" />
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 };
