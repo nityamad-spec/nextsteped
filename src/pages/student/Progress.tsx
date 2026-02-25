@@ -4,14 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TrendingUp, Target, Flame, BookOpen, Briefcase, Construction, ArrowRight, Brain, BarChart3 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { TrendingUp, Target, Flame, BookOpen, Briefcase, Construction, BarChart3, Check } from "lucide-react";
 
 const StudentProgress = () => {
   const { studentProfile } = useApp();
-  const navigate = useNavigate();
   const avgMastery = Math.round(mockTopics.reduce((sum, t) => sum + (t.mastery || 0), 0) / mockTopics.length);
+
+  const strengths = mockTopics.filter((t) => (t.mastery || 0) >= 70).slice(0, 3);
+  const weaknesses = [...mockTopics].sort((a, b) => (a.mastery || 0) - (b.mastery || 0)).slice(0, 3);
 
   const learningJourney = [
     { month: "Aug 2025", level: "Beginner", active: true },
@@ -37,35 +37,83 @@ const StudentProgress = () => {
         </TabsList>
 
         <TabsContent value="learning" className="space-y-6">
-          {/* Stats Row — top */}
+          {/* Stats Row — reordered: mastery, readiness, streak */}
           <div className="grid gap-4 sm:grid-cols-3">
             <Card>
               <CardContent className="flex items-center gap-3 p-4">
-                <Flame className="h-5 w-5 text-accent" />
-                <div>
-                  <p className="text-xl font-bold">4 days</p>
-                  <p className="text-xs text-muted-foreground">Learning Streak 🔥</p>
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <BarChart3 className="h-4 w-4" />
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex items-center gap-3 p-4">
-                <Target className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-xl font-bold">62%</p>
-                  <p className="text-xs text-muted-foreground">Exam Readiness</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex items-center gap-3 p-4">
-                <BarChart3 className="h-5 w-5 text-primary" />
                 <div>
                   <p className="text-xl font-bold">{avgMastery}%</p>
-                  <p className="text-xs text-muted-foreground">Overall Mastery</p>
+                  <p className="text-[11px] text-muted-foreground">Overall Mastery</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Your average understanding across all topics</p>
                 </div>
               </CardContent>
             </Card>
+            <Card>
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                  <Target className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-xl font-bold">62%</p>
+                  <p className="text-[11px] text-muted-foreground">Exam Readiness</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">How prepared you are for your next exam</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                  <Flame className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-xl font-bold">4 days</p>
+                  <p className="text-[11px] text-muted-foreground">Learning Streak</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Consecutive days you've used the platform</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Topic Strengths & Weaknesses */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Check className="h-4 w-4 text-primary" /> Topic Strengths
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {strengths.length > 0 ? strengths.map((t) => (
+                  <div key={t.id} className="flex items-center justify-between rounded-lg border p-2.5">
+                    <span className="text-sm">{t.name}</span>
+                    <Badge variant="secondary" className="text-xs">{t.mastery}%</Badge>
+                  </div>
+                )) : (
+                  <p className="text-sm text-muted-foreground">Complete more sessions to identify strengths</p>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Target className="h-4 w-4 text-accent" /> Areas to Improve
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {weaknesses.map((t) => (
+                  <div key={t.id} className="flex items-center justify-between rounded-lg border p-2.5">
+                    <span className="text-sm">{t.name}</span>
+                    <Badge variant="outline" className="text-xs">{t.mastery}%</Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+            <p className="sm:col-span-2 text-xs text-muted-foreground">
+              These will keep updating as you learn and use the AI chatbot.
+            </p>
           </div>
 
           {/* Timeline */}
@@ -108,67 +156,6 @@ const StudentProgress = () => {
                     <Progress value={topic.mastery} className="h-2" />
                   </div>
                 ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* What to do next */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-accent" /> What To Do Next</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div
-                className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => navigate("/student/chat")}
-              >
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-                  <BookOpen className="h-4 w-4" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Practice Virtual Memory Concepts</p>
-                  <p className="text-xs text-muted-foreground">Your weakest area — targeted practice recommended</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div
-                className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => navigate("/student/chat")}
-              >
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
-                  <TrendingUp className="h-4 w-4" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Continue Synchronization Module</p>
-                  <p className="text-xs text-muted-foreground">You're making progress — keep the momentum going</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div
-                className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => navigate("/student/chat?mode=exam")}
-              >
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Brain className="h-4 w-4" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Take an Exam Simulation</p>
-                  <p className="text-xs text-muted-foreground">Midterm in 6 days — practice under timed conditions</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div
-                className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => navigate("/student/chat")}
-              >
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                  <BookOpen className="h-4 w-4" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Switch to Deadlocks Module</p>
-                  <p className="text-xs text-muted-foreground">Low mastery (30%) — review the four Coffman conditions</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
               </div>
             </CardContent>
           </Card>
