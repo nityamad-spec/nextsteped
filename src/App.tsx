@@ -64,7 +64,6 @@ const App = () => (
             {/* Teacher dashboard routes (inside layout) */}
             <Route element={<TeacherLayout />}>
               <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
-              <Route path="/teacher/insights" element={<StudentInsights />} />
               
               <Route path="/teacher/assessments" element={<Assessments />} />
               <Route path="/teacher/teaching-plan" element={<TeachingPlan />} />
