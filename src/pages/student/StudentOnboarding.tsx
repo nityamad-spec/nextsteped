@@ -14,9 +14,10 @@ const StudentOnboarding = () => {
   const { setStudentProfile, setStudentOnboarded, setCurrentCourse } = useApp();
   const navigate = useNavigate();
   const [name, setName] = useState("");
+  const [rollNumber, setRollNumber] = useState("");
   const [courseCode, setCourseCode] = useState("");
 
-  const isValid = name.trim() && courseCode;
+  const isValid = name.trim() && rollNumber.trim() && courseCode;
   const selectedCourse = availableCourses.find((c) => c.code === courseCode);
 
   const handleComplete = () => {
@@ -66,6 +67,15 @@ const StudentOnboarding = () => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoFocus
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Roll Number</Label>
+                <Input
+                  placeholder="Enter your roll number"
+                  value={rollNumber}
+                  onChange={(e) => setRollNumber(e.target.value)}
                 />
               </div>
 

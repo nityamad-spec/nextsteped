@@ -8,6 +8,7 @@ import Landing from "./pages/Landing";
 import TeacherLayout from "./layouts/TeacherLayout";
 import StudentLayout from "./layouts/StudentLayout";
 import TeacherOnboarding from "./pages/teacher/TeacherOnboarding";
+import MaterialQualityCheck from "./pages/teacher/MaterialQualityCheck";
 import CourseCreation from "./pages/teacher/CourseCreation";
 import AITASettings from "./pages/teacher/AITASettings";
 import ContentReview from "./pages/teacher/ContentReview";
@@ -56,6 +57,7 @@ const App = () => (
             {/* Teacher setup routes (standalone, no layout) */}
             <Route path="/teacher" element={<TeacherRedirect />} />
             <Route path="/teacher/onboarding" element={<TeacherOnboarding />} />
+            <Route path="/teacher/setup/quality-check" element={<MaterialQualityCheck />} />
             <Route path="/teacher/setup/syllabus" element={<CourseCreation />} />
             <Route path="/teacher/setup/settings" element={<AITASettings />} />
             <Route path="/teacher/setup/content" element={<ContentReview />} />

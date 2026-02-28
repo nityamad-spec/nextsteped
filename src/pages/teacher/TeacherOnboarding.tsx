@@ -55,7 +55,7 @@ const TeacherOnboarding = () => {
       sections: sections.length > 0 ? sections : mockCourse.sections,
       objectives: objectives ? objectives.split("\n").filter(Boolean) : mockCourse.objectives,
     });
-    navigate("/teacher/setup/syllabus");
+    navigate("/teacher/setup/quality-check");
   };
 
   return (
