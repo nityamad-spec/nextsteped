@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, ClipboardCheck, Pencil, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plus, ClipboardCheck, Pencil, Trash2, Filter } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -16,6 +17,7 @@ type QuestionMode = "learning" | "exam";
 interface EditableQuestion {
   id: string;
   question: string;
+  answer: string;
   topic: string;
   difficulty: "Easy" | "Medium" | "Hard";
   type: QuestionType;
@@ -25,9 +27,9 @@ interface EditableQuestion {
   explanation?: string;
 }
 
-// Seed from setup-stage questions (mockQuizQuestions)
 const seedQuestions: EditableQuestion[] = mockQuizQuestions.map((q) => ({
   ...q,
+  answer: q.options?.[q.correctIndex] || "",
   type: "MCQ" as QuestionType,
   modes: ["learning", "exam"] as QuestionMode[],
 }));
@@ -35,14 +37,23 @@ const seedQuestions: EditableQuestion[] = mockQuizQuestions.map((q) => ({
 const Assessments = () => {
   const [questions, setQuestions] = useState<EditableQuestion[]>(seedQuestions);
 
+  // Filters
+  const [filterMode, setFilterMode] = useState<string>("all");
+  const [filterDifficulty, setFilterDifficulty] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>("all");
+
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formQuestion, setFormQuestion] = useState("");
+  const [formAnswer, setFormAnswer] = useState("");
   const [formTopic, setFormTopic] = useState("");
   const [formDifficulty, setFormDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
   const [formType, setFormType] = useState<QuestionType>("MCQ");
   const [formModes, setFormModes] = useState<QuestionMode[]>(["learning", "exam"]);
+  // MCQ-specific
+  const [formOptions, setFormOptions] = useState<string[]>(["", "", "", ""]);
+  const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
 
   const toggleMode = (mode: QuestionMode) => {
     setFormModes((prev) =>
@@ -53,29 +64,46 @@ const Assessments = () => {
   const openAddDialog = () => {
     setEditingId(null);
     setFormQuestion("");
+    setFormAnswer("");
     setFormTopic("");
     setFormDifficulty("Medium");
     setFormType("MCQ");
     setFormModes(["learning", "exam"]);
+    setFormOptions(["", "", "", ""]);
+    setFormCorrectIndex(0);
     setDialogOpen(true);
   };
 
   const openEditDialog = (q: EditableQuestion) => {
     setEditingId(q.id);
     setFormQuestion(q.question);
+    setFormAnswer(q.answer || "");
     setFormTopic(q.topic);
     setFormDifficulty(q.difficulty);
     setFormType(q.type);
     setFormModes(q.modes);
+    setFormOptions(q.options?.length ? [...q.options] : ["", "", "", ""]);
+    setFormCorrectIndex(q.correctIndex ?? 0);
     setDialogOpen(true);
   };
 
   const handleSave = () => {
     if (!formQuestion.trim() || !formTopic || formModes.length === 0) return;
+    const isMCQ = formType === "MCQ";
+    const newQ: EditableQuestion = {
+      id: editingId || `q${Date.now()}`,
+      question: formQuestion,
+      answer: isMCQ ? formOptions[formCorrectIndex] || "" : formAnswer,
+      topic: formTopic,
+      difficulty: formDifficulty,
+      type: formType,
+      modes: formModes,
+      ...(isMCQ ? { options: formOptions.filter(o => o.trim()), correctIndex: formCorrectIndex } : {}),
+    };
     if (editingId) {
-      setQuestions((prev) => prev.map((q) => q.id === editingId ? { ...q, question: formQuestion, topic: formTopic, difficulty: formDifficulty, type: formType, modes: formModes } : q));
+      setQuestions((prev) => prev.map((q) => q.id === editingId ? newQ : q));
     } else {
-      setQuestions((prev) => [...prev, { id: `q${Date.now()}`, question: formQuestion, topic: formTopic, difficulty: formDifficulty, type: formType, modes: formModes }]);
+      setQuestions((prev) => [...prev, newQ]);
     }
     setDialogOpen(false);
   };
@@ -83,6 +111,20 @@ const Assessments = () => {
   const handleDelete = (id: string) => {
     setQuestions((prev) => prev.filter((q) => q.id !== id));
   };
+
+  const updateOption = (index: number, value: string) => {
+    setFormOptions(prev => prev.map((o, i) => i === index ? value : o));
+  };
+
+  // Filtering
+  const filteredQuestions = questions.filter((q) => {
+    if (filterMode === "learning" && !q.modes.includes("learning")) return false;
+    if (filterMode === "exam" && !q.modes.includes("exam")) return false;
+    if (filterMode === "both" && !(q.modes.includes("learning") && q.modes.includes("exam"))) return false;
+    if (filterDifficulty !== "all" && q.difficulty !== filterDifficulty) return false;
+    if (filterType !== "all" && q.type !== filterType) return false;
+    return true;
+  });
 
   const typeBadgeColor = (type: QuestionType) => {
     switch (type) {
@@ -102,14 +144,14 @@ const Assessments = () => {
     <div className="p-6">
       <div className="mb-8">
         <h1 className="font-heading text-3xl font-bold">Assessments</h1>
-        <p className="text-muted-foreground">Manage custom practice questions for learning and exam modes</p>
+        <p className="text-muted-foreground">Manage custom questions for learning and exam modes</p>
       </div>
 
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" /> Custom Practice Questions</CardTitle>
+              <CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" /> Custom Questions</CardTitle>
               <CardDescription>Add your own questions and choose whether they appear in Learning Mode, Exam Mode, or both.</CardDescription>
             </div>
             <Button size="sm" onClick={openAddDialog}>
@@ -117,14 +159,45 @@ const Assessments = () => {
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {questions.length === 0 && (
+        <CardContent className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 p-3">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <Select value={filterMode} onValueChange={setFilterMode}>
+              <SelectTrigger className="h-8 w-[140px]"><SelectValue placeholder="Mode" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Modes</SelectItem>
+                <SelectItem value="learning">Learning Only</SelectItem>
+                <SelectItem value="exam">Exam Only</SelectItem>
+                <SelectItem value="both">Both Modes</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterDifficulty} onValueChange={setFilterDifficulty}>
+              <SelectTrigger className="h-8 w-[140px]"><SelectValue placeholder="Difficulty" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Difficulties</SelectItem>
+                <SelectItem value="Easy">Easy</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="Hard">Hard</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="h-8 w-[140px]"><SelectValue placeholder="Type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="MCQ">MCQ</SelectItem>
+                <SelectItem value="Short Answer">Short Answer</SelectItem>
+                <SelectItem value="Code Practice">Code Practice</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {filteredQuestions.length === 0 && (
             <div className="rounded-lg border-2 border-dashed p-8 text-center">
-              <p className="text-sm text-muted-foreground">No custom questions added yet.</p>
-              <p className="text-xs text-muted-foreground mt-1">Click "Add Question" to create your first custom practice problem.</p>
+              <p className="text-sm text-muted-foreground">No questions match your filters.</p>
             </div>
           )}
-          {questions.map((q) => (
+          {filteredQuestions.map((q) => (
             <div key={q.id} className="rounded-lg border p-4">
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -149,13 +222,18 @@ const Assessments = () => {
                 </div>
               </div>
               <p className="text-sm font-medium">{q.question}</p>
-              {q.options && q.type === "MCQ" && (
+              {q.type === "MCQ" && q.options && (
                 <div className="mt-2 space-y-1">
                   {q.options.map((opt, i) => (
                     <p key={i} className={`text-xs ${i === q.correctIndex ? "text-mastery-expert font-medium" : "text-muted-foreground"}`}>
                       {String.fromCharCode(65 + i)}. {opt}
                     </p>
                   ))}
+                </div>
+              )}
+              {q.type !== "MCQ" && q.answer && (
+                <div className="mt-2">
+                  <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Answer:</span> {q.answer}</p>
                 </div>
               )}
             </div>
@@ -165,7 +243,7 @@ const Assessments = () => {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit" : "Add"} Question</DialogTitle>
           </DialogHeader>
@@ -174,6 +252,37 @@ const Assessments = () => {
               <Label>Question</Label>
               <Textarea placeholder="Enter your question..." value={formQuestion} onChange={(e) => setFormQuestion(e.target.value)} />
             </div>
+
+            {/* Answer section - conditional on type */}
+            {formType === "MCQ" ? (
+              <div className="space-y-3">
+                <Label>Answer Choices</Label>
+                <p className="text-xs text-muted-foreground">Enter options and select the correct answer</p>
+                {formOptions.map((opt, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="correctAnswer"
+                      checked={formCorrectIndex === i}
+                      onChange={() => setFormCorrectIndex(i)}
+                      className="h-4 w-4 accent-[hsl(var(--primary))]"
+                    />
+                    <Input
+                      placeholder={`Option ${String.fromCharCode(65 + i)}`}
+                      value={opt}
+                      onChange={(e) => updateOption(i, e.target.value)}
+                      className="flex-1"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Answer</Label>
+                <Textarea placeholder="Enter the expected answer..." value={formAnswer} onChange={(e) => setFormAnswer(e.target.value)} />
+              </div>
+            )}
+
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label>Topic</Label>
