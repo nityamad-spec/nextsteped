@@ -256,8 +256,8 @@ const CourseDashboard = () => {
                 <span className="text-xs text-muted-foreground">≥ 70% — Mastered</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-mastery-developing/60" />
-                <span className="text-xs text-muted-foreground">50–69% — Developing</span>
+                <div className="h-3 w-3 rounded bg-warning/60" />
+                <span className="text-xs text-muted-foreground">50–69% — On Track</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="h-3 w-3 rounded bg-destructive/60" />
