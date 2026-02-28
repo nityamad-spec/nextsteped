@@ -59,6 +59,11 @@ export default {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
+        "mastery-beginner": "hsl(var(--mastery-beginner))",
+        "mastery-developing": "hsl(var(--mastery-developing))",
+        "mastery-proficient": "hsl(var(--mastery-proficient))",
+        "mastery-expert": "hsl(var(--mastery-expert))",
+        "mastery-movedup": "hsl(var(--mastery-movedup))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
