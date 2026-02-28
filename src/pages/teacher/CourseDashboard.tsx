@@ -277,7 +277,7 @@ const CourseDashboard = () => {
                   >
                     <p className="text-xs font-medium">{topic.name}</p>
                     <p className={`text-lg font-bold ${
-                      m >= 70 ? "text-mastery-expert" : m >= 50 ? "text-mastery-developing" : "text-destructive"
+                      m >= 70 ? "text-mastery-expert" : m >= 50 ? "text-warning" : "text-destructive"
                     }`}>{topic.mastery}%</p>
                   </button>
                 );
