@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { mockDashboard, mockTopics } from "@/data/mockData";
+import { useApp } from "@/contexts/AppContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, TrendingUp, Clock, BarChart3, AlertTriangle, Activity, ArrowUp, ArrowDown } from "lucide-react";
 
 const weeklyEngagement = [
