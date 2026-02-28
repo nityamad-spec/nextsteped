@@ -57,11 +57,11 @@ const CourseDashboard = () => {
             <h1 className="font-heading text-3xl font-bold">Course Dashboard</h1>
             <p className="text-muted-foreground">{currentCourse?.name || "Course"} — Student Insights</p>
           </div>
-          {courseSections.length > 1 && (
+          {courseSections.length >= 1 && (
             <Select value={selectedSection} onValueChange={setSelectedSection}>
               <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Sections" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Sections</SelectItem>
+                {courseSections.length > 1 && <SelectItem value="all">All Sections</SelectItem>}
                 {courseSections.map((s) => (
                   <SelectItem key={s} value={s}>{s}</SelectItem>
                 ))}
@@ -256,8 +256,8 @@ const CourseDashboard = () => {
                 <span className="text-xs text-muted-foreground">≥ 70% — Mastered</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-mastery-developing/60" />
-                <span className="text-xs text-muted-foreground">50–69% — Developing</span>
+                <div className="h-3 w-3 rounded bg-warning/60" />
+                <span className="text-xs text-muted-foreground">50–69% — On Track</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="h-3 w-3 rounded bg-destructive/60" />
@@ -268,7 +268,7 @@ const CourseDashboard = () => {
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {mockTopics.map((topic) => {
                 const m = topic.mastery || 0;
-                const borderColor = m >= 70 ? "border-l-mastery-expert" : m >= 50 ? "border-l-mastery-developing" : "border-l-destructive";
+                const borderColor = m >= 70 ? "border-l-mastery-expert" : m >= 50 ? "border-l-warning" : "border-l-destructive";
                 return (
                   <button
                     key={topic.id}
@@ -277,7 +277,7 @@ const CourseDashboard = () => {
                   >
                     <p className="text-xs font-medium">{topic.name}</p>
                     <p className={`text-lg font-bold ${
-                      m >= 70 ? "text-mastery-expert" : m >= 50 ? "text-mastery-developing" : "text-destructive"
+                      m >= 70 ? "text-mastery-expert" : m >= 50 ? "text-warning" : "text-destructive"
                     }`}>{topic.mastery}%</p>
                   </button>
                 );
@@ -287,9 +287,9 @@ const CourseDashboard = () => {
               const t = topicInsights[expandedTopic];
               const mastery = mockTopics.find(tp => tp.name === expandedTopic)?.mastery || 0;
               const total = t.beginner + t.developing + t.proficient + t.expert;
-              const levelLabel = mastery >= 70 ? "Mastered" : mastery >= 50 ? "Developing" : "Needs Attention";
-              const levelColor = mastery >= 70 ? "text-mastery-expert" : mastery >= 50 ? "text-mastery-developing" : "text-destructive";
-              const levelBg = mastery >= 70 ? "bg-mastery-expert/10" : mastery >= 50 ? "bg-mastery-developing/10" : "bg-destructive/10";
+              const levelLabel = mastery >= 70 ? "Mastered" : mastery >= 50 ? "On Track" : "Needs Attention";
+              const levelColor = mastery >= 70 ? "text-mastery-expert" : mastery >= 50 ? "text-warning" : "text-destructive";
+              const levelBg = mastery >= 70 ? "bg-mastery-expert/10" : mastery >= 50 ? "bg-warning/10" : "bg-destructive/10";
               const notMastered = t.beginner + t.developing;
               return (
                 <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
