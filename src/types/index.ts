@@ -16,6 +16,7 @@ export interface StudentProfile {
 export interface Course {
   id: string;
   name: string;
+  branch?: string;
   term: "First Semester" | "Second Semester" | "Summer Semester";
   sections: string[];
   objectives: string[];
