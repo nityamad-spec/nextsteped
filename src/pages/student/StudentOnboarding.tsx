@@ -17,7 +17,7 @@ const StudentOnboarding = () => {
   const [rollNumber, setRollNumber] = useState("");
   const [courseCode, setCourseCode] = useState("");
 
-  const isValid = name.trim() && courseCode;
+  const isValid = name.trim() && rollNumber.trim() && courseCode;
   const selectedCourse = availableCourses.find((c) => c.code === courseCode);
 
   const handleComplete = () => {
