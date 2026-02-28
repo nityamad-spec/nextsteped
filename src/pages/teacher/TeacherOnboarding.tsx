@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, ArrowLeft, User, Upload, FileText, BookOpen, Check } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowRight, ArrowLeft, User, Upload, FileText, BookOpen, Check, X, Plus } from "lucide-react";
 
 const TeacherOnboarding = () => {
   const { setTeacherProfile, setCurrentCourse } = useApp();
@@ -16,13 +17,27 @@ const TeacherOnboarding = () => {
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("");
   const [courseCode, setCourseCode] = useState("");
+  const [branch, setBranch] = useState("");
   const [term, setTerm] = useState("");
-  const [sections, setSections] = useState("");
+  const [sections, setSections] = useState<string[]>([]);
+  const [sectionInput, setSectionInput] = useState("");
   const [objectives, setObjectives] = useState("");
   const [syllabusUploaded, setSyllabusUploaded] = useState(false);
   const [materialsUploaded, setMaterialsUploaded] = useState(false);
 
-  const isValid = name.trim() && department && courseCode && term && syllabusUploaded && materialsUploaded;
+  const isValid = name.trim() && department && courseCode && branch.trim() && term && sections.length > 0 && objectives.trim() && syllabusUploaded && materialsUploaded;
+
+  const addSection = () => {
+    const trimmed = sectionInput.trim();
+    if (trimmed && !sections.includes(trimmed)) {
+      setSections((prev) => [...prev, trimmed]);
+      setSectionInput("");
+    }
+  };
+
+  const removeSection = (s: string) => {
+    setSections((prev) => prev.filter((sec) => sec !== s));
+  };
 
   const handleContinue = () => {
     const selectedCourse = availableCourses.find((c) => c.code === courseCode);
@@ -34,8 +49,9 @@ const TeacherOnboarding = () => {
     setCurrentCourse({
       ...mockCourse,
       name: selectedCourse?.name || mockCourse.name,
+      branch,
       term: (term as any) || mockCourse.term,
-      sections: sections ? sections.split(",").map((s) => s.trim()) : mockCourse.sections,
+      sections: sections.length > 0 ? sections : mockCourse.sections,
       objectives: objectives ? objectives.split("\n").filter(Boolean) : mockCourse.objectives,
     });
     navigate("/teacher/setup/syllabus");
@@ -94,6 +110,11 @@ const TeacherOnboarding = () => {
                 </Select>
               </div>
 
+              <div className="space-y-2">
+                <Label>Branch</Label>
+                <Input placeholder="e.g. Computer Science & Engineering" value={branch} onChange={(e) => setBranch(e.target.value)} />
+              </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Term</Label>
@@ -108,12 +129,35 @@ const TeacherOnboarding = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Section(s)</Label>
-                  <Input placeholder="Section A, Section B" value={sections} onChange={(e) => setSections(e.target.value)} />
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="e.g. Section A"
+                      value={sectionInput}
+                      onChange={(e) => setSectionInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSection(); } }}
+                    />
+                    <Button type="button" variant="outline" size="icon" onClick={addSection} disabled={!sectionInput.trim()}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {sections.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {sections.map((s) => (
+                        <Badge key={s} variant="secondary" className="gap-1">
+                          {s}
+                          <button onClick={() => removeSection(s)} className="ml-0.5 hover:text-destructive">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-muted-foreground">Add each section separately. Student insights will be shown per section.</p>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Learning Objectives <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Label>Learning Objectives</Label>
                 <textarea
                   className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   placeholder="One objective per line..."
