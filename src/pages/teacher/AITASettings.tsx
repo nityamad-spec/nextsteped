@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { ArrowRight, ArrowLeft, Eye, MessageSquare, Lightbulb, BookOpen, Calculator, Check, Pencil } from "lucide-react";
+import { ArrowRight, ArrowLeft, Eye, MessageSquare, BookOpen, Calculator, Check, Pencil, ShieldCheck } from "lucide-react";
 
 const questionEstimate = (length: number, mix: string, difficulty: string) => {
   const base = Math.round(length / 3);
@@ -60,7 +60,6 @@ const AITASettings = () => {
     setEstimateApproved(false);
   };
 
-  // Sync custom breakdown when estimate changes
   const activeBreakdown = editingEstimate ? customBreakdown : estimate.breakdown;
   const activeTotal = Object.values(activeBreakdown).reduce((s, n) => s + n, 0);
 
@@ -91,17 +90,18 @@ const AITASettings = () => {
         </div>
 
         <div className="space-y-6">
+          {/* Academic Integrity */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Lightbulb className="h-5 w-5" /> Learning Behavior</CardTitle>
+              <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" /> Academic Integrity</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label className="text-sm font-medium">Hint Ladder</Label>
-                  <p className="text-xs text-muted-foreground">Gradually reveal hints instead of giving answers directly</p>
+                  <Label className="text-sm font-medium">Plagiarism / Similarity Warnings</Label>
+                  <p className="text-xs text-muted-foreground">Flags potential academic integrity issues only during exam prep test module</p>
                 </div>
-                <Switch checked={settings.hintLadder} onCheckedChange={(v) => update({ hintLadder: v })} />
+                <Switch checked={settings.plagiarismWarnings} onCheckedChange={(v) => update({ plagiarismWarnings: v })} />
               </div>
 
               <div className="space-y-3">
@@ -126,17 +126,10 @@ const AITASettings = () => {
                   </button>
                 </div>
               </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-sm font-medium">Plagiarism / Similarity Warnings</Label>
-                  <p className="text-xs text-muted-foreground">Flags potential academic integrity issues only during exam prep test module</p>
-                </div>
-                <Switch checked={settings.plagiarismWarnings} onCheckedChange={(v) => update({ plagiarismWarnings: v })} />
-              </div>
             </CardContent>
           </Card>
 
+          {/* Exam Simulation Rules */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" /> Exam Simulation Rules</CardTitle>
@@ -250,7 +243,6 @@ const AITASettings = () => {
                   <div className="rounded-lg bg-primary/10 p-3 text-xs">
                     <p className="font-medium text-primary">Teaching Assistant</p>
                     <p className="mt-1 text-foreground">I can help you understand this concept! Let me break it down step by step...</p>
-                    {settings.hintLadder && <p className="mt-1 italic text-muted-foreground">💡 Hint available — try first!</p>}
                   </div>
                   <div className="flex flex-wrap gap-1">
                     <Badge variant="outline" className="text-[10px]">Ask for Hint</Badge>

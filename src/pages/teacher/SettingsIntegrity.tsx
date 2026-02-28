@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings, Lightbulb, ShieldCheck, Save, Calendar, UserPlus, Upload, Copy, FileText } from "lucide-react";
+import { ShieldCheck, Save, Calendar, UserPlus, Upload, Copy, FileText } from "lucide-react";
 
 const SettingsIntegrity = () => {
   const { taSettings, setTASettings, currentCourse } = useApp();
@@ -44,7 +44,7 @@ const SettingsIntegrity = () => {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="font-heading text-3xl font-bold">Settings / Integrity</h1>
-          <p className="text-muted-foreground">Adjust Teaching Assistant behavior, academic integrity, and course enrollment</p>
+          <p className="text-muted-foreground">Adjust academic integrity settings and course enrollment</p>
         </div>
         <Button onClick={handleSave}>
           <Save className="mr-2 h-4 w-4" /> {saved ? "Saved!" : "Save Changes"}
@@ -52,44 +52,6 @@ const SettingsIntegrity = () => {
       </div>
 
       <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Lightbulb className="h-5 w-5" /> Learning Behavior</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-medium">Hint Ladder</Label>
-                <p className="text-xs text-muted-foreground">Gradually reveal hints instead of giving answers directly</p>
-              </div>
-              <Switch checked={settings.hintLadder} onCheckedChange={(v) => update({ hintLadder: v })} />
-            </div>
-
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Knowledge Sources</Label>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  onClick={() => update({ knowledgeSources: "uploaded" })}
-                  className={`rounded-lg border p-3 text-left text-sm transition-colors ${settings.knowledgeSources === "uploaded" ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
-                >
-                  <span className="font-medium">Uploaded Docs Only</span>
-                  <p className="mt-1 text-xs text-muted-foreground">AI answers only from your course materials</p>
-                </button>
-                <button
-                  onClick={() => update({ knowledgeSources: "uploaded_and_web" })}
-                  className={`rounded-lg border p-3 text-left text-sm transition-colors ${settings.knowledgeSources === "uploaded_and_web" ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">Uploaded + Web Sources</span>
-                    <Badge className="text-[10px]">Recommended</Badge>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">Supplements with reputable external resources</p>
-                </button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" /> Academic Integrity</CardTitle>
@@ -119,8 +81,9 @@ const SettingsIntegrity = () => {
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Sections</SelectItem>
-                    <SelectItem value="a">Section A</SelectItem>
-                    <SelectItem value="b">Section B</SelectItem>
+                    {(currentCourse?.sections || ["Section A", "Section B"]).map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
