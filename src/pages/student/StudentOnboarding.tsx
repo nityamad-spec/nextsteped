@@ -71,6 +71,15 @@ const StudentOnboarding = () => {
               </div>
 
               <div className="space-y-2">
+                <Label>Roll Number</Label>
+                <Input
+                  placeholder="Enter your roll number"
+                  value={rollNumber}
+                  onChange={(e) => setRollNumber(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label>Select Your Course</Label>
                 <Select value={courseCode} onValueChange={setCourseCode}>
                   <SelectTrigger className="h-11">

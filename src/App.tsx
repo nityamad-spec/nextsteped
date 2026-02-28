@@ -57,6 +57,7 @@ const App = () => (
             {/* Teacher setup routes (standalone, no layout) */}
             <Route path="/teacher" element={<TeacherRedirect />} />
             <Route path="/teacher/onboarding" element={<TeacherOnboarding />} />
+            <Route path="/teacher/setup/quality-check" element={<MaterialQualityCheck />} />
             <Route path="/teacher/setup/syllabus" element={<CourseCreation />} />
             <Route path="/teacher/setup/settings" element={<AITASettings />} />
             <Route path="/teacher/setup/content" element={<ContentReview />} />
