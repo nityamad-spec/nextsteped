@@ -57,11 +57,11 @@ const CourseDashboard = () => {
             <h1 className="font-heading text-3xl font-bold">Course Dashboard</h1>
             <p className="text-muted-foreground">{currentCourse?.name || "Course"} — Student Insights</p>
           </div>
-          {courseSections.length > 1 && (
+          {courseSections.length >= 1 && (
             <Select value={selectedSection} onValueChange={setSelectedSection}>
               <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Sections" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Sections</SelectItem>
+                {courseSections.length > 1 && <SelectItem value="all">All Sections</SelectItem>}
                 {courseSections.map((s) => (
                   <SelectItem key={s} value={s}>{s}</SelectItem>
                 ))}
