@@ -17,15 +17,16 @@ const TeacherOnboarding = () => {
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("");
   const [courseCode, setCourseCode] = useState("");
-  const [branch, setBranch] = useState("");
-  const [term, setTerm] = useState("");
   const [sections, setSections] = useState<string[]>([]);
   const [sectionInput, setSectionInput] = useState("");
+  const [term, setTerm] = useState("");
+  const [branch, setBranch] = useState("");
+  const [studentYear, setStudentYear] = useState("");
   const [objectives, setObjectives] = useState("");
   const [syllabusUploaded, setSyllabusUploaded] = useState(false);
   const [materialsUploaded, setMaterialsUploaded] = useState(false);
 
-  const isValid = name.trim() && department && courseCode && branch.trim() && term && sections.length > 0 && objectives.trim() && syllabusUploaded && materialsUploaded;
+  const isValid = name.trim() && department && courseCode && sections.length > 0 && term && branch.trim() && studentYear && objectives.trim() && syllabusUploaded && materialsUploaded;
 
   const addSection = () => {
     const trimmed = sectionInput.trim();
@@ -81,11 +82,13 @@ const TeacherOnboarding = () => {
           </CardHeader>
           <CardContent>
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+              {/* Full Name */}
               <div className="space-y-2">
                 <Label>Full Name</Label>
                 <Input placeholder="Dr. Jane Smith" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
               </div>
 
+              {/* Department */}
               <div className="space-y-2">
                 <Label>Department</Label>
                 <Select value={department} onValueChange={setDepartment}>
@@ -98,6 +101,7 @@ const TeacherOnboarding = () => {
                 </Select>
               </div>
 
+              {/* Course */}
               <div className="space-y-2">
                 <Label>Course</Label>
                 <Select value={courseCode} onValueChange={setCourseCode}>
@@ -110,11 +114,36 @@ const TeacherOnboarding = () => {
                 </Select>
               </div>
 
+              {/* Section(s) */}
               <div className="space-y-2">
-                <Label>Branch</Label>
-                <Input placeholder="e.g. Computer Science & Engineering" value={branch} onChange={(e) => setBranch(e.target.value)} />
+                <Label>Section(s)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="e.g. Section A"
+                    value={sectionInput}
+                    onChange={(e) => setSectionInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSection(); } }}
+                  />
+                  <Button type="button" variant="outline" size="icon" onClick={addSection} disabled={!sectionInput.trim()}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {sections.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {sections.map((s) => (
+                      <Badge key={s} variant="secondary" className="gap-1">
+                        {s}
+                        <button onClick={() => removeSection(s)} className="ml-0.5 hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground">Add each section separately. Student insights will be shown per section.</p>
               </div>
 
+              {/* Term & Branch */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Term</Label>
@@ -128,36 +157,28 @@ const TeacherOnboarding = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Section(s)</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="e.g. Section A"
-                      value={sectionInput}
-                      onChange={(e) => setSectionInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSection(); } }}
-                    />
-                    <Button type="button" variant="outline" size="icon" onClick={addSection} disabled={!sectionInput.trim()}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {sections.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {sections.map((s) => (
-                        <Badge key={s} variant="secondary" className="gap-1">
-                          {s}
-                          <button onClick={() => removeSection(s)} className="ml-0.5 hover:text-destructive">
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                  <p className="text-[11px] text-muted-foreground">Add each section separately. Student insights will be shown per section.</p>
+                  <Label>Branch</Label>
+                  <Input placeholder="e.g. Computer Science & Engineering" value={branch} onChange={(e) => setBranch(e.target.value)} />
                 </div>
               </div>
 
+              {/* Student Year */}
               <div className="space-y-2">
-                <Label>Learning Objectives</Label>
+                <Label>Student Year</Label>
+                <Select value={studentYear} onValueChange={setStudentYear}>
+                  <SelectTrigger><SelectValue placeholder="Select student year" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="First Year">First Year</SelectItem>
+                    <SelectItem value="Second Year">Second Year</SelectItem>
+                    <SelectItem value="Third Year">Third Year</SelectItem>
+                    <SelectItem value="Fourth Year">Fourth Year</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Learning Objectives */}
+              <div className="space-y-2">
+                <Label>Learning Objectives <span className="text-destructive">*</span></Label>
                 <textarea
                   className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   placeholder="One objective per line..."

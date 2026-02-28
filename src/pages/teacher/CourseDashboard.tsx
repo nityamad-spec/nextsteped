@@ -8,17 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Users, MessageSquare, AlertTriangle, TrendingUp, BarChart3, ArrowUp, ArrowDown, Minus, Shield, ChevronDown } from "lucide-react";
 
 const masteryColors: Record<string, string> = {
-  Beginner: "bg-destructive/20 text-destructive",
-  Developing: "bg-warning/20 text-warning",
-  Proficient: "bg-primary/20 text-primary",
-  Expert: "bg-success/20 text-success",
+  Beginner: "bg-mastery-beginner/20 text-mastery-beginner",
+  Developing: "bg-mastery-developing/20 text-mastery-developing",
+  Proficient: "bg-mastery-proficient/20 text-mastery-proficient",
+  Expert: "bg-mastery-expert/20 text-mastery-expert",
 };
 
 const masteryBarColors: Record<string, string> = {
-  Beginner: "[&>div]:bg-destructive",
-  Developing: "[&>div]:bg-warning",
-  Proficient: "[&>div]:bg-primary",
-  Expert: "[&>div]:bg-success",
+  Beginner: "[&>div]:bg-mastery-beginner",
+  Developing: "[&>div]:bg-mastery-developing",
+  Proficient: "[&>div]:bg-mastery-proficient",
+  Expert: "[&>div]:bg-mastery-expert",
 };
 
 const topicInsights: Record<string, { beginner: number; developing: number; proficient: number; expert: number; summary: string; detail: string }> = {
@@ -75,7 +75,7 @@ const CourseDashboard = () => {
         </div>
       </div>
 
-      {/* Stats row — Avg Mastery is now 2nd */}
+      {/* Stats row */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
@@ -91,7 +91,7 @@ const CourseDashboard = () => {
         </Card>
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10 text-success">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-mastery-expert/10 text-mastery-expert">
               <TrendingUp className="h-5 w-5" />
             </div>
             <div>
@@ -129,7 +129,7 @@ const CourseDashboard = () => {
       </div>
 
       <div className="space-y-6">
-        {/* Mastery Distribution — above weekly */}
+        {/* Mastery Distribution */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Mastery Distribution</CardTitle>
@@ -161,7 +161,7 @@ const CourseDashboard = () => {
             {/* Compact legend */}
             <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
               <span className="font-medium">Movement:</span>
-              <span className="text-success">▲ Moved Up</span>
+              <span className="text-mastery-movedup">▲ Moved Up</span>
               <span className="text-destructive">▼ Moved Down</span>
               <span>— Stayed</span>
             </div>
@@ -177,10 +177,7 @@ const CourseDashboard = () => {
                   >
                     {/* Main row */}
                     <div className="flex items-center gap-4 p-3">
-                      {/* Week label */}
                       <span className="w-14 text-sm font-semibold text-foreground shrink-0">{w.week}</span>
-
-                      {/* Activity */}
                       <div className="flex items-center gap-3 shrink-0">
                         <div className="flex items-center gap-1">
                           <Users className="h-3 w-3 text-muted-foreground" />
@@ -189,12 +186,10 @@ const CourseDashboard = () => {
                         </div>
                         <span className="text-[10px] text-muted-foreground">{w.sessions} sessions</span>
                       </div>
-
-                      {/* Mastery movement */}
                       <div className="flex items-center gap-2 ml-auto shrink-0">
-                        <div className="flex items-center gap-1 rounded-md bg-success/10 px-2 py-1">
-                          <ArrowUp className="h-3 w-3 text-success" />
-                          <span className="text-xs font-bold text-success">{w.up}</span>
+                        <div className="flex items-center gap-1 rounded-md bg-mastery-movedup/10 px-2 py-1">
+                          <ArrowUp className="h-3 w-3 text-mastery-movedup" />
+                          <span className="text-xs font-bold text-mastery-movedup">{w.up}</span>
                         </div>
                         <div className="flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-1">
                           <ArrowDown className="h-3 w-3 text-destructive" />
@@ -211,30 +206,27 @@ const CourseDashboard = () => {
                     {/* Expanded detail */}
                     {isExpanded && (
                       <div className="border-t px-4 py-3 space-y-3">
-                        {/* Mastery level distribution */}
                         <div>
                           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Mastery Level Distribution</p>
                           <div className="grid grid-cols-4 gap-2">
-                            <div className="rounded-lg bg-destructive/10 p-2.5 text-center">
-                              <p className="text-lg font-bold text-destructive">{w.beginner}</p>
-                              <p className="text-[10px] text-destructive/80">Beginner</p>
+                            <div className="rounded-lg bg-mastery-beginner/10 p-2.5 text-center">
+                              <p className="text-lg font-bold text-mastery-beginner">{w.beginner}</p>
+                              <p className="text-[10px] text-mastery-beginner/80">Beginner</p>
                             </div>
-                            <div className="rounded-lg bg-warning/10 p-2.5 text-center">
-                              <p className="text-lg font-bold text-warning">{w.developing}</p>
-                              <p className="text-[10px] text-warning/80">Developing</p>
+                            <div className="rounded-lg bg-mastery-developing/10 p-2.5 text-center">
+                              <p className="text-lg font-bold text-mastery-developing">{w.developing}</p>
+                              <p className="text-[10px] text-mastery-developing/80">Developing</p>
                             </div>
-                            <div className="rounded-lg bg-primary/10 p-2.5 text-center">
-                              <p className="text-lg font-bold text-primary">{w.proficient}</p>
-                              <p className="text-[10px] text-primary/80">Proficient</p>
+                            <div className="rounded-lg bg-mastery-proficient/10 p-2.5 text-center">
+                              <p className="text-lg font-bold text-mastery-proficient">{w.proficient}</p>
+                              <p className="text-[10px] text-mastery-proficient/80">Proficient</p>
                             </div>
-                            <div className="rounded-lg bg-success/10 p-2.5 text-center">
-                              <p className="text-lg font-bold text-success">{w.expert}</p>
-                              <p className="text-[10px] text-success/80">Expert</p>
+                            <div className="rounded-lg bg-mastery-expert/10 p-2.5 text-center">
+                              <p className="text-lg font-bold text-mastery-expert">{w.expert}</p>
+                              <p className="text-[10px] text-mastery-expert/80">Expert</p>
                             </div>
                           </div>
                         </div>
-
-                        {/* AI Insight */}
                         {w.insight && (
                           <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
                             <TrendingUp className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
@@ -250,21 +242,21 @@ const CourseDashboard = () => {
           </CardContent>
         </Card>
 
+        {/* Concept Mastery Heatmap */}
         <Card>
           <CardHeader>
             <CardTitle>Concept Mastery Heatmap</CardTitle>
             <CardDescription>Class-wide mastery per topic — click a topic for detailed breakdown</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Legend */}
             <div className="flex flex-wrap items-center gap-4 rounded-lg border bg-muted/30 px-4 py-2.5">
               <span className="text-xs font-medium text-muted-foreground">Legend:</span>
               <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-success/60" />
+                <div className="h-3 w-3 rounded bg-mastery-expert/60" />
                 <span className="text-xs text-muted-foreground">≥ 70% — Mastered</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-warning/60" />
+                <div className="h-3 w-3 rounded bg-mastery-developing/60" />
                 <span className="text-xs text-muted-foreground">50–69% — Developing</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -276,7 +268,7 @@ const CourseDashboard = () => {
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {mockTopics.map((topic) => {
                 const m = topic.mastery || 0;
-                const borderColor = m >= 70 ? "border-l-success" : m >= 50 ? "border-l-warning" : "border-l-destructive";
+                const borderColor = m >= 70 ? "border-l-mastery-expert" : m >= 50 ? "border-l-mastery-developing" : "border-l-destructive";
                 return (
                   <button
                     key={topic.id}
@@ -285,7 +277,7 @@ const CourseDashboard = () => {
                   >
                     <p className="text-xs font-medium">{topic.name}</p>
                     <p className={`text-lg font-bold ${
-                      m >= 70 ? "text-success" : m >= 50 ? "text-warning" : "text-destructive"
+                      m >= 70 ? "text-mastery-expert" : m >= 50 ? "text-mastery-developing" : "text-destructive"
                     }`}>{topic.mastery}%</p>
                   </button>
                 );
@@ -296,8 +288,8 @@ const CourseDashboard = () => {
               const mastery = mockTopics.find(tp => tp.name === expandedTopic)?.mastery || 0;
               const total = t.beginner + t.developing + t.proficient + t.expert;
               const levelLabel = mastery >= 70 ? "Mastered" : mastery >= 50 ? "Developing" : "Needs Attention";
-              const levelColor = mastery >= 70 ? "text-success" : mastery >= 50 ? "text-warning" : "text-destructive";
-              const levelBg = mastery >= 70 ? "bg-success/10" : mastery >= 50 ? "bg-warning/10" : "bg-destructive/10";
+              const levelColor = mastery >= 70 ? "text-mastery-expert" : mastery >= 50 ? "text-mastery-developing" : "text-destructive";
+              const levelBg = mastery >= 70 ? "bg-mastery-expert/10" : mastery >= 50 ? "bg-mastery-developing/10" : "bg-destructive/10";
               const notMastered = t.beginner + t.developing;
               return (
                 <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
@@ -309,23 +301,22 @@ const CourseDashboard = () => {
                     <span className={`text-xs font-medium px-2 py-0.5 rounded ${levelBg} ${levelColor}`}>{levelLabel}</span>
                   </div>
 
-                  {/* Student distribution */}
                   <div className="grid grid-cols-4 gap-2">
-                    <div className="rounded-lg bg-destructive/10 p-2.5 text-center">
-                      <p className="text-lg font-bold text-destructive">{t.beginner}</p>
-                      <p className="text-[10px] text-destructive/80">Beginner</p>
+                    <div className="rounded-lg bg-mastery-beginner/10 p-2.5 text-center">
+                      <p className="text-lg font-bold text-mastery-beginner">{t.beginner}</p>
+                      <p className="text-[10px] text-mastery-beginner/80">Beginner</p>
                     </div>
-                    <div className="rounded-lg bg-warning/10 p-2.5 text-center">
-                      <p className="text-lg font-bold text-warning">{t.developing}</p>
-                      <p className="text-[10px] text-warning/80">Developing</p>
+                    <div className="rounded-lg bg-mastery-developing/10 p-2.5 text-center">
+                      <p className="text-lg font-bold text-mastery-developing">{t.developing}</p>
+                      <p className="text-[10px] text-mastery-developing/80">Developing</p>
                     </div>
-                    <div className="rounded-lg bg-primary/10 p-2.5 text-center">
-                      <p className="text-lg font-bold text-primary">{t.proficient}</p>
-                      <p className="text-[10px] text-primary/80">Proficient</p>
+                    <div className="rounded-lg bg-mastery-proficient/10 p-2.5 text-center">
+                      <p className="text-lg font-bold text-mastery-proficient">{t.proficient}</p>
+                      <p className="text-[10px] text-mastery-proficient/80">Proficient</p>
                     </div>
-                    <div className="rounded-lg bg-success/10 p-2.5 text-center">
-                      <p className="text-lg font-bold text-success">{t.expert}</p>
-                      <p className="text-[10px] text-success/80">Expert</p>
+                    <div className="rounded-lg bg-mastery-expert/10 p-2.5 text-center">
+                      <p className="text-lg font-bold text-mastery-expert">{t.expert}</p>
+                      <p className="text-[10px] text-mastery-expert/80">Expert</p>
                     </div>
                   </div>
 

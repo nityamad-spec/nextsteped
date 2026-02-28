@@ -23,10 +23,10 @@ const masteryMovement = [
 ];
 
 const levelColors: Record<string, string> = {
-  Beginner: "bg-destructive/10 text-destructive",
-  Developing: "bg-warning/10 text-warning",
-  Proficient: "bg-primary/10 text-primary",
-  Expert: "bg-success/10 text-success",
+  Beginner: "bg-mastery-beginner/10 text-mastery-beginner",
+  Developing: "bg-mastery-developing/10 text-mastery-developing",
+  Proficient: "bg-mastery-proficient/10 text-mastery-proficient",
+  Expert: "bg-mastery-expert/10 text-mastery-expert",
 };
 
 const topicDetails: Record<string, { correct: number; wrong: number; total: number }> = {
@@ -88,7 +88,7 @@ const StudentInsights = () => {
         </Card>
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10 text-success">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-mastery-expert/10 text-mastery-expert">
               <TrendingUp className="h-5 w-5" />
             </div>
             <div>
@@ -147,7 +147,7 @@ const StudentInsights = () => {
           </CardContent>
         </Card>
 
-        {/* Simplified Mastery Level Movement */}
+        {/* Mastery Level Movement */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" /> Mastery Level Movement</CardTitle>
@@ -160,8 +160,8 @@ const StudentInsights = () => {
                   <span className="text-sm font-medium w-24 shrink-0">{period.period}</span>
                   <div className="flex flex-1 gap-4">
                     <div className="flex items-center gap-1.5">
-                      <ArrowUp className="h-4 w-4 text-success" />
-                      <span className="text-sm font-bold text-success">{period.up}</span>
+                      <ArrowUp className="h-4 w-4 text-mastery-movedup" />
+                      <span className="text-sm font-bold text-mastery-movedup">{period.up}</span>
                       <span className="text-xs text-muted-foreground">moved up</span>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -180,7 +180,7 @@ const StudentInsights = () => {
           </CardContent>
         </Card>
 
-        {/* Concept Mastery Heatmap with click-to-detail */}
+        {/* Concept Mastery Heatmap */}
         <Card>
           <CardHeader>
             <CardTitle>Concept Mastery Heatmap</CardTitle>
@@ -193,12 +193,12 @@ const StudentInsights = () => {
                   key={topic.id}
                   onClick={() => setExpandedTopic(expandedTopic === topic.name ? null : topic.name)}
                   className={`rounded-lg p-3 text-center transition-all cursor-pointer ${
-                    (topic.mastery || 0) >= 70 ? "bg-success/10 hover:bg-success/20" : (topic.mastery || 0) >= 50 ? "bg-warning/10 hover:bg-warning/20" : "bg-destructive/10 hover:bg-destructive/20"
+                    (topic.mastery || 0) >= 70 ? "bg-mastery-expert/10 hover:bg-mastery-expert/20" : (topic.mastery || 0) >= 50 ? "bg-mastery-developing/10 hover:bg-mastery-developing/20" : "bg-destructive/10 hover:bg-destructive/20"
                   } ${expandedTopic === topic.name ? "ring-2 ring-primary" : ""}`}
                 >
                   <p className="text-xs font-medium">{topic.name}</p>
                   <p className={`text-lg font-bold ${
-                    (topic.mastery || 0) >= 70 ? "text-success" : (topic.mastery || 0) >= 50 ? "text-warning" : "text-destructive"
+                    (topic.mastery || 0) >= 70 ? "text-mastery-expert" : (topic.mastery || 0) >= 50 ? "text-mastery-developing" : "text-destructive"
                   }`}>{topic.mastery}%</p>
                 </button>
               ))}
@@ -212,7 +212,7 @@ const StudentInsights = () => {
                     <p className="text-xs text-muted-foreground">Total Questions</p>
                   </div>
                   <div>
-                    <p className="text-lg font-bold text-success">{topicDetails[expandedTopic].correct}</p>
+                    <p className="text-lg font-bold text-mastery-expert">{topicDetails[expandedTopic].correct}</p>
                     <p className="text-xs text-muted-foreground">Answered Correctly</p>
                   </div>
                   <div>
