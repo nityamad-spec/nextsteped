@@ -7,25 +7,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShieldCheck, Save, Calendar, UserPlus, Upload, Copy, FileText } from "lucide-react";
+import { Save, Calendar, UserPlus, Upload, Copy, FileText } from "lucide-react";
 
 const SettingsIntegrity = () => {
-  const { taSettings, setTASettings, currentCourse } = useApp();
-  const [settings, setSettings] = useState(taSettings);
+  const { currentCourse } = useApp();
   const [saved, setSaved] = useState(false);
 
-  // Publish & Enrollment state
   const [publishSection, setPublishSection] = useState("");
   const [startDate, setStartDate] = useState(currentCourse?.startDate || "");
   const [endDate, setEndDate] = useState(currentCourse?.endDate || "");
   const [weeklyNudges, setWeeklyNudges] = useState(true);
   const [csvUploaded, setCsvUploaded] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  const update = (partial: Partial<typeof settings>) => {
-    setSettings((s) => ({ ...s, ...partial }));
-    setSaved(false);
-  };
 
   const copyCode = () => {
     navigator.clipboard.writeText(currentCourse?.enrollmentCode || "NEXTOS301");
@@ -34,7 +27,6 @@ const SettingsIntegrity = () => {
   };
 
   const handleSave = () => {
-    setTASettings({ ...settings });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -43,8 +35,8 @@ const SettingsIntegrity = () => {
     <div className="p-6">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="font-heading text-3xl font-bold">Settings / Integrity</h1>
-          <p className="text-muted-foreground">Adjust academic integrity settings and course enrollment</p>
+          <h1 className="font-heading text-3xl font-bold">Settings</h1>
+          <p className="text-muted-foreground">Manage course schedule and student enrollment</p>
         </div>
         <Button onClick={handleSave}>
           <Save className="mr-2 h-4 w-4" /> {saved ? "Saved!" : "Save Changes"}
@@ -52,21 +44,6 @@ const SettingsIntegrity = () => {
       </div>
 
       <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" /> Academic Integrity</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-medium">Plagiarism / Similarity Warnings</Label>
-                <p className="text-xs text-muted-foreground">Flags potential academic integrity issues during exam prep</p>
-              </div>
-              <Switch checked={settings.plagiarismWarnings} onCheckedChange={(v) => update({ plagiarismWarnings: v })} />
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Publish Settings */}
         <Card>
           <CardHeader>
@@ -117,7 +94,6 @@ const SettingsIntegrity = () => {
 
             <div className="text-center text-xs text-muted-foreground">or</div>
 
-            {/* Current roster - always visible */}
             <div className="rounded-lg border bg-primary/5 p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -129,7 +105,6 @@ const SettingsIntegrity = () => {
               <p className="text-xs text-muted-foreground">Uploaded during initial setup</p>
             </div>
 
-            {/* Upload additional roster */}
             <div
               onClick={() => setCsvUploaded(true)}
               className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors hover:border-primary/30"
