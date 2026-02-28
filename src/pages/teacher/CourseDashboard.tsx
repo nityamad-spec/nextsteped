@@ -257,7 +257,7 @@ const CourseDashboard = () => {
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="h-3 w-3 rounded bg-warning/60" />
-                <span className="text-xs text-muted-foreground">50–69% — On Track</span>
+                <span className="text-xs text-muted-foreground">50–69% — Progressing</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="h-3 w-3 rounded bg-destructive/60" />
@@ -287,7 +287,7 @@ const CourseDashboard = () => {
               const t = topicInsights[expandedTopic];
               const mastery = mockTopics.find(tp => tp.name === expandedTopic)?.mastery || 0;
               const total = t.beginner + t.developing + t.proficient + t.expert;
-              const levelLabel = mastery >= 70 ? "Mastered" : mastery >= 50 ? "On Track" : "Needs Attention";
+              const levelLabel = mastery >= 70 ? "Mastered" : mastery >= 50 ? "Progressing" : "Needs Attention";
               const levelColor = mastery >= 70 ? "text-mastery-expert" : mastery >= 50 ? "text-warning" : "text-destructive";
               const levelBg = mastery >= 70 ? "bg-mastery-expert/10" : mastery >= 50 ? "bg-warning/10" : "bg-destructive/10";
               const notMastered = t.beginner + t.developing;
