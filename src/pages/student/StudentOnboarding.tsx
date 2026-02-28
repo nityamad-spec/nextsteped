@@ -14,6 +14,7 @@ const StudentOnboarding = () => {
   const { setStudentProfile, setStudentOnboarded, setCurrentCourse } = useApp();
   const navigate = useNavigate();
   const [name, setName] = useState("");
+  const [rollNumber, setRollNumber] = useState("");
   const [courseCode, setCourseCode] = useState("");
 
   const isValid = name.trim() && courseCode;
