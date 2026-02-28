@@ -268,7 +268,7 @@ const CourseDashboard = () => {
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {mockTopics.map((topic) => {
                 const m = topic.mastery || 0;
-                const borderColor = m >= 70 ? "border-l-mastery-expert" : m >= 50 ? "border-l-mastery-developing" : "border-l-destructive";
+                const borderColor = m >= 70 ? "border-l-mastery-expert" : m >= 50 ? "border-l-warning" : "border-l-destructive";
                 return (
                   <button
                     key={topic.id}
