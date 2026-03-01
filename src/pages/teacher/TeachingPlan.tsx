@@ -27,6 +27,7 @@ type WeekPlan = {
   dates: string;
   topic: string;
   resources: Resource[];
+  weightage: number;
 };
 
 const typeLabels: Record<string, string> = {
@@ -66,66 +67,66 @@ const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 
 // Same initial plan from setup (accepted resources only — representing the confirmed plan)
 const confirmedPlan: WeekPlan[] = [
-  { id: "w1", week: 1, dates: "Jan 13 & 15", topic: "Introduction to OS Concepts & Process Lifecycle", resources: [
+  { id: "w1", week: 1, dates: "Jan 13 & 15", topic: "Introduction to OS Concepts & Process Lifecycle", weightage: 5, resources: [
     { id: "r1", title: "Textbook Ch. 1-2", action: "Assign chapters 1-2 as required reading before class", type: "textbook" },
     { id: "r2", title: "AICTE Module 1 Guide", action: "Reference AICTE guidelines to align lecture with curriculum standards", type: "textbook" },
   ]},
-  { id: "w2", week: 2, dates: "Jan 20 & 22", topic: "Process Scheduling: FCFS, SJF, Round Robin", resources: [
+  { id: "w2", week: 2, dates: "Jan 20 & 22", topic: "Process Scheduling: FCFS, SJF, Round Robin", weightage: 7, resources: [
     { id: "r3", title: "Textbook Ch. 3", action: "Assign chapter 3 as pre-lecture reading on scheduling algorithms", type: "textbook" },
     { id: "r4", title: "Scheduling Simulator", action: "Use in a 20-min live demo to visualize FCFS vs Round Robin", type: "exercise" },
   ]},
-  { id: "w3", week: 3, dates: "Jan 27 & 29", topic: "Advanced Scheduling & Real-World Applications", resources: [
+  { id: "w3", week: 3, dates: "Jan 27 & 29", topic: "Advanced Scheduling & Real-World Applications", weightage: 7, resources: [
     { id: "r6", title: "Scheduling Algorithms Lab", action: "Include a 30-min in-class lab where students implement and compare scheduling algorithms", type: "lab" },
   ]},
-  { id: "w4", week: 4, dates: "Feb 3 & 5", topic: "Threads & Concurrency Fundamentals", resources: [
+  { id: "w4", week: 4, dates: "Feb 3 & 5", topic: "Threads & Concurrency Fundamentals", weightage: 7, resources: [
     { id: "r8", title: "Textbook Ch. 4", action: "Assign chapter 4 on threads and concurrency models", type: "textbook" },
     { id: "r9", title: "POSIX Threads Tutorial", action: "Share as a hands-on reference for students to practice pthreads outside class", type: "exercise" },
   ]},
-  { id: "w5", week: 5, dates: "Feb 10 & 12", topic: "Synchronization: Mutexes, Semaphores, Monitors", resources: [
+  { id: "w5", week: 5, dates: "Feb 10 & 12", topic: "Synchronization: Mutexes, Semaphores, Monitors", weightage: 8, resources: [
     { id: "r10", title: "Textbook Ch. 5", action: "Assign chapter 5 on synchronization primitives", type: "textbook" },
     { id: "r11", title: "Producer-Consumer Lab", action: "Run a 30-min hands-on lab implementing the producer-consumer problem", type: "lab" },
   ]},
-  { id: "w6", week: 6, dates: "Feb 17 & 19", topic: "Deadlock Prevention & Detection", resources: [
+  { id: "w6", week: 6, dates: "Feb 17 & 19", topic: "Deadlock Prevention & Detection", weightage: 7, resources: [
     { id: "r13", title: "Textbook Ch. 6", action: "Assign chapter 6 on deadlock concepts and prevention strategies", type: "textbook" },
     { id: "r14", title: "Deadlock Visualization Tool", action: "Demo in class to visually show how deadlocks form and resolve", type: "exercise" },
   ]},
-  { id: "w7", week: 7, dates: "Feb 24 & 26", topic: "Midterm Review & Exam", resources: [
+  { id: "w7", week: 7, dates: "Feb 24 & 26", topic: "Midterm Review & Exam", weightage: 10, resources: [
     { id: "r16", title: "Review Sheet", action: "Distribute comprehensive review sheet covering weeks 1-6", type: "textbook" },
     { id: "r17", title: "Practice Exam", action: "Assign as a take-home practice exam before the midterm", type: "exercise" },
   ]},
-  { id: "w8", week: 8, dates: "Mar 3 & 5", topic: "Physical & Virtual Memory Concepts", resources: [
+  { id: "w8", week: 8, dates: "Mar 3 & 5", topic: "Physical & Virtual Memory Concepts", weightage: 7, resources: [
     { id: "r18", title: "Textbook Ch. 7", action: "Assign chapter 7 on memory hierarchy and virtual memory basics", type: "textbook" },
     { id: "r19", title: "Memory Hierarchy Slides", action: "Use these slides to walk through the memory hierarchy in lecture", type: "textbook" },
   ]},
-  { id: "w9", week: 9, dates: "Mar 10 & 12", topic: "Paging, Segmentation & Address Translation", resources: [
+  { id: "w9", week: 9, dates: "Mar 10 & 12", topic: "Paging, Segmentation & Address Translation", weightage: 7, resources: [
     { id: "r20", title: "Textbook Ch. 8", action: "Assign chapter 8 on paging and segmentation", type: "textbook" },
     { id: "r21", title: "Page Table Simulator", action: "Use in a 20-min demo to show address translation step by step", type: "exercise" },
   ]},
-  { id: "w10", week: 10, dates: "Mar 17 & 19", topic: "Memory Allocation Strategies", resources: [
+  { id: "w10", week: 10, dates: "Mar 17 & 19", topic: "Memory Allocation Strategies", weightage: 5, resources: [
     { id: "r23", title: "Build a Memory Allocator in C", action: "Include a 45-min in-class lab where students implement a basic memory allocator", type: "lab" },
     { id: "r24", title: "Textbook Ch. 9", action: "Assign chapter 9 on memory allocation strategies", type: "textbook" },
   ]},
-  { id: "w11", week: 11, dates: "Mar 24 & 26", topic: "File System Design & Implementation", resources: [
+  { id: "w11", week: 11, dates: "Mar 24 & 26", topic: "File System Design & Implementation", weightage: 5, resources: [
     { id: "r26", title: "Textbook Ch. 10-11", action: "Assign chapters 10-11 on file system design and implementation", type: "textbook" },
     { id: "r27", title: "EXT4 Case Study", action: "Walk through the EXT4 file system as a real-world design example in lecture", type: "case-study" },
   ]},
-  { id: "w12", week: 12, dates: "Mar 31 & Apr 2", topic: "Modern Storage: NVMe, SSDs & I/O Systems", resources: [
+  { id: "w12", week: 12, dates: "Mar 31 & Apr 2", topic: "Modern Storage: NVMe, SSDs & I/O Systems", weightage: 5, resources: [
     { id: "r29", title: "Industry White Paper", action: "Reference in lecture to provide industry context on modern storage technologies", type: "article" },
     { id: "r30", title: "Storage Benchmark Lab", action: "Run a hands-on lab comparing I/O performance across storage types", type: "lab" },
   ]},
-  { id: "w13", week: 13, dates: "Apr 7 & 9", topic: "Security & Protection in Operating Systems", resources: [
+  { id: "w13", week: 13, dates: "Apr 7 & 9", topic: "Security & Protection in Operating Systems", weightage: 5, resources: [
     { id: "r31", title: "Textbook Ch. 14", action: "Assign chapter 14 on OS security and protection mechanisms", type: "textbook" },
     { id: "r32", title: "CVE Case Studies", action: "Discuss 2-3 real CVEs in class to illustrate OS vulnerability patterns", type: "case-study" },
   ]},
-  { id: "w14", week: 14, dates: "Apr 14 & 16", topic: "Virtualization & Cloud OS Concepts", resources: [
+  { id: "w14", week: 14, dates: "Apr 14 & 16", topic: "Virtualization & Cloud OS Concepts", weightage: 3, resources: [
     { id: "r34", title: "Hypervisor Comparison Article", action: "Use as a reference when discussing Type 1 vs Type 2 hypervisors", type: "article" },
     { id: "r35", title: "Docker Lab", action: "Include a 30-min hands-on lab where students containerize a simple application", type: "lab" },
   ]},
-  { id: "w15", week: 15, dates: "Apr 21 & 23", topic: "Emerging Trends: WASM Runtimes, Unikernels", resources: [
+  { id: "w15", week: 15, dates: "Apr 21 & 23", topic: "Emerging Trends: WASM Runtimes, Unikernels", weightage: 2, resources: [
     { id: "r37", title: "Research Papers", action: "Assign selected papers on WASM runtimes and unikernels for class discussion", type: "article" },
     { id: "r38", title: "Hands-On Demo", action: "Run a live demo of a WASM runtime to make emerging concepts tangible", type: "lab" },
   ]},
-  { id: "w16", week: 16, dates: "Apr 28 & 30", topic: "Final Review & Exam", resources: [
+  { id: "w16", week: 16, dates: "Apr 28 & 30", topic: "Final Review & Exam", weightage: 10, resources: [
     { id: "r40", title: "Comprehensive Review", action: "Distribute final review covering all semester topics", type: "textbook" },
     { id: "r41", title: "Practice Final", action: "Assign as a take-home practice exam before the final", type: "exercise" },
   ]},
@@ -144,6 +145,13 @@ const TeachingPlan = () => {
   const [approved, setApproved] = useState(false);
 
   const markChanged = () => { setHasChanges(true); setApproved(false); };
+
+  const totalWeightage = weeks.reduce((sum, w) => sum + (w.weightage || 0), 0);
+
+  const updateWeightage = (weekId: string, value: number) => {
+    setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, weightage: Math.max(0, value) } : w));
+    markChanged();
+  };
 
   const toggleWeek = (id: string) => {
     setExpandedWeeks((prev) => prev.includes(id) ? prev.filter((w) => w !== id) : [...prev, id]);
@@ -174,6 +182,7 @@ const TeachingPlan = () => {
       dates: "TBD",
       topic: "New Topic",
       resources: [],
+      weightage: 0,
     };
     setWeeks((prev) => [...prev, newWeek]); markChanged();
     setExpandedWeeks((prev) => [...prev, newWeek.id]);
@@ -256,6 +265,19 @@ const TeachingPlan = () => {
         </div>
       </div>
 
+      {/* Weightage Summary */}
+      <div className={`mb-4 flex items-center gap-3 rounded-lg border px-4 py-2.5 ${totalWeightage === 100 ? "border-primary/30 bg-primary/5" : "border-warning/30 bg-warning/5"}`}>
+        <span className="text-sm font-medium">Total Weightage:</span>
+        <span className={`text-lg font-bold ${totalWeightage === 100 ? "text-primary" : "text-warning"}`}>{totalWeightage}%</span>
+        <span className="text-xs text-muted-foreground">/ 100%</span>
+        {totalWeightage !== 100 && (
+          <span className="text-xs text-warning ml-auto">Adjust week weightages to total 100%</span>
+        )}
+        {totalWeightage === 100 && (
+          <Check className="h-4 w-4 text-primary ml-auto" />
+        )}
+      </div>
+
       <Tabs defaultValue="plan" className="mb-6">
         <TabsList className="mb-4">
           <TabsTrigger value="plan">Weekly Plan</TabsTrigger>
@@ -329,6 +351,17 @@ const TeachingPlan = () => {
                   )}
                 </div>
                 <div className="flex items-center gap-1 ml-2 shrink-0">
+                  <div className="flex items-center gap-1 mr-2" onClick={(e) => e.stopPropagation()}>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={wp.weightage}
+                      onChange={(e) => updateWeightage(wp.id, parseInt(e.target.value) || 0)}
+                      className="h-7 w-14 text-xs text-center"
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
+                  </div>
                   {!isEditing && (
                     <>
                       <button onClick={(e) => { e.stopPropagation(); startEditWeek(wp); }} className="rounded p-1.5 hover:bg-muted" title="Edit">

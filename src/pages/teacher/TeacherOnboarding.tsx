@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, ArrowLeft, User, Upload, FileText, BookOpen, Check, X, Plus } from "lucide-react";
+import { ArrowRight, ArrowLeft, User, Upload, FileText, BookOpen, Check, X, Plus, Construction } from "lucide-react";
+import SetupProgressBar from "@/components/SetupProgressBar";
 
 const TeacherOnboarding = () => {
   const { setTeacherProfile, setCurrentCourse } = useApp();
@@ -61,6 +62,7 @@ const TeacherOnboarding = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-xl">
+        <SetupProgressBar currentStep={1} />
         <div className="mb-8 text-center">
           <h1 className="font-heading text-3xl font-bold">
             Welcome to Next<span className="text-primary">Step</span>
@@ -140,7 +142,7 @@ const TeacherOnboarding = () => {
                     ))}
                   </div>
                 )}
-                <p className="text-[11px] text-muted-foreground">Add each section separately. Student insights will be shown per section.</p>
+                <p className="text-[11px] text-muted-foreground">For each section you teach, add them separately.</p>
               </div>
 
               {/* Term & Branch */}
@@ -242,6 +244,14 @@ const TeacherOnboarding = () => {
                       <span className="text-sm text-muted-foreground">Click to upload files</span>
                     </>
                   )}
+                </div>
+                {/* WIP Best Practice Formats */}
+                <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/5 p-3 mt-2">
+                  <Construction className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium text-foreground">Best Practice Format Review <span className="text-[10px] font-normal text-warning">(Coming Soon)</span></p>
+                    <p className="text-[11px] text-muted-foreground">AI will review your uploaded materials against best practice formatting standards for slides, documents, and exams to suggest structural improvements.</p>
+                  </div>
                 </div>
               </div>
 

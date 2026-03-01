@@ -120,7 +120,6 @@ const Assessments = () => {
   const filteredQuestions = questions.filter((q) => {
     if (filterMode === "learning" && !q.modes.includes("learning")) return false;
     if (filterMode === "exam" && !q.modes.includes("exam")) return false;
-    if (filterMode === "both" && !(q.modes.includes("learning") && q.modes.includes("exam"))) return false;
     if (filterDifficulty !== "all" && q.difficulty !== filterDifficulty) return false;
     if (filterType !== "all" && q.type !== filterType) return false;
     return true;
@@ -169,7 +168,6 @@ const Assessments = () => {
                 <SelectItem value="all">All Modes</SelectItem>
                 <SelectItem value="learning">Learning Only</SelectItem>
                 <SelectItem value="exam">Exam Only</SelectItem>
-                <SelectItem value="both">Both Modes</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filterDifficulty} onValueChange={setFilterDifficulty}>

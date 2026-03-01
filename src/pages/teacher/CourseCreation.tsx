@@ -12,6 +12,7 @@ import {
   BookOpen, Newspaper, Plus, Trash2, Undo2, FileText, FileDown,
   FlaskConical, LibraryBig,
 } from "lucide-react";
+import SetupProgressBar from "@/components/SetupProgressBar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -318,6 +319,7 @@ const CourseCreation = () => {
   return (
     <div className="flex min-h-screen items-start justify-center bg-background px-4 py-8">
       <div className="w-full max-w-4xl space-y-5">
+        <SetupProgressBar currentStep={3} />
         {/* Header */}
         <div className="text-center">
           <h1 className="font-heading text-3xl font-bold">
