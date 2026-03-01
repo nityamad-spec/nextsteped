@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, MessageSquare, AlertTriangle, TrendingUp, BarChart3, ArrowUp, ArrowDown, Minus, Shield, ChevronDown } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 const masteryColors: Record<string, string> = {
   Beginner: "bg-mastery-beginner/20 text-mastery-beginner",
@@ -40,6 +41,16 @@ const weeklyData = [
   { week: "Week 5", active: 43, sessions: 112, up: 7, down: 1, stayed: 35, beginner: 8, developing: 13, proficient: 15, expert: 7, insight: "Highest engagement week. 7 students leveled up — the Synchronization topic is resonating well." },
   { week: "Week 6", active: 41, sessions: 98, up: 3, down: 1, stayed: 37, beginner: 6, developing: 12, proficient: 14, expert: 9, insight: "Steady progress. Beginner count is decreasing — the class is maturing overall." },
 ];
+
+const masteryTimelineData = weeklyData.map((w) => {
+  const total = w.beginner + w.developing + w.proficient + w.expert;
+  return {
+    week: w.week,
+    avgMastery: total > 0 ? Math.round(((w.proficient * 70 + w.expert * 90 + w.developing * 45 + w.beginner * 20) / total)) : 0,
+    proficientPct: total > 0 ? Math.round(((w.proficient + w.expert) / total) * 100) : 0,
+    beginnerPct: total > 0 ? Math.round((w.beginner / total) * 100) : 0,
+  };
+});
 
 const CourseDashboard = () => {
   const d = mockDashboard;
@@ -238,6 +249,34 @@ const CourseDashboard = () => {
                   </div>
                 );
               })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Mastery Timeline Graph */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5" /> Mastery Improvement Over Time</CardTitle>
+            <CardDescription>Tracking average mastery and proficiency rates across weeks</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[280px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={masteryTimelineData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="week" className="text-xs" tick={{ fontSize: 11 }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+                    formatter={(value: number, name: string) => [`${value}%`, name === "avgMastery" ? "Avg Mastery" : name === "proficientPct" ? "Proficient+" : "Beginner"]}
+                    labelFormatter={(label) => label}
+                  />
+                  <Legend formatter={(value) => value === "avgMastery" ? "Avg Mastery" : value === "proficientPct" ? "Proficient & Above" : "Beginner"} />
+                  <Line type="monotone" dataKey="avgMastery" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="proficientPct" stroke="hsl(142 76% 36%)" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="beginnerPct" stroke="hsl(var(--destructive))" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>

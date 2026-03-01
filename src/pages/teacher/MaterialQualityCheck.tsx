@@ -19,6 +19,7 @@ import {
   ChevronUp,
   Loader2,
 } from "lucide-react";
+import SetupProgressBar from "@/components/SetupProgressBar";
 
 interface MaterialIssue {
   id: string;
@@ -158,6 +159,7 @@ const MaterialQualityCheck = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-3xl">
+        <SetupProgressBar currentStep={2} />
         {/* Header */}
         <div className="mb-8 text-center">
           <h1 className="font-heading text-3xl font-bold">
