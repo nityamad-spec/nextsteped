@@ -92,35 +92,6 @@ const AITASettings = () => {
         </div>
 
         <div className="space-y-6">
-          {/* Knowledge Sources */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" /> Knowledge Sources</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Label className="text-sm font-medium">Where should the AI pull answers from?</Label>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  onClick={() => update({ knowledgeSources: "uploaded" })}
-                  className={`rounded-lg border p-3 text-left text-sm transition-colors ${settings.knowledgeSources === "uploaded" ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
-                >
-                  <span className="font-medium">Uploaded Docs Only</span>
-                  <p className="mt-1 text-xs text-muted-foreground">AI answers only from your course materials</p>
-                </button>
-                <button
-                  onClick={() => update({ knowledgeSources: "uploaded_and_web" })}
-                  className={`rounded-lg border p-3 text-left text-sm transition-colors ${settings.knowledgeSources === "uploaded_and_web" ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">Uploaded + Web Sources</span>
-                    <Badge className="text-[10px]">Recommended</Badge>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">Supplements with reputable external resources</p>
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Exam Simulation Rules */}
           <Card>
             <CardHeader>
@@ -241,7 +212,7 @@ const AITASettings = () => {
                     <Badge variant="outline" className="text-[10px]">Show Steps</Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Knowledge: {settings.knowledgeSources === "uploaded" ? "Course materials only" : "Course materials + web sources"}
+                    Knowledge: Course materials + web sources
                     {settings.plagiarismWarnings && " · Plagiarism warnings active in exam mode"}
                   </p>
                   <p className="text-xs text-muted-foreground">

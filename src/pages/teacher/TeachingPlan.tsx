@@ -3,10 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import {
   ChevronDown, ChevronUp, Pencil, Trash2, Plus, Upload, FileText,
   Check, X, BookOpen, FlaskConical, Newspaper, LibraryBig, FileDown,
-  Presentation, FileSpreadsheet, Download,
+  Presentation, FileSpreadsheet, Download, ExternalLink,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -19,6 +24,7 @@ type Resource = {
   action: string;
   type: "textbook" | "lab" | "case-study" | "exercise" | "article" | "news" | "tool" | "video";
   source?: string;
+  provenance?: "uploads" | "web" | "instructor";
 };
 
 type WeekPlan = {
@@ -31,108 +37,99 @@ type WeekPlan = {
 };
 
 const typeLabels: Record<string, string> = {
-  textbook: "Textbook",
-  exercise: "Interactive Exercise",
-  lab: "Interactive Exercise",
-  tool: "Interactive Exercise",
-  "case-study": "Case Study",
-  article: "Article & Industry Context",
-  news: "Article & Industry Context",
-  video: "Video",
+  textbook: "Textbook", exercise: "Interactive Exercise", lab: "Interactive Exercise",
+  tool: "Interactive Exercise", "case-study": "Case Study", article: "Article & Industry Context",
+  news: "Article & Industry Context", video: "Video",
 };
 
 const typeColors: Record<string, string> = {
-  textbook: "bg-secondary text-secondary-foreground",
-  exercise: "bg-primary/10 text-primary",
-  lab: "bg-primary/10 text-primary",
-  tool: "bg-primary/10 text-primary",
-  "case-study": "bg-accent/20 text-accent-foreground",
-  article: "bg-muted text-muted-foreground",
-  news: "bg-muted text-muted-foreground",
-  video: "bg-destructive/10 text-destructive",
+  textbook: "bg-secondary text-secondary-foreground", exercise: "bg-primary/10 text-primary",
+  lab: "bg-primary/10 text-primary", tool: "bg-primary/10 text-primary",
+  "case-study": "bg-accent/20 text-accent-foreground", article: "bg-muted text-muted-foreground",
+  news: "bg-muted text-muted-foreground", video: "bg-destructive/10 text-destructive",
 };
 
 const typeIcons: Record<string, typeof BookOpen> = {
-  textbook: BookOpen,
-  exercise: FlaskConical,
-  lab: FlaskConical,
-  tool: FlaskConical,
-  "case-study": LibraryBig,
-  article: Newspaper,
-  news: Newspaper,
-  video: BookOpen,
+  textbook: BookOpen, exercise: FlaskConical, lab: FlaskConical, tool: FlaskConical,
+  "case-study": LibraryBig, article: Newspaper, news: Newspaper, video: BookOpen,
+};
+
+const provenanceLabels: Record<string, { label: string; className: string }> = {
+  uploads: { label: "From uploads", className: "bg-primary/10 text-primary border-primary/20" },
+  web: { label: "From web", className: "bg-accent/10 text-accent-foreground border-accent/20" },
+  instructor: { label: "Instructor added", className: "bg-secondary text-secondary-foreground border-secondary" },
 };
 
 const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-// Same initial plan from setup (accepted resources only — representing the confirmed plan)
 const confirmedPlan: WeekPlan[] = [
   { id: "w1", week: 1, dates: "Jan 13 & 15", topic: "Introduction to OS Concepts & Process Lifecycle", weightage: 5, resources: [
-    { id: "r1", title: "Textbook Ch. 1-2", action: "Assign chapters 1-2 as required reading before class", type: "textbook" },
-    { id: "r2", title: "AICTE Module 1 Guide", action: "Reference AICTE guidelines to align lecture with curriculum standards", type: "textbook" },
+    { id: "r1", title: "Textbook Ch. 1-2", action: "Assign chapters 1-2 as required reading before class", type: "textbook", provenance: "uploads" },
+    { id: "r2", title: "AICTE Module 1 Guide", action: "Reference AICTE guidelines to align lecture with curriculum standards", type: "textbook", provenance: "uploads" },
   ]},
   { id: "w2", week: 2, dates: "Jan 20 & 22", topic: "Process Scheduling: FCFS, SJF, Round Robin", weightage: 7, resources: [
-    { id: "r3", title: "Textbook Ch. 3", action: "Assign chapter 3 as pre-lecture reading on scheduling algorithms", type: "textbook" },
-    { id: "r4", title: "Scheduling Simulator", action: "Use in a 20-min live demo to visualize FCFS vs Round Robin", type: "exercise" },
+    { id: "r3", title: "Textbook Ch. 3", action: "Assign chapter 3 as pre-lecture reading on scheduling algorithms", type: "textbook", provenance: "uploads" },
+    { id: "r4", title: "Scheduling Simulator", action: "Use in a 20-min live demo to visualize FCFS vs Round Robin", type: "exercise", provenance: "uploads" },
   ]},
   { id: "w3", week: 3, dates: "Jan 27 & 29", topic: "Advanced Scheduling & Real-World Applications", weightage: 7, resources: [
-    { id: "r6", title: "Scheduling Algorithms Lab", action: "Include a 30-min in-class lab where students implement and compare scheduling algorithms", type: "lab" },
+    { id: "r6", title: "Scheduling Algorithms Lab", action: "Include a 30-min in-class lab where students implement and compare scheduling algorithms", type: "lab", provenance: "uploads" },
   ]},
   { id: "w4", week: 4, dates: "Feb 3 & 5", topic: "Threads & Concurrency Fundamentals", weightage: 7, resources: [
-    { id: "r8", title: "Textbook Ch. 4", action: "Assign chapter 4 on threads and concurrency models", type: "textbook" },
-    { id: "r9", title: "POSIX Threads Tutorial", action: "Share as a hands-on reference for students to practice pthreads outside class", type: "exercise" },
+    { id: "r8", title: "Textbook Ch. 4", action: "Assign chapter 4 on threads and concurrency models", type: "textbook", provenance: "uploads" },
+    { id: "r9", title: "POSIX Threads Tutorial", action: "Share as a hands-on reference for students to practice pthreads outside class", type: "exercise", provenance: "uploads" },
   ]},
   { id: "w5", week: 5, dates: "Feb 10 & 12", topic: "Synchronization: Mutexes, Semaphores, Monitors", weightage: 8, resources: [
-    { id: "r10", title: "Textbook Ch. 5", action: "Assign chapter 5 on synchronization primitives", type: "textbook" },
-    { id: "r11", title: "Producer-Consumer Lab", action: "Run a 30-min hands-on lab implementing the producer-consumer problem", type: "lab" },
+    { id: "r10", title: "Textbook Ch. 5", action: "Assign chapter 5 on synchronization primitives", type: "textbook", provenance: "uploads" },
+    { id: "r11", title: "Producer-Consumer Lab", action: "Run a 30-min hands-on lab implementing the producer-consumer problem", type: "lab", provenance: "uploads" },
   ]},
   { id: "w6", week: 6, dates: "Feb 17 & 19", topic: "Deadlock Prevention & Detection", weightage: 7, resources: [
-    { id: "r13", title: "Textbook Ch. 6", action: "Assign chapter 6 on deadlock concepts and prevention strategies", type: "textbook" },
-    { id: "r14", title: "Deadlock Visualization Tool", action: "Demo in class to visually show how deadlocks form and resolve", type: "exercise" },
+    { id: "r13", title: "Textbook Ch. 6", action: "Assign chapter 6 on deadlock concepts and prevention strategies", type: "textbook", provenance: "uploads" },
+    { id: "r14", title: "Deadlock Visualization Tool", action: "Demo in class to visually show how deadlocks form and resolve", type: "exercise", provenance: "uploads" },
   ]},
   { id: "w7", week: 7, dates: "Feb 24 & 26", topic: "Midterm Review & Exam", weightage: 10, resources: [
-    { id: "r16", title: "Review Sheet", action: "Distribute comprehensive review sheet covering weeks 1-6", type: "textbook" },
-    { id: "r17", title: "Practice Exam", action: "Assign as a take-home practice exam before the midterm", type: "exercise" },
+    { id: "r16", title: "Review Sheet", action: "Distribute comprehensive review sheet covering weeks 1-6", type: "textbook", provenance: "uploads" },
+    { id: "r17", title: "Practice Exam", action: "Assign as a take-home practice exam before the midterm", type: "exercise", provenance: "uploads" },
   ]},
   { id: "w8", week: 8, dates: "Mar 3 & 5", topic: "Physical & Virtual Memory Concepts", weightage: 7, resources: [
-    { id: "r18", title: "Textbook Ch. 7", action: "Assign chapter 7 on memory hierarchy and virtual memory basics", type: "textbook" },
-    { id: "r19", title: "Memory Hierarchy Slides", action: "Use these slides to walk through the memory hierarchy in lecture", type: "textbook" },
+    { id: "r18", title: "Textbook Ch. 7", action: "Assign chapter 7 on memory hierarchy and virtual memory basics", type: "textbook", provenance: "uploads" },
+    { id: "r19", title: "Memory Hierarchy Slides", action: "Use these slides to walk through the memory hierarchy in lecture", type: "textbook", provenance: "uploads" },
   ]},
   { id: "w9", week: 9, dates: "Mar 10 & 12", topic: "Paging, Segmentation & Address Translation", weightage: 7, resources: [
-    { id: "r20", title: "Textbook Ch. 8", action: "Assign chapter 8 on paging and segmentation", type: "textbook" },
-    { id: "r21", title: "Page Table Simulator", action: "Use in a 20-min demo to show address translation step by step", type: "exercise" },
+    { id: "r20", title: "Textbook Ch. 8", action: "Assign chapter 8 on paging and segmentation", type: "textbook", provenance: "uploads" },
+    { id: "r21", title: "Page Table Simulator", action: "Use in a 20-min demo to show address translation step by step", type: "exercise", provenance: "uploads" },
   ]},
   { id: "w10", week: 10, dates: "Mar 17 & 19", topic: "Memory Allocation Strategies", weightage: 5, resources: [
-    { id: "r23", title: "Build a Memory Allocator in C", action: "Include a 45-min in-class lab where students implement a basic memory allocator", type: "lab" },
-    { id: "r24", title: "Textbook Ch. 9", action: "Assign chapter 9 on memory allocation strategies", type: "textbook" },
+    { id: "r23", title: "Build a Memory Allocator in C", action: "Include a 45-min in-class lab where students implement a basic memory allocator", type: "lab", provenance: "uploads" },
+    { id: "r24", title: "Textbook Ch. 9", action: "Assign chapter 9 on memory allocation strategies", type: "textbook", provenance: "uploads" },
   ]},
   { id: "w11", week: 11, dates: "Mar 24 & 26", topic: "File System Design & Implementation", weightage: 5, resources: [
-    { id: "r26", title: "Textbook Ch. 10-11", action: "Assign chapters 10-11 on file system design and implementation", type: "textbook" },
-    { id: "r27", title: "EXT4 Case Study", action: "Walk through the EXT4 file system as a real-world design example in lecture", type: "case-study" },
+    { id: "r26", title: "Textbook Ch. 10-11", action: "Assign chapters 10-11 on file system design and implementation", type: "textbook", provenance: "uploads" },
+    { id: "r27", title: "EXT4 Case Study", action: "Walk through the EXT4 file system as a real-world design example in lecture", type: "case-study", provenance: "uploads" },
   ]},
   { id: "w12", week: 12, dates: "Mar 31 & Apr 2", topic: "Modern Storage: NVMe, SSDs & I/O Systems", weightage: 5, resources: [
-    { id: "r29", title: "Industry White Paper", action: "Reference in lecture to provide industry context on modern storage technologies", type: "article" },
-    { id: "r30", title: "Storage Benchmark Lab", action: "Run a hands-on lab comparing I/O performance across storage types", type: "lab" },
+    { id: "r29", title: "Industry White Paper", action: "Reference in lecture to provide industry context on modern storage technologies", type: "article", provenance: "uploads" },
+    { id: "r30", title: "Storage Benchmark Lab", action: "Run a hands-on lab comparing I/O performance across storage types", type: "lab", provenance: "uploads" },
   ]},
   { id: "w13", week: 13, dates: "Apr 7 & 9", topic: "Security & Protection in Operating Systems", weightage: 5, resources: [
-    { id: "r31", title: "Textbook Ch. 14", action: "Assign chapter 14 on OS security and protection mechanisms", type: "textbook" },
-    { id: "r32", title: "CVE Case Studies", action: "Discuss 2-3 real CVEs in class to illustrate OS vulnerability patterns", type: "case-study" },
+    { id: "r31", title: "Textbook Ch. 14", action: "Assign chapter 14 on OS security and protection mechanisms", type: "textbook", provenance: "uploads" },
+    { id: "r32", title: "CVE Case Studies", action: "Discuss 2-3 real CVEs in class to illustrate OS vulnerability patterns", type: "case-study", provenance: "uploads" },
   ]},
   { id: "w14", week: 14, dates: "Apr 14 & 16", topic: "Virtualization & Cloud OS Concepts", weightage: 3, resources: [
-    { id: "r34", title: "Hypervisor Comparison Article", action: "Use as a reference when discussing Type 1 vs Type 2 hypervisors", type: "article" },
-    { id: "r35", title: "Docker Lab", action: "Include a 30-min hands-on lab where students containerize a simple application", type: "lab" },
+    { id: "r34", title: "Hypervisor Comparison Article", action: "Use as a reference when discussing Type 1 vs Type 2 hypervisors", type: "article", provenance: "uploads" },
+    { id: "r35", title: "Docker Lab", action: "Include a 30-min hands-on lab where students containerize a simple application", type: "lab", provenance: "uploads" },
   ]},
   { id: "w15", week: 15, dates: "Apr 21 & 23", topic: "Emerging Trends: WASM Runtimes, Unikernels", weightage: 2, resources: [
-    { id: "r37", title: "Research Papers", action: "Assign selected papers on WASM runtimes and unikernels for class discussion", type: "article" },
-    { id: "r38", title: "Hands-On Demo", action: "Run a live demo of a WASM runtime to make emerging concepts tangible", type: "lab" },
+    { id: "r37", title: "Research Papers", action: "Assign selected papers on WASM runtimes and unikernels for class discussion", type: "article", provenance: "uploads" },
+    { id: "r38", title: "Hands-On Demo", action: "Run a live demo of a WASM runtime to make emerging concepts tangible", type: "lab", provenance: "uploads" },
   ]},
   { id: "w16", week: 16, dates: "Apr 28 & 30", topic: "Final Review & Exam", weightage: 10, resources: [
-    { id: "r40", title: "Comprehensive Review", action: "Distribute final review covering all semester topics", type: "textbook" },
-    { id: "r41", title: "Practice Final", action: "Assign as a take-home practice exam before the final", type: "exercise" },
+    { id: "r40", title: "Comprehensive Review", action: "Distribute final review covering all semester topics", type: "textbook", provenance: "uploads" },
+    { id: "r41", title: "Practice Final", action: "Assign as a take-home practice exam before the final", type: "exercise", provenance: "uploads" },
   ]},
 ];
 
 const TeachingPlan = () => {
+  const { toast } = useToast();
   const [weeks, setWeeks] = useState<WeekPlan[]>(confirmedPlan);
   const [expandedWeeks, setExpandedWeeks] = useState<string[]>([]);
   const [editingWeekId, setEditingWeekId] = useState<string | null>(null);
@@ -142,10 +139,13 @@ const TeachingPlan = () => {
   const [editResourceTitle, setEditResourceTitle] = useState("");
   const [editResourceAction, setEditResourceAction] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
-  const [approved, setApproved] = useState(false);
+  const [published, setPublished] = useState(false);
+  const [publishTimestamp, setPublishTimestamp] = useState<string | null>(null);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [publishChecklist, setPublishChecklist] = useState({ weeks: false, resources: false, ta: false });
+  const [removeConfirm, setRemoveConfirm] = useState<{ weekId: string; resourceId: string; title: string } | null>(null);
 
-  const markChanged = () => { setHasChanges(true); setApproved(false); };
-
+  const markChanged = () => { setHasChanges(true); setPublished(false); };
   const totalWeightage = weeks.reduce((sum, w) => sum + (w.weightage || 0), 0);
 
   const updateWeightage = (weekId: string, value: number) => {
@@ -158,17 +158,44 @@ const TeachingPlan = () => {
   };
 
   const startEditWeek = (wp: WeekPlan) => {
-    setEditingWeekId(wp.id);
-    setEditTopic(wp.topic);
-    setEditDates(wp.dates);
+    setEditingWeekId(wp.id); setEditTopic(wp.topic); setEditDates(wp.dates);
     if (!expandedWeeks.includes(wp.id)) toggleWeek(wp.id);
   };
 
   const saveEditWeek = () => {
     if (!editingWeekId) return;
     setWeeks((prev) => prev.map((w) => w.id === editingWeekId ? { ...w, topic: editTopic, dates: editDates } : w));
-    setEditingWeekId(null);
-    markChanged();
+    setEditingWeekId(null); markChanged();
+  };
+
+  const confirmDeleteResource = (weekId: string, resourceId: string) => {
+    const week = weeks.find((w) => w.id === weekId);
+    const resource = week?.resources.find((r) => r.id === resourceId);
+    if (resource) setRemoveConfirm({ weekId, resourceId, title: resource.title });
+  };
+
+  const executeRemove = () => {
+    if (!removeConfirm) return;
+    const { weekId, resourceId } = removeConfirm;
+    const week = weeks.find((w) => w.id === weekId);
+    const resource = week?.resources.find((r) => r.id === resourceId);
+    if (resource) {
+      const removedResource = { ...resource };
+      setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: w.resources.filter((r) => r.id !== resourceId) } : w));
+      markChanged();
+      toast({
+        title: "Resource removed",
+        description: removedResource.title,
+        action: (
+          <Button variant="outline" size="sm" onClick={() => {
+            setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: [...w.resources, removedResource] } : w));
+          }}>
+            Undo
+          </Button>
+        ),
+      });
+    }
+    setRemoveConfirm(null);
   };
 
   const deleteWeek = (id: string) => {
@@ -176,66 +203,52 @@ const TeachingPlan = () => {
   };
 
   const addWeek = () => {
-    const newWeek: WeekPlan = {
-      id: `w_new_${Date.now()}`,
-      week: weeks.length + 1,
-      dates: "TBD",
-      topic: "New Topic",
-      resources: [],
-      weightage: 0,
-    };
+    const newWeek: WeekPlan = { id: `w_new_${Date.now()}`, week: weeks.length + 1, dates: "TBD", topic: "New Topic", resources: [], weightage: 0 };
     setWeeks((prev) => [...prev, newWeek]); markChanged();
     setExpandedWeeks((prev) => [...prev, newWeek.id]);
     startEditWeek(newWeek);
   };
 
   const startEditResource = (r: Resource) => {
-    setEditingResourceId(r.id);
-    setEditResourceTitle(r.title);
-    setEditResourceAction(r.action);
+    setEditingResourceId(r.id); setEditResourceTitle(r.title); setEditResourceAction(r.action);
   };
 
   const saveEditResource = (weekId: string) => {
     if (!editingResourceId) return;
     setWeeks((prev) => prev.map((w) => w.id === weekId ? {
-      ...w,
-      resources: w.resources.map((r) => r.id === editingResourceId ? { ...r, title: editResourceTitle, action: editResourceAction } : r),
+      ...w, resources: w.resources.map((r) => r.id === editingResourceId ? { ...r, title: editResourceTitle, action: editResourceAction } : r),
     } : w));
-    setEditingResourceId(null);
-    markChanged();
-  };
-
-  const deleteResource = (weekId: string, resourceId: string) => {
-    setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: w.resources.filter((r) => r.id !== resourceId) } : w)); markChanged();
+    setEditingResourceId(null); markChanged();
   };
 
   const addResourceToWeek = (weekId: string, type: Resource["type"]) => {
-    const newResource: Resource = { id: makeId(), title: "", action: "", type };
+    const newResource: Resource = { id: makeId(), title: "", action: "", type, provenance: "instructor" };
     setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: [...w.resources, newResource] } : w)); markChanged();
-    setEditingResourceId(newResource.id);
-    setEditResourceTitle("");
-    setEditResourceAction("");
+    setEditingResourceId(newResource.id); setEditResourceTitle(""); setEditResourceAction("");
+  };
+
+  const handlePublish = () => {
+    setPublished(true); setPublishTimestamp(new Date().toLocaleString());
+    setHasChanges(false); setShowPublishModal(false);
+    setPublishChecklist({ weeks: false, resources: false, ta: false });
   };
 
   const handleExport = (format: "pdf" | "word") => {
     let content = "TEACHING PLAN - Operating Systems\n";
     content += `${weeks.length} Weeks\n\n`;
     weeks.forEach((w) => {
-      content += `Week ${w.week} (${w.dates}): ${w.topic}\n`;
-      w.resources.forEach((r) => {
-        content += `  [${typeLabels[r.type]}] ${r.title}\n`;
-        content += `    → ${r.action}\n`;
-      });
+      content += `Week ${w.week} (${w.dates}): ${w.topic} [${w.weightage}%]\n`;
+      w.resources.forEach((r) => { content += `  [${typeLabels[r.type]}] ${r.title}\n    → ${r.action}\n`; });
       content += "\n";
     });
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = format === "pdf" ? "teaching-plan.pdf" : "teaching-plan.doc";
-    a.click();
+    a.href = url; a.download = format === "pdf" ? "teaching-plan.pdf" : "teaching-plan.doc"; a.click();
     URL.revokeObjectURL(url);
   };
+
+  const allChecked = publishChecklist.weeks && publishChecklist.resources && publishChecklist.ta;
 
   return (
     <div className="p-6">
@@ -247,35 +260,45 @@ const TeachingPlan = () => {
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <FileDown className="mr-1 h-4 w-4" /> Export
-              </Button>
+              <Button variant="outline" size="sm"><FileDown className="mr-1 h-4 w-4" /> Export</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuItem onClick={() => handleExport("pdf")}>Export as PDF</DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExport("word")}>Export as Word</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="sm" variant={approved ? "default" : "outline"} onClick={() => { setApproved(!approved); setHasChanges(false); }}>
-            <Check className="mr-1 h-4 w-4" /> {approved ? "Approved ✓" : "Approve Plan"}
-          </Button>
-          <Button size="sm" onClick={addWeek}>
-            <Plus className="mr-1 h-4 w-4" /> Add Week
-          </Button>
+          {!published ? (
+            <Button size="sm" onClick={() => setShowPublishModal(true)}>
+              Publish plan & activate Student TA
+            </Button>
+          ) : (
+            <Badge className="bg-primary text-primary-foreground px-3 py-1">Published · {publishTimestamp}</Badge>
+          )}
+          <Button size="sm" variant="outline" onClick={addWeek}><Plus className="mr-1 h-4 w-4" /> Add Week</Button>
         </div>
       </div>
+
+      {/* Published status */}
+      {published && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Check className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Plan published</span>
+            <span className="text-xs text-muted-foreground">{publishTimestamp}</span>
+          </div>
+          <Button variant="ghost" size="sm" className="text-xs gap-1">
+            <ExternalLink className="h-3 w-3" /> Preview student view
+          </Button>
+        </div>
+      )}
 
       {/* Weightage Summary */}
       <div className={`mb-4 flex items-center gap-3 rounded-lg border px-4 py-2.5 ${totalWeightage === 100 ? "border-primary/30 bg-primary/5" : "border-warning/30 bg-warning/5"}`}>
         <span className="text-sm font-medium">Total Weightage:</span>
         <span className={`text-lg font-bold ${totalWeightage === 100 ? "text-primary" : "text-warning"}`}>{totalWeightage}%</span>
         <span className="text-xs text-muted-foreground">/ 100%</span>
-        {totalWeightage !== 100 && (
-          <span className="text-xs text-warning ml-auto">Adjust week weightages to total 100%</span>
-        )}
-        {totalWeightage === 100 && (
-          <Check className="h-4 w-4 text-primary ml-auto" />
-        )}
+        {totalWeightage !== 100 && <span className="text-xs text-warning ml-auto">Adjust week weightages to total 100%</span>}
+        {totalWeightage === 100 && <Check className="h-4 w-4 text-primary ml-auto" />}
       </div>
 
       <Tabs defaultValue="plan" className="mb-6">
@@ -292,9 +315,7 @@ const TeachingPlan = () => {
                   <CardTitle className="flex items-center gap-2 text-base"><FileText className="h-5 w-5" /> Course Materials</CardTitle>
                   <CardDescription>Syllabus, slides, problem sets, and other teaching materials</CardDescription>
                 </div>
-                <Button variant="outline" size="sm">
-                  <Upload className="mr-2 h-4 w-4" /> Upload New
-                </Button>
+                <Button variant="outline" size="sm"><Upload className="mr-2 h-4 w-4" /> Upload New</Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -307,16 +328,12 @@ const TeachingPlan = () => {
                 { name: "Textbook_Readings_Ch1-4.pdf", type: "Reading", size: "15.3 MB", date: "Aug 10, 2025", icon: BookOpen },
               ].map((file, i) => (
                 <div key={i} className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <file.icon className="h-5 w-5" />
-                  </div>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><file.icon className="h-5 w-5" /></div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{file.name}</p>
                     <p className="text-xs text-muted-foreground">{file.type} • {file.size} • Uploaded {file.date}</p>
                   </div>
-                  <Button variant="ghost" size="sm" className="h-8">
-                    <Download className="h-3.5 w-3.5" />
-                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8"><Download className="h-3.5 w-3.5" /></Button>
                 </div>
               ))}
             </CardContent>
@@ -330,46 +347,36 @@ const TeachingPlan = () => {
 
           return (
             <Card key={wp.id}>
-              <div
-                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
-                onClick={() => toggleWeek(wp.id)}
-              >
+              <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => toggleWeek(wp.id)}>
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <Badge variant="outline" className="shrink-0 text-xs">Week {wp.week}</Badge>
                   {isEditing ? (
                     <div className="flex items-center gap-2 flex-1" onClick={(e) => e.stopPropagation()}>
                       <Input value={editDates} onChange={(e) => setEditDates(e.target.value)} className="h-7 w-28 text-xs" />
                       <Input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} className="h-7 flex-1 text-xs" />
-                      <button onClick={saveEditWeek} className="rounded p-1 hover:bg-muted"><Check className="h-3.5 w-3.5 text-success" /></button>
+                      <button onClick={saveEditWeek} className="rounded p-1 hover:bg-muted"><Check className="h-3.5 w-3.5 text-primary" /></button>
                       <button onClick={() => setEditingWeekId(null)} className="rounded p-1 hover:bg-muted"><X className="h-3.5 w-3.5 text-muted-foreground" /></button>
                     </div>
                   ) : (
-                    <>
-                      <span className="text-xs text-muted-foreground shrink-0">{wp.dates}</span>
-                      <span className="text-sm font-medium truncate">{wp.topic}</span>
-                    </>
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium truncate block">{wp.topic}</span>
+                      <span className="text-xs text-muted-foreground">{wp.dates} · Generated from your course materials</span>
+                    </div>
                   )}
                 </div>
                 <div className="flex items-center gap-1 ml-2 shrink-0">
                   <div className="flex items-center gap-1 mr-2" onClick={(e) => e.stopPropagation()}>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={wp.weightage}
-                      onChange={(e) => updateWeightage(wp.id, parseInt(e.target.value) || 0)}
-                      className="h-7 w-14 text-xs text-center"
-                    />
+                    <Input type="number" min={0} max={100} value={wp.weightage} onChange={(e) => updateWeightage(wp.id, parseInt(e.target.value) || 0)} className="h-7 w-14 text-xs text-center" aria-label={`Weightage for week ${wp.week}`} />
                     <span className="text-xs text-muted-foreground">%</span>
                   </div>
                   {!isEditing && (
                     <>
-                      <button onClick={(e) => { e.stopPropagation(); startEditWeek(wp); }} className="rounded p-1.5 hover:bg-muted" title="Edit">
-                        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); deleteWeek(wp.id); }} className="rounded p-1.5 hover:bg-destructive/10 hover:text-destructive" title="Delete">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); startEditWeek(wp); }} aria-label="Edit week">
+                        <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteWeek(wp.id); }} aria-label="Remove week">
+                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
+                      </Button>
                     </>
                   )}
                   {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -381,39 +388,43 @@ const TeachingPlan = () => {
                   {wp.resources.map((r) => {
                     const Icon = typeIcons[r.type] || BookOpen;
                     const isEditingRes = editingResourceId === r.id;
+                    const prov = r.provenance ? provenanceLabels[r.provenance] : null;
 
                     return (
                       <div key={r.id} className="flex items-start gap-3 rounded-lg border p-3">
-                        <div className="pt-0.5">
-                          <Icon className="h-4 w-4 text-muted-foreground" />
-                        </div>
+                        <div className="pt-0.5"><Icon className="h-4 w-4 text-muted-foreground" /></div>
                         {isEditingRes ? (
                           <div className="flex-1 space-y-2">
                             <Input value={editResourceTitle} onChange={(e) => setEditResourceTitle(e.target.value)} placeholder="Resource title" className="h-7 text-xs" />
                             <Input value={editResourceAction} onChange={(e) => setEditResourceAction(e.target.value)} placeholder="Action / description" className="h-7 text-xs" />
                             <div className="flex gap-1">
-                              <button onClick={() => saveEditResource(wp.id)} className="rounded p-1 hover:bg-muted"><Check className="h-3.5 w-3.5 text-success" /></button>
+                              <button onClick={() => saveEditResource(wp.id)} className="rounded p-1 hover:bg-muted"><Check className="h-3.5 w-3.5 text-primary" /></button>
                               <button onClick={() => setEditingResourceId(null)} className="rounded p-1 hover:bg-muted"><X className="h-3.5 w-3.5 text-muted-foreground" /></button>
                             </div>
                           </div>
                         ) : (
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-sm font-medium">{r.title}</span>
                               <Badge variant="outline" className={`text-[10px] ${typeColors[r.type] || ""}`}>{typeLabels[r.type] || r.type}</Badge>
-                              {r.source && <span className="text-[10px] text-muted-foreground">{r.source}</span>}
+                              {prov && <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 ${prov.className}`}>{prov.label}</Badge>}
+                              {r.source && (
+                                <button className="text-[10px] text-primary hover:underline flex items-center gap-0.5">
+                                  <ExternalLink className="h-2.5 w-2.5" /> {r.source}
+                                </button>
+                              )}
                             </div>
                             <p className="text-xs text-muted-foreground mt-0.5">{r.action}</p>
                           </div>
                         )}
                         {!isEditingRes && (
                           <div className="flex items-center gap-1 shrink-0">
-                            <button onClick={() => startEditResource(r)} className="rounded p-1.5 hover:bg-muted" title="Edit">
-                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                            </button>
-                            <button onClick={() => deleteResource(wp.id, r.id)} className="rounded p-1.5 hover:bg-destructive/10 hover:text-destructive" title="Delete">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => startEditResource(r)} aria-label="Edit resource">
+                              <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive" onClick={() => confirmDeleteResource(wp.id, r.id)} aria-label="Remove resource">
+                              <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -435,6 +446,48 @@ const TeachingPlan = () => {
         })}
         </TabsContent>
       </Tabs>
+
+      {/* Publish Confirmation Modal */}
+      <Dialog open={showPublishModal} onOpenChange={setShowPublishModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Publish to students?</DialogTitle>
+            <DialogDescription>Students will see weekly topics, approved resources, and TA practice prompts.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <Checkbox checked={publishChecklist.weeks} onCheckedChange={(v) => setPublishChecklist((p) => ({ ...p, weeks: !!v }))} />
+              <span className="text-sm">Weeks and topics look correct</span>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <Checkbox checked={publishChecklist.resources} onCheckedChange={(v) => setPublishChecklist((p) => ({ ...p, resources: !!v }))} />
+              <span className="text-sm">Resources are appropriate for this cohort</span>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <Checkbox checked={publishChecklist.ta} onCheckedChange={(v) => setPublishChecklist((p) => ({ ...p, ta: !!v }))} />
+              <span className="text-sm">TA behavior is configured</span>
+            </label>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowPublishModal(false)}>Keep editing</Button>
+            <Button onClick={handlePublish} disabled={!allChecked}>Publish</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Confirmation Modal */}
+      <Dialog open={!!removeConfirm} onOpenChange={() => setRemoveConfirm(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Remove this resource?</DialogTitle>
+            <DialogDescription>This removes "{removeConfirm?.title}" from this week's plan. You can undo right after.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => setRemoveConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={executeRemove}>Remove</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
