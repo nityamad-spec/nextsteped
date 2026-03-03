@@ -9,8 +9,16 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, ArrowLeft, User, Upload, FileText, BookOpen, Check, X, Plus, Construction } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { ArrowRight, ArrowLeft, User, Upload, FileText, BookOpen, Check, X, Plus, Info, HelpCircle } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
+
+const bestPracticeStandards = [
+  { format: "Slides (PPTX)", tips: "Use clear headings per slide, limit to 6 bullet points, include visuals/diagrams, add speaker notes for context." },
+  { format: "Documents (DOCX/PDF)", tips: "Use structured headings (H1-H3), number sections, include a table of contents for long docs, cite sources." },
+  { format: "Exams / Problem Sets", tips: "Clearly state point values, group by topic/difficulty, provide a rubric or answer key, include time estimates." },
+  { format: "General", tips: "Use consistent naming conventions, remove personal/sensitive data, ensure accessibility (alt text, readable fonts)." },
+];
 
 const TeacherOnboarding = () => {
   const { setTeacherProfile, setCurrentCourse } = useApp();
@@ -26,6 +34,8 @@ const TeacherOnboarding = () => {
   const [objectives, setObjectives] = useState("");
   const [syllabusUploaded, setSyllabusUploaded] = useState(false);
   const [materialsUploaded, setMaterialsUploaded] = useState(false);
+  const [showUploadInfo, setShowUploadInfo] = useState(false);
+  const [showBestPractice, setShowBestPractice] = useState(false);
 
   const isValid = name.trim() && department && courseCode && sections.length > 0 && term && branch.trim() && studentYear && objectives.trim() && syllabusUploaded && materialsUploaded;
 
@@ -219,14 +229,13 @@ const TeacherOnboarding = () => {
 
               {/* Teaching Materials Upload */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Teaching Materials</Label>
-                <p className="text-xs text-muted-foreground">Upload your teaching materials:</p>
-                <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
-                  <li>Teaching Plans</li>
-                  <li>Slides & Decks</li>
-                  <li>Past Exams</li>
-                  <li>Other Materials</li>
-                </ul>
+                <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Upload Course Materials</Label>
+                <p className="text-xs text-muted-foreground">
+                  <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (and more).
+                </p>
                 <div
                   onClick={() => setMaterialsUploaded(true)}
                   className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
@@ -245,13 +254,37 @@ const TeacherOnboarding = () => {
                     </>
                   )}
                 </div>
-                {/* WIP Best Practice Formats */}
-                <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/5 p-3 mt-2">
-                  <Construction className="h-4 w-4 text-warning mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium text-foreground">Best Practice Format Review <span className="text-[10px] font-normal text-warning">(Coming Soon)</span></p>
-                    <p className="text-[11px] text-muted-foreground">AI will review your uploaded materials against best practice formatting standards for slides, documents, and exams to suggest structural improvements.</p>
-                  </div>
+
+                {/* What happens to my uploads? */}
+                <button
+                  onClick={() => setShowUploadInfo(true)}
+                  className="flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  <HelpCircle className="h-3 w-3" /> What happens to my uploads?
+                </button>
+
+                {/* Best Practice Format Standards */}
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 mt-2">
+                  <button
+                    onClick={() => setShowBestPractice(!showBestPractice)}
+                    className="flex items-center gap-2 w-full text-left"
+                  >
+                    <Info className="h-4 w-4 text-primary shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-foreground">Best Practice Format Standards</p>
+                      <p className="text-[11px] text-muted-foreground">Recommended formatting guidelines for your materials</p>
+                    </div>
+                  </button>
+                  {showBestPractice && (
+                    <div className="mt-3 space-y-2 border-t pt-3">
+                      {bestPracticeStandards.map((bp, i) => (
+                        <div key={i} className="rounded-md bg-background p-2.5">
+                          <p className="text-xs font-medium text-foreground">{bp.format}</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">{bp.tips}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -260,12 +293,41 @@ const TeacherOnboarding = () => {
                   <ArrowLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
                 <Button onClick={handleContinue} disabled={!isValid}>
-                  Continue to Teaching Plan Review <ArrowRight className="ml-2 h-4 w-4" />
+                  Continue to Quality Check <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </motion.div>
           </CardContent>
         </Card>
+
+        {/* Upload Info Modal */}
+        <Dialog open={showUploadInfo} onOpenChange={setShowUploadInfo}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>How uploads are used</DialogTitle>
+              <DialogDescription>Your materials help power the AI Teaching Assistant</DialogDescription>
+            </DialogHeader>
+            <ul className="space-y-3 text-sm">
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <span>We use your uploads to generate teaching plans and ground the Student TA.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <span>You can remove files anytime.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <span>Generated content can include suggestions beyond uploads; those will be labeled.</span>
+              </li>
+            </ul>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button>Got it</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
