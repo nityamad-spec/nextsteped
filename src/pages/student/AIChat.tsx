@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, CheckCircle, ClipboardList, AlertTriangle } from "lucide-react";
+import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, CheckCircle, ClipboardList, AlertTriangle, ShieldCheck } from "lucide-react";
 
 const AIChat = () => {
   const [searchParams] = useSearchParams();
@@ -418,9 +418,12 @@ const AIChat = () => {
               <Send className="h-4 w-4" />
             </Button>
           </div>
-          <p className="mt-2 text-[11px] text-muted-foreground text-center">
-            Your conversations are private and anonymized. Professors cannot see your individual chat data or responses.
-          </p>
+          <div className="mt-2 flex items-center justify-center gap-1.5">
+            <ShieldCheck className="h-3 w-3 text-primary" />
+            <p className="text-[11px] text-muted-foreground">
+              <span className="font-medium text-foreground">Private & anonymized</span> — your professor never sees your individual chats, answers, or performance.
+            </p>
+          </div>
         </div>
       </div>
 
