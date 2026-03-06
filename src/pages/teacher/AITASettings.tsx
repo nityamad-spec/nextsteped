@@ -174,40 +174,82 @@ const AITASettings = () => {
                     <p className="text-xs text-muted-foreground">All at once mirrors a real exam format.</p>
                   </div>
 
-                  {/* Estimated Question Count Preview */}
+                  {/* Exam Length */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Exam Length (minutes)</Label>
+                    <div className="flex items-center gap-4">
+                      <Slider value={[examLength]} onValueChange={(v) => { handleExamLengthChange(v[0]); setExamApproved(false); }} min={15} max={180} step={15} className="flex-1" />
+                      <span className="w-16 text-right text-sm font-bold">{examLength} min</span>
+                    </div>
+                  </div>
+
+                  {/* Question Count: Estimated or Manual */}
                   <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Calculator className="h-4 w-4 text-primary" />
-                        <Label className="text-sm font-medium">Estimated Questions</Label>
+                        <Label className="text-sm font-medium">Number of Questions</Label>
                       </div>
                       <div className="flex items-center gap-2">
-                        {!editingEstimate && (
-                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleEditEstimate}>
-                            <Pencil className="mr-1 h-3 w-3" /> Edit
-                          </Button>
-                        )}
-                        <Button variant={estimateApproved ? "outline" : "default"} size="sm" className="h-7 text-xs" onClick={handleApproveEstimate}>
-                          {estimateApproved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve"}
+                        <Button
+                          variant={examManualQuestions ? "default" : "outline"}
+                          size="sm" className="h-7 text-xs"
+                          onClick={() => { setExamManualQuestions(!examManualQuestions); setExamApproved(false); }}
+                        >
+                          {examManualQuestions ? "Manual" : "Estimated"}
                         </Button>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Based on {examLength} min, {settings.examDifficulty} difficulty — estimated <span className="font-bold text-foreground">{activeTotal} questions</span>
-                    </p>
-                    <div className="space-y-2">
-                      {Object.entries(activeBreakdown).map(([type, count]) => (
-                        <div key={type} className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">{type}</span>
-                          {editingEstimate ? (
-                            <Input type="number" min={0} className="h-7 w-16 text-xs text-right" value={count}
-                              onChange={(e) => setCustomBreakdown(prev => ({ ...prev, [type]: Math.max(0, parseInt(e.target.value) || 0) }))} />
-                          ) : (
-                            <span className="text-sm font-bold">{count}</span>
-                          )}
+
+                    {examManualQuestions ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">Manually define the number of questions for this exam.</p>
+                        <div className="flex items-center gap-4">
+                          <Slider value={[examManualCount]} onValueChange={(v) => { setExamManualCount(v[0]); setExamApproved(false); }} min={5} max={100} step={1} className="flex-1" />
+                          <span className="w-16 text-right text-sm font-bold">{examManualCount}</span>
                         </div>
-                      ))}
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          Based on {examLength} min, {settings.examDifficulty} difficulty — estimated <span className="font-bold text-foreground">{activeTotal} questions</span>
+                        </p>
+                        <div className="space-y-2">
+                          {Object.entries(activeBreakdown).map(([type, count]) => (
+                            <div key={type} className="flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">{type}</span>
+                              {editingEstimate ? (
+                                <Input type="number" min={0} className="h-7 w-16 text-xs text-right" value={count}
+                                  onChange={(e) => setCustomBreakdown(prev => ({ ...prev, [type]: Math.max(0, parseInt(e.target.value) || 0) }))} />
+                              ) : (
+                                <span className="text-sm font-bold">{count}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {!editingEstimate && (
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleEditEstimate}>
+                              <Pencil className="mr-1 h-3 w-3" /> Edit Breakdown
+                            </Button>
+                          )}
+                          <Button variant={estimateApproved ? "outline" : "default"} size="sm" className="h-7 text-xs" onClick={handleApproveEstimate}>
+                            {estimateApproved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve Estimate"}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Approve Exam Rules */}
+                  <div className={`flex items-center justify-between rounded-lg border p-4 ${examApproved ? "border-primary/30 bg-primary/5" : ""}`}>
+                    <div>
+                      <p className="text-sm font-medium">Approve Exam Rules</p>
+                      <p className="text-xs text-muted-foreground">You must approve exam settings before publishing</p>
                     </div>
+                    <Button variant={examApproved ? "outline" : "default"} size="sm" onClick={() => setExamApproved(!examApproved)}>
+                      {examApproved ? <><Check className="mr-1 h-4 w-4" /> Approved</> : "Approve"}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
