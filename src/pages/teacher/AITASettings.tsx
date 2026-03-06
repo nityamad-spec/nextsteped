@@ -241,17 +241,10 @@ const AITASettings = () => {
                     </Select>
                   </div>
 
-                  <div className="space-y-3">
-                    <Label className="text-sm font-medium">Quiz Difficulty</Label>
-                    <Select value={quizDifficulty} onValueChange={setQuizDifficulty}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Easy">Easy</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="Hard">Hard</SelectItem>
-                        <SelectItem value="Mixed">Mixed</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="rounded-lg border bg-primary/5 p-3">
+                    <p className="text-xs text-muted-foreground">
+                      <strong className="text-foreground">Note:</strong> Daily quiz difficulty is personalized automatically based on each student's concept mastery level. No manual setting needed.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
