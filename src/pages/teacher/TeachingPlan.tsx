@@ -206,8 +206,8 @@ const TeachingPlan = () => {
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="font-heading text-3xl font-bold">Teaching Plan</h1>
-          <p className="text-muted-foreground">Your confirmed semester plan — edit topics, resources, and materials</p>
+          <h1 className="font-heading text-3xl font-bold">Workshop Lesson Plan</h1>
+          <p className="text-muted-foreground">Your confirmed workshop plan — edit topics, resources, and materials</p>
         </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
