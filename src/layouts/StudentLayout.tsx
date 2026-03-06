@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Home, MessageSquare, Mic, TrendingUp, Briefcase, LogOut, BookOpen, Brain } from "lucide-react";
+import { Home, MessageSquare, TrendingUp, LogOut } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { availableCourses } from "@/data/mockData";
 import { NavLink } from "@/components/NavLink";
