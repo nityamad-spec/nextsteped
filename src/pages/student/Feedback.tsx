@@ -51,14 +51,14 @@ const ChipSelect = ({
   value: string | null;
   onChange: (v: string) => void;
 }) => (
-  <div className="flex flex-wrap gap-2">
+  <div className="flex flex-col gap-2">
     {options.map((opt) => (
       <button
         key={opt.value}
         type="button"
         onClick={() => onChange(opt.value)}
         className={cn(
-          "rounded-full border px-4 py-2 text-sm font-medium transition-all",
+          "w-full rounded-lg border px-4 py-2.5 text-left text-sm font-medium transition-all",
           value === opt.value
             ? "border-primary bg-primary text-primary-foreground shadow-sm"
             : "border-border bg-background text-foreground hover:border-primary/50 hover:bg-primary/5"
