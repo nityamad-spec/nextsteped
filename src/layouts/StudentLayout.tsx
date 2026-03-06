@@ -16,20 +16,11 @@ const StudentLayout = () => {
   const { currentCourse, studentProfile, resetAll } = useApp();
   const courseName = currentCourse?.name || availableCourses.find(c => c.code === studentProfile?.courseCode)?.name || "Course";
   const navigate = useNavigate();
-  const location = useLocation();
   const isMobile = useIsMobile();
 
   const handleLogout = () => {
     resetAll();
     navigate("/");
-  };
-
-  const handleStartLearning = () => {
-    navigate("/student/chat?mode=learning&newchat=true");
-  };
-
-  const handleExamSimulation = () => {
-    navigate("/student/chat?mode=exam&newchat=true");
   };
 
   if (isMobile) {
