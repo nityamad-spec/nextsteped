@@ -142,7 +142,7 @@ const TeachingPlan = () => {
   const [published, setPublished] = useState(false);
   const [publishTimestamp, setPublishTimestamp] = useState<string | null>(null);
   const [showPublishModal, setShowPublishModal] = useState(false);
-  const [publishChecklist, setPublishChecklist] = useState({ weeks: false, resources: false, ta: false });
+  const [publishChecklist, setPublishChecklist] = useState({ weeks: false, resources: false });
   const [removeConfirm, setRemoveConfirm] = useState<{ weekId: string; resourceId: string; title: string } | null>(null);
 
   const markChanged = () => { setHasChanges(true); setPublished(false); };
