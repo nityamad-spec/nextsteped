@@ -287,6 +287,17 @@ const AITASettings = () => {
                       <strong className="text-foreground">Note:</strong> Daily quiz difficulty is personalized automatically based on each student's concept mastery level. No manual setting needed.
                     </p>
                   </div>
+
+                  {/* Approve Quiz Rules */}
+                  <div className={`flex items-center justify-between rounded-lg border p-4 ${quizApproved ? "border-primary/30 bg-primary/5" : ""}`}>
+                    <div>
+                      <p className="text-sm font-medium">Approve Daily Quiz Rules</p>
+                      <p className="text-xs text-muted-foreground">You must approve quiz settings before publishing</p>
+                    </div>
+                    <Button variant={quizApproved ? "outline" : "default"} size="sm" onClick={() => setQuizApproved(!quizApproved)}>
+                      {quizApproved ? <><Check className="mr-1 h-4 w-4" /> Approved</> : "Approve"}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
