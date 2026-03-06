@@ -82,6 +82,11 @@ const AITASettings = () => {
     setEstimateApproved(false);
   };
 
+  const [examApproved, setExamApproved] = useState(false);
+  const [quizApproved, setQuizApproved] = useState(false);
+  const [examManualQuestions, setExamManualQuestions] = useState(false);
+  const [examManualCount, setExamManualCount] = useState(estimate.total);
+
   const handleSave = () => {
     setTASettings({
       ...settings,
@@ -94,6 +99,8 @@ const AITASettings = () => {
     });
     navigate("/teacher/setup/publish");
   };
+
+  const canContinue = examApproved && quizApproved;
 
   return (
     <div className="min-h-screen bg-background px-4 py-8">
