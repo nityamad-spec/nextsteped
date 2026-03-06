@@ -5,7 +5,8 @@ import { useApp } from "@/contexts/AppContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { BarChart3, Check, ChevronDown, ChevronUp, BookOpen, TrendingUp, Brain, ArrowRight, FlaskConical, LibraryBig, Newspaper, Download, MessageSquare } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { BarChart3, Check, ChevronDown, ChevronUp, BookOpen, TrendingUp, Brain, ArrowRight, FlaskConical, LibraryBig, Newspaper, Download } from "lucide-react";
 import { mockTopics, availableCourses } from "@/data/mockData";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -56,24 +57,23 @@ const workshopPlan: DayPlan[] = [
   ]},
 ];
 
-const currentDay = 2;
+const currentDay = 1;
 
-// Concept mastery heat map data
 const conceptMasteryData = [
   { name: "Process Mgmt", mastery: 85 },
   { name: "CPU Scheduling", mastery: 78 },
   { name: "Memory Mgmt", mastery: 62 },
-  { name: "Virtual Memory", mastery: 45 },
+  { name: "Virtual Memory", mastery: 0 },
   { name: "File Systems", mastery: 58 },
-  { name: "Synchronization", mastery: 38 },
-  { name: "Deadlocks", mastery: 30 },
+  { name: "Synchronization", mastery: 0 },
+  { name: "Deadlocks", mastery: 0 },
   { name: "I/O Systems", mastery: 55 },
 ];
 
 const getMasteryColor = (mastery: number) => {
-  if (mastery >= 80) return "bg-primary text-primary-foreground";
-  if (mastery >= 60) return "bg-primary/60 text-primary-foreground";
-  if (mastery >= 40) return "bg-primary/30 text-foreground";
+  if (mastery === 0) return "bg-background border text-muted-foreground";
+  if (mastery >= 70) return "bg-primary text-primary-foreground";
+  if (mastery >= 40) return "bg-primary/40 text-foreground";
   return "bg-destructive/20 text-destructive-foreground";
 };
 
@@ -84,13 +84,12 @@ const learningJourney = [
 ];
 
 const StudentHome = () => {
-  const { studentProfile, currentCourse, learningChats } = useApp();
+  const { studentProfile, currentCourse } = useApp();
   const navigate = useNavigate();
-  const [expandedDays, setExpandedDays] = useState<number[]>([]);
+  const [expandedDays, setExpandedDays] = useState<number[]>([1]);
   const courseName = currentCourse?.name || availableCourses.find(c => c.code === studentProfile?.courseCode)?.name || "Course";
 
   const avgMastery = Math.round(mockTopics.reduce((sum, t) => sum + (t.mastery || 0), 0) / mockTopics.length);
-  const hasStartedChat = learningChats.length > 0;
 
   const toggleDay = (day: number) => {
     setExpandedDays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]);
@@ -98,8 +97,19 @@ const StudentHome = () => {
 
   return (
     <div className="p-6">
-      {/* Learning Timeline at top */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+      {/* Welcome header */}
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
+        <h1 className="font-heading text-3xl font-bold">
+          Welcome back, {studentProfile?.name || "Student"}!
+        </h1>
+        <div className="mt-2 flex items-center gap-2">
+          <Badge variant="outline" className="text-sm">{studentProfile?.learnerLevel || "Beginner"}</Badge>
+          <span className="text-sm text-muted-foreground">{courseName}</span>
+        </div>
+      </motion.div>
+
+      {/* Learning Timeline */}
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-6">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -125,147 +135,46 @@ const StudentHome = () => {
         </Card>
       </motion.div>
 
-      {/* Welcome header */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-6">
-        <h1 className="font-heading text-3xl font-bold">
-          Welcome back, {studentProfile?.name || "Student"}!
-        </h1>
-        <div className="mt-2 flex items-center gap-2">
-          <Badge variant="outline" className="text-sm">{studentProfile?.learnerLevel || "Beginner"}</Badge>
-          <span className="text-sm text-muted-foreground">{courseName}</span>
-        </div>
-      </motion.div>
-
-      {/* Stats overview - only Overall Mastery */}
+      {/* Tabs: Overall Mastery + Workshop Progress */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6">
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <BarChart3 className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-xl font-bold">{avgMastery}%</p>
-              <p className="text-[11px] text-muted-foreground">Overall Mastery</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Your average understanding across all topics</p>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Concept Mastery Heat Map */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="mb-6">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Brain className="h-4 w-4 text-primary" /> Concept Mastery Heat Map
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {conceptMasteryData.map((concept) => (
-                <Tooltip key={concept.name}>
-                  <TooltipTrigger asChild>
-                    <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${getMasteryColor(concept.mastery)}`}>
-                      <p className="text-xs font-medium truncate">{concept.name}</p>
-                      <p className="text-lg font-bold mt-1">{concept.mastery}%</p>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{concept.name}: {concept.mastery}% mastery</p>
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
-            <div className="flex items-center justify-center gap-4 mt-3">
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-destructive/20" />
-                <span className="text-[10px] text-muted-foreground">&lt;40%</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-primary/30" />
-                <span className="text-[10px] text-muted-foreground">40-59%</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-primary/60" />
-                <span className="text-[10px] text-muted-foreground">60-79%</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-primary" />
-                <span className="text-[10px] text-muted-foreground">80%+</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* What To Do Next */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">What To Do Next</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {hasStartedChat && (
-              <div
-                className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => navigate("/student/chat?mode=learning")}
-              >
+        <Tabs defaultValue="mastery">
+          <TabsList className="mb-3">
+            <TabsTrigger value="mastery">Overall Mastery</TabsTrigger>
+            <TabsTrigger value="progress">Workshop Progress</TabsTrigger>
+          </TabsList>
+          <TabsContent value="mastery">
+            <Card>
+              <CardContent className="flex items-center gap-3 p-4">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <MessageSquare className="h-4 w-4" />
+                  <BarChart3 className="h-4 w-4" />
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Resume Study Mode Chat</p>
-                  <p className="text-xs text-muted-foreground">Continue where you left off in your study session</p>
+                <div>
+                  <p className="text-xl font-bold">{avgMastery}%</p>
+                  <p className="text-[11px] text-muted-foreground">Your average understanding across all topics</p>
                 </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </div>
-            )}
-            <div
-              className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => navigate("/student/chat?mode=learning&newchat=true")}
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
-                <BookOpen className="h-4 w-4" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">Keep Learning</p>
-                <p className="text-xs text-muted-foreground">Start a new study session to explore topics</p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div
-              className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => navigate("/student/chat?mode=learning&newchat=true")}
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                <TrendingUp className="h-4 w-4" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">Let's recap what you learnt in Day {Math.min(currentDay, workshopPlan.length)}</p>
-                <p className="text-xs text-muted-foreground">Review and consolidate today's key concepts</p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="progress">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="h-4 w-4 text-primary" />
+                    <p className="text-sm font-medium">Workshop Progress</p>
+                  </div>
+                  <span className="text-sm text-muted-foreground">Day {currentDay} of {workshopPlan.length}</span>
+                </div>
+                <Progress value={(currentDay / workshopPlan.length) * 100} className="h-2 mb-1" />
+                <p className="text-xs text-muted-foreground">Currently covering: {workshopPlan[currentDay - 1].topic}</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </motion.div>
 
-      {/* Workshop Lesson Plan Progress + Plan */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-6">
-        <Card className="mb-4">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-primary" />
-                <p className="text-sm font-medium">Workshop Progress</p>
-              </div>
-              <span className="text-sm text-muted-foreground">Day {currentDay} of {workshopPlan.length}</span>
-            </div>
-            <Progress value={(currentDay / workshopPlan.length) * 100} className="h-2 mb-1" />
-            <p className="text-xs text-muted-foreground">Currently covering: {workshopPlan[currentDay - 1].topic}</p>
-          </CardContent>
-        </Card>
-
+      {/* Workshop Lesson Plan */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -333,6 +242,85 @@ const StudentHome = () => {
                 </Card>
               );
             })}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Concept Mastery Heat Map */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Brain className="h-4 w-4 text-primary" /> Concept Mastery Heat Map
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {conceptMasteryData.map((concept) => (
+                <Tooltip key={concept.name}>
+                  <TooltipTrigger asChild>
+                    <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${getMasteryColor(concept.mastery)}`}>
+                      <p className="text-xs font-medium truncate">{concept.name}</p>
+                      <p className="text-lg font-bold mt-1">{concept.mastery === 0 ? "—" : `${concept.mastery}%`}</p>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{concept.name}: {concept.mastery === 0 ? "Not covered yet" : `${concept.mastery}% mastery`}</p>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+            <div className="flex items-center justify-center gap-4 mt-3">
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded bg-background border" />
+                <span className="text-[10px] text-muted-foreground">Not covered</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded bg-primary/40" />
+                <span className="text-[10px] text-muted-foreground">In progress</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded bg-primary" />
+                <span className="text-[10px] text-muted-foreground">Strong</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* What To Do Next */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">What To Do Next</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div
+              className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => navigate("/student/chat?mode=learning")}
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                <BookOpen className="h-4 w-4" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium">Keep Learning</p>
+                <p className="text-xs text-muted-foreground">Continue studying with the Teaching Assistant</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div
+              className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => navigate("/student/chat?mode=learning&newchat=true")}
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <TrendingUp className="h-4 w-4" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium">Let's recap what you learnt in Day {Math.min(currentDay, workshopPlan.length)}</p>
+                <p className="text-xs text-muted-foreground">Review and consolidate today's key concepts</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </div>
           </CardContent>
         </Card>
       </motion.div>
