@@ -142,6 +142,18 @@ const AITASettings = () => {
                 </Select>
               </div>
 
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Question Presentation</Label>
+                <Select value={settings.examPresentation || "all_at_once"} onValueChange={(v: any) => update({ examPresentation: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all_at_once">All at once (most realistic)</SelectItem>
+                    <SelectItem value="one_by_one">One by one</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">All at once mirrors a real exam format where students see every question upfront.</p>
+              </div>
+
               {/* Estimated Question Count Preview */}
               <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                 <div className="flex items-center justify-between">

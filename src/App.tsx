@@ -79,9 +79,7 @@ const App = () => (
             <Route element={<StudentLayout />}>
               <Route path="/student/home" element={<StudentHome />} />
               <Route path="/student/chat" element={<AIChat />} />
-              <Route path="/student/interview" element={<InterviewPrep />} />
               <Route path="/student/progress" element={<StudentProgress />} />
-              <Route path="/student/employers" element={<Employers />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

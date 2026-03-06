@@ -1,38 +1,26 @@
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Home, MessageSquare, Mic, TrendingUp, Briefcase, LogOut, BookOpen, Brain } from "lucide-react";
+import { Outlet, useNavigate } from "react-router-dom";
+import { Home, MessageSquare, TrendingUp, LogOut } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { availableCourses } from "@/data/mockData";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 
 const studentNav = [
   { title: "Home", path: "/student/home", icon: Home, enabled: true },
   { title: "Teaching Assistant Chat", path: "/student/chat", icon: MessageSquare, enabled: true },
-  { title: "Progress", path: "/student/progress", icon: TrendingUp, enabled: true },
-  { title: "Interview Prep", path: "/student/interview", icon: Mic, enabled: false, badge: "Soon" },
-  { title: "Employers", path: "/student/employers", icon: Briefcase, enabled: false, badge: "Later" },
+  { title: "Progress", path: "/student/progress", icon: TrendingUp, enabled: false, badge: "Soon" },
 ];
 
 const StudentLayout = () => {
   const { currentCourse, studentProfile, resetAll } = useApp();
   const courseName = currentCourse?.name || availableCourses.find(c => c.code === studentProfile?.courseCode)?.name || "Course";
   const navigate = useNavigate();
-  const location = useLocation();
   const isMobile = useIsMobile();
 
   const handleLogout = () => {
     resetAll();
     navigate("/");
-  };
-
-  const handleStartLearning = () => {
-    navigate("/student/chat?mode=learning&newchat=true");
-  };
-
-  const handleExamSimulation = () => {
-    navigate("/student/chat?mode=exam&newchat=true");
   };
 
   if (isMobile) {
@@ -107,19 +95,6 @@ const StudentLayout = () => {
           ))}
         </nav>
 
-        {/* Quick Actions */}
-        <div className="border-t p-3 space-y-1.5">
-          <p className="px-3 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Quick Actions</p>
-          <Button onClick={handleStartLearning} className="w-full justify-start gap-2" size="sm" variant="ghost">
-            <BookOpen className="h-4 w-4" /> Start Learning Session
-          </Button>
-          <Button variant="ghost" onClick={handleExamSimulation} className="w-full justify-start gap-2" size="sm">
-            <Brain className="h-4 w-4" /> Exam Simulation
-          </Button>
-          <Button variant="ghost" onClick={() => navigate("/student/progress")} className="w-full justify-start gap-2" size="sm">
-            <TrendingUp className="h-4 w-4" /> View Progress
-          </Button>
-        </div>
 
         {studentProfile && (
           <div className="border-t p-4">
