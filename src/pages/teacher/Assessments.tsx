@@ -156,8 +156,14 @@ const Assessments = () => {
       ...taSettings,
       quizNumQuestions: quizNumQuestions,
       quizQuestionMix: quizQuestionTypes,
-      quizDifficulty: quizDifficulty as any,
       quizTimeLimit: quizTimeLimit,
+    });
+  };
+
+  const handleSaveExamSettings = () => {
+    setTASettings({
+      ...taSettings,
+      examTimeLimit: examTimeLimit,
     });
   };
 
