@@ -291,10 +291,41 @@ const Assessments = () => {
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Exam Time Limit (minutes)</Label>
                 <div className="flex items-center gap-4">
-                  <Slider value={[taSettings.examTimeLimit]} onValueChange={(v) => setTASettings({ ...taSettings, examTimeLimit: v[0] })} min={15} max={180} step={15} className="flex-1" />
-                  <span className="w-16 text-right text-sm font-bold">{taSettings.examTimeLimit} min</span>
+                  <Slider value={[examTimeLimit]} onValueChange={(v) => setExamTimeLimit(v[0])} min={15} max={180} step={15} className="flex-1" />
+                  <span className="w-16 text-right text-sm font-bold">{examTimeLimit} min</span>
                 </div>
               </div>
+
+              {/* Estimated vs Manual Question Count */}
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-primary" />
+                    <Label className="text-sm font-medium">Number of Questions</Label>
+                  </div>
+                  <Button
+                    variant={examManualQuestions ? "default" : "outline"}
+                    size="sm" className="h-7 text-xs"
+                    onClick={() => setExamManualQuestions(!examManualQuestions)}
+                  >
+                    {examManualQuestions ? "Manual" : "Estimated"}
+                  </Button>
+                </div>
+                {examManualQuestions ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Manually define the number of questions.</p>
+                    <div className="flex items-center gap-4">
+                      <Slider value={[examManualCount]} onValueChange={(v) => setExamManualCount(v[0])} min={5} max={100} step={1} className="flex-1" />
+                      <span className="w-16 text-right text-sm font-bold">{examManualCount}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Based on {examTimeLimit} min — estimated <span className="font-bold text-foreground">{examEstimate} questions</span>
+                  </p>
+                )}
+              </div>
+
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Exam Question Types</Label>
                 <Select value={taSettings.examQuestionMix} onValueChange={(v) => setTASettings({ ...taSettings, examQuestionMix: v })}>
@@ -332,6 +363,7 @@ const Assessments = () => {
                 </Select>
                 <p className="text-xs text-muted-foreground">All at once mirrors a real exam format.</p>
               </div>
+              <Button onClick={handleSaveExamSettings} className="w-full">Save Exam Settings</Button>
             </CardContent>
           </Card>
         </TabsContent>
