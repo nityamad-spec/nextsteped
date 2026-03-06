@@ -332,9 +332,12 @@ const AITASettings = () => {
             <Button variant="ghost" onClick={() => navigate("/teacher/setup/syllabus")}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} disabled={!canContinue}>
               Continue to Publish <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
+            {!canContinue && (
+              <p className="text-xs text-destructive mt-1 text-right">Please approve both exam and daily quiz rules to continue</p>
+            )}
           </div>
         </div>
       </div>

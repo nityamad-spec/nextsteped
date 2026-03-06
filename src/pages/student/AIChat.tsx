@@ -433,7 +433,7 @@ const AIChat = () => {
               End {examStarted ? "Exam" : "Daily Quiz"}?
             </DialogTitle>
             <DialogDescription>
-              If you leave this page, your {examStarted ? "exam" : "daily quiz"} will automatically end and your progress will be submitted. Are you sure you want to leave?
+              If you leave this page, your {examStarted ? "exam" : "daily quiz"} will automatically end and your progress will be **discarded** (not submitted). Are you sure you want to leave?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2">
