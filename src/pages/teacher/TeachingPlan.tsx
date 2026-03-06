@@ -63,68 +63,20 @@ const provenanceLabels: Record<string, { label: string; className: string }> = {
 const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
 const confirmedPlan: WeekPlan[] = [
-  { id: "w1", week: 1, dates: "Jan 13 & 15", topic: "Introduction to OS Concepts & Process Lifecycle", weightage: 5, resources: [
+  { id: "d1", week: 1, dates: "Day 1", topic: "Introduction to OS Concepts & Process Lifecycle", weightage: 30, resources: [
     { id: "r1", title: "Textbook Ch. 1-2", action: "Assign chapters 1-2 as required reading before class", type: "textbook", provenance: "uploads" },
     { id: "r2", title: "AICTE Module 1 Guide", action: "Reference AICTE guidelines to align lecture with curriculum standards", type: "textbook", provenance: "uploads" },
-  ]},
-  { id: "w2", week: 2, dates: "Jan 20 & 22", topic: "Process Scheduling: FCFS, SJF, Round Robin", weightage: 7, resources: [
-    { id: "r3", title: "Textbook Ch. 3", action: "Assign chapter 3 as pre-lecture reading on scheduling algorithms", type: "textbook", provenance: "uploads" },
     { id: "r4", title: "Scheduling Simulator", action: "Use in a 20-min live demo to visualize FCFS vs Round Robin", type: "exercise", provenance: "uploads" },
   ]},
-  { id: "w3", week: 3, dates: "Jan 27 & 29", topic: "Advanced Scheduling & Real-World Applications", weightage: 7, resources: [
+  { id: "d2", week: 2, dates: "Day 2", topic: "Process Scheduling & Synchronization Fundamentals", weightage: 40, resources: [
+    { id: "r3", title: "Textbook Ch. 3-4", action: "Assign chapters 3-4 on scheduling and threads", type: "textbook", provenance: "uploads" },
     { id: "r6", title: "Scheduling Algorithms Lab", action: "Include a 30-min in-class lab where students implement and compare scheduling algorithms", type: "lab", provenance: "uploads" },
-  ]},
-  { id: "w4", week: 4, dates: "Feb 3 & 5", topic: "Threads & Concurrency Fundamentals", weightage: 7, resources: [
-    { id: "r8", title: "Textbook Ch. 4", action: "Assign chapter 4 on threads and concurrency models", type: "textbook", provenance: "uploads" },
-    { id: "r9", title: "POSIX Threads Tutorial", action: "Share as a hands-on reference for students to practice pthreads outside class", type: "exercise", provenance: "uploads" },
-  ]},
-  { id: "w5", week: 5, dates: "Feb 10 & 12", topic: "Synchronization: Mutexes, Semaphores, Monitors", weightage: 8, resources: [
-    { id: "r10", title: "Textbook Ch. 5", action: "Assign chapter 5 on synchronization primitives", type: "textbook", provenance: "uploads" },
     { id: "r11", title: "Producer-Consumer Lab", action: "Run a 30-min hands-on lab implementing the producer-consumer problem", type: "lab", provenance: "uploads" },
   ]},
-  { id: "w6", week: 6, dates: "Feb 17 & 19", topic: "Deadlock Prevention & Detection", weightage: 7, resources: [
-    { id: "r13", title: "Textbook Ch. 6", action: "Assign chapter 6 on deadlock concepts and prevention strategies", type: "textbook", provenance: "uploads" },
-    { id: "r14", title: "Deadlock Visualization Tool", action: "Demo in class to visually show how deadlocks form and resolve", type: "exercise", provenance: "uploads" },
-  ]},
-  { id: "w7", week: 7, dates: "Feb 24 & 26", topic: "Midterm Review & Exam", weightage: 10, resources: [
-    { id: "r16", title: "Review Sheet", action: "Distribute comprehensive review sheet covering weeks 1-6", type: "textbook", provenance: "uploads" },
-    { id: "r17", title: "Practice Exam", action: "Assign as a take-home practice exam before the midterm", type: "exercise", provenance: "uploads" },
-  ]},
-  { id: "w8", week: 8, dates: "Mar 3 & 5", topic: "Physical & Virtual Memory Concepts", weightage: 7, resources: [
-    { id: "r18", title: "Textbook Ch. 7", action: "Assign chapter 7 on memory hierarchy and virtual memory basics", type: "textbook", provenance: "uploads" },
-    { id: "r19", title: "Memory Hierarchy Slides", action: "Use these slides to walk through the memory hierarchy in lecture", type: "textbook", provenance: "uploads" },
-  ]},
-  { id: "w9", week: 9, dates: "Mar 10 & 12", topic: "Paging, Segmentation & Address Translation", weightage: 7, resources: [
-    { id: "r20", title: "Textbook Ch. 8", action: "Assign chapter 8 on paging and segmentation", type: "textbook", provenance: "uploads" },
+  { id: "d3", week: 3, dates: "Day 3", topic: "Memory Management & Review", weightage: 30, resources: [
+    { id: "r18", title: "Textbook Ch. 7-8", action: "Assign chapters 7-8 on memory hierarchy and paging", type: "textbook", provenance: "uploads" },
     { id: "r21", title: "Page Table Simulator", action: "Use in a 20-min demo to show address translation step by step", type: "exercise", provenance: "uploads" },
-  ]},
-  { id: "w10", week: 10, dates: "Mar 17 & 19", topic: "Memory Allocation Strategies", weightage: 5, resources: [
-    { id: "r23", title: "Build a Memory Allocator in C", action: "Include a 45-min in-class lab where students implement a basic memory allocator", type: "lab", provenance: "uploads" },
-    { id: "r24", title: "Textbook Ch. 9", action: "Assign chapter 9 on memory allocation strategies", type: "textbook", provenance: "uploads" },
-  ]},
-  { id: "w11", week: 11, dates: "Mar 24 & 26", topic: "File System Design & Implementation", weightage: 5, resources: [
-    { id: "r26", title: "Textbook Ch. 10-11", action: "Assign chapters 10-11 on file system design and implementation", type: "textbook", provenance: "uploads" },
-    { id: "r27", title: "EXT4 Case Study", action: "Walk through the EXT4 file system as a real-world design example in lecture", type: "case-study", provenance: "uploads" },
-  ]},
-  { id: "w12", week: 12, dates: "Mar 31 & Apr 2", topic: "Modern Storage: NVMe, SSDs & I/O Systems", weightage: 5, resources: [
-    { id: "r29", title: "Industry White Paper", action: "Reference in lecture to provide industry context on modern storage technologies", type: "article", provenance: "uploads" },
-    { id: "r30", title: "Storage Benchmark Lab", action: "Run a hands-on lab comparing I/O performance across storage types", type: "lab", provenance: "uploads" },
-  ]},
-  { id: "w13", week: 13, dates: "Apr 7 & 9", topic: "Security & Protection in Operating Systems", weightage: 5, resources: [
-    { id: "r31", title: "Textbook Ch. 14", action: "Assign chapter 14 on OS security and protection mechanisms", type: "textbook", provenance: "uploads" },
-    { id: "r32", title: "CVE Case Studies", action: "Discuss 2-3 real CVEs in class to illustrate OS vulnerability patterns", type: "case-study", provenance: "uploads" },
-  ]},
-  { id: "w14", week: 14, dates: "Apr 14 & 16", topic: "Virtualization & Cloud OS Concepts", weightage: 3, resources: [
-    { id: "r34", title: "Hypervisor Comparison Article", action: "Use as a reference when discussing Type 1 vs Type 2 hypervisors", type: "article", provenance: "uploads" },
-    { id: "r35", title: "Docker Lab", action: "Include a 30-min hands-on lab where students containerize a simple application", type: "lab", provenance: "uploads" },
-  ]},
-  { id: "w15", week: 15, dates: "Apr 21 & 23", topic: "Emerging Trends: WASM Runtimes, Unikernels", weightage: 2, resources: [
-    { id: "r37", title: "Research Papers", action: "Assign selected papers on WASM runtimes and unikernels for class discussion", type: "article", provenance: "uploads" },
-    { id: "r38", title: "Hands-On Demo", action: "Run a live demo of a WASM runtime to make emerging concepts tangible", type: "lab", provenance: "uploads" },
-  ]},
-  { id: "w16", week: 16, dates: "Apr 28 & 30", topic: "Final Review & Exam", weightage: 10, resources: [
-    { id: "r40", title: "Comprehensive Review", action: "Distribute final review covering all semester topics", type: "textbook", provenance: "uploads" },
-    { id: "r41", title: "Practice Final", action: "Assign as a take-home practice exam before the final", type: "exercise", provenance: "uploads" },
+    { id: "r16", title: "Review Sheet", action: "Distribute comprehensive review covering all workshop topics", type: "textbook", provenance: "uploads" },
   ]},
 ];
 
