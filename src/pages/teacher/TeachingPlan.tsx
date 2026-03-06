@@ -226,7 +226,7 @@ const TeachingPlan = () => {
           ) : (
             <Badge className="bg-primary text-primary-foreground px-3 py-1">Published · {publishTimestamp}</Badge>
           )}
-          <Button size="sm" variant="outline" onClick={addWeek}><Plus className="mr-1 h-4 w-4" /> Add Week</Button>
+          <Button size="sm" variant="outline" onClick={addWeek}><Plus className="mr-1 h-4 w-4" /> Add Day</Button>
         </div>
       </div>
 
