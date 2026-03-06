@@ -1,11 +1,10 @@
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { Home, MessageSquare, TrendingUp, LogOut } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { availableCourses } from "@/data/mockData";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 
 const studentNav = [
   { title: "Home", path: "/student/home", icon: Home, enabled: true },
