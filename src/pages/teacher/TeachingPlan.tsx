@@ -248,7 +248,7 @@ const TeachingPlan = () => {
     URL.revokeObjectURL(url);
   };
 
-  const allChecked = publishChecklist.weeks && publishChecklist.resources && publishChecklist.ta;
+  const allChecked = publishChecklist.weeks && publishChecklist.resources;
 
   return (
     <div className="p-6">

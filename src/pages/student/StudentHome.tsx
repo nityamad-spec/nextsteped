@@ -5,142 +5,128 @@ import { useApp } from "@/contexts/AppContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { BarChart3, Target, Flame, Check, ChevronDown, ChevronUp, BookOpen, TrendingUp, Brain, ArrowRight, FlaskConical, LibraryBig, Newspaper, Download } from "lucide-react";
+import { BarChart3, Check, ChevronDown, ChevronUp, BookOpen, TrendingUp, Brain, ArrowRight, FlaskConical, LibraryBig, Newspaper, Download, MessageSquare } from "lucide-react";
 import { mockTopics, availableCourses } from "@/data/mockData";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const typeLabels: Record<string, string> = {
-  textbook: "Textbook",
-  exercise: "Interactive Exercise",
-  lab: "Interactive Exercise",
-  tool: "Interactive Exercise",
-  "case-study": "Case Study",
-  article: "Article & Industry Context",
-  news: "Article & Industry Context",
-  video: "Video",
+  textbook: "Textbook", exercise: "Interactive Exercise", lab: "Interactive Exercise",
+  tool: "Interactive Exercise", "case-study": "Case Study", article: "Article & Industry Context",
+  news: "Article & Industry Context", video: "Video",
 };
 
 const typeColors: Record<string, string> = {
-  textbook: "bg-secondary text-secondary-foreground",
-  exercise: "bg-primary/10 text-primary",
-  lab: "bg-primary/10 text-primary",
-  tool: "bg-primary/10 text-primary",
-  "case-study": "bg-accent/20 text-accent-foreground",
-  article: "bg-muted text-muted-foreground",
-  news: "bg-muted text-muted-foreground",
-  video: "bg-destructive/10 text-destructive",
+  textbook: "bg-secondary text-secondary-foreground", exercise: "bg-primary/10 text-primary",
+  lab: "bg-primary/10 text-primary", tool: "bg-primary/10 text-primary",
+  "case-study": "bg-accent/20 text-accent-foreground", article: "bg-muted text-muted-foreground",
+  news: "bg-muted text-muted-foreground", video: "bg-destructive/10 text-destructive",
 };
 
 const typeIcons: Record<string, typeof BookOpen> = {
-  textbook: BookOpen,
-  exercise: FlaskConical,
-  lab: FlaskConical,
-  tool: FlaskConical,
-  "case-study": LibraryBig,
-  article: Newspaper,
-  news: Newspaper,
-  video: BookOpen,
+  textbook: BookOpen, exercise: FlaskConical, lab: FlaskConical, tool: FlaskConical,
+  "case-study": LibraryBig, article: Newspaper, news: Newspaper, video: BookOpen,
 };
 
 type Resource = {
-  id: string;
-  title: string;
-  action: string;
+  id: string; title: string; action: string;
   type: "textbook" | "lab" | "case-study" | "exercise" | "article" | "news" | "tool" | "video";
   source?: string;
 };
 
-type WeekPlan = {
-  week: number;
-  dates: string;
-  topic: string;
-  resources: Resource[];
+type DayPlan = {
+  day: number; dates: string; topic: string; resources: Resource[];
 };
 
-const lessonPlan: WeekPlan[] = [
-  { week: 1, dates: "Jan 13 & 15", topic: "Introduction to OS Concepts & Process Lifecycle", resources: [
+const workshopPlan: DayPlan[] = [
+  { day: 1, dates: "Day 1", topic: "Introduction to OS Concepts & Process Lifecycle", resources: [
     { id: "r1", title: "Textbook Ch. 1-2", action: "Chapters 1-2 as required reading before class", type: "textbook" },
     { id: "r2", title: "AICTE Module 1 Guide", action: "Reference AICTE guidelines aligned with curriculum standards", type: "textbook" },
-  ]},
-  { week: 2, dates: "Jan 20 & 22", topic: "Process Scheduling: FCFS, SJF, Round Robin", resources: [
-    { id: "r3", title: "Textbook Ch. 3", action: "Chapter 3 as pre-lecture reading on scheduling algorithms", type: "textbook" },
     { id: "r4", title: "Scheduling Simulator", action: "Interactive demo to visualize FCFS vs Round Robin", type: "exercise" },
   ]},
-  { week: 3, dates: "Jan 27 & 29", topic: "Advanced Scheduling & Real-World Applications", resources: [
+  { day: 2, dates: "Day 2", topic: "Process Scheduling & Synchronization Fundamentals", resources: [
+    { id: "r3", title: "Textbook Ch. 3-4", action: "Chapters 3-4 on scheduling and threads", type: "textbook" },
+    { id: "r11", title: "Producer-Consumer Lab", action: "Hands-on lab implementing the producer-consumer problem", type: "lab" },
     { id: "r6", title: "Scheduling Algorithms Lab", action: "In-class lab to implement and compare scheduling algorithms", type: "lab" },
   ]},
-  { week: 4, dates: "Feb 3 & 5", topic: "Threads & Concurrency Fundamentals", resources: [
-    { id: "r8", title: "Textbook Ch. 4", action: "Chapter 4 on threads and concurrency models", type: "textbook" },
-    { id: "r9", title: "POSIX Threads Tutorial", action: "Hands-on reference for practicing pthreads", type: "exercise" },
-  ]},
-  { week: 5, dates: "Feb 10 & 12", topic: "Synchronization: Mutexes, Semaphores, Monitors", resources: [
-    { id: "r10", title: "Textbook Ch. 5", action: "Chapter 5 on synchronization primitives", type: "textbook" },
-    { id: "r11", title: "Producer-Consumer Lab", action: "Hands-on lab implementing the producer-consumer problem", type: "lab" },
-  ]},
-  { week: 6, dates: "Feb 17 & 19", topic: "Deadlock Prevention & Detection", resources: [
-    { id: "r13", title: "Textbook Ch. 6", action: "Chapter 6 on deadlock concepts and prevention strategies", type: "textbook" },
-    { id: "r14", title: "Deadlock Visualization Tool", action: "Visual tool showing how deadlocks form and resolve", type: "exercise" },
-  ]},
-  { week: 7, dates: "Feb 24 & 26", topic: "Midterm Review & Exam", resources: [
-    { id: "r16", title: "Review Sheet", action: "Comprehensive review sheet covering weeks 1-6", type: "textbook" },
-    { id: "r17", title: "Practice Exam", action: "Take-home practice exam before the midterm", type: "exercise" },
-  ]},
-  { week: 8, dates: "Mar 3 & 5", topic: "Physical & Virtual Memory Concepts", resources: [
-    { id: "r18", title: "Textbook Ch. 7", action: "Chapter 7 on memory hierarchy and virtual memory basics", type: "textbook" },
-    { id: "r19", title: "Memory Hierarchy Slides", action: "Slides walking through the memory hierarchy", type: "textbook" },
-  ]},
-  { week: 9, dates: "Mar 10 & 12", topic: "Paging, Segmentation & Address Translation", resources: [
-    { id: "r20", title: "Textbook Ch. 8", action: "Chapter 8 on paging and segmentation", type: "textbook" },
+  { day: 3, dates: "Day 3", topic: "Memory Management & Review", resources: [
+    { id: "r18", title: "Textbook Ch. 7-8", action: "Chapters 7-8 on memory hierarchy and paging", type: "textbook" },
     { id: "r21", title: "Page Table Simulator", action: "Demo showing address translation step by step", type: "exercise" },
-  ]},
-  { week: 10, dates: "Mar 17 & 19", topic: "Memory Allocation Strategies", resources: [
-    { id: "r23", title: "Build a Memory Allocator in C", action: "In-class lab to implement a basic memory allocator", type: "lab" },
-    { id: "r24", title: "Textbook Ch. 9", action: "Chapter 9 on memory allocation strategies", type: "textbook" },
-  ]},
-  { week: 11, dates: "Mar 24 & 26", topic: "File System Design & Implementation", resources: [
-    { id: "r26", title: "Textbook Ch. 10-11", action: "Chapters 10-11 on file system design and implementation", type: "textbook" },
-    { id: "r27", title: "EXT4 Case Study", action: "EXT4 file system as a real-world design example", type: "case-study" },
-  ]},
-  { week: 12, dates: "Mar 31 & Apr 2", topic: "Modern Storage: NVMe, SSDs & I/O Systems", resources: [
-    { id: "r29", title: "Industry White Paper", action: "Industry context on modern storage technologies", type: "article" },
-    { id: "r30", title: "Storage Benchmark Lab", action: "Hands-on lab comparing I/O performance across storage types", type: "lab" },
-  ]},
-  { week: 13, dates: "Apr 7 & 9", topic: "Security & Protection in Operating Systems", resources: [
-    { id: "r31", title: "Textbook Ch. 14", action: "Chapter 14 on OS security and protection mechanisms", type: "textbook" },
-    { id: "r32", title: "CVE Case Studies", action: "Real CVEs illustrating OS vulnerability patterns", type: "case-study" },
-  ]},
-  { week: 14, dates: "Apr 14 & 16", topic: "Virtualization & Cloud OS Concepts", resources: [
-    { id: "r34", title: "Hypervisor Comparison Article", action: "Reference for Type 1 vs Type 2 hypervisors", type: "article" },
-    { id: "r35", title: "Docker Lab", action: "Hands-on lab containerizing a simple application", type: "lab" },
-  ]},
-  { week: 15, dates: "Apr 21 & 23", topic: "Emerging Trends: WASM Runtimes, Unikernels", resources: [
-    { id: "r37", title: "Research Papers", action: "Selected papers on WASM runtimes and unikernels", type: "article" },
-    { id: "r38", title: "Hands-On Demo", action: "Live demo of a WASM runtime", type: "lab" },
-  ]},
-  { week: 16, dates: "Apr 28 & 30", topic: "Final Review & Exam", resources: [
-    { id: "r40", title: "Comprehensive Review", action: "Final review covering all semester topics", type: "textbook" },
-    { id: "r41", title: "Practice Final", action: "Take-home practice exam before the final", type: "exercise" },
+    { id: "r16", title: "Review Sheet", action: "Comprehensive review covering all workshop topics", type: "textbook" },
   ]},
 ];
 
-const currentWeek = 5;
+const currentDay = 2;
+
+// Concept mastery heat map data
+const conceptMasteryData = [
+  { name: "Process Mgmt", mastery: 85 },
+  { name: "CPU Scheduling", mastery: 78 },
+  { name: "Memory Mgmt", mastery: 62 },
+  { name: "Virtual Memory", mastery: 45 },
+  { name: "File Systems", mastery: 58 },
+  { name: "Synchronization", mastery: 38 },
+  { name: "Deadlocks", mastery: 30 },
+  { name: "I/O Systems", mastery: 55 },
+];
+
+const getMasteryColor = (mastery: number) => {
+  if (mastery >= 80) return "bg-primary text-primary-foreground";
+  if (mastery >= 60) return "bg-primary/60 text-primary-foreground";
+  if (mastery >= 40) return "bg-primary/30 text-foreground";
+  return "bg-destructive/20 text-destructive-foreground";
+};
+
+const learningJourney = [
+  { month: "Day 1", level: "Beginner", active: true },
+  { month: "Day 2", level: "Intermediate", active: false },
+  { month: "Day 3", level: "Advanced", active: false },
+];
 
 const StudentHome = () => {
-  const { studentProfile, currentCourse } = useApp();
+  const { studentProfile, currentCourse, learningChats } = useApp();
   const navigate = useNavigate();
-  const [expandedWeeks, setExpandedWeeks] = useState<number[]>([]);
+  const [expandedDays, setExpandedDays] = useState<number[]>([]);
   const courseName = currentCourse?.name || availableCourses.find(c => c.code === studentProfile?.courseCode)?.name || "Course";
 
   const avgMastery = Math.round(mockTopics.reduce((sum, t) => sum + (t.mastery || 0), 0) / mockTopics.length);
+  const hasStartedChat = learningChats.length > 0;
 
-  const toggleWeek = (week: number) => {
-    setExpandedWeeks((prev) => prev.includes(week) ? prev.filter((w) => w !== week) : [...prev, week]);
+  const toggleDay = (day: number) => {
+    setExpandedDays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]);
   };
 
   return (
     <div className="p-6">
-      {/* Welcome header */}
+      {/* Learning Timeline at top */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              <p className="text-sm font-medium">Learning Timeline</p>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              {learningJourney.map((item, i) => (
+                <div key={item.month} className="flex items-center">
+                  <div className={`flex flex-col items-center ${item.active ? "" : "opacity-40"}`}>
+                    <Badge variant={item.active ? "default" : "outline"} className="text-xs">{item.level}</Badge>
+                    <div className={`mt-2 h-3 w-3 rounded-full ${item.active ? "bg-primary" : "bg-muted"}`} />
+                    <p className="mt-1 text-[10px] text-muted-foreground">{item.month}</p>
+                    {item.active && <p className="text-[10px] text-primary font-medium">You are here</p>}
+                  </div>
+                  {i < learningJourney.length - 1 && (
+                    <div className="mx-2 h-0.5 w-12 bg-muted sm:w-20" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Welcome header */}
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-6">
         <h1 className="font-heading text-3xl font-bold">
           Welcome back, {studentProfile?.name || "Student"}!
         </h1>
@@ -150,8 +136,8 @@ const StudentHome = () => {
         </div>
       </motion.div>
 
-      {/* Stats overview */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-6 grid gap-3 grid-cols-2 lg:grid-cols-3">
+      {/* Stats overview - only Overall Mastery */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -164,90 +150,99 @@ const StudentHome = () => {
             </div>
           </CardContent>
         </Card>
+      </motion.div>
+
+      {/* Concept Mastery Heat Map */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="mb-6">
         <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-              <Target className="h-4 w-4" />
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Brain className="h-4 w-4 text-primary" /> Concept Mastery Heat Map
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {conceptMasteryData.map((concept) => (
+                <Tooltip key={concept.name}>
+                  <TooltipTrigger asChild>
+                    <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${getMasteryColor(concept.mastery)}`}>
+                      <p className="text-xs font-medium truncate">{concept.name}</p>
+                      <p className="text-lg font-bold mt-1">{concept.mastery}%</p>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{concept.name}: {concept.mastery}% mastery</p>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
             </div>
-            <div>
-              <p className="text-xl font-bold">62%</p>
-              <p className="text-[11px] text-muted-foreground">Exam Readiness</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">How prepared you are for your next exam</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
-              <Flame className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-xl font-bold">4 days</p>
-              <p className="text-[11px] text-muted-foreground">Learning Streak</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Consecutive days you've used the platform</p>
+            <div className="flex items-center justify-center gap-4 mt-3">
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded bg-destructive/20" />
+                <span className="text-[10px] text-muted-foreground">&lt;40%</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded bg-primary/30" />
+                <span className="text-[10px] text-muted-foreground">40-59%</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded bg-primary/60" />
+                <span className="text-[10px] text-muted-foreground">60-79%</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded bg-primary" />
+                <span className="text-[10px] text-muted-foreground">80%+</span>
+              </div>
             </div>
           </CardContent>
         </Card>
       </motion.div>
 
       {/* What To Do Next */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              What To Do Next
-            </CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">What To Do Next</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            {hasStartedChat && (
+              <div
+                className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate("/student/chat?mode=learning")}
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <MessageSquare className="h-4 w-4" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Resume Study Mode Chat</p>
+                  <p className="text-xs text-muted-foreground">Continue where you left off in your study session</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              </div>
+            )}
             <div
               className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => navigate("/student/chat")}
+              onClick={() => navigate("/student/chat?mode=learning&newchat=true")}
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
                 <BookOpen className="h-4 w-4" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium">Practice Virtual Memory Concepts</p>
-                <p className="text-xs text-muted-foreground">Your weakest area — targeted practice recommended</p>
+                <p className="text-sm font-medium">Keep Learning</p>
+                <p className="text-xs text-muted-foreground">Start a new study session to explore topics</p>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground" />
             </div>
             <div
               className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => navigate("/student/chat")}
+              onClick={() => navigate("/student/chat?mode=learning&newchat=true")}
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                 <TrendingUp className="h-4 w-4" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium">Continue Synchronization Module</p>
-                <p className="text-xs text-muted-foreground">You're making progress — keep the momentum going</p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div
-              className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => navigate("/student/chat?mode=exam")}
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Brain className="h-4 w-4" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">Take an Exam Simulation</p>
-                <p className="text-xs text-muted-foreground">Midterm in 6 days — practice under timed conditions</p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div
-              className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => navigate("/student/chat")}
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                <BookOpen className="h-4 w-4" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">Switch to Deadlocks Module</p>
-                <p className="text-xs text-muted-foreground">Low mastery (30%) — review the four Coffman conditions</p>
+                <p className="text-sm font-medium">Let's recap what you learnt in Day {Math.min(currentDay, workshopPlan.length)}</p>
+                <p className="text-xs text-muted-foreground">Review and consolidate today's key concepts</p>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground" />
             </div>
@@ -255,52 +250,46 @@ const StudentHome = () => {
         </Card>
       </motion.div>
 
-      {/* Lesson Plan Progress + Course Lesson Plan */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-6">
+      {/* Workshop Lesson Plan Progress + Plan */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-6">
         <Card className="mb-4">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-primary" />
-                <p className="text-sm font-medium">Lesson Plan Progress</p>
+                <p className="text-sm font-medium">Workshop Progress</p>
               </div>
-              <span className="text-sm text-muted-foreground">Week {currentWeek} of {lessonPlan.length}</span>
+              <span className="text-sm text-muted-foreground">Day {currentDay} of {workshopPlan.length}</span>
             </div>
-            <Progress value={(currentWeek / lessonPlan.length) * 100} className="h-2 mb-1" />
-            <p className="text-xs text-muted-foreground">Currently covering: {lessonPlan[currentWeek - 1].topic}</p>
+            <Progress value={(currentDay / workshopPlan.length) * 100} className="h-2 mb-1" />
+            <p className="text-xs text-muted-foreground">Currently covering: {workshopPlan[currentDay - 1].topic}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <BookOpen className="h-4 w-4 text-primary" /> Course Lesson Plan
+              <BookOpen className="h-4 w-4 text-primary" /> Workshop Lesson Plan
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {lessonPlan.map((wp) => {
-              const isExpanded = expandedWeeks.includes(wp.week);
-              const isCurrent = wp.week === currentWeek;
-              const isPast = wp.week < currentWeek;
+            {workshopPlan.map((dp) => {
+              const isExpanded = expandedDays.includes(dp.day);
+              const isCurrent = dp.day === currentDay;
+              const isPast = dp.day < currentDay;
 
               return (
-                <Card key={wp.week} className={isCurrent ? "border-primary/30" : ""}>
+                <Card key={dp.day} className={isCurrent ? "border-primary/30" : ""}>
                   <div
-                    className={`flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors ${
-                      isCurrent ? "bg-primary/5" : ""
-                    }`}
-                    onClick={() => toggleWeek(wp.week)}
+                    className={`flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors ${isCurrent ? "bg-primary/5" : ""}`}
+                    onClick={() => toggleDay(dp.day)}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <Badge
-                        variant={isCurrent ? "default" : "outline"}
-                        className="shrink-0 text-xs w-16 justify-center"
-                      >
-                        Week {wp.week}
+                      <Badge variant={isCurrent ? "default" : "outline"} className="shrink-0 text-xs w-16 justify-center">
+                        Day {dp.day}
                       </Badge>
-                      <span className="text-xs text-muted-foreground shrink-0 w-24">{wp.dates}</span>
                       <span className={`text-sm truncate ${isCurrent ? "font-medium" : isPast ? "text-muted-foreground" : ""}`}>
-                        {wp.topic}
+                        {dp.topic}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 ml-2 shrink-0">
@@ -312,18 +301,15 @@ const StudentHome = () => {
 
                   {isExpanded && (
                     <CardContent className="pt-0 pb-4 space-y-2">
-                      {wp.resources.length === 0 ? (
-                        <p className="text-xs text-muted-foreground py-2">No resources for this week yet.</p>
+                      {dp.resources.length === 0 ? (
+                        <p className="text-xs text-muted-foreground py-2">No resources for this day yet.</p>
                       ) : (
-                        wp.resources.map((r) => {
+                        dp.resources.map((r) => {
                           const Icon = typeIcons[r.type] || BookOpen;
                           const isDownloadable = r.type === "textbook" || r.type === "article";
-
                           return (
                             <div key={r.id} className="flex items-start gap-3 rounded-lg border p-3">
-                              <div className="pt-0.5">
-                                <Icon className="h-4 w-4 text-muted-foreground" />
-                              </div>
+                              <div className="pt-0.5"><Icon className="h-4 w-4 text-muted-foreground" /></div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm font-medium">{r.title}</span>

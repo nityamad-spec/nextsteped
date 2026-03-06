@@ -73,6 +73,7 @@ export interface TASettings {
   examTimeLimit: number;
   examDifficulty: "Easy" | "Medium" | "Hard" | "Mixed";
   examQuestionMix: string;
+  examPresentation?: "all_at_once" | "one_by_one";
 }
 
 export interface DashboardMetrics {

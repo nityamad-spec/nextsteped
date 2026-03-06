@@ -105,19 +105,6 @@ const StudentLayout = () => {
           ))}
         </nav>
 
-        {/* Quick Actions */}
-        <div className="border-t p-3 space-y-1.5">
-          <p className="px-3 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Quick Actions</p>
-          <Button onClick={handleStartLearning} className="w-full justify-start gap-2" size="sm" variant="ghost">
-            <BookOpen className="h-4 w-4" /> Start Learning Session
-          </Button>
-          <Button variant="ghost" onClick={handleExamSimulation} className="w-full justify-start gap-2" size="sm">
-            <Brain className="h-4 w-4" /> Exam Simulation
-          </Button>
-          <Button variant="ghost" onClick={() => navigate("/student/progress")} className="w-full justify-start gap-2" size="sm">
-            <TrendingUp className="h-4 w-4" /> View Progress
-          </Button>
-        </div>
 
         {studentProfile && (
           <div className="border-t p-4">
