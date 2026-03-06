@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BarChart3, Check, ChevronDown, ChevronUp, BookOpen, TrendingUp, Brain, ArrowRight, FlaskConical, LibraryBig, Newspaper, Download } from "lucide-react";
-import { mockTopics, availableCourses } from "@/data/mockData";
+import { mockTopics } from "@/data/mockData";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -40,34 +40,34 @@ type DayPlan = {
 };
 
 const workshopPlan: DayPlan[] = [
-  { day: 1, dates: "Day 1", topic: "Introduction to OS Concepts & Process Lifecycle", resources: [
-    { id: "r1", title: "Textbook Ch. 1-2", action: "Chapters 1-2 as required reading before class", type: "textbook" },
-    { id: "r2", title: "AICTE Module 1 Guide", action: "Reference AICTE guidelines aligned with curriculum standards", type: "textbook" },
-    { id: "r4", title: "Scheduling Simulator", action: "Interactive demo to visualize FCFS vs Round Robin", type: "exercise" },
+  { day: 1, dates: "Day 1", topic: "Python Fundamentals: Variables, Data Types & Control Flow", resources: [
+    { id: "r1", title: "Intro to Python Slides", action: "Cover variables, data types, operators, and basic I/O", type: "textbook" },
+    { id: "r2", title: "Python Setup Guide", action: "Install Python and set up IDE", type: "textbook" },
+    { id: "r4", title: "Interactive Coding Exercise", action: "Practice variables and data types in live session", type: "exercise" },
   ]},
-  { day: 2, dates: "Day 2", topic: "Process Scheduling & Synchronization Fundamentals", resources: [
-    { id: "r3", title: "Textbook Ch. 3-4", action: "Chapters 3-4 on scheduling and threads", type: "textbook" },
-    { id: "r11", title: "Producer-Consumer Lab", action: "Hands-on lab implementing the producer-consumer problem", type: "lab" },
-    { id: "r6", title: "Scheduling Algorithms Lab", action: "In-class lab to implement and compare scheduling algorithms", type: "lab" },
+  { day: 2, dates: "Day 2", topic: "Functions, Lists & Dictionaries", resources: [
+    { id: "r3", title: "Functions & Data Structures Slides", action: "Function definitions, parameters, lists, and dictionaries", type: "textbook" },
+    { id: "r11", title: "Calculator Lab", action: "Build a calculator using functions", type: "lab" },
+    { id: "r6", title: "List Comprehension Exercise", action: "Practice with list comprehensions and dictionary operations", type: "lab" },
   ]},
-  { day: 3, dates: "Day 3", topic: "Memory Management & Review", resources: [
-    { id: "r18", title: "Textbook Ch. 7-8", action: "Chapters 7-8 on memory hierarchy and paging", type: "textbook" },
-    { id: "r21", title: "Page Table Simulator", action: "Demo showing address translation step by step", type: "exercise" },
-    { id: "r16", title: "Review Sheet", action: "Comprehensive review covering all workshop topics", type: "textbook" },
+  { day: 3, dates: "Day 3", topic: "File Handling, OOP Basics & Review", resources: [
+    { id: "r18", title: "OOP & File Handling Slides", action: "Classes, objects, file reading/writing", type: "textbook" },
+    { id: "r21", title: "File Organizer Project", action: "Build a simple file organizer script", type: "exercise" },
+    { id: "r16", title: "Workshop Review Sheet", action: "Comprehensive review covering all workshop topics", type: "textbook" },
   ]},
 ];
 
 const currentDay = 1;
 
 const conceptMasteryData = [
-  { name: "Process Mgmt", mastery: 85 },
-  { name: "CPU Scheduling", mastery: 78 },
-  { name: "Memory Mgmt", mastery: 62 },
-  { name: "Virtual Memory", mastery: 0 },
-  { name: "File Systems", mastery: 58 },
-  { name: "Synchronization", mastery: 0 },
-  { name: "Deadlocks", mastery: 0 },
-  { name: "I/O Systems", mastery: 55 },
+  { name: "Variables & Types", mastery: 85 },
+  { name: "Control Flow", mastery: 78 },
+  { name: "Functions", mastery: 62 },
+  { name: "Lists & Dicts", mastery: 0 },
+  { name: "File Handling", mastery: 0 },
+  { name: "OOP Basics", mastery: 0 },
+  { name: "Error Handling", mastery: 0 },
+  { name: "Modules", mastery: 55 },
 ];
 
 const getMasteryColor = (mastery: number) => {
@@ -87,7 +87,7 @@ const StudentHome = () => {
   const { studentProfile, currentCourse } = useApp();
   const navigate = useNavigate();
   const [expandedDays, setExpandedDays] = useState<number[]>([1]);
-  const courseName = currentCourse?.name || availableCourses.find(c => c.code === studentProfile?.courseCode)?.name || "Course";
+  const courseName = currentCourse?.name || "Intro to Python";
 
   const avgMastery = Math.round(mockTopics.reduce((sum, t) => sum + (t.mastery || 0), 0) / mockTopics.length);
 
