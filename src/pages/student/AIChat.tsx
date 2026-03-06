@@ -49,7 +49,7 @@ const AIChat = () => {
         messages: [{
           id: `welcome-${Date.now()}`, role: "assistant", timestamp: Date.now(),
           content: targetMode === "learning"
-            ? "Hi! I'm your AI Teaching Assistant for **Operating Systems**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?"
+            ? "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?"
             : "**Exam Prep Mode Active**\n\nWelcome to exam preparation. I'll present you with questions based on your professor's exam format.\n\nWhen you're ready, click **Start Exam** or **Start Daily Quiz** below. Once started, the chatbot will be disabled — you'll answer questions directly.\n\nGood luck!",
         }],
         createdAt: Date.now(), updatedAt: Date.now(),
