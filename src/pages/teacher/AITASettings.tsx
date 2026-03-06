@@ -280,7 +280,7 @@ const AITASettings = () => {
                     Exam: {examLength} min · {activeTotal} questions · {settings.examDifficulty} difficulty
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Daily Quiz: {quizTimeLimit} min · {quizNumQuestions} questions · {quizDifficulty} difficulty
+                    Daily Quiz: {quizTimeLimit} min · {quizNumQuestions} questions · Personalized difficulty
                   </p>
                 </div>
               </div>
