@@ -155,7 +155,7 @@ const TeachingPlan = () => {
   };
 
   const addWeek = () => {
-    const newWeek: WeekPlan = { id: `w_new_${Date.now()}`, week: weeks.length + 1, dates: "TBD", topic: "New Topic", resources: [], weightage: 0 };
+    const newWeek: WeekPlan = { id: `d_new_${Date.now()}`, week: weeks.length + 1, dates: `Day ${weeks.length + 1}`, topic: "New Topic", resources: [], weightage: 0 };
     setWeeks((prev) => [...prev, newWeek]); markChanged();
     setExpandedWeeks((prev) => [...prev, newWeek.id]);
     startEditWeek(newWeek);
