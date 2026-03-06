@@ -230,7 +230,7 @@ const TeachingPlan = () => {
   const handlePublish = () => {
     setPublished(true); setPublishTimestamp(new Date().toLocaleString());
     setHasChanges(false); setShowPublishModal(false);
-    setPublishChecklist({ weeks: false, resources: false, ta: false });
+    setPublishChecklist({ weeks: false, resources: false });
   };
 
   const handleExport = (format: "pdf" | "word") => {
