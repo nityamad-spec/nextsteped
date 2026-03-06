@@ -1,14 +1,16 @@
 import { useState } from "react";
+import { useApp } from "@/contexts/AppContext";
 import { mockQuizQuestions } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Plus, ClipboardCheck, Pencil, Trash2, Filter, Shield } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Plus, ClipboardCheck, Pencil, Trash2, Filter, Shield, BookOpen, Clock, ClipboardList } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -37,13 +39,14 @@ const seedQuestions: EditableQuestion[] = mockQuizQuestions.map((q) => ({
 }));
 
 const Assessments = () => {
+  const { taSettings, setTASettings } = useApp();
   const [questions, setQuestions] = useState<EditableQuestion[]>(seedQuestions);
   const [examPredefinedOnly, setExamPredefinedOnly] = useState(false);
 
-  // Filters
-  const [filterMode, setFilterMode] = useState<string>("all");
-  const [filterDifficulty, setFilterDifficulty] = useState<string>("all");
-  const [filterType, setFilterType] = useState<string>("all");
+  // Multi-select filters
+  const [filterModes, setFilterModes] = useState<QuestionMode[]>([]);
+  const [filterDifficulties, setFilterDifficulties] = useState<string[]>([]);
+  const [filterTypes, setFilterTypes] = useState<string[]>([]);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -57,9 +60,33 @@ const Assessments = () => {
   const [formOptions, setFormOptions] = useState<string[]>(["", "", "", ""]);
   const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
 
+  // Daily quiz settings
+  const [quizNumQuestions, setQuizNumQuestions] = useState(taSettings.quizNumQuestions || 5);
+  const [quizQuestionTypes, setQuizQuestionTypes] = useState(taSettings.quizQuestionMix || "mixed");
+  const [quizDifficulty, setQuizDifficulty] = useState(taSettings.quizDifficulty || "Medium");
+  const [quizTimeLimit, setQuizTimeLimit] = useState(taSettings.quizTimeLimit || 10);
+
   const toggleMode = (mode: QuestionMode) => {
     setFormModes((prev) =>
       prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]
+    );
+  };
+
+  const toggleFilterMode = (mode: QuestionMode) => {
+    setFilterModes((prev) =>
+      prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]
+    );
+  };
+
+  const toggleFilterDifficulty = (diff: string) => {
+    setFilterDifficulties((prev) =>
+      prev.includes(diff) ? prev.filter((d) => d !== diff) : [...prev, diff]
+    );
+  };
+
+  const toggleFilterType = (type: string) => {
+    setFilterTypes((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
     );
   };
 
@@ -118,11 +145,21 @@ const Assessments = () => {
     setFormOptions(prev => prev.map((o, i) => i === index ? value : o));
   };
 
-  // Filtering
+  const handleSaveQuizSettings = () => {
+    setTASettings({
+      ...taSettings,
+      quizNumQuestions: quizNumQuestions,
+      quizQuestionMix: quizQuestionTypes,
+      quizDifficulty: quizDifficulty as any,
+      quizTimeLimit: quizTimeLimit,
+    });
+  };
+
+  // Filtering with multi-select
   const filteredQuestions = questions.filter((q) => {
-    if (filterMode !== "all" && !q.modes.includes(filterMode as QuestionMode)) return false;
-    if (filterDifficulty !== "all" && q.difficulty !== filterDifficulty) return false;
-    if (filterType !== "all" && q.type !== filterType) return false;
+    if (filterModes.length > 0 && !filterModes.some(m => q.modes.includes(m))) return false;
+    if (filterDifficulties.length > 0 && !filterDifficulties.includes(q.difficulty)) return false;
+    if (filterTypes.length > 0 && !filterTypes.includes(q.type)) return false;
     return true;
   });
 
@@ -202,41 +239,149 @@ const Assessments = () => {
         <p className="text-muted-foreground">Manage questions for study mode, daily quizzes, and exams</p>
       </div>
 
-      {/* Exam Settings Card */}
-      <Card className="mb-6">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Shield className="h-5 w-5" />
-            </div>
-            <div>
-              <CardTitle className="text-base">Exam Mode Settings</CardTitle>
-              <CardDescription>Control how exams are presented to students</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <div>
-              <p className="text-sm font-medium">Use predefined questions only</p>
-              <p className="text-xs text-muted-foreground">
-                When enabled, exam mode will only show your custom questions — no auto-generated questions will be included.
-                Exam questions will be standard for all students.
-              </p>
-            </div>
-            <Switch checked={examPredefinedOnly} onCheckedChange={setExamPredefinedOnly} />
-          </div>
-          {examPredefinedOnly && (
-            <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
-              <p className="text-xs text-muted-foreground">
-                <strong className="text-foreground">{examQuestions.length}</strong> questions tagged for Exam mode · <strong className="text-foreground">{quizQuestions.length}</strong> questions tagged for Daily Quiz
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Exam & Quiz Settings */}
+      <Tabs defaultValue="exam" className="mb-6">
+        <TabsList className="mb-4">
+          <TabsTrigger value="exam" className="gap-2"><Clock className="h-4 w-4" /> Exam Settings</TabsTrigger>
+          <TabsTrigger value="quiz" className="gap-2"><ClipboardList className="h-4 w-4" /> Daily Quiz Settings</TabsTrigger>
+        </TabsList>
 
-      {/* Questions with tabs for All / Exam / Daily Quiz */}
+        <TabsContent value="exam">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Shield className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Exam Mode Settings</CardTitle>
+                  <CardDescription>Control how exams are presented to students</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div>
+                  <p className="text-sm font-medium">Use predefined questions only (Exam only)</p>
+                  <p className="text-xs text-muted-foreground">
+                    When enabled, exam mode will only show your custom questions — no auto-generated questions. This does not apply to daily quizzes.
+                  </p>
+                </div>
+                <Switch checked={examPredefinedOnly} onCheckedChange={setExamPredefinedOnly} />
+              </div>
+              {examPredefinedOnly && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                  <p className="text-xs text-muted-foreground">
+                    <strong className="text-foreground">{examQuestions.length}</strong> questions tagged for Exam mode will be used.
+                  </p>
+                </div>
+              )}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Exam Time Limit (minutes)</Label>
+                <div className="flex items-center gap-4">
+                  <Slider value={[taSettings.examTimeLimit]} onValueChange={(v) => setTASettings({ ...taSettings, examTimeLimit: v[0] })} min={15} max={180} step={15} className="flex-1" />
+                  <span className="w-16 text-right text-sm font-bold">{taSettings.examTimeLimit} min</span>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Exam Question Types</Label>
+                <Select value={taSettings.examQuestionMix} onValueChange={(v) => setTASettings({ ...taSettings, examQuestionMix: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mixed">Mixed (MCQ + Short Answer + Problem Solving)</SelectItem>
+                    <SelectItem value="mcq_only">Multiple Choice Only</SelectItem>
+                    <SelectItem value="short_answer">Short Answer Only</SelectItem>
+                    <SelectItem value="problem_solving">Problem Solving Only</SelectItem>
+                    <SelectItem value="mcq_short">MCQ + Short Answer</SelectItem>
+                    <SelectItem value="mcq_problem">MCQ + Problem Solving</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Exam Difficulty</Label>
+                <Select value={taSettings.examDifficulty} onValueChange={(v: any) => setTASettings({ ...taSettings, examDifficulty: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Easy">Easy</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="Hard">Hard</SelectItem>
+                    <SelectItem value="Mixed">Mixed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Question Presentation</Label>
+                <Select value={taSettings.examPresentation || "all_at_once"} onValueChange={(v: any) => setTASettings({ ...taSettings, examPresentation: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all_at_once">All at once (most realistic)</SelectItem>
+                    <SelectItem value="one_by_one">One by one</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">All at once mirrors a real exam format.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="quiz">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <ClipboardList className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Daily Quiz Settings</CardTitle>
+                  <CardDescription>Configure daily quiz parameters for students</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Number of Questions</Label>
+                <div className="flex items-center gap-4">
+                  <Slider value={[quizNumQuestions]} onValueChange={(v) => setQuizNumQuestions(v[0])} min={3} max={20} step={1} className="flex-1" />
+                  <span className="w-16 text-right text-sm font-bold">{quizNumQuestions}</span>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Time Limit (minutes)</Label>
+                <div className="flex items-center gap-4">
+                  <Slider value={[quizTimeLimit]} onValueChange={(v) => setQuizTimeLimit(v[0])} min={5} max={30} step={5} className="flex-1" />
+                  <span className="w-16 text-right text-sm font-bold">{quizTimeLimit} min</span>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Question Types</Label>
+                <Select value={quizQuestionTypes} onValueChange={setQuizQuestionTypes}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mixed">Mixed (MCQ + Short Answer)</SelectItem>
+                    <SelectItem value="mcq_only">Multiple Choice Only</SelectItem>
+                    <SelectItem value="short_answer">Short Answer Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Quiz Difficulty</Label>
+                <Select value={quizDifficulty} onValueChange={setQuizDifficulty}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Easy">Easy</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="Hard">Hard</SelectItem>
+                    <SelectItem value="Mixed">Mixed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleSaveQuizSettings} className="w-full">Save Quiz Settings</Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Questions */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -250,70 +395,86 @@ const Assessments = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 p-3">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <Select value={filterMode} onValueChange={setFilterMode}>
-              <SelectTrigger className="h-8 w-[140px]"><SelectValue placeholder="Mode" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Modes</SelectItem>
-                <SelectItem value="learning">Study Only</SelectItem>
-                <SelectItem value="exam">Exam Only</SelectItem>
-                <SelectItem value="daily_quiz">Daily Quiz Only</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filterDifficulty} onValueChange={setFilterDifficulty}>
-              <SelectTrigger className="h-8 w-[140px]"><SelectValue placeholder="Difficulty" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Difficulties</SelectItem>
-                <SelectItem value="Easy">Easy</SelectItem>
-                <SelectItem value="Medium">Medium</SelectItem>
-                <SelectItem value="Hard">Hard</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="h-8 w-[140px]"><SelectValue placeholder="Type" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="MCQ">MCQ</SelectItem>
-                <SelectItem value="Short Answer">Short Answer</SelectItem>
-                <SelectItem value="Code Practice">Code Practice</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Multi-select Filters */}
+          <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Filters</span>
+              {(filterModes.length > 0 || filterDifficulties.length > 0 || filterTypes.length > 0) && (
+                <Button variant="ghost" size="sm" className="h-6 text-[10px] ml-auto" onClick={() => { setFilterModes([]); setFilterDifficulties([]); setFilterTypes([]); }}>
+                  Clear all
+                </Button>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Mode</Label>
+              <div className="flex flex-wrap gap-2">
+                {(["learning", "exam", "daily_quiz"] as QuestionMode[]).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => toggleFilterMode(mode)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                      filterModes.includes(mode) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"
+                    }`}
+                  >
+                    {modeLabel(mode)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Difficulty</Label>
+              <div className="flex flex-wrap gap-2">
+                {["Easy", "Medium", "Hard"].map((diff) => (
+                  <button
+                    key={diff}
+                    onClick={() => toggleFilterDifficulty(diff)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                      filterDifficulties.includes(diff) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"
+                    }`}
+                  >
+                    {diff}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Type</Label>
+              <div className="flex flex-wrap gap-2">
+                {(["MCQ", "Short Answer", "Code Practice"] as QuestionType[]).map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => toggleFilterType(type)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                      filterTypes.includes(type) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <Tabs defaultValue="all">
-            <TabsList className="mb-3">
-              <TabsTrigger value="all">All ({filteredQuestions.length})</TabsTrigger>
-              <TabsTrigger value="exam">Exam ({examQuestions.length})</TabsTrigger>
-              <TabsTrigger value="quiz">Daily Quiz ({quizQuestions.length})</TabsTrigger>
-            </TabsList>
+          {/* Question count summary */}
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span>Showing <strong className="text-foreground">{filteredQuestions.length}</strong> questions</span>
+            <span>·</span>
+            <span>{examQuestions.length} Exam</span>
+            <span>·</span>
+            <span>{quizQuestions.length} Daily Quiz</span>
+          </div>
 
-            <TabsContent value="all" className="space-y-3">
-              {filteredQuestions.length === 0 && (
-                <div className="rounded-lg border-2 border-dashed p-8 text-center">
-                  <p className="text-sm text-muted-foreground">No questions match your filters.</p>
-                </div>
-              )}
-              {filteredQuestions.map(renderQuestionCard)}
-            </TabsContent>
-
-            <TabsContent value="exam" className="space-y-3">
-              {examQuestions.length === 0 ? (
-                <div className="rounded-lg border-2 border-dashed p-8 text-center">
-                  <p className="text-sm text-muted-foreground">No exam questions yet. Add questions and tag them for Exam mode.</p>
-                </div>
-              ) : examQuestions.map(renderQuestionCard)}
-            </TabsContent>
-
-            <TabsContent value="quiz" className="space-y-3">
-              {quizQuestions.length === 0 ? (
-                <div className="rounded-lg border-2 border-dashed p-8 text-center">
-                  <p className="text-sm text-muted-foreground">No daily quiz questions yet. Add questions and tag them for Daily Quiz mode.</p>
-                </div>
-              ) : quizQuestions.map(renderQuestionCard)}
-            </TabsContent>
-          </Tabs>
+          {/* Question list */}
+          <div className="space-y-3">
+            {filteredQuestions.length === 0 ? (
+              <div className="rounded-lg border-2 border-dashed p-8 text-center">
+                <p className="text-sm text-muted-foreground">No questions match your filters.</p>
+              </div>
+            ) : (
+              filteredQuestions.map(renderQuestionCard)
+            )}
+          </div>
         </CardContent>
       </Card>
 

@@ -1,15 +1,18 @@
 import { useState, useRef, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useApp } from "@/contexts/AppContext";
 import { ChatMessage, ChatSession } from "@/types";
 import { mockLearningChatMessages, mockExamChatMessages } from "@/data/mockData";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, CheckCircle, ClipboardList } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, CheckCircle, ClipboardList, AlertTriangle } from "lucide-react";
 
 const AIChat = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const initialMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
   const {
     learningChats, setLearningChats,
@@ -26,6 +29,8 @@ const AIChat = () => {
   const [codeResult, setCodeResult] = useState<string | null>(null);
   const [examStarted, setExamStarted] = useState(false);
   const [quizStarted, setQuizStarted] = useState(false);
+  const [showLeaveWarning, setShowLeaveWarning] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const chats = mode === "learning" ? learningChats : examChats;
@@ -34,6 +39,69 @@ const AIChat = () => {
   const setActiveChatId = mode === "learning" ? setActiveLearningChatId : setActiveExamChatId;
 
   const activeChat = chats.find((c) => c.id === activeChatId) || null;
+  const isAssessmentActive = examStarted || quizStarted;
+  const isChatDisabled = mode === "exam" && isAssessmentActive;
+
+  // Intercept tab switching during assessment
+  useEffect(() => {
+    if (!isAssessmentActive) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isAssessmentActive]);
+
+  // Watch for navigation attempts via clicking sidebar links
+  useEffect(() => {
+    if (!isAssessmentActive) return;
+
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const anchor = target.closest("a");
+      if (anchor) {
+        const href = anchor.getAttribute("href");
+        if (href && href !== location.pathname && !href.startsWith("http")) {
+          e.preventDefault();
+          e.stopPropagation();
+          setPendingNavigation(href);
+          setShowLeaveWarning(true);
+        }
+      }
+    };
+
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, [isAssessmentActive, location.pathname]);
+
+  const handleConfirmLeave = () => {
+    // End the assessment
+    if (activeChat) {
+      const endMsg: ChatMessage = {
+        id: `auto-end-${Date.now()}`, role: "assistant", timestamp: Date.now(),
+        content: examStarted
+          ? "⚠️ **Exam ended automatically** — you navigated away from the exam page."
+          : "⚠️ **Daily Quiz ended automatically** — you navigated away from the quiz page.",
+      };
+      const updatedChat = { ...activeChat, messages: [...activeChat.messages, endMsg], updatedAt: Date.now() };
+      setChats(chats.map((c) => (c.id === activeChat.id ? updatedChat : c)));
+    }
+    setExamStarted(false);
+    setQuizStarted(false);
+    setShowLeaveWarning(false);
+    if (pendingNavigation) {
+      navigate(pendingNavigation);
+      setPendingNavigation(null);
+    }
+  };
+
+  const handleCancelLeave = () => {
+    setShowLeaveWarning(false);
+    setPendingNavigation(null);
+  };
 
   useEffect(() => {
     const shouldNewChat = searchParams.get("newchat") === "true";
@@ -68,7 +136,7 @@ const AIChat = () => {
   useEffect(() => {
     if (mode === "learning" && learningChats.length === 0) {
       const initialChat: ChatSession = {
-        id: "initial-learning", title: "Virtual Memory Discussion", mode: "learning",
+        id: "initial-learning", title: "Python Study Session", mode: "learning",
         messages: mockLearningChatMessages, createdAt: Date.now() - 300000, updatedAt: Date.now(),
       };
       setLearningChats([initialChat]);
@@ -76,7 +144,7 @@ const AIChat = () => {
     }
     if (mode === "exam" && examChats.length === 0) {
       const initialChat: ChatSession = {
-        id: "initial-exam", title: "Midterm Exam Prep", mode: "exam",
+        id: "initial-exam", title: "Exam Prep", mode: "exam",
         messages: mockExamChatMessages, createdAt: Date.now() - 100000, updatedAt: Date.now(),
       };
       setExamChats([initialChat]);
@@ -115,7 +183,7 @@ const AIChat = () => {
     setQuizStarted(false);
     const examMsg: ChatMessage = {
       id: `exam-start-${Date.now()}`, role: "assistant", timestamp: Date.now(),
-      content: "🎯 **Exam has started!**\n\nThe chatbot is now disabled. Answer the questions below.\n\n**Question 1 of 15:**\nWhat is the primary purpose of an operating system?\n\nA) To manage hardware resources and provide services to applications\nB) To compile source code into machine code\nC) To design user interfaces\nD) To store data permanently\n\nSelect your answer below.",
+      content: "🎯 **Exam has started!**\n\nThe chatbot is now disabled. Answer the questions below.\n\n**Question 1 of 15:**\nWhat is the output of `print(type(3.14))`?\n\nA) `<class 'int'>`\nB) `<class 'float'>`\nC) `<class 'str'>`\nD) `<class 'number'>`\n\nSelect your answer below.",
     };
     const updatedChat = { ...activeChat, messages: [...activeChat.messages, examMsg], updatedAt: Date.now() };
     setChats(chats.map((c) => (c.id === activeChat.id ? updatedChat : c)));
@@ -127,7 +195,7 @@ const AIChat = () => {
     setExamStarted(false);
     const quizMsg: ChatMessage = {
       id: `quiz-start-${Date.now()}`, role: "assistant", timestamp: Date.now(),
-      content: "📝 **Daily Quiz has started!**\n\nThe chatbot is now disabled. Answer the questions below.\n\n**Question 1 of 5:**\nWhich scheduling algorithm gives the minimum average waiting time?\n\nA) First-Come, First-Served (FCFS)\nB) Shortest Job First (SJF)\nC) Round Robin\nD) Priority Scheduling\n\nSelect your answer below.",
+      content: "📝 **Daily Quiz has started!**\n\nThe chatbot is now disabled. Answer the questions below.\n\n**Question 1 of 5:**\nWhich keyword is used to define a function in Python?\n\nA) `function`\nB) `def`\nC) `func`\nD) `define`\n\nSelect your answer below.",
     };
     const updatedChat = { ...activeChat, messages: [...activeChat.messages, quizMsg], updatedAt: Date.now() };
     setChats(chats.map((c) => (c.id === activeChat.id ? updatedChat : c)));
@@ -149,7 +217,7 @@ const AIChat = () => {
 
   const sendMessage = () => {
     if (!input.trim() || !activeChat) return;
-    if (mode === "exam" && (examStarted || quizStarted)) return;
+    if (mode === "exam" && isAssessmentActive) return;
     
     const userMsg: ChatMessage = { id: `msg-${Date.now()}`, role: "user", content: input, timestamp: Date.now() };
     const updatedChat = { ...activeChat, messages: [...activeChat.messages, userMsg], updatedAt: Date.now() };
@@ -159,7 +227,7 @@ const AIChat = () => {
     setTimeout(() => {
       const aiMsg: ChatMessage = {
         id: `msg-${Date.now() + 1}`, role: "assistant", timestamp: Date.now(),
-        content: "That's a great question! Let me break this down for you.\n\n### Key Concept\nThe answer involves understanding how the OS manages resources efficiently. Here's a step-by-step explanation:\n\n1. **First**, the system checks the current state\n2. **Then**, it applies the scheduling algorithm\n3. **Finally**, it updates the process table\n\n**Try this**: Can you think of a scenario where this approach might cause a problem?\n\n*Hint: Think about what happens when multiple processes compete for the same resource.*",
+        content: "That's a great question! Let me break this down for you.\n\n### Key Concept\nThe answer involves understanding how Python handles this operation. Here's a step-by-step explanation:\n\n1. **First**, Python checks the variable type\n2. **Then**, it applies the operation\n3. **Finally**, it returns the result\n\n**Try this**: Can you think of a scenario where this might behave differently?\n\n*Hint: Think about type coercion.*",
       };
       const updatedChats = chats.map((c) => (c.id === activeChat.id ? { ...c, messages: [...c.messages, userMsg, aiMsg], updatedAt: Date.now() } : c));
       setChats(updatedChats);
@@ -169,10 +237,22 @@ const AIChat = () => {
   const handleCodeSubmit = () => {
     if (!codeInput.trim()) return;
     setCodeResult(
-      codeInput.includes("FCFS") || codeInput.includes("fcfs")
-        ? "Correct! Your FCFS implementation correctly calculates waiting times. Average waiting time: 8.5ms"
-        : "Not quite. Check your scheduling logic — remember FCFS processes jobs in arrival order. Try again!"
+      codeInput.includes("def ") || codeInput.includes("print")
+        ? "Correct! Your code runs successfully. Output: Hello, World!"
+        : "Not quite. Check your syntax — remember Python uses `def` to define functions. Try again!"
     );
+  };
+
+  const handleModeSwitch = (newMode: string) => {
+    if (isAssessmentActive && newMode !== mode) {
+      setPendingNavigation(null);
+      setShowLeaveWarning(true);
+      return;
+    }
+    setMode(newMode as "learning" | "exam");
+    setShowHistory(false);
+    setExamStarted(false);
+    setQuizStarted(false);
   };
 
   const renderMessage = (msg: ChatMessage) => (
@@ -184,9 +264,6 @@ const AIChat = () => {
       </div>
     </div>
   );
-
-  const isChatDisabled = mode === "exam" && (examStarted || quizStarted);
-  const isAssessmentActive = examStarted || quizStarted;
 
   return (
     <div className="flex h-[calc(100vh-57px)] md:h-screen">
@@ -233,7 +310,7 @@ const AIChat = () => {
             <button onClick={() => setShowHistory(!showHistory)} className="rounded-lg p-2 hover:bg-muted transition-colors" title="Chat History">
               <History className="h-5 w-5" />
             </button>
-            <Tabs value={mode} onValueChange={(v) => { setMode(v as "learning" | "exam"); setShowHistory(false); setExamStarted(false); setQuizStarted(false); }}>
+            <Tabs value={mode} onValueChange={handleModeSwitch}>
               <TabsList className="h-10">
                 <TabsTrigger value="learning" className="text-sm px-5 h-8 gap-2">
                   <BookOpen className="h-4 w-4" /> Study
@@ -251,7 +328,7 @@ const AIChat = () => {
           </div>
         </div>
 
-        {/* Exam/Quiz start buttons (only in exam mode, before any assessment starts) */}
+        {/* Exam/Quiz start buttons */}
         {mode === "exam" && !isAssessmentActive && activeChat && (
           <div className="flex items-center justify-center gap-3 border-b bg-muted/20 px-5 py-3">
             <Button onClick={handleStartExam} className="gap-2">
@@ -315,7 +392,7 @@ const AIChat = () => {
             <textarea
               className="w-full rounded-md border bg-background p-3 font-mono text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               rows={4}
-              placeholder="Write your code here... (e.g., implement FCFS scheduler)"
+              placeholder="Write your Python code here..."
               value={codeInput}
               onChange={(e) => setCodeInput(e.target.value)}
             />
@@ -346,6 +423,25 @@ const AIChat = () => {
           </p>
         </div>
       </div>
+
+      {/* Leave Warning Dialog */}
+      <Dialog open={showLeaveWarning} onOpenChange={setShowLeaveWarning}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              End {examStarted ? "Exam" : "Daily Quiz"}?
+            </DialogTitle>
+            <DialogDescription>
+              If you leave this page, your {examStarted ? "exam" : "daily quiz"} will automatically end and your progress will be submitted. Are you sure you want to leave?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={handleCancelLeave}>Stay & Continue</Button>
+            <Button variant="destructive" onClick={handleConfirmLeave}>Leave & End {examStarted ? "Exam" : "Quiz"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
