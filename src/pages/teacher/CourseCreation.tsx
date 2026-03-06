@@ -15,7 +15,7 @@ import {
   Check, X, ArrowRight, ArrowLeft, Sparkles, Loader2,
   ChevronDown, ChevronUp, ThumbsUp, Download, Pencil, GripVertical,
   BookOpen, Newspaper, Plus, Trash2, Undo2, FileText, FileDown,
-  FlaskConical, LibraryBig, ExternalLink, Clock,
+  FlaskConical, LibraryBig, ExternalLink, Lock, Unlock,
 } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import {
@@ -32,13 +32,14 @@ type Resource = {
   provenance?: "uploads" | "web" | "instructor";
 };
 
-type WeekPlan = {
+type DayPlan = {
   id: string;
-  week: number;
+  day: number;
   dates: string;
   topic: string;
   resources: Resource[];
   weightage: number;
+  locked: boolean;
 };
 
 const typeLabels: Record<string, string> = {
@@ -62,90 +63,30 @@ const provenanceLabels: Record<string, { label: string; className: string }> = {
 
 const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-const initialPlan: WeekPlan[] = [
-  { id: "w1", week: 1, dates: "Jan 13 & 15", topic: "Introduction to OS Concepts & Process Lifecycle", weightage: 5, resources: [
-    { id: "r1", title: "Textbook Ch. 1-2", action: "Assign chapters 1-2 as required reading before class", type: "textbook", accepted: true, provenance: "uploads" },
-    { id: "r2", title: "AICTE Module 1 Guide", action: "Reference AICTE guidelines to align lecture with curriculum standards", type: "textbook", accepted: true, provenance: "uploads" },
+const initialPlan: DayPlan[] = [
+  { id: "d1", day: 1, dates: "Day 1", topic: "Python Fundamentals: Variables, Data Types & Control Flow", weightage: 30, locked: true, resources: [
+    { id: "r1", title: "Intro to Python Slides", action: "Cover variables, data types, operators, and basic I/O", type: "textbook", accepted: true, provenance: "uploads" },
+    { id: "r2", title: "Python Setup Guide", action: "Help students install Python and set up their IDE", type: "textbook", accepted: true, provenance: "uploads" },
+    { id: "r4", title: "Interactive Coding Exercise", action: "Practice variables and data types in live coding session", type: "exercise", accepted: true, provenance: "uploads" },
+    { id: "r5", title: "Real-World Python Use Cases", action: "Article showing how Python is used in industry — helpful context for Day 1", type: "article", source: "Real Python", accepted: null, provenance: "web" },
   ]},
-  { id: "w2", week: 2, dates: "Jan 20 & 22", topic: "Process Scheduling: FCFS, SJF, Round Robin", weightage: 7, resources: [
-    { id: "r3", title: "Textbook Ch. 3", action: "Assign chapter 3 as pre-lecture reading on scheduling algorithms", type: "textbook", accepted: true, provenance: "uploads" },
-    { id: "r4", title: "Scheduling Simulator", action: "Use in a 20-min live demo to visualize FCFS vs Round Robin", type: "exercise", accepted: true, provenance: "uploads" },
-    { id: "r5", title: "How Google Redesigned Its Scheduling Algorithm (2024)", action: "Helpful article to read as you prep for this lecture — covers real-world scheduling at scale", type: "article", source: "ACM Queue", accepted: null, provenance: "web" },
+  { id: "d2", day: 2, dates: "Day 2", topic: "Functions, Lists & Dictionaries", weightage: 40, locked: false, resources: [
+    { id: "r3", title: "Functions & Data Structures Slides", action: "Cover function definitions, parameters, return values, lists, and dictionaries", type: "textbook", accepted: true, provenance: "uploads" },
+    { id: "r6", title: "Calculator Lab", action: "Build a calculator using functions", type: "lab", accepted: true, provenance: "uploads" },
+    { id: "r11", title: "List Comprehension Exercise", action: "Hands-on practice with list comprehensions and dictionary operations", type: "lab", accepted: true, provenance: "uploads" },
+    { id: "r12", title: "Python Data Structures Best Practices", action: "Article on efficient use of lists and dicts — useful background reading", type: "article", source: "Medium", accepted: null, provenance: "web" },
   ]},
-  { id: "w3", week: 3, dates: "Jan 27 & 29", topic: "Advanced Scheduling & Real-World Applications", weightage: 7, resources: [
-    { id: "r6", title: "Scheduling Algorithms Lab", action: "Include a 30-min in-class lab where students implement and compare scheduling algorithms", type: "lab", accepted: true, provenance: "uploads" },
-    { id: "r7", title: "Kubernetes Pod Scheduling Under Load", action: "Review this case study as an industry example of how K8s applies CPU scheduling concepts", type: "case-study", accepted: null, provenance: "web" },
-  ]},
-  { id: "w4", week: 4, dates: "Feb 3 & 5", topic: "Threads & Concurrency Fundamentals", weightage: 7, resources: [
-    { id: "r8", title: "Textbook Ch. 4", action: "Assign chapter 4 on threads and concurrency models", type: "textbook", accepted: true, provenance: "uploads" },
-    { id: "r9", title: "POSIX Threads Tutorial", action: "Share as a hands-on reference for students to practice pthreads outside class", type: "exercise", accepted: true, provenance: "uploads" },
-    { id: "r9b", title: "Thread Sanitizer (TSan)", action: "Integrate this tool into your lab setup — students can use it to detect race conditions in their code", type: "exercise", accepted: null, provenance: "web" },
-  ]},
-  { id: "w5", week: 5, dates: "Feb 10 & 12", topic: "Synchronization: Mutexes, Semaphores, Monitors", weightage: 8, resources: [
-    { id: "r10", title: "Textbook Ch. 5", action: "Assign chapter 5 on synchronization primitives", type: "textbook", accepted: true, provenance: "uploads" },
-    { id: "r11", title: "Producer-Consumer Lab", action: "Run a 30-min hands-on lab implementing the producer-consumer problem", type: "lab", accepted: true, provenance: "uploads" },
-    { id: "r12", title: "Race Condition Bug in a Banking App", action: "Use as an interactive debugging exercise — students trace a concurrency bug in a simulated banking system", type: "exercise", accepted: null, provenance: "web" },
-  ]},
-  { id: "w6", week: 6, dates: "Feb 17 & 19", topic: "Deadlock Prevention & Detection", weightage: 7, resources: [
-    { id: "r13", title: "Textbook Ch. 6", action: "Assign chapter 6 on deadlock concepts and prevention strategies", type: "textbook", accepted: true, provenance: "uploads" },
-    { id: "r14", title: "Deadlock Visualization Tool", action: "Demo in class to visually show how deadlocks form and resolve", type: "exercise", accepted: true, provenance: "uploads" },
-    { id: "r15", title: "The 2023 CrowdStrike Kernel Crash", action: "Discuss this real-world case study showing how a kernel-level bug caused global outages", type: "case-study", accepted: null, provenance: "web" },
-  ]},
-  { id: "w7", week: 7, dates: "Feb 24 & 26", topic: "Midterm Review & Exam", weightage: 10, resources: [
-    { id: "r16", title: "Review Sheet", action: "Distribute comprehensive review sheet covering weeks 1-6", type: "textbook", accepted: true, provenance: "uploads" },
-    { id: "r17", title: "Practice Exam", action: "Assign as a take-home practice exam before the midterm", type: "exercise", accepted: true, provenance: "uploads" },
-  ]},
-  { id: "w8", week: 8, dates: "Mar 3 & 5", topic: "Physical & Virtual Memory Concepts", weightage: 7, resources: [
-    { id: "r18", title: "Textbook Ch. 7", action: "Assign chapter 7 on memory hierarchy and virtual memory basics", type: "textbook", accepted: true, provenance: "uploads" },
-    { id: "r19", title: "Memory Hierarchy Slides", action: "Use these slides to walk through the memory hierarchy in lecture", type: "textbook", accepted: true, provenance: "uploads" },
-  ]},
-  { id: "w9", week: 9, dates: "Mar 10 & 12", topic: "Paging, Segmentation & Address Translation", weightage: 7, resources: [
-    { id: "r20", title: "Textbook Ch. 8", action: "Assign chapter 8 on paging and segmentation", type: "textbook", accepted: true, provenance: "uploads" },
-    { id: "r21", title: "Page Table Simulator", action: "Use in a 20-min demo to show address translation step by step", type: "exercise", accepted: true, provenance: "uploads" },
-    { id: "r22", title: "Memory Safety in Rust vs C for OS Development", action: "Timely article related to this week's topic — helpful background reading as you prep for lecture", type: "news", source: "The Register", accepted: null, provenance: "web" },
-  ]},
-  { id: "w10", week: 10, dates: "Mar 17 & 19", topic: "Memory Allocation Strategies", weightage: 5, resources: [
-    { id: "r23", title: "Build a Memory Allocator in C", action: "Include a 45-min in-class lab where students implement a basic memory allocator", type: "lab", accepted: true, provenance: "uploads" },
-    { id: "r24", title: "Textbook Ch. 9", action: "Assign chapter 9 on memory allocation strategies", type: "textbook", accepted: true, provenance: "uploads" },
-    { id: "r25", title: "AWS Memory Optimization at Scale", action: "Review this case study on how AWS tunes virtual memory for millions of EC2 instances", type: "case-study", accepted: null, provenance: "web" },
-  ]},
-  { id: "w11", week: 11, dates: "Mar 24 & 26", topic: "File System Design & Implementation", weightage: 5, resources: [
-    { id: "r26", title: "Textbook Ch. 10-11", action: "Assign chapters 10-11 on file system design and implementation", type: "textbook", accepted: true, provenance: "uploads" },
-    { id: "r27", title: "EXT4 Case Study", action: "Walk through the EXT4 file system as a real-world design example in lecture", type: "case-study", accepted: true, provenance: "uploads" },
-    { id: "r28", title: "Building a Mini File System in C", action: "Assign as a coding exercise where students implement a simplified file system with inodes", type: "exercise", accepted: null, provenance: "web" },
-  ]},
-  { id: "w12", week: 12, dates: "Mar 31 & Apr 2", topic: "Modern Storage: NVMe, SSDs & I/O Systems", weightage: 5, resources: [
-    { id: "r29", title: "Industry White Paper", action: "Reference in lecture to provide industry context on modern storage technologies", type: "article", accepted: true, provenance: "uploads" },
-    { id: "r30", title: "Storage Benchmark Lab", action: "Run a hands-on lab comparing I/O performance across storage types", type: "lab", accepted: true, provenance: "uploads" },
-  ]},
-  { id: "w13", week: 13, dates: "Apr 7 & 9", topic: "Security & Protection in Operating Systems", weightage: 5, resources: [
-    { id: "r31", title: "Textbook Ch. 14", action: "Assign chapter 14 on OS security and protection mechanisms", type: "textbook", accepted: true, provenance: "uploads" },
-    { id: "r32", title: "CVE Case Studies", action: "Discuss 2-3 real CVEs in class to illustrate OS vulnerability patterns", type: "case-study", accepted: true, provenance: "uploads" },
-    { id: "r33", title: "The Rise of eBPF in Modern Operating Systems", action: "Article on cutting-edge kernel technology — useful background reading for lecture prep", type: "article", source: "LWN.net", accepted: null, provenance: "web" },
-  ]},
-  { id: "w14", week: 14, dates: "Apr 14 & 16", topic: "Virtualization & Cloud OS Concepts", weightage: 3, resources: [
-    { id: "r34", title: "Hypervisor Comparison Article", action: "Use as a reference when discussing Type 1 vs Type 2 hypervisors", type: "article", accepted: true, provenance: "uploads" },
-    { id: "r35", title: "Docker Lab", action: "Include a 30-min hands-on lab where students containerize a simple application", type: "lab", accepted: true, provenance: "uploads" },
-    { id: "r36", title: "NVIDIA GPU Virtualization Deep Dive", action: "Article on GPU virtualization — helpful context as you prep for the virtualization lecture", type: "article", source: "NVIDIA Dev Blog", accepted: null, provenance: "web" },
-  ]},
-  { id: "w15", week: 15, dates: "Apr 21 & 23", topic: "Emerging Trends: WASM Runtimes, Unikernels", weightage: 2, resources: [
-    { id: "r37", title: "Research Papers", action: "Assign selected papers on WASM runtimes and unikernels for class discussion", type: "article", accepted: true, provenance: "uploads" },
-    { id: "r38", title: "Hands-On Demo", action: "Run a live demo of a WASM runtime to make emerging concepts tangible", type: "lab", accepted: true, provenance: "uploads" },
-    { id: "r39", title: "MIT 6.S081 xv6 Labs", action: "Share as supplementary practice — students can work through these OS labs independently", type: "exercise", source: "MIT OCW", accepted: null, provenance: "web" },
-  ]},
-  { id: "w16", week: 16, dates: "Apr 28 & 30", topic: "Final Review & Exam", weightage: 10, resources: [
-    { id: "r40", title: "Comprehensive Review", action: "Distribute final review covering all semester topics", type: "textbook", accepted: true, provenance: "uploads" },
-    { id: "r41", title: "Practice Final", action: "Assign as a take-home practice exam before the final", type: "exercise", accepted: true, provenance: "uploads" },
+  { id: "d3", day: 3, dates: "Day 3", topic: "File Handling, OOP Basics & Review", weightage: 30, locked: false, resources: [
+    { id: "r18", title: "OOP & File Handling Slides", action: "Cover classes, objects, file reading/writing", type: "textbook", accepted: true, provenance: "uploads" },
+    { id: "r21", title: "File Organizer Project", action: "Build a simple file organizer script", type: "exercise", accepted: true, provenance: "uploads" },
+    { id: "r16", title: "Workshop Review Sheet", action: "Comprehensive review covering all workshop topics", type: "textbook", accepted: true, provenance: "uploads" },
   ]},
 ];
 
 const replacementPool: Omit<Resource, "id">[] = [
-  { title: "Netflix Chaos Monkey: Testing OS Resilience", action: "Discuss how Netflix intentionally crashes processes to build resilient systems", type: "case-study", accepted: null, provenance: "web" },
-  { title: "Linux OOM Killer in Production", action: "Review real incidents where the Linux Out-of-Memory killer caused unexpected behavior", type: "case-study", accepted: null, provenance: "web" },
-  { title: "Apple's Transition to ARM: OS Implications", action: "Article on architecture-level OS changes for Apple Silicon", type: "article", source: "Ars Technica", accepted: null, provenance: "web" },
-  { title: "WebAssembly System Interface (WASI) Spec Update", action: "Recent article on emerging OS abstraction layers", type: "news", source: "W3C", accepted: null, provenance: "web" },
-  { title: "Valgrind Memory Profiler", action: "Integrate this tool into lab sessions for memory profiling", type: "exercise", accepted: null, provenance: "web" },
-  { title: "OS Visualization Toolkit", action: "Use to demo process states, page tables, and scheduling queues", type: "exercise", accepted: null, provenance: "web" },
+  { title: "Python Debugging Tips & Tricks", action: "Article on common debugging strategies for beginners", type: "article", accepted: null, provenance: "web" },
+  { title: "Interactive Python Tutor", action: "Visual tool to step through code execution", type: "exercise", accepted: null, provenance: "web" },
+  { title: "Python Style Guide (PEP 8)", action: "Reference guide for writing clean Python code", type: "article", source: "python.org", accepted: null, provenance: "web" },
 ];
 
 const CourseCreation = () => {
@@ -154,30 +95,24 @@ const CourseCreation = () => {
   const [phase, setPhase] = useState<"generating" | "plan">("generating");
   const [genStep, setGenStep] = useState(0);
   const [genElapsed, setGenElapsed] = useState(0);
-  const [weeks, setWeeks] = useState<WeekPlan[]>(initialPlan);
-  const [expandedWeeks, setExpandedWeeks] = useState<string[]>([]);
-  const [editingWeekId, setEditingWeekId] = useState<string | null>(null);
+  const [days, setDays] = useState<DayPlan[]>(initialPlan);
+  const [expandedDays, setExpandedDays] = useState<string[]>([]);
+  const [editingDayId, setEditingDayId] = useState<string | null>(null);
   const [editTopic, setEditTopic] = useState("");
   const [editDates, setEditDates] = useState("");
   const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
   const [editResourceTitle, setEditResourceTitle] = useState("");
   const [editResourceAction, setEditResourceAction] = useState("");
-  const [totalWeeks, setTotalWeeks] = useState(16);
-  const [classesPerWeek, setClassesPerWeek] = useState(2);
-  const [showConfig, setShowConfig] = useState(false);
   const [replacementIdx, setReplacementIdx] = useState(0);
-  const [undoStack, setUndoStack] = useState<{ weekId: string; replacementId: string; resource: Resource }[]>([]);
+  const [undoStack, setUndoStack] = useState<{ dayId: string; replacementId: string; resource: Resource }[]>([]);
   const [showPublishModal, setShowPublishModal] = useState(false);
-  const [publishChecklist, setPublishChecklist] = useState({ weeks: false, resources: false, ta: false });
+  const [publishChecklist, setPublishChecklist] = useState({ days: false, resources: false });
   const [published, setPublished] = useState(false);
   const [publishTimestamp, setPublishTimestamp] = useState<string | null>(null);
-  const [removeConfirm, setRemoveConfirm] = useState<{ weekId: string; resourceId: string; title: string } | null>(null);
-  const [suggestionPanel, setSuggestionPanel] = useState<{ weekId: string; resource: Resource } | null>(null);
-  const [lastRemoved, setLastRemoved] = useState<{ weekId: string; resource: Resource } | null>(null);
+  const [removeConfirm, setRemoveConfirm] = useState<{ dayId: string; resourceId: string; title: string } | null>(null);
 
-  const totalWeightage = weeks.reduce((sum, w) => sum + (w.weightage || 0), 0);
+  const totalWeightage = days.reduce((sum, d) => sum + (d.weightage || 0), 0);
 
-  // Generation progress simulation
   useEffect(() => {
     if (phase !== "generating") return;
     const stepTimer = setInterval(() => {
@@ -190,84 +125,94 @@ const CourseCreation = () => {
     return () => { clearInterval(stepTimer); clearInterval(elapsedTimer); };
   }, [phase]);
 
-  const updateWeightage = (weekId: string, value: number) => {
-    setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, weightage: Math.max(0, value) } : w));
+  const updateWeightage = (dayId: string, value: number) => {
+    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, weightage: Math.max(0, value) } : d));
     setPublished(false);
   };
 
-  const toggleWeek = (id: string) => {
-    setExpandedWeeks((prev) => prev.includes(id) ? prev.filter((w) => w !== id) : [...prev, id]);
+  const toggleLock = (dayId: string) => {
+    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, locked: !d.locked } : d));
+    const day = days.find(d => d.id === dayId);
+    toast({
+      title: day?.locked ? "Day unlocked" : "Day locked",
+      description: day?.locked
+        ? `Day ${day.day} content is now available to the chatbot`
+        : `Day ${day?.day} content is now restricted from the chatbot`,
+    });
+    setPublished(false);
   };
 
-  const startEditWeek = (wp: WeekPlan) => {
-    setEditingWeekId(wp.id); setEditTopic(wp.topic); setEditDates(wp.dates);
+  const toggleDay = (id: string) => {
+    setExpandedDays((prev) => prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]);
   };
 
-  const saveEditWeek = () => {
-    if (!editingWeekId) return;
-    setWeeks((prev) => prev.map((w) => w.id === editingWeekId ? { ...w, topic: editTopic, dates: editDates } : w));
-    setEditingWeekId(null); setPublished(false);
+  const startEditDay = (dp: DayPlan) => {
+    setEditingDayId(dp.id); setEditTopic(dp.topic); setEditDates(dp.dates);
   };
 
-  const handleResourceAction = useCallback((weekId: string, resourceId: string, accepted: boolean) => {
+  const saveEditDay = () => {
+    if (!editingDayId) return;
+    setDays((prev) => prev.map((d) => d.id === editingDayId ? { ...d, topic: editTopic, dates: editDates } : d));
+    setEditingDayId(null); setPublished(false);
+  };
+
+  const handleResourceAction = useCallback((dayId: string, resourceId: string, accepted: boolean) => {
     if (accepted) {
-      setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: w.resources.map((r) => r.id === resourceId ? { ...r, accepted: true } : r) } : w));
+      setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: d.resources.map((r) => r.id === resourceId ? { ...r, accepted: true } : r) } : d));
     } else {
-      const week = weeks.find((w) => w.id === weekId);
-      const resource = week?.resources.find((r) => r.id === resourceId);
+      const day = days.find((d) => d.id === dayId);
+      const resource = day?.resources.find((r) => r.id === resourceId);
       const replacement = replacementPool[replacementIdx % replacementPool.length];
       const newId = makeId();
       if (resource) {
-        setUndoStack((prev) => [...prev.slice(-9), { weekId, replacementId: newId, resource: { ...resource } }]);
+        setUndoStack((prev) => [...prev.slice(-9), { dayId, replacementId: newId, resource: { ...resource } }]);
       }
       setReplacementIdx((i) => i + 1);
-      setWeeks((prev) => prev.map((w) => w.id === weekId ? {
-        ...w, resources: w.resources.map((r) => r.id === resourceId ? { ...replacement, id: newId, accepted: null } as Resource : r),
-      } : w));
+      setDays((prev) => prev.map((d) => d.id === dayId ? {
+        ...d, resources: d.resources.map((r) => r.id === resourceId ? { ...replacement, id: newId, accepted: null } as Resource : r),
+      } : d));
     }
     setPublished(false);
-  }, [replacementIdx, weeks]);
+  }, [replacementIdx, days]);
 
   const handleUndo = () => {
     if (undoStack.length === 0) return;
     const last = undoStack[undoStack.length - 1];
     setUndoStack((prev) => prev.slice(0, -1));
-    setWeeks((prev) => prev.map((w) => {
-      if (w.id !== last.weekId) return w;
-      const hasReplacement = w.resources.some((r) => r.id === last.replacementId);
-      if (hasReplacement) return { ...w, resources: w.resources.map((r) => r.id === last.replacementId ? last.resource : r) };
-      return { ...w, resources: [...w.resources, last.resource] };
+    setDays((prev) => prev.map((d) => {
+      if (d.id !== last.dayId) return d;
+      const hasReplacement = d.resources.some((r) => r.id === last.replacementId);
+      if (hasReplacement) return { ...d, resources: d.resources.map((r) => r.id === last.replacementId ? last.resource : r) };
+      return { ...d, resources: [...d.resources, last.resource] };
     }));
   };
 
-  const confirmRemoveResource = (weekId: string, resourceId: string) => {
-    const week = weeks.find((w) => w.id === weekId);
-    const resource = week?.resources.find((r) => r.id === resourceId);
+  const confirmRemoveResource = (dayId: string, resourceId: string) => {
+    const day = days.find((d) => d.id === dayId);
+    const resource = day?.resources.find((r) => r.id === resourceId);
     if (!resource) return;
     const isAI = resource.accepted === null;
     if (isAI) {
-      handleResourceAction(weekId, resourceId, false);
+      handleResourceAction(dayId, resourceId, false);
     } else {
-      setRemoveConfirm({ weekId, resourceId, title: resource.title });
+      setRemoveConfirm({ dayId, resourceId, title: resource.title });
     }
   };
 
   const executeRemove = () => {
     if (!removeConfirm) return;
-    const { weekId, resourceId } = removeConfirm;
-    const week = weeks.find((w) => w.id === weekId);
-    const resource = week?.resources.find((r) => r.id === resourceId);
+    const { dayId, resourceId } = removeConfirm;
+    const day = days.find((d) => d.id === dayId);
+    const resource = day?.resources.find((r) => r.id === resourceId);
     if (resource) {
-      setLastRemoved({ weekId, resource: { ...resource } });
-      setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: w.resources.filter((r) => r.id !== resourceId) } : w));
+      setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: d.resources.filter((r) => r.id !== resourceId) } : d));
       setPublished(false);
       toast({
         title: "Resource removed",
         description: resource.title,
         action: (
           <Button variant="outline" size="sm" onClick={() => {
-            setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: [...w.resources, resource] } : w));
-            setLastRemoved(null);
+            setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: [...d.resources, resource] } : d));
           }}>
             Undo
           </Button>
@@ -281,28 +226,28 @@ const CourseCreation = () => {
     setEditingResourceId(r.id); setEditResourceTitle(r.title); setEditResourceAction(r.action);
   };
 
-  const saveEditResource = (weekId: string) => {
+  const saveEditResource = (dayId: string) => {
     if (!editingResourceId) return;
-    setWeeks((prev) => prev.map((w) => w.id === weekId ? {
-      ...w, resources: w.resources.map((r) => r.id === editingResourceId ? { ...r, title: editResourceTitle, action: editResourceAction } : r),
-    } : w));
+    setDays((prev) => prev.map((d) => d.id === dayId ? {
+      ...d, resources: d.resources.map((r) => r.id === editingResourceId ? { ...r, title: editResourceTitle, action: editResourceAction } : r),
+    } : d));
     setEditingResourceId(null); setPublished(false);
   };
 
-  const deleteWeek = (id: string) => {
-    setWeeks((prev) => prev.filter((w) => w.id !== id).map((w, i) => ({ ...w, week: i + 1 }))); setPublished(false);
+  const deleteDay = (id: string) => {
+    setDays((prev) => prev.filter((d) => d.id !== id).map((d, i) => ({ ...d, day: i + 1 }))); setPublished(false);
   };
 
-  const addWeek = () => {
-    const newWeek: WeekPlan = { id: `w_new_${Date.now()}`, week: weeks.length + 1, dates: "TBD", topic: "New Topic", resources: [], weightage: 0 };
-    setWeeks((prev) => [...prev, newWeek]);
-    setExpandedWeeks((prev) => [...prev, newWeek.id]);
-    startEditWeek(newWeek); setPublished(false);
+  const addDay = () => {
+    const newDay: DayPlan = { id: `d_new_${Date.now()}`, day: days.length + 1, dates: `Day ${days.length + 1}`, topic: "New Topic", resources: [], weightage: 0, locked: false };
+    setDays((prev) => [...prev, newDay]);
+    setExpandedDays((prev) => [...prev, newDay.id]);
+    startEditDay(newDay); setPublished(false);
   };
 
-  const addResourceToWeek = (weekId: string, type: Resource["type"]) => {
+  const addResourceToDay = (dayId: string, type: Resource["type"]) => {
     const newResource: Resource = { id: makeId(), title: "", action: "", type, accepted: true, provenance: "instructor" };
-    setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, resources: [...w.resources, newResource] } : w));
+    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: [...d.resources, newResource] } : d));
     setEditingResourceId(newResource.id); setEditResourceTitle(""); setEditResourceAction(""); setPublished(false);
   };
 
@@ -310,46 +255,43 @@ const CourseCreation = () => {
     setPublished(true);
     setPublishTimestamp(new Date().toLocaleString());
     setShowPublishModal(false);
-    setPublishChecklist({ weeks: false, resources: false, ta: false });
+    setPublishChecklist({ days: false, resources: false });
   };
 
   const handleExport = (format: "pdf" | "word") => {
-    let content = "AI TEACHING PLAN - Operating Systems\n";
-    content += `${totalWeeks} Weeks · ${classesPerWeek} classes/week\n\n`;
-    weeks.forEach((w) => {
-      content += `Week ${w.week} (${w.dates}): ${w.topic} [${w.weightage}%]\n`;
-      w.resources.forEach((r) => {
+    let content = "AI WORKSHOP LESSON PLAN - Intro to Python\n";
+    content += `${days.length} Days\n\n`;
+    days.forEach((d) => {
+      content += `Day ${d.day} (${d.dates}): ${d.topic} [${d.weightage}%] ${d.locked ? "[LOCKED]" : "[UNLOCKED]"}\n`;
+      d.resources.forEach((r) => {
         const status = r.accepted === true ? "✓" : r.accepted === null ? "★" : "";
-        content += `  ${status} [${typeLabels[r.type]}] ${r.title}\n`;
-        content += `    → ${r.action}\n`;
+        content += `  ${status} [${typeLabels[r.type]}] ${r.title}\n    → ${r.action}\n`;
       });
       content += "\n";
     });
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = format === "pdf" ? "teaching-plan.pdf" : "teaching-plan.doc";
-    a.click();
+    a.href = url; a.download = format === "pdf" ? "workshop-plan.pdf" : "workshop-plan.doc"; a.click();
     URL.revokeObjectURL(url);
   };
 
   const genSteps = [
     { label: "Reading uploads", desc: "Parsing your syllabus and materials" },
-    { label: "Mapping weekly topics", desc: "Aligning with curriculum standards" },
+    { label: "Mapping daily topics", desc: "Aligning with curriculum standards" },
     { label: "Creating resources & activities", desc: "Building exercises, case studies, and readings" },
   ];
+
+  const lockedDaysCount = days.filter(d => d.locked).length;
 
   if (phase === "generating") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
         <div className="w-full max-w-[640px] text-center space-y-8">
           <div>
-            <h1 className="font-heading text-2xl font-bold">Generating your teaching plan</h1>
+            <h1 className="font-heading text-2xl font-bold">Generating your workshop lesson plan</h1>
             <p className="text-sm text-muted-foreground mt-2">Usually takes 30–90 seconds.</p>
           </div>
-
-          {/* 3-step stepper */}
           <div className="space-y-3">
             {genSteps.map((step, i) => (
               <div key={i} className={`flex items-center gap-4 rounded-lg border p-4 transition-colors ${
@@ -367,9 +309,7 @@ const CourseCreation = () => {
               </div>
             ))}
           </div>
-
           <p className="text-xs text-muted-foreground">You can leave this page — we'll keep working.</p>
-
           {genElapsed > 90 && (
             <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 space-y-3">
               <p className="text-sm font-medium">This is taking longer than usual.</p>
@@ -384,19 +324,17 @@ const CourseCreation = () => {
     );
   }
 
-  const allChecked = publishChecklist.weeks && publishChecklist.resources && publishChecklist.ta;
+  const allChecked = publishChecklist.days && publishChecklist.resources;
 
   return (
     <div className="flex min-h-screen items-start justify-center bg-background px-4 py-8">
       <div className="w-full max-w-4xl space-y-5">
         <SetupProgressBar currentStep={3} />
 
-        {/* Header */}
         <div className="text-center">
           <h1 className="font-heading text-3xl font-bold">Next<span className="text-primary">Step</span></h1>
         </div>
 
-        {/* Published status */}
         {published && (
           <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
             <div className="flex items-center gap-2">
@@ -409,18 +347,16 @@ const CourseCreation = () => {
           </div>
         )}
 
-        {/* Intro */}
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">AI Teaching Plan</h2>
+            <h2 className="text-xl font-semibold">AI Workshop Lesson Plan</h2>
           </div>
           <p className="text-sm text-muted-foreground">
-            We've analyzed your uploaded materials to draft a semester-long teaching plan. Review the weekly breakdown below, accept or replace AI suggestions, and edit as needed.
+            We've analyzed your uploaded materials to draft a 3-day workshop lesson plan. Review the daily breakdown below, accept or replace AI suggestions, and edit as needed.
           </p>
         </div>
 
-        {/* Legend */}
         <div className="flex flex-wrap gap-2">
           <div className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium bg-primary/5 border-primary/20 text-primary">
             <FlaskConical className="h-3.5 w-3.5" /> Interactive Exercises
@@ -433,18 +369,26 @@ const CourseCreation = () => {
           </div>
         </div>
 
+        {/* Lock status summary */}
+        <div className="flex items-center gap-3 rounded-lg border px-4 py-2.5 bg-muted/30">
+          <Lock className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm">
+            <span className="font-medium">{lockedDaysCount}</span> of {days.length} days locked — chatbot will only use content from locked days
+          </span>
+        </div>
+
         {/* Weightage Summary */}
         <div className={`flex items-center gap-3 rounded-lg border px-4 py-2.5 ${totalWeightage === 100 ? "border-primary/30 bg-primary/5" : "border-warning/30 bg-warning/5"}`}>
           <span className="text-sm font-medium">Total Weightage:</span>
           <span className={`text-lg font-bold ${totalWeightage === 100 ? "text-primary" : "text-warning"}`}>{totalWeightage}%</span>
           <span className="text-xs text-muted-foreground">/ 100%</span>
-          {totalWeightage !== 100 && <span className="text-xs text-warning ml-auto">Adjust week weightages to total 100%</span>}
+          {totalWeightage !== 100 && <span className="text-xs text-warning ml-auto">Adjust day weightages to total 100%</span>}
           {totalWeightage === 100 && <Check className="h-4 w-4 text-primary ml-auto" />}
         </div>
 
-        {/* Teaching Plan subhead with export + undo */}
+        {/* Day Plan subhead with export + undo */}
         <div className="flex items-center justify-between pt-2">
-          <h2 className="text-xl font-semibold">Teaching Plan</h2>
+          <h2 className="text-xl font-semibold">Workshop Lesson Plan</h2>
           <div className="flex items-center gap-2">
             {undoStack.length > 0 && (
               <Button variant="ghost" size="sm" onClick={handleUndo} className="text-xs">
@@ -463,57 +407,42 @@ const CourseCreation = () => {
           </div>
         </div>
 
-        {/* Semester Config */}
-        <div className="flex items-center justify-between">
-          <button onClick={() => setShowConfig(!showConfig)} className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
-            {showConfig ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />} Semester Settings
-          </button>
-          <p className="text-xs text-muted-foreground">{weeks.length} weeks · {classesPerWeek} classes/week</p>
-        </div>
-
-        {showConfig && (
-          <Card>
-            <CardContent className="pt-4 pb-4">
-              <div className="flex gap-4 items-end">
-                <div className="space-y-1"><Label className="text-xs">Total Weeks</Label><Input type="number" min={1} max={24} value={totalWeeks} onChange={(e) => setTotalWeeks(Number(e.target.value))} className="w-24 h-8 text-sm" /></div>
-                <div className="space-y-1"><Label className="text-xs">Classes / Week</Label><Input type="number" min={1} max={5} value={classesPerWeek} onChange={(e) => setClassesPerWeek(Number(e.target.value))} className="w-24 h-8 text-sm" /></div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Teaching Plan Weeks */}
-        <Reorder.Group axis="y" values={weeks} onReorder={(newOrder) => setWeeks(newOrder.map((w, i) => ({ ...w, week: i + 1 })))}>
+        {/* Day Plans */}
+        <Reorder.Group axis="y" values={days} onReorder={(newOrder) => setDays(newOrder.map((d, i) => ({ ...d, day: i + 1 })))}>
           <div className="space-y-2">
-            {weeks.map((wp) => {
-              const isExpanded = expandedWeeks.includes(wp.id);
-              const isEditing = editingWeekId === wp.id;
-              const aiResources = wp.resources.filter((r) => r.accepted === null);
-              const suggestionTypes = aiResources.map((r) => {
-                if (r.type === "article" || r.type === "news") return "resource";
-                if (r.type === "case-study") return "resource";
-                return "resource";
-              });
+            {days.map((dp) => {
+              const isExpanded = expandedDays.includes(dp.id);
+              const isEditing = editingDayId === dp.id;
+              const aiResources = dp.resources.filter((r) => r.accepted === null);
               const suggestionLabel = aiResources.length === 1 ? "1 suggested resource" : `${aiResources.length} suggested resources`;
 
               return (
-                <Reorder.Item key={wp.id} value={wp} className="list-none">
-                  <div className="rounded-lg border bg-card shadow-sm">
-                    {/* Week Header */}
+                <Reorder.Item key={dp.id} value={dp} className="list-none">
+                  <div className={`rounded-lg border bg-card shadow-sm ${dp.locked ? "border-primary/30" : ""}`}>
                     <div className="flex items-center gap-1 px-2">
                       <GripVertical className="h-4 w-4 text-muted-foreground/40 cursor-grab shrink-0" />
-                      <button onClick={() => toggleWeek(wp.id)} className="flex flex-1 items-center justify-between px-2 py-3 text-left hover:bg-muted/30 transition-colors rounded" aria-label={`Toggle week ${wp.week}`}>
+                      <button onClick={() => toggleDay(dp.id)} className="flex flex-1 items-center justify-between px-2 py-3 text-left hover:bg-muted/30 transition-colors rounded">
                         <div className="flex items-center gap-3 min-w-0">
-                          <Badge variant="secondary" className="font-mono text-xs shrink-0">W{wp.week}</Badge>
+                          <Badge variant="outline" className="font-mono text-xs shrink-0">Day {dp.day}</Badge>
                           <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{wp.topic}</p>
-                            <p className="text-xs text-muted-foreground">{wp.dates} · Generated from your course materials</p>
+                            <p className="text-sm font-medium truncate">{dp.topic}</p>
+                            <p className="text-xs text-muted-foreground">{dp.dates} · Generated from your course materials</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          {/* Weightage inline */}
+                          {/* Lock/Unlock */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-7 px-2 text-xs ${dp.locked ? "text-primary" : "text-muted-foreground"}`}
+                            onClick={(e) => { e.stopPropagation(); toggleLock(dp.id); }}
+                            title={dp.locked ? "Unlock this day's content" : "Lock this day's content for chatbot"}
+                          >
+                            {dp.locked ? <Lock className="h-3.5 w-3.5 mr-1" /> : <Unlock className="h-3.5 w-3.5 mr-1" />}
+                            {dp.locked ? "Locked" : "Unlocked"}
+                          </Button>
                           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                            <Input type="number" min={0} max={100} value={wp.weightage} onChange={(e) => updateWeightage(wp.id, parseInt(e.target.value) || 0)} className="h-7 w-14 text-xs text-center" aria-label={`Weightage for week ${wp.week}`} />
+                            <Input type="number" min={0} max={100} value={dp.weightage} onChange={(e) => updateWeightage(dp.id, parseInt(e.target.value) || 0)} className="h-7 w-14 text-xs text-center" />
                             <span className="text-xs text-muted-foreground">%</span>
                           </div>
                           {aiResources.length > 0 && (
@@ -526,7 +455,6 @@ const CourseCreation = () => {
                       </button>
                     </div>
 
-                    {/* Expanded Content */}
                     {isExpanded && (
                       <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} className="border-t px-4 py-3 space-y-3">
                         {isEditing ? (
@@ -534,25 +462,24 @@ const CourseCreation = () => {
                             <div className="space-y-1"><Label className="text-xs">Topic</Label><Input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} className="h-8 text-sm" /></div>
                             <div className="space-y-1"><Label className="text-xs">Dates</Label><Input value={editDates} onChange={(e) => setEditDates(e.target.value)} className="h-8 text-sm" /></div>
                             <div className="flex gap-2 pt-1">
-                              <Button size="sm" onClick={saveEditWeek} className="h-7 text-xs">Save</Button>
-                              <Button size="sm" variant="ghost" onClick={() => setEditingWeekId(null)} className="h-7 text-xs">Cancel</Button>
+                              <Button size="sm" onClick={saveEditDay} className="h-7 text-xs">Save</Button>
+                              <Button size="sm" variant="ghost" onClick={() => setEditingDayId(null)} className="h-7 text-xs">Cancel</Button>
                             </div>
                           </div>
                         ) : (
                           <div className="flex gap-2">
-                            <Button size="sm" variant="ghost" onClick={() => startEditWeek(wp)} className="h-7 text-xs" aria-label="Edit week">
+                            <Button size="sm" variant="ghost" onClick={() => startEditDay(dp)} className="h-7 text-xs">
                               <Pencil className="h-3 w-3 mr-1" /> Edit
                             </Button>
-                            <Button size="sm" variant="ghost" onClick={() => deleteWeek(wp.id)} className="h-7 text-xs text-destructive hover:text-destructive" aria-label="Remove week">
+                            <Button size="sm" variant="ghost" onClick={() => deleteDay(dp.id)} className="h-7 text-xs text-destructive hover:text-destructive">
                               <Trash2 className="h-3 w-3 mr-1" /> Remove
                             </Button>
                           </div>
                         )}
 
-                        {/* Resources */}
                         <div className="space-y-2">
                           <p className="text-xs font-medium text-muted-foreground">Resources & Materials</p>
-                          {wp.resources.map((r) => {
+                          {dp.resources.map((r) => {
                             const isAI = r.accepted === null;
                             const isEditingThis = editingResourceId === r.id;
                             const prov = r.provenance ? provenanceLabels[r.provenance] : null;
@@ -563,7 +490,7 @@ const CourseCreation = () => {
                                     <div className="space-y-1"><Label className="text-[10px]">Title</Label><Input value={editResourceTitle} onChange={(e) => setEditResourceTitle(e.target.value)} className="h-7 text-xs" /></div>
                                     <div className="space-y-1"><Label className="text-[10px]">Action / Description</Label><Input value={editResourceAction} onChange={(e) => setEditResourceAction(e.target.value)} className="h-7 text-xs" /></div>
                                     <div className="flex gap-2">
-                                      <Button size="sm" onClick={() => saveEditResource(wp.id)} className="h-6 text-[10px] px-2">Save</Button>
+                                      <Button size="sm" onClick={() => saveEditResource(dp.id)} className="h-6 text-[10px] px-2">Save</Button>
                                       <Button size="sm" variant="ghost" onClick={() => setEditingResourceId(null)} className="h-6 text-[10px] px-2">Cancel</Button>
                                     </div>
                                   </div>
@@ -578,7 +505,7 @@ const CourseCreation = () => {
                                           <span className="font-medium">{r.title}</span>
                                           {prov && <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 ${prov.className}`}>{prov.label}</Badge>}
                                           {r.source && (
-                                            <button className="text-[10px] text-primary hover:underline flex items-center gap-0.5" aria-label="View source">
+                                            <button className="text-[10px] text-primary hover:underline flex items-center gap-0.5">
                                               <ExternalLink className="h-2.5 w-2.5" /> {r.source}
                                             </button>
                                           )}
@@ -587,15 +514,15 @@ const CourseCreation = () => {
                                       </div>
                                     </div>
                                     <div className="flex gap-1 shrink-0">
-                                      <Button variant="ghost" size="sm" onClick={() => startEditResource(r)} className="h-6 px-2 text-[10px]" aria-label="Edit resource">
+                                      <Button variant="ghost" size="sm" onClick={() => startEditResource(r)} className="h-6 px-2 text-[10px]">
                                         <Pencil className="h-3 w-3 mr-1" /> Edit
                                       </Button>
                                       {isAI && (
-                                        <Button variant="ghost" size="sm" onClick={() => handleResourceAction(wp.id, r.id, true)} className="h-6 px-2 text-[10px]" aria-label="Accept suggestion">
+                                        <Button variant="ghost" size="sm" onClick={() => handleResourceAction(dp.id, r.id, true)} className="h-6 px-2 text-[10px]">
                                           <ThumbsUp className="h-3 w-3 mr-1" /> Accept
                                         </Button>
                                       )}
-                                      <Button variant="ghost" size="sm" onClick={() => confirmRemoveResource(wp.id, r.id)} className="h-6 px-2 text-[10px] text-destructive hover:text-destructive" aria-label="Remove resource">
+                                      <Button variant="ghost" size="sm" onClick={() => confirmRemoveResource(dp.id, r.id)} className="h-6 px-2 text-[10px] text-destructive hover:text-destructive">
                                         <Trash2 className="h-3 w-3 mr-1" /> Remove
                                       </Button>
                                     </div>
@@ -606,7 +533,7 @@ const CourseCreation = () => {
                           })}
                           <div className="flex flex-wrap gap-2 pt-1">
                             {(["textbook", "exercise", "case-study", "article"] as Resource["type"][]).map((type) => (
-                              <Button key={type} size="sm" variant="outline" onClick={() => addResourceToWeek(wp.id, type)} className="h-7 text-[10px] border-dashed">
+                              <Button key={type} size="sm" variant="outline" onClick={() => addResourceToDay(dp.id, type)} className="h-7 text-[10px] border-dashed">
                                 <Plus className="h-3 w-3 mr-1" /> {typeLabels[type]}
                               </Button>
                             ))}
@@ -621,19 +548,17 @@ const CourseCreation = () => {
           </div>
         </Reorder.Group>
 
-        {/* Add Week */}
-        <Button variant="outline" onClick={addWeek} className="w-full border-dashed">
-          <Plus className="mr-2 h-4 w-4" /> Add Week
+        <Button variant="outline" onClick={addDay} className="w-full border-dashed">
+          <Plus className="mr-2 h-4 w-4" /> Add Day
         </Button>
 
-        {/* Sticky bottom action bar */}
         <div className="sticky bottom-0 bg-background border-t py-4 -mx-4 px-4 flex justify-between items-center z-10">
           <Button variant="ghost" onClick={() => navigate("/teacher/setup/quality-check")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={addWeek}>
-              <Plus className="mr-1 h-4 w-4" /> Add week
+            <Button variant="outline" onClick={addDay}>
+              <Plus className="mr-1 h-4 w-4" /> Add Day
             </Button>
             {!published ? (
               <Button onClick={() => setShowPublishModal(true)}>
@@ -653,20 +578,16 @@ const CourseCreation = () => {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Publish to students?</DialogTitle>
-            <DialogDescription>Students will see weekly topics, approved resources, and TA practice prompts.</DialogDescription>
+            <DialogDescription>Students will see day topics, approved resources, and TA practice prompts.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <label className="flex items-center gap-3 cursor-pointer">
-              <Checkbox checked={publishChecklist.weeks} onCheckedChange={(v) => setPublishChecklist((p) => ({ ...p, weeks: !!v }))} />
-              <span className="text-sm">Weeks and topics look correct</span>
+              <Checkbox checked={publishChecklist.days} onCheckedChange={(v) => setPublishChecklist((p) => ({ ...p, days: !!v }))} />
+              <span className="text-sm">Days and topics look correct</span>
             </label>
             <label className="flex items-center gap-3 cursor-pointer">
               <Checkbox checked={publishChecklist.resources} onCheckedChange={(v) => setPublishChecklist((p) => ({ ...p, resources: !!v }))} />
               <span className="text-sm">Resources are appropriate for this cohort</span>
-            </label>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <Checkbox checked={publishChecklist.ta} onCheckedChange={(v) => setPublishChecklist((p) => ({ ...p, ta: !!v }))} />
-              <span className="text-sm">TA behavior is configured</span>
             </label>
           </div>
           <DialogFooter className="flex gap-2">
@@ -681,7 +602,7 @@ const CourseCreation = () => {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Remove this resource?</DialogTitle>
-            <DialogDescription>This removes "{removeConfirm?.title}" from this week's plan. You can undo right after.</DialogDescription>
+            <DialogDescription>This removes "{removeConfirm?.title}" from this day's plan. You can undo right after.</DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2">
             <Button variant="outline" onClick={() => setRemoveConfirm(null)}>Cancel</Button>
