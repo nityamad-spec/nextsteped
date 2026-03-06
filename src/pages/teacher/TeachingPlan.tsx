@@ -463,10 +463,6 @@ const TeachingPlan = () => {
               <Checkbox checked={publishChecklist.resources} onCheckedChange={(v) => setPublishChecklist((p) => ({ ...p, resources: !!v }))} />
               <span className="text-sm">Resources are appropriate for this cohort</span>
             </label>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <Checkbox checked={publishChecklist.ta} onCheckedChange={(v) => setPublishChecklist((p) => ({ ...p, ta: !!v }))} />
-              <span className="text-sm">TA behavior is configured</span>
-            </label>
           </div>
           <DialogFooter className="flex gap-2">
             <Button variant="outline" onClick={() => setShowPublishModal(false)}>Keep editing</Button>
