@@ -60,11 +60,17 @@ const Assessments = () => {
   const [formOptions, setFormOptions] = useState<string[]>(["", "", "", ""]);
   const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
 
+  // Exam settings
+  const [examTimeLimit, setExamTimeLimit] = useState(taSettings.examTimeLimit || 60);
+  const [examManualQuestions, setExamManualQuestions] = useState(false);
+  const [examManualCount, setExamManualCount] = useState(20);
+
   // Daily quiz settings
   const [quizNumQuestions, setQuizNumQuestions] = useState(taSettings.quizNumQuestions || 5);
   const [quizQuestionTypes, setQuizQuestionTypes] = useState(taSettings.quizQuestionMix || "mixed");
-  const [quizDifficulty, setQuizDifficulty] = useState(taSettings.quizDifficulty || "Medium");
   const [quizTimeLimit, setQuizTimeLimit] = useState(taSettings.quizTimeLimit || 10);
+
+  const examEstimate = Math.max(5, Math.round(examTimeLimit / 3));
 
   const toggleMode = (mode: QuestionMode) => {
     setFormModes((prev) =>
