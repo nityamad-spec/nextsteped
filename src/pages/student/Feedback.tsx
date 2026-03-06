@@ -18,14 +18,14 @@ const NumberScale = ({
   highLabel: string;
 }) => (
   <div className="space-y-2">
-    <div className="flex gap-2">
+    <div className="grid grid-cols-5 gap-2">
       {[1, 2, 3, 4, 5].map((n) => (
         <button
           key={n}
           type="button"
           onClick={() => onChange(n)}
           className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-full border text-sm font-medium transition-all",
+            "flex h-11 items-center justify-center rounded-lg border text-sm font-medium transition-all",
             value === n
               ? "border-primary bg-primary text-primary-foreground shadow-sm"
               : "border-border bg-background text-foreground hover:border-primary/50 hover:bg-primary/5"
