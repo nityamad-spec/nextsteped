@@ -369,11 +369,17 @@ const CourseCreation = () => {
           </div>
         </div>
 
-        {/* Lock status summary */}
+        {/* Lock status summary + auto-unlock callout */}
         <div className="flex items-center gap-3 rounded-lg border px-4 py-2.5 bg-muted/30">
           <Lock className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm">
             <span className="font-medium">{lockedDaysCount}</span> of {days.length} days locked — chatbot will only use content from locked days
+          </span>
+        </div>
+        <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5">
+          <span className="text-primary mt-0.5">💡</span>
+          <span className="text-xs text-muted-foreground">
+            <strong className="text-foreground">Auto-unlock:</strong> Days are automatically unlocked as the workshop progresses. Day 1 is unlocked on the first day, Day 2 on the second, and so on. You can also manually lock/unlock any day at any time to override.
           </span>
         </div>
 

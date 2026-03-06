@@ -82,6 +82,11 @@ const AITASettings = () => {
     setEstimateApproved(false);
   };
 
+  const [examApproved, setExamApproved] = useState(false);
+  const [quizApproved, setQuizApproved] = useState(false);
+  const [examManualQuestions, setExamManualQuestions] = useState(false);
+  const [examManualCount, setExamManualCount] = useState(estimate.total);
+
   const handleSave = () => {
     setTASettings({
       ...settings,
@@ -94,6 +99,8 @@ const AITASettings = () => {
     });
     navigate("/teacher/setup/publish");
   };
+
+  const canContinue = examApproved && quizApproved;
 
   return (
     <div className="min-h-screen bg-background px-4 py-8">
@@ -119,14 +126,6 @@ const AITASettings = () => {
                   <CardDescription>Configure exam parameters for students</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="space-y-3">
-                    <Label className="text-sm font-medium">Exam Length (minutes)</Label>
-                    <div className="flex items-center gap-4">
-                      <Slider value={[examLength]} onValueChange={(v) => handleExamLengthChange(v[0])} min={15} max={180} step={15} className="flex-1" />
-                      <span className="w-16 text-right text-sm font-bold">{examLength} min</span>
-                    </div>
-                  </div>
-
                   <div className="space-y-3">
                     <Label className="text-sm font-medium">Question Types</Label>
                     <Select value={examQuestionTypes} onValueChange={handleExamTypeChange}>
@@ -167,40 +166,82 @@ const AITASettings = () => {
                     <p className="text-xs text-muted-foreground">All at once mirrors a real exam format.</p>
                   </div>
 
-                  {/* Estimated Question Count Preview */}
+                  {/* Exam Length */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Exam Length (minutes)</Label>
+                    <div className="flex items-center gap-4">
+                      <Slider value={[examLength]} onValueChange={(v) => { handleExamLengthChange(v[0]); setExamApproved(false); }} min={15} max={180} step={15} className="flex-1" />
+                      <span className="w-16 text-right text-sm font-bold">{examLength} min</span>
+                    </div>
+                  </div>
+
+                  {/* Question Count: Estimated or Manual */}
                   <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Calculator className="h-4 w-4 text-primary" />
-                        <Label className="text-sm font-medium">Estimated Questions</Label>
+                        <Label className="text-sm font-medium">Number of Questions</Label>
                       </div>
                       <div className="flex items-center gap-2">
-                        {!editingEstimate && (
-                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleEditEstimate}>
-                            <Pencil className="mr-1 h-3 w-3" /> Edit
-                          </Button>
-                        )}
-                        <Button variant={estimateApproved ? "outline" : "default"} size="sm" className="h-7 text-xs" onClick={handleApproveEstimate}>
-                          {estimateApproved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve"}
+                        <Button
+                          variant={examManualQuestions ? "default" : "outline"}
+                          size="sm" className="h-7 text-xs"
+                          onClick={() => { setExamManualQuestions(!examManualQuestions); setExamApproved(false); }}
+                        >
+                          {examManualQuestions ? "Manual" : "Estimated"}
                         </Button>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Based on {examLength} min, {settings.examDifficulty} difficulty — estimated <span className="font-bold text-foreground">{activeTotal} questions</span>
-                    </p>
-                    <div className="space-y-2">
-                      {Object.entries(activeBreakdown).map(([type, count]) => (
-                        <div key={type} className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">{type}</span>
-                          {editingEstimate ? (
-                            <Input type="number" min={0} className="h-7 w-16 text-xs text-right" value={count}
-                              onChange={(e) => setCustomBreakdown(prev => ({ ...prev, [type]: Math.max(0, parseInt(e.target.value) || 0) }))} />
-                          ) : (
-                            <span className="text-sm font-bold">{count}</span>
-                          )}
+
+                    {examManualQuestions ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">Manually define the number of questions for this exam.</p>
+                        <div className="flex items-center gap-4">
+                          <Slider value={[examManualCount]} onValueChange={(v) => { setExamManualCount(v[0]); setExamApproved(false); }} min={5} max={100} step={1} className="flex-1" />
+                          <span className="w-16 text-right text-sm font-bold">{examManualCount}</span>
                         </div>
-                      ))}
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          Based on {examLength} min, {settings.examDifficulty} difficulty — estimated <span className="font-bold text-foreground">{activeTotal} questions</span>
+                        </p>
+                        <div className="space-y-2">
+                          {Object.entries(activeBreakdown).map(([type, count]) => (
+                            <div key={type} className="flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">{type}</span>
+                              {editingEstimate ? (
+                                <Input type="number" min={0} className="h-7 w-16 text-xs text-right" value={count}
+                                  onChange={(e) => setCustomBreakdown(prev => ({ ...prev, [type]: Math.max(0, parseInt(e.target.value) || 0) }))} />
+                              ) : (
+                                <span className="text-sm font-bold">{count}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {!editingEstimate && (
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleEditEstimate}>
+                              <Pencil className="mr-1 h-3 w-3" /> Edit Breakdown
+                            </Button>
+                          )}
+                          <Button variant={estimateApproved ? "outline" : "default"} size="sm" className="h-7 text-xs" onClick={handleApproveEstimate}>
+                            {estimateApproved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve Estimate"}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Approve Exam Rules */}
+                  <div className={`flex items-center justify-between rounded-lg border p-4 ${examApproved ? "border-primary/30 bg-primary/5" : ""}`}>
+                    <div>
+                      <p className="text-sm font-medium">Approve Exam Rules</p>
+                      <p className="text-xs text-muted-foreground">You must approve exam settings before publishing</p>
                     </div>
+                    <Button variant={examApproved ? "outline" : "default"} size="sm" onClick={() => setExamApproved(!examApproved)}>
+                      {examApproved ? <><Check className="mr-1 h-4 w-4" /> Approved</> : "Approve"}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -241,17 +282,21 @@ const AITASettings = () => {
                     </Select>
                   </div>
 
-                  <div className="space-y-3">
-                    <Label className="text-sm font-medium">Quiz Difficulty</Label>
-                    <Select value={quizDifficulty} onValueChange={setQuizDifficulty}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Easy">Easy</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="Hard">Hard</SelectItem>
-                        <SelectItem value="Mixed">Mixed</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="rounded-lg border bg-primary/5 p-3">
+                    <p className="text-xs text-muted-foreground">
+                      <strong className="text-foreground">Note:</strong> Daily quiz difficulty is personalized automatically based on each student's concept mastery level. No manual setting needed.
+                    </p>
+                  </div>
+
+                  {/* Approve Quiz Rules */}
+                  <div className={`flex items-center justify-between rounded-lg border p-4 ${quizApproved ? "border-primary/30 bg-primary/5" : ""}`}>
+                    <div>
+                      <p className="text-sm font-medium">Approve Daily Quiz Rules</p>
+                      <p className="text-xs text-muted-foreground">You must approve quiz settings before publishing</p>
+                    </div>
+                    <Button variant={quizApproved ? "outline" : "default"} size="sm" onClick={() => setQuizApproved(!quizApproved)}>
+                      {quizApproved ? <><Check className="mr-1 h-4 w-4" /> Approved</> : "Approve"}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -287,7 +332,7 @@ const AITASettings = () => {
                     Exam: {examLength} min · {activeTotal} questions · {settings.examDifficulty} difficulty
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Daily Quiz: {quizTimeLimit} min · {quizNumQuestions} questions · {quizDifficulty} difficulty
+                    Daily Quiz: {quizTimeLimit} min · {quizNumQuestions} questions · Personalized difficulty
                   </p>
                 </div>
               </div>
@@ -298,9 +343,12 @@ const AITASettings = () => {
             <Button variant="ghost" onClick={() => navigate("/teacher/setup/syllabus")}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} disabled={!canContinue}>
               Continue to Publish <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
+            {!canContinue && (
+              <p className="text-xs text-destructive mt-1 text-right">Please approve both exam and daily quiz rules to continue</p>
+            )}
           </div>
         </div>
       </div>

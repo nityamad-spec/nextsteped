@@ -83,8 +83,8 @@ const AIChat = () => {
       const endMsg: ChatMessage = {
         id: `auto-end-${Date.now()}`, role: "assistant", timestamp: Date.now(),
         content: examStarted
-          ? "⚠️ **Exam ended automatically** — you navigated away from the exam page."
-          : "⚠️ **Daily Quiz ended automatically** — you navigated away from the quiz page.",
+          ? "⚠️ **Exam ended** — you navigated away from the exam page. Your progress has been **discarded** and will not be submitted."
+          : "⚠️ **Daily Quiz ended** — you navigated away from the quiz page. Your progress has been **discarded** and will not be submitted.",
       };
       const updatedChat = { ...activeChat, messages: [...activeChat.messages, endMsg], updatedAt: Date.now() };
       setChats(chats.map((c) => (c.id === activeChat.id ? updatedChat : c)));
@@ -433,7 +433,7 @@ const AIChat = () => {
               End {examStarted ? "Exam" : "Daily Quiz"}?
             </DialogTitle>
             <DialogDescription>
-              If you leave this page, your {examStarted ? "exam" : "daily quiz"} will automatically end and your progress will be submitted. Are you sure you want to leave?
+              If you leave this page, your {examStarted ? "exam" : "daily quiz"} will automatically end and your progress will be **discarded** (not submitted). Are you sure you want to leave?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2">
