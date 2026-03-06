@@ -127,14 +127,6 @@ const AITASettings = () => {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-3">
-                    <Label className="text-sm font-medium">Exam Length (minutes)</Label>
-                    <div className="flex items-center gap-4">
-                      <Slider value={[examLength]} onValueChange={(v) => handleExamLengthChange(v[0])} min={15} max={180} step={15} className="flex-1" />
-                      <span className="w-16 text-right text-sm font-bold">{examLength} min</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
                     <Label className="text-sm font-medium">Question Types</Label>
                     <Select value={examQuestionTypes} onValueChange={handleExamTypeChange}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
