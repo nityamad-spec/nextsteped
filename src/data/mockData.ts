@@ -1,17 +1,17 @@
 import { ChatMessage, ConceptTopic, ContentItem, Course, DashboardMetrics, QuizQuestion, SyllabusRecommendation, TASettings } from "@/types";
 
 export const mockCourse: Course = {
-  id: "cs301",
-  name: "Operating Systems",
+  id: "py101",
+  name: "Intro to Python",
   term: "First Semester",
   sections: ["Section A", "Section B"],
   objectives: [
-    "Understand process management and scheduling algorithms",
-    "Master memory management concepts including virtual memory",
-    "Learn file system design and implementation",
-    "Understand concurrency, synchronization, and deadlocks",
+    "Understand Python fundamentals and data types",
+    "Master control flow and functions",
+    "Learn file handling and basic data structures",
+    "Understand object-oriented programming basics",
   ],
-  enrollmentCode: "NEXTOS301",
+  enrollmentCode: "NEXTPY101",
   syllabusUploaded: true,
   materialsUploaded: true,
   published: true,
@@ -20,104 +20,104 @@ export const mockCourse: Course = {
 };
 
 export const mockTopics: ConceptTopic[] = [
-  { id: "t1", name: "Process Management", module: "Module 1: Fundamentals", prerequisites: [], confidence: "High", mastery: 85 },
-  { id: "t2", name: "CPU Scheduling", module: "Module 1: Fundamentals", prerequisites: ["t1"], confidence: "High", mastery: 78 },
-  { id: "t3", name: "Memory Management", module: "Module 2: Memory", prerequisites: ["t1"], confidence: "Medium", mastery: 62 },
-  { id: "t4", name: "Virtual Memory", module: "Module 2: Memory", prerequisites: ["t3"], confidence: "Low", mastery: 45 },
-  { id: "t5", name: "File Systems", module: "Module 3: Storage", prerequisites: ["t3"], confidence: "Medium", mastery: 58 },
-  { id: "t6", name: "Synchronization", module: "Module 4: Concurrency", prerequisites: ["t1", "t2"], confidence: "Low", mastery: 38 },
-  { id: "t7", name: "Deadlocks", module: "Module 4: Concurrency", prerequisites: ["t6"], confidence: "Low", mastery: 30 },
-  { id: "t8", name: "I/O Systems", module: "Module 3: Storage", prerequisites: ["t5"], confidence: "Medium", mastery: 55 },
+  { id: "t1", name: "Variables & Data Types", module: "Module 1: Fundamentals", prerequisites: [], confidence: "High", mastery: 85 },
+  { id: "t2", name: "Control Flow", module: "Module 1: Fundamentals", prerequisites: ["t1"], confidence: "High", mastery: 78 },
+  { id: "t3", name: "Functions", module: "Module 2: Functions & Modules", prerequisites: ["t1"], confidence: "Medium", mastery: 62 },
+  { id: "t4", name: "Lists & Dictionaries", module: "Module 2: Data Structures", prerequisites: ["t3"], confidence: "Low", mastery: 45 },
+  { id: "t5", name: "File Handling", module: "Module 3: I/O", prerequisites: ["t3"], confidence: "Medium", mastery: 58 },
+  { id: "t6", name: "OOP Basics", module: "Module 4: OOP", prerequisites: ["t1", "t3"], confidence: "Low", mastery: 38 },
+  { id: "t7", name: "Error Handling", module: "Module 4: Robustness", prerequisites: ["t3"], confidence: "Low", mastery: 30 },
+  { id: "t8", name: "Modules & Packages", module: "Module 3: Modules", prerequisites: ["t3"], confidence: "Medium", mastery: 55 },
 ];
 
 export const mockQuizQuestions: QuizQuestion[] = [
   {
-    id: "q1", question: "What is the primary purpose of an operating system?", topic: "Process Management",
-    options: ["To manage hardware resources and provide services to applications", "To compile source code into machine code", "To design user interfaces", "To store data permanently"],
-    correctIndex: 0, difficulty: "Easy", explanation: "An OS manages hardware resources (CPU, memory, I/O) and provides services for application programs.",
+    id: "q1", question: "What is the output of print(type(3.14)) in Python?", topic: "Variables & Data Types",
+    options: ["<class 'float'>", "<class 'int'>", "<class 'str'>", "<class 'double'>"],
+    correctIndex: 0, difficulty: "Easy", explanation: "3.14 is a floating-point number, so type() returns <class 'float'>.",
   },
   {
-    id: "q2", question: "Which scheduling algorithm may cause starvation?", topic: "CPU Scheduling",
-    options: ["Round Robin", "Shortest Job First (SJF)", "First Come First Served (FCFS)", "Multilevel Queue"],
-    correctIndex: 1, difficulty: "Medium", explanation: "SJF can cause starvation for long processes if shorter ones keep arriving.",
+    id: "q2", question: "Which loop is best when you know the number of iterations?", topic: "Control Flow",
+    options: ["while loop", "for loop", "do-while loop", "repeat loop"],
+    correctIndex: 1, difficulty: "Medium", explanation: "A for loop is ideal when the number of iterations is known in advance.",
   },
   {
-    id: "q3", question: "What is thrashing in the context of virtual memory?", topic: "Virtual Memory",
-    options: ["Excessive paging causing severe performance degradation", "A type of memory leak", "Fragmentation of physical memory", "Buffer overflow attack"],
-    correctIndex: 0, difficulty: "Hard", explanation: "Thrashing occurs when the system spends more time paging than executing, severely degrading performance.",
+    id: "q3", question: "What does the 'return' statement do in a function?", topic: "Functions",
+    options: ["Exits the function and returns a value", "Prints a value", "Loops the function", "Imports a module"],
+    correctIndex: 0, difficulty: "Hard", explanation: "The return statement exits the function and optionally passes back a value to the caller.",
   },
   {
-    id: "q4", question: "Which synchronization mechanism uses a binary variable?", topic: "Synchronization",
-    options: ["Semaphore", "Mutex", "Monitor", "Barrier"],
-    correctIndex: 1, difficulty: "Medium", explanation: "A mutex (mutual exclusion) uses a binary lock variable — locked or unlocked.",
+    id: "q4", question: "How do you access the value associated with key 'name' in a dictionary d?", topic: "Lists & Dictionaries",
+    options: ["d['name']", "d.name", "d(name)", "d->name"],
+    correctIndex: 0, difficulty: "Medium", explanation: "Dictionary values are accessed using square bracket notation with the key.",
   },
   {
-    id: "q5", question: "What are the four necessary conditions for deadlock?", topic: "Deadlocks",
+    id: "q5", question: "Which keyword is used to handle exceptions in Python?", topic: "Error Handling",
     options: [
-      "Mutual exclusion, hold & wait, no preemption, circular wait",
-      "Starvation, livelock, priority inversion, race condition",
-      "Atomicity, consistency, isolation, durability",
-      "Synchronization, scheduling, allocation, deallocation",
+      "try/except",
+      "catch/throw",
+      "handle/error",
+      "check/rescue",
     ],
-    correctIndex: 0, difficulty: "Hard", explanation: "The four Coffman conditions are mutual exclusion, hold and wait, no preemption, and circular wait.",
+    correctIndex: 0, difficulty: "Hard", explanation: "Python uses try/except blocks to handle exceptions.",
   },
   {
-    id: "q6", question: "What is the difference between a process and a thread?", topic: "Process Management",
+    id: "q6", question: "What is the correct way to open a file for reading in Python?", topic: "File Handling",
     options: [
-      "A thread is a lightweight unit of execution within a process sharing its address space",
-      "A process runs in user mode while threads run in kernel mode",
-      "Threads cannot share memory",
-      "Processes are faster than threads",
+      "open('file.txt', 'r')",
+      "open('file.txt', 'w')",
+      "read('file.txt')",
+      "file.open('file.txt')",
     ],
-    correctIndex: 0, difficulty: "Easy", explanation: "Threads are lightweight execution units within a process, sharing the same address space and resources.",
+    correctIndex: 0, difficulty: "Easy", explanation: "open() with 'r' mode opens a file for reading.",
   },
   {
-    id: "q7", question: "What page replacement algorithm is optimal but impractical?", topic: "Virtual Memory",
-    options: ["LRU", "FIFO", "OPT (Bélády's)", "Clock"],
-    correctIndex: 2, difficulty: "Medium", explanation: "OPT replaces the page that won't be used for the longest time — optimal but requires future knowledge.",
+    id: "q7", question: "What is __init__ in a Python class?", topic: "OOP Basics",
+    options: ["Constructor method", "Destructor method", "Static method", "Class method"],
+    correctIndex: 0, difficulty: "Medium", explanation: "__init__ is the constructor method called when an object is instantiated.",
   },
 ];
 
 export const mockSyllabusRecommendations: SyllabusRecommendation[] = [
   {
     id: "r1", category: "Industry Alignment",
-    original: "Introduction to process scheduling",
-    suggestion: "Add container orchestration concepts (K8s scheduling) as real-world application of OS scheduling",
-    reason: "Bridges academic concepts with industry practices in cloud computing", accepted: null,
+    original: "Introduction to variables and data types",
+    suggestion: "Add real-world data processing examples using pandas basics as application of Python fundamentals",
+    reason: "Bridges academic concepts with industry practices in data science", accepted: null,
   },
   {
     id: "r2", category: "Experiential Learning",
-    original: "Memory management lecture",
-    suggestion: "Add hands-on lab: implement a simple memory allocator in C",
+    original: "Functions lecture",
+    suggestion: "Add hands-on lab: build a simple calculator using functions",
     reason: "Active coding reinforces theoretical concepts and builds practical skills", accepted: null,
   },
   {
     id: "r3", category: "Assessment Improvement",
-    original: "Written exam on file systems",
-    suggestion: "Replace with project-based assessment: design a mini file system with journaling",
+    original: "Written exam on file handling",
+    suggestion: "Replace with project-based assessment: build a simple file organizer script",
     reason: "Project work demonstrates deeper understanding than memorization", accepted: null,
   },
   {
     id: "r4", category: "Modern Topics",
-    original: "Traditional I/O systems coverage",
-    suggestion: "Include NVMe, SSDs, and modern storage architectures alongside traditional HDD concepts",
-    reason: "Students need exposure to current storage technologies used in industry", accepted: null,
+    original: "Traditional I/O coverage",
+    suggestion: "Include API calls and JSON handling alongside traditional file I/O",
+    reason: "Students need exposure to modern data interchange formats used in industry", accepted: null,
   },
 ];
 
 export const mockContentItems: ContentItem[] = [
-  { id: "c1", type: "concept", title: "Process Lifecycle", content: "A process goes through several states: New → Ready → Running → Waiting → Terminated. The OS scheduler manages transitions between these states.", topic: "Process Management", difficulty: "Easy", approved: true, flagged: false },
-  { id: "c2", type: "concept", title: "Round Robin Scheduling", content: "Round Robin assigns a fixed time quantum to each process. When the quantum expires, the process is preempted and moved to the back of the ready queue.", topic: "CPU Scheduling", difficulty: "Medium", approved: true, flagged: false },
-  { id: "c3", type: "practice", title: "Implement FCFS Scheduler", content: "Write a program that simulates First Come First Served scheduling. Given arrival times and burst times, calculate waiting time and turnaround time for each process.", topic: "CPU Scheduling", difficulty: "Medium", approved: false, flagged: false },
-  { id: "c4", type: "practice", title: "Page Replacement Simulation", content: "Implement LRU and FIFO page replacement algorithms. Compare their performance given a reference string and frame count.", topic: "Virtual Memory", difficulty: "Hard", approved: false, flagged: false },
-  { id: "c5", type: "exam", title: "Midterm: Scheduling & Memory", content: "Comprehensive exam covering Modules 1 and 2. 40% multiple choice, 30% short answer, 30% problem solving.", topic: "CPU Scheduling", difficulty: "Hard", approved: true, flagged: false },
-  { id: "c6", type: "exam", title: "Final: All Modules", content: "Cumulative exam covering all four modules with emphasis on concurrency and synchronization.", topic: "Deadlocks", difficulty: "Hard", approved: false, flagged: false },
+  { id: "c1", type: "concept", title: "Variables & Data Types", content: "Python has several built-in data types: int, float, str, bool, list, tuple, dict, set. Variables are dynamically typed.", topic: "Variables & Data Types", difficulty: "Easy", approved: true, flagged: false },
+  { id: "c2", type: "concept", title: "For Loops", content: "For loops iterate over sequences (lists, strings, ranges). Use 'for item in iterable:' syntax.", topic: "Control Flow", difficulty: "Medium", approved: true, flagged: false },
+  { id: "c3", type: "practice", title: "Build a Calculator", content: "Write a program that takes two numbers and an operator, then performs the calculation using functions.", topic: "Functions", difficulty: "Medium", approved: false, flagged: false },
+  { id: "c4", type: "practice", title: "List Comprehension Exercise", content: "Use list comprehensions to filter and transform data from a given list.", topic: "Lists & Dictionaries", difficulty: "Hard", approved: false, flagged: false },
+  { id: "c5", type: "exam", title: "Midterm: Fundamentals & Functions", content: "Comprehensive exam covering Modules 1 and 2. 40% multiple choice, 30% short answer, 30% coding.", topic: "Functions", difficulty: "Hard", approved: true, flagged: false },
+  { id: "c6", type: "exam", title: "Final: All Modules", content: "Cumulative exam covering all modules with emphasis on OOP and file handling.", topic: "OOP Basics", difficulty: "Hard", approved: false, flagged: false },
 ];
 
 export const mockDashboard: DashboardMetrics = {
   activeStudents: 47,
   totalSessions: 312,
-  topMisunderstood: ["Virtual Memory", "Deadlocks", "Synchronization", "Page Replacement", "Semaphores"],
+  topMisunderstood: ["Lists & Dictionaries", "Error Handling", "OOP Basics", "File Handling", "Functions"],
   masteryDistribution: { Beginner: 8, Developing: 18, Proficient: 15, Expert: 6 },
   atRiskCount: 5,
 };
@@ -128,7 +128,7 @@ export const defaultTASettings: TASettings = {
   plagiarismWarnings: true,
   examTimeLimit: 60,
   examDifficulty: "Mixed",
-  examQuestionMix: "40% MCQ, 30% Short Answer, 30% Problem Solving",
+  examQuestionMix: "40% MCQ, 30% Short Answer, 30% Coding",
 };
 
 export const availableDepartments = [
@@ -145,36 +145,33 @@ export const availableDepartments = [
 export const mockLearningChatMessages: ChatMessage[] = [
   {
     id: "m1", role: "assistant", timestamp: Date.now() - 300000,
-    content: "👋 Hi! I'm your AI Teaching Assistant for **Operating Systems**. I'm here to help you understand concepts, work through practice problems, and prepare for exams.\n\nWhat topic would you like to explore today? You can pick from the topic selector, or just ask me anything!",
+    content: "👋 Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through practice problems, and prepare for exams.\n\nWhat topic would you like to explore today? You can pick from the topic selector, or just ask me anything!",
   },
   {
     id: "m2", role: "user", timestamp: Date.now() - 280000,
-    content: "Can you explain how virtual memory works?",
+    content: "Can you explain how lists work in Python?",
   },
   {
     id: "m3", role: "assistant", timestamp: Date.now() - 270000,
-    content: "Great question! **Virtual Memory** is a memory management technique that creates an illusion of a very large main memory.\n\n### How it works:\n1. **Address Translation**: Each process gets its own virtual address space. The MMU (Memory Management Unit) translates virtual addresses to physical addresses.\n2. **Paging**: Memory is divided into fixed-size blocks called **pages** (virtual) and **frames** (physical).\n3. **Page Table**: Maps virtual pages to physical frames.\n4. **Demand Paging**: Pages are loaded into memory only when needed (on demand).\n\n### Why it matters:\n- Processes can use more memory than physically available\n- Provides memory isolation between processes\n- Enables efficient memory sharing\n\n**Quick check**: If a system has 4KB pages and a 32-bit virtual address space, how many entries does the page table need?",
+    content: "Great question! **Lists** are one of Python's most versatile data structures.\n\n### How they work:\n1. **Creation**: Use square brackets: `my_list = [1, 2, 3]`\n2. **Indexing**: Access elements by position: `my_list[0]` returns `1`\n3. **Slicing**: Get a sub-list: `my_list[1:3]` returns `[2, 3]`\n4. **Methods**: `.append()`, `.remove()`, `.sort()`, `.pop()`\n\n### Key features:\n- Lists are **mutable** (can be changed after creation)\n- They can hold **mixed types**: `[1, 'hello', True]`\n- **Nested lists** are possible: `[[1,2], [3,4]]`\n\n**Quick check**: What would `len([1, [2, 3], 4])` return?",
   },
   {
     id: "m4", role: "user", timestamp: Date.now() - 250000,
-    content: "Would it be 2^32 / 2^12 = 2^20 = about 1 million entries?",
+    content: "It would return 3 because [2, 3] counts as one element?",
   },
   {
     id: "m5", role: "assistant", timestamp: Date.now() - 240000,
-    content: "**Exactly right!** 🎉\n\n2^32 / 2^12 = 2^20 = **1,048,576 entries**\n\nYou divided the total address space (2^32 bytes) by the page size (4KB = 2^12 bytes) to get the number of pages.\n\nThis is actually one reason why **multi-level page tables** were invented — a single flat table with 1M entries would waste a lot of memory.\n\n**Follow-up challenge**: Can you think of why a two-level page table might save memory compared to a single-level one?\n\n*Hint: Think about which parts of the address space most processes actually use.*",
+    content: "**Exactly right!** 🎉\n\n`len([1, [2, 3], 4])` returns **3** because:\n- Element 0: `1`\n- Element 1: `[2, 3]` (the nested list counts as ONE element)\n- Element 2: `4`\n\nThe `len()` function counts top-level elements only.\n\n**Follow-up challenge**: How would you access the number `3` from inside the nested list `[1, [2, 3], 4]`?\n\n*Hint: You'll need two sets of square brackets.*",
   },
 ];
 
 export const mockExamChatMessages: ChatMessage[] = [
   {
     id: "e1", role: "assistant", timestamp: Date.now() - 100000,
-    content: "🎯 **Exam Prep Mode Active**\n\nWelcome to exam simulation for **Operating Systems — Midterm Exam**.\n\n**Rules:**\n- Time limit: 60 minutes\n- Questions: 15 (mix of MCQ, short answer, problem solving)\n- Limited hints available (per professor settings)\n- Your answers will be evaluated at the end\n\nReady to begin? Click **Start Simulation** or ask me to configure a custom practice session.",
+    content: "🎯 **Exam Prep Mode Active**\n\nWelcome to exam simulation for **Intro to Python**.\n\n**Rules:**\n- Time limit: 60 minutes\n- Questions: 15 (mix of MCQ, short answer, coding)\n- Your answers will be evaluated at the end\n\nReady to begin? Click **Start Exam** or **Start Daily Quiz** below. Once started, the chatbot will be disabled — you'll answer questions directly.\n\nGood luck!",
   },
 ];
 
 export const availableCourses = [
-  { code: "CS301", name: "Operating Systems" },
-  { code: "CS201", name: "Data Structures & Algorithms" },
-  { code: "CS401", name: "Machine Learning" },
-  { code: "CS350", name: "Computer Networks" },
+  { code: "PY101", name: "Intro to Python" },
 ];

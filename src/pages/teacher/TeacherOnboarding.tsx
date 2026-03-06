@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useApp } from "@/contexts/AppContext";
-import { availableCourses, availableDepartments, mockCourse } from "@/data/mockData";
+import { availableDepartments, mockCourse } from "@/data/mockData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,7 +25,8 @@ const TeacherOnboarding = () => {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("");
-  const [courseCode, setCourseCode] = useState("");
+  const courseCode = "PY101";
+  const courseName = "Intro to Python";
   const [sections, setSections] = useState<string[]>([]);
   const [sectionInput, setSectionInput] = useState("");
   const [term, setTerm] = useState("");
@@ -37,7 +38,7 @@ const TeacherOnboarding = () => {
   const [showUploadInfo, setShowUploadInfo] = useState(false);
   const [showBestPractice, setShowBestPractice] = useState(false);
 
-  const isValid = name.trim() && department && courseCode && sections.length > 0 && term && branch.trim() && studentYear && objectives.trim() && syllabusUploaded && materialsUploaded;
+  const isValid = name.trim() && department && sections.length > 0 && term && branch.trim() && studentYear && objectives.trim() && syllabusUploaded && materialsUploaded;
 
   const addSection = () => {
     const trimmed = sectionInput.trim();
@@ -52,15 +53,14 @@ const TeacherOnboarding = () => {
   };
 
   const handleContinue = () => {
-    const selectedCourse = availableCourses.find((c) => c.code === courseCode);
     setTeacherProfile({
       name,
       department,
-      courses: selectedCourse ? [selectedCourse.name] : [],
+      courses: [courseName],
     });
     setCurrentCourse({
       ...mockCourse,
-      name: selectedCourse?.name || mockCourse.name,
+      name: courseName,
       branch,
       term: (term as any) || mockCourse.term,
       sections: sections.length > 0 ? sections : mockCourse.sections,
@@ -94,13 +94,11 @@ const TeacherOnboarding = () => {
           </CardHeader>
           <CardContent>
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-              {/* Full Name */}
               <div className="space-y-2">
                 <Label>Full Name</Label>
                 <Input placeholder="Dr. Jane Smith" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
               </div>
 
-              {/* Department */}
               <div className="space-y-2">
                 <Label>Department</Label>
                 <Select value={department} onValueChange={setDepartment}>
@@ -113,20 +111,16 @@ const TeacherOnboarding = () => {
                 </Select>
               </div>
 
-              {/* Course */}
               <div className="space-y-2">
                 <Label>Course</Label>
-                <Select value={courseCode} onValueChange={setCourseCode}>
-                  <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
+                <Select value={courseCode} disabled>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {availableCourses.map((c) => (
-                      <SelectItem key={c.code} value={c.code}>{c.code} — {c.name}</SelectItem>
-                    ))}
+                    <SelectItem value="PY101">PY101 — Intro to Python</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Section(s) */}
               <div className="space-y-2">
                 <Label>Section(s)</Label>
                 <div className="flex gap-2">
@@ -155,7 +149,6 @@ const TeacherOnboarding = () => {
                 <p className="text-[11px] text-muted-foreground">For each section you teach, add them separately.</p>
               </div>
 
-              {/* Term & Branch */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Term</Label>
@@ -174,7 +167,6 @@ const TeacherOnboarding = () => {
                 </div>
               </div>
 
-              {/* Student Year */}
               <div className="space-y-2">
                 <Label>Student Year</Label>
                 <Select value={studentYear} onValueChange={setStudentYear}>
@@ -188,7 +180,6 @@ const TeacherOnboarding = () => {
                 </Select>
               </div>
 
-              {/* Learning Objectives */}
               <div className="space-y-2">
                 <Label>Learning Objectives <span className="text-destructive">*</span></Label>
                 <textarea
@@ -199,7 +190,6 @@ const TeacherOnboarding = () => {
                 />
               </div>
 
-              {/* Syllabus Upload */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Syllabus & Guidelines Upload</Label>
                 <p className="text-xs text-muted-foreground">Upload the following documents:</p>
@@ -227,7 +217,6 @@ const TeacherOnboarding = () => {
                 </div>
               </div>
 
-              {/* Teaching Materials Upload */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Upload Course Materials</Label>
                 <p className="text-xs text-muted-foreground">
@@ -255,7 +244,6 @@ const TeacherOnboarding = () => {
                   )}
                 </div>
 
-                {/* What happens to my uploads? */}
                 <button
                   onClick={() => setShowUploadInfo(true)}
                   className="flex items-center gap-1 text-xs text-primary hover:underline"
@@ -263,7 +251,6 @@ const TeacherOnboarding = () => {
                   <HelpCircle className="h-3 w-3" /> What happens to my uploads?
                 </button>
 
-                {/* Best Practice Format Standards */}
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 mt-2">
                   <button
                     onClick={() => setShowBestPractice(!showBestPractice)}
@@ -300,7 +287,6 @@ const TeacherOnboarding = () => {
           </CardContent>
         </Card>
 
-        {/* Upload Info Modal */}
         <Dialog open={showUploadInfo} onOpenChange={setShowUploadInfo}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>

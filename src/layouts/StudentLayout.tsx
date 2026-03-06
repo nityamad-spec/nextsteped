@@ -1,7 +1,6 @@
 import { Outlet, useNavigate } from "react-router-dom";
-import { Home, MessageSquare, TrendingUp, LogOut } from "lucide-react";
+import { Home, MessageSquare, TrendingUp, LogOut, MessageSquareHeart } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
-import { availableCourses } from "@/data/mockData";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
@@ -9,12 +8,13 @@ import { Badge } from "@/components/ui/badge";
 const studentNav = [
   { title: "Home", path: "/student/home", icon: Home, enabled: true },
   { title: "Teaching Assistant Chat", path: "/student/chat", icon: MessageSquare, enabled: true },
+  { title: "Feedback", path: "/student/feedback", icon: MessageSquareHeart, enabled: true },
   { title: "Progress", path: "/student/progress", icon: TrendingUp, enabled: false, badge: "Soon" },
 ];
 
 const StudentLayout = () => {
   const { currentCourse, studentProfile, resetAll } = useApp();
-  const courseName = currentCourse?.name || availableCourses.find(c => c.code === studentProfile?.courseCode)?.name || "Course";
+  const courseName = currentCourse?.name || "Course";
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
@@ -37,21 +37,15 @@ const StudentLayout = () => {
           <Outlet />
         </main>
         <nav className="flex border-t bg-card">
-          {studentNav.map((item) => (
+          {studentNav.filter(item => item.enabled).map((item) => (
             <NavLink
               key={item.path}
-              to={item.enabled ? item.path : "#"}
+              to={item.path}
               end={false}
-              className={`flex flex-1 flex-col items-center gap-1 py-2 ${item.enabled ? "text-muted-foreground" : "text-muted-foreground/40 pointer-events-none"}`}
+              className="flex flex-1 flex-col items-center gap-1 py-2 text-muted-foreground"
               activeClassName="text-primary"
-              onClick={(e) => !item.enabled && e.preventDefault()}
             >
-              <div className="relative">
-                <item.icon className="h-5 w-5" />
-                {item.badge && (
-                  <span className="absolute -right-3 -top-1 rounded-full bg-muted px-1 text-[7px] font-medium text-muted-foreground">{item.badge}</span>
-                )}
-              </div>
+              <item.icon className="h-5 w-5" />
               <span className="text-[10px]">{item.title.split(" ")[0]}</span>
             </NavLink>
           ))}
@@ -94,7 +88,6 @@ const StudentLayout = () => {
             )
           ))}
         </nav>
-
 
         {studentProfile && (
           <div className="border-t p-4">

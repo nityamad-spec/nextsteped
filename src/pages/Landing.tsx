@@ -1,8 +1,7 @@
 import { motion } from "framer-motion";
-import { GraduationCap, BookOpen, ArrowRight, Users, ShieldCheck } from "lucide-react";
+import { GraduationCap, BookOpen, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/contexts/AppContext";
-import { Badge } from "@/components/ui/badge";
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -75,43 +74,6 @@ const Landing = () => {
             Get started <ArrowRight className="h-4 w-4" />
           </div>
         </motion.button>
-
-        {/* Coming Soon roles */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="flex items-center gap-4 rounded-xl border bg-card p-6 opacity-60 cursor-not-allowed"
-        >
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-            <Users className="h-6 w-6" />
-          </div>
-          <div className="flex-1 text-left">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-foreground">TA / Coordinator</h3>
-              <Badge variant="secondary" className="text-[10px]">Coming Soon</Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">Assist professors and manage course sections.</p>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-          className="flex items-center gap-4 rounded-xl border bg-card p-6 opacity-60 cursor-not-allowed"
-        >
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-            <ShieldCheck className="h-6 w-6" />
-          </div>
-          <div className="flex-1 text-left">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-foreground">Dept Admin</h3>
-              <Badge variant="secondary" className="text-[10px]">Coming Soon</Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">Oversee department-wide analytics and policies.</p>
-          </div>
-        </motion.div>
       </div>
 
       <motion.p
