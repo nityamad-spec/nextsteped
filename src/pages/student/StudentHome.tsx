@@ -109,6 +109,17 @@ const StudentHome = () => {
         </div>
       </motion.div>
 
+      {/* Privacy notice */}
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 }} className="mb-5">
+        <div className="flex items-center gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Your data is private & anonymized.</span>{" "}
+            Your professor can only see aggregate class trends — never your individual chats, quiz answers, or performance data.
+          </p>
+        </div>
+      </motion.div>
+
       {/* Learning Timeline */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-6">
         <Card>
