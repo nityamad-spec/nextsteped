@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, CheckCircle, ClipboardList, AlertTriangle } from "lucide-react";
+import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, CheckCircle, ClipboardList, AlertTriangle, ShieldCheck } from "lucide-react";
 
 const AIChat = () => {
   const [searchParams] = useSearchParams();
