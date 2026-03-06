@@ -11,9 +11,7 @@ import TeacherOnboarding from "./pages/teacher/TeacherOnboarding";
 import MaterialQualityCheck from "./pages/teacher/MaterialQualityCheck";
 import CourseCreation from "./pages/teacher/CourseCreation";
 import AITASettings from "./pages/teacher/AITASettings";
-
 import PublishEnrollment from "./pages/teacher/PublishEnrollment";
-
 import CourseDashboard from "./pages/teacher/CourseDashboard";
 import StudentInsights from "./pages/teacher/StudentInsights";
 import Assessments from "./pages/teacher/Assessments";
@@ -24,9 +22,8 @@ import StudentOnboarding from "./pages/student/StudentOnboarding";
 import DiagnosticQuiz from "./pages/student/DiagnosticQuiz";
 import StudentHome from "./pages/student/StudentHome";
 import AIChat from "./pages/student/AIChat";
-import InterviewPrep from "./pages/student/InterviewPrep";
 import StudentProgress from "./pages/student/Progress";
-import Employers from "./pages/student/Employers";
+import Feedback from "./pages/student/Feedback";
 import ComingSoon from "./components/ComingSoon";
 import NotFound from "./pages/NotFound";
 
@@ -65,7 +62,6 @@ const App = () => (
             {/* Teacher dashboard routes (inside layout) */}
             <Route element={<TeacherLayout />}>
               <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
-              
               <Route path="/teacher/assessments" element={<Assessments />} />
               <Route path="/teacher/teaching-plan" element={<TeachingPlan />} />
               <Route path="/teacher/settings" element={<SettingsIntegrity />} />
@@ -79,6 +75,7 @@ const App = () => (
             <Route element={<StudentLayout />}>
               <Route path="/student/home" element={<StudentHome />} />
               <Route path="/student/chat" element={<AIChat />} />
+              <Route path="/student/feedback" element={<Feedback />} />
               <Route path="/student/progress" element={<StudentProgress />} />
             </Route>
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useApp } from "@/contexts/AppContext";
-import { availableCourses, mockCourse } from "@/data/mockData";
+import { mockCourse } from "@/data/mockData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,10 +15,13 @@ const StudentOnboarding = () => {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [rollNumber, setRollNumber] = useState("");
-  const [courseCode, setCourseCode] = useState("");
+  const [university, setUniversity] = useState("");
+  const [branch, setBranch] = useState("");
+  const [year, setYear] = useState("");
+  const courseCode = "PY101";
+  const courseName = "Intro to Python";
 
-  const isValid = name.trim() && rollNumber.trim() && courseCode;
-  const selectedCourse = availableCourses.find((c) => c.code === courseCode);
+  const isValid = name.trim() && rollNumber.trim() && university.trim() && branch.trim() && year;
 
   const handleComplete = () => {
     setStudentProfile({
@@ -27,11 +30,7 @@ const StudentOnboarding = () => {
       learnerLevel: "Beginner",
       topicBaseline: {},
     });
-    if (selectedCourse) {
-      setCurrentCourse({ ...mockCourse, id: selectedCourse.code.toLowerCase(), name: selectedCourse.name });
-    } else {
-      setCurrentCourse(mockCourse);
-    }
+    setCurrentCourse({ ...mockCourse, id: courseCode.toLowerCase(), name: courseName });
     setStudentOnboarded(true);
     navigate("/student/diagnostic");
   };
@@ -80,39 +79,68 @@ const StudentOnboarding = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Select Your Course</Label>
-                <Select value={courseCode} onValueChange={setCourseCode}>
+                <Label>University Name</Label>
+                <Input
+                  placeholder="Enter your university name"
+                  value={university}
+                  onChange={(e) => setUniversity(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Branch</Label>
+                <Input
+                  placeholder="e.g. Computer Science"
+                  value={branch}
+                  onChange={(e) => setBranch(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Year</Label>
+                <Select value={year} onValueChange={setYear}>
                   <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Choose a course..." />
+                    <SelectValue placeholder="Select your year" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableCourses.map((c) => (
-                      <SelectItem key={c.code} value={c.code}>
-                        <span className="font-medium">{c.code}</span>
-                        <span className="text-muted-foreground"> — {c.name}</span>
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="First Year">First Year</SelectItem>
+                    <SelectItem value="Second Year">Second Year</SelectItem>
+                    <SelectItem value="Third Year">Third Year</SelectItem>
+                    <SelectItem value="Fourth Year">Fourth Year</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {selectedCourse && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
-                  <Card className="border-primary/20 bg-primary/5">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                          <BookOpen className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{selectedCourse.name}</p>
-                          <p className="text-xs text-muted-foreground">Course Code: {selectedCourse.code}</p>
-                        </div>
+              <div className="space-y-2">
+                <Label>Your Course</Label>
+                <Select value={courseCode} disabled>
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PY101">
+                      <span className="font-medium">PY101</span>
+                      <span className="text-muted-foreground"> — Intro to Python</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
+                <Card className="border-primary/20 bg-primary/5">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <BookOpen className="h-5 w-5" />
                       </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              )}
+                      <div>
+                        <p className="text-sm font-medium">{courseName}</p>
+                        <p className="text-xs text-muted-foreground">Course Code: {courseCode}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
 
               <div className="flex justify-between pt-2">
                 <Button variant="ghost" onClick={() => navigate("/")}>
