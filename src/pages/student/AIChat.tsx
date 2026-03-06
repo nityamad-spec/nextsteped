@@ -6,8 +6,7 @@ import { mockLearningChatMessages, mockExamChatMessages } from "@/data/mockData"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal } from "lucide-react";
+import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, CheckCircle, ClipboardList } from "lucide-react";
 
 const AIChat = () => {
   const [searchParams] = useSearchParams();
@@ -26,6 +25,7 @@ const AIChat = () => {
   const [codeInput, setCodeInput] = useState("");
   const [codeResult, setCodeResult] = useState<string | null>(null);
   const [examStarted, setExamStarted] = useState(false);
+  const [quizStarted, setQuizStarted] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const chats = mode === "learning" ? learningChats : examChats;
@@ -41,6 +41,7 @@ const AIChat = () => {
       const targetMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
       setMode(targetMode);
       setExamStarted(false);
+      setQuizStarted(false);
       const newChat: ChatSession = {
         id: `chat-${Date.now()}`,
         title: targetMode === "learning" ? "New Study Session" : "New Exam Prep",
@@ -49,7 +50,7 @@ const AIChat = () => {
           id: `welcome-${Date.now()}`, role: "assistant", timestamp: Date.now(),
           content: targetMode === "learning"
             ? "Hi! I'm your AI Teaching Assistant for **Operating Systems**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?"
-            : "**Exam Prep Mode Active**\n\nWelcome to exam preparation. I'll present you with questions based on your professor's exam format.\n\nWhen you're ready, click **Start Exam** below. Once the exam begins, the chatbot will be disabled — you'll answer questions directly.\n\nGood luck!",
+            : "**Exam Prep Mode Active**\n\nWelcome to exam preparation. I'll present you with questions based on your professor's exam format.\n\nWhen you're ready, click **Start Exam** or **Start Daily Quiz** below. Once started, the chatbot will be disabled — you'll answer questions directly.\n\nGood luck!",
         }],
         createdAt: Date.now(), updatedAt: Date.now(),
       };
@@ -81,7 +82,7 @@ const AIChat = () => {
       setExamChats([initialChat]);
       setActiveExamChatId(initialChat.id);
     }
-    if (mode === "learning") setExamStarted(false);
+    if (mode === "learning") { setExamStarted(false); setQuizStarted(false); }
   }, [mode]);
 
   useEffect(() => {
@@ -90,6 +91,7 @@ const AIChat = () => {
 
   const createNewChat = () => {
     setExamStarted(false);
+    setQuizStarted(false);
     const newChat: ChatSession = {
       id: `chat-${Date.now()}`,
       title: mode === "learning" ? "New Study Session" : "New Exam Prep",
@@ -98,7 +100,7 @@ const AIChat = () => {
         id: `welcome-${Date.now()}`, role: "assistant", timestamp: Date.now(),
         content: mode === "learning"
           ? "Hi! I'm your AI Teaching Assistant for **Operating Systems**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?"
-          : "**Exam Prep Mode Active**\n\nWelcome to exam preparation. I'll present you with questions based on your professor's exam format.\n\nWhen you're ready, click **Start Exam** below. Once the exam begins, the chatbot will be disabled — you'll answer questions directly.\n\nGood luck!",
+          : "**Exam Prep Mode Active**\n\nWelcome to exam preparation. I'll present you with questions based on your professor's exam format.\n\nWhen you're ready, click **Start Exam** or **Start Daily Quiz** below. Once started, the chatbot will be disabled — you'll answer questions directly.\n\nGood luck!",
       }],
       createdAt: Date.now(), updatedAt: Date.now(),
     };
@@ -110,6 +112,7 @@ const AIChat = () => {
   const handleStartExam = () => {
     if (!activeChat) return;
     setExamStarted(true);
+    setQuizStarted(false);
     const examMsg: ChatMessage = {
       id: `exam-start-${Date.now()}`, role: "assistant", timestamp: Date.now(),
       content: "🎯 **Exam has started!**\n\nThe chatbot is now disabled. Answer the questions below.\n\n**Question 1 of 15:**\nWhat is the primary purpose of an operating system?\n\nA) To manage hardware resources and provide services to applications\nB) To compile source code into machine code\nC) To design user interfaces\nD) To store data permanently\n\nSelect your answer below.",
@@ -118,9 +121,35 @@ const AIChat = () => {
     setChats(chats.map((c) => (c.id === activeChat.id ? updatedChat : c)));
   };
 
+  const handleStartQuiz = () => {
+    if (!activeChat) return;
+    setQuizStarted(true);
+    setExamStarted(false);
+    const quizMsg: ChatMessage = {
+      id: `quiz-start-${Date.now()}`, role: "assistant", timestamp: Date.now(),
+      content: "📝 **Daily Quiz has started!**\n\nThe chatbot is now disabled. Answer the questions below.\n\n**Question 1 of 5:**\nWhich scheduling algorithm gives the minimum average waiting time?\n\nA) First-Come, First-Served (FCFS)\nB) Shortest Job First (SJF)\nC) Round Robin\nD) Priority Scheduling\n\nSelect your answer below.",
+    };
+    const updatedChat = { ...activeChat, messages: [...activeChat.messages, quizMsg], updatedAt: Date.now() };
+    setChats(chats.map((c) => (c.id === activeChat.id ? updatedChat : c)));
+  };
+
+  const handleSubmit = () => {
+    if (!activeChat) return;
+    const submitMsg: ChatMessage = {
+      id: `submit-${Date.now()}`, role: "assistant", timestamp: Date.now(),
+      content: examStarted
+        ? "✅ **Exam submitted!**\n\nYour answers have been recorded. You answered 15 questions.\n\nResults will be available shortly. Great effort!"
+        : "✅ **Daily Quiz submitted!**\n\nYour answers have been recorded. You answered 5 questions.\n\nResults will be available shortly. Nice work!",
+    };
+    const updatedChat = { ...activeChat, messages: [...activeChat.messages, submitMsg], updatedAt: Date.now() };
+    setChats(chats.map((c) => (c.id === activeChat.id ? updatedChat : c)));
+    setExamStarted(false);
+    setQuizStarted(false);
+  };
+
   const sendMessage = () => {
     if (!input.trim() || !activeChat) return;
-    if (mode === "exam" && examStarted) return;
+    if (mode === "exam" && (examStarted || quizStarted)) return;
     
     const userMsg: ChatMessage = { id: `msg-${Date.now()}`, role: "user", content: input, timestamp: Date.now() };
     const updatedChat = { ...activeChat, messages: [...activeChat.messages, userMsg], updatedAt: Date.now() };
@@ -156,7 +185,8 @@ const AIChat = () => {
     </div>
   );
 
-  const isChatDisabled = mode === "exam" && examStarted;
+  const isChatDisabled = mode === "exam" && (examStarted || quizStarted);
+  const isAssessmentActive = examStarted || quizStarted;
 
   return (
     <div className="flex h-[calc(100vh-57px)] md:h-screen">
@@ -179,7 +209,7 @@ const AIChat = () => {
               chats.map((chat) => (
                 <button
                   key={chat.id}
-                  onClick={() => { setActiveChatId(chat.id); setShowHistory(false); setExamStarted(false); }}
+                  onClick={() => { setActiveChatId(chat.id); setShowHistory(false); setExamStarted(false); setQuizStarted(false); }}
                   className={`w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
                     chat.id === activeChatId ? "bg-sidebar-accent font-medium" : "hover:bg-sidebar-accent/50"
                   }`}
@@ -203,7 +233,7 @@ const AIChat = () => {
             <button onClick={() => setShowHistory(!showHistory)} className="rounded-lg p-2 hover:bg-muted transition-colors" title="Chat History">
               <History className="h-5 w-5" />
             </button>
-            <Tabs value={mode} onValueChange={(v) => { setMode(v as "learning" | "exam"); setShowHistory(false); setExamStarted(false); }}>
+            <Tabs value={mode} onValueChange={(v) => { setMode(v as "learning" | "exam"); setShowHistory(false); setExamStarted(false); setQuizStarted(false); }}>
               <TabsList className="h-10">
                 <TabsTrigger value="learning" className="text-sm px-5 h-8 gap-2">
                   <BookOpen className="h-4 w-4" /> Study
@@ -221,19 +251,27 @@ const AIChat = () => {
           </div>
         </div>
 
-        {/* Exam start button bar (only in exam mode, before exam starts) */}
-        {mode === "exam" && !examStarted && activeChat && (
-          <div className="flex items-center justify-center border-b bg-muted/20 px-5 py-3">
+        {/* Exam/Quiz start buttons (only in exam mode, before any assessment starts) */}
+        {mode === "exam" && !isAssessmentActive && activeChat && (
+          <div className="flex items-center justify-center gap-3 border-b bg-muted/20 px-5 py-3">
             <Button onClick={handleStartExam} className="gap-2">
               <Clock className="h-4 w-4" /> Start Exam
+            </Button>
+            <Button onClick={handleStartQuiz} variant="secondary" className="gap-2">
+              <ClipboardList className="h-4 w-4" /> Start Daily Quiz
             </Button>
           </div>
         )}
 
-        {/* Exam started banner */}
+        {/* Assessment active banner + submit button */}
         {isChatDisabled && (
-          <div className="flex items-center justify-center border-b bg-destructive/10 px-5 py-2">
-            <p className="text-sm font-medium text-destructive">Exam in progress — chatbot is disabled</p>
+          <div className="flex items-center justify-between border-b bg-destructive/10 px-5 py-2">
+            <p className="text-sm font-medium text-destructive">
+              {examStarted ? "Exam" : "Daily Quiz"} in progress — chatbot is disabled
+            </p>
+            <Button onClick={handleSubmit} variant="destructive" size="sm" className="gap-2">
+              <CheckCircle className="h-4 w-4" /> Submit {examStarted ? "Exam" : "Quiz"}
+            </Button>
           </div>
         )}
 
@@ -292,7 +330,7 @@ const AIChat = () => {
         <div className="border-t p-4">
           <div className="flex gap-2">
             <Input
-              placeholder={isChatDisabled ? "Chatbot disabled during exam..." : mode === "learning" ? "Ask your Teaching Assistant anything..." : "Ask about exam topics or start a simulation..."}
+              placeholder={isChatDisabled ? "Chatbot disabled during assessment..." : mode === "learning" ? "Ask your Teaching Assistant anything..." : "Ask about exam topics or start a simulation..."}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
