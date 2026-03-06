@@ -301,7 +301,7 @@ const TeachingPlan = () => {
             <Card key={wp.id}>
               <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => toggleWeek(wp.id)}>
                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <Badge variant="outline" className="shrink-0 text-xs">Week {wp.week}</Badge>
+                  <Badge variant="outline" className="shrink-0 text-xs">Day {wp.week}</Badge>
                   {isEditing ? (
                     <div className="flex items-center gap-2 flex-1" onClick={(e) => e.stopPropagation()}>
                       <Input value={editDates} onChange={(e) => setEditDates(e.target.value)} className="h-7 w-28 text-xs" />
