@@ -315,13 +315,24 @@ const AIChat = () => {
           } catch { /* ignore */ }
         }
       }
+      // Commit final message to chat history
+      if (assistantContent) {
+        const finalMsg: ChatMessage = { id: assistantMsgId, role: "assistant", content: assistantContent, timestamp: Date.now() };
+        const currentChats = mode === "learning" ? learningChats : examChats;
+        const updatedChats = currentChats.map((c) => {
+          if (c.id !== activeChat.id) return c;
+          return { ...c, messages: [...c.messages.filter(m => m.id !== assistantMsgId), finalMsg], updatedAt: Date.now() };
+        });
+        setChats(updatedChats);
+      }
     } catch (e) {
       console.error("Chat error:", e);
       toast.error("Failed to connect to AI. Please try again.");
     } finally {
       setIsStreaming(false);
+      setStreamingMessage(null);
     }
-  }, [input, activeChat, isStreaming, mode, isAssessmentActive, chats, setChats]);
+  }, [input, activeChat, isStreaming, mode, isAssessmentActive, chats, setChats, learningChats, examChats]);
 
   const handleCodeSubmit = () => {
     if (!codeInput.trim()) return;
