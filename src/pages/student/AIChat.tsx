@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
-import { useApp } from "@/contexts/AppContext";
-import { ChatMessage, ChatSession } from "@/types";
-import { mockLearningChatMessages, mockExamChatMessages } from "@/data/mockData";
+import { useAuth } from "@/contexts/AuthContext";
+import { useChatSessions } from "@/hooks/useChatSessions";
+import { ChatMessage } from "@/types";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,17 +10,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, CheckCircle, ClipboardList, AlertTriangle, ShieldCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+const WELCOME_LEARNING = "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?";
+const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. I'll present you with questions based on your professor's exam format.\n\nWhen you're ready, click **Start Exam** or **Start Daily Quiz** below. Once started, the chatbot will be disabled — you'll answer questions directly.\n\nGood luck!";
+
 const AIChat = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const initialMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
-  const {
-    learningChats, setLearningChats,
-    examChats, setExamChats,
-    activeLearningChatId, setActiveLearningChatId,
-    activeExamChatId, setActiveExamChatId,
-  } = useApp();
 
   const [mode, setMode] = useState<"learning" | "exam">(initialMode);
   const [input, setInput] = useState("");
@@ -36,24 +34,29 @@ const AIChat = () => {
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const chats = mode === "learning" ? learningChats : examChats;
-  const setChats = mode === "learning" ? setLearningChats : setExamChats;
-  const activeChatId = mode === "learning" ? activeLearningChatId : activeExamChatId;
-  const setActiveChatId = mode === "learning" ? setActiveLearningChatId : setActiveExamChatId;
+  const {
+    sessions: chats,
+    activeSession: activeChat,
+    activeSessionId: activeChatId,
+    setActiveSessionId: setActiveChatId,
+    loading: chatsLoading,
+    createSession,
+    addMessage,
+    addMessageLocally,
+    updateLastMessage,
+    updateSessionTitle,
+  } = useChatSessions(mode);
 
-  const activeChat = chats.find((c) => c.id === activeChatId) || null;
   const isAssessmentActive = examStarted || quizStarted;
   const isChatDisabled = mode === "exam" && isAssessmentActive;
 
   // Intercept tab switching during assessment
   useEffect(() => {
     if (!isAssessmentActive) return;
-
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
-
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isAssessmentActive]);
@@ -61,7 +64,6 @@ const AIChat = () => {
   // Watch for navigation attempts via clicking sidebar links
   useEffect(() => {
     if (!isAssessmentActive) return;
-
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const anchor = target.closest("a");
@@ -75,22 +77,16 @@ const AIChat = () => {
         }
       }
     };
-
     document.addEventListener("click", handleClick, true);
     return () => document.removeEventListener("click", handleClick, true);
   }, [isAssessmentActive, location.pathname]);
 
   const handleConfirmLeave = () => {
-    // End the assessment
     if (activeChat) {
-      const endMsg: ChatMessage = {
-        id: `auto-end-${Date.now()}`, role: "assistant", timestamp: Date.now(),
-        content: examStarted
-          ? "⚠️ **Exam ended** — you navigated away from the exam page. Your progress has been **discarded** and will not be submitted."
-          : "⚠️ **Daily Quiz ended** — you navigated away from the quiz page. Your progress has been **discarded** and will not be submitted.",
-      };
-      const updatedChat = { ...activeChat, messages: [...activeChat.messages, endMsg], updatedAt: Date.now() };
-      setChats(chats.map((c) => (c.id === activeChat.id ? updatedChat : c)));
+      const endContent = examStarted
+        ? "⚠️ **Exam ended** — you navigated away from the exam page. Your progress has been **discarded** and will not be submitted."
+        : "⚠️ **Daily Quiz ended** — you navigated away from the quiz page. Your progress has been **discarded** and will not be submitted.";
+      addMessage(activeChat.id, "assistant", endContent);
     }
     setExamStarted(false);
     setQuizStarted(false);
@@ -106,53 +102,28 @@ const AIChat = () => {
     setPendingNavigation(null);
   };
 
+  // Auto-create first session if none exist (after loading)
+  useEffect(() => {
+    if (chatsLoading || chats.length > 0 || !user) return;
+    const welcome = mode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
+    const title = mode === "learning" ? "New Study Session" : "New Exam Prep";
+    createSession(title, welcome);
+  }, [chatsLoading, chats.length, user, mode]);
+
+  // Handle ?newchat=true param
   useEffect(() => {
     const shouldNewChat = searchParams.get("newchat") === "true";
-    if (shouldNewChat) {
-      const targetMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
-      setMode(targetMode);
-      setExamStarted(false);
-      setQuizStarted(false);
-      const newChat: ChatSession = {
-        id: `chat-${Date.now()}`,
-        title: targetMode === "learning" ? "New Study Session" : "New Exam Prep",
-        mode: targetMode,
-        messages: [{
-          id: `welcome-${Date.now()}`, role: "assistant", timestamp: Date.now(),
-          content: targetMode === "learning"
-            ? "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?"
-            : "**Exam Prep Mode Active**\n\nWelcome to exam preparation. I'll present you with questions based on your professor's exam format.\n\nWhen you're ready, click **Start Exam** or **Start Daily Quiz** below. Once started, the chatbot will be disabled — you'll answer questions directly.\n\nGood luck!",
-        }],
-        createdAt: Date.now(), updatedAt: Date.now(),
-      };
-      if (targetMode === "learning") {
-        setLearningChats([...learningChats, newChat]);
-        setActiveLearningChatId(newChat.id);
-      } else {
-        setExamChats([...examChats, newChat]);
-        setActiveExamChatId(newChat.id);
-      }
-      return;
-    }
+    if (!shouldNewChat || !user) return;
+    const targetMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
+    setMode(targetMode);
+    setExamStarted(false);
+    setQuizStarted(false);
+    const welcome = targetMode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
+    const title = targetMode === "learning" ? "New Study Session" : "New Exam Prep";
+    createSession(title, welcome);
   }, []);
 
   useEffect(() => {
-    if (mode === "learning" && learningChats.length === 0) {
-      const initialChat: ChatSession = {
-        id: "initial-learning", title: "Python Study Session", mode: "learning",
-        messages: mockLearningChatMessages, createdAt: Date.now() - 300000, updatedAt: Date.now(),
-      };
-      setLearningChats([initialChat]);
-      setActiveLearningChatId(initialChat.id);
-    }
-    if (mode === "exam" && examChats.length === 0) {
-      const initialChat: ChatSession = {
-        id: "initial-exam", title: "Exam Prep", mode: "exam",
-        messages: mockExamChatMessages, createdAt: Date.now() - 100000, updatedAt: Date.now(),
-      };
-      setExamChats([initialChat]);
-      setActiveExamChatId(initialChat.id);
-    }
     if (mode === "learning") { setExamStarted(false); setQuizStarted(false); }
   }, [mode]);
 
@@ -160,60 +131,46 @@ const AIChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeChat?.messages.length, streamingMessage?.content]);
 
-  const createNewChat = () => {
+  const createNewChat = async () => {
     setExamStarted(false);
     setQuizStarted(false);
-    const newChat: ChatSession = {
-      id: `chat-${Date.now()}`,
-      title: mode === "learning" ? "New Study Session" : "New Exam Prep",
-      mode,
-      messages: [{
-        id: `welcome-${Date.now()}`, role: "assistant", timestamp: Date.now(),
-        content: mode === "learning"
-          ? "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?"
-          : "**Exam Prep Mode Active**\n\nWelcome to exam preparation. I'll present you with questions based on your professor's exam format.\n\nWhen you're ready, click **Start Exam** or **Start Daily Quiz** below. Once started, the chatbot will be disabled — you'll answer questions directly.\n\nGood luck!",
-      }],
-      createdAt: Date.now(), updatedAt: Date.now(),
-    };
-    setChats([...chats, newChat]);
-    setActiveChatId(newChat.id);
+    const welcome = mode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
+    const title = mode === "learning" ? "New Study Session" : "New Exam Prep";
+    await createSession(title, welcome);
     setShowHistory(false);
   };
 
-  const handleStartExam = () => {
+  const handleStartExam = async () => {
     if (!activeChat) return;
     setExamStarted(true);
     setQuizStarted(false);
-    const examMsg: ChatMessage = {
-      id: `exam-start-${Date.now()}`, role: "assistant", timestamp: Date.now(),
-      content: "🎯 **Exam has started!**\n\nThe chatbot is now disabled. Answer the questions below.\n\n**Question 1 of 15:**\nWhat is the output of `print(type(3.14))`?\n\nA) `<class 'int'>`\nB) `<class 'float'>`\nC) `<class 'str'>`\nD) `<class 'number'>`\n\nSelect your answer below.",
-    };
-    const updatedChat = { ...activeChat, messages: [...activeChat.messages, examMsg], updatedAt: Date.now() };
-    setChats(chats.map((c) => (c.id === activeChat.id ? updatedChat : c)));
+    await addMessage(
+      activeChat.id,
+      "assistant",
+      "🎯 **Exam has started!**\n\nThe chatbot is now disabled. Answer the questions below.\n\n**Question 1 of 15:**\nWhat is the output of `print(type(3.14))`?\n\nA) `<class 'int'>`\nB) `<class 'float'>`\nC) `<class 'str'>`\nD) `<class 'number'>`\n\nSelect your answer below."
+    );
   };
 
-  const handleStartQuiz = () => {
+  const handleStartQuiz = async () => {
     if (!activeChat) return;
     setQuizStarted(true);
     setExamStarted(false);
-    const quizMsg: ChatMessage = {
-      id: `quiz-start-${Date.now()}`, role: "assistant", timestamp: Date.now(),
-      content: "📝 **Daily Quiz has started!**\n\nThe chatbot is now disabled. Answer the questions below.\n\n**Question 1 of 5:**\nWhich keyword is used to define a function in Python?\n\nA) `function`\nB) `def`\nC) `func`\nD) `define`\n\nSelect your answer below.",
-    };
-    const updatedChat = { ...activeChat, messages: [...activeChat.messages, quizMsg], updatedAt: Date.now() };
-    setChats(chats.map((c) => (c.id === activeChat.id ? updatedChat : c)));
+    await addMessage(
+      activeChat.id,
+      "assistant",
+      "📝 **Daily Quiz has started!**\n\nThe chatbot is now disabled. Answer the questions below.\n\n**Question 1 of 5:**\nWhich keyword is used to define a function in Python?\n\nA) `function`\nB) `def`\nC) `func`\nD) `define`\n\nSelect your answer below."
+    );
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!activeChat) return;
-    const submitMsg: ChatMessage = {
-      id: `submit-${Date.now()}`, role: "assistant", timestamp: Date.now(),
-      content: examStarted
+    await addMessage(
+      activeChat.id,
+      "assistant",
+      examStarted
         ? "✅ **Exam submitted!**\n\nYour answers have been recorded. You answered 15 questions.\n\nResults will be available shortly. Great effort!"
-        : "✅ **Daily Quiz submitted!**\n\nYour answers have been recorded. You answered 5 questions.\n\nResults will be available shortly. Nice work!",
-    };
-    const updatedChat = { ...activeChat, messages: [...activeChat.messages, submitMsg], updatedAt: Date.now() };
-    setChats(chats.map((c) => (c.id === activeChat.id ? updatedChat : c)));
+        : "✅ **Daily Quiz submitted!**\n\nYour answers have been recorded. You answered 5 questions.\n\nResults will be available shortly. Nice work!"
+    );
     setExamStarted(false);
     setQuizStarted(false);
   };
@@ -222,19 +179,27 @@ const AIChat = () => {
     if (!input.trim() || !activeChat || isStreaming) return;
     if (mode === "exam" && isAssessmentActive) return;
 
-    const userMsg: ChatMessage = { id: `msg-${Date.now()}`, role: "user", content: input, timestamp: Date.now() };
-    const assistantMsgId = `msg-${Date.now() + 1}`;
-    const chatWithUser = { ...activeChat, messages: [...activeChat.messages, userMsg], updatedAt: Date.now() };
-    setChats(chats.map((c) => (c.id === activeChat.id ? chatWithUser : c)));
+    const userContent = input;
     setInput("");
     setIsStreaming(true);
 
+    // Save user message to DB
+    await addMessage(activeChat.id, "user", userContent);
+
+    // Auto-title: if this is the first user message, update session title
+    const userMsgCount = activeChat.messages.filter((m) => m.role === "user").length;
+    if (userMsgCount === 0) {
+      const shortTitle = userContent.slice(0, 50) + (userContent.length > 50 ? "..." : "");
+      updateSessionTitle(activeChat.id, shortTitle);
+    }
+
     // Build message history for the AI (last 20 messages for context)
-    const historyMessages = [...activeChat.messages, userMsg]
+    const historyMessages = [...activeChat.messages, { id: "temp", role: "user" as const, content: userContent, timestamp: Date.now() }]
       .slice(-20)
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
     const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+    const assistantMsgId = `streaming-${Date.now()}`;
 
     try {
       const resp = await fetch(CHAT_URL, {
@@ -315,15 +280,10 @@ const AIChat = () => {
           } catch { /* ignore */ }
         }
       }
-      // Commit final message to chat history
+
+      // Save final assistant message to DB
       if (assistantContent) {
-        const finalMsg: ChatMessage = { id: assistantMsgId, role: "assistant", content: assistantContent, timestamp: Date.now() };
-        const currentChats = mode === "learning" ? learningChats : examChats;
-        const updatedChats = currentChats.map((c) => {
-          if (c.id !== activeChat.id) return c;
-          return { ...c, messages: [...c.messages.filter(m => m.id !== assistantMsgId), finalMsg], updatedAt: Date.now() };
-        });
-        setChats(updatedChats);
+        await addMessage(activeChat.id, "assistant", assistantContent);
       }
     } catch (e) {
       console.error("Chat error:", e);
@@ -332,7 +292,7 @@ const AIChat = () => {
       setIsStreaming(false);
       setStreamingMessage(null);
     }
-  }, [input, activeChat, isStreaming, mode, isAssessmentActive, chats, setChats, learningChats, examChats]);
+  }, [input, activeChat, isStreaming, mode, isAssessmentActive, addMessage, updateSessionTitle]);
 
   const handleCodeSubmit = () => {
     if (!codeInput.trim()) return;
@@ -463,7 +423,11 @@ const AIChat = () => {
 
         {/* Messages */}
         <div className="flex-1 overflow-auto p-4 space-y-4">
-          {activeChat ? (
+          {chatsLoading ? (
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : activeChat ? (
             <>
               {activeChat.messages.map(renderMessage)}
               {streamingMessage && renderMessage(streamingMessage)}
