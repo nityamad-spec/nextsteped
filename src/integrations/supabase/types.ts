@@ -16,19 +16,19 @@ export type Database = {
     Tables: {
       branches: {
         Row: {
-          created_at: string | null
+          created_at: string
           degree_id: string
           id: string
           name: string
         }
         Insert: {
-          created_at?: string | null
+          created_at?: string
           degree_id: string
           id?: string
           name: string
         }
         Update: {
-          created_at?: string | null
+          created_at?: string
           degree_id?: string
           id?: string
           name?: string
@@ -181,17 +181,17 @@ export type Database = {
       }
       degrees: {
         Row: {
-          created_at: string | null
+          created_at: string
           id: string
           name: string
         }
         Insert: {
-          created_at?: string | null
+          created_at?: string
           id?: string
           name: string
         }
         Update: {
-          created_at?: string | null
+          created_at?: string
           id?: string
           name?: string
         }
@@ -345,17 +345,17 @@ export type Database = {
       }
       universities: {
         Row: {
-          created_at: string | null
+          created_at: string
           id: string
           name: string
         }
         Insert: {
-          created_at?: string | null
+          created_at?: string
           id?: string
           name: string
         }
         Update: {
-          created_at?: string | null
+          created_at?: string
           id?: string
           name?: string
         }
