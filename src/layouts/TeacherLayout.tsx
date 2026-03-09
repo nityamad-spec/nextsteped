@@ -1,6 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { BookOpen, Users, ClipboardCheck, Settings, HelpCircle, LogOut, FileText } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -14,11 +15,13 @@ const teacherNav = [
 
 const TeacherLayout = () => {
   const { currentCourse, resetAll } = useApp();
+  const { signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     resetAll();
     navigate("/");
   };
@@ -80,7 +83,7 @@ const TeacherLayout = () => {
         <div className="border-t p-3 space-y-1">
           <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent">
             <LogOut className="h-4 w-4" />
-            Switch Role
+            Sign Out
           </button>
         </div>
       </aside>

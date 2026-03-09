@@ -1,6 +1,7 @@
 import { Outlet, useNavigate } from "react-router-dom";
 import { Home, MessageSquare, TrendingUp, LogOut, MessageSquareHeart } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
@@ -14,11 +15,13 @@ const studentNav = [
 
 const StudentLayout = () => {
   const { currentCourse, studentProfile, resetAll } = useApp();
+  const { signOut } = useAuth();
   const courseName = currentCourse?.name || "Course";
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     resetAll();
     navigate("/");
   };
@@ -100,7 +103,7 @@ const StudentLayout = () => {
         <div className="border-t p-3">
           <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent">
             <LogOut className="h-4 w-4" />
-            Switch Role
+            Sign Out
           </button>
         </div>
       </aside>
