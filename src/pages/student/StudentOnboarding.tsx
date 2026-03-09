@@ -97,16 +97,17 @@ const StudentOnboarding = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Year</Label>
+                <Label>Graduation Year</Label>
                 <Select value={year} onValueChange={setYear}>
                   <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Select your year" />
+                    <SelectValue placeholder="Select graduation year" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="First Year">First Year</SelectItem>
-                    <SelectItem value="Second Year">Second Year</SelectItem>
-                    <SelectItem value="Third Year">Third Year</SelectItem>
-                    <SelectItem value="Fourth Year">Fourth Year</SelectItem>
+                    <SelectItem value="2027">2027</SelectItem>
+                    <SelectItem value="2028">2028</SelectItem>
+                    <SelectItem value="2029">2029</SelectItem>
+                    <SelectItem value="2030">2030</SelectItem>
+                    <SelectItem value="2031">2031</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
