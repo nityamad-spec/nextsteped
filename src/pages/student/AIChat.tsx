@@ -158,7 +158,7 @@ const AIChat = () => {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeChat?.messages.length]);
+  }, [activeChat?.messages.length, streamingMessage?.content]);
 
   const createNewChat = () => {
     setExamStarted(false);
