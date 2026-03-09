@@ -15,11 +15,13 @@ const teacherNav = [
 
 const TeacherLayout = () => {
   const { currentCourse, resetAll } = useApp();
+  const { signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     resetAll();
     navigate("/");
   };
