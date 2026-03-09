@@ -217,24 +217,124 @@ const AIChat = () => {
     setQuizStarted(false);
   };
 
-  const sendMessage = () => {
-    if (!input.trim() || !activeChat) return;
+  const sendMessage = useCallback(async () => {
+    if (!input.trim() || !activeChat || isStreaming) return;
     if (mode === "exam" && isAssessmentActive) return;
-    
-    const userMsg: ChatMessage = { id: `msg-${Date.now()}`, role: "user", content: input, timestamp: Date.now() };
-    const updatedChat = { ...activeChat, messages: [...activeChat.messages, userMsg], updatedAt: Date.now() };
-    setChats(chats.map((c) => (c.id === activeChat.id ? updatedChat : c)));
-    setInput("");
 
-    setTimeout(() => {
-      const aiMsg: ChatMessage = {
-        id: `msg-${Date.now() + 1}`, role: "assistant", timestamp: Date.now(),
-        content: "That's a great question! Let me break this down for you.\n\n### Key Concept\nThe answer involves understanding how Python handles this operation. Here's a step-by-step explanation:\n\n1. **First**, Python checks the variable type\n2. **Then**, it applies the operation\n3. **Finally**, it returns the result\n\n**Try this**: Can you think of a scenario where this might behave differently?\n\n*Hint: Think about type coercion.*",
-      };
-      const updatedChats = chats.map((c) => (c.id === activeChat.id ? { ...c, messages: [...c.messages, userMsg, aiMsg], updatedAt: Date.now() } : c));
-      setChats(updatedChats);
-    }, 1200);
-  };
+    const userMsg: ChatMessage = { id: `msg-${Date.now()}`, role: "user", content: input, timestamp: Date.now() };
+    const assistantMsgId = `msg-${Date.now() + 1}`;
+    const chatWithUser = { ...activeChat, messages: [...activeChat.messages, userMsg], updatedAt: Date.now() };
+    setChats(chats.map((c) => (c.id === activeChat.id ? chatWithUser : c)));
+    setInput("");
+    setIsStreaming(true);
+
+    // Build message history for the AI (last 20 messages for context)
+    const historyMessages = [...activeChat.messages, userMsg]
+      .slice(-20)
+      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+    const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+
+    try {
+      const resp = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ messages: historyMessages, mode }),
+      });
+
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => ({ error: "AI service error" }));
+        toast.error(errorData.error || "Failed to get AI response");
+        setIsStreaming(false);
+        return;
+      }
+
+      if (!resp.body) {
+        toast.error("No response from AI");
+        setIsStreaming(false);
+        return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let textBuffer = "";
+      let assistantContent = "";
+      let streamDone = false;
+
+      while (!streamDone) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        textBuffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
+          if (!line.startsWith("data: ")) continue;
+
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") { streamDone = true; break; }
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+            if (content) {
+              assistantContent += content;
+              const aiMsg: ChatMessage = { id: assistantMsgId, role: "assistant", content: assistantContent, timestamp: Date.now() };
+              setChats((prev) =>
+                prev.map((c) => {
+                  if (c.id !== activeChat.id) return c;
+                  const msgs = c.messages.filter((m) => m.id !== assistantMsgId);
+                  return { ...c, messages: [...msgs, aiMsg], updatedAt: Date.now() };
+                })
+              );
+            }
+          } catch {
+            textBuffer = line + "\n" + textBuffer;
+            break;
+          }
+        }
+      }
+
+      // Final flush
+      if (textBuffer.trim()) {
+        for (let raw of textBuffer.split("\n")) {
+          if (!raw) continue;
+          if (raw.endsWith("\r")) raw = raw.slice(0, -1);
+          if (raw.startsWith(":") || raw.trim() === "") continue;
+          if (!raw.startsWith("data: ")) continue;
+          const jsonStr = raw.slice(6).trim();
+          if (jsonStr === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+            if (content) {
+              assistantContent += content;
+              const aiMsg: ChatMessage = { id: assistantMsgId, role: "assistant", content: assistantContent, timestamp: Date.now() };
+              setChats((prev) =>
+                prev.map((c) => {
+                  if (c.id !== activeChat.id) return c;
+                  const msgs = c.messages.filter((m) => m.id !== assistantMsgId);
+                  return { ...c, messages: [...msgs, aiMsg], updatedAt: Date.now() };
+                })
+              );
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    } catch (e) {
+      console.error("Chat error:", e);
+      toast.error("Failed to connect to AI. Please try again.");
+    } finally {
+      setIsStreaming(false);
+    }
+  }, [input, activeChat, isStreaming, mode, isAssessmentActive, chats, setChats]);
 
   const handleCodeSubmit = () => {
     if (!codeInput.trim()) return;
