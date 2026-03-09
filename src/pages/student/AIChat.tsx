@@ -33,8 +33,6 @@ const AIChat = () => {
   const [showLeaveWarning, setShowLeaveWarning] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const chatsRef = useRef(chats);
-  chatsRef.current = chats;
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const chats = mode === "learning" ? learningChats : examChats;
