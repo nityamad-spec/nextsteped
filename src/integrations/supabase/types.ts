@@ -14,6 +14,35 @@ export type Database = {
   }
   public: {
     Tables: {
+      branches: {
+        Row: {
+          created_at: string
+          degree_id: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          degree_id: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          degree_id?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branches_degree_id_fkey"
+            columns: ["degree_id"]
+            isOneToOne: false
+            referencedRelation: "degrees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_messages: {
         Row: {
           code_content: string | null
@@ -150,6 +179,24 @@ export type Database = {
         }
         Relationships: []
       }
+      degrees: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       enrollments: {
         Row: {
           course_id: string
@@ -181,36 +228,67 @@ export type Database = {
       }
       profiles: {
         Row: {
+          branch_id: string | null
           created_at: string
+          degree_id: string | null
           department: string | null
           graduation_year: string | null
           id: string
           learner_level: string | null
           name: string
           role: string
+          university_id: string | null
           updated_at: string
         }
         Insert: {
+          branch_id?: string | null
           created_at?: string
+          degree_id?: string | null
           department?: string | null
           graduation_year?: string | null
           id: string
           learner_level?: string | null
           name: string
           role: string
+          university_id?: string | null
           updated_at?: string
         }
         Update: {
+          branch_id?: string | null
           created_at?: string
+          degree_id?: string | null
           department?: string | null
           graduation_year?: string | null
           id?: string
           learner_level?: string | null
           name?: string
           role?: string
+          university_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_degree_id_fkey"
+            columns: ["degree_id"]
+            isOneToOne: false
+            referencedRelation: "degrees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       student_feedback: {
         Row: {
@@ -264,6 +342,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      universities: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
       }
     }
     Views: {
