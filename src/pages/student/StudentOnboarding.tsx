@@ -1,38 +1,95 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { mockCourse } from "@/data/mockData";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowRight, ArrowLeft, User, BookOpen } from "lucide-react";
+import { toast } from "sonner";
+
+interface University { id: string; name: string }
+interface Degree { id: string; name: string }
+interface Branch { id: string; name: string; degree_id: string }
 
 const StudentOnboarding = () => {
   const { setStudentProfile, setStudentOnboarded, setCurrentCourse } = useApp();
+  const { user } = useAuth();
   const navigate = useNavigate();
+
   const [name, setName] = useState("");
   const [rollNumber, setRollNumber] = useState("");
-  const [university, setUniversity] = useState("");
-  const [branch, setBranch] = useState("");
   const [year, setYear] = useState("");
+  const [universityId, setUniversityId] = useState("");
+  const [degreeId, setDegreeId] = useState("");
+  const [branchId, setBranchId] = useState("");
+
+  const [universities, setUniversities] = useState<University[]>([]);
+  const [degrees, setDegrees] = useState<Degree[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [saving, setSaving] = useState(false);
+
   const courseCode = "PY101";
   const courseName = "Intro to Python";
 
-  const isValid = name.trim() && rollNumber.trim() && university.trim() && branch.trim() && year;
+  useEffect(() => {
+    const fetchData = async () => {
+      const [uniRes, degRes] = await Promise.all([
+        supabase.from("universities").select("id, name").order("name"),
+        supabase.from("degrees").select("id, name").order("name"),
+      ]);
+      if (uniRes.data) setUniversities(uniRes.data);
+      if (degRes.data) setDegrees(degRes.data);
+    };
+    fetchData();
+  }, []);
 
-  const handleComplete = () => {
-    setStudentProfile({
-      name,
-      courseCode,
-      learnerLevel: "Beginner",
-      topicBaseline: {},
-    });
-    setCurrentCourse({ ...mockCourse, id: courseCode.toLowerCase(), name: courseName });
-    setStudentOnboarded(true);
-    navigate("/student/diagnostic");
+  useEffect(() => {
+    if (!degreeId) { setBranches([]); setBranchId(""); return; }
+    const fetchBranches = async () => {
+      const { data } = await supabase
+        .from("branches")
+        .select("id, name, degree_id")
+        .eq("degree_id", degreeId)
+        .order("name");
+      if (data) setBranches(data);
+      setBranchId("");
+    };
+    fetchBranches();
+  }, [degreeId]);
+
+  const isValid = name.trim() && rollNumber.trim() && universityId && degreeId && branchId && year;
+
+  const handleComplete = async () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("profiles").upsert({
+        id: user.id,
+        name,
+        role: "student",
+        graduation_year: year,
+        university_id: universityId,
+        degree_id: degreeId,
+        branch_id: branchId,
+        learner_level: "Beginner",
+      });
+      if (error) throw error;
+
+      setStudentProfile({ name, courseCode, learnerLevel: "Beginner", topicBaseline: {} });
+      setCurrentCourse({ ...mockCourse, id: courseCode.toLowerCase(), name: courseName });
+      setStudentOnboarded(true);
+      navigate("/student/diagnostic");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -61,39 +118,54 @@ const StudentOnboarding = () => {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
               <div className="space-y-2">
                 <Label>Full Name</Label>
-                <Input
-                  placeholder="Enter your full name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  autoFocus
-                />
+                <Input placeholder="Enter your full name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
               </div>
 
               <div className="space-y-2">
                 <Label>Roll Number</Label>
-                <Input
-                  placeholder="Enter your roll number"
-                  value={rollNumber}
-                  onChange={(e) => setRollNumber(e.target.value)}
-                />
+                <Input placeholder="Enter your roll number" value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} />
               </div>
 
               <div className="space-y-2">
-                <Label>University Name</Label>
-                <Input
-                  placeholder="Enter your university name"
-                  value={university}
-                  onChange={(e) => setUniversity(e.target.value)}
-                />
+                <Label>University</Label>
+                <Select value={universityId} onValueChange={setUniversityId}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Select university" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {universities.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Degree</Label>
+                <Select value={degreeId} onValueChange={setDegreeId}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Select degree" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {degrees.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
                 <Label>Branch</Label>
-                <Input
-                  placeholder="e.g. Computer Science"
-                  value={branch}
-                  onChange={(e) => setBranch(e.target.value)}
-                />
+                <Select value={branchId} onValueChange={setBranchId} disabled={!degreeId}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder={degreeId ? "Select branch" : "Select a degree first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -147,8 +219,8 @@ const StudentOnboarding = () => {
                 <Button variant="ghost" onClick={() => navigate("/")}>
                   <ArrowLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
-                <Button onClick={handleComplete} disabled={!isValid}>
-                  Continue to Diagnostic <ArrowRight className="ml-2 h-4 w-4" />
+                <Button onClick={handleComplete} disabled={!isValid || saving}>
+                  {saving ? "Saving..." : "Continue to Diagnostic"} <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </motion.div>
