@@ -1,6 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { BookOpen, Users, ClipboardCheck, Settings, HelpCircle, LogOut, FileText } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
 
