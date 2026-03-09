@@ -120,7 +120,7 @@ const DiagnosticQuiz = () => {
         <Card>
           <CardContent className="p-6">
             <motion.div key={currentQ} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-              <Badge variant="secondary" className="mb-3">{question.topic} — {question.difficulty}</Badge>
+              <Badge variant="secondary" className="mb-3">{question.topic}</Badge>
               <p className="mb-4 text-sm font-medium">{question.question}</p>
               <div className="space-y-2">
                 {question.options.map((opt, i) => (
