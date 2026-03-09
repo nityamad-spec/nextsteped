@@ -466,6 +466,15 @@ const AIChat = () => {
           {activeChat ? (
             <>
               {activeChat.messages.map(renderMessage)}
+              {streamingMessage && renderMessage(streamingMessage)}
+              {isStreaming && !streamingMessage && (
+                <div className="flex justify-start">
+                  <div className="max-w-[80%] rounded-xl px-4 py-3 text-sm bg-muted flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-muted-foreground">Thinking...</span>
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </>
           ) : (
