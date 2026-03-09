@@ -14,7 +14,257 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      chat_messages: {
+        Row: {
+          code_content: string | null
+          code_language: string | null
+          content: string
+          created_at: string
+          has_code: boolean | null
+          id: string
+          role: string
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          code_content?: string | null
+          code_language?: string | null
+          content: string
+          created_at?: string
+          has_code?: boolean | null
+          id?: string
+          role: string
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          code_content?: string | null
+          code_language?: string | null
+          content?: string
+          created_at?: string
+          has_code?: boolean | null
+          id?: string
+          role?: string
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "chat_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_sessions: {
+        Row: {
+          course_id: string | null
+          created_at: string
+          id: string
+          mode: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          mode?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          mode?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_sessions_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courses: {
+        Row: {
+          branch: string | null
+          created_at: string
+          end_date: string | null
+          enrollment_code: string
+          id: string
+          materials_uploaded: boolean
+          name: string
+          objectives: string[] | null
+          published: boolean
+          sections: string[] | null
+          start_date: string | null
+          syllabus_uploaded: boolean
+          teacher_id: string
+          term: string
+          updated_at: string
+        }
+        Insert: {
+          branch?: string | null
+          created_at?: string
+          end_date?: string | null
+          enrollment_code?: string
+          id?: string
+          materials_uploaded?: boolean
+          name: string
+          objectives?: string[] | null
+          published?: boolean
+          sections?: string[] | null
+          start_date?: string | null
+          syllabus_uploaded?: boolean
+          teacher_id: string
+          term: string
+          updated_at?: string
+        }
+        Update: {
+          branch?: string | null
+          created_at?: string
+          end_date?: string | null
+          enrollment_code?: string
+          id?: string
+          materials_uploaded?: boolean
+          name?: string
+          objectives?: string[] | null
+          published?: boolean
+          sections?: string[] | null
+          start_date?: string | null
+          syllabus_uploaded?: boolean
+          teacher_id?: string
+          term?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      enrollments: {
+        Row: {
+          course_id: string
+          enrolled_at: string
+          id: string
+          student_id: string
+        }
+        Insert: {
+          course_id: string
+          enrolled_at?: string
+          id?: string
+          student_id: string
+        }
+        Update: {
+          course_id?: string
+          enrolled_at?: string
+          id?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrollments_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          department: string | null
+          graduation_year: string | null
+          id: string
+          learner_level: string | null
+          name: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          department?: string | null
+          graduation_year?: string | null
+          id: string
+          learner_level?: string | null
+          name: string
+          role: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          department?: string | null
+          graduation_year?: string | null
+          id?: string
+          learner_level?: string | null
+          name?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      student_feedback: {
+        Row: {
+          additional_comments: string | null
+          clarity: number | null
+          comparison: string | null
+          course_id: string | null
+          created_at: string
+          difficulty_match: number | null
+          ease: number | null
+          guided: string | null
+          id: string
+          student_id: string
+          understanding: number | null
+          usefulness: number | null
+        }
+        Insert: {
+          additional_comments?: string | null
+          clarity?: number | null
+          comparison?: string | null
+          course_id?: string | null
+          created_at?: string
+          difficulty_match?: number | null
+          ease?: number | null
+          guided?: string | null
+          id?: string
+          student_id: string
+          understanding?: number | null
+          usefulness?: number | null
+        }
+        Update: {
+          additional_comments?: string | null
+          clarity?: number | null
+          comparison?: string | null
+          course_id?: string | null
+          created_at?: string
+          difficulty_match?: number | null
+          ease?: number | null
+          guided?: string | null
+          id?: string
+          student_id?: string
+          understanding?: number | null
+          usefulness?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_feedback_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
