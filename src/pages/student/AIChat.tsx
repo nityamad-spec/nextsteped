@@ -523,7 +523,7 @@ const AIChat = () => {
               className="flex-1"
               disabled={isChatDisabled}
             />
-            <Button onClick={sendMessage} size="icon" disabled={!input.trim() || isChatDisabled}>
+            <Button onClick={sendMessage} size="icon" disabled={!input.trim() || isChatDisabled || isStreaming}>
               <Send className="h-4 w-4" />
             </Button>
           </div>
