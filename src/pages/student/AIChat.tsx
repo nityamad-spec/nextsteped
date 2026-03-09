@@ -287,14 +287,7 @@ const AIChat = () => {
             const content = parsed.choices?.[0]?.delta?.content as string | undefined;
             if (content) {
               assistantContent += content;
-              const aiMsg: ChatMessage = { id: assistantMsgId, role: "assistant", content: assistantContent, timestamp: Date.now() };
-              setChats((prev) =>
-                prev.map((c) => {
-                  if (c.id !== activeChat.id) return c;
-                  const msgs = c.messages.filter((m) => m.id !== assistantMsgId);
-                  return { ...c, messages: [...msgs, aiMsg], updatedAt: Date.now() };
-                })
-              );
+              setStreamingMessage({ id: assistantMsgId, role: "assistant", content: assistantContent, timestamp: Date.now() });
             }
           } catch {
             textBuffer = line + "\n" + textBuffer;
