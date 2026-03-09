@@ -83,7 +83,7 @@ const TeacherLayout = () => {
         <div className="border-t p-3 space-y-1">
           <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent">
             <LogOut className="h-4 w-4" />
-            Switch Role
+            Sign Out
           </button>
         </div>
       </aside>
