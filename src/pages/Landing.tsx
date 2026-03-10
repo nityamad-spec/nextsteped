@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 const Landing = () => {
   const navigate = useNavigate();
   const { setRole } = useApp();
+  const { user, signOut } = useAuth();
 
   const selectRole = (role: "teacher" | "student") => {
     setRole(role);
