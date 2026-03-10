@@ -1,11 +1,14 @@
 import { motion } from "framer-motion";
-import { GraduationCap, BookOpen, ArrowRight } from "lucide-react";
+import { GraduationCap, BookOpen, ArrowRight, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 const Landing = () => {
   const navigate = useNavigate();
   const { setRole } = useApp();
+  const { user, signOut } = useAuth();
 
   const selectRole = (role: "teacher" | "student") => {
     setRole(role);
@@ -13,7 +16,15 @@ const Landing = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-background px-4">
+      {user && (
+        <div className="absolute right-6 top-6">
+          <Button variant="outline" size="sm" onClick={signOut} className="gap-2">
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </Button>
+        </div>
+      )}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
