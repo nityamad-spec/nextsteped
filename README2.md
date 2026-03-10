@@ -8,6 +8,7 @@ A comprehensive listing of every code file in the project with its path and desc
 
 | File | Description |
 |------|-------------|
+| `.lovable/plan.md` | Project plan and feature roadmap managed by Lovable |
 | `index.html` | HTML entry point that loads the React app |
 | `vite.config.ts` | Vite bundler configuration (dev server, plugins, path aliases) |
 | `tailwind.config.ts` | Tailwind CSS theme configuration (colors, fonts, design tokens) |
@@ -41,6 +42,7 @@ A comprehensive listing of every code file in the project with its path and desc
 | `src/App.tsx` | Root component with route definitions and context providers |
 | `src/App.css` | Global app-level CSS styles |
 | `src/index.css` | Tailwind directives and CSS design tokens (colors, typography) |
+| `src/tailwind.config.lov.json` | Lovable-specific Tailwind theme overrides |
 | `src/vite-env.d.ts` | Vite client type declarations |
 
 ---
@@ -160,6 +162,7 @@ A comprehensive listing of every code file in the project with its path and desc
 | `src/components/ui/toggle.tsx` | Toggle button |
 | `src/components/ui/toggle-group.tsx` | Group of toggle buttons |
 | `src/components/ui/tooltip.tsx` | Hover tooltip |
+| `src/components/ui/use-toast.ts` | Toast state management hook used internally by UI toast components |
 
 ---
 
