@@ -74,9 +74,11 @@ const ChipSelect = ({
 );
 
 const Feedback = () => {
+  const { user } = useAuth();
   const [answers, setAnswers] = useState<Record<string, number | string | null>>({});
   const [additionalComments, setAdditionalComments] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const setAnswer = (key: string, value: number | string) =>
     setAnswers((prev) => ({ ...prev, [key]: value }));
