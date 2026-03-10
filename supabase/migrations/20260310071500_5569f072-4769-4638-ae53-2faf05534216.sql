@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS enrollments_student_course_unique ON public.enrollments (student_id, course_id);

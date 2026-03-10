@@ -21,6 +21,7 @@ const StudentOnboarding = () => {
   const { setStudentProfile, setStudentOnboarded, setCurrentCourse } = useApp();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [checkingStatus, setCheckingStatus] = useState(true);
 
   const [name, setName] = useState("");
   const [rollNumber, setRollNumber] = useState("");
@@ -33,6 +34,21 @@ const StudentOnboarding = () => {
   const [degrees, setDegrees] = useState<Degree[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // Redirect if already onboarded
+  useEffect(() => {
+    if (!user) return;
+    const check = async () => {
+      const { data } = await supabase.from("profiles").select("id, role").eq("id", user.id).maybeSingle();
+      if (data && data.role === "student") {
+        setStudentOnboarded(true);
+        navigate("/student/diagnostic", { replace: true });
+      } else {
+        setCheckingStatus(false);
+      }
+    };
+    check();
+  }, [user]);
 
   const courseCode = "PY101";
   const courseName = "Intro to Python";
@@ -69,6 +85,7 @@ const StudentOnboarding = () => {
     if (!user) return;
     setSaving(true);
     try {
+      // Save profile
       const { error } = await supabase.from("profiles").upsert({
         id: user.id,
         name,
@@ -81,6 +98,20 @@ const StudentOnboarding = () => {
       });
       if (error) throw error;
 
+      // Find published course and create enrollment
+      const { data: courses } = await supabase
+        .from("courses")
+        .select("id")
+        .eq("published", true)
+        .limit(1);
+
+      if (courses && courses.length > 0) {
+        await supabase.from("enrollments").upsert(
+          { student_id: user.id, course_id: courses[0].id },
+          { onConflict: "student_id,course_id" as any }
+        );
+      }
+
       setStudentProfile({ name, courseCode, learnerLevel: "Beginner", topicBaseline: {} });
       setCurrentCourse({ ...mockCourse, id: courseCode.toLowerCase(), name: courseName });
       setStudentOnboarded(true);
@@ -91,6 +122,14 @@ const StudentOnboarding = () => {
       setSaving(false);
     }
   };
+
+  if (checkingStatus) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
