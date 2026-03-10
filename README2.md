@@ -160,6 +160,7 @@ A comprehensive listing of every code file in the project with its path and desc
 | `src/components/ui/toggle.tsx` | Toggle button |
 | `src/components/ui/toggle-group.tsx` | Group of toggle buttons |
 | `src/components/ui/tooltip.tsx` | Hover tooltip |
+| `src/components/ui/use-toast.ts` | Toast state management hook used internally by UI toast components |
 
 ---
 
