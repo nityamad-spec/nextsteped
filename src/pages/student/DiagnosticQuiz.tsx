@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { mockQuizQuestions } from "@/data/mockData";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,22 +20,44 @@ const confidenceLabels: Record<number, string> = {
 
 const DiagnosticQuiz = () => {
   const { studentProfile, setStudentProfile, setDiagnosticComplete } = useApp();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [confidence, setConfidence] = useState<number>(50);
   const [answers, setAnswers] = useState<number[]>([]);
   const [confidences, setConfidences] = useState<number[]>([]);
-  const [phase, setPhase] = useState<"intro" | "quiz" | "result">("intro");
+  const [phase, setPhase] = useState<"loading" | "intro" | "quiz" | "result">("loading");
+  const [saving, setSaving] = useState(false);
+
+  // Check if diagnostic already completed
+  useEffect(() => {
+    const checkExisting = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("diagnostic_results")
+        .select("*")
+        .eq("student_id", user.id)
+        .maybeSingle();
+      if (data) {
+        setDiagnosticComplete(true);
+        navigate("/student/home", { replace: true });
+      } else {
+        setPhase("intro");
+      }
+    };
+    checkExisting();
+  }, [user]);
 
   const questions = mockQuizQuestions.slice(0, 7);
   const question = questions[currentQ];
 
-  const handleAnswer = () => {
+  const handleAnswer = async () => {
     if (selected === null) return;
     const newAnswers = [...answers, selected];
+    const newConfidences = [...confidences, confidence];
     setAnswers(newAnswers);
-    setConfidences([...confidences, confidence]);
+    setConfidences(newConfidences);
     setSelected(null);
     setConfidence(50);
 
@@ -45,9 +69,35 @@ const DiagnosticQuiz = () => {
       if (studentProfile) {
         setStudentProfile({ ...studentProfile, learnerLevel: level });
       }
+
+      // Save to database
+      if (user) {
+        setSaving(true);
+        await supabase.from("diagnostic_results").insert({
+          student_id: user.id,
+          score: correct,
+          total_questions: questions.length,
+          learner_level: level,
+          answers: newAnswers as unknown as import("@/integrations/supabase/types").Json,
+          confidences: newConfidences as unknown as import("@/integrations/supabase/types").Json,
+        });
+
+        // Also update profile learner_level in DB
+        await supabase.from("profiles").update({ learner_level: level }).eq("id", user.id);
+        setSaving(false);
+      }
+
       setPhase("result");
     }
   };
+
+  if (phase === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   if (phase === "intro") {
     return (
