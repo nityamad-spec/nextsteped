@@ -50,9 +50,23 @@ function TeacherRedirect() {
 }
 
 function StudentRedirect() {
-  const { studentOnboarded, diagnosticComplete } = useApp();
-  if (!studentOnboarded) return <Navigate to="/student/onboarding" replace />;
-  if (!diagnosticComplete) return <Navigate to="/student/diagnostic" replace />;
+  const { loading, hasProfile, hasEnrollment, hasDiagnostic } = useStudentStatus();
+  const { setStudentOnboarded, setDiagnosticComplete } = useApp();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  // Sync DB state to local context
+  if (hasProfile && hasEnrollment) setStudentOnboarded(true);
+  if (hasDiagnostic) setDiagnosticComplete(true);
+
+  if (!hasProfile || !hasEnrollment) return <Navigate to="/student/onboarding" replace />;
+  if (!hasDiagnostic) return <Navigate to="/student/diagnostic" replace />;
   return <Navigate to="/student/home" replace />;
 }
 
