@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ShieldCheck } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
+import { useStudentStatus } from "@/hooks/useStudentStatus";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -86,9 +87,11 @@ const learningJourney = [
 
 const StudentHome = () => {
   const { studentProfile, currentCourse } = useApp();
+  const { profileData } = useStudentStatus();
   const navigate = useNavigate();
   const [expandedDays, setExpandedDays] = useState<number[]>([1]);
   const courseName = currentCourse?.name || "Intro to Python";
+  const displayName = profileData?.name || studentProfile?.name || "Student";
 
   const avgMastery = Math.round(mockTopics.reduce((sum, t) => sum + (t.mastery || 0), 0) / mockTopics.length);
 
@@ -101,7 +104,7 @@ const StudentHome = () => {
       {/* Welcome header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
         <h1 className="font-heading text-3xl font-bold">
-          Welcome back, {studentProfile?.name || "Student"}!
+          Welcome back, {displayName}!
         </h1>
         <div className="mt-2 flex items-center gap-2">
           <Badge variant="outline" className="text-sm">{studentProfile?.learnerLevel || "Beginner"}</Badge>
