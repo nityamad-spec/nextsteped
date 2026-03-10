@@ -225,8 +225,38 @@ const Feedback = () => {
             />
           </div>
 
-          <Button onClick={() => setSubmitted(true)} disabled={!allAnswered} className="w-full gap-2">
-            <Send className="h-4 w-4" /> Submit Feedback
+          <Button
+            onClick={async () => {
+              if (!user) {
+                toast.error("You must be logged in to submit feedback.");
+                return;
+              }
+              setSubmitting(true);
+              const { error } = await supabase.from("student_feedback").insert({
+                student_id: user.id,
+                ease: answers.ease as number,
+                clarity: answers.clarity as number,
+                understanding: answers.understanding as number,
+                difficulty_match: answers.difficulty_match as number,
+                guided: answers.guided as string,
+                comparison: answers.comparison as string,
+                usefulness: answers.usefulness as number,
+                additional_comments: additionalComments || null,
+              });
+              setSubmitting(false);
+              if (error) {
+                toast.error("Failed to submit feedback. Please try again.");
+                console.error("Feedback insert error:", error);
+              } else {
+                setSubmitted(true);
+                toast.success("Feedback submitted successfully!");
+              }
+            }}
+            disabled={!allAnswered || submitting}
+            className="w-full gap-2"
+          >
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {submitting ? "Submitting..." : "Submit Feedback"}
           </Button>
         </CardContent>
       </Card>
