@@ -52,11 +52,12 @@ const DiagnosticQuiz = () => {
   const questions = mockQuizQuestions.slice(0, 7);
   const question = questions[currentQ];
 
-  const handleAnswer = () => {
+  const handleAnswer = async () => {
     if (selected === null) return;
     const newAnswers = [...answers, selected];
+    const newConfidences = [...confidences, confidence];
     setAnswers(newAnswers);
-    setConfidences([...confidences, confidence]);
+    setConfidences(newConfidences);
     setSelected(null);
     setConfidence(50);
 
@@ -68,9 +69,35 @@ const DiagnosticQuiz = () => {
       if (studentProfile) {
         setStudentProfile({ ...studentProfile, learnerLevel: level });
       }
+
+      // Save to database
+      if (user) {
+        setSaving(true);
+        await supabase.from("diagnostic_results").insert({
+          student_id: user.id,
+          score: correct,
+          total_questions: questions.length,
+          learner_level: level,
+          answers: newAnswers as unknown as import("@/integrations/supabase/types").Json,
+          confidences: newConfidences as unknown as import("@/integrations/supabase/types").Json,
+        });
+
+        // Also update profile learner_level in DB
+        await supabase.from("profiles").update({ learner_level: level }).eq("id", user.id);
+        setSaving(false);
+      }
+
       setPhase("result");
     }
   };
+
+  if (phase === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   if (phase === "intro") {
     return (
