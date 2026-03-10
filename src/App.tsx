@@ -59,7 +59,7 @@ function StudentRedirect() {
 function AuthRedirect() {
   const { user, loading } = useAuth();
   if (loading) return null;
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to="/student" replace />;
   return <Auth />;
 }
 
@@ -72,7 +72,7 @@ const App = () => (
         <AppProvider>
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<ProtectedRoute><Landing /></ProtectedRoute>} />
+              <Route path="/" element={<Landing />} />
               <Route path="/auth" element={<AuthRedirect />} />
 
               {/* Teacher setup routes */}
