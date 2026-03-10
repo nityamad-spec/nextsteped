@@ -8,6 +8,7 @@ A comprehensive listing of every code file in the project with its path and desc
 
 | File | Description |
 |------|-------------|
+| `.lovable/plan.md` | Project plan and feature roadmap managed by Lovable |
 | `index.html` | HTML entry point that loads the React app |
 | `vite.config.ts` | Vite bundler configuration (dev server, plugins, path aliases) |
 | `tailwind.config.ts` | Tailwind CSS theme configuration (colors, fonts, design tokens) |
