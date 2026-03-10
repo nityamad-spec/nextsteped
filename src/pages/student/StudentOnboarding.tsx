@@ -69,6 +69,7 @@ const StudentOnboarding = () => {
     if (!user) return;
     setSaving(true);
     try {
+      // Save profile
       const { error } = await supabase.from("profiles").upsert({
         id: user.id,
         name,
@@ -80,6 +81,20 @@ const StudentOnboarding = () => {
         learner_level: "Beginner",
       });
       if (error) throw error;
+
+      // Find published course and create enrollment
+      const { data: courses } = await supabase
+        .from("courses")
+        .select("id")
+        .eq("published", true)
+        .limit(1);
+
+      if (courses && courses.length > 0) {
+        await supabase.from("enrollments").upsert(
+          { student_id: user.id, course_id: courses[0].id },
+          { onConflict: "student_id,course_id" as any }
+        );
+      }
 
       setStudentProfile({ name, courseCode, learnerLevel: "Beginner", topicBaseline: {} });
       setCurrentCourse({ ...mockCourse, id: courseCode.toLowerCase(), name: courseName });
