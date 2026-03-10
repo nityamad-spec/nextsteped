@@ -87,9 +87,11 @@ const learningJourney = [
 
 const StudentHome = () => {
   const { studentProfile, currentCourse } = useApp();
+  const { profileData } = useStudentStatus();
   const navigate = useNavigate();
   const [expandedDays, setExpandedDays] = useState<number[]>([1]);
   const courseName = currentCourse?.name || "Intro to Python";
+  const displayName = profileData?.name || studentProfile?.name || "Student";
 
   const avgMastery = Math.round(mockTopics.reduce((sum, t) => sum + (t.mastery || 0), 0) / mockTopics.length);
 
