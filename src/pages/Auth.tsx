@@ -29,7 +29,7 @@ const Auth = () => {
         toast.error(error);
       } else {
         toast.success("Welcome back!");
-        navigate("/");
+        navigate("/student");
       }
     } else {
       if (!name.trim()) {
