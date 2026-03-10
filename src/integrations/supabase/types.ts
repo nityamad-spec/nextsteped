@@ -197,6 +197,39 @@ export type Database = {
         }
         Relationships: []
       }
+      diagnostic_results: {
+        Row: {
+          answers: Json
+          confidences: Json
+          created_at: string
+          id: string
+          learner_level: string
+          score: number
+          student_id: string
+          total_questions: number
+        }
+        Insert: {
+          answers?: Json
+          confidences?: Json
+          created_at?: string
+          id?: string
+          learner_level: string
+          score: number
+          student_id: string
+          total_questions: number
+        }
+        Update: {
+          answers?: Json
+          confidences?: Json
+          created_at?: string
+          id?: string
+          learner_level?: string
+          score?: number
+          student_id?: string
+          total_questions?: number
+        }
+        Relationships: []
+      }
       enrollments: {
         Row: {
           course_id: string
