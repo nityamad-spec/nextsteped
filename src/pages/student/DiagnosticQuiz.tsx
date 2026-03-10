@@ -20,13 +20,34 @@ const confidenceLabels: Record<number, string> = {
 
 const DiagnosticQuiz = () => {
   const { studentProfile, setStudentProfile, setDiagnosticComplete } = useApp();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [confidence, setConfidence] = useState<number>(50);
   const [answers, setAnswers] = useState<number[]>([]);
   const [confidences, setConfidences] = useState<number[]>([]);
-  const [phase, setPhase] = useState<"intro" | "quiz" | "result">("intro");
+  const [phase, setPhase] = useState<"loading" | "intro" | "quiz" | "result">("loading");
+  const [saving, setSaving] = useState(false);
+
+  // Check if diagnostic already completed
+  useEffect(() => {
+    const checkExisting = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("diagnostic_results")
+        .select("*")
+        .eq("student_id", user.id)
+        .maybeSingle();
+      if (data) {
+        setDiagnosticComplete(true);
+        navigate("/student/home", { replace: true });
+      } else {
+        setPhase("intro");
+      }
+    };
+    checkExisting();
+  }, [user]);
 
   const questions = mockQuizQuestions.slice(0, 7);
   const question = questions[currentQ];
