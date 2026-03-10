@@ -72,7 +72,7 @@ const App = () => (
         <AppProvider>
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<ProtectedRoute><Landing /></ProtectedRoute>} />
+              <Route path="/" element={<Landing />} />
               <Route path="/auth" element={<AuthRedirect />} />
 
               {/* Teacher setup routes */}
