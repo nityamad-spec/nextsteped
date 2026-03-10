@@ -42,6 +42,7 @@ A comprehensive listing of every code file in the project with its path and desc
 | `src/App.tsx` | Root component with route definitions and context providers |
 | `src/App.css` | Global app-level CSS styles |
 | `src/index.css` | Tailwind directives and CSS design tokens (colors, typography) |
+| `src/tailwind.config.lov.json` | Lovable-specific Tailwind theme overrides |
 | `src/vite-env.d.ts` | Vite client type declarations |
 
 ---
