@@ -1,7 +1,9 @@
 import { motion } from "framer-motion";
-import { GraduationCap, BookOpen, ArrowRight } from "lucide-react";
+import { GraduationCap, BookOpen, ArrowRight, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 const Landing = () => {
   const navigate = useNavigate();
