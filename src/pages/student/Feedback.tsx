@@ -3,8 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageSquareHeart, Send, CheckCircle } from "lucide-react";
+import { MessageSquareHeart, Send, CheckCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const NumberScale = ({
   value,
@@ -71,9 +74,11 @@ const ChipSelect = ({
 );
 
 const Feedback = () => {
+  const { user } = useAuth();
   const [answers, setAnswers] = useState<Record<string, number | string | null>>({});
   const [additionalComments, setAdditionalComments] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const setAnswer = (key: string, value: number | string) =>
     setAnswers((prev) => ({ ...prev, [key]: value }));
@@ -220,8 +225,38 @@ const Feedback = () => {
             />
           </div>
 
-          <Button onClick={() => setSubmitted(true)} disabled={!allAnswered} className="w-full gap-2">
-            <Send className="h-4 w-4" /> Submit Feedback
+          <Button
+            onClick={async () => {
+              if (!user) {
+                toast.error("You must be logged in to submit feedback.");
+                return;
+              }
+              setSubmitting(true);
+              const { error } = await supabase.from("student_feedback").insert({
+                student_id: user.id,
+                ease: answers.ease as number,
+                clarity: answers.clarity as number,
+                understanding: answers.understanding as number,
+                difficulty_match: answers.difficulty_match as number,
+                guided: answers.guided as string,
+                comparison: answers.comparison as string,
+                usefulness: answers.usefulness as number,
+                additional_comments: additionalComments || null,
+              });
+              setSubmitting(false);
+              if (error) {
+                toast.error("Failed to submit feedback. Please try again.");
+                console.error("Feedback insert error:", error);
+              } else {
+                setSubmitted(true);
+                toast.success("Feedback submitted successfully!");
+              }
+            }}
+            disabled={!allAnswered || submitting}
+            className="w-full gap-2"
+          >
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {submitting ? "Submitting..." : "Submit Feedback"}
           </Button>
         </CardContent>
       </Card>
