@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { useStudentStatus } from "@/hooks/useStudentStatus";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import TeacherLayout from "./layouts/TeacherLayout";
