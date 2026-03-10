@@ -250,7 +250,15 @@ export type Database = {
           student_id?: string
           total_questions?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "diagnostic_results_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       enrollments: {
         Row: {
