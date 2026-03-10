@@ -104,7 +104,7 @@ const StudentHome = () => {
       {/* Welcome header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
         <h1 className="font-heading text-3xl font-bold">
-          Welcome back, {studentProfile?.name || "Student"}!
+          Welcome back, {displayName}!
         </h1>
         <div className="mt-2 flex items-center gap-2">
           <Badge variant="outline" className="text-sm">{studentProfile?.learnerLevel || "Beginner"}</Badge>
