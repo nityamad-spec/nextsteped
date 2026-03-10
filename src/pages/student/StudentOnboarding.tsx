@@ -21,6 +21,7 @@ const StudentOnboarding = () => {
   const { setStudentProfile, setStudentOnboarded, setCurrentCourse } = useApp();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [checkingStatus, setCheckingStatus] = useState(true);
 
   const [name, setName] = useState("");
   const [rollNumber, setRollNumber] = useState("");
@@ -33,6 +34,21 @@ const StudentOnboarding = () => {
   const [degrees, setDegrees] = useState<Degree[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // Redirect if already onboarded
+  useEffect(() => {
+    if (!user) return;
+    const check = async () => {
+      const { data } = await supabase.from("profiles").select("id, role").eq("id", user.id).maybeSingle();
+      if (data && data.role === "student") {
+        setStudentOnboarded(true);
+        navigate("/student/diagnostic", { replace: true });
+      } else {
+        setCheckingStatus(false);
+      }
+    };
+    check();
+  }, [user]);
 
   const courseCode = "PY101";
   const courseName = "Intro to Python";
