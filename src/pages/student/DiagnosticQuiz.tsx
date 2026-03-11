@@ -86,6 +86,7 @@ const DiagnosticQuiz = () => {
           learner_level: level,
           answers: newAnswers as unknown as import("@/integrations/supabase/types").Json,
           confidences: newConfidences as unknown as import("@/integrations/supabase/types").Json,
+          question_times: newQuestionTimes as unknown as import("@/integrations/supabase/types").Json,
         });
 
         // Also update profile learner_level in DB
