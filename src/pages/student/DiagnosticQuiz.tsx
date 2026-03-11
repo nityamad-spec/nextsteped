@@ -29,6 +29,8 @@ const DiagnosticQuiz = () => {
   const [confidences, setConfidences] = useState<number[]>([]);
   const [phase, setPhase] = useState<"loading" | "intro" | "quiz" | "result">("loading");
   const [saving, setSaving] = useState(false);
+  const [questionStartTime, setQuestionStartTime] = useState<number>(0);
+  const [questionTimes, setQuestionTimes] = useState<number[]>([]);
 
   // Check if diagnostic already completed
   useEffect(() => {
@@ -54,15 +56,19 @@ const DiagnosticQuiz = () => {
 
   const handleAnswer = async () => {
     if (selected === null) return;
+    const elapsed = Date.now() - questionStartTime;
     const newAnswers = [...answers, selected];
     const newConfidences = [...confidences, confidence];
+    const newQuestionTimes = [...questionTimes, elapsed];
     setAnswers(newAnswers);
     setConfidences(newConfidences);
+    setQuestionTimes(newQuestionTimes);
     setSelected(null);
     setConfidence(50);
 
     if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
+      setQuestionStartTime(Date.now());
     } else {
       const correct = newAnswers.filter((a, i) => a === questions[i].correctIndex).length;
       const level = correct >= 6 ? "Expert" : correct >= 4 ? "Advanced" : correct >= 2 ? "Intermediate" : "Beginner";
@@ -80,6 +86,7 @@ const DiagnosticQuiz = () => {
           learner_level: level,
           answers: newAnswers as unknown as import("@/integrations/supabase/types").Json,
           confidences: newConfidences as unknown as import("@/integrations/supabase/types").Json,
+          question_times: newQuestionTimes as unknown as import("@/integrations/supabase/types").Json,
         });
 
         // Also update profile learner_level in DB
@@ -119,7 +126,7 @@ const DiagnosticQuiz = () => {
                   <span className="text-muted-foreground">Questions get harder or easier based on your responses. This helps us pinpoint your exact knowledge level quickly.</span>
                 </p>
               </div>
-              <Button onClick={() => setPhase("quiz")} className="w-full">
+              <Button onClick={() => { setPhase("quiz"); setQuestionStartTime(Date.now()); }} className="w-full">
                 Start Quiz <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </CardContent>
@@ -212,7 +219,7 @@ const DiagnosticQuiz = () => {
               )}
             </motion.div>
             <div className="mt-4 flex justify-between">
-              <Button variant="ghost" onClick={() => { if (currentQ > 0) { setCurrentQ(currentQ - 1); setSelected(null); setConfidence(50); setAnswers(answers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); } else { navigate("/student/onboarding"); } }}>
+              <Button variant="ghost" onClick={() => { if (currentQ > 0) { setCurrentQ(currentQ - 1); setSelected(null); setConfidence(50); setAnswers(answers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionStartTime(Date.now()); } else { navigate("/student/onboarding"); } }}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
               <Button onClick={handleAnswer} disabled={selected === null}>

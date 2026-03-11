@@ -226,6 +226,7 @@ export type Database = {
           created_at: string
           id: string
           learner_level: string
+          question_times: Json
           score: number
           student_id: string
           total_questions: number
@@ -236,6 +237,7 @@ export type Database = {
           created_at?: string
           id?: string
           learner_level: string
+          question_times?: Json
           score: number
           student_id: string
           total_questions: number
@@ -246,6 +248,7 @@ export type Database = {
           created_at?: string
           id?: string
           learner_level?: string
+          question_times?: Json
           score?: number
           student_id?: string
           total_questions?: number
