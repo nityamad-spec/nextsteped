@@ -29,6 +29,8 @@ const DiagnosticQuiz = () => {
   const [confidences, setConfidences] = useState<number[]>([]);
   const [phase, setPhase] = useState<"loading" | "intro" | "quiz" | "result">("loading");
   const [saving, setSaving] = useState(false);
+  const [questionStartTime, setQuestionStartTime] = useState<number>(0);
+  const [questionTimes, setQuestionTimes] = useState<number[]>([]);
 
   // Check if diagnostic already completed
   useEffect(() => {
