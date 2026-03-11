@@ -121,7 +121,7 @@ const DiagnosticQuiz = () => {
                   <span className="text-muted-foreground">Questions get harder or easier based on your responses. This helps us pinpoint your exact knowledge level quickly.</span>
                 </p>
               </div>
-              <Button onClick={() => setPhase("quiz")} className="w-full">
+              <Button onClick={() => { setPhase("quiz"); setQuestionStartTime(Date.now()); }} className="w-full">
                 Start Quiz <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </CardContent>
