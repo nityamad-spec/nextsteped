@@ -1,0 +1,1 @@
+ALTER TABLE public.diagnostic_results ADD COLUMN question_times jsonb NOT NULL DEFAULT '[]'::jsonb;
