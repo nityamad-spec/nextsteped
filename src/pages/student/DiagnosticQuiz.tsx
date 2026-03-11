@@ -56,15 +56,19 @@ const DiagnosticQuiz = () => {
 
   const handleAnswer = async () => {
     if (selected === null) return;
+    const elapsed = Date.now() - questionStartTime;
     const newAnswers = [...answers, selected];
     const newConfidences = [...confidences, confidence];
+    const newQuestionTimes = [...questionTimes, elapsed];
     setAnswers(newAnswers);
     setConfidences(newConfidences);
+    setQuestionTimes(newQuestionTimes);
     setSelected(null);
     setConfidence(50);
 
     if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
+      setQuestionStartTime(Date.now());
     } else {
       const correct = newAnswers.filter((a, i) => a === questions[i].correctIndex).length;
       const level = correct >= 6 ? "Expert" : correct >= 4 ? "Advanced" : correct >= 2 ? "Intermediate" : "Beginner";
