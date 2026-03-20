@@ -12,7 +12,7 @@ const Landing = () => {
 
   const selectRole = (role: "teacher" | "student") => {
     setRole(role);
-    navigate(role === "teacher" ? "/teacher/onboarding" : "/auth");
+    navigate(`/auth?role=${role}`);
   };
 
   return (

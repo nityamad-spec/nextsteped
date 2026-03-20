@@ -2,10 +2,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useStudentStatus } from "@/hooks/useStudentStatus";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import TeacherLayout from "./layouts/TeacherLayout";
@@ -46,8 +48,32 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function TeacherRedirect() {
-  const { teacherOnboarded } = useApp();
-  return <Navigate to={teacherOnboarded ? "/teacher/courses/dashboard" : "/teacher/onboarding"} replace />;
+  const { user } = useAuth();
+  const [checking, setChecking] = useState(true);
+  const [hasCourse, setHasCourse] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("courses")
+      .select("id")
+      .eq("teacher_id", user.id)
+      .limit(1)
+      .then(({ data }) => {
+        setHasCourse(!!(data && data.length > 0));
+        setChecking(false);
+      });
+  }, [user]);
+
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  return <Navigate to={hasCourse ? "/teacher/courses/dashboard" : "/teacher/onboarding"} replace />;
 }
 
 function StudentRedirect() {
@@ -73,8 +99,13 @@ function StudentRedirect() {
 
 function AuthRedirect() {
   const { user, loading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const role = searchParams.get("role") || "student";
+
   if (loading) return null;
-  if (user) return <Navigate to="/student" replace />;
+  if (user) {
+    return <Navigate to={role === "teacher" ? "/teacher" : "/student"} replace />;
+  }
   return <Auth />;
 }
 
