@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useStudentStatus } from "@/hooks/useStudentStatus";
@@ -99,11 +99,28 @@ function StudentRedirect() {
 
 function AuthRedirect() {
   const { user, loading } = useAuth();
-  const [searchParams] = useSearchParams();
-  const role = searchParams.get("role") || "student";
+  const [checking, setChecking] = useState(true);
+  const [profileRole, setProfileRole] = useState<string | null>(null);
 
-  if (loading) return null;
+  useEffect(() => {
+    if (!user) {
+      setChecking(false);
+      return;
+    }
+    supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setProfileRole(data?.role || user.user_metadata?.role || null);
+        setChecking(false);
+      });
+  }, [user]);
+
+  if (loading || checking) return null;
   if (user) {
+    const role = profileRole || "student";
     return <Navigate to={role === "teacher" ? "/teacher" : "/student"} replace />;
   }
   return <Auth />;

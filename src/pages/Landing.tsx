@@ -3,14 +3,35 @@ import { GraduationCap, BookOpen, ArrowRight, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 const Landing = () => {
   const navigate = useNavigate();
   const { setRole } = useApp();
   const { user, signOut } = useAuth();
 
-  const selectRole = (role: "teacher" | "student") => {
+  const selectRole = async (role: "teacher" | "student") => {
+    if (user) {
+      // Check if the user already has a profile with a different role
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profile && profile.role !== role) {
+        toast.error(`Your account is registered as a ${profile.role}. Please sign out first to use a different role.`);
+        return;
+      }
+
+      // Already logged in with matching role — go directly
+      setRole(role);
+      navigate(role === "teacher" ? "/teacher" : "/student");
+      return;
+    }
+
     setRole(role);
     navigate(`/auth?role=${role}`);
   };
