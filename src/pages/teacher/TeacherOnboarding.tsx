@@ -274,9 +274,12 @@ const TeacherOnboarding = () => {
                 )}
               </div>
 
-              {/* Materials Upload */}
+              {/* Student-Facing Materials Upload */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Upload Course Materials</Label>
+                <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Upload Course Materials <span className="text-[10px] font-normal text-muted-foreground">(Student-Facing)</span></Label>
+                <p className="text-xs text-muted-foreground">
+                  These materials will be used to power the AI Teaching Assistant for students.
+                </p>
                 <p className="text-xs text-muted-foreground">
                   <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
                 </p>
@@ -325,6 +328,29 @@ const TeacherOnboarding = () => {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Teacher Lesson Plans Upload (Internal) */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2"><Lock className="h-4 w-4" /> Upload Lesson Plans <span className="text-[10px] font-normal text-muted-foreground">(Internal — Teacher Use Only)</span></Label>
+                <p className="text-xs text-muted-foreground">
+                  These files are for your reference only and will <strong>not</strong> be shared with students or used by the AI TA.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV.
+                </p>
+                {user ? (
+                  <FileUploadZone
+                    folderPath={`${user.id}/lesson-plans`}
+                    accept={LESSON_PLANS_ACCEPT}
+                    files={lessonPlanFiles}
+                    onFilesChange={setLessonPlanFiles}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                    Preparing upload area…
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-between pt-2">
