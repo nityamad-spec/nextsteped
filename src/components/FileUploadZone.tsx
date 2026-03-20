@@ -11,8 +11,8 @@ interface UploadedFile {
 }
 
 interface FileUploadZoneProps {
-  courseId: string;
-  folder: "syllabus" | "materials";
+  /** The root folder path prefix, e.g. "userId/syllabus" */
+  folderPath: string;
   accept: string;
   files: UploadedFile[];
   onFilesChange: (files: UploadedFile[]) => void;
@@ -24,7 +24,7 @@ function formatSize(bytes: number) {
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
-const FileUploadZone = ({ courseId, folder, accept, files, onFilesChange }: FileUploadZoneProps) => {
+const FileUploadZone = ({ folderPath, accept, files, onFilesChange }: FileUploadZoneProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -40,7 +40,7 @@ const FileUploadZone = ({ courseId, folder, accept, files, onFilesChange }: File
         continue;
       }
 
-      const filePath = `${courseId}/${folder}/${Date.now()}_${file.name}`;
+      const filePath = `${folderPath}/${Date.now()}_${file.name}`;
 
       const { error } = await supabase.storage
         .from("course-materials")
