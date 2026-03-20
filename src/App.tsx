@@ -99,8 +99,13 @@ function StudentRedirect() {
 
 function AuthRedirect() {
   const { user, loading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const role = searchParams.get("role") || "student";
+
   if (loading) return null;
-  if (user) return <Navigate to="/student" replace />;
+  if (user) {
+    return <Navigate to={role === "teacher" ? "/teacher" : "/student"} replace />;
+  }
   return <Auth />;
 }
 
