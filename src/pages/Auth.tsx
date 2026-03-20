@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Eye, EyeOff, LogIn, UserPlus } from "lucide-react";
 
@@ -29,17 +30,41 @@ const Auth = () => {
       const { error } = await signIn(email, password);
       if (error) {
         toast.error(error);
-      } else {
-        toast.success("Welcome back!");
-        navigate(role === "teacher" ? "/teacher" : "/student");
+        setLoading(false);
+        return;
       }
+
+      // Check the user's profile role
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const userRole = profile?.role || user.user_metadata?.role || role;
+
+      if (profile && profile.role !== role) {
+        toast.error(`This account is registered as a ${profile.role}. Please sign in from the correct page.`);
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      toast.success("Welcome back!");
+      navigate(userRole === "teacher" ? "/teacher" : "/student");
     } else {
       if (!name.trim()) {
         toast.error("Please enter your name");
         setLoading(false);
         return;
       }
-      const { error } = await signUp(email, password, name);
+      const { error } = await signUp(email, password, name, role);
       if (error) {
         toast.error(error);
       } else {
@@ -63,6 +88,7 @@ const Auth = () => {
           </h1>
           <p className="mt-2 text-muted-foreground">
             {isLogin ? "Sign in to continue" : "Create your account"}
+            {" "}as {role === "teacher" ? "Professor" : "Student"}
           </p>
         </div>
 
