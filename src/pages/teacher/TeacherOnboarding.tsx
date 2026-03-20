@@ -79,6 +79,26 @@ const TeacherOnboarding = () => {
   const handleContinue = async () => {
     if (!user) return;
 
+    // Ensure teacher profile exists before creating course
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!existingProfile) {
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: user.id,
+        name,
+        role: "teacher",
+        department,
+      });
+      if (profileError) {
+        toast.error("Failed to save profile: " + profileError.message);
+        return;
+      }
+    }
+
     // Create the course record in the database
     const { error } = await supabase.from("courses").insert({
       teacher_id: user.id,
