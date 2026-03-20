@@ -40,7 +40,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange }: FileUpload
         continue;
       }
 
-      const filePath = `${courseId}/${folder}/${Date.now()}_${file.name}`;
+      const filePath = `${folderPath}/${Date.now()}_${file.name}`;
 
       const { error } = await supabase.storage
         .from("course-materials")
