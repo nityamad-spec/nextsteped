@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { ArrowRight, ArrowLeft, User, FileText, BookOpen, Plus, Info, HelpCircle, X } from "lucide-react";
+import { ArrowRight, ArrowLeft, User, FileText, BookOpen, Plus, Info, HelpCircle, X, Lock } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import FileUploadZone from "@/components/FileUploadZone";
 import { toast } from "sonner";
