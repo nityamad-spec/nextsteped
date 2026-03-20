@@ -19,6 +19,7 @@ import { toast } from "sonner";
 
 const SYLLABUS_ACCEPT = ".pdf,.doc,.docx";
 const MATERIALS_ACCEPT = ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
+const LESSON_PLANS_ACCEPT = ".pdf,.pptx,.docx,.txt,.csv";
 
 const bestPracticeStandards = [
   { format: "Slides (PPTX)", tips: "Use clear headings per slide, limit to 6 bullet points, include visuals/diagrams, add speaker notes for context." },
