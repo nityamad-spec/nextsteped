@@ -48,8 +48,32 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function TeacherRedirect() {
-  const { teacherOnboarded } = useApp();
-  return <Navigate to={teacherOnboarded ? "/teacher/courses/dashboard" : "/teacher/onboarding"} replace />;
+  const { user } = useAuth();
+  const [checking, setChecking] = useState(true);
+  const [hasCourse, setHasCourse] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("courses")
+      .select("id")
+      .eq("teacher_id", user.id)
+      .limit(1)
+      .then(({ data }) => {
+        setHasCourse(!!(data && data.length > 0));
+        setChecking(false);
+      });
+  }, [user]);
+
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  return <Navigate to={hasCourse ? "/teacher/courses/dashboard" : "/teacher/onboarding"} replace />;
 }
 
 function StudentRedirect() {
