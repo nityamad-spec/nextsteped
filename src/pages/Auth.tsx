@@ -31,7 +31,7 @@ const Auth = () => {
         toast.error(error);
       } else {
         toast.success("Welcome back!");
-        navigate("/student");
+        navigate(role === "teacher" ? "/teacher" : "/student");
       }
     } else {
       if (!name.trim()) {
