@@ -18,6 +18,8 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const role = searchParams.get("role") || "student";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
