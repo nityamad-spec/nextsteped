@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useApp } from "@/contexts/AppContext";
@@ -53,34 +53,6 @@ const TeacherOnboarding = () => {
   const [showUploadInfo, setShowUploadInfo] = useState(false);
   const [showBestPractice, setShowBestPractice] = useState(false);
 
-  // Draft course ID — created once per session so uploads have a target folder
-  const [draftCourseId, setDraftCourseId] = useState<string | null>(null);
-  const creatingCourse = useRef(false);
-
-  useEffect(() => {
-    if (!user || creatingCourse.current || draftCourseId) return;
-    creatingCourse.current = true;
-
-    (async () => {
-      const { data, error } = await supabase
-        .from("courses")
-        .insert({
-          teacher_id: user.id,
-          name: courseName,
-          term: "First Semester",
-          published: false,
-        })
-        .select("id")
-        .single();
-
-      if (error) {
-        toast.error("Could not create draft course: " + error.message);
-      } else {
-        setDraftCourseId(data.id);
-      }
-    })();
-  }, [user, draftCourseId]);
-
   const isValid =
     name.trim() &&
     department &&
@@ -105,24 +77,22 @@ const TeacherOnboarding = () => {
   };
 
   const handleContinue = async () => {
-    if (!draftCourseId || !user) return;
+    if (!user) return;
 
-    // Update the draft course with all the filled-in details
-    const { error } = await supabase
-      .from("courses")
-      .update({
-        name: courseName,
-        branch,
-        term,
-        sections,
-        objectives: objectives.split("\n").filter(Boolean),
-        syllabus_uploaded: syllabusFiles.length > 0,
-        materials_uploaded: materialsFiles.length > 0,
-      })
-      .eq("id", draftCourseId);
+    // Create the course record in the database
+    const { error } = await supabase.from("courses").insert({
+      teacher_id: user.id,
+      name: courseName,
+      branch,
+      term,
+      sections,
+      objectives: objectives.split("\n").filter(Boolean),
+      syllabus_uploaded: syllabusFiles.length > 0,
+      materials_uploaded: materialsFiles.length > 0,
+    });
 
     if (error) {
-      toast.error("Failed to save course details: " + error.message);
+      toast.error("Failed to save course: " + error.message);
       return;
     }
 
@@ -163,13 +133,11 @@ const TeacherOnboarding = () => {
           </CardHeader>
           <CardContent>
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-              {/* Full Name */}
               <div className="space-y-2">
                 <Label>Full Name</Label>
                 <Input placeholder="Dr. Jane Smith" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
               </div>
 
-              {/* Department */}
               <div className="space-y-2">
                 <Label>Department</Label>
                 <Select value={department} onValueChange={setDepartment}>
@@ -182,7 +150,6 @@ const TeacherOnboarding = () => {
                 </Select>
               </div>
 
-              {/* Course (locked) */}
               <div className="space-y-2">
                 <Label>Course</Label>
                 <Select value={courseCode} disabled>
@@ -193,7 +160,6 @@ const TeacherOnboarding = () => {
                 </Select>
               </div>
 
-              {/* Sections */}
               <div className="space-y-2">
                 <Label>Section(s)</Label>
                 <div className="flex gap-2">
@@ -222,7 +188,6 @@ const TeacherOnboarding = () => {
                 <p className="text-[11px] text-muted-foreground">For each section you teach, add them separately.</p>
               </div>
 
-              {/* Term & Branch */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Term</Label>
@@ -241,7 +206,6 @@ const TeacherOnboarding = () => {
                 </div>
               </div>
 
-              {/* Graduation Year */}
               <div className="space-y-2">
                 <Label>Graduation Year</Label>
                 <Select value={studentYear} onValueChange={setStudentYear}>
@@ -256,7 +220,6 @@ const TeacherOnboarding = () => {
                 </Select>
               </div>
 
-              {/* Learning Objectives */}
               <div className="space-y-2">
                 <Label>Learning Objectives <span className="text-destructive">*</span></Label>
                 <textarea
@@ -275,10 +238,9 @@ const TeacherOnboarding = () => {
                   <li>Course Syllabus</li>
                   <li>AICTE Guidelines</li>
                 </ul>
-                {draftCourseId ? (
+                {user ? (
                   <FileUploadZone
-                    courseId={draftCourseId}
-                    folder="syllabus"
+                    folderPath={`${user.id}/syllabus`}
                     accept={SYLLABUS_ACCEPT}
                     files={syllabusFiles}
                     onFilesChange={setSyllabusFiles}
@@ -299,10 +261,9 @@ const TeacherOnboarding = () => {
                 <p className="text-xs text-muted-foreground">
                   <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (and more).
                 </p>
-                {draftCourseId ? (
+                {user ? (
                   <FileUploadZone
-                    courseId={draftCourseId}
-                    folder="materials"
+                    folderPath={`${user.id}/materials`}
                     accept={MATERIALS_ACCEPT}
                     files={materialsFiles}
                     onFilesChange={setMaterialsFiles}
@@ -344,7 +305,6 @@ const TeacherOnboarding = () => {
                 </div>
               </div>
 
-              {/* Navigation */}
               <div className="flex justify-between pt-2">
                 <Button variant="ghost" onClick={() => navigate("/")}>
                   <ArrowLeft className="mr-2 h-4 w-4" /> Back
@@ -357,7 +317,6 @@ const TeacherOnboarding = () => {
           </CardContent>
         </Card>
 
-        {/* Upload Info Dialog */}
         <Dialog open={showUploadInfo} onOpenChange={setShowUploadInfo}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
