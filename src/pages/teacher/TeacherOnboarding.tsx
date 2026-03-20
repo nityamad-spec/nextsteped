@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { availableDepartments, mockCourse } from "@/data/mockData";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,8 +12,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { ArrowRight, ArrowLeft, User, Upload, FileText, BookOpen, Check, X, Plus, Info, HelpCircle } from "lucide-react";
+import { ArrowRight, ArrowLeft, User, FileText, BookOpen, Plus, Info, HelpCircle, X } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
+import FileUploadZone from "@/components/FileUploadZone";
+import { toast } from "sonner";
+
+const SYLLABUS_ACCEPT = ".pdf,.doc,.docx";
+const MATERIALS_ACCEPT = ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
 
 const bestPracticeStandards = [
   { format: "Slides (PPTX)", tips: "Use clear headings per slide, limit to 6 bullet points, include visuals/diagrams, add speaker notes for context." },
@@ -20,9 +27,17 @@ const bestPracticeStandards = [
   { format: "General", tips: "Use consistent naming conventions, remove personal/sensitive data, ensure accessibility (alt text, readable fonts)." },
 ];
 
+interface UploadedFile {
+  name: string;
+  size: number;
+  path: string;
+}
+
 const TeacherOnboarding = () => {
   const { setTeacherProfile, setCurrentCourse } = useApp();
+  const { user } = useAuth();
   const navigate = useNavigate();
+
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("");
   const courseCode = "PY101";
@@ -33,12 +48,49 @@ const TeacherOnboarding = () => {
   const [branch, setBranch] = useState("");
   const [studentYear, setStudentYear] = useState("");
   const [objectives, setObjectives] = useState("");
-  const [syllabusUploaded, setSyllabusUploaded] = useState(false);
-  const [materialsUploaded, setMaterialsUploaded] = useState(false);
+  const [syllabusFiles, setSyllabusFiles] = useState<UploadedFile[]>([]);
+  const [materialsFiles, setMaterialsFiles] = useState<UploadedFile[]>([]);
   const [showUploadInfo, setShowUploadInfo] = useState(false);
   const [showBestPractice, setShowBestPractice] = useState(false);
 
-  const isValid = name.trim() && department && sections.length > 0 && term && branch.trim() && studentYear && objectives.trim() && syllabusUploaded && materialsUploaded;
+  // Draft course ID — created once per session so uploads have a target folder
+  const [draftCourseId, setDraftCourseId] = useState<string | null>(null);
+  const creatingCourse = useRef(false);
+
+  useEffect(() => {
+    if (!user || creatingCourse.current || draftCourseId) return;
+    creatingCourse.current = true;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from("courses")
+        .insert({
+          teacher_id: user.id,
+          name: courseName,
+          term: "First Semester",
+          published: false,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        toast.error("Could not create draft course: " + error.message);
+      } else {
+        setDraftCourseId(data.id);
+      }
+    })();
+  }, [user, draftCourseId]);
+
+  const isValid =
+    name.trim() &&
+    department &&
+    sections.length > 0 &&
+    term &&
+    branch.trim() &&
+    studentYear &&
+    objectives.trim() &&
+    syllabusFiles.length > 0 &&
+    materialsFiles.length > 0;
 
   const addSection = () => {
     const trimmed = sectionInput.trim();
@@ -52,12 +104,29 @@ const TeacherOnboarding = () => {
     setSections((prev) => prev.filter((sec) => sec !== s));
   };
 
-  const handleContinue = () => {
-    setTeacherProfile({
-      name,
-      department,
-      courses: [courseName],
-    });
+  const handleContinue = async () => {
+    if (!draftCourseId || !user) return;
+
+    // Update the draft course with all the filled-in details
+    const { error } = await supabase
+      .from("courses")
+      .update({
+        name: courseName,
+        branch,
+        term,
+        sections,
+        objectives: objectives.split("\n").filter(Boolean),
+        syllabus_uploaded: syllabusFiles.length > 0,
+        materials_uploaded: materialsFiles.length > 0,
+      })
+      .eq("id", draftCourseId);
+
+    if (error) {
+      toast.error("Failed to save course details: " + error.message);
+      return;
+    }
+
+    setTeacherProfile({ name, department, courses: [courseName] });
     setCurrentCourse({
       ...mockCourse,
       name: courseName,
@@ -94,11 +163,13 @@ const TeacherOnboarding = () => {
           </CardHeader>
           <CardContent>
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+              {/* Full Name */}
               <div className="space-y-2">
                 <Label>Full Name</Label>
                 <Input placeholder="Dr. Jane Smith" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
               </div>
 
+              {/* Department */}
               <div className="space-y-2">
                 <Label>Department</Label>
                 <Select value={department} onValueChange={setDepartment}>
@@ -111,6 +182,7 @@ const TeacherOnboarding = () => {
                 </Select>
               </div>
 
+              {/* Course (locked) */}
               <div className="space-y-2">
                 <Label>Course</Label>
                 <Select value={courseCode} disabled>
@@ -121,6 +193,7 @@ const TeacherOnboarding = () => {
                 </Select>
               </div>
 
+              {/* Sections */}
               <div className="space-y-2">
                 <Label>Section(s)</Label>
                 <div className="flex gap-2">
@@ -149,6 +222,7 @@ const TeacherOnboarding = () => {
                 <p className="text-[11px] text-muted-foreground">For each section you teach, add them separately.</p>
               </div>
 
+              {/* Term & Branch */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Term</Label>
@@ -167,6 +241,7 @@ const TeacherOnboarding = () => {
                 </div>
               </div>
 
+              {/* Graduation Year */}
               <div className="space-y-2">
                 <Label>Graduation Year</Label>
                 <Select value={studentYear} onValueChange={setStudentYear}>
@@ -181,6 +256,7 @@ const TeacherOnboarding = () => {
                 </Select>
               </div>
 
+              {/* Learning Objectives */}
               <div className="space-y-2">
                 <Label>Learning Objectives <span className="text-destructive">*</span></Label>
                 <textarea
@@ -191,6 +267,7 @@ const TeacherOnboarding = () => {
                 />
               </div>
 
+              {/* Syllabus Upload */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Syllabus & Guidelines Upload</Label>
                 <p className="text-xs text-muted-foreground">Upload the following documents:</p>
@@ -198,26 +275,22 @@ const TeacherOnboarding = () => {
                   <li>Course Syllabus</li>
                   <li>AICTE Guidelines</li>
                 </ul>
-                <div
-                  onClick={() => setSyllabusUploaded(true)}
-                  className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
-                    syllabusUploaded ? "border-primary/50 bg-primary/5" : "border-muted hover:border-primary/30 hover:bg-muted/50"
-                  }`}
-                >
-                  {syllabusUploaded ? (
-                    <>
-                      <Check className="h-6 w-6 text-primary" />
-                      <span className="text-sm font-medium text-primary">Documents uploaded</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-6 w-6 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">Click to upload PDF or DOC</span>
-                    </>
-                  )}
-                </div>
+                {draftCourseId ? (
+                  <FileUploadZone
+                    courseId={draftCourseId}
+                    folder="syllabus"
+                    accept={SYLLABUS_ACCEPT}
+                    files={syllabusFiles}
+                    onFilesChange={setSyllabusFiles}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                    Preparing upload area…
+                  </div>
+                )}
               </div>
 
+              {/* Materials Upload */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Upload Course Materials</Label>
                 <p className="text-xs text-muted-foreground">
@@ -226,24 +299,19 @@ const TeacherOnboarding = () => {
                 <p className="text-xs text-muted-foreground">
                   <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (and more).
                 </p>
-                <div
-                  onClick={() => setMaterialsUploaded(true)}
-                  className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
-                    materialsUploaded ? "border-primary/50 bg-primary/5" : "border-muted hover:border-primary/30 hover:bg-muted/50"
-                  }`}
-                >
-                  {materialsUploaded ? (
-                    <>
-                      <Check className="h-6 w-6 text-primary" />
-                      <span className="text-sm font-medium text-primary">Materials uploaded</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-6 w-6 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">Click to upload files</span>
-                    </>
-                  )}
-                </div>
+                {draftCourseId ? (
+                  <FileUploadZone
+                    courseId={draftCourseId}
+                    folder="materials"
+                    accept={MATERIALS_ACCEPT}
+                    files={materialsFiles}
+                    onFilesChange={setMaterialsFiles}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                    Preparing upload area…
+                  </div>
+                )}
 
                 <button
                   onClick={() => setShowUploadInfo(true)}
@@ -276,6 +344,7 @@ const TeacherOnboarding = () => {
                 </div>
               </div>
 
+              {/* Navigation */}
               <div className="flex justify-between pt-2">
                 <Button variant="ghost" onClick={() => navigate("/")}>
                   <ArrowLeft className="mr-2 h-4 w-4" /> Back
@@ -288,6 +357,7 @@ const TeacherOnboarding = () => {
           </CardContent>
         </Card>
 
+        {/* Upload Info Dialog */}
         <Dialog open={showUploadInfo} onOpenChange={setShowUploadInfo}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -296,15 +366,15 @@ const TeacherOnboarding = () => {
             </DialogHeader>
             <ul className="space-y-3 text-sm">
               <li className="flex items-start gap-2">
-                <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <span className="mt-0.5 shrink-0 text-primary">✓</span>
                 <span>We use your uploads to generate teaching plans and ground the Student TA.</span>
               </li>
               <li className="flex items-start gap-2">
-                <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <span className="mt-0.5 shrink-0 text-primary">✓</span>
                 <span>You can remove files anytime.</span>
               </li>
               <li className="flex items-start gap-2">
-                <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <span className="mt-0.5 shrink-0 text-primary">✓</span>
                 <span>Generated content can include suggestions beyond uploads; those will be labeled.</span>
               </li>
             </ul>
