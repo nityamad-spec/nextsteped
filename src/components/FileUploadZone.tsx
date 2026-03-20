@@ -24,7 +24,7 @@ function formatSize(bytes: number) {
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
-const FileUploadZone = ({ courseId, folder, accept, files, onFilesChange }: FileUploadZoneProps) => {
+const FileUploadZone = ({ folderPath, accept, files, onFilesChange }: FileUploadZoneProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
