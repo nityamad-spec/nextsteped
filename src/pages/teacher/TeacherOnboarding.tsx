@@ -51,6 +51,7 @@ const TeacherOnboarding = () => {
   const [objectives, setObjectives] = useState("");
   const [syllabusFiles, setSyllabusFiles] = useState<UploadedFile[]>([]);
   const [materialsFiles, setMaterialsFiles] = useState<UploadedFile[]>([]);
+  const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
   const [showUploadInfo, setShowUploadInfo] = useState(false);
   const [showBestPractice, setShowBestPractice] = useState(false);
 
