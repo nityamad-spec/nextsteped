@@ -11,8 +11,8 @@ interface UploadedFile {
 }
 
 interface FileUploadZoneProps {
-  courseId: string;
-  folder: "syllabus" | "materials";
+  /** The root folder path prefix, e.g. "userId/syllabus" */
+  folderPath: string;
   accept: string;
   files: UploadedFile[];
   onFilesChange: (files: UploadedFile[]) => void;
