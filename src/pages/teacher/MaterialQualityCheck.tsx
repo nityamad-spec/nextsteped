@@ -329,10 +329,18 @@ const MaterialQualityCheck = () => {
                 <p className="text-sm text-muted-foreground">No syllabus files detected. Please go back and upload your syllabus first.</p>
               ) : (
                 <ul className="space-y-2">
-                  {syllabusFiles.map((f, i) => (
-                    <li key={i} className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+                  {syllabusFiles.map((f) => (
+                    <li key={f.id} className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
                       <FileText className="h-4 w-4 text-muted-foreground" />
-                      {f.file_name}
+                      <span className="flex-1 truncate">{f.file_name}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDeleteFile(f)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </li>
                   ))}
                 </ul>
