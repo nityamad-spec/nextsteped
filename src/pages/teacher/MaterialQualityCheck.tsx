@@ -94,7 +94,9 @@ function setByPath(obj: any, path: string, value: any): any {
 
 const MaterialQualityCheck = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+  const courseId = (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
 
   const [stage, setStage] = useState<PipelineStage>("idle");
   const [syllabusFiles, setSyllabusFiles] = useState<{ id: string; file_name: string; storage_path: string }[]>([]);
