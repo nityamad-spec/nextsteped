@@ -12,23 +12,14 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, mode } = await req.json();
+    const { messages, mode, studySystemPrompt, examSystemPrompt } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt =
-      mode === "exam"
-        ? `You are an AI Teaching Assistant in Exam Prep mode. Help the student prepare for exams by:
-- Asking practice questions related to their course material
-- Providing explanations only after the student attempts an answer
-- Giving constructive feedback on their responses
-- Adjusting difficulty based on their performance
-- Encouraging critical thinking rather than memorization
-Keep responses focused and exam-relevant. Use markdown formatting.`
-        : `You are a friendly and knowledgeable AI Teaching Assistant. Your role is to:
+    const defaultStudy = `You are a friendly and knowledgeable AI Teaching Assistant. Your role is to:
 - Help students understand course concepts through clear explanations
 - Break down complex topics into digestible parts
 - Provide examples and analogies to aid understanding
@@ -36,6 +27,18 @@ Keep responses focused and exam-relevant. Use markdown formatting.`
 - Use the Socratic method when appropriate — guide rather than just give answers
 - Format responses with markdown for readability (headers, bold, lists, code blocks)
 Never give direct exam answers. Always explain the "why" behind concepts.`;
+
+    const defaultExam = `You are an AI Teaching Assistant in Exam Prep mode. Help the student prepare for exams by:
+- Asking practice questions related to their course material
+- Providing explanations only after the student attempts an answer
+- Giving constructive feedback on their responses
+- Adjusting difficulty based on their performance
+- Encouraging critical thinking rather than memorization
+Keep responses focused and exam-relevant. Use markdown formatting.`;
+
+    const systemPrompt = mode === "exam"
+      ? (examSystemPrompt || defaultExam)
+      : (studySystemPrompt || defaultStudy);
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -46,7 +49,7 @@ Never give direct exam answers. Always explain the "why" behind concepts.`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
+          model: "google/gemini-2.5-flash-lite",
           messages: [
             { role: "system", content: systemPrompt },
             ...messages,

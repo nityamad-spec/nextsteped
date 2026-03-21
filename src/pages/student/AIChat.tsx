@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useApp } from "@/contexts/AppContext";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { ChatMessage } from "@/types";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
