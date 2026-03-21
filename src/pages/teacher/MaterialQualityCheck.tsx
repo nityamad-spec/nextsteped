@@ -55,7 +55,7 @@ interface QualityIssue {
   editedCorrection?: string;
 }
 
-type PipelineStage = "loading" | "parsing" | "checking" | "review" | "preview" | "saving" | "error";
+type PipelineStage = "idle" | "loading" | "parsing" | "checking" | "review" | "preview" | "saving" | "error";
 
 const severityConfig = {
   error: { label: "Error", className: "bg-destructive/10 text-destructive border-destructive/30" },
@@ -95,7 +95,8 @@ const MaterialQualityCheck = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [stage, setStage] = useState<PipelineStage>("loading");
+  const [stage, setStage] = useState<PipelineStage>("idle");
+  const [syllabusFiles, setSyllabusFiles] = useState<{ file_name: string }[]>([]);
   const [stageMessage, setStageMessage] = useState("Preparing…");
   const [syllabusJson, setSyllabusJson] = useState<SyllabusJson | null>(null);
   const [issues, setIssues] = useState<QualityIssue[]>([]);
@@ -190,9 +191,19 @@ const MaterialQualityCheck = () => {
     }
   }, [user]);
 
+  // Fetch syllabus file names on mount (lightweight, no AI calls)
   useEffect(() => {
-    runPipeline();
-  }, [runPipeline]);
+    const fetchFileNames = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("course_material_files")
+        .select("file_name")
+        .eq("teacher_id", user.id)
+        .eq("folder_type", "syllabus");
+      setSyllabusFiles(data || []);
+    };
+    fetchFileNames();
+  }, [user]);
 
   // ── Issue actions ────────────────────────────────────────────────
 
@@ -285,6 +296,65 @@ const MaterialQualityCheck = () => {
       setStage("preview");
     }
   };
+
+  // ── Render: Idle state — show files and Review button ─────────────
+
+  if (stage === "idle") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+        <div className="w-full max-w-3xl">
+          <SetupProgressBar currentStep={2} />
+
+          <div className="mb-8 text-center">
+            <h1 className="font-heading text-3xl font-bold">
+              Syllabus Quality <span className="text-primary">Check</span>
+            </h1>
+            <p className="mt-2 text-muted-foreground">
+              Review your uploaded syllabus with AI-powered analysis before proceeding.
+            </p>
+          </div>
+
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="h-5 w-5 text-primary" /> Uploaded Syllabus Files
+              </CardTitle>
+              <CardDescription>
+                These files will be parsed and analyzed by AI for quality and consistency.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {syllabusFiles.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No syllabus files detected. Please go back and upload your syllabus first.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {syllabusFiles.map((f, i) => (
+                    <li key={i} className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      {f.file_name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-center gap-3">
+            <Button variant="outline" onClick={() => navigate("/teacher/onboarding")}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
+            </Button>
+            <Button
+              onClick={runPipeline}
+              disabled={syllabusFiles.length === 0}
+              size="lg"
+            >
+              <BookOpen className="mr-2 h-4 w-4" /> Review
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ── Render: Loading / Parsing / Checking states ──────────────────
 
