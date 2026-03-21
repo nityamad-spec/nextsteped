@@ -294,11 +294,11 @@ const MaterialQualityCheck = () => {
 
       if (uploadErr) throw new Error(uploadErr.message);
 
-      // Try to update the course if one exists for this teacher
-      const { error: updateErr } = await supabase
-        .from("courses")
-        .update({ syllabus_json_path: storagePath } as any)
-        .eq("teacher_id", user.id);
+      // Update specific course by id, or fall back to teacher_id
+      const updateQuery = courseId
+        ? supabase.from("courses").update({ syllabus_json_path: storagePath } as any).eq("id", courseId)
+        : supabase.from("courses").update({ syllabus_json_path: storagePath } as any).eq("teacher_id", user.id);
+      const { error: updateErr } = await updateQuery;
 
       if (updateErr) {
         console.warn("Could not update course with syllabus path (course may not exist yet):", updateErr.message);
