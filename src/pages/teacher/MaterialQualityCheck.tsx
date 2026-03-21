@@ -198,11 +198,13 @@ const MaterialQualityCheck = () => {
   useEffect(() => {
     const fetchFileNames = async () => {
       if (!user) return;
-      const { data } = await supabase
+      let query = supabase
         .from("course_material_files")
         .select("id, file_name, storage_path")
         .eq("teacher_id", user.id)
         .eq("folder_type", "syllabus");
+      if (courseId) query = query.eq("course_id", courseId);
+      const { data } = await query;
       setSyllabusFiles(data || []);
     };
     fetchFileNames();
