@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useApp } from "@/contexts/AppContext";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { ChatMessage } from "@/types";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +19,7 @@ const AIChat = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { taSettings } = useApp();
   const initialMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
 
   const [mode, setMode] = useState<"learning" | "exam">(initialMode);
@@ -208,7 +210,12 @@ const AIChat = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ messages: historyMessages, mode }),
+        body: JSON.stringify({
+          messages: historyMessages,
+          mode,
+          studySystemPrompt: taSettings.studySystemPrompt,
+          examSystemPrompt: taSettings.examSystemPrompt,
+        }),
       });
 
       if (!resp.ok) {
