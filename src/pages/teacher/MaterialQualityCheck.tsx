@@ -23,6 +23,7 @@ import {
   ClipboardList,
   ScrollText,
   Library,
+  Trash2,
 } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import { supabase } from "@/integrations/supabase/client";
