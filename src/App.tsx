@@ -16,6 +16,7 @@ import TeacherOnboarding from "./pages/teacher/TeacherOnboarding";
 import MaterialQualityCheck from "./pages/teacher/MaterialQualityCheck";
 import CourseCreation from "./pages/teacher/CourseCreation";
 import AITASettings from "./pages/teacher/AITASettings";
+import DiagnosticQuestionsSetup from "./pages/teacher/DiagnosticQuestionsSetup";
 import PublishEnrollment from "./pages/teacher/PublishEnrollment";
 import CourseDashboard from "./pages/teacher/CourseDashboard";
 import StudentInsights from "./pages/teacher/StudentInsights";
@@ -143,6 +144,7 @@ const App = () => (
               <Route path="/teacher/onboarding" element={<ProtectedRoute><TeacherOnboarding /></ProtectedRoute>} />
               <Route path="/teacher/setup/quality-check" element={<ProtectedRoute><MaterialQualityCheck /></ProtectedRoute>} />
               <Route path="/teacher/setup/syllabus" element={<ProtectedRoute><CourseCreation /></ProtectedRoute>} />
+              <Route path="/teacher/setup/diagnostic" element={<ProtectedRoute><DiagnosticQuestionsSetup /></ProtectedRoute>} />
               <Route path="/teacher/setup/settings" element={<ProtectedRoute><AITASettings /></ProtectedRoute>} />
               <Route path="/teacher/setup/publish" element={<ProtectedRoute><PublishEnrollment /></ProtectedRoute>} />
 

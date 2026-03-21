@@ -4,6 +4,7 @@ const steps = [
   { label: "Profile & Course", path: "/teacher/onboarding" },
   { label: "Quality Check", path: "/teacher/setup/quality-check" },
   { label: "Teaching Plan", path: "/teacher/setup/syllabus" },
+  { label: "Diagnostic Qs", path: "/teacher/setup/diagnostic" },
   { label: "TA Settings", path: "/teacher/setup/settings" },
   { label: "Publish", path: "/teacher/setup/publish" },
 ];

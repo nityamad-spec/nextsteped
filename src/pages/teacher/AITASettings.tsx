@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowRight, ArrowLeft, Eye, MessageSquare, BookOpen, Calculator, Check, Pencil, Clock, ClipboardList } from "lucide-react";
+import { ArrowRight, ArrowLeft, Eye, MessageSquare, BookOpen, Calculator, Check, Pencil, Clock, ClipboardList, Info } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 
 const questionEstimate = (length: number, mix: string, difficulty: string) => {
@@ -105,13 +105,21 @@ const AITASettings = () => {
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto w-full max-w-3xl">
-        <SetupProgressBar currentStep={4} />
+        <SetupProgressBar currentStep={5} />
         <div className="mb-8 text-center">
           <h1 className="font-heading text-3xl font-bold">Teaching Assistant Settings</h1>
           <p className="text-muted-foreground">Configure how the AI Teaching Assistant interacts with your students</p>
         </div>
 
         <div className="space-y-6">
+          {/* Note about custom questions */}
+          <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+            <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Custom questions:</span> You can add your own custom exam and quiz questions later from the Assessments tab after completing setup. The rules below configure how the AI generates and presents questions to students.
+            </p>
+          </div>
+
           {/* Exam & Quiz Simulation Rules */}
           <Tabs defaultValue="exam">
             <TabsList className="mb-4">
@@ -340,7 +348,7 @@ const AITASettings = () => {
           </Card>
 
           <div className="flex justify-between">
-            <Button variant="ghost" onClick={() => navigate("/teacher/setup/syllabus")}>
+            <Button variant="ghost" onClick={() => navigate("/teacher/setup/diagnostic")}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
             <Button onClick={handleSave} disabled={!canContinue}>

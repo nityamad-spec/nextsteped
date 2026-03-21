@@ -571,8 +571,8 @@ const CourseCreation = () => {
                 Publish plan & activate Student TA <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={() => navigate("/teacher/setup/settings")}>
-                Configure TA Settings <ArrowRight className="ml-2 h-4 w-4" />
+              <Button onClick={() => navigate("/teacher/setup/diagnostic")}>
+                Review Diagnostic Questions <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
           </div>
