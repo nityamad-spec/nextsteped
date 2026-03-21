@@ -112,6 +112,14 @@ const AITASettings = () => {
         </div>
 
         <div className="space-y-6">
+          {/* Note about custom questions */}
+          <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+            <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Custom questions:</span> You can add your own custom exam and quiz questions later from the Assessments tab after completing setup. The rules below configure how the AI generates and presents questions to students.
+            </p>
+          </div>
+
           {/* Exam & Quiz Simulation Rules */}
           <Tabs defaultValue="exam">
             <TabsList className="mb-4">
