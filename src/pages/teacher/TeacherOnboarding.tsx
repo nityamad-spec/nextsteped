@@ -63,8 +63,7 @@ const TeacherOnboarding = () => {
     branch.trim() &&
     studentYear &&
     objectives.trim() &&
-    syllabusFiles.length > 0 &&
-    materialsFiles.length > 0;
+    syllabusFiles.length > 0;
 
   const addSection = () => {
     const trimmed = sectionInput.trim();
