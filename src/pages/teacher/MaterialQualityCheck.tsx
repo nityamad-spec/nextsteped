@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -94,7 +94,9 @@ function setByPath(obj: any, path: string, value: any): any {
 
 const MaterialQualityCheck = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+  const courseId = (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
 
   const [stage, setStage] = useState<PipelineStage>("idle");
   const [syllabusFiles, setSyllabusFiles] = useState<{ id: string; file_name: string; storage_path: string }[]>([]);
@@ -196,11 +198,13 @@ const MaterialQualityCheck = () => {
   useEffect(() => {
     const fetchFileNames = async () => {
       if (!user) return;
-      const { data } = await supabase
+      let query = supabase
         .from("course_material_files")
         .select("id, file_name, storage_path")
         .eq("teacher_id", user.id)
         .eq("folder_type", "syllabus");
+      if (courseId) query = query.eq("course_id", courseId);
+      const { data } = await query;
       setSyllabusFiles(data || []);
     };
     fetchFileNames();
@@ -290,11 +294,11 @@ const MaterialQualityCheck = () => {
 
       if (uploadErr) throw new Error(uploadErr.message);
 
-      // Try to update the course if one exists for this teacher
-      const { error: updateErr } = await supabase
-        .from("courses")
-        .update({ syllabus_json_path: storagePath } as any)
-        .eq("teacher_id", user.id);
+      // Update specific course by id, or fall back to teacher_id
+      const updateQuery = courseId
+        ? supabase.from("courses").update({ syllabus_json_path: storagePath } as any).eq("id", courseId)
+        : supabase.from("courses").update({ syllabus_json_path: storagePath } as any).eq("teacher_id", user.id);
+      const { error: updateErr } = await updateQuery;
 
       if (updateErr) {
         console.warn("Could not update course with syllabus path (course may not exist yet):", updateErr.message);

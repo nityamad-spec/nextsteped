@@ -58,10 +58,9 @@ const TeacherOnboarding = () => {
     if (!user) return;
     const fetchExistingData = async () => {
       setLoading(true);
-      const [profileRes, courseRes, filesRes] = await Promise.all([
+      const [profileRes, courseRes] = await Promise.all([
         supabase.from("profiles").select("name, department, graduation_year").eq("id", user.id).maybeSingle(),
-        supabase.from("courses").select("branch, term, sections, objectives").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("course_material_files").select("file_name, file_size, storage_path, folder_type").eq("teacher_id", user.id),
+        supabase.from("courses").select("id, branch, term, sections, objectives").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       ]);
 
       if (profileRes.data) {
@@ -76,6 +75,17 @@ const TeacherOnboarding = () => {
         if (courseRes.data.sections) setSections(courseRes.data.sections as string[]);
         if (courseRes.data.objectives) setObjectives((courseRes.data.objectives as string[]).join("\n"));
       }
+
+      // Fetch files scoped by course_id if available
+      const courseId = courseRes.data?.id;
+      let filesQuery = supabase
+        .from("course_material_files")
+        .select("file_name, file_size, storage_path, folder_type")
+        .eq("teacher_id", user.id);
+      if (courseId) {
+        filesQuery = filesQuery.eq("course_id", courseId);
+      }
+      const filesRes = await filesQuery;
 
       if (filesRes.data) {
         const mapFile = (f: { file_name: string; file_size: number; storage_path: string }) => ({
@@ -118,19 +128,28 @@ const TeacherOnboarding = () => {
   const handleContinue = async () => {
     if (!user) return;
 
-    // Ensure teacher profile exists before creating course
+    // Upsert profile — update if exists, insert if not
     const { data: existingProfile } = await supabase
       .from("profiles")
       .select("id")
       .eq("id", user.id)
       .maybeSingle();
 
-    if (!existingProfile) {
+    if (existingProfile) {
+      const { error: profileError } = await supabase.from("profiles")
+        .update({ name, department, graduation_year: studentYear })
+        .eq("id", user.id);
+      if (profileError) {
+        toast.error("Failed to update profile: " + profileError.message);
+        return;
+      }
+    } else {
       const { error: profileError } = await supabase.from("profiles").insert({
         id: user.id,
         name,
         role: "teacher",
         department,
+        graduation_year: studentYear,
       });
       if (profileError) {
         toast.error("Failed to save profile: " + profileError.message);
@@ -138,9 +157,8 @@ const TeacherOnboarding = () => {
       }
     }
 
-    // Create the course record in the database
-    const { data: courseData, error } = await supabase.from("courses").insert({
-      teacher_id: user.id,
+    // Upsert course — update existing or insert new
+    const coursePayload = {
       name: courseName,
       branch,
       term,
@@ -148,11 +166,37 @@ const TeacherOnboarding = () => {
       objectives: objectives.split("\n").filter(Boolean),
       syllabus_uploaded: syllabusFiles.length > 0,
       materials_uploaded: materialsFiles.length > 0,
-    }).select("id").single();
+    };
 
-    if (error || !courseData) {
-      toast.error("Failed to save course: " + (error?.message ?? "Unknown error"));
-      return;
+    const { data: existingCourse } = await supabase
+      .from("courses")
+      .select("id")
+      .eq("teacher_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    let courseId: string;
+
+    if (existingCourse) {
+      const { error } = await supabase.from("courses")
+        .update(coursePayload)
+        .eq("id", existingCourse.id);
+      if (error) {
+        toast.error("Failed to update course: " + error.message);
+        return;
+      }
+      courseId = existingCourse.id;
+    } else {
+      const { data: courseData, error } = await supabase.from("courses")
+        .insert({ ...coursePayload, teacher_id: user.id })
+        .select("id")
+        .single();
+      if (error || !courseData) {
+        toast.error("Failed to save course: " + (error?.message ?? "Unknown error"));
+        return;
+      }
+      courseId = courseData.id;
     }
 
     // Backfill course_id on all uploaded file metadata rows
@@ -164,9 +208,12 @@ const TeacherOnboarding = () => {
     if (allPaths.length > 0) {
       await supabase
         .from("course_material_files")
-        .update({ course_id: courseData.id })
+        .update({ course_id: courseId })
         .in("storage_path", allPaths);
     }
+
+    // Store courseId for downstream pages
+    localStorage.setItem("currentCourseId", courseId);
 
     setTeacherProfile({ name, department, courses: [courseName] });
     setCurrentCourse({
@@ -177,7 +224,7 @@ const TeacherOnboarding = () => {
       sections: sections.length > 0 ? sections : mockCourse.sections,
       objectives: objectives ? objectives.split("\n").filter(Boolean) : mockCourse.objectives,
     });
-    navigate("/teacher/setup/quality-check");
+    navigate("/teacher/setup/quality-check", { state: { courseId } });
   };
 
   if (loading) {
