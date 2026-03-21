@@ -119,47 +119,63 @@ const MaterialQualityCheck = () => {
     if (!user) return;
 
     try {
-      // Step 1: Fetch syllabus files from storage
+      let parsed: SyllabusJson;
+
+      // Try loading existing approved JSON first (skip PDF re-conversion)
       setStage("loading");
-      setStageMessage("Fetching your syllabus files…");
+      setStageMessage("Checking for existing syllabus data…");
 
-      const { data: files, error: filesErr } = await supabase
-        .from("course_material_files")
-        .select("file_name, storage_path")
-        .eq("teacher_id", user.id)
-        .eq("folder_type", "syllabus");
-
-      if (filesErr) throw new Error(filesErr.message);
-      if (!files || files.length === 0) {
-        setErrorMsg("No syllabus files found. Please go back and upload your syllabus first.");
-        setStage("error");
-        return;
-      }
-
-      // Download the first syllabus file content
-      const file = files[0];
-      const { data: blob, error: dlErr } = await supabase.storage
+      const { data: existingBlob, error: existingErr } = await supabase.storage
         .from("course-materials")
-        .download(file.storage_path);
+        .download(`${user.id}/syllabus/approved-syllabus.json`);
 
-      if (dlErr || !blob) throw new Error(dlErr?.message || "Failed to download file");
+      if (!existingErr && existingBlob) {
+        // Existing JSON found — skip parse step
+        setStageMessage("Loading saved syllabus…");
+        const jsonText = await existingBlob.text();
+        parsed = JSON.parse(jsonText) as SyllabusJson;
+        setSyllabusJson(parsed);
+      } else {
+        // No existing JSON — full pipeline: fetch PDF → parse → JSON
+        setStageMessage("Fetching your syllabus files…");
 
-      const fileContent = await blob.text();
+        const { data: files, error: filesErr } = await supabase
+          .from("course_material_files")
+          .select("file_name, storage_path")
+          .eq("teacher_id", user.id)
+          .eq("folder_type", "syllabus");
 
-      // Step 2: Parse syllabus to JSON
-      setStage("parsing");
-      setStageMessage("AI is analyzing your syllabus and extracting structured content…");
+        if (filesErr) throw new Error(filesErr.message);
+        if (!files || files.length === 0) {
+          setErrorMsg("No syllabus files found. Please go back and upload your syllabus first.");
+          setStage("error");
+          return;
+        }
 
-      const { data: parseData, error: parseError } = await supabase.functions.invoke("parse-syllabus", {
-        body: { fileContent, fileName: file.file_name },
-      });
+        const file = files[0];
+        const { data: blob, error: dlErr } = await supabase.storage
+          .from("course-materials")
+          .download(file.storage_path);
 
-      if (parseError) throw new Error(parseError.message);
-      if (parseData?.error) throw new Error(parseData.error);
-      if (!parseData?.syllabus) throw new Error("Failed to parse syllabus — no structured data returned.");
+        if (dlErr || !blob) throw new Error(dlErr?.message || "Failed to download file");
 
-      const parsed: SyllabusJson = parseData.syllabus;
-      setSyllabusJson(parsed);
+        const fileContent = await blob.text();
+
+        // Parse syllabus to JSON via edge function
+        setStage("parsing");
+        setStageMessage("AI is analyzing your syllabus and extracting structured content…");
+
+        const { data: parseData, error: parseError } = await supabase.functions.invoke("parse-syllabus", {
+          body: { fileContent, fileName: file.file_name },
+        });
+
+        if (parseError) throw new Error(parseError.message);
+        if (parseData?.error) throw new Error(parseData.error);
+        if (!parseData?.syllabus) throw new Error("Failed to parse syllabus — no structured data returned.");
+
+        parsed = parseData.syllabus;
+        setSyllabusJson(parsed);
+      }
 
       // Step 3: Quality check
       setStage("checking");
