@@ -23,6 +23,7 @@ import {
   ClipboardList,
   ScrollText,
   Library,
+  Trash2,
 } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import { supabase } from "@/integrations/supabase/client";
@@ -96,7 +97,7 @@ const MaterialQualityCheck = () => {
   const { user } = useAuth();
 
   const [stage, setStage] = useState<PipelineStage>("idle");
-  const [syllabusFiles, setSyllabusFiles] = useState<{ file_name: string }[]>([]);
+  const [syllabusFiles, setSyllabusFiles] = useState<{ id: string; file_name: string; storage_path: string }[]>([]);
   const [stageMessage, setStageMessage] = useState("Preparing…");
   const [syllabusJson, setSyllabusJson] = useState<SyllabusJson | null>(null);
   const [issues, setIssues] = useState<QualityIssue[]>([]);
@@ -197,13 +198,25 @@ const MaterialQualityCheck = () => {
       if (!user) return;
       const { data } = await supabase
         .from("course_material_files")
-        .select("file_name")
+        .select("id, file_name, storage_path")
         .eq("teacher_id", user.id)
         .eq("folder_type", "syllabus");
       setSyllabusFiles(data || []);
     };
     fetchFileNames();
   }, [user]);
+
+  const handleDeleteFile = async (file: { id: string; file_name: string; storage_path: string }) => {
+    if (!window.confirm(`Delete "${file.file_name}"? This cannot be undone.`)) return;
+    const { error: storageError } = await supabase.storage.from("course-materials").remove([file.storage_path]);
+    if (storageError) {
+      toast({ title: "Error", description: `Failed to delete file: ${storageError.message}`, variant: "destructive" });
+      return;
+    }
+    await supabase.from("course_material_files").delete().eq("id", file.id);
+    setSyllabusFiles((prev) => prev.filter((f) => f.id !== file.id));
+    toast({ title: "File deleted", description: `"${file.file_name}" has been removed.` });
+  };
 
   // ── Issue actions ────────────────────────────────────────────────
 
@@ -328,10 +341,18 @@ const MaterialQualityCheck = () => {
                 <p className="text-sm text-muted-foreground">No syllabus files detected. Please go back and upload your syllabus first.</p>
               ) : (
                 <ul className="space-y-2">
-                  {syllabusFiles.map((f, i) => (
-                    <li key={i} className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+                  {syllabusFiles.map((f) => (
+                    <li key={f.id} className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
                       <FileText className="h-4 w-4 text-muted-foreground" />
-                      {f.file_name}
+                      <span className="flex-1 truncate">{f.file_name}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDeleteFile(f)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </li>
                   ))}
                 </ul>
