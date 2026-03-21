@@ -50,6 +50,8 @@ const AITASettings = () => {
   const [quizQuestionTypes, setQuizQuestionTypes] = useState(taSettings.quizQuestionMix || "mixed");
   const [quizDifficulty, setQuizDifficulty] = useState(taSettings.quizDifficulty || "Medium");
   const [quizTimeLimit, setQuizTimeLimit] = useState(taSettings.quizTimeLimit || 10);
+  const [studyPrompt, setStudyPrompt] = useState(taSettings.studySystemPrompt || defaultStudyPrompt);
+  const [examPrompt, setExamPrompt] = useState(taSettings.examSystemPrompt || defaultExamPrompt);
 
   const estimate = useMemo(() => questionEstimate(examLength, examQuestionTypes, settings.examDifficulty), [examLength, examQuestionTypes, settings.examDifficulty]);
   const [customBreakdown, setCustomBreakdown] = useState<Record<string, number>>(estimate.breakdown);
