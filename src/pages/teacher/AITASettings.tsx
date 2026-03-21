@@ -340,7 +340,7 @@ const AITASettings = () => {
           </Card>
 
           <div className="flex justify-between">
-            <Button variant="ghost" onClick={() => navigate("/teacher/setup/syllabus")}>
+            <Button variant="ghost" onClick={() => navigate("/teacher/setup/diagnostic")}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
             <Button onClick={handleSave} disabled={!canContinue}>
