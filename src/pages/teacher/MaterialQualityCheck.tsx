@@ -206,6 +206,18 @@ const MaterialQualityCheck = () => {
     fetchFileNames();
   }, [user]);
 
+  const handleDeleteFile = async (file: { id: string; file_name: string; storage_path: string }) => {
+    if (!window.confirm(`Delete "${file.file_name}"? This cannot be undone.`)) return;
+    const { error: storageError } = await supabase.storage.from("course-materials").remove([file.storage_path]);
+    if (storageError) {
+      toast({ title: "Error", description: `Failed to delete file: ${storageError.message}`, variant: "destructive" });
+      return;
+    }
+    await supabase.from("course_material_files").delete().eq("id", file.id);
+    setSyllabusFiles((prev) => prev.filter((f) => f.id !== file.id));
+    toast({ title: "File deleted", description: `"${file.file_name}" has been removed.` });
+  };
+
   // ── Issue actions ────────────────────────────────────────────────
 
   const applyCorrection = (issue: QualityIssue, correctionText: string) => {
