@@ -17,25 +17,10 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { workshopPlan as sharedWorkshopPlan, WorkshopDay, WorkshopResource } from "@/data/workshopPlan";
 
-type Resource = {
-  id: string;
-  title: string;
-  action: string;
-  type: "textbook" | "lab" | "case-study" | "exercise" | "article" | "news" | "tool" | "video";
-  source?: string;
-  provenance?: "uploads" | "web" | "instructor";
-};
-
-type DayPlan = {
-  id: string;
-  day: number;
-  dates: string;
-  topic: string;
-  resources: Resource[];
-  weightage: number;
-  locked: boolean;
-};
+type Resource = WorkshopResource;
+type DayPlan = WorkshopDay;
 
 const typeLabels: Record<string, string> = {
   textbook: "Textbook", exercise: "Interactive Exercise", lab: "Interactive Exercise",
@@ -63,23 +48,7 @@ const provenanceLabels: Record<string, { label: string; className: string }> = {
 
 const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-const confirmedPlan: DayPlan[] = [
-  { id: "d1", day: 1, dates: "Day 1", topic: "Python Fundamentals: Variables, Data Types & Control Flow", weightage: 30, locked: true, resources: [
-    { id: "r1", title: "Intro to Python Slides", action: "Cover variables, data types, operators, and basic I/O", type: "textbook", provenance: "uploads" },
-    { id: "r2", title: "Python Setup Guide", action: "Help students install Python and set up their IDE", type: "textbook", provenance: "uploads" },
-    { id: "r4", title: "Interactive Coding Exercise", action: "Practice variables and data types in live coding session", type: "exercise", provenance: "uploads" },
-  ]},
-  { id: "d2", day: 2, dates: "Day 2", topic: "Functions, Lists & Dictionaries", weightage: 40, locked: false, resources: [
-    { id: "r3", title: "Functions & Data Structures Slides", action: "Cover function definitions, parameters, return values, lists, and dictionaries", type: "textbook", provenance: "uploads" },
-    { id: "r6", title: "Calculator Lab", action: "Build a calculator using functions", type: "lab", provenance: "uploads" },
-    { id: "r11", title: "List Comprehension Exercise", action: "Hands-on practice with list comprehensions and dictionary operations", type: "lab", provenance: "uploads" },
-  ]},
-  { id: "d3", day: 3, dates: "Day 3", topic: "File Handling, OOP Basics & Review", weightage: 30, locked: false, resources: [
-    { id: "r18", title: "OOP & File Handling Slides", action: "Cover classes, objects, file reading/writing", type: "textbook", provenance: "uploads" },
-    { id: "r21", title: "File Organizer Project", action: "Build a simple file organizer script", type: "exercise", provenance: "uploads" },
-    { id: "r16", title: "Workshop Review Sheet", action: "Comprehensive review covering all workshop topics", type: "textbook", provenance: "uploads" },
-  ]},
-];
+const confirmedPlan: DayPlan[] = sharedWorkshopPlan;
 
 const TeachingPlan = () => {
   const { toast } = useToast();
