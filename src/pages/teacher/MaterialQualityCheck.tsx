@@ -276,6 +276,7 @@ const MaterialQualityCheck = () => {
         console.warn("Could not update course with syllabus path (course may not exist yet):", updateErr.message);
       }
 
+      setStage("preview");
       setFinalApproved(true);
       toast({ title: "Syllabus saved", description: "Your approved syllabus has been stored successfully." });
     } catch (err: any) {
