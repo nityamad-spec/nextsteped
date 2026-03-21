@@ -266,12 +266,14 @@ const TeacherOnboarding = () => {
 
               {/* Syllabus Upload */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Syllabus & Guidelines Upload</Label>
-                <p className="text-xs text-muted-foreground">Upload the following documents:</p>
-                <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
-                  <li>Course Syllabus</li>
-                  <li>AICTE Guidelines</li>
-                </ul>
+                <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Upload Syllabus & Guidelines <span className="text-destructive">*</span></Label>
+                <p className="text-xs text-muted-foreground">Upload your course syllabus and AICTE guidelines.</p>
+                <p className="text-xs text-muted-foreground">
+                  <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
+                </p>
                 {user ? (
                   <FileUploadZone
                     folderPath={`${user.id}/syllabus`}
