@@ -292,15 +292,15 @@ const TeacherOnboarding = () => {
 
               {/* Student-Facing Materials Upload */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Upload Course Materials <span className="text-[10px] font-normal text-muted-foreground">(Student-Facing)</span></Label>
+                <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Upload Course Materials <span className="text-[10px] font-normal text-muted-foreground">(Student-Facing · Optional)</span></Label>
                 <p className="text-xs text-muted-foreground">
-                  These materials will be used to power the AI Teaching Assistant for students.
+                  These materials will be used to understand the curriculum and power the AI Teaching Assistant for students.
                 </p>
                 <p className="text-xs text-muted-foreground">
                   <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (and more).
+                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
                 </p>
                 {user ? (
                   <FileUploadZone
