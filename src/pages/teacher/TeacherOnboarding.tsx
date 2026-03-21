@@ -279,6 +279,8 @@ const TeacherOnboarding = () => {
                     accept={SYLLABUS_ACCEPT}
                     files={syllabusFiles}
                     onFilesChange={setSyllabusFiles}
+                    teacherId={user.id}
+                    folderType="syllabus"
                   />
                 ) : (
                   <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
