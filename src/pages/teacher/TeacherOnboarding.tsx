@@ -17,9 +17,7 @@ import SetupProgressBar from "@/components/SetupProgressBar";
 import FileUploadZone from "@/components/FileUploadZone";
 import { toast } from "sonner";
 
-const SYLLABUS_ACCEPT = ".pdf,.doc,.docx";
-const MATERIALS_ACCEPT = ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
-const LESSON_PLANS_ACCEPT = ".pdf,.pptx,.docx,.txt,.csv";
+const UPLOAD_ACCEPT = ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
 
 const bestPracticeStandards = [
   { format: "Slides (PPTX)", tips: "Use clear headings per slide, limit to 6 bullet points, include visuals/diagrams, add speaker notes for context." },
@@ -63,8 +61,7 @@ const TeacherOnboarding = () => {
     branch.trim() &&
     studentYear &&
     objectives.trim() &&
-    syllabusFiles.length > 0 &&
-    materialsFiles.length > 0;
+    syllabusFiles.length > 0;
 
   const addSection = () => {
     const trimmed = sectionInput.trim();
@@ -256,7 +253,7 @@ const TeacherOnboarding = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Learning Objectives <span className="text-destructive">*</span></Label>
+                <Label>Learning Objectives</Label>
                 <textarea
                   className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   placeholder="One objective per line..."
@@ -267,16 +264,18 @@ const TeacherOnboarding = () => {
 
               {/* Syllabus Upload */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Syllabus & Guidelines Upload</Label>
-                <p className="text-xs text-muted-foreground">Upload the following documents:</p>
-                <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-0.5">
-                  <li>Course Syllabus</li>
-                  <li>AICTE Guidelines</li>
-                </ul>
+                <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Upload Syllabus & Guidelines <span className="text-destructive">*</span></Label>
+                <p className="text-xs text-muted-foreground">Upload your course syllabus and AICTE guidelines.</p>
+                <p className="text-xs text-muted-foreground">
+                  <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
+                </p>
                 {user ? (
                   <FileUploadZone
                     folderPath={`${user.id}/syllabus`}
-                    accept={SYLLABUS_ACCEPT}
+                    accept={UPLOAD_ACCEPT}
                     files={syllabusFiles}
                     onFilesChange={setSyllabusFiles}
                     teacherId={user.id}
@@ -291,20 +290,20 @@ const TeacherOnboarding = () => {
 
               {/* Student-Facing Materials Upload */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Upload Course Materials <span className="text-[10px] font-normal text-muted-foreground">(Student-Facing)</span></Label>
+                <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Upload Course Materials <span className="text-[10px] font-normal text-muted-foreground">(Student-Facing · Optional)</span></Label>
                 <p className="text-xs text-muted-foreground">
-                  These materials will be used to power the AI Teaching Assistant for students.
+                  These materials will be used to understand the curriculum and power the AI Teaching Assistant for students.
                 </p>
                 <p className="text-xs text-muted-foreground">
                   <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (and more).
+                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
                 </p>
                 {user ? (
                   <FileUploadZone
                     folderPath={`${user.id}/materials`}
-                    accept={MATERIALS_ACCEPT}
+                    accept={UPLOAD_ACCEPT}
                     files={materialsFiles}
                     onFilesChange={setMaterialsFiles}
                     teacherId={user.id}
@@ -349,17 +348,20 @@ const TeacherOnboarding = () => {
 
               {/* Teacher Lesson Plans Upload (Internal) */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2"><Lock className="h-4 w-4" /> Upload Lesson Plans <span className="text-[10px] font-normal text-muted-foreground">(Internal — Teacher Use Only)</span></Label>
+                <Label className="flex items-center gap-2"><Lock className="h-4 w-4" /> Upload Lesson Plans <span className="text-[10px] font-normal text-muted-foreground">(Internal · Optional)</span></Label>
                 <p className="text-xs text-muted-foreground">
-                  These files are for your reference only and will <strong>not</strong> be shared with students or used by the AI TA.
+                  These files help us understand the structure of your course's topics over the semester and each class or weekly topic covered, guiding your instruction plan.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV.
+                  <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
                 </p>
                 {user ? (
                   <FileUploadZone
                     folderPath={`${user.id}/lesson-plans`}
-                    accept={LESSON_PLANS_ACCEPT}
+                    accept={UPLOAD_ACCEPT}
                     files={lessonPlanFiles}
                     onFilesChange={setLessonPlanFiles}
                     teacherId={user.id}
