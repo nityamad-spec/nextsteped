@@ -264,7 +264,7 @@ const TeacherOnboarding = () => {
 
               {/* Syllabus Upload */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Upload Syllabus & Guidelines <span className="text-destructive">*</span></Label>
+                <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Upload Syllabus & Guidelines</Label>
                 <p className="text-xs text-muted-foreground">Upload your course syllabus and AICTE guidelines.</p>
                 <p className="text-xs text-muted-foreground">
                   <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
