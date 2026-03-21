@@ -58,10 +58,9 @@ const TeacherOnboarding = () => {
     if (!user) return;
     const fetchExistingData = async () => {
       setLoading(true);
-      const [profileRes, courseRes, filesRes] = await Promise.all([
+      const [profileRes, courseRes] = await Promise.all([
         supabase.from("profiles").select("name, department, graduation_year").eq("id", user.id).maybeSingle(),
-        supabase.from("courses").select("branch, term, sections, objectives").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("course_material_files").select("file_name, file_size, storage_path, folder_type").eq("teacher_id", user.id),
+        supabase.from("courses").select("id, branch, term, sections, objectives").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       ]);
 
       if (profileRes.data) {
@@ -76,6 +75,17 @@ const TeacherOnboarding = () => {
         if (courseRes.data.sections) setSections(courseRes.data.sections as string[]);
         if (courseRes.data.objectives) setObjectives((courseRes.data.objectives as string[]).join("\n"));
       }
+
+      // Fetch files scoped by course_id if available
+      const courseId = courseRes.data?.id;
+      let filesQuery = supabase
+        .from("course_material_files")
+        .select("file_name, file_size, storage_path, folder_type")
+        .eq("teacher_id", user.id);
+      if (courseId) {
+        filesQuery = filesQuery.eq("course_id", courseId);
+      }
+      const filesRes = await filesQuery;
 
       if (filesRes.data) {
         const mapFile = (f: { file_name: string; file_size: number; storage_path: string }) => ({
