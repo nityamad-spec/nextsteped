@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowRight, ArrowLeft, Eye, MessageSquare, BookOpen, Calculator, Check, Pencil, Clock, ClipboardList } from "lucide-react";
+import { ArrowRight, ArrowLeft, Eye, MessageSquare, BookOpen, Calculator, Check, Pencil, Clock, ClipboardList, Info } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 
 const questionEstimate = (length: number, mix: string, difficulty: string) => {
