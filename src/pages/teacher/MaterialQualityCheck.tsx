@@ -297,6 +297,65 @@ const MaterialQualityCheck = () => {
     }
   };
 
+  // ── Render: Idle state — show files and Review button ─────────────
+
+  if (stage === "idle") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+        <div className="w-full max-w-3xl">
+          <SetupProgressBar currentStep={2} />
+
+          <div className="mb-8 text-center">
+            <h1 className="font-heading text-3xl font-bold">
+              Syllabus Quality <span className="text-primary">Check</span>
+            </h1>
+            <p className="mt-2 text-muted-foreground">
+              Review your uploaded syllabus with AI-powered analysis before proceeding.
+            </p>
+          </div>
+
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="h-5 w-5 text-primary" /> Uploaded Syllabus Files
+              </CardTitle>
+              <CardDescription>
+                These files will be parsed and analyzed by AI for quality and consistency.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {syllabusFiles.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No syllabus files detected. Please go back and upload your syllabus first.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {syllabusFiles.map((f, i) => (
+                    <li key={i} className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      {f.file_name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-center gap-3">
+            <Button variant="outline" onClick={() => navigate("/teacher/onboarding")}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
+            </Button>
+            <Button
+              onClick={runPipeline}
+              disabled={syllabusFiles.length === 0}
+              size="lg"
+            >
+              <BookOpen className="mr-2 h-4 w-4" /> Review
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ── Render: Loading / Parsing / Checking states ──────────────────
 
   if (stage === "loading" || stage === "parsing" || stage === "checking" || stage === "saving") {
