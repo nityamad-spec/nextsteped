@@ -210,7 +210,12 @@ const AIChat = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ messages: historyMessages, mode }),
+        body: JSON.stringify({
+          messages: historyMessages,
+          mode,
+          studySystemPrompt: taSettings.studySystemPrompt,
+          examSystemPrompt: taSettings.examSystemPrompt,
+        }),
       });
 
       if (!resp.ok) {
