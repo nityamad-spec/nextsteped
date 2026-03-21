@@ -102,7 +102,7 @@ const TeacherOnboarding = () => {
     }
 
     // Create the course record in the database
-    const { error } = await supabase.from("courses").insert({
+    const { data: courseData, error } = await supabase.from("courses").insert({
       teacher_id: user.id,
       name: courseName,
       branch,
@@ -111,11 +111,24 @@ const TeacherOnboarding = () => {
       objectives: objectives.split("\n").filter(Boolean),
       syllabus_uploaded: syllabusFiles.length > 0,
       materials_uploaded: materialsFiles.length > 0,
-    });
+    }).select("id").single();
 
-    if (error) {
-      toast.error("Failed to save course: " + error.message);
+    if (error || !courseData) {
+      toast.error("Failed to save course: " + (error?.message ?? "Unknown error"));
       return;
+    }
+
+    // Backfill course_id on all uploaded file metadata rows
+    const allPaths = [
+      ...syllabusFiles.map((f) => f.path),
+      ...materialsFiles.map((f) => f.path),
+      ...lessonPlanFiles.map((f) => f.path),
+    ];
+    if (allPaths.length > 0) {
+      await supabase
+        .from("course_material_files")
+        .update({ course_id: courseData.id })
+        .in("storage_path", allPaths);
     }
 
     setTeacherProfile({ name, department, courses: [courseName] });
