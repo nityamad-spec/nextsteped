@@ -317,7 +317,49 @@ const AITASettings = () => {
             </TabsContent>
           </Tabs>
 
-          {/* Student Experience Preview */}
+          {/* AI System Instructions */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base"><MessageSquare className="h-4 w-4" /> AI System Instructions</CardTitle>
+              <CardDescription>Customize how the AI Teaching Assistant behaves with your students. These prompts control the AI's personality, rules, and teaching approach.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Study Mode Instructions</Label>
+                <Textarea
+                  value={studyPrompt}
+                  onChange={(e) => setStudyPrompt(e.target.value)}
+                  rows={6}
+                  className="font-mono text-xs"
+                  placeholder="Instructions for how the AI behaves in Study mode..."
+                />
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">Controls AI behavior when students are studying and asking questions.</p>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setStudyPrompt(defaultStudyPrompt)}>
+                    Reset to Default
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Exam Prep Mode Instructions</Label>
+                <Textarea
+                  value={examPrompt}
+                  onChange={(e) => setExamPrompt(e.target.value)}
+                  rows={6}
+                  className="font-mono text-xs"
+                  placeholder="Instructions for how the AI behaves in Exam Prep mode..."
+                />
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">Controls AI behavior during exam preparation and practice questions.</p>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setExamPrompt(defaultExamPrompt)}>
+                    Reset to Default
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base"><Eye className="h-4 w-4" /> Student Experience Preview</CardTitle>
