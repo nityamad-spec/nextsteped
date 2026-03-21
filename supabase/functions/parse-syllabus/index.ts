@@ -1,0 +1,183 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { fileContent, fileName } = await req.json();
+
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
+    }
+
+    const systemPrompt = `You are a document parser specializing in academic syllabi. 
+Given the content of a syllabus document, extract ALL information into a structured format.
+Be thorough — capture every detail from the document including course info, schedule, grading, policies, and resources.
+If a field is not present in the document, use an empty string or empty array as appropriate.
+Do NOT invent or fabricate information — only extract what is explicitly stated in the document.`;
+
+    const userPrompt = `Parse the following syllabus document (file: "${fileName}") into a structured format.
+
+Document content:
+---
+${fileContent}
+---
+
+Extract all information from this syllabus into the structured format using the provided tool.`;
+
+    const response = await fetch(
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-pro",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "extract_syllabus",
+                description: "Extract structured syllabus data from a document",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    courseTitle: { type: "string", description: "Full course title" },
+                    courseCode: { type: "string", description: "Course code (e.g. CS101)" },
+                    instructor: { type: "string", description: "Instructor name(s)" },
+                    term: { type: "string", description: "Academic term (e.g. Fall 2025)" },
+                    description: { type: "string", description: "Course description paragraph" },
+                    learningObjectives: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "List of learning objectives or outcomes",
+                    },
+                    schedule: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          week: { type: "number", description: "Week number" },
+                          topic: { type: "string", description: "Topic or module title" },
+                          description: { type: "string", description: "Description of what is covered" },
+                          readings: { type: "string", description: "Required readings or materials" },
+                        },
+                        required: ["week", "topic", "description", "readings"],
+                        additionalProperties: false,
+                      },
+                      description: "Weekly or session-by-session schedule",
+                    },
+                    gradingPolicy: {
+                      type: "object",
+                      properties: {
+                        components: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              name: { type: "string", description: "Component name (e.g. Midterm, Homework)" },
+                              weight: { type: "string", description: "Weight or percentage (e.g. 30%)" },
+                              description: { type: "string", description: "Additional details" },
+                            },
+                            required: ["name", "weight", "description"],
+                            additionalProperties: false,
+                          },
+                        },
+                      },
+                      required: ["components"],
+                      additionalProperties: false,
+                      description: "Grading breakdown",
+                    },
+                    policies: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          title: { type: "string", description: "Policy title (e.g. Attendance, Academic Integrity)" },
+                          content: { type: "string", description: "Full policy text" },
+                        },
+                        required: ["title", "content"],
+                        additionalProperties: false,
+                      },
+                      description: "Course policies and rules",
+                    },
+                    resources: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "Textbooks, websites, and other resources",
+                    },
+                  },
+                  required: [
+                    "courseTitle", "courseCode", "instructor", "term", "description",
+                    "learningObjectives", "schedule", "gradingPolicy", "policies", "resources",
+                  ],
+                  additionalProperties: false,
+                },
+              },
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "extract_syllabus" } },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "AI usage limit reached. Please add credits to continue." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const errorText = await response.text();
+      console.error("AI gateway error:", response.status, errorText);
+      return new Response(
+        JSON.stringify({ error: "AI service unavailable. Please try again." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const data = await response.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+
+    if (!toolCall?.function?.arguments) {
+      console.error("No tool call in response:", JSON.stringify(data));
+      return new Response(
+        JSON.stringify({ error: "Failed to parse syllabus. The AI did not return structured data." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const syllabusJson = JSON.parse(toolCall.function.arguments);
+
+    return new Response(JSON.stringify({ syllabus: syllabusJson }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    console.error("parse-syllabus error:", e);
+    return new Response(
+      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});

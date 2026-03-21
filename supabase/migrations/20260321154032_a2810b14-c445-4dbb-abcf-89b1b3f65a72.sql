@@ -1,0 +1,1 @@
+ALTER TABLE public.courses ADD COLUMN syllabus_json_path text;
