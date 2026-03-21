@@ -95,7 +95,8 @@ const MaterialQualityCheck = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [stage, setStage] = useState<PipelineStage>("loading");
+  const [stage, setStage] = useState<PipelineStage>("idle");
+  const [syllabusFiles, setSyllabusFiles] = useState<{ file_name: string }[]>([]);
   const [stageMessage, setStageMessage] = useState("Preparing…");
   const [syllabusJson, setSyllabusJson] = useState<SyllabusJson | null>(null);
   const [issues, setIssues] = useState<QualityIssue[]>([]);
