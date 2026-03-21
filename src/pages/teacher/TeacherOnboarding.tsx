@@ -275,7 +275,7 @@ const TeacherOnboarding = () => {
                 {user ? (
                   <FileUploadZone
                     folderPath={`${user.id}/syllabus`}
-                    accept={SYLLABUS_ACCEPT}
+                    accept={UPLOAD_ACCEPT}
                     files={syllabusFiles}
                     onFilesChange={setSyllabusFiles}
                     teacherId={user.id}
@@ -303,7 +303,7 @@ const TeacherOnboarding = () => {
                 {user ? (
                   <FileUploadZone
                     folderPath={`${user.id}/materials`}
-                    accept={MATERIALS_ACCEPT}
+                    accept={UPLOAD_ACCEPT}
                     files={materialsFiles}
                     onFilesChange={setMaterialsFiles}
                     teacherId={user.id}
@@ -361,7 +361,7 @@ const TeacherOnboarding = () => {
                 {user ? (
                   <FileUploadZone
                     folderPath={`${user.id}/lesson-plans`}
-                    accept={LESSON_PLANS_ACCEPT}
+                    accept={UPLOAD_ACCEPT}
                     files={lessonPlanFiles}
                     onFilesChange={setLessonPlanFiles}
                     teacherId={user.id}
