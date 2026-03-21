@@ -198,7 +198,7 @@ const MaterialQualityCheck = () => {
       if (!user) return;
       const { data } = await supabase
         .from("course_material_files")
-        .select("file_name")
+        .select("id, file_name, storage_path")
         .eq("teacher_id", user.id)
         .eq("folder_type", "syllabus");
       setSyllabusFiles(data || []);
