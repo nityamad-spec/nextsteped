@@ -200,6 +200,7 @@ export type Database = {
           published: boolean
           sections: string[] | null
           start_date: string | null
+          syllabus_json_path: string | null
           syllabus_uploaded: boolean
           teacher_id: string
           term: string
@@ -217,6 +218,7 @@ export type Database = {
           published?: boolean
           sections?: string[] | null
           start_date?: string | null
+          syllabus_json_path?: string | null
           syllabus_uploaded?: boolean
           teacher_id: string
           term: string
@@ -234,6 +236,7 @@ export type Database = {
           published?: boolean
           sections?: string[] | null
           start_date?: string | null
+          syllabus_json_path?: string | null
           syllabus_uploaded?: boolean
           teacher_id?: string
           term?: string
