@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Upload, Check, X, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,11 +10,14 @@ interface UploadedFile {
 }
 
 interface FileUploadZoneProps {
-  /** The root folder path prefix, e.g. "userId/syllabus" */
   folderPath: string;
   accept: string;
   files: UploadedFile[];
   onFilesChange: (files: UploadedFile[]) => void;
+  /** If provided, metadata rows are inserted into course_material_files */
+  teacherId?: string;
+  folderType?: string;
+  courseId?: string | null;
 }
 
 function formatSize(bytes: number) {
@@ -24,7 +26,7 @@ function formatSize(bytes: number) {
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
-const FileUploadZone = ({ folderPath, accept, files, onFilesChange }: FileUploadZoneProps) => {
+const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, folderType, courseId }: FileUploadZoneProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -49,6 +51,22 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange }: FileUpload
       if (error) {
         toast.error(`Failed to upload ${file.name}: ${error.message}`);
       } else {
+        // Insert metadata row if teacherId & folderType provided
+        if (teacherId && folderType) {
+          const { error: metaError } = await supabase
+            .from("course_material_files")
+            .insert({
+              teacher_id: teacherId,
+              course_id: courseId ?? null,
+              file_name: file.name,
+              file_size: file.size,
+              storage_path: filePath,
+              folder_type: folderType,
+            });
+          if (metaError) {
+            console.error("Failed to save file metadata:", metaError.message);
+          }
+        }
         newFiles.push({ name: file.name, size: file.size, path: filePath });
       }
     }
@@ -71,6 +89,15 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange }: FileUpload
       toast.error(`Failed to remove ${file.name}`);
       return;
     }
+
+    // Delete metadata row
+    if (teacherId && folderType) {
+      await supabase
+        .from("course_material_files")
+        .delete()
+        .eq("storage_path", file.path);
+    }
+
     onFilesChange(files.filter((f) => f.path !== file.path));
   };
 
