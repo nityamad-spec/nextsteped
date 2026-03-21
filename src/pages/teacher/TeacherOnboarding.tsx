@@ -350,12 +350,15 @@ const TeacherOnboarding = () => {
 
               {/* Teacher Lesson Plans Upload (Internal) */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2"><Lock className="h-4 w-4" /> Upload Lesson Plans <span className="text-[10px] font-normal text-muted-foreground">(Internal — Teacher Use Only)</span></Label>
+                <Label className="flex items-center gap-2"><Lock className="h-4 w-4" /> Upload Lesson Plans <span className="text-[10px] font-normal text-muted-foreground">(Internal · Optional)</span></Label>
                 <p className="text-xs text-muted-foreground">
-                  These files are for your reference only and will <strong>not</strong> be shared with students or used by the AI TA.
+                  These files help us understand the structure of your course's topics over the semester and each class or weekly topic covered, guiding your instruction plan.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV.
+                  <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
                 </p>
                 {user ? (
                   <FileUploadZone
