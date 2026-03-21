@@ -100,6 +100,8 @@ const AITASettings = () => {
       quizQuestionMix: quizQuestionTypes,
       quizDifficulty,
       quizTimeLimit,
+      studySystemPrompt: studyPrompt,
+      examSystemPrompt: examPrompt,
     });
     navigate("/teacher/setup/publish");
   };
