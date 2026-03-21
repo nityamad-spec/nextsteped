@@ -19,6 +19,7 @@ const AIChat = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { taSettings } = useApp();
   const initialMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
 
   const [mode, setMode] = useState<"learning" | "exam">(initialMode);
