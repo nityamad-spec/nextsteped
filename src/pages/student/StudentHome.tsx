@@ -46,16 +46,20 @@ const workshopPlan: DayPlan[] = [
     { id: "r1", title: "Intro to Python Slides", action: "Cover variables, data types, operators, and basic I/O", type: "textbook" },
     { id: "r2", title: "Python Setup Guide", action: "Install Python and set up IDE", type: "textbook" },
     { id: "r4", title: "Interactive Coding Exercise", action: "Practice variables and data types in live session", type: "exercise" },
+    { id: "r5", title: "Pair Programming: Hello World Variations", action: "Work with a partner to create creative output programs — build communication and collaboration skills", type: "lab" },
   ]},
   { day: 2, dates: "Day 2", topic: "Functions, Lists & Dictionaries", resources: [
     { id: "r3", title: "Functions & Data Structures Slides", action: "Function definitions, parameters, lists, and dictionaries", type: "textbook" },
     { id: "r11", title: "Calculator Lab", action: "Build a calculator using functions", type: "lab" },
     { id: "r6", title: "List Comprehension Exercise", action: "Practice with list comprehensions and dictionary operations", type: "lab" },
+    { id: "r7", title: "Group Mini-Project: Contact Book App", action: "Collaborate in small teams to design and build a contact book using dictionaries — practice teamwork and task delegation", type: "exercise" },
   ]},
   { day: 3, dates: "Day 3", topic: "File Handling, OOP Basics & Review", resources: [
     { id: "r18", title: "OOP & File Handling Slides", action: "Classes, objects, file reading/writing", type: "textbook" },
     { id: "r21", title: "File Organizer Project", action: "Build a simple file organizer script", type: "exercise" },
     { id: "r16", title: "Workshop Review Sheet", action: "Comprehensive review covering all workshop topics", type: "textbook" },
+    { id: "r22", title: "Oral Presentation: Project Showcase", action: "Present your File Organizer project to the class — develop public speaking and technical communication skills", type: "exercise" },
+    { id: "r23", title: "Peer Code Review Session", action: "Review and give constructive feedback on a classmate's code — strengthen critical thinking and peer learning", type: "lab" },
   ]},
 ];
 
