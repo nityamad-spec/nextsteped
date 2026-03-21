@@ -37,6 +37,7 @@ const TeacherOnboarding = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("");
   const courseCode = "PY101";
@@ -52,6 +53,45 @@ const TeacherOnboarding = () => {
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
   const [showUploadInfo, setShowUploadInfo] = useState(false);
   const [showBestPractice, setShowBestPractice] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchExistingData = async () => {
+      setLoading(true);
+      const [profileRes, courseRes, filesRes] = await Promise.all([
+        supabase.from("profiles").select("name, department, graduation_year").eq("id", user.id).maybeSingle(),
+        supabase.from("courses").select("branch, term, sections, objectives").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("course_material_files").select("file_name, file_size, storage_path, folder_type").eq("teacher_id", user.id),
+      ]);
+
+      if (profileRes.data) {
+        if (profileRes.data.name) setName(profileRes.data.name);
+        if (profileRes.data.department) setDepartment(profileRes.data.department);
+        if (profileRes.data.graduation_year) setStudentYear(profileRes.data.graduation_year);
+      }
+
+      if (courseRes.data) {
+        if (courseRes.data.branch) setBranch(courseRes.data.branch);
+        if (courseRes.data.term) setTerm(courseRes.data.term);
+        if (courseRes.data.sections) setSections(courseRes.data.sections as string[]);
+        if (courseRes.data.objectives) setObjectives((courseRes.data.objectives as string[]).join("\n"));
+      }
+
+      if (filesRes.data) {
+        const mapFile = (f: { file_name: string; file_size: number; storage_path: string }) => ({
+          name: f.file_name,
+          size: f.file_size,
+          path: f.storage_path,
+        });
+        setSyllabusFiles(filesRes.data.filter((f) => f.folder_type === "syllabus").map(mapFile));
+        setMaterialsFiles(filesRes.data.filter((f) => f.folder_type === "materials").map(mapFile));
+        setLessonPlanFiles(filesRes.data.filter((f) => f.folder_type === "lesson-plans").map(mapFile));
+      }
+
+      setLoading(false);
+    };
+    fetchExistingData();
+  }, [user]);
 
   const isValid =
     name.trim() &&
