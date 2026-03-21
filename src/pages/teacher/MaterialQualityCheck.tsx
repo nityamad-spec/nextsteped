@@ -55,7 +55,7 @@ interface QualityIssue {
   editedCorrection?: string;
 }
 
-type PipelineStage = "loading" | "parsing" | "checking" | "review" | "preview" | "saving" | "error";
+type PipelineStage = "idle" | "loading" | "parsing" | "checking" | "review" | "preview" | "saving" | "error";
 
 const severityConfig = {
   error: { label: "Error", className: "bg-destructive/10 text-destructive border-destructive/30" },
