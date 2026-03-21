@@ -105,7 +105,7 @@ const AITASettings = () => {
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto w-full max-w-3xl">
-        <SetupProgressBar currentStep={4} />
+        <SetupProgressBar currentStep={5} />
         <div className="mb-8 text-center">
           <h1 className="font-heading text-3xl font-bold">Teaching Assistant Settings</h1>
           <p className="text-muted-foreground">Configure how the AI Teaching Assistant interacts with your students</p>
