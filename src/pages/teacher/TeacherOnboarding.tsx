@@ -362,6 +362,8 @@ const TeacherOnboarding = () => {
                     accept={LESSON_PLANS_ACCEPT}
                     files={lessonPlanFiles}
                     onFilesChange={setLessonPlanFiles}
+                    teacherId={user.id}
+                    folderType="lesson-plans"
                   />
                 ) : (
                   <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
