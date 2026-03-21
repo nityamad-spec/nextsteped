@@ -191,9 +191,19 @@ const MaterialQualityCheck = () => {
     }
   }, [user]);
 
+  // Fetch syllabus file names on mount (lightweight, no AI calls)
   useEffect(() => {
-    runPipeline();
-  }, [runPipeline]);
+    const fetchFileNames = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("course_material_files")
+        .select("file_name")
+        .eq("teacher_id", user.id)
+        .eq("folder_type", "syllabus");
+      setSyllabusFiles(data || []);
+    };
+    fetchFileNames();
+  }, [user]);
 
   // ── Issue actions ────────────────────────────────────────────────
 
