@@ -747,14 +747,14 @@ function SyllabusPreview({ syllabus }: { syllabus: SyllabusJson }) {
           </section>
         )}
 
-        {syllabus.resources?.length > 0 && (
+        {Array.isArray(syllabus.resources) && syllabus.resources.length > 0 && (
           <section>
             <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               <Library className="h-4 w-4" /> Resources
             </h3>
             <ul className="list-disc space-y-1 pl-5 text-sm">
               {syllabus.resources.map((res, i) => (
-                <li key={i}>{res}</li>
+                <li key={i}>{typeof res === 'string' ? res : JSON.stringify(res)}</li>
               ))}
             </ul>
           </section>
