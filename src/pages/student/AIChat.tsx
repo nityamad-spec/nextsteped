@@ -146,7 +146,7 @@ const AIChat = () => {
   };
 
   const handleStartExam = () => {
-    const count = taSettings.examManualQuestions ? (taSettings.examManualCount || 15) : 15;
+    const count = 15;
     const questions = getExamQuestions(count);
     setAssessmentQuestions(questions);
     setAssessmentType("exam");
