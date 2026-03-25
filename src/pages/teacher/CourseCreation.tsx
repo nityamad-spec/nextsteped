@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, Reorder, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -18,6 +18,9 @@ import {
   FlaskConical, LibraryBig, ExternalLink, Lock, Unlock,
 } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
+import FileUploadZone from "@/components/FileUploadZone";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
