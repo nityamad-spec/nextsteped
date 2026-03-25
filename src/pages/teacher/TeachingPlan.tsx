@@ -1,45 +1,72 @@
 import { useState, useEffect } from "react";
+import { motion, Reorder } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  ChevronDown, ChevronUp, Pencil, Trash2, Plus, Upload, FileText,
-  Check, X, BookOpen, FlaskConical, Newspaper, LibraryBig, FileDown,
-  Presentation, FileSpreadsheet, Download, ExternalLink, Lock, Unlock,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  ChevronDown, ChevronUp, Pencil, Trash2, Plus, FileText, FileDown,
+  Check, BookOpen, Download, Lock, Unlock, Sparkles, Loader2, GripVertical,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { workshopPlan as sharedWorkshopPlan, WorkshopDay, WorkshopResource } from "@/data/workshopPlan";
+import { workshopPlan as defaultPlan } from "@/data/workshopPlan";
 
-type Resource = WorkshopResource;
-type DayPlan = WorkshopDay;
+type Resource = {
+  id: string;
+  title: string;
+  action: string;
+  type: "textbook" | "lab" | "case-study" | "exercise" | "article" | "news" | "tool" | "video";
+  source?: string;
+  accepted?: boolean | null;
+  provenance?: "uploads" | "web" | "instructor";
+};
+
+type DayPlan = {
+  id: string;
+  day: number;
+  dates: string;
+  topic: string;
+  description?: string;
+  resources: Resource[];
+  weightage: number;
+  locked: boolean;
+};
 
 const typeLabels: Record<string, string> = {
-  textbook: "Textbook", exercise: "Interactive Exercise", lab: "Interactive Exercise",
-  tool: "Interactive Exercise", "case-study": "Case Study", article: "Article & Industry Context",
-  news: "Article & Industry Context", video: "Video",
+  textbook: "Textbook / Reading", exercise: "Interactive Exercise", lab: "Lab / Hands-on",
+  tool: "Tool / Software", "case-study": "Case Study", article: "Article / Industry",
+  news: "News / Current Events", video: "Video",
+};
+
+const typeIcons: Record<string, string> = {
+  textbook: "📖", exercise: "🏋️", lab: "🧪", tool: "🔧",
+  "case-study": "📋", article: "📰", news: "📰", video: "🎬",
 };
 
 const typeColors: Record<string, string> = {
-  textbook: "bg-secondary text-secondary-foreground", exercise: "bg-primary/10 text-primary",
-  lab: "bg-primary/10 text-primary", tool: "bg-primary/10 text-primary",
-  "case-study": "bg-accent/20 text-accent-foreground", article: "bg-muted text-muted-foreground",
-  news: "bg-muted text-muted-foreground", video: "bg-destructive/10 text-destructive",
-};
-
-const typeIcons: Record<string, typeof BookOpen> = {
-  textbook: BookOpen, exercise: FlaskConical, lab: FlaskConical, tool: FlaskConical,
-  "case-study": LibraryBig, article: Newspaper, news: Newspaper, video: BookOpen,
+  textbook: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800",
+  exercise: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800",
+  lab: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800",
+  tool: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-300 dark:border-purple-800",
+  "case-study": "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800",
+  article: "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-950/30 dark:text-slate-300 dark:border-slate-800",
+  news: "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-950/30 dark:text-slate-300 dark:border-slate-800",
+  video: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800",
 };
 
 const provenanceLabels: Record<string, { label: string; className: string }> = {
@@ -48,14 +75,25 @@ const provenanceLabels: Record<string, { label: string; className: string }> = {
   instructor: { label: "Instructor added", className: "bg-secondary text-secondary-foreground border-secondary" },
 };
 
-const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+const resourceTypeOptions: { value: Resource["type"]; label: string }[] = [
+  { value: "textbook", label: "Textbook / Reading" },
+  { value: "exercise", label: "Interactive Exercise" },
+  { value: "lab", label: "Lab / Hands-on" },
+  { value: "case-study", label: "Case Study" },
+  { value: "article", label: "Article / Industry Context" },
+  { value: "video", label: "Video" },
+  { value: "tool", label: "Tool / Software" },
+];
 
-const confirmedPlan: DayPlan[] = sharedWorkshopPlan;
+const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
 const TeachingPlan = () => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [days, setDays] = useState<DayPlan[]>(confirmedPlan);
+  const courseId = localStorage.getItem("currentCourseId");
+
+  const [days, setDays] = useState<DayPlan[]>([]);
+  const [loading, setLoading] = useState(true);
   const [expandedDays, setExpandedDays] = useState<string[]>([]);
   const [editingDayId, setEditingDayId] = useState<string | null>(null);
   const [editTopic, setEditTopic] = useState("");
@@ -63,53 +101,62 @@ const TeachingPlan = () => {
   const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
   const [editResourceTitle, setEditResourceTitle] = useState("");
   const [editResourceAction, setEditResourceAction] = useState("");
+  const [editResourceType, setEditResourceType] = useState<Resource["type"]>("textbook");
   const [hasChanges, setHasChanges] = useState(false);
-  const [published, setPublished] = useState(false);
-  const [publishTimestamp, setPublishTimestamp] = useState<string | null>(null);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishChecklist, setPublishChecklist] = useState({ days: false, resources: false });
   const [removeConfirm, setRemoveConfirm] = useState<{ dayId: string; resourceId: string; title: string } | null>(null);
+  const [suggestingDayId, setSuggestingDayId] = useState<string | null>(null);
+  const [addingResourceDayId, setAddingResourceDayId] = useState<string | null>(null);
+  const [newResourceType, setNewResourceType] = useState<Resource["type"]>("exercise");
+  const [saving, setSaving] = useState(false);
 
-  const markChanged = () => { setHasChanges(true); setPublished(false); };
+  const markChanged = () => setHasChanges(true);
 
-  // Load published plan from storage on mount
+  // Load plan from storage
   useEffect(() => {
-    const loadPublishedPlan = async () => {
+    const load = async () => {
       if (!user) return;
       try {
         const { data } = await supabase.storage
           .from("course-materials")
           .download(`${user.id}/lesson-plan/published-plan.json`);
         if (data) {
-          const text = await data.text();
-          const parsed = JSON.parse(text);
+          const parsed = JSON.parse(await data.text());
           if (Array.isArray(parsed) && parsed.length > 0) {
             setDays(parsed);
+            setLoading(false);
+            return;
           }
         }
-      } catch {
-        // No published plan found, use default
-      }
+      } catch { /* no saved plan */ }
+      // Fallback to default
+      setDays(defaultPlan.map(d => ({ ...d, description: "" })));
+      setLoading(false);
     };
-    loadPublishedPlan();
+    load();
   }, [user]);
+
   const totalWeightage = days.reduce((sum, d) => sum + (d.weightage || 0), 0);
+  const lockedDaysCount = days.filter(d => d.locked).length;
 
-  const updateWeightage = (dayId: string, value: number) => {
-    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, weightage: Math.max(0, value) } : d));
-    markChanged();
-  };
-
-  const toggleLock = (dayId: string) => {
-    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, locked: !d.locked } : d));
-    markChanged();
-    const day = days.find(d => d.id === dayId);
-    toast({
-      title: day?.locked ? "Day unlocked" : "Day locked",
-      description: day?.locked
-        ? `Day ${day.day} content is now available to the chatbot`
-        : `Day ${day?.day} content is now restricted from the chatbot`,
-    });
+  // Save to storage
+  const savePlan = async () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      const blob = new Blob([JSON.stringify(days, null, 2)], { type: "application/json" });
+      const file = new File([blob], "published-plan.json", { type: "application/json" });
+      await supabase.storage
+        .from("course-materials")
+        .upload(`${user.id}/lesson-plan/published-plan.json`, file, { upsert: true });
+      setHasChanges(false);
+      toast({ title: "Plan saved", description: "Your lesson plan has been saved successfully." });
+    } catch (err: any) {
+      toast({ title: "Save failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleDay = (id: string) => {
@@ -118,7 +165,6 @@ const TeachingPlan = () => {
 
   const startEditDay = (dp: DayPlan) => {
     setEditingDayId(dp.id); setEditTopic(dp.topic); setEditDates(dp.dates);
-    if (!expandedDays.includes(dp.id)) toggleDay(dp.id);
   };
 
   const saveEditDay = () => {
@@ -127,7 +173,62 @@ const TeachingPlan = () => {
     setEditingDayId(null); markChanged();
   };
 
-  const confirmDeleteResource = (dayId: string, resourceId: string) => {
+  const updateWeightage = (dayId: string, value: number) => {
+    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, weightage: Math.max(0, value) } : d));
+    markChanged();
+  };
+
+  const updateDescription = (dayId: string, description: string) => {
+    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, description } : d));
+    markChanged();
+  };
+
+  const toggleLock = (dayId: string) => {
+    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, locked: !d.locked } : d));
+    const day = days.find(d => d.id === dayId);
+    toast({
+      title: day?.locked ? "Day unlocked" : "Day locked",
+      description: day?.locked
+        ? `Day ${day.day} content is now available to the chatbot`
+        : `Day ${day?.day} content is now restricted from the chatbot`,
+    });
+    markChanged();
+  };
+
+  const deleteDay = (id: string) => {
+    setDays((prev) => prev.filter((d) => d.id !== id).map((d, i) => ({ ...d, day: i + 1 }))); markChanged();
+  };
+
+  const addDay = () => {
+    const newDay: DayPlan = {
+      id: `d_new_${Date.now()}`, day: days.length + 1, dates: `Day ${days.length + 1}`,
+      topic: "New Topic", description: "", resources: [], weightage: 0, locked: true,
+    };
+    setDays((prev) => [...prev, newDay]);
+    setExpandedDays((prev) => [...prev, newDay.id]);
+    startEditDay(newDay); markChanged();
+  };
+
+  const startEditResource = (r: Resource) => {
+    setEditingResourceId(r.id); setEditResourceTitle(r.title); setEditResourceAction(r.action); setEditResourceType(r.type);
+  };
+
+  const saveEditResource = (dayId: string) => {
+    if (!editingResourceId) return;
+    setDays((prev) => prev.map((d) => d.id === dayId ? {
+      ...d, resources: d.resources.map((r) => r.id === editingResourceId ? { ...r, title: editResourceTitle, action: editResourceAction, type: editResourceType } : r),
+    } : d));
+    setEditingResourceId(null); markChanged();
+  };
+
+  const handleAddResource = (dayId: string) => {
+    const newResource: Resource = { id: makeId(), title: "", action: "", type: newResourceType, accepted: true, provenance: "instructor" };
+    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: [...d.resources, newResource] } : d));
+    setEditingResourceId(newResource.id); setEditResourceTitle(""); setEditResourceAction(""); setEditResourceType(newResourceType);
+    setAddingResourceDayId(null); markChanged();
+  };
+
+  const removeResource = (dayId: string, resourceId: string) => {
     const day = days.find((d) => d.id === dayId);
     const resource = day?.resources.find((r) => r.id === resourceId);
     if (resource) setRemoveConfirm({ dayId, resourceId, title: resource.title });
@@ -139,66 +240,74 @@ const TeachingPlan = () => {
     const day = days.find((d) => d.id === dayId);
     const resource = day?.resources.find((r) => r.id === resourceId);
     if (resource) {
-      const removedResource = { ...resource };
+      const removed = { ...resource };
       setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: d.resources.filter((r) => r.id !== resourceId) } : d));
       markChanged();
       toast({
-        title: "Resource removed",
-        description: removedResource.title,
-        action: (
-          <Button variant="outline" size="sm" onClick={() => {
-            setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: [...d.resources, removedResource] } : d));
-          }}>
-            Undo
-          </Button>
-        ),
+        title: "Resource removed", description: removed.title,
+        action: <Button variant="outline" size="sm" onClick={() => {
+          setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: [...d.resources, removed] } : d));
+        }}>Undo</Button>,
       });
     }
     setRemoveConfirm(null);
   };
 
-  const deleteDay = (id: string) => {
-    setDays((prev) => prev.filter((d) => d.id !== id).map((d, i) => ({ ...d, day: i + 1 }))); markChanged();
+  const handleAiSuggest = async (dayId: string) => {
+    const day = days.find((d) => d.id === dayId);
+    if (!day) return;
+    setSuggestingDayId(dayId);
+    try {
+      let objectives: string[] = [];
+      if (courseId) {
+        const { data: course } = await supabase
+          .from("courses").select("objectives").eq("id", courseId).single();
+        if (course?.objectives) objectives = course.objectives;
+      }
+      const { data, error } = await supabase.functions.invoke("suggest-lesson", {
+        body: {
+          dayNumber: day.day, dayTopic: day.topic,
+          existingDescription: day.description || "",
+          courseObjectives: objectives, totalDays: days.length,
+          existingResources: day.resources.map(r => ({ title: r.title, action: r.action })),
+        },
+      });
+      if (error) throw error;
+      if (data?.error) { toast({ title: "AI suggestion failed", description: data.error, variant: "destructive" }); return; }
+      if (data?.suggestion) updateDescription(dayId, data.suggestion);
+      if (data?.suggestedResources?.length > 0) {
+        const newResources: Resource[] = data.suggestedResources.map((r: any) => ({
+          id: makeId(), title: r.title || "Untitled Resource", action: r.action || "",
+          type: r.type || "exercise", accepted: true, provenance: r.provenance || "instructor",
+        }));
+        setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: [...d.resources, ...newResources] } : d));
+        toast({ title: "AI suggestion applied", description: `Updated description and added ${newResources.length} resource(s) to Day ${day.day}.` });
+      } else {
+        toast({ title: "Suggestion generated", description: `AI suggestion applied to Day ${day.day}.` });
+      }
+    } catch (err: any) {
+      toast({ title: "Failed to generate suggestion", description: err.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setSuggestingDayId(null);
+    }
   };
 
-  const addDay = () => {
-    const newDay: DayPlan = { id: `d_new_${Date.now()}`, day: days.length + 1, dates: `Day ${days.length + 1}`, topic: "New Topic", resources: [], weightage: 0, locked: false };
-    setDays((prev) => [...prev, newDay]); markChanged();
-    setExpandedDays((prev) => [...prev, newDay.id]);
-    startEditDay(newDay);
-  };
-
-  const startEditResource = (r: Resource) => {
-    setEditingResourceId(r.id); setEditResourceTitle(r.title); setEditResourceAction(r.action);
-  };
-
-  const saveEditResource = (dayId: string) => {
-    if (!editingResourceId) return;
-    setDays((prev) => prev.map((d) => d.id === dayId ? {
-      ...d, resources: d.resources.map((r) => r.id === editingResourceId ? { ...r, title: editResourceTitle, action: editResourceAction } : r),
-    } : d));
-    setEditingResourceId(null); markChanged();
-  };
-
-  const addResourceToDay = (dayId: string, type: Resource["type"]) => {
-    const newResource: Resource = { id: makeId(), title: "", action: "", type, provenance: "instructor" };
-    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: [...d.resources, newResource] } : d)); markChanged();
-    setEditingResourceId(newResource.id); setEditResourceTitle(""); setEditResourceAction("");
-  };
-
-  const handlePublish = () => {
-    setPublished(true); setPublishTimestamp(new Date().toLocaleString());
-    setHasChanges(false); setShowPublishModal(false);
+  const handlePublish = async () => {
+    await savePlan();
+    setShowPublishModal(false);
     setPublishChecklist({ days: false, resources: false });
+    toast({ title: "Plan published", description: "Students can now see the updated lesson plan." });
   };
 
   const handleExport = (format: "pdf" | "word") => {
-    let content = "AI WORKSHOP LESSON PLAN - Intro to Python\n";
+    let content = "AI WORKSHOP LESSON PLAN\n";
     content += `${days.length} Days\n\n`;
     days.forEach((d) => {
       content += `Day ${d.day} (${d.dates}): ${d.topic} [${d.weightage}%] ${d.locked ? "[LOCKED]" : "[UNLOCKED]"}\n`;
-      d.resources.forEach((r) => { content += `  [${typeLabels[r.type]}] ${r.title}\n    → ${r.action}\n`; });
-      content += "\n";
+      if (d.description) content += `\nDescription:\n${d.description}\n`;
+      content += "\nResources:\n";
+      d.resources.forEach((r) => { content += `  - [${typeLabels[r.type]}] ${r.title}\n    ${r.action}\n`; });
+      content += "\n---\n\n";
     });
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -207,237 +316,402 @@ const TeachingPlan = () => {
     URL.revokeObjectURL(url);
   };
 
+  const renderDescription = (desc: string) => {
+    if (!desc) return null;
+    const sections = desc.split(/\n(?=\*\*[^*]+:\*\*)/);
+    return (
+      <div className="space-y-3">
+        {sections.map((section, i) => {
+          const headingMatch = section.match(/^\*\*([^*]+):\*\*/);
+          if (headingMatch) {
+            const heading = headingMatch[1];
+            const body = section.replace(/^\*\*[^*]+:\*\*\s*/, "").trim();
+            const lines = body.split("\n").filter(l => l.trim());
+            const isList = lines.every(l => l.trim().startsWith("-") || l.trim().startsWith("•"));
+            return (
+              <div key={i} className="space-y-1">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-primary">{heading}</h4>
+                {isList ? (
+                  <ul className="space-y-0.5 pl-1">
+                    {lines.map((line, j) => (
+                      <li key={j} className="text-sm text-foreground/80 flex items-start gap-2">
+                        <span className="text-primary mt-1.5 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
+                        <span>{line.replace(/^[-•]\s*/, "")}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-foreground/80 leading-relaxed">{body}</p>
+                )}
+              </div>
+            );
+          }
+          return <p key={i} className="text-sm text-foreground/80 leading-relaxed">{section.replace(/\*\*/g, "")}</p>;
+        })}
+      </div>
+    );
+  };
+
   const allChecked = publishChecklist.days && publishChecklist.resources;
-  const lockedDaysCount = days.filter(d => d.locked).length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="font-heading text-3xl font-bold">AI Workshop Lesson Plan</h1>
-          <p className="text-muted-foreground">Your confirmed workshop plan — edit topics, resources, and lock/unlock days</p>
+          <p className="text-muted-foreground text-sm">Edit topics, descriptions, resources, and lock/unlock days for students</p>
         </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm"><FileDown className="mr-1 h-4 w-4" /> Export</Button>
+              <Button variant="outline" size="sm"><Download className="mr-1.5 h-3.5 w-3.5" /> Export</Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => handleExport("pdf")}>Export as PDF</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("word")}>Export as Word</DropdownMenuItem>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleExport("pdf")}><FileText className="mr-2 h-4 w-4" /> Export as PDF</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("word")}><FileDown className="mr-2 h-4 w-4" /> Export as Word</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {!published ? (
-            <Button size="sm" onClick={() => setShowPublishModal(true)}>
-              Publish plan & activate Student TA
+          {hasChanges && (
+            <Button size="sm" onClick={savePlan} disabled={saving}>
+              {saving ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Saving…</> : "Save Changes"}
             </Button>
-          ) : (
-            <Badge className="bg-primary text-primary-foreground px-3 py-1">Published · {publishTimestamp}</Badge>
           )}
-          <Button size="sm" variant="outline" onClick={addDay}><Plus className="mr-1 h-4 w-4" /> Add Day</Button>
-        </div>
-      </div>
-
-      {/* Published status */}
-      {published && (
-        <div className="mb-4 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Check className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">Plan published</span>
-            <span className="text-xs text-muted-foreground">{publishTimestamp}</span>
-          </div>
-          <Button variant="ghost" size="sm" className="text-xs gap-1">
-            <ExternalLink className="h-3 w-3" /> Preview student view
+          <Button size="sm" variant="default" onClick={() => setShowPublishModal(true)}>
+            Publish to Students
           </Button>
         </div>
-      )}
-
-      {/* Lock status summary + auto-unlock callout */}
-      <div className="mb-4 flex items-center gap-3 rounded-lg border px-4 py-2.5 bg-muted/30">
-        <Lock className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm">
-          <span className="font-medium">{lockedDaysCount}</span> of {days.length} days locked — chatbot will only use content from locked days
-        </span>
       </div>
-      <div className="mb-4 flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5">
+
+      {/* Summary cards */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${totalWeightage === 100 ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"}`}>
+          <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${totalWeightage === 100 ? "bg-primary/10" : "bg-destructive/10"}`}>
+            <span className={`text-sm font-bold ${totalWeightage === 100 ? "text-primary" : "text-destructive"}`}>{totalWeightage}%</span>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Total Weightage</p>
+            <p className={`text-sm font-semibold ${totalWeightage === 100 ? "text-primary" : "text-destructive"}`}>
+              {totalWeightage === 100 ? "Balanced" : `${100 - totalWeightage}% remaining`}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl border px-4 py-3 bg-muted/20">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/50">
+            <span className="text-sm font-bold text-foreground">{days.length}</span>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Total Days</p>
+            <p className="text-sm font-semibold text-foreground">{days.reduce((s, d) => s + d.resources.length, 0)} resources</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl border px-4 py-3 bg-muted/20">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/50">
+            <Lock className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Locked Days</p>
+            <p className="text-sm font-semibold text-foreground">{lockedDaysCount} of {days.length} locked</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Auto-unlock callout */}
+      <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5">
         <span className="text-primary mt-0.5">💡</span>
         <span className="text-xs text-muted-foreground">
-          <strong className="text-foreground">Auto-unlock:</strong> Days are automatically unlocked as the workshop progresses. Day 1 is unlocked on the first day, Day 2 on the second, and so on. You can also manually lock/unlock any day at any time to override the automatic schedule.
+          <strong className="text-foreground">Auto-unlock:</strong> Days are automatically unlocked as the workshop progresses. You can also manually lock/unlock any day at any time.
         </span>
       </div>
 
-      {/* Weightage Summary */}
-      <div className={`mb-4 flex items-center gap-3 rounded-lg border px-4 py-2.5 ${totalWeightage === 100 ? "border-primary/30 bg-primary/5" : "border-warning/30 bg-warning/5"}`}>
-        <span className="text-sm font-medium">Total Weightage:</span>
-        <span className={`text-lg font-bold ${totalWeightage === 100 ? "text-primary" : "text-warning"}`}>{totalWeightage}%</span>
-        <span className="text-xs text-muted-foreground">/ 100%</span>
-        {totalWeightage !== 100 && <span className="text-xs text-warning ml-auto">Adjust day weightages to total 100%</span>}
-        {totalWeightage === 100 && <Check className="h-4 w-4 text-primary ml-auto" />}
-      </div>
-
-      <Tabs defaultValue="plan" className="mb-6">
-        <TabsList className="mb-4">
-          <TabsTrigger value="plan">Day Plan</TabsTrigger>
-          <TabsTrigger value="materials">Uploaded Materials</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="plan" className="space-y-4">
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="plan">Day Plan</TabsTrigger>
+            <TabsTrigger value="materials">Uploaded Materials</TabsTrigger>
+          </TabsList>
+          <h2 className="text-sm font-medium text-muted-foreground">{days.length} day{days.length !== 1 ? "s" : ""}</h2>
+        </div>
 
         <TabsContent value="materials" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-base"><FileText className="h-5 w-5" /> Course Materials</CardTitle>
-                  <CardDescription>Syllabus, slides, problem sets, and other teaching materials</CardDescription>
-                </div>
-                <Button variant="outline" size="sm"><Upload className="mr-2 h-4 w-4" /> Upload New</Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {[
-                { name: "PY101_Syllabus.pdf", type: "Syllabus", size: "1.8 MB", date: "Aug 10, 2025", icon: FileText },
-                { name: "Day1_Python_Fundamentals_Slides.pptx", type: "Slides", size: "5.2 MB", date: "Aug 10, 2025", icon: Presentation },
-                { name: "Day2_Functions_DataStructures_Slides.pptx", type: "Slides", size: "4.7 MB", date: "Aug 10, 2025", icon: Presentation },
-                { name: "Day3_OOP_FileHandling_Slides.pptx", type: "Slides", size: "3.9 MB", date: "Aug 10, 2025", icon: Presentation },
-                { name: "Practice_Problems_Set1.pdf", type: "Problem Set", size: "540 KB", date: "Aug 10, 2025", icon: FileSpreadsheet },
-                { name: "Python_Reference_Guide.pdf", type: "Reading", size: "8.3 MB", date: "Aug 10, 2025", icon: BookOpen },
-              ].map((file, i) => (
-                <div key={i} className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><file.icon className="h-5 w-5" /></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">{file.type} • {file.size} • Uploaded {file.date}</p>
-                  </div>
-                  <Button variant="ghost" size="sm" className="h-8"><Download className="h-3.5 w-3.5" /></Button>
-                </div>
-              ))}
-            </CardContent>
+          <Card className="p-6">
+            <p className="text-sm text-muted-foreground">Materials uploaded during setup are available here. To upload new materials, use the file upload in course setup.</p>
           </Card>
         </TabsContent>
 
-        <TabsContent value="plan" className="space-y-2">
-        {days.map((dp) => {
-          const isExpanded = expandedDays.includes(dp.id);
-          const isEditing = editingDayId === dp.id;
+        <TabsContent value="plan" className="space-y-4">
+          <Reorder.Group axis="y" values={days} onReorder={(newOrder) => { setDays(newOrder.map((d, i) => ({ ...d, day: i + 1 }))); markChanged(); }}>
+            <div className="space-y-4">
+              {days.map((dp) => {
+                const isExpanded = expandedDays.includes(dp.id);
+                const isEditing = editingDayId === dp.id;
+                const isSuggesting = suggestingDayId === dp.id;
 
-          return (
-            <Card key={dp.id} className={dp.locked ? "border-primary/30" : ""}>
-              <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => toggleDay(dp.id)}>
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <Badge variant="outline" className="shrink-0 text-xs">Day {dp.day}</Badge>
-                  {isEditing ? (
-                    <div className="flex items-center gap-2 flex-1" onClick={(e) => e.stopPropagation()}>
-                      <Input value={editDates} onChange={(e) => setEditDates(e.target.value)} className="h-7 w-28 text-xs" />
-                      <Input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} className="h-7 flex-1 text-xs" />
-                      <button onClick={saveEditDay} className="rounded p-1 hover:bg-muted"><Check className="h-3.5 w-3.5 text-primary" /></button>
-                      <button onClick={() => setEditingDayId(null)} className="rounded p-1 hover:bg-muted"><X className="h-3.5 w-3.5 text-muted-foreground" /></button>
-                    </div>
-                  ) : (
-                    <div className="min-w-0">
-                      <span className="text-sm font-medium truncate block">{dp.topic}</span>
-                      <span className="text-xs text-muted-foreground">{dp.dates} · Generated from your course materials</span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 ml-2 shrink-0">
-                  {/* Lock/Unlock button */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={`h-7 px-2 text-xs ${dp.locked ? "text-primary" : "text-muted-foreground"}`}
-                    onClick={(e) => { e.stopPropagation(); toggleLock(dp.id); }}
-                    title={dp.locked ? "Unlock this day's content" : "Lock this day's content for chatbot"}
-                  >
-                    {dp.locked ? <Lock className="h-3.5 w-3.5 mr-1" /> : <Unlock className="h-3.5 w-3.5 mr-1" />}
-                    {dp.locked ? "Locked" : "Unlocked"}
-                  </Button>
-                  <div className="flex items-center gap-1 mr-2" onClick={(e) => e.stopPropagation()}>
-                    <Input type="number" min={0} max={100} value={dp.weightage} onChange={(e) => updateWeightage(dp.id, parseInt(e.target.value) || 0)} className="h-7 w-14 text-xs text-center" aria-label={`Weightage for day ${dp.day}`} />
-                    <span className="text-xs text-muted-foreground">%</span>
-                  </div>
-                  {!isEditing && (
-                    <>
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); startEditDay(dp); }} aria-label="Edit day">
-                        <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteDay(dp.id); }} aria-label="Remove day">
-                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
-                      </Button>
-                    </>
-                  )}
-                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                </div>
-              </div>
-
-              {isExpanded && (
-                <CardContent className="pt-0 pb-4 space-y-2">
-                  {dp.resources.map((r) => {
-                    const Icon = typeIcons[r.type] || BookOpen;
-                    const isEditingRes = editingResourceId === r.id;
-                    const prov = r.provenance ? provenanceLabels[r.provenance] : null;
-
-                    return (
-                      <div key={r.id} className="flex items-start gap-3 rounded-lg border p-3">
-                        <div className="pt-0.5"><Icon className="h-4 w-4 text-muted-foreground" /></div>
-                        {isEditingRes ? (
-                          <div className="flex-1 space-y-2">
-                            <Input value={editResourceTitle} onChange={(e) => setEditResourceTitle(e.target.value)} placeholder="Resource title" className="h-7 text-xs" />
-                            <Input value={editResourceAction} onChange={(e) => setEditResourceAction(e.target.value)} placeholder="Action / description" className="h-7 text-xs" />
-                            <div className="flex gap-1">
-                              <button onClick={() => saveEditResource(dp.id)} className="rounded p-1 hover:bg-muted"><Check className="h-3.5 w-3.5 text-primary" /></button>
-                              <button onClick={() => setEditingResourceId(null)} className="rounded p-1 hover:bg-muted"><X className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                return (
+                  <Reorder.Item key={dp.id} value={dp} className="list-none">
+                    <Card className={`overflow-hidden transition-all ${dp.locked ? "border-primary/20 shadow-sm" : "border-border"} ${isExpanded ? "shadow-md" : ""}`}>
+                      {/* Day Header */}
+                      <div className="flex items-center gap-1 px-2">
+                        <GripVertical className="h-4 w-4 text-muted-foreground/40 cursor-grab shrink-0" />
+                        <button
+                          onClick={() => toggleDay(dp.id)}
+                          className="flex flex-1 items-center justify-between px-3 py-3.5 text-left hover:bg-muted/20 transition-colors rounded"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`flex h-8 w-8 items-center justify-center rounded-lg shrink-0 ${dp.locked ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                              <span className="text-xs font-bold">{dp.day}</span>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold truncate">{dp.topic}</p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-xs text-muted-foreground">{dp.dates}</span>
+                                <span className="text-xs text-muted-foreground">·</span>
+                                <span className="text-xs text-muted-foreground">{dp.weightage}% weightage</span>
+                                <span className="text-xs text-muted-foreground">·</span>
+                                <span className="text-xs text-muted-foreground">{dp.resources.length} resources</span>
+                              </div>
                             </div>
                           </div>
-                        ) : (
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-medium">{r.title}</span>
-                              <Badge variant="outline" className={`text-[10px] ${typeColors[r.type] || ""}`}>{typeLabels[r.type] || r.type}</Badge>
-                              {prov && <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 ${prov.className}`}>{prov.label}</Badge>}
-                              {r.source && (
-                                <button className="text-[10px] text-primary hover:underline flex items-center gap-0.5">
-                                  <ExternalLink className="h-2.5 w-2.5" /> {r.source}
-                                </button>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              variant="ghost" size="sm"
+                              className={`h-7 px-2 text-xs ${dp.locked ? "text-primary" : "text-muted-foreground"}`}
+                              onClick={(e) => { e.stopPropagation(); toggleLock(dp.id); }}
+                            >
+                              {dp.locked ? <Lock className="h-3.5 w-3.5 mr-1" /> : <Unlock className="h-3.5 w-3.5 mr-1" />}
+                              {dp.locked ? "Locked" : "Unlocked"}
+                            </Button>
+                            {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                          </div>
+                        </button>
+                      </div>
+
+                      {/* Expanded Content */}
+                      {isExpanded && (
+                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} className="border-t">
+                          <div className="px-5 py-5 space-y-5">
+                            {/* Editable header fields */}
+                            {isEditing ? (
+                              <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-dashed">
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-medium">Topic</Label>
+                                  <Input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} className="h-9 text-sm" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium">Date / Label</Label>
+                                    <Input value={editDates} onChange={(e) => setEditDates(e.target.value)} className="h-9 text-sm" />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium">Weightage (%)</Label>
+                                    <Input type="number" min={0} max={100} value={dp.weightage} onChange={(e) => updateWeightage(dp.id, parseInt(e.target.value) || 0)} className="h-9 text-sm" />
+                                  </div>
+                                </div>
+                                <div className="flex gap-2 pt-1">
+                                  <Button size="sm" onClick={saveEditDay} className="h-8">Save Changes</Button>
+                                  <Button size="sm" variant="ghost" onClick={() => setEditingDayId(null)} className="h-8">Cancel</Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex gap-2">
+                                <Button size="sm" variant="outline" onClick={() => startEditDay(dp)} className="h-8 text-xs">
+                                  <Pencil className="h-3 w-3 mr-1.5" /> Edit Day Info
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => deleteDay(dp.id)} className="h-8 text-xs text-destructive hover:text-destructive">
+                                  <Trash2 className="h-3 w-3 mr-1.5" /> Remove Day
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Lesson Description */}
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <div className="h-5 w-1 rounded-full bg-primary" />
+                                  <Label className="text-sm font-semibold">Lesson Description</Label>
+                                </div>
+                                <Button
+                                  variant="outline" size="sm"
+                                  onClick={() => handleAiSuggest(dp.id)}
+                                  disabled={isSuggesting}
+                                  className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50"
+                                >
+                                  {isSuggesting ? (
+                                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
+                                  ) : (
+                                    <><Sparkles className="h-3.5 w-3.5" /> AI Suggest</>
+                                  )}
+                                </Button>
+                              </div>
+
+                              {isSuggesting ? (
+                                <div className="rounded-lg border border-primary/20 bg-primary/5 p-6 flex flex-col items-center gap-3">
+                                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                  <p className="text-sm text-primary font-medium">AI is generating lesson description & resources…</p>
+                                  <p className="text-xs text-muted-foreground">This may take 10–20 seconds</p>
+                                </div>
+                              ) : dp.description ? (
+                                <div className="rounded-lg border bg-muted/10 p-4">
+                                  {renderDescription(dp.description)}
+                                  <div className="mt-3 pt-3 border-t">
+                                    <details className="group">
+                                      <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground flex items-center gap-1">
+                                        <Pencil className="h-3 w-3" /> Edit raw text
+                                      </summary>
+                                      <Textarea
+                                        value={dp.description}
+                                        onChange={(e) => updateDescription(dp.id, e.target.value)}
+                                        className="mt-2 min-h-[160px] text-sm leading-relaxed resize-y font-mono text-xs"
+                                      />
+                                    </details>
+                                  </div>
+                                </div>
+                              ) : (
+                                <Textarea
+                                  value={dp.description || ""}
+                                  onChange={(e) => updateDescription(dp.id, e.target.value)}
+                                  placeholder="Describe what this day covers — or click AI Suggest to auto-generate."
+                                  className="min-h-[120px] text-sm leading-relaxed resize-y"
+                                />
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">{r.action}</p>
-                          </div>
-                        )}
-                        {!isEditingRes && (
-                          <div className="flex items-center gap-1 shrink-0">
-                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => startEditResource(r)} aria-label="Edit resource">
-                              <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-                            </Button>
-                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive" onClick={() => confirmDeleteResource(dp.id, r.id)} aria-label="Remove resource">
-                              <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
 
-                  {/* Add resource buttons */}
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {(["textbook", "exercise", "case-study", "article"] as Resource["type"][]).map((type) => (
-                      <Button key={type} variant="ghost" size="sm" className="h-7 text-[10px] text-muted-foreground" onClick={() => addResourceToDay(dp.id, type)}>
-                        <Plus className="mr-1 h-3 w-3" /> {typeLabels[type]}
-                      </Button>
-                    ))}
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-          );
-        })}
+                            {/* Resources */}
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <div className="h-5 w-1 rounded-full bg-secondary" />
+                                <Label className="text-sm font-semibold">Resources & Materials</Label>
+                                <Badge variant="outline" className="text-[10px] ml-auto">{dp.resources.length} items</Badge>
+                              </div>
+
+                              {dp.resources.length === 0 && (
+                                <div className="rounded-lg border border-dashed p-6 text-center">
+                                  <BookOpen className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                                  <p className="text-sm text-muted-foreground">No resources added yet</p>
+                                  <p className="text-xs text-muted-foreground mt-1">Add resources manually or use AI Suggest</p>
+                                </div>
+                              )}
+
+                              <div className="space-y-2">
+                                {dp.resources.map((r) => {
+                                  const isEditingThis = editingResourceId === r.id;
+                                  const prov = r.provenance ? provenanceLabels[r.provenance] : null;
+                                  return (
+                                    <div key={r.id} className={`rounded-lg px-4 py-3 border transition-colors ${typeColors[r.type] || "bg-muted/30 border-border"}`}>
+                                      {isEditingThis ? (
+                                        <div className="space-y-3">
+                                          <div className="space-y-1.5">
+                                            <Label className="text-[11px] font-medium">Type</Label>
+                                            <Select value={editResourceType} onValueChange={(v) => setEditResourceType(v as Resource["type"])}>
+                                              <SelectTrigger className="h-8 text-xs bg-background"><SelectValue /></SelectTrigger>
+                                              <SelectContent>
+                                                {resourceTypeOptions.map(opt => (
+                                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div className="space-y-1.5">
+                                            <Label className="text-[11px] font-medium">Title</Label>
+                                            <Input value={editResourceTitle} onChange={(e) => setEditResourceTitle(e.target.value)} className="h-8 text-xs bg-background" />
+                                          </div>
+                                          <div className="space-y-1.5">
+                                            <Label className="text-[11px] font-medium">Description</Label>
+                                            <Input value={editResourceAction} onChange={(e) => setEditResourceAction(e.target.value)} className="h-8 text-xs bg-background" />
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <Button size="sm" onClick={() => saveEditResource(dp.id)} className="h-7 text-xs px-3">Save</Button>
+                                            <Button size="sm" variant="ghost" onClick={() => setEditingResourceId(null)} className="h-7 text-xs px-3">Cancel</Button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div className="flex items-start gap-3 min-w-0">
+                                            <span className="text-lg shrink-0 mt-0.5">{typeIcons[r.type] || "📄"}</span>
+                                            <div className="min-w-0">
+                                              <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="text-sm font-medium">{r.title || "Untitled"}</span>
+                                                {prov && <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 ${prov.className}`}>{prov.label}</Badge>}
+                                              </div>
+                                              <p className="text-xs mt-0.5 opacity-80">{r.action}</p>
+                                            </div>
+                                          </div>
+                                          <div className="flex gap-1 shrink-0">
+                                            <Button variant="ghost" size="sm" onClick={() => startEditResource(r)} className="h-7 px-2 text-xs hover:bg-background/50">
+                                              <Pencil className="h-3 w-3" />
+                                            </Button>
+                                            <Button variant="ghost" size="sm" onClick={() => removeResource(dp.id, r.id)} className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-background/50">
+                                              <Trash2 className="h-3 w-3" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Add resource */}
+                              {addingResourceDayId === dp.id ? (
+                                <div className="rounded-lg border border-dashed p-3 bg-muted/10 space-y-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium">Resource Type</Label>
+                                    <Select value={newResourceType} onValueChange={(v) => setNewResourceType(v as Resource["type"])}>
+                                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                        {resourceTypeOptions.map(opt => (
+                                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button size="sm" onClick={() => handleAddResource(dp.id)} className="h-8">
+                                      <Plus className="h-3.5 w-3.5 mr-1" /> Add Resource
+                                    </Button>
+                                    <Button size="sm" variant="ghost" onClick={() => setAddingResourceDayId(null)} className="h-8">Cancel</Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <Button
+                                  variant="outline" size="sm"
+                                  onClick={() => { setAddingResourceDayId(dp.id); setNewResourceType("exercise"); }}
+                                  className="h-8 text-xs border-dashed w-full"
+                                >
+                                  <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Resource
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </Card>
+                  </Reorder.Item>
+                );
+              })}
+            </div>
+          </Reorder.Group>
+
+          <Button variant="outline" onClick={addDay} className="w-full border-dashed h-11">
+            <Plus className="mr-2 h-4 w-4" /> Add Day
+          </Button>
         </TabsContent>
       </Tabs>
 
-      {/* Publish Confirmation Modal */}
+      {/* Publish Modal */}
       <Dialog open={showPublishModal} onOpenChange={setShowPublishModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Publish to students?</DialogTitle>
-            <DialogDescription>Students will see day topics, approved resources, and TA practice prompts.</DialogDescription>
+            <DialogTitle>Publish Lesson Plan?</DialogTitle>
+            <DialogDescription>Students will see the updated content. You can always come back to edit.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <label className="flex items-center gap-3 cursor-pointer">
@@ -456,12 +730,12 @@ const TeachingPlan = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Remove Confirmation Modal */}
+      {/* Remove Confirmation */}
       <Dialog open={!!removeConfirm} onOpenChange={() => setRemoveConfirm(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Remove this resource?</DialogTitle>
-            <DialogDescription>This removes "{removeConfirm?.title}" from this day's plan. You can undo right after.</DialogDescription>
+            <DialogDescription>This removes "{removeConfirm?.title}" from this day's plan.</DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2">
             <Button variant="outline" onClick={() => setRemoveConfirm(null)}>Cancel</Button>
