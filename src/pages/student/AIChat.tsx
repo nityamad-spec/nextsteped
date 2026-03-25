@@ -154,13 +154,13 @@ const AIChat = () => {
     setAssessmentActive(true);
   };
 
-  const handleStartQuiz = () => {
+  const handleStartQuiz = (day?: number) => {
     const count = taSettings.quizNumQuestions || 5;
-    // Default to day 1 quiz
-    const questions = getQuizQuestions(1, count);
+    const quizDay = day || parseInt(searchParams.get("day") || "1") || 1;
+    const questions = getQuizQuestions(quizDay, count);
     setAssessmentQuestions(questions);
     setAssessmentType("quiz");
-    setAssessmentDay(1);
+    setAssessmentDay(quizDay);
     setAssessmentActive(true);
   };
 
