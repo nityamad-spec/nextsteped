@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Plus, ClipboardCheck, Pencil, Trash2, Filter, Shield, BookOpen, Clock, ClipboardList } from "lucide-react";
+import { Plus, ClipboardCheck, Pencil, Trash2, Filter, Shield, BookOpen, Clock, ClipboardList, Info, Calendar } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -29,13 +29,15 @@ interface EditableQuestion {
   options?: string[];
   correctIndex?: number;
   explanation?: string;
+  quizDay?: 1 | 2; // Day assignment for daily quiz questions
 }
 
-const seedQuestions: EditableQuestion[] = mockQuizQuestions.map((q) => ({
+const seedQuestions: EditableQuestion[] = mockQuizQuestions.map((q, i) => ({
   ...q,
   answer: q.options?.[q.correctIndex] || "",
   type: "MCQ" as QuestionType,
   modes: ["learning", "exam", "daily_quiz"] as QuestionMode[],
+  quizDay: (i % 2 === 0 ? 1 : 2) as 1 | 2,
 }));
 
 const Assessments = () => {
@@ -47,6 +49,7 @@ const Assessments = () => {
   const [filterModes, setFilterModes] = useState<QuestionMode[]>([]);
   const [filterDifficulties, setFilterDifficulties] = useState<string[]>([]);
   const [filterTypes, setFilterTypes] = useState<string[]>([]);
+  const [filterDays, setFilterDays] = useState<number[]>([]);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -59,6 +62,7 @@ const Assessments = () => {
   const [formModes, setFormModes] = useState<QuestionMode[]>(["learning", "exam", "daily_quiz"]);
   const [formOptions, setFormOptions] = useState<string[]>(["", "", "", ""]);
   const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
+  const [formQuizDay, setFormQuizDay] = useState<1 | 2 | undefined>(1);
 
   // Exam settings
   const [examTimeLimit, setExamTimeLimit] = useState(taSettings.examTimeLimit || 60);
@@ -96,6 +100,12 @@ const Assessments = () => {
     );
   };
 
+  const toggleFilterDay = (day: number) => {
+    setFilterDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
+  };
+
   const openAddDialog = () => {
     setEditingId(null);
     setFormQuestion("");
@@ -106,6 +116,7 @@ const Assessments = () => {
     setFormModes(["learning", "exam", "daily_quiz"]);
     setFormOptions(["", "", "", ""]);
     setFormCorrectIndex(0);
+    setFormQuizDay(1);
     setDialogOpen(true);
   };
 
@@ -119,12 +130,14 @@ const Assessments = () => {
     setFormModes(q.modes);
     setFormOptions(q.options?.length ? [...q.options] : ["", "", "", ""]);
     setFormCorrectIndex(q.correctIndex ?? 0);
+    setFormQuizDay(q.quizDay);
     setDialogOpen(true);
   };
 
   const handleSave = () => {
     if (!formQuestion.trim() || !formTopic || formModes.length === 0) return;
     const isMCQ = formType === "MCQ";
+    const isDailyQuiz = formModes.includes("daily_quiz");
     const newQ: EditableQuestion = {
       id: editingId || `q${Date.now()}`,
       question: formQuestion,
@@ -134,6 +147,7 @@ const Assessments = () => {
       type: formType,
       modes: formModes,
       ...(isMCQ ? { options: formOptions.filter(o => o.trim()), correctIndex: formCorrectIndex } : {}),
+      ...(isDailyQuiz && formQuizDay ? { quizDay: formQuizDay } : {}),
     };
     if (editingId) {
       setQuestions((prev) => prev.map((q) => q.id === editingId ? newQ : q));
@@ -172,11 +186,14 @@ const Assessments = () => {
     if (filterModes.length > 0 && !filterModes.some(m => q.modes.includes(m))) return false;
     if (filterDifficulties.length > 0 && !filterDifficulties.includes(q.difficulty)) return false;
     if (filterTypes.length > 0 && !filterTypes.includes(q.type)) return false;
+    if (filterDays.length > 0 && (!q.quizDay || !filterDays.includes(q.quizDay))) return false;
     return true;
   });
 
   const examQuestions = questions.filter(q => q.modes.includes("exam"));
   const quizQuestions = questions.filter(q => q.modes.includes("daily_quiz"));
+  const day1Questions = quizQuestions.filter(q => q.quizDay === 1);
+  const day2Questions = quizQuestions.filter(q => q.quizDay === 2);
 
   const typeBadgeColor = (type: QuestionType) => {
     switch (type) {
@@ -215,6 +232,12 @@ const Assessments = () => {
               {modeLabel(mode)}
             </Badge>
           ))}
+          {q.modes.includes("daily_quiz") && q.quizDay && (
+            <Badge variant="outline" className="text-[10px] bg-secondary/50 text-secondary-foreground">
+              <Calendar className="h-2.5 w-2.5 mr-1" />
+              Day {q.quizDay}
+            </Badge>
+          )}
           <span className="text-xs text-muted-foreground">{q.topic}</span>
         </div>
         <div className="flex items-center gap-1">
@@ -296,7 +319,6 @@ const Assessments = () => {
                 </div>
               </div>
 
-              {/* Estimated vs Manual Question Count */}
               <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -382,12 +404,36 @@ const Assessments = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Standardized quiz info */}
+              <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p><strong className="text-foreground">Standardized daily quizzes:</strong> Daily quizzes are <strong>not adaptive</strong>. All students receive the same set of questions for each day.</p>
+                  <p>Tag your questions as <strong>Day 1</strong> or <strong>Day 2</strong> in the question bank below to control which questions appear in each daily quiz.</p>
+                </div>
+              </div>
+
+              {/* Day question counts */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border p-3 text-center">
+                  <p className="text-lg font-bold text-primary">{day1Questions.length}</p>
+                  <p className="text-xs text-muted-foreground">Day 1 Questions</p>
+                </div>
+                <div className="rounded-lg border p-3 text-center">
+                  <p className="text-lg font-bold text-primary">{day2Questions.length}</p>
+                  <p className="text-xs text-muted-foreground">Day 2 Questions</p>
+                </div>
+              </div>
+
               <div className="space-y-3">
-                <Label className="text-sm font-medium">Number of Questions</Label>
+                <Label className="text-sm font-medium">Questions Per Quiz</Label>
                 <div className="flex items-center gap-4">
                   <Slider value={[quizNumQuestions]} onValueChange={(v) => setQuizNumQuestions(v[0])} min={3} max={20} step={1} className="flex-1" />
                   <span className="w-16 text-right text-sm font-bold">{quizNumQuestions}</span>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  If fewer questions are tagged for a day than this number, all available questions for that day will be used.
+                </p>
               </div>
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Time Limit (minutes)</Label>
@@ -407,11 +453,6 @@ const Assessments = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="rounded-lg border bg-primary/5 p-3">
-                    <p className="text-xs text-muted-foreground">
-                      <strong className="text-foreground">Note:</strong> Daily quiz difficulty is personalized automatically based on each student's concept mastery level.
-                    </p>
-                  </div>
               <Button onClick={handleSaveQuizSettings} className="w-full">Save Quiz Settings</Button>
             </CardContent>
           </Card>
@@ -424,7 +465,7 @@ const Assessments = () => {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" /> Custom Questions</CardTitle>
-              <CardDescription>Add questions and assign them to Study, Daily Quiz, Exam, or all modes.</CardDescription>
+              <CardDescription>Add questions and assign them to Study, Daily Quiz (Day 1 or Day 2), Exam, or all modes.</CardDescription>
             </div>
             <Button size="sm" onClick={openAddDialog}>
               <Plus className="mr-1 h-4 w-4" /> Add Question
@@ -437,8 +478,8 @@ const Assessments = () => {
             <div className="flex items-center gap-2 mb-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium">Filters</span>
-              {(filterModes.length > 0 || filterDifficulties.length > 0 || filterTypes.length > 0) && (
-                <Button variant="ghost" size="sm" className="h-6 text-[10px] ml-auto" onClick={() => { setFilterModes([]); setFilterDifficulties([]); setFilterTypes([]); }}>
+              {(filterModes.length > 0 || filterDifficulties.length > 0 || filterTypes.length > 0 || filterDays.length > 0) && (
+                <Button variant="ghost" size="sm" className="h-6 text-[10px] ml-auto" onClick={() => { setFilterModes([]); setFilterDifficulties([]); setFilterTypes([]); setFilterDays([]); }}>
                   Clear all
                 </Button>
               )}
@@ -455,6 +496,22 @@ const Assessments = () => {
                     }`}
                   >
                     {modeLabel(mode)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Quiz Day</Label>
+              <div className="flex flex-wrap gap-2">
+                {[1, 2].map((day) => (
+                  <button
+                    key={day}
+                    onClick={() => toggleFilterDay(day)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                      filterDays.includes(day) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"
+                    }`}
+                  >
+                    Day {day}
                   </button>
                 ))}
               </div>
@@ -499,7 +556,9 @@ const Assessments = () => {
             <span>·</span>
             <span>{examQuestions.length} Exam</span>
             <span>·</span>
-            <span>{quizQuestions.length} Daily Quiz</span>
+            <span>{day1Questions.length} Quiz Day 1</span>
+            <span>·</span>
+            <span>{day2Questions.length} Quiz Day 2</span>
           </div>
 
           {/* Question list */}
@@ -630,10 +689,43 @@ const Assessments = () => {
                 <p className="text-xs text-destructive">Select at least one mode</p>
               )}
             </div>
+
+            {/* Day assignment - only shown when Daily Quiz is selected */}
+            {formModes.includes("daily_quiz") && (
+              <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                <Label className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-primary" />
+                  Quiz Day Assignment <span className="text-destructive">*</span>
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Daily quizzes are standardized — all students get the same questions. Assign this question to the correct day.
+                </p>
+                <div className="flex items-center gap-3 pt-1">
+                  <Button
+                    type="button"
+                    variant={formQuizDay === 1 ? "default" : "outline"}
+                    size="sm"
+                    className="h-8"
+                    onClick={() => setFormQuizDay(1)}
+                  >
+                    Day 1
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={formQuizDay === 2 ? "default" : "outline"}
+                    size="sm"
+                    className="h-8"
+                    onClick={() => setFormQuizDay(2)}
+                  >
+                    Day 2
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!formQuestion.trim() || !formTopic || formModes.length === 0}>{editingId ? "Save Changes" : "Add Question"}</Button>
+            <Button onClick={handleSave} disabled={!formQuestion.trim() || !formTopic || formModes.length === 0 || (formModes.includes("daily_quiz") && !formQuizDay)}>{editingId ? "Save Changes" : "Add Question"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
