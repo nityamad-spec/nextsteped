@@ -8,11 +8,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, CheckCircle, ClipboardList, AlertTriangle, ShieldCheck, Loader2 } from "lucide-react";
+import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, AlertTriangle, ShieldCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
+import { getQuizQuestions, getExamQuestions, Question } from "@/data/questionBank";
 
 const WELCOME_LEARNING = "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?";
-const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. I'll present you with questions based on your professor's exam format.\n\nWhen you're ready, click **Start Exam** or **Start Daily Quiz** below. Once started, the chatbot will be disabled — you'll answer questions directly.\n\nGood luck!";
+const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Choose **Start Exam** or **Start Daily Quiz** below to begin a timed assessment.\n\nQuestions are presented by the system — no AI generation involved. Good luck!";
 
 const AIChat = () => {
   const [searchParams] = useSearchParams();
@@ -20,7 +22,7 @@ const AIChat = () => {
   const location = useLocation();
   const { user } = useAuth();
   const { taSettings } = useApp();
-  const initialMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
+  const initialMode = (searchParams.get("mode") === "exam" || searchParams.get("mode") === "quiz") ? "exam" : "learning";
 
   const [mode, setMode] = useState<"learning" | "exam">(initialMode);
   const [input, setInput] = useState("");
@@ -28,13 +30,17 @@ const AIChat = () => {
   const [showCodeTerminal, setShowCodeTerminal] = useState(false);
   const [codeInput, setCodeInput] = useState("");
   const [codeResult, setCodeResult] = useState<string | null>(null);
-  const [examStarted, setExamStarted] = useState(false);
-  const [quizStarted, setQuizStarted] = useState(false);
   const [showLeaveWarning, setShowLeaveWarning] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Assessment state
+  const [assessmentActive, setAssessmentActive] = useState(false);
+  const [assessmentType, setAssessmentType] = useState<"quiz" | "exam">("quiz");
+  const [assessmentQuestions, setAssessmentQuestions] = useState<Question[]>([]);
+  const [assessmentDay, setAssessmentDay] = useState(1);
 
   const {
     sessions: chats,
@@ -49,23 +55,29 @@ const AIChat = () => {
     updateSessionTitle,
   } = useChatSessions(mode);
 
-  const isAssessmentActive = examStarted || quizStarted;
-  const isChatDisabled = mode === "exam" && isAssessmentActive;
-
-  // Intercept tab switching during assessment
+  // Auto-start quiz/exam if coming from home page with mode=quiz or mode=exam
   useEffect(() => {
-    if (!isAssessmentActive) return;
+    const urlMode = searchParams.get("mode");
+    if (urlMode === "quiz") {
+      handleStartQuiz();
+    } else if (urlMode === "exam") {
+      handleStartExam();
+    }
+  }, []);
+
+  // Intercept navigation during assessment
+  useEffect(() => {
+    if (!assessmentActive) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isAssessmentActive]);
+  }, [assessmentActive]);
 
-  // Watch for navigation attempts via clicking sidebar links
   useEffect(() => {
-    if (!isAssessmentActive) return;
+    if (!assessmentActive) return;
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const anchor = target.closest("a");
@@ -81,17 +93,10 @@ const AIChat = () => {
     };
     document.addEventListener("click", handleClick, true);
     return () => document.removeEventListener("click", handleClick, true);
-  }, [isAssessmentActive, location.pathname]);
+  }, [assessmentActive, location.pathname]);
 
   const handleConfirmLeave = () => {
-    if (activeChat) {
-      const endContent = examStarted
-        ? "⚠️ **Exam ended** — you navigated away from the exam page. Your progress has been **discarded** and will not be submitted."
-        : "⚠️ **Daily Quiz ended** — you navigated away from the quiz page. Your progress has been **discarded** and will not be submitted.";
-      addMessage(activeChat.id, "assistant", endContent);
-    }
-    setExamStarted(false);
-    setQuizStarted(false);
+    setAssessmentActive(false);
     setShowLeaveWarning(false);
     if (pendingNavigation) {
       navigate(pendingNavigation);
@@ -104,7 +109,7 @@ const AIChat = () => {
     setPendingNavigation(null);
   };
 
-  // Auto-create first session if none exist (after loading)
+  // Auto-create first session if none exist
   useEffect(() => {
     if (chatsLoading || chats.length > 0 || !user) return;
     const welcome = mode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
@@ -116,17 +121,16 @@ const AIChat = () => {
   useEffect(() => {
     const shouldNewChat = searchParams.get("newchat") === "true";
     if (!shouldNewChat || !user) return;
-    const targetMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
+    const targetMode = (searchParams.get("mode") === "exam" || searchParams.get("mode") === "quiz") ? "exam" : "learning";
     setMode(targetMode);
-    setExamStarted(false);
-    setQuizStarted(false);
+    setAssessmentActive(false);
     const welcome = targetMode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
     const title = targetMode === "learning" ? "New Study Session" : "New Exam Prep";
     createSession(title, welcome);
   }, []);
 
   useEffect(() => {
-    if (mode === "learning") { setExamStarted(false); setQuizStarted(false); }
+    if (mode === "learning") setAssessmentActive(false);
   }, [mode]);
 
   useEffect(() => {
@@ -134,68 +138,63 @@ const AIChat = () => {
   }, [activeChat?.messages.length, streamingMessage?.content]);
 
   const createNewChat = async () => {
-    setExamStarted(false);
-    setQuizStarted(false);
+    setAssessmentActive(false);
     const welcome = mode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
     const title = mode === "learning" ? "New Study Session" : "New Exam Prep";
     await createSession(title, welcome);
     setShowHistory(false);
   };
 
-  const handleStartExam = async () => {
-    if (!activeChat) return;
-    setExamStarted(true);
-    setQuizStarted(false);
-    await addMessage(
-      activeChat.id,
-      "assistant",
-      "🎯 **Exam has started!**\n\nThe chatbot is now disabled. Answer the questions below.\n\n**Question 1 of 15:**\nWhat is the output of `print(type(3.14))`?\n\nA) `<class 'int'>`\nB) `<class 'float'>`\nC) `<class 'str'>`\nD) `<class 'number'>`\n\nSelect your answer below."
-    );
+  const handleStartExam = () => {
+    const count = 15;
+    const questions = getExamQuestions(count);
+    setAssessmentQuestions(questions);
+    setAssessmentType("exam");
+    setAssessmentDay(3);
+    setAssessmentActive(true);
   };
 
-  const handleStartQuiz = async () => {
-    if (!activeChat) return;
-    setQuizStarted(true);
-    setExamStarted(false);
-    await addMessage(
-      activeChat.id,
-      "assistant",
-      "📝 **Daily Quiz has started!**\n\nThe chatbot is now disabled. Answer the questions below.\n\n**Question 1 of 5:**\nWhich keyword is used to define a function in Python?\n\nA) `function`\nB) `def`\nC) `func`\nD) `define`\n\nSelect your answer below."
-    );
+  const handleStartQuiz = () => {
+    const count = taSettings.quizNumQuestions || 5;
+    // Default to day 1 quiz
+    const questions = getQuizQuestions(1, count);
+    setAssessmentQuestions(questions);
+    setAssessmentType("quiz");
+    setAssessmentDay(1);
+    setAssessmentActive(true);
   };
 
-  const handleSubmit = async () => {
-    if (!activeChat) return;
-    await addMessage(
-      activeChat.id,
-      "assistant",
-      examStarted
-        ? "✅ **Exam submitted!**\n\nYour answers have been recorded. You answered 15 questions.\n\nResults will be available shortly. Great effort!"
-        : "✅ **Daily Quiz submitted!**\n\nYour answers have been recorded. You answered 5 questions.\n\nResults will be available shortly. Nice work!"
-    );
-    setExamStarted(false);
-    setQuizStarted(false);
+  const handleAssessmentEnd = () => {
+    setAssessmentActive(false);
+    navigate("/student/home");
+  };
+
+  const handleAssessmentSubmit = async (results: AssessmentResults) => {
+    // Log results to chat session for record
+    if (activeChat) {
+      const summary = assessmentType === "quiz"
+        ? `✅ **Daily Quiz Complete!** Score: ${results.score}% (${results.correctAnswers}/${results.totalQuestions})`
+        : `✅ **Exam Complete!** Score: ${results.score}% (${results.correctAnswers}/${results.totalQuestions})`;
+      await addMessage(activeChat.id, "assistant", summary);
+    }
   };
 
   const sendMessage = useCallback(async () => {
     if (!input.trim() || !activeChat || isStreaming) return;
-    if (mode === "exam" && isAssessmentActive) return;
+    if (assessmentActive) return;
 
     const userContent = input;
     setInput("");
     setIsStreaming(true);
 
-    // Save user message to DB
     await addMessage(activeChat.id, "user", userContent);
 
-    // Auto-title: if this is the first user message, update session title
     const userMsgCount = activeChat.messages.filter((m) => m.role === "user").length;
     if (userMsgCount === 0) {
       const shortTitle = userContent.slice(0, 50) + (userContent.length > 50 ? "..." : "");
       updateSessionTitle(activeChat.id, shortTitle);
     }
 
-    // Build message history for the AI (last 20 messages for context)
     const historyMessages = [...activeChat.messages, { id: "temp", role: "user" as const, content: userContent, timestamp: Date.now() }]
       .slice(-20)
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
@@ -268,7 +267,6 @@ const AIChat = () => {
         }
       }
 
-      // Final flush
       if (textBuffer.trim()) {
         for (let raw of textBuffer.split("\n")) {
           if (!raw) continue;
@@ -288,7 +286,6 @@ const AIChat = () => {
         }
       }
 
-      // Save final assistant message to DB
       if (assistantContent) {
         await addMessage(activeChat.id, "assistant", assistantContent);
       }
@@ -299,7 +296,7 @@ const AIChat = () => {
       setIsStreaming(false);
       setStreamingMessage(null);
     }
-  }, [input, activeChat, isStreaming, mode, isAssessmentActive, addMessage, updateSessionTitle]);
+  }, [input, activeChat, isStreaming, mode, assessmentActive, addMessage, updateSessionTitle]);
 
   const handleCodeSubmit = () => {
     if (!codeInput.trim()) return;
@@ -311,15 +308,14 @@ const AIChat = () => {
   };
 
   const handleModeSwitch = (newMode: string) => {
-    if (isAssessmentActive && newMode !== mode) {
+    if (assessmentActive && newMode !== mode) {
       setPendingNavigation(null);
       setShowLeaveWarning(true);
       return;
     }
     setMode(newMode as "learning" | "exam");
     setShowHistory(false);
-    setExamStarted(false);
-    setQuizStarted(false);
+    setAssessmentActive(false);
   };
 
   const renderMessage = (msg: ChatMessage) => (
@@ -331,6 +327,44 @@ const AIChat = () => {
       </div>
     </div>
   );
+
+  // If assessment is active, show full-screen assessment view
+  if (assessmentActive && assessmentQuestions.length > 0) {
+    const timeLimit = assessmentType === "exam"
+      ? (taSettings.examTimeLimit || 60)
+      : (taSettings.quizTimeLimit || 10);
+
+    return (
+      <div className="flex h-[calc(100vh-57px)] md:h-screen flex-col">
+        <AssessmentView
+          type={assessmentType}
+          questions={assessmentQuestions}
+          timeLimitMinutes={timeLimit}
+          day={assessmentDay}
+          onEnd={handleAssessmentEnd}
+          onSubmit={handleAssessmentSubmit}
+        />
+
+        <Dialog open={showLeaveWarning} onOpenChange={setShowLeaveWarning}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                End {assessmentType === "exam" ? "Exam" : "Daily Quiz"}?
+              </DialogTitle>
+              <DialogDescription>
+                If you leave, your progress will be discarded and not submitted.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex gap-2">
+              <Button variant="outline" onClick={handleCancelLeave}>Stay & Continue</Button>
+              <Button variant="destructive" onClick={handleConfirmLeave}>Leave & End</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-[calc(100vh-57px)] md:h-screen">
@@ -353,7 +387,7 @@ const AIChat = () => {
               chats.map((chat) => (
                 <button
                   key={chat.id}
-                  onClick={() => { setActiveChatId(chat.id); setShowHistory(false); setExamStarted(false); setQuizStarted(false); }}
+                  onClick={() => { setActiveChatId(chat.id); setShowHistory(false); setAssessmentActive(false); }}
                   className={`w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
                     chat.id === activeChatId ? "bg-sidebar-accent font-medium" : "hover:bg-sidebar-accent/50"
                   }`}
@@ -396,34 +430,13 @@ const AIChat = () => {
         </div>
 
         {/* Exam/Quiz start buttons */}
-        {mode === "exam" && !isAssessmentActive && activeChat && (
+        {mode === "exam" && !assessmentActive && activeChat && (
           <div className="flex items-center justify-center gap-3 border-b bg-muted/20 px-5 py-3">
             <Button onClick={handleStartExam} className="gap-2">
               <Clock className="h-4 w-4" /> Start Exam
             </Button>
             <Button onClick={handleStartQuiz} variant="secondary" className="gap-2">
-              <ClipboardList className="h-4 w-4" /> Start Daily Quiz
-            </Button>
-          </div>
-        )}
-
-        {/* Assessment active banner + submit button */}
-        {isChatDisabled && (
-          <div className="flex items-center justify-between border-b bg-destructive/10 px-5 py-2">
-            <p className="text-sm font-medium text-destructive">
-              {examStarted ? "Exam" : "Daily Quiz"} in progress — chatbot is disabled
-            </p>
-            <Button onClick={handleSubmit} variant="destructive" size="sm" className="gap-2">
-              <CheckCircle className="h-4 w-4" /> Submit {examStarted ? "Exam" : "Quiz"}
-            </Button>
-          </div>
-        )}
-
-        {/* Controls bar - only in study mode */}
-        {mode === "learning" && (
-          <div className="flex flex-wrap items-center gap-3 border-b px-5 py-2.5">
-            <Button variant="ghost" size="sm" className="h-9 text-sm gap-2 ml-auto" onClick={() => setShowCodeTerminal(!showCodeTerminal)}>
-              <Terminal className="h-4 w-4" /> Code Terminal
+              <MessageSquare className="h-4 w-4" /> Start Daily Quiz
             </Button>
           </div>
         )}
@@ -487,14 +500,14 @@ const AIChat = () => {
         <div className="border-t p-4">
           <div className="flex gap-2">
             <Input
-              placeholder={isChatDisabled ? "Chatbot disabled during assessment..." : mode === "learning" ? "Ask your Teaching Assistant anything..." : "Ask about exam topics or start a simulation..."}
+              placeholder={mode === "learning" ? "Ask your Teaching Assistant anything..." : "Ask about exam topics or start a simulation..."}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
               className="flex-1"
-              disabled={isChatDisabled}
+              disabled={mode === "exam"}
             />
-            <Button onClick={sendMessage} size="icon" disabled={!input.trim() || isChatDisabled || isStreaming}>
+            <Button onClick={sendMessage} size="icon" disabled={!input.trim() || isStreaming || mode === "exam"}>
               <Send className="h-4 w-4" />
             </Button>
           </div>
@@ -513,15 +526,15 @@ const AIChat = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              End {examStarted ? "Exam" : "Daily Quiz"}?
+              Leave Assessment?
             </DialogTitle>
             <DialogDescription>
-              If you leave this page, your {examStarted ? "exam" : "daily quiz"} will automatically end and your progress will be **discarded** (not submitted). Are you sure you want to leave?
+              If you leave, your progress will be discarded and not submitted. Are you sure?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2">
             <Button variant="outline" onClick={handleCancelLeave}>Stay & Continue</Button>
-            <Button variant="destructive" onClick={handleConfirmLeave}>Leave & End {examStarted ? "Exam" : "Quiz"}</Button>
+            <Button variant="destructive" onClick={handleConfirmLeave}>Leave & End</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
