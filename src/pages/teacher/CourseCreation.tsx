@@ -13,8 +13,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Collapsible, CollapsibleContent, CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import {
   Check, X, ArrowRight, ArrowLeft, Sparkles, Loader2,
   ChevronDown, ChevronUp, Download, Pencil, GripVertical,
@@ -51,16 +51,36 @@ type DayPlan = {
 };
 
 const typeLabels: Record<string, string> = {
-  textbook: "Textbook", exercise: "Interactive Exercise", lab: "Interactive Exercise",
-  tool: "Interactive Exercise", "case-study": "Case Study", article: "Article & Industry Context",
-  news: "Article & Industry Context", video: "Video",
+  textbook: "Textbook / Reading",
+  exercise: "Interactive Exercise",
+  lab: "Lab / Hands-on",
+  tool: "Tool / Software",
+  "case-study": "Case Study",
+  article: "Article / Industry",
+  news: "News / Current Events",
+  video: "Video",
+};
+
+const typeIcons: Record<string, string> = {
+  textbook: "📖",
+  exercise: "🏋️",
+  lab: "🧪",
+  tool: "🔧",
+  "case-study": "📋",
+  article: "📰",
+  news: "📰",
+  video: "🎬",
 };
 
 const typeColors: Record<string, string> = {
-  textbook: "bg-secondary text-secondary-foreground", exercise: "bg-primary/10 text-primary",
-  lab: "bg-primary/10 text-primary", tool: "bg-primary/10 text-primary",
-  "case-study": "bg-accent/20 text-accent-foreground", article: "bg-muted text-muted-foreground",
-  news: "bg-muted text-muted-foreground", video: "bg-destructive/10 text-destructive",
+  textbook: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800",
+  exercise: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800",
+  lab: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800",
+  tool: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-300 dark:border-purple-800",
+  "case-study": "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800",
+  article: "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-950/30 dark:text-slate-300 dark:border-slate-800",
+  news: "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-950/30 dark:text-slate-300 dark:border-slate-800",
+  video: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800",
 };
 
 const provenanceLabels: Record<string, { label: string; className: string }> = {
@@ -79,11 +99,21 @@ interface UploadedFile {
 
 const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
+const resourceTypeOptions: { value: Resource["type"]; label: string }[] = [
+  { value: "textbook", label: "Textbook / Reading" },
+  { value: "exercise", label: "Interactive Exercise" },
+  { value: "lab", label: "Lab / Hands-on" },
+  { value: "case-study", label: "Case Study" },
+  { value: "article", label: "Article / Industry Context" },
+  { value: "video", label: "Video" },
+  { value: "tool", label: "Tool / Software" },
+];
+
 const initialPlan: DayPlan[] = [
   {
     id: "d1", day: 1, dates: "Day 1", topic: "Python Fundamentals: Variables, Data Types & Control Flow",
-    description: "Introduce students to Python basics including variables, data types, operators, and control flow. Start with IDE setup and progress to interactive coding exercises.",
-    weightage: 30, locked: true,
+    description: "**Overview:**\nIntroduce students to Python basics including variables, data types, operators, and control flow. Start with IDE setup and progress to interactive coding exercises.\n\n**Learning Outcomes:**\n- Understand Python variables and data types\n- Write basic control flow statements\n- Set up a Python development environment",
+    weightage: 30, locked: false,
     resources: [
       { id: "r1", title: "Intro to Python Slides", action: "Cover variables, data types, operators, and basic I/O", type: "textbook", accepted: true, provenance: "uploads" },
       { id: "r2", title: "Python Setup Guide", action: "Help students install Python and set up their IDE", type: "textbook", accepted: true, provenance: "uploads" },
@@ -92,8 +122,8 @@ const initialPlan: DayPlan[] = [
   },
   {
     id: "d2", day: 2, dates: "Day 2", topic: "Functions, Lists & Dictionaries",
-    description: "Deep dive into function definitions, parameters, return values, and Python's core data structures. Hands-on labs reinforce concepts through practical application.",
-    weightage: 40, locked: false,
+    description: "**Overview:**\nDeep dive into function definitions, parameters, return values, and Python's core data structures.\n\n**Learning Outcomes:**\n- Define and call functions with parameters\n- Work with lists and dictionaries\n- Apply list comprehensions",
+    weightage: 40, locked: true,
     resources: [
       { id: "r3", title: "Functions & Data Structures Slides", action: "Cover function definitions, parameters, return values, lists, and dictionaries", type: "textbook", accepted: true, provenance: "uploads" },
       { id: "r6", title: "Calculator Lab", action: "Build a calculator using functions", type: "lab", accepted: true, provenance: "uploads" },
@@ -102,8 +132,8 @@ const initialPlan: DayPlan[] = [
   },
   {
     id: "d3", day: 3, dates: "Day 3", topic: "File Handling, OOP Basics & Review",
-    description: "Cover object-oriented programming fundamentals and file I/O operations. Conclude with a comprehensive workshop review and project showcase.",
-    weightage: 30, locked: false,
+    description: "**Overview:**\nCover object-oriented programming fundamentals and file I/O operations. Conclude with a comprehensive workshop review.\n\n**Learning Outcomes:**\n- Understand classes and objects\n- Read and write files in Python\n- Synthesize all workshop concepts",
+    weightage: 30, locked: true,
     resources: [
       { id: "r18", title: "OOP & File Handling Slides", action: "Cover classes, objects, file reading/writing", type: "textbook", accepted: true, provenance: "uploads" },
       { id: "r21", title: "File Organizer Project", action: "Build a simple file organizer script", type: "exercise", accepted: true, provenance: "uploads" },
@@ -119,18 +149,11 @@ const CourseCreation = () => {
   const { toast } = useToast();
   const courseId = (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
 
-  // Phase
   const [phase, setPhase] = useState<"upload" | "generating" | "plan">("upload");
-
-  // Upload state
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
   const [materialsFiles, setMaterialsFiles] = useState<UploadedFile[]>([]);
-
-  // Generation state
   const [genStep, setGenStep] = useState(0);
   const [genElapsed, setGenElapsed] = useState(0);
-
-  // Plan state
   const [days, setDays] = useState<DayPlan[]>(initialPlan);
   const [expandedDays, setExpandedDays] = useState<string[]>(initialPlan.map((d) => d.id));
   const [editingDayId, setEditingDayId] = useState<string | null>(null);
@@ -139,16 +162,18 @@ const CourseCreation = () => {
   const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
   const [editResourceTitle, setEditResourceTitle] = useState("");
   const [editResourceAction, setEditResourceAction] = useState("");
+  const [editResourceType, setEditResourceType] = useState<Resource["type"]>("textbook");
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishChecklist, setPublishChecklist] = useState({ days: false, resources: false });
   const [published, setPublished] = useState(false);
   const [publishTimestamp, setPublishTimestamp] = useState<string | null>(null);
   const [removeConfirm, setRemoveConfirm] = useState<{ dayId: string; resourceId: string; title: string } | null>(null);
   const [suggestingDayId, setSuggestingDayId] = useState<string | null>(null);
+  const [addingResourceDayId, setAddingResourceDayId] = useState<string | null>(null);
+  const [newResourceType, setNewResourceType] = useState<Resource["type"]>("exercise");
 
   const totalWeightage = days.reduce((sum, d) => sum + (d.weightage || 0), 0);
 
-  // Load existing uploaded files on mount
   useEffect(() => {
     const fetchFiles = async () => {
       if (!user) return;
@@ -195,7 +220,6 @@ const CourseCreation = () => {
     return () => { clearInterval(stepTimer); clearInterval(elapsedTimer); };
   }, [phase]);
 
-  // Day editing
   const toggleDay = (id: string) => {
     setExpandedDays((prev) => prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]);
   };
@@ -240,30 +264,30 @@ const CourseCreation = () => {
   const addDay = () => {
     const newDay: DayPlan = {
       id: `d_new_${Date.now()}`, day: days.length + 1, dates: `Day ${days.length + 1}`,
-      topic: "New Topic", description: "", resources: [], weightage: 0, locked: false,
+      topic: "New Topic", description: "", resources: [], weightage: 0, locked: true,
     };
     setDays((prev) => [...prev, newDay]);
     setExpandedDays((prev) => [...prev, newDay.id]);
     startEditDay(newDay); setPublished(false);
   };
 
-  // Resource editing
   const startEditResource = (r: Resource) => {
-    setEditingResourceId(r.id); setEditResourceTitle(r.title); setEditResourceAction(r.action);
+    setEditingResourceId(r.id); setEditResourceTitle(r.title); setEditResourceAction(r.action); setEditResourceType(r.type);
   };
 
   const saveEditResource = (dayId: string) => {
     if (!editingResourceId) return;
     setDays((prev) => prev.map((d) => d.id === dayId ? {
-      ...d, resources: d.resources.map((r) => r.id === editingResourceId ? { ...r, title: editResourceTitle, action: editResourceAction } : r),
+      ...d, resources: d.resources.map((r) => r.id === editingResourceId ? { ...r, title: editResourceTitle, action: editResourceAction, type: editResourceType } : r),
     } : d));
     setEditingResourceId(null); setPublished(false);
   };
 
-  const addResourceToDay = (dayId: string, type: Resource["type"]) => {
-    const newResource: Resource = { id: makeId(), title: "", action: "", type, accepted: true, provenance: "instructor" };
+  const handleAddResource = (dayId: string) => {
+    const newResource: Resource = { id: makeId(), title: "", action: "", type: newResourceType, accepted: true, provenance: "instructor" };
     setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: [...d.resources, newResource] } : d));
-    setEditingResourceId(newResource.id); setEditResourceTitle(""); setEditResourceAction(""); setPublished(false);
+    setEditingResourceId(newResource.id); setEditResourceTitle(""); setEditResourceAction(""); setEditResourceType(newResourceType);
+    setAddingResourceDayId(null); setPublished(false);
   };
 
   const removeResource = (dayId: string, resourceId: string) => {
@@ -296,14 +320,13 @@ const CourseCreation = () => {
     setRemoveConfirm(null);
   };
 
-  // AI Suggest
+  // AI Suggest - now also generates resources
   const handleAiSuggest = async (dayId: string) => {
     const day = days.find((d) => d.id === dayId);
     if (!day) return;
 
     setSuggestingDayId(dayId);
     try {
-      // Get course objectives from storage
       let objectives: string[] = [];
       if (courseId) {
         const { data: course } = await supabase
@@ -321,6 +344,7 @@ const CourseCreation = () => {
           existingDescription: day.description || "",
           courseObjectives: objectives,
           totalDays: days.length,
+          existingResources: day.resources.map(r => ({ title: r.title, action: r.action })),
         },
       });
 
@@ -332,6 +356,24 @@ const CourseCreation = () => {
 
       if (data?.suggestion) {
         updateDescription(dayId, data.suggestion);
+      }
+
+      // Add suggested resources
+      if (data?.suggestedResources?.length > 0) {
+        const newResources: Resource[] = data.suggestedResources.map((r: any) => ({
+          id: makeId(),
+          title: r.title || "Untitled Resource",
+          action: r.action || "",
+          type: r.type || "exercise",
+          accepted: true,
+          provenance: r.provenance || "instructor",
+        }));
+        setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: [...d.resources, ...newResources] } : d));
+        toast({
+          title: "AI suggestion applied",
+          description: `Updated lesson description and added ${newResources.length} suggested resource${newResources.length > 1 ? "s" : ""} to Day ${day.day}.`,
+        });
+      } else {
         toast({ title: "Suggestion generated", description: `AI suggestion applied to Day ${day.day}. You can edit it freely.` });
       }
     } catch (err: any) {
@@ -342,7 +384,6 @@ const CourseCreation = () => {
     }
   };
 
-  // Publish & Export
   const handlePublish = () => {
     setPublished(true);
     setPublishTimestamp(new Date().toLocaleString());
@@ -369,6 +410,43 @@ const CourseCreation = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Render markdown-like description with sections
+  const renderDescription = (desc: string) => {
+    if (!desc) return null;
+    const sections = desc.split(/\n(?=\*\*[^*]+:\*\*)/);
+    return (
+      <div className="space-y-3">
+        {sections.map((section, i) => {
+          const headingMatch = section.match(/^\*\*([^*]+):\*\*/);
+          if (headingMatch) {
+            const heading = headingMatch[1];
+            const body = section.replace(/^\*\*[^*]+:\*\*\s*/, "").trim();
+            const lines = body.split("\n").filter(l => l.trim());
+            const isList = lines.every(l => l.trim().startsWith("-") || l.trim().startsWith("•"));
+            return (
+              <div key={i} className="space-y-1">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-primary">{heading}</h4>
+                {isList ? (
+                  <ul className="space-y-0.5 pl-1">
+                    {lines.map((line, j) => (
+                      <li key={j} className="text-sm text-foreground/80 flex items-start gap-2">
+                        <span className="text-primary mt-1.5 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
+                        <span>{line.replace(/^[-•]\s*/, "")}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-foreground/80 leading-relaxed">{body}</p>
+                )}
+              </div>
+            );
+          }
+          return <p key={i} className="text-sm text-foreground/80 leading-relaxed">{section.replace(/\*\*/g, "")}</p>;
+        })}
+      </div>
+    );
+  };
+
   const genSteps = [
     { label: "Reading uploads", desc: "Parsing your syllabus and materials" },
     { label: "Mapping daily topics", desc: "Aligning with curriculum standards" },
@@ -393,7 +471,6 @@ const CourseCreation = () => {
             </p>
           </div>
 
-          {/* Lesson Plan Upload */}
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -429,7 +506,6 @@ const CourseCreation = () => {
             </CardContent>
           </Card>
 
-          {/* Course Materials Upload */}
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -469,11 +545,7 @@ const CourseCreation = () => {
             <Button variant="outline" onClick={() => navigate("/teacher/setup/quality-check")}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
             </Button>
-            <Button
-              onClick={handleStartGeneration}
-              disabled={lessonPlanFiles.length === 0}
-              size="lg"
-            >
+            <Button onClick={handleStartGeneration} disabled={lessonPlanFiles.length === 0} size="lg">
               Generate Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
@@ -528,16 +600,16 @@ const CourseCreation = () => {
 
   return (
     <div className="flex min-h-screen items-start justify-center bg-background px-4 py-8">
-      <div className="w-full max-w-4xl space-y-5">
+      <div className="w-full max-w-4xl space-y-6">
         <SetupProgressBar currentStep={3} />
 
         {/* Header */}
-        <div className="text-center space-y-1">
+        <div className="text-center space-y-2">
           <h1 className="font-heading text-3xl font-bold">
             AI Workshop <span className="text-primary">Lesson Plan</span>
           </h1>
-          <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
-            We've analyzed your uploaded materials to draft a lesson plan. Each day is fully editable — adjust topics, descriptions, and resources as needed. Use <strong>AI Suggest</strong> for detailed lesson guidance.
+          <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+            We've analyzed your uploaded materials to draft a lesson plan. Each day is fully editable — adjust topics, descriptions, and resources as needed. Use <strong className="text-foreground">AI Suggest</strong> to auto-generate detailed lesson guidance and additional resources.
           </p>
         </div>
 
@@ -550,19 +622,36 @@ const CourseCreation = () => {
           </div>
         )}
 
-        {/* Weightage + Lock summaries */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className={`flex items-center gap-3 rounded-lg border px-4 py-2.5 ${totalWeightage === 100 ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"}`}>
-            <span className="text-sm font-medium">Total Weightage:</span>
-            <span className={`text-lg font-bold ${totalWeightage === 100 ? "text-primary" : "text-destructive"}`}>{totalWeightage}%</span>
-            <span className="text-xs text-muted-foreground">/ 100%</span>
-            {totalWeightage === 100 && <Check className="h-4 w-4 text-primary ml-auto" />}
+        {/* Summary cards */}
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${totalWeightage === 100 ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"}`}>
+            <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${totalWeightage === 100 ? "bg-primary/10" : "bg-destructive/10"}`}>
+              <span className={`text-sm font-bold ${totalWeightage === 100 ? "text-primary" : "text-destructive"}`}>{totalWeightage}%</span>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total Weightage</p>
+              <p className={`text-sm font-semibold ${totalWeightage === 100 ? "text-primary" : "text-destructive"}`}>
+                {totalWeightage === 100 ? "Balanced" : `${100 - totalWeightage}% remaining`}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-3 rounded-lg border px-4 py-2.5 bg-muted/30">
-            <Lock className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm">
-              <span className="font-medium">{lockedDaysCount}</span> of {days.length} days locked
-            </span>
+          <div className="flex items-center gap-3 rounded-xl border px-4 py-3 bg-muted/20">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/50">
+              <span className="text-sm font-bold text-foreground">{days.length}</span>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total Days</p>
+              <p className="text-sm font-semibold text-foreground">{days.reduce((s, d) => s + d.resources.length, 0)} resources</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 rounded-xl border px-4 py-3 bg-muted/20">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/50">
+              <Lock className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Locked Days</p>
+              <p className="text-sm font-semibold text-foreground">{lockedDaysCount} of {days.length} locked</p>
+            </div>
           </div>
         </div>
 
@@ -582,7 +671,7 @@ const CourseCreation = () => {
 
         {/* Day Cards */}
         <Reorder.Group axis="y" values={days} onReorder={(newOrder) => setDays(newOrder.map((d, i) => ({ ...d, day: i + 1 })))}>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {days.map((dp) => {
               const isExpanded = expandedDays.includes(dp.id);
               const isEditing = editingDayId === dp.id;
@@ -590,19 +679,27 @@ const CourseCreation = () => {
 
               return (
                 <Reorder.Item key={dp.id} value={dp} className="list-none">
-                  <Card className={`overflow-hidden ${dp.locked ? "border-primary/30" : ""}`}>
+                  <Card className={`overflow-hidden transition-all ${dp.locked ? "border-primary/20 shadow-sm" : "border-border"} ${isExpanded ? "shadow-md" : ""}`}>
                     {/* Day Header */}
                     <div className="flex items-center gap-1 px-2">
                       <GripVertical className="h-4 w-4 text-muted-foreground/40 cursor-grab shrink-0" />
                       <button
                         onClick={() => toggleDay(dp.id)}
-                        className="flex flex-1 items-center justify-between px-2 py-3 text-left hover:bg-muted/30 transition-colors rounded"
+                        className="flex flex-1 items-center justify-between px-3 py-3.5 text-left hover:bg-muted/20 transition-colors rounded"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <Badge variant="outline" className="font-mono text-xs shrink-0">Day {dp.day}</Badge>
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-lg shrink-0 ${dp.locked ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                            <span className="text-xs font-bold">{dp.day}</span>
+                          </div>
                           <div className="min-w-0">
                             <p className="text-sm font-semibold truncate">{dp.topic}</p>
-                            <p className="text-xs text-muted-foreground">{dp.dates} · {dp.weightage}% weightage</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-xs text-muted-foreground">{dp.dates}</span>
+                              <span className="text-xs text-muted-foreground">·</span>
+                              <span className="text-xs text-muted-foreground">{dp.weightage}% weightage</span>
+                              <span className="text-xs text-muted-foreground">·</span>
+                              <span className="text-xs text-muted-foreground">{dp.resources.length} resources</span>
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -623,141 +720,208 @@ const CourseCreation = () => {
                     {/* Expanded Content */}
                     {isExpanded && (
                       <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} className="border-t">
-                        <div className="px-5 py-4 space-y-4">
+                        <div className="px-5 py-5 space-y-5">
                           {/* Editable header fields */}
                           {isEditing ? (
-                            <div className="space-y-3 p-3 rounded-md bg-muted/30 border">
-                              <div className="space-y-1">
-                                <Label className="text-xs">Topic</Label>
-                                <Input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} className="h-8 text-sm" />
+                            <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-dashed">
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-medium">Topic</Label>
+                                <Input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} className="h-9 text-sm" />
                               </div>
                               <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Date / Label</Label>
-                                  <Input value={editDates} onChange={(e) => setEditDates(e.target.value)} className="h-8 text-sm" />
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-medium">Date / Label</Label>
+                                  <Input value={editDates} onChange={(e) => setEditDates(e.target.value)} className="h-9 text-sm" />
                                 </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Weightage (%)</Label>
-                                  <Input type="number" min={0} max={100} value={dp.weightage} onChange={(e) => updateWeightage(dp.id, parseInt(e.target.value) || 0)} className="h-8 text-sm" />
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-medium">Weightage (%)</Label>
+                                  <Input type="number" min={0} max={100} value={dp.weightage} onChange={(e) => updateWeightage(dp.id, parseInt(e.target.value) || 0)} className="h-9 text-sm" />
                                 </div>
                               </div>
                               <div className="flex gap-2 pt-1">
-                                <Button size="sm" onClick={saveEditDay} className="h-7 text-xs">Save</Button>
-                                <Button size="sm" variant="ghost" onClick={() => setEditingDayId(null)} className="h-7 text-xs">Cancel</Button>
+                                <Button size="sm" onClick={saveEditDay} className="h-8">Save Changes</Button>
+                                <Button size="sm" variant="ghost" onClick={() => setEditingDayId(null)} className="h-8">Cancel</Button>
                               </div>
                             </div>
                           ) : (
                             <div className="flex gap-2">
-                              <Button size="sm" variant="ghost" onClick={() => startEditDay(dp)} className="h-7 text-xs">
-                                <Pencil className="h-3 w-3 mr-1" /> Edit Day Info
+                              <Button size="sm" variant="outline" onClick={() => startEditDay(dp)} className="h-8 text-xs">
+                                <Pencil className="h-3 w-3 mr-1.5" /> Edit Day Info
                               </Button>
-                              <Button size="sm" variant="ghost" onClick={() => deleteDay(dp.id)} className="h-7 text-xs text-destructive hover:text-destructive">
-                                <Trash2 className="h-3 w-3 mr-1" /> Remove Day
+                              <Button size="sm" variant="ghost" onClick={() => deleteDay(dp.id)} className="h-8 text-xs text-destructive hover:text-destructive">
+                                <Trash2 className="h-3 w-3 mr-1.5" /> Remove Day
                               </Button>
                             </div>
                           )}
 
-                          {/* Description with AI Suggest */}
-                          <div className="space-y-2">
+                          {/* Lesson Description */}
+                          <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                              <Label className="text-sm font-medium">Lesson Description</Label>
+                              <div className="flex items-center gap-2">
+                                <div className="h-5 w-1 rounded-full bg-primary" />
+                                <Label className="text-sm font-semibold">Lesson Description</Label>
+                              </div>
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleAiSuggest(dp.id)}
                                 disabled={isSuggesting}
-                                className="h-7 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/5"
+                                className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50"
                               >
                                 {isSuggesting ? (
-                                  <>
-                                    <Loader2 className="h-3 w-3 animate-spin" /> Generating…
-                                  </>
+                                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
                                 ) : (
-                                  <>
-                                    <Sparkles className="h-3 w-3" /> AI Suggest
-                                  </>
+                                  <><Sparkles className="h-3.5 w-3.5" /> AI Suggest</>
                                 )}
                               </Button>
                             </div>
-                            <Textarea
-                              value={dp.description}
-                              onChange={(e) => updateDescription(dp.id, e.target.value)}
-                              placeholder="Describe what this day covers — learning outcomes, activities, timing, and teaching approach. Or click AI Suggest to auto-generate."
-                              className="min-h-[120px] text-sm leading-relaxed resize-y"
-                              disabled={isSuggesting}
-                            />
-                            {isSuggesting && (
-                              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                                <Loader2 className="h-3 w-3 animate-spin" /> AI is generating a detailed lesson description…
-                              </p>
+
+                            {isSuggesting ? (
+                              <div className="rounded-lg border border-primary/20 bg-primary/5 p-6 flex flex-col items-center gap-3">
+                                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                <p className="text-sm text-primary font-medium">AI is generating lesson description & resources…</p>
+                                <p className="text-xs text-muted-foreground">This may take 10–20 seconds</p>
+                              </div>
+                            ) : dp.description ? (
+                              <div className="rounded-lg border bg-muted/10 p-4">
+                                {renderDescription(dp.description)}
+                                <div className="mt-3 pt-3 border-t">
+                                  <details className="group">
+                                    <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground flex items-center gap-1">
+                                      <Pencil className="h-3 w-3" /> Edit raw text
+                                    </summary>
+                                    <Textarea
+                                      value={dp.description}
+                                      onChange={(e) => updateDescription(dp.id, e.target.value)}
+                                      className="mt-2 min-h-[160px] text-sm leading-relaxed resize-y font-mono text-xs"
+                                    />
+                                  </details>
+                                </div>
+                              </div>
+                            ) : (
+                              <Textarea
+                                value={dp.description}
+                                onChange={(e) => updateDescription(dp.id, e.target.value)}
+                                placeholder="Describe what this day covers — learning outcomes, activities, timing, and teaching approach. Or click AI Suggest to auto-generate."
+                                className="min-h-[120px] text-sm leading-relaxed resize-y"
+                              />
                             )}
                           </div>
 
                           {/* Resources */}
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium">Resources & Materials</p>
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2">
+                              <div className="h-5 w-1 rounded-full bg-secondary" />
+                              <Label className="text-sm font-semibold">Resources & Materials</Label>
+                              <Badge variant="outline" className="text-[10px] ml-auto">{dp.resources.length} items</Badge>
+                            </div>
+
                             {dp.resources.length === 0 && (
-                              <p className="text-xs text-muted-foreground italic py-2">No resources added yet. Use the buttons below to add resources.</p>
+                              <div className="rounded-lg border border-dashed p-6 text-center">
+                                <BookOpen className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                                <p className="text-sm text-muted-foreground">No resources added yet</p>
+                                <p className="text-xs text-muted-foreground mt-1">Add resources manually or use AI Suggest to generate them</p>
+                              </div>
                             )}
-                            {dp.resources.map((r) => {
-                              const isEditingThis = editingResourceId === r.id;
-                              const prov = r.provenance ? provenanceLabels[r.provenance] : null;
-                              return (
-                                <div key={r.id} className="rounded-md px-3 py-2.5 text-xs border border-border bg-background">
-                                  {isEditingThis ? (
-                                    <div className="space-y-2">
-                                      <div className="space-y-1">
-                                        <Label className="text-[10px]">Title</Label>
-                                        <Input value={editResourceTitle} onChange={(e) => setEditResourceTitle(e.target.value)} className="h-7 text-xs" />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <Label className="text-[10px]">Description</Label>
-                                        <Input value={editResourceAction} onChange={(e) => setEditResourceAction(e.target.value)} className="h-7 text-xs" />
-                                      </div>
-                                      <div className="flex gap-2">
-                                        <Button size="sm" onClick={() => saveEditResource(dp.id)} className="h-6 text-[10px] px-2">Save</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => setEditingResourceId(null)} className="h-6 text-[10px] px-2">Cancel</Button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div className="flex items-start gap-2 min-w-0">
-                                        <Check className="h-3 w-3 text-primary shrink-0 mt-0.5" />
-                                        <div className="min-w-0">
-                                          <div className="flex items-center gap-1.5 flex-wrap">
-                                            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${typeColors[r.type] || "bg-muted text-muted-foreground"}`}>
-                                              {typeLabels[r.type]}
-                                            </span>
-                                            <span className="font-medium">{r.title}</span>
-                                            {prov && (
-                                              <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 ${prov.className}`}>
-                                                {prov.label}
-                                              </Badge>
-                                            )}
-                                          </div>
-                                          <p className="text-muted-foreground mt-1 leading-relaxed">{r.action}</p>
+
+                            <div className="space-y-2">
+                              {dp.resources.map((r) => {
+                                const isEditingThis = editingResourceId === r.id;
+                                const prov = r.provenance ? provenanceLabels[r.provenance] : null;
+                                return (
+                                  <div key={r.id} className={`rounded-lg px-4 py-3 border transition-colors ${typeColors[r.type] || "bg-muted/30 border-border"}`}>
+                                    {isEditingThis ? (
+                                      <div className="space-y-3">
+                                        <div className="space-y-1.5">
+                                          <Label className="text-[11px] font-medium">Type</Label>
+                                          <Select value={editResourceType} onValueChange={(v) => setEditResourceType(v as Resource["type"])}>
+                                            <SelectTrigger className="h-8 text-xs bg-background">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {resourceTypeOptions.map(opt => (
+                                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          <Label className="text-[11px] font-medium">Title</Label>
+                                          <Input value={editResourceTitle} onChange={(e) => setEditResourceTitle(e.target.value)} className="h-8 text-xs bg-background" />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          <Label className="text-[11px] font-medium">Description</Label>
+                                          <Input value={editResourceAction} onChange={(e) => setEditResourceAction(e.target.value)} className="h-8 text-xs bg-background" />
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Button size="sm" onClick={() => saveEditResource(dp.id)} className="h-7 text-xs px-3">Save</Button>
+                                          <Button size="sm" variant="ghost" onClick={() => setEditingResourceId(null)} className="h-7 text-xs px-3">Cancel</Button>
                                         </div>
                                       </div>
-                                      <div className="flex gap-1 shrink-0">
-                                        <Button variant="ghost" size="sm" onClick={() => startEditResource(r)} className="h-6 px-2 text-[10px]">
-                                          <Pencil className="h-3 w-3" />
-                                        </Button>
-                                        <Button variant="ghost" size="sm" onClick={() => removeResource(dp.id, r.id)} className="h-6 px-2 text-[10px] text-destructive hover:text-destructive">
-                                          <Trash2 className="h-3 w-3" />
-                                        </Button>
+                                    ) : (
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="flex items-start gap-3 min-w-0">
+                                          <span className="text-lg shrink-0 mt-0.5">{typeIcons[r.type] || "📄"}</span>
+                                          <div className="min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className="text-sm font-medium">{r.title || "Untitled"}</span>
+                                              {prov && (
+                                                <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 ${prov.className}`}>
+                                                  {prov.label}
+                                                </Badge>
+                                              )}
+                                            </div>
+                                            <p className="text-xs mt-0.5 opacity-80">{r.action}</p>
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-1 shrink-0">
+                                          <Button variant="ghost" size="sm" onClick={() => startEditResource(r)} className="h-7 px-2 text-xs hover:bg-background/50">
+                                            <Pencil className="h-3 w-3" />
+                                          </Button>
+                                          <Button variant="ghost" size="sm" onClick={() => removeResource(dp.id, r.id)} className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-background/50">
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </div>
                                       </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                            <div className="flex flex-wrap gap-2 pt-1">
-                              {(["textbook", "exercise", "case-study", "article"] as Resource["type"][]).map((type) => (
-                                <Button key={type} size="sm" variant="outline" onClick={() => addResourceToDay(dp.id, type)} className="h-7 text-[10px] border-dashed">
-                                  <Plus className="h-3 w-3 mr-1" /> {typeLabels[type]}
-                                </Button>
-                              ))}
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
+
+                            {/* Single Add Resource button with type picker */}
+                            {addingResourceDayId === dp.id ? (
+                              <div className="rounded-lg border border-dashed p-3 bg-muted/10 space-y-3">
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-medium">Resource Type</Label>
+                                  <Select value={newResourceType} onValueChange={(v) => setNewResourceType(v as Resource["type"])}>
+                                    <SelectTrigger className="h-9 text-sm">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {resourceTypeOptions.map(opt => (
+                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button size="sm" onClick={() => handleAddResource(dp.id)} className="h-8">
+                                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Resource
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => setAddingResourceDayId(null)} className="h-8">Cancel</Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => { setAddingResourceDayId(dp.id); setNewResourceType("exercise"); }}
+                                className="h-8 text-xs border-dashed w-full"
+                              >
+                                <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Resource
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </motion.div>
@@ -769,7 +933,7 @@ const CourseCreation = () => {
           </div>
         </Reorder.Group>
 
-        <Button variant="outline" onClick={addDay} className="w-full border-dashed">
+        <Button variant="outline" onClick={addDay} className="w-full border-dashed h-11">
           <Plus className="mr-2 h-4 w-4" /> Add Day
         </Button>
 

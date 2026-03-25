@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { dayNumber, dayTopic, existingDescription, courseObjectives, totalDays } =
+    const { dayNumber, dayTopic, existingDescription, courseObjectives, totalDays, existingResources } =
       await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -20,28 +20,64 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = `You are an expert curriculum designer and pedagogy specialist. Generate a detailed, actionable lesson description for a single day of a university-level course.
+    const systemPrompt = `You are an expert curriculum designer and pedagogy specialist. You will generate TWO things for a single day of a university-level course:
 
-Your response should include:
-- A brief overview of the day's focus (2-3 sentences)
-- Specific learning outcomes for the day (3-5 bullet points)
-- A suggested timeline with activities and approximate durations
-- Teaching strategies and best practices for delivering this content
-- Engagement tips (discussion prompts, active learning techniques)
-- Assessment suggestions (formative checks, quick exercises)
+1. A structured lesson description with these clearly labeled sections (use exactly these headings):
+   **Overview:** A 2-3 sentence overview of the day's focus.
+   **Learning Outcomes:** 3-5 specific, measurable learning outcomes as bullet points.
+   **Timeline:** A suggested timeline with activities and approximate durations.
+   **Teaching Strategies:** Best practices for delivering this content.
+   **Engagement Tips:** Discussion prompts and active learning techniques.
+   **Assessment:** Formative checks and quick exercises.
 
-Be practical, detailed, and focused on actionable guidance the professor can use directly. Write in a clear, professional tone. Format using markdown for readability.`;
+2. A JSON array of suggested additional resources/materials (beyond what the professor already has). These should be creative, practical additions like soft skill activities, group exercises, industry connections, etc.
+
+Format your response EXACTLY like this (the JSON block must be valid):
+
+**Overview:**
+[overview text]
+
+**Learning Outcomes:**
+- [outcome 1]
+- [outcome 2]
+...
+
+**Timeline:**
+- [time] — [activity]
+...
+
+**Teaching Strategies:**
+[strategies text]
+
+**Engagement Tips:**
+- [tip 1]
+...
+
+**Assessment:**
+- [assessment 1]
+...
+
+---RESOURCES_JSON---
+[{"title":"Resource Title","action":"Description of what this resource does","type":"exercise","provenance":"instructor"},...]
+
+Valid types: textbook, lab, case-study, exercise, article, video, tool, news
+Valid provenance values: instructor, web`;
+
+    const existingResourcesSummary = existingResources?.length > 0
+      ? `\nExisting resources (do NOT duplicate these, suggest NEW ones):\n${existingResources.map((r: any) => `- ${r.title}: ${r.action}`).join("\n")}`
+      : "";
 
     const userPrompt = `Course context:
 - Total days in the course: ${totalDays}
 - Course objectives: ${courseObjectives?.join(", ") || "Not specified"}
 
-Generate a detailed lesson description for:
+Generate a detailed lesson description AND 2-4 additional resource suggestions for:
 - Day ${dayNumber} of ${totalDays}
 - Topic: ${dayTopic}
 ${existingDescription ? `\nExisting description (improve upon this):\n${existingDescription}` : ""}
+${existingResourcesSummary}
 
-Provide a comprehensive, ready-to-use lesson plan description for this day.`;
+Provide comprehensive, ready-to-use content. Focus suggested resources on things like soft skill development, group activities, peer learning, industry connections, and creative exercises that complement the existing materials.`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -80,9 +116,29 @@ Provide a comprehensive, ready-to-use lesson plan description for this day.`;
     }
 
     const data = await response.json();
-    const suggestion = data.choices?.[0]?.message?.content || "";
+    const fullContent = data.choices?.[0]?.message?.content || "";
 
-    return new Response(JSON.stringify({ suggestion }), {
+    // Parse out the description and resources
+    let suggestion = fullContent;
+    let suggestedResources: any[] = [];
+
+    const jsonSplitter = "---RESOURCES_JSON---";
+    const splitIndex = fullContent.indexOf(jsonSplitter);
+    if (splitIndex !== -1) {
+      suggestion = fullContent.substring(0, splitIndex).trim();
+      const jsonPart = fullContent.substring(splitIndex + jsonSplitter.length).trim();
+      try {
+        // Extract JSON array from the text (handle markdown code blocks)
+        const jsonMatch = jsonPart.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          suggestedResources = JSON.parse(jsonMatch[0]);
+        }
+      } catch (e) {
+        console.error("Failed to parse resources JSON:", e);
+      }
+    }
+
+    return new Response(JSON.stringify({ suggestion, suggestedResources }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
