@@ -129,6 +129,43 @@ const CourseCreation = () => {
 
   const totalWeightage = days.reduce((sum, d) => sum + (d.weightage || 0), 0);
 
+  // Load existing uploaded files on mount
+  useEffect(() => {
+    const fetchFiles = async () => {
+      if (!user) return;
+      let query = supabase
+        .from("course_material_files")
+        .select("file_name, file_size, storage_path, folder_type")
+        .eq("teacher_id", user.id);
+      if (courseId) query = query.eq("course_id", courseId);
+      const { data } = await query;
+      if (data) {
+        const mapFile = (f: { file_name: string; file_size: number; storage_path: string }) => ({
+          name: f.file_name, size: f.file_size, path: f.storage_path,
+        });
+        setLessonPlanFiles(data.filter((f) => f.folder_type === "lesson-plans").map(mapFile));
+        setMaterialsFiles(data.filter((f) => f.folder_type === "materials").map(mapFile));
+      }
+    };
+    fetchFiles();
+  }, [user, courseId]);
+
+  const handleStartGeneration = async () => {
+    // Backfill course_id on uploaded files
+    if (courseId && user) {
+      const allPaths = [...lessonPlanFiles.map((f) => f.path), ...materialsFiles.map((f) => f.path)];
+      if (allPaths.length > 0) {
+        await supabase
+          .from("course_material_files")
+          .update({ course_id: courseId })
+          .in("storage_path", allPaths);
+      }
+      // Update course materials_uploaded flag
+      await supabase.from("courses").update({ materials_uploaded: materialsFiles.length > 0 } as any).eq("id", courseId);
+    }
+    setPhase("generating");
+  };
+
   useEffect(() => {
     if (phase !== "generating") return;
     const stepTimer = setInterval(() => {
