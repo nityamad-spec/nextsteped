@@ -5,12 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Plus, ClipboardCheck, Pencil, Trash2, Filter, Shield, BookOpen, Clock, ClipboardList, Info, Calendar } from "lucide-react";
+import { Plus, ClipboardCheck, Pencil, Trash2, Filter, Shield, BookOpen, Clock, ClipboardList, Info, Calendar, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -25,28 +24,31 @@ interface EditableQuestion {
   topic: string;
   difficulty: "Easy" | "Medium" | "Hard";
   type: QuestionType;
-  modes: QuestionMode[];
+  mode: QuestionMode; // Single mode — no overlap
   options?: string[];
   correctIndex?: number;
   explanation?: string;
-  quizDay?: 1 | 2; // Day assignment for daily quiz questions
+  quizDay?: 1 | 2;
 }
 
-const seedQuestions: EditableQuestion[] = mockQuizQuestions.map((q, i) => ({
-  ...q,
-  answer: q.options?.[q.correctIndex] || "",
-  type: "MCQ" as QuestionType,
-  modes: ["learning", "exam", "daily_quiz"] as QuestionMode[],
-  quizDay: (i % 2 === 0 ? 1 : 2) as 1 | 2,
-}));
+// Seed questions — split across modes with no overlap
+const seedQuestions: EditableQuestion[] = mockQuizQuestions.map((q, i) => {
+  const mode: QuestionMode = i % 3 === 0 ? "exam" : i % 3 === 1 ? "daily_quiz" : "learning";
+  return {
+    ...q,
+    answer: q.options?.[q.correctIndex] || "",
+    type: "MCQ" as QuestionType,
+    mode,
+    ...(mode === "daily_quiz" ? { quizDay: (i % 2 === 0 ? 1 : 2) as 1 | 2 } : {}),
+  };
+});
 
 const Assessments = () => {
   const { taSettings, setTASettings } = useApp();
   const [questions, setQuestions] = useState<EditableQuestion[]>(seedQuestions);
   const [examPredefinedOnly, setExamPredefinedOnly] = useState(false);
 
-  // Multi-select filters
-  const [filterModes, setFilterModes] = useState<QuestionMode[]>([]);
+  // Filters (per-section)
   const [filterDifficulties, setFilterDifficulties] = useState<string[]>([]);
   const [filterTypes, setFilterTypes] = useState<string[]>([]);
   const [filterDays, setFilterDays] = useState<number[]>([]);
@@ -59,10 +61,10 @@ const Assessments = () => {
   const [formTopic, setFormTopic] = useState("");
   const [formDifficulty, setFormDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
   const [formType, setFormType] = useState<QuestionType>("MCQ");
-  const [formModes, setFormModes] = useState<QuestionMode[]>(["learning", "exam", "daily_quiz"]);
+  const [formMode, setFormMode] = useState<QuestionMode>("exam");
   const [formOptions, setFormOptions] = useState<string[]>(["", "", "", ""]);
   const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
-  const [formQuizDay, setFormQuizDay] = useState<1 | 2 | undefined>(1);
+  const [formQuizDay, setFormQuizDay] = useState<1 | 2>(1);
 
   // Exam settings
   const [examTimeLimit, setExamTimeLimit] = useState(taSettings.examTimeLimit || 60);
@@ -76,78 +78,52 @@ const Assessments = () => {
 
   const examEstimate = Math.max(5, Math.round(examTimeLimit / 3));
 
-  const toggleMode = (mode: QuestionMode) => {
-    setFormModes((prev) =>
-      prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]
-    );
-  };
+  // Derived counts
+  const examQuestions = questions.filter(q => q.mode === "exam");
+  const quizQuestions = questions.filter(q => q.mode === "daily_quiz");
+  const studyQuestions = questions.filter(q => q.mode === "learning");
+  const day1Questions = quizQuestions.filter(q => q.quizDay === 1);
+  const day2Questions = quizQuestions.filter(q => q.quizDay === 2);
 
-  const toggleFilterMode = (mode: QuestionMode) => {
-    setFilterModes((prev) =>
-      prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]
-    );
-  };
+  const clearFilters = () => { setFilterDifficulties([]); setFilterTypes([]); setFilterDays([]); };
 
   const toggleFilterDifficulty = (diff: string) => {
-    setFilterDifficulties((prev) =>
-      prev.includes(diff) ? prev.filter((d) => d !== diff) : [...prev, diff]
-    );
+    setFilterDifficulties((prev) => prev.includes(diff) ? prev.filter((d) => d !== diff) : [...prev, diff]);
   };
-
   const toggleFilterType = (type: string) => {
-    setFilterTypes((prev) =>
-      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
-    );
+    setFilterTypes((prev) => prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]);
   };
-
   const toggleFilterDay = (day: number) => {
-    setFilterDays((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
-    );
+    setFilterDays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]);
   };
 
-  const openAddDialog = () => {
+  const openAddDialog = (mode: QuestionMode) => {
     setEditingId(null);
-    setFormQuestion("");
-    setFormAnswer("");
-    setFormTopic("");
-    setFormDifficulty("Medium");
-    setFormType("MCQ");
-    setFormModes(["learning", "exam", "daily_quiz"]);
-    setFormOptions(["", "", "", ""]);
-    setFormCorrectIndex(0);
-    setFormQuizDay(1);
+    setFormQuestion(""); setFormAnswer(""); setFormTopic(""); setFormDifficulty("Medium");
+    setFormType("MCQ"); setFormMode(mode);
+    setFormOptions(["", "", "", ""]); setFormCorrectIndex(0); setFormQuizDay(1);
     setDialogOpen(true);
   };
 
   const openEditDialog = (q: EditableQuestion) => {
     setEditingId(q.id);
-    setFormQuestion(q.question);
-    setFormAnswer(q.answer || "");
-    setFormTopic(q.topic);
-    setFormDifficulty(q.difficulty);
-    setFormType(q.type);
-    setFormModes(q.modes);
+    setFormQuestion(q.question); setFormAnswer(q.answer || ""); setFormTopic(q.topic);
+    setFormDifficulty(q.difficulty); setFormType(q.type); setFormMode(q.mode);
     setFormOptions(q.options?.length ? [...q.options] : ["", "", "", ""]);
-    setFormCorrectIndex(q.correctIndex ?? 0);
-    setFormQuizDay(q.quizDay);
+    setFormCorrectIndex(q.correctIndex ?? 0); setFormQuizDay(q.quizDay ?? 1);
     setDialogOpen(true);
   };
 
   const handleSave = () => {
-    if (!formQuestion.trim() || !formTopic || formModes.length === 0) return;
+    if (!formQuestion.trim() || !formTopic) return;
     const isMCQ = formType === "MCQ";
-    const isDailyQuiz = formModes.includes("daily_quiz");
     const newQ: EditableQuestion = {
       id: editingId || `q${Date.now()}`,
       question: formQuestion,
       answer: isMCQ ? formOptions[formCorrectIndex] || "" : formAnswer,
-      topic: formTopic,
-      difficulty: formDifficulty,
-      type: formType,
-      modes: formModes,
+      topic: formTopic, difficulty: formDifficulty, type: formType, mode: formMode,
       ...(isMCQ ? { options: formOptions.filter(o => o.trim()), correctIndex: formCorrectIndex } : {}),
-      ...(isDailyQuiz && formQuizDay ? { quizDay: formQuizDay } : {}),
+      ...(formMode === "daily_quiz" ? { quizDay: formQuizDay } : {}),
     };
     if (editingId) {
       setQuestions((prev) => prev.map((q) => q.id === editingId ? newQ : q));
@@ -166,34 +142,21 @@ const Assessments = () => {
   };
 
   const handleSaveQuizSettings = () => {
-    setTASettings({
-      ...taSettings,
-      quizNumQuestions: quizNumQuestions,
-      quizQuestionMix: quizQuestionTypes,
-      quizTimeLimit: quizTimeLimit,
-    });
+    setTASettings({ ...taSettings, quizNumQuestions, quizQuestionMix: quizQuestionTypes, quizTimeLimit });
   };
 
   const handleSaveExamSettings = () => {
-    setTASettings({
-      ...taSettings,
-      examTimeLimit: examTimeLimit,
-    });
+    setTASettings({ ...taSettings, examTimeLimit });
   };
 
-  // Filtering with multi-select
-  const filteredQuestions = questions.filter((q) => {
-    if (filterModes.length > 0 && !filterModes.some(m => q.modes.includes(m))) return false;
-    if (filterDifficulties.length > 0 && !filterDifficulties.includes(q.difficulty)) return false;
-    if (filterTypes.length > 0 && !filterTypes.includes(q.type)) return false;
-    if (filterDays.length > 0 && (!q.quizDay || !filterDays.includes(q.quizDay))) return false;
-    return true;
-  });
-
-  const examQuestions = questions.filter(q => q.modes.includes("exam"));
-  const quizQuestions = questions.filter(q => q.modes.includes("daily_quiz"));
-  const day1Questions = quizQuestions.filter(q => q.quizDay === 1);
-  const day2Questions = quizQuestions.filter(q => q.quizDay === 2);
+  const filterQuestions = (list: EditableQuestion[], includeDay = false) => {
+    return list.filter((q) => {
+      if (filterDifficulties.length > 0 && !filterDifficulties.includes(q.difficulty)) return false;
+      if (filterTypes.length > 0 && !filterTypes.includes(q.type)) return false;
+      if (includeDay && filterDays.length > 0 && (!q.quizDay || !filterDays.includes(q.quizDay))) return false;
+      return true;
+    });
+  };
 
   const typeBadgeColor = (type: QuestionType) => {
     switch (type) {
@@ -203,18 +166,10 @@ const Assessments = () => {
     }
   };
 
-  const modeBadge = (mode: QuestionMode) => {
-    switch (mode) {
-      case "learning": return "bg-mastery-proficient/10 text-mastery-proficient";
-      case "exam": return "bg-mastery-developing/10 text-mastery-developing";
-      case "daily_quiz": return "bg-primary/10 text-primary";
-    }
-  };
-
   const modeLabel = (mode: QuestionMode) => {
     switch (mode) {
-      case "learning": return "Study";
-      case "exam": return "Exam";
+      case "learning": return "Study Mode";
+      case "exam": return "Exam Mode";
       case "daily_quiz": return "Daily Quiz";
     }
   };
@@ -227,12 +182,7 @@ const Assessments = () => {
             {q.difficulty}
           </Badge>
           <Badge variant="outline" className={`text-[10px] ${typeBadgeColor(q.type)}`}>{q.type}</Badge>
-          {q.modes.map((mode) => (
-            <Badge key={mode} variant="outline" className={`text-[10px] ${modeBadge(mode)}`}>
-              {modeLabel(mode)}
-            </Badge>
-          ))}
-          {q.modes.includes("daily_quiz") && q.quizDay && (
+          {q.mode === "daily_quiz" && q.quizDay && (
             <Badge variant="outline" className="text-[10px] bg-secondary/50 text-secondary-foreground">
               <Calendar className="h-2.5 w-2.5 mr-1" />
               Day {q.quizDay}
@@ -267,48 +217,99 @@ const Assessments = () => {
     </div>
   );
 
+  const renderFilterBar = (showDayFilter = false) => (
+    <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Filter className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm font-medium">Filters</span>
+        {(filterDifficulties.length > 0 || filterTypes.length > 0 || filterDays.length > 0) && (
+          <Button variant="ghost" size="sm" className="h-6 text-[10px] ml-auto" onClick={clearFilters}>Clear all</Button>
+        )}
+      </div>
+      {showDayFilter && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Quiz Day</Label>
+          <div className="flex flex-wrap gap-2">
+            {[1, 2].map((day) => (
+              <button key={day} onClick={() => toggleFilterDay(day)}
+                className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${filterDays.includes(day) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"}`}>
+                Day {day}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Difficulty</Label>
+        <div className="flex flex-wrap gap-2">
+          {["Easy", "Medium", "Hard"].map((diff) => (
+            <button key={diff} onClick={() => toggleFilterDifficulty(diff)}
+              className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${filterDifficulties.includes(diff) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"}`}>
+              {diff}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Type</Label>
+        <div className="flex flex-wrap gap-2">
+          {(["MCQ", "Short Answer", "Code Practice"] as QuestionType[]).map((type) => (
+            <button key={type} onClick={() => toggleFilterType(type)}
+              className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${filterTypes.includes(type) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"}`}>
+              {type}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="p-6">
-      <div className="mb-8">
+    <div className="p-6 space-y-6">
+      <div>
         <h1 className="font-heading text-3xl font-bold">Assessments</h1>
-        <p className="text-muted-foreground">Manage questions for study mode, daily quizzes, and exams</p>
+        <p className="text-muted-foreground">Manage questions separately for each mode — no overlap between Exam, Daily Quiz, and Study</p>
       </div>
 
-      {/* Exam & Quiz Settings */}
-      <Tabs defaultValue="exam" className="mb-6">
-        <TabsList className="mb-4">
-          <TabsTrigger value="exam" className="gap-2"><Clock className="h-4 w-4" /> Exam Settings</TabsTrigger>
-          <TabsTrigger value="quiz" className="gap-2"><ClipboardList className="h-4 w-4" /> Daily Quiz Settings</TabsTrigger>
+      {/* No-overlap callout */}
+      <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+        <AlertTriangle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+        <div className="text-xs text-muted-foreground space-y-1">
+          <p><strong className="text-foreground">No question overlap:</strong> Each question belongs to exactly <strong>one</strong> mode. Exam questions will never appear in Daily Quizzes or Study Mode, and vice versa. This ensures fair, non-repetitive assessments across all modes.</p>
+        </div>
+      </div>
+
+      {/* Main tabs: Exam / Daily Quiz / Study — each with settings + questions */}
+      <Tabs defaultValue="exam" className="space-y-4" onValueChange={() => clearFilters()}>
+        <TabsList>
+          <TabsTrigger value="exam" className="gap-2"><Shield className="h-4 w-4" /> Exam Mode</TabsTrigger>
+          <TabsTrigger value="quiz" className="gap-2"><ClipboardList className="h-4 w-4" /> Daily Quiz</TabsTrigger>
+          <TabsTrigger value="study" className="gap-2"><BookOpen className="h-4 w-4" /> Study Mode</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="exam">
+        {/* ─── EXAM TAB ─── */}
+        <TabsContent value="exam" className="space-y-4">
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Shield className="h-5 w-5" />
-                </div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><Shield className="h-5 w-5" /></div>
                 <div>
-                  <CardTitle className="text-base">Exam Mode Settings</CardTitle>
-                  <CardDescription>Control how exams are presented to students</CardDescription>
+                  <CardTitle className="text-base">Exam Settings</CardTitle>
+                  <CardDescription>Control how the final exam is presented to students</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div>
-                  <p className="text-sm font-medium">Use predefined questions only (Exam only)</p>
-                  <p className="text-xs text-muted-foreground">
-                    When enabled, exam mode will only show your custom questions — no auto-generated questions. This does not apply to daily quizzes.
-                  </p>
+                  <p className="text-sm font-medium">Use predefined questions only</p>
+                  <p className="text-xs text-muted-foreground">Only show your custom exam questions — no auto-generated questions.</p>
                 </div>
                 <Switch checked={examPredefinedOnly} onCheckedChange={setExamPredefinedOnly} />
               </div>
               {examPredefinedOnly && (
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                  <p className="text-xs text-muted-foreground">
-                    <strong className="text-foreground">{examQuestions.length}</strong> questions tagged for Exam mode will be used.
-                  </p>
+                  <p className="text-xs text-muted-foreground"><strong className="text-foreground">{examQuestions.length}</strong> exam-only questions will be used.</p>
                 </div>
               )}
               <div className="space-y-3">
@@ -318,18 +319,10 @@ const Assessments = () => {
                   <span className="w-16 text-right text-sm font-bold">{examTimeLimit} min</span>
                 </div>
               </div>
-
               <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-primary" />
-                    <Label className="text-sm font-medium">Number of Questions</Label>
-                  </div>
-                  <Button
-                    variant={examManualQuestions ? "default" : "outline"}
-                    size="sm" className="h-7 text-xs"
-                    onClick={() => setExamManualQuestions(!examManualQuestions)}
-                  >
+                  <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /><Label className="text-sm font-medium">Number of Questions</Label></div>
+                  <Button variant={examManualQuestions ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => setExamManualQuestions(!examManualQuestions)}>
                     {examManualQuestions ? "Manual" : "Estimated"}
                   </Button>
                 </div>
@@ -342,12 +335,9 @@ const Assessments = () => {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Based on {examTimeLimit} min — estimated <span className="font-bold text-foreground">{examEstimate} questions</span>
-                  </p>
+                  <p className="text-xs text-muted-foreground">Based on {examTimeLimit} min — estimated <span className="font-bold text-foreground">{examEstimate} questions</span></p>
                 )}
               </div>
-
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Exam Question Types</Label>
                 <Select value={taSettings.examQuestionMix} onValueChange={(v) => setTASettings({ ...taSettings, examQuestionMix: v })}>
@@ -357,8 +347,6 @@ const Assessments = () => {
                     <SelectItem value="mcq_only">Multiple Choice Only</SelectItem>
                     <SelectItem value="short_answer">Short Answer Only</SelectItem>
                     <SelectItem value="problem_solving">Problem Solving Only</SelectItem>
-                    <SelectItem value="mcq_short">MCQ + Short Answer</SelectItem>
-                    <SelectItem value="mcq_problem">MCQ + Problem Solving</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -374,29 +362,43 @@ const Assessments = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-3">
-                <Label className="text-sm font-medium">Question Presentation</Label>
-                <Select value={taSettings.examPresentation || "all_at_once"} onValueChange={(v: any) => setTASettings({ ...taSettings, examPresentation: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all_at_once">All at once (most realistic)</SelectItem>
-                    <SelectItem value="one_by_one">One by one</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">All at once mirrors a real exam format.</p>
-              </div>
               <Button onClick={handleSaveExamSettings} className="w-full">Save Exam Settings</Button>
+            </CardContent>
+          </Card>
+
+          {/* Exam Questions */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base"><ClipboardCheck className="h-5 w-5" /> Exam Questions</CardTitle>
+                  <CardDescription>These questions are exclusive to exam mode and will never appear in daily quizzes or study mode.</CardDescription>
+                </div>
+                <Button size="sm" onClick={() => openAddDialog("exam")}><Plus className="mr-1 h-4 w-4" /> Add Question</Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {renderFilterBar()}
+              <p className="text-xs text-muted-foreground">
+                Showing <strong className="text-foreground">{filterQuestions(examQuestions).length}</strong> of {examQuestions.length} exam questions
+              </p>
+              <div className="space-y-3">
+                {filterQuestions(examQuestions).length === 0 ? (
+                  <div className="rounded-lg border-2 border-dashed p-8 text-center">
+                    <p className="text-sm text-muted-foreground">No exam questions match your filters.</p>
+                  </div>
+                ) : filterQuestions(examQuestions).map(renderQuestionCard)}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="quiz">
+        {/* ─── DAILY QUIZ TAB ─── */}
+        <TabsContent value="quiz" className="space-y-4">
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <ClipboardList className="h-5 w-5" />
-                </div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><ClipboardList className="h-5 w-5" /></div>
                 <div>
                   <CardTitle className="text-base">Daily Quiz Settings</CardTitle>
                   <CardDescription>Configure daily quiz parameters for students</CardDescription>
@@ -404,16 +406,13 @@ const Assessments = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Standardized quiz info */}
               <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
                 <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                 <div className="text-xs text-muted-foreground space-y-1">
-                  <p><strong className="text-foreground">Standardized daily quizzes:</strong> Daily quizzes are <strong>not adaptive</strong>. All students receive the same set of questions for each day.</p>
-                  <p>Tag your questions as <strong>Day 1</strong> or <strong>Day 2</strong> in the question bank below to control which questions appear in each daily quiz.</p>
+                  <p><strong className="text-foreground">Standardized daily quizzes:</strong> All students receive the <strong>same</strong> set of questions for each day. Tag each question as <strong>Day 1</strong> or <strong>Day 2</strong>.</p>
+                  <p>These questions are exclusive to daily quizzes and will never appear in exam or study mode.</p>
                 </div>
               </div>
-
-              {/* Day question counts */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg border p-3 text-center">
                   <p className="text-lg font-bold text-primary">{day1Questions.length}</p>
@@ -424,16 +423,13 @@ const Assessments = () => {
                   <p className="text-xs text-muted-foreground">Day 2 Questions</p>
                 </div>
               </div>
-
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Questions Per Quiz</Label>
                 <div className="flex items-center gap-4">
                   <Slider value={[quizNumQuestions]} onValueChange={(v) => setQuizNumQuestions(v[0])} min={3} max={20} step={1} className="flex-1" />
                   <span className="w-16 text-right text-sm font-bold">{quizNumQuestions}</span>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  If fewer questions are tagged for a day than this number, all available questions for that day will be used.
-                </p>
+                <p className="text-xs text-muted-foreground">If fewer questions are tagged for a day than this number, all available questions for that day will be used.</p>
               </div>
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Time Limit (minutes)</Label>
@@ -456,131 +452,110 @@ const Assessments = () => {
               <Button onClick={handleSaveQuizSettings} className="w-full">Save Quiz Settings</Button>
             </CardContent>
           </Card>
+
+          {/* Daily Quiz Questions */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base"><ClipboardCheck className="h-5 w-5" /> Daily Quiz Questions</CardTitle>
+                  <CardDescription>Each question must be tagged as Day 1 or Day 2. These never appear in exam or study mode.</CardDescription>
+                </div>
+                <Button size="sm" onClick={() => openAddDialog("daily_quiz")}><Plus className="mr-1 h-4 w-4" /> Add Question</Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {renderFilterBar(true)}
+              <p className="text-xs text-muted-foreground">
+                Showing <strong className="text-foreground">{filterQuestions(quizQuestions, true).length}</strong> of {quizQuestions.length} quiz questions
+                <span className="ml-2">·</span>
+                <span className="ml-2">{day1Questions.length} Day 1</span>
+                <span className="ml-2">·</span>
+                <span className="ml-2">{day2Questions.length} Day 2</span>
+              </p>
+              <div className="space-y-3">
+                {filterQuestions(quizQuestions, true).length === 0 ? (
+                  <div className="rounded-lg border-2 border-dashed p-8 text-center">
+                    <p className="text-sm text-muted-foreground">No daily quiz questions match your filters.</p>
+                  </div>
+                ) : filterQuestions(quizQuestions, true).map(renderQuestionCard)}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ─── STUDY TAB ─── */}
+        <TabsContent value="study" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><BookOpen className="h-5 w-5" /></div>
+                <div>
+                  <CardTitle className="text-base">Study Mode</CardTitle>
+                  <CardDescription>Practice questions for students to use in study/learning mode. These never appear in exams or daily quizzes.</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <p className="text-xs text-muted-foreground">
+                  Study mode questions are available for unlimited practice. They are completely separate from exam and daily quiz questions.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base"><ClipboardCheck className="h-5 w-5" /> Study Questions</CardTitle>
+                  <CardDescription>These questions are exclusive to study mode.</CardDescription>
+                </div>
+                <Button size="sm" onClick={() => openAddDialog("learning")}><Plus className="mr-1 h-4 w-4" /> Add Question</Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {renderFilterBar()}
+              <p className="text-xs text-muted-foreground">
+                Showing <strong className="text-foreground">{filterQuestions(studyQuestions).length}</strong> of {studyQuestions.length} study questions
+              </p>
+              <div className="space-y-3">
+                {filterQuestions(studyQuestions).length === 0 ? (
+                  <div className="rounded-lg border-2 border-dashed p-8 text-center">
+                    <p className="text-sm text-muted-foreground">No study questions match your filters.</p>
+                  </div>
+                ) : filterQuestions(studyQuestions).map(renderQuestionCard)}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
-
-      {/* Questions */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" /> Custom Questions</CardTitle>
-              <CardDescription>Add questions and assign them to Study, Daily Quiz (Day 1 or Day 2), Exam, or all modes.</CardDescription>
-            </div>
-            <Button size="sm" onClick={openAddDialog}>
-              <Plus className="mr-1 h-4 w-4" /> Add Question
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Multi-select Filters */}
-          <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Filters</span>
-              {(filterModes.length > 0 || filterDifficulties.length > 0 || filterTypes.length > 0 || filterDays.length > 0) && (
-                <Button variant="ghost" size="sm" className="h-6 text-[10px] ml-auto" onClick={() => { setFilterModes([]); setFilterDifficulties([]); setFilterTypes([]); setFilterDays([]); }}>
-                  Clear all
-                </Button>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Mode</Label>
-              <div className="flex flex-wrap gap-2">
-                {(["learning", "exam", "daily_quiz"] as QuestionMode[]).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => toggleFilterMode(mode)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-                      filterModes.includes(mode) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"
-                    }`}
-                  >
-                    {modeLabel(mode)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Quiz Day</Label>
-              <div className="flex flex-wrap gap-2">
-                {[1, 2].map((day) => (
-                  <button
-                    key={day}
-                    onClick={() => toggleFilterDay(day)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-                      filterDays.includes(day) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"
-                    }`}
-                  >
-                    Day {day}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Difficulty</Label>
-              <div className="flex flex-wrap gap-2">
-                {["Easy", "Medium", "Hard"].map((diff) => (
-                  <button
-                    key={diff}
-                    onClick={() => toggleFilterDifficulty(diff)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-                      filterDifficulties.includes(diff) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"
-                    }`}
-                  >
-                    {diff}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Type</Label>
-              <div className="flex flex-wrap gap-2">
-                {(["MCQ", "Short Answer", "Code Practice"] as QuestionType[]).map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => toggleFilterType(type)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-                      filterTypes.includes(type) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"
-                    }`}
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Question count summary */}
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span>Showing <strong className="text-foreground">{filteredQuestions.length}</strong> questions</span>
-            <span>·</span>
-            <span>{examQuestions.length} Exam</span>
-            <span>·</span>
-            <span>{day1Questions.length} Quiz Day 1</span>
-            <span>·</span>
-            <span>{day2Questions.length} Quiz Day 2</span>
-          </div>
-
-          {/* Question list */}
-          <div className="space-y-3">
-            {filteredQuestions.length === 0 ? (
-              <div className="rounded-lg border-2 border-dashed p-8 text-center">
-                <p className="text-sm text-muted-foreground">No questions match your filters.</p>
-              </div>
-            ) : (
-              filteredQuestions.map(renderQuestionCard)
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingId ? "Edit" : "Add"} Question</DialogTitle>
+            <DialogTitle>{editingId ? "Edit" : "Add"} Question — {modeLabel(formMode)}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Mode indicator */}
+            <div className="rounded-lg border bg-muted/30 p-3 flex items-center justify-between">
+              <div>
+                <Label className="text-xs text-muted-foreground">Assigned Mode</Label>
+                <p className="text-sm font-medium">{modeLabel(formMode)}</p>
+              </div>
+              <Select value={formMode} onValueChange={(v) => setFormMode(v as QuestionMode)}>
+                <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="exam">Exam Mode</SelectItem>
+                  <SelectItem value="daily_quiz">Daily Quiz</SelectItem>
+                  <SelectItem value="learning">Study Mode</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label>Question</Label>
               <Textarea placeholder="Enter your question..." value={formQuestion} onChange={(e) => setFormQuestion(e.target.value)} />
@@ -592,19 +567,8 @@ const Assessments = () => {
                 <p className="text-xs text-muted-foreground">Enter options and select the correct answer</p>
                 {formOptions.map((opt, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="correctAnswer"
-                      checked={formCorrectIndex === i}
-                      onChange={() => setFormCorrectIndex(i)}
-                      className="h-4 w-4 accent-[hsl(var(--primary))]"
-                    />
-                    <Input
-                      placeholder={`Option ${String.fromCharCode(65 + i)}`}
-                      value={opt}
-                      onChange={(e) => updateOption(i, e.target.value)}
-                      className="flex-1"
-                    />
+                    <input type="radio" name="correctAnswer" checked={formCorrectIndex === i} onChange={() => setFormCorrectIndex(i)} className="h-4 w-4 accent-[hsl(var(--primary))]" />
+                    <Input placeholder={`Option ${String.fromCharCode(65 + i)}`} value={opt} onChange={(e) => updateOption(i, e.target.value)} className="flex-1" />
                   </div>
                 ))}
               </div>
@@ -655,77 +619,26 @@ const Assessments = () => {
               </div>
             </div>
 
-            {/* Mode selection */}
-            <div className="space-y-2">
-              <Label>Available In <span className="text-destructive">*</span></Label>
-              <p className="text-xs text-muted-foreground">Choose where this question will appear for students</p>
-              <div className="flex items-center gap-4 pt-1">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="mode-learning"
-                    checked={formModes.includes("learning")}
-                    onCheckedChange={() => toggleMode("learning")}
-                  />
-                  <label htmlFor="mode-learning" className="text-sm cursor-pointer">Study Mode</label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="mode-quiz"
-                    checked={formModes.includes("daily_quiz")}
-                    onCheckedChange={() => toggleMode("daily_quiz")}
-                  />
-                  <label htmlFor="mode-quiz" className="text-sm cursor-pointer">Daily Quiz</label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="mode-exam"
-                    checked={formModes.includes("exam")}
-                    onCheckedChange={() => toggleMode("exam")}
-                  />
-                  <label htmlFor="mode-exam" className="text-sm cursor-pointer">Exam Mode</label>
-                </div>
-              </div>
-              {formModes.length === 0 && (
-                <p className="text-xs text-destructive">Select at least one mode</p>
-              )}
-            </div>
-
-            {/* Day assignment - only shown when Daily Quiz is selected */}
-            {formModes.includes("daily_quiz") && (
+            {/* Day assignment — only for Daily Quiz */}
+            {formMode === "daily_quiz" && (
               <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
                 <Label className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-primary" />
                   Quiz Day Assignment <span className="text-destructive">*</span>
                 </Label>
-                <p className="text-xs text-muted-foreground">
-                  Daily quizzes are standardized — all students get the same questions. Assign this question to the correct day.
-                </p>
+                <p className="text-xs text-muted-foreground">Assign this question to the correct day.</p>
                 <div className="flex items-center gap-3 pt-1">
-                  <Button
-                    type="button"
-                    variant={formQuizDay === 1 ? "default" : "outline"}
-                    size="sm"
-                    className="h-8"
-                    onClick={() => setFormQuizDay(1)}
-                  >
-                    Day 1
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={formQuizDay === 2 ? "default" : "outline"}
-                    size="sm"
-                    className="h-8"
-                    onClick={() => setFormQuizDay(2)}
-                  >
-                    Day 2
-                  </Button>
+                  <Button type="button" variant={formQuizDay === 1 ? "default" : "outline"} size="sm" className="h-8" onClick={() => setFormQuizDay(1)}>Day 1</Button>
+                  <Button type="button" variant={formQuizDay === 2 ? "default" : "outline"} size="sm" className="h-8" onClick={() => setFormQuizDay(2)}>Day 2</Button>
                 </div>
               </div>
             )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!formQuestion.trim() || !formTopic || formModes.length === 0 || (formModes.includes("daily_quiz") && !formQuizDay)}>{editingId ? "Save Changes" : "Add Question"}</Button>
+            <Button onClick={handleSave} disabled={!formQuestion.trim() || !formTopic || (formMode === "daily_quiz" && !formQuizDay)}>
+              {editingId ? "Save Changes" : "Add Question"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
