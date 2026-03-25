@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, Reorder, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -18,6 +18,9 @@ import {
   FlaskConical, LibraryBig, ExternalLink, Lock, Unlock,
 } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
+import FileUploadZone from "@/components/FileUploadZone";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -61,6 +64,14 @@ const provenanceLabels: Record<string, { label: string; className: string }> = {
   instructor: { label: "Instructor added", className: "bg-secondary text-secondary-foreground border-secondary" },
 };
 
+const UPLOAD_ACCEPT = ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
+
+interface UploadedFile {
+  name: string;
+  size: number;
+  path: string;
+}
+
 const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
 const initialPlan: DayPlan[] = [
@@ -91,8 +102,13 @@ const replacementPool: Omit<Resource, "id">[] = [
 
 const CourseCreation = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
   const { toast } = useToast();
-  const [phase, setPhase] = useState<"generating" | "plan">("generating");
+  const courseId = (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
+  const [phase, setPhase] = useState<"upload" | "generating" | "plan">("upload");
+  const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
+  const [materialsFiles, setMaterialsFiles] = useState<UploadedFile[]>([]);
   const [genStep, setGenStep] = useState(0);
   const [genElapsed, setGenElapsed] = useState(0);
   const [days, setDays] = useState<DayPlan[]>(initialPlan);
@@ -112,6 +128,43 @@ const CourseCreation = () => {
   const [removeConfirm, setRemoveConfirm] = useState<{ dayId: string; resourceId: string; title: string } | null>(null);
 
   const totalWeightage = days.reduce((sum, d) => sum + (d.weightage || 0), 0);
+
+  // Load existing uploaded files on mount
+  useEffect(() => {
+    const fetchFiles = async () => {
+      if (!user) return;
+      let query = supabase
+        .from("course_material_files")
+        .select("file_name, file_size, storage_path, folder_type")
+        .eq("teacher_id", user.id);
+      if (courseId) query = query.eq("course_id", courseId);
+      const { data } = await query;
+      if (data) {
+        const mapFile = (f: { file_name: string; file_size: number; storage_path: string }) => ({
+          name: f.file_name, size: f.file_size, path: f.storage_path,
+        });
+        setLessonPlanFiles(data.filter((f) => f.folder_type === "lesson-plans").map(mapFile));
+        setMaterialsFiles(data.filter((f) => f.folder_type === "materials").map(mapFile));
+      }
+    };
+    fetchFiles();
+  }, [user, courseId]);
+
+  const handleStartGeneration = async () => {
+    // Backfill course_id on uploaded files
+    if (courseId && user) {
+      const allPaths = [...lessonPlanFiles.map((f) => f.path), ...materialsFiles.map((f) => f.path)];
+      if (allPaths.length > 0) {
+        await supabase
+          .from("course_material_files")
+          .update({ course_id: courseId })
+          .in("storage_path", allPaths);
+      }
+      // Update course materials_uploaded flag
+      await supabase.from("courses").update({ materials_uploaded: materialsFiles.length > 0 } as any).eq("id", courseId);
+    }
+    setPhase("generating");
+  };
 
   useEffect(() => {
     if (phase !== "generating") return;
@@ -283,6 +336,110 @@ const CourseCreation = () => {
   ];
 
   const lockedDaysCount = days.filter(d => d.locked).length;
+
+  if (phase === "upload") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+        <div className="w-full max-w-3xl">
+          <SetupProgressBar currentStep={3} />
+
+          <div className="mb-8 text-center">
+            <h1 className="font-heading text-3xl font-bold">
+              Lesson <span className="text-primary">Plan</span>
+            </h1>
+            <p className="mt-2 text-muted-foreground">
+              Upload your lesson plans and course materials. AI will review your lesson plans and generate a workshop plan.
+            </p>
+          </div>
+
+          {/* Lesson Plan Upload */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Lock className="h-5 w-5 text-primary" /> Upload Lesson Plans
+                <span className="text-[10px] font-normal text-muted-foreground">(Internal)</span>
+              </CardTitle>
+              <CardDescription>
+                These files help us understand the structure of your course's topics over the semester and each class or weekly topic covered, guiding your instruction plan. They are internal and not shared with students.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
+              </p>
+              {user ? (
+                <FileUploadZone
+                  folderPath={`${user.id}/lesson-plans`}
+                  accept={UPLOAD_ACCEPT}
+                  files={lessonPlanFiles}
+                  onFilesChange={setLessonPlanFiles}
+                  teacherId={user.id}
+                  folderType="lesson-plans"
+                  courseId={courseId}
+                />
+              ) : (
+                <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                  Preparing upload area…
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Course Materials Upload */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <BookOpen className="h-5 w-5 text-primary" /> Upload Course Materials
+                <span className="text-[10px] font-normal text-muted-foreground">(Student-Facing · Optional)</span>
+              </CardTitle>
+              <CardDescription>
+                These materials will be used to understand the curriculum and power the AI Teaching Assistant for students. They include slides, textbooks, readings, and other resources you want students to access.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
+              </p>
+              {user ? (
+                <FileUploadZone
+                  folderPath={`${user.id}/materials`}
+                  accept={UPLOAD_ACCEPT}
+                  files={materialsFiles}
+                  onFilesChange={setMaterialsFiles}
+                  teacherId={user.id}
+                  folderType="materials"
+                  courseId={courseId}
+                />
+              ) : (
+                <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                  Preparing upload area…
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-center gap-3">
+            <Button variant="outline" onClick={() => navigate("/teacher/setup/quality-check")}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
+            </Button>
+            <Button
+              onClick={handleStartGeneration}
+              disabled={lessonPlanFiles.length === 0}
+              size="lg"
+            >
+              Generate Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (phase === "generating") {
     return (
