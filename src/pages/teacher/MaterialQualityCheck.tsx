@@ -631,7 +631,7 @@ const MaterialQualityCheck = () => {
 
         {/* Navigation */}
         <div className="mt-8 flex justify-between">
-          <Button variant="ghost" onClick={() => stage === "idle" ? navigate("/teacher/onboarding") : setStage("idle")}>
+          <Button variant="ghost" onClick={() => navigate("/teacher/onboarding")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
           <Button onClick={() => navigate("/teacher/setup/syllabus", { state: { courseId } })} disabled={!finalApproved}>
