@@ -281,11 +281,7 @@ const MaterialQualityCheck = () => {
     );
   };
 
-  useEffect(() => {
-    if (allResolved && stage === "review") {
-      setStage("preview");
-    }
-  }, [allResolved, stage]);
+  // Removed auto-advance: professors must click a button to move to preview stage
 
   // ── Save final JSON ─────────────────────────────────────────────
 
