@@ -54,6 +54,7 @@ const confirmedPlan: DayPlan[] = sharedWorkshopPlan;
 
 const TeachingPlan = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [days, setDays] = useState<DayPlan[]>(confirmedPlan);
   const [expandedDays, setExpandedDays] = useState<string[]>([]);
   const [editingDayId, setEditingDayId] = useState<string | null>(null);
