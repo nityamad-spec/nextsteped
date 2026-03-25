@@ -8,7 +8,7 @@ import { useStudentStatus } from "@/hooks/useStudentStatus";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Check, ChevronDown, ChevronUp, BookOpen, Brain, ArrowRight, FlaskConical, LibraryBig, Newspaper, Download, ClipboardList, GraduationCap } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, BookOpen, Brain, ArrowRight, FlaskConical, LibraryBig, Newspaper, Download, ClipboardList, GraduationCap, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -117,9 +117,11 @@ const StudentHome = () => {
               const isExpanded = expandedDays.includes(dp.day);
               const isCurrent = dp.day === currentDay;
               const isPast = dp.day < currentDay;
+              const isLocked = dp.locked;
+              const isDayUnlocked = !isLocked;
 
               return (
-                <Card key={dp.day} className={isCurrent ? "border-primary/30" : ""}>
+                <Card key={dp.day} className={isCurrent ? "border-primary/30" : isLocked ? "opacity-70" : ""}>
                   <div
                     className={`flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors ${isCurrent ? "bg-primary/5" : ""}`}
                     onClick={() => toggleDay(dp.day)}
@@ -133,71 +135,83 @@ const StudentHome = () => {
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 ml-2 shrink-0">
-                      {isCurrent && <Badge variant="secondary" className="text-[10px]">Current</Badge>}
-                      {isPast && <Check className="h-3.5 w-3.5 text-primary" />}
+                      {isLocked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
+                      {isCurrent && !isLocked && <Badge variant="secondary" className="text-[10px]">Current</Badge>}
+                      {isPast && !isLocked && <Check className="h-3.5 w-3.5 text-primary" />}
                       {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                     </div>
                   </div>
 
                   {isExpanded && (
                     <CardContent className="pt-0 pb-4 space-y-2">
-                      {dp.resources.length === 0 ? (
-                        <p className="text-xs text-muted-foreground py-2">No resources for this day yet.</p>
+                      {isLocked ? (
+                        <div className="flex items-center gap-3 rounded-lg border border-dashed p-4 text-center">
+                          <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <p className="text-xs text-muted-foreground">
+                            This day is <strong className="text-foreground">locked</strong> by your professor. Content and assessments will become available once unlocked.
+                          </p>
+                        </div>
                       ) : (
-                        dp.resources.map((r) => {
-                          const Icon = typeIcons[r.type] || BookOpen;
-                          const isDownloadable = r.type === "textbook" || r.type === "article";
-                          return (
-                            <div key={r.id} className="flex items-start gap-3 rounded-lg border p-3">
-                              <div className="pt-0.5"><Icon className="h-4 w-4 text-muted-foreground" /></div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-medium">{r.title}</span>
-                                  <Badge variant="outline" className={`text-[10px] ${typeColors[r.type] || ""}`}>
-                                    {typeLabels[r.type] || r.type}
-                                  </Badge>
+                        <>
+                          {dp.resources.length === 0 ? (
+                            <p className="text-xs text-muted-foreground py-2">No resources for this day yet.</p>
+                          ) : (
+                            dp.resources.map((r) => {
+                              const Icon = typeIcons[r.type] || BookOpen;
+                              const isDownloadable = r.type === "textbook" || r.type === "article";
+                              return (
+                                <div key={r.id} className="flex items-start gap-3 rounded-lg border p-3">
+                                  <div className="pt-0.5"><Icon className="h-4 w-4 text-muted-foreground" /></div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-medium">{r.title}</span>
+                                      <Badge variant="outline" className={`text-[10px] ${typeColors[r.type] || ""}`}>
+                                        {typeLabels[r.type] || r.type}
+                                      </Badge>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-0.5">{r.action}</p>
+                                  </div>
+                                  {isDownloadable && (
+                                    <Button variant="ghost" size="sm" className="h-8 shrink-0" title="Download">
+                                      <Download className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
                                 </div>
-                                <p className="text-xs text-muted-foreground mt-0.5">{r.action}</p>
-                              </div>
-                              {isDownloadable && (
-                                <Button variant="ghost" size="sm" className="h-8 shrink-0" title="Download">
-                                  <Download className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                            </div>
-                          );
-                        })
-                      )}
+                              );
+                            })
+                          )}
 
-                      {/* Daily Quiz for Day 1 & 2, Final Exam for Day 3 */}
-                      {dp.day < workshopPlan.length ? (
-                        <div
-                          className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 mt-3 cursor-pointer hover:bg-primary/10 transition-colors"
-                          onClick={() => navigate(`/student/chat?mode=quiz&day=${dp.day}`)}
-                        >
-                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                            <ClipboardList className="h-4 w-4" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">Daily Quiz — Day {dp.day}</p>
-                            <p className="text-xs text-muted-foreground">Test your understanding of today's concepts</p>
-                          </div>
-                          <ArrowRight className="h-4 w-4 text-primary" />
-                        </div>
-                      ) : (
-                        <div
-                          className="flex items-center gap-3 rounded-lg border border-accent/30 bg-accent/5 p-3 mt-3 cursor-pointer hover:bg-accent/10 transition-colors"
-                          onClick={() => navigate("/student/chat?mode=exam")}
-                        >
-                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent-foreground">
-                            <GraduationCap className="h-4 w-4" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">Final Exam Simulation</p>
-                            <p className="text-xs text-muted-foreground">Take the full exam covering all workshop topics</p>
-                          </div>
-                          <ArrowRight className="h-4 w-4 text-accent-foreground" />
-                        </div>
+                          {/* Daily Quiz for Day 1 & 2, Final Exam for Day 3 */}
+                          {dp.day < workshopPlan.length ? (
+                            <div
+                              className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 mt-3 cursor-pointer hover:bg-primary/10 transition-colors"
+                              onClick={() => navigate(`/student/chat?mode=quiz&day=${dp.day}`)}
+                            >
+                              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                <ClipboardList className="h-4 w-4" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">Daily Quiz — Day {dp.day}</p>
+                                <p className="text-xs text-muted-foreground">Test your understanding of today's concepts</p>
+                              </div>
+                              <ArrowRight className="h-4 w-4 text-primary" />
+                            </div>
+                          ) : (
+                            <div
+                              className="flex items-center gap-3 rounded-lg border border-accent/30 bg-accent/5 p-3 mt-3 cursor-pointer hover:bg-accent/10 transition-colors"
+                              onClick={() => navigate("/student/chat?mode=exam")}
+                            >
+                              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent-foreground">
+                                <GraduationCap className="h-4 w-4" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">Final Exam Simulation</p>
+                                <p className="text-xs text-muted-foreground">Take the full exam covering all workshop topics</p>
+                              </div>
+                              <ArrowRight className="h-4 w-4 text-accent-foreground" />
+                            </div>
+                          )}
+                        </>
                       )}
                     </CardContent>
                   )}

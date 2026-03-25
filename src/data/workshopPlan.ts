@@ -27,7 +27,7 @@ export const workshopPlan: WorkshopDay[] = [
   {
     id: "d1", day: 1, dates: "Day 1",
     topic: "Python Fundamentals: Variables, Data Types & Control Flow",
-    weightage: 30, locked: true,
+    weightage: 30, locked: false,
     resources: [
       { id: "r1", title: "Intro to Python Slides", action: "Cover variables, data types, operators, and basic I/O", type: "textbook", provenance: "uploads" },
       { id: "r2", title: "Python Setup Guide", action: "Install Python and set up IDE", type: "textbook", provenance: "uploads" },
@@ -38,7 +38,7 @@ export const workshopPlan: WorkshopDay[] = [
   {
     id: "d2", day: 2, dates: "Day 2",
     topic: "Functions, Lists & Dictionaries",
-    weightage: 40, locked: false,
+    weightage: 40, locked: true,
     resources: [
       { id: "r3", title: "Functions & Data Structures Slides", action: "Function definitions, parameters, lists, and dictionaries", type: "textbook", provenance: "uploads" },
       { id: "r11", title: "Calculator Lab", action: "Build a calculator using functions", type: "lab", provenance: "uploads" },
@@ -49,7 +49,7 @@ export const workshopPlan: WorkshopDay[] = [
   {
     id: "d3", day: 3, dates: "Day 3",
     topic: "File Handling, OOP Basics & Review",
-    weightage: 30, locked: false,
+    weightage: 30, locked: true,
     resources: [
       { id: "r18", title: "OOP & File Handling Slides", action: "Classes, objects, file reading/writing", type: "textbook", provenance: "uploads" },
       { id: "r21", title: "File Organizer Project", action: "Build a simple file organizer script", type: "exercise", provenance: "uploads" },
