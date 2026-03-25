@@ -64,6 +64,14 @@ const provenanceLabels: Record<string, { label: string; className: string }> = {
   instructor: { label: "Instructor added", className: "bg-secondary text-secondary-foreground border-secondary" },
 };
 
+const UPLOAD_ACCEPT = ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
+
+interface UploadedFile {
+  name: string;
+  size: number;
+  path: string;
+}
+
 const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
 const initialPlan: DayPlan[] = [
