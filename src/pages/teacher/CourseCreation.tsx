@@ -337,6 +337,110 @@ const CourseCreation = () => {
 
   const lockedDaysCount = days.filter(d => d.locked).length;
 
+  if (phase === "upload") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+        <div className="w-full max-w-3xl">
+          <SetupProgressBar currentStep={3} />
+
+          <div className="mb-8 text-center">
+            <h1 className="font-heading text-3xl font-bold">
+              Lesson <span className="text-primary">Plan</span>
+            </h1>
+            <p className="mt-2 text-muted-foreground">
+              Upload your lesson plans and course materials. AI will review your lesson plans and generate a workshop plan.
+            </p>
+          </div>
+
+          {/* Lesson Plan Upload */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Lock className="h-5 w-5 text-primary" /> Upload Lesson Plans
+                <span className="text-[10px] font-normal text-muted-foreground">(Internal)</span>
+              </CardTitle>
+              <CardDescription>
+                These files help us understand the structure of your course's topics over the semester and each class or weekly topic covered, guiding your instruction plan. They are internal and not shared with students.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
+              </p>
+              {user ? (
+                <FileUploadZone
+                  folderPath={`${user.id}/lesson-plans`}
+                  accept={UPLOAD_ACCEPT}
+                  files={lessonPlanFiles}
+                  onFilesChange={setLessonPlanFiles}
+                  teacherId={user.id}
+                  folderType="lesson-plans"
+                  courseId={courseId}
+                />
+              ) : (
+                <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                  Preparing upload area…
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Course Materials Upload */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <BookOpen className="h-5 w-5 text-primary" /> Upload Course Materials
+                <span className="text-[10px] font-normal text-muted-foreground">(Student-Facing · Optional)</span>
+              </CardTitle>
+              <CardDescription>
+                These materials will be used to understand the curriculum and power the AI Teaching Assistant for students. They include slides, textbooks, readings, and other resources you want students to access.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
+              </p>
+              {user ? (
+                <FileUploadZone
+                  folderPath={`${user.id}/materials`}
+                  accept={UPLOAD_ACCEPT}
+                  files={materialsFiles}
+                  onFilesChange={setMaterialsFiles}
+                  teacherId={user.id}
+                  folderType="materials"
+                  courseId={courseId}
+                />
+              ) : (
+                <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                  Preparing upload area…
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-center gap-3">
+            <Button variant="outline" onClick={() => navigate("/teacher/setup/quality-check")}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
+            </Button>
+            <Button
+              onClick={handleStartGeneration}
+              disabled={lessonPlanFiles.length === 0}
+              size="lg"
+            >
+              Generate Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (phase === "generating") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
