@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +54,7 @@ const confirmedPlan: DayPlan[] = sharedWorkshopPlan;
 
 const TeachingPlan = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [days, setDays] = useState<DayPlan[]>(confirmedPlan);
   const [expandedDays, setExpandedDays] = useState<string[]>([]);
   const [editingDayId, setEditingDayId] = useState<string | null>(null);
@@ -68,6 +71,28 @@ const TeachingPlan = () => {
   const [removeConfirm, setRemoveConfirm] = useState<{ dayId: string; resourceId: string; title: string } | null>(null);
 
   const markChanged = () => { setHasChanges(true); setPublished(false); };
+
+  // Load published plan from storage on mount
+  useEffect(() => {
+    const loadPublishedPlan = async () => {
+      if (!user) return;
+      try {
+        const { data } = await supabase.storage
+          .from("course-materials")
+          .download(`${user.id}/lesson-plan/published-plan.json`);
+        if (data) {
+          const text = await data.text();
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setDays(parsed);
+          }
+        }
+      } catch {
+        // No published plan found, use default
+      }
+    };
+    loadPublishedPlan();
+  }, [user]);
   const totalWeightage = days.reduce((sum, d) => sum + (d.weightage || 0), 0);
 
   const updateWeightage = (dayId: string, value: number) => {

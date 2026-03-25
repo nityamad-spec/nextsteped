@@ -384,11 +384,25 @@ const CourseCreation = () => {
     }
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     setPublished(true);
     setPublishTimestamp(new Date().toLocaleString());
     setShowPublishModal(false);
     setPublishChecklist({ days: false, resources: false });
+
+    // Save plan to storage for TeachingPlan to load later
+    if (user) {
+      try {
+        const planJson = JSON.stringify(days, null, 2);
+        const blob = new Blob([planJson], { type: "application/json" });
+        const file = new File([blob], "published-plan.json", { type: "application/json" });
+        await supabase.storage
+          .from("course-materials")
+          .upload(`${user.id}/lesson-plan/published-plan.json`, file, { upsert: true });
+      } catch (err) {
+        console.error("Failed to save plan to storage:", err);
+      }
+    }
   };
 
   const handleExport = (format: "pdf" | "word") => {
@@ -948,9 +962,20 @@ const CourseCreation = () => {
                 Publish Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={() => navigate("/teacher/setup/diagnostic")}>
-                Continue to Diagnostic Questions <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm"><Download className="mr-1.5 h-3.5 w-3.5" /> Download Plan</Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleExport("pdf")}><FileText className="mr-2 h-4 w-4" /> Download as PDF</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport("word")}><FileDown className="mr-2 h-4 w-4" /> Download as Word</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button onClick={() => navigate("/teacher/setup/diagnostic")}>
+                  Continue to Diagnostic Questions <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
             )}
           </div>
         </div>
