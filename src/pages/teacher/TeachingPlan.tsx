@@ -71,6 +71,28 @@ const TeachingPlan = () => {
   const [removeConfirm, setRemoveConfirm] = useState<{ dayId: string; resourceId: string; title: string } | null>(null);
 
   const markChanged = () => { setHasChanges(true); setPublished(false); };
+
+  // Load published plan from storage on mount
+  useEffect(() => {
+    const loadPublishedPlan = async () => {
+      if (!user) return;
+      try {
+        const { data } = await supabase.storage
+          .from("course-materials")
+          .download(`${user.id}/lesson-plan/published-plan.json`);
+        if (data) {
+          const text = await data.text();
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setDays(parsed);
+          }
+        }
+      } catch {
+        // No published plan found, use default
+      }
+    };
+    loadPublishedPlan();
+  }, [user]);
   const totalWeightage = days.reduce((sum, d) => sum + (d.weightage || 0), 0);
 
   const updateWeightage = (dayId: string, value: number) => {
