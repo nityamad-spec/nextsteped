@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowRight, ArrowLeft, Eye, MessageSquare, BookOpen, Calculator, Check, Pencil, Clock, ClipboardList, Info } from "lucide-react";
+import { ArrowRight, ArrowLeft, BookOpen, Calculator, Check, Pencil, Clock, ClipboardList, Info } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 
 const questionEstimate = (length: number, mix: string, difficulty: string) => {
@@ -285,38 +285,6 @@ const ExamMode = () => {
               </Card>
             </TabsContent>
           </Tabs>
-
-          {/* Student Experience Preview */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base"><Eye className="h-4 w-4" /> Student Experience Preview</CardTitle>
-              <CardDescription>What students will see based on your settings</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">Teaching Assistant Chat</span>
-                </div>
-                <div className="space-y-3">
-                  <div className="rounded-lg bg-primary/10 p-3 text-xs">
-                    <p className="font-medium text-primary">Teaching Assistant</p>
-                    <p className="mt-1 text-foreground">I can help you understand this concept! Let me break it down step by step...</p>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    <Badge variant="outline" className="text-[10px]">Study Mode</Badge>
-                    <Badge variant="outline" className="text-[10px]">Show Steps</Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Exam: {examLength} min · {activeTotal} questions · {settings.examDifficulty} difficulty
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Daily Quiz: {quizTimeLimit} min · {quizNumQuestions} questions · Personalized difficulty
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           <div className="flex justify-between items-center">
             <Button variant="ghost" onClick={() => navigate("/teacher/setup/settings")}>
