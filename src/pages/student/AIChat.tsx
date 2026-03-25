@@ -154,13 +154,13 @@ const AIChat = () => {
     setAssessmentActive(true);
   };
 
-  const handleStartQuiz = () => {
+  const handleStartQuiz = (day?: number) => {
     const count = taSettings.quizNumQuestions || 5;
-    // Default to day 1 quiz
-    const questions = getQuizQuestions(1, count);
+    const quizDay = day || parseInt(searchParams.get("day") || "1") || 1;
+    const questions = getQuizQuestions(quizDay, count);
     setAssessmentQuestions(questions);
     setAssessmentType("quiz");
-    setAssessmentDay(1);
+    setAssessmentDay(quizDay);
     setAssessmentActive(true);
   };
 
@@ -435,7 +435,7 @@ const AIChat = () => {
             <Button onClick={handleStartExam} className="gap-2">
               <Clock className="h-4 w-4" /> Start Exam
             </Button>
-            <Button onClick={handleStartQuiz} variant="secondary" className="gap-2">
+            <Button onClick={() => handleStartQuiz()} variant="secondary" className="gap-2">
               <MessageSquare className="h-4 w-4" /> Start Daily Quiz
             </Button>
           </div>

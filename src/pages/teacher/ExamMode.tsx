@@ -266,11 +266,13 @@ const ExamMode = () => {
                     </Select>
                   </div>
 
-                  <div className="rounded-lg border bg-primary/5 p-3">
-                    <p className="text-xs text-muted-foreground">
-                      <strong className="text-foreground">Note:</strong> Daily quiz difficulty is personalized automatically based on each student's concept mastery level. No manual setting needed.
-                    </p>
-                  </div>
+              <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p><strong className="text-foreground">Standardized quizzes:</strong> Daily quizzes are <strong>not adaptive</strong>. All students receive the same questions for each day.</p>
+                  <p>Questions are assigned to <strong>Day 1</strong> or <strong>Day 2</strong> in the Assessments tab after setup.</p>
+                </div>
+              </div>
 
                   <div className={`flex items-center justify-between rounded-lg border p-4 ${quizApproved ? "border-primary/30 bg-primary/5" : ""}`}>
                     <div>
