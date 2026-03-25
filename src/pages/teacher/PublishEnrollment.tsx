@@ -44,7 +44,7 @@ const PublishEnrollment = () => {
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto w-full max-w-4xl space-y-8">
-        <SetupProgressBar currentStep={6} />
+        <SetupProgressBar currentStep={7} />
         <div>
           <h1 className="font-heading text-3xl font-bold">Publish & Enroll Students</h1>
           <p className="text-muted-foreground">Configure publish settings and add students to your course</p>
@@ -162,7 +162,7 @@ const PublishEnrollment = () => {
 
         {/* Navigation */}
         <div className="flex justify-between pb-8">
-          <Button variant="ghost" onClick={() => navigate("/teacher/setup/settings")}>
+          <Button variant="ghost" onClick={() => navigate("/teacher/setup/exam-mode")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
           <Button onClick={handleFinish}>
