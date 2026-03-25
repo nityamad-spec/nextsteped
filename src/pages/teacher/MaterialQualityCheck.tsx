@@ -281,11 +281,7 @@ const MaterialQualityCheck = () => {
     );
   };
 
-  useEffect(() => {
-    if (allResolved && stage === "review") {
-      setStage("preview");
-    }
-  }, [allResolved, stage]);
+  // Removed auto-advance: professors must click a button to move to preview stage
 
   // ── Save final JSON ─────────────────────────────────────────────
 
@@ -587,6 +583,15 @@ const MaterialQualityCheck = () => {
                 );
               })}
             </div>
+
+            {/* Manual advance to preview when all resolved */}
+            {allResolved && (
+              <div className="mt-6 flex justify-center">
+                <Button size="lg" onClick={() => setStage("preview")} className="gap-2">
+                  <CheckCircle2 className="h-5 w-5" /> All Issues Resolved — Continue to Preview
+                </Button>
+              </div>
+            )}
           </>
         )}
 
