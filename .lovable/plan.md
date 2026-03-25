@@ -1,35 +1,62 @@
 
 
-## Plan: Skip PDF-to-JSON Re-conversion on Subsequent Reviews
+## Plan: Redesign Lesson Plan Output with AI Suggest & Editable Day View
 
-### Problem
-Every time the professor clicks "Review," the pipeline downloads the raw PDF, sends it to the `parse-syllabus` edge function for JSON conversion, then runs `quality-check`. If an approved JSON already exists in storage (`approved-syllabus.json`), the expensive parse step is unnecessary — the system should use the existing JSON directly.
+### Summary
+Three changes: (1) swap the Lock icon on lesson plan uploads, (2) completely redesign the post-upload "plan" phase in `CourseCreation.tsx` to be an interactive, editable, day-by-day lesson plan with AI-powered suggestions per day, and (3) create a new edge function for AI suggestions. The output should mirror the polished review style of the Syllabus Review page.
 
-### Change
+### Changes
 
-**File: `src/pages/teacher/MaterialQualityCheck.tsx`**
+#### 1. Fix Upload Icon
+**File: `src/pages/teacher/CourseCreation.tsx`**
+- Replace `<Lock className="h-5 w-5 text-primary" />` on the "Upload Lesson Plans" card header with `<ClipboardList>` (already imported as it's available in lucide-react) — better represents internal lesson plans.
 
-Modify `runPipeline` (lines 118-195) to add a check at the start:
+#### 2. Redesign the Plan Phase Output
+**File: `src/pages/teacher/CourseCreation.tsx`**
 
-1. **Before fetching/parsing the PDF**, attempt to download the existing approved JSON from storage at `${user.id}/syllabus/approved-syllabus.json`.
-2. **If the JSON file exists**: parse it, set it as `syllabusJson`, skip the `"parsing"` stage entirely, and jump straight to the `"checking"` stage (quality-check edge function).
-3. **If the JSON file does not exist**: proceed with the current flow (download PDF → call `parse-syllabus` → call `quality-check`).
+Replace the current resource-accept/reject model with an editable lesson plan layout:
 
-This means:
-- First review: PDF → parse-syllabus → JSON → quality-check (full pipeline)
-- Subsequent reviews: JSON from storage → quality-check (skips parse step)
+**Each Day card (collapsible/expandable) contains:**
+- **Day header**: editable topic title, date range, weightage — inline edit on click
+- **Description field**: a `Textarea` auto-filled from uploads, fully editable by professor
+- **"AI Suggest" button** per day: calls the new edge function with context (all uploads, course objectives, day number, existing content) and streams back a detailed suggestion for that day's lesson description. Shows a loading spinner while generating, then populates the description field (professor can accept, edit, or dismiss).
+- **Resources list**: similar to current but simpler — editable titles/descriptions, add/remove
 
-### Technical Detail
-```text
-runPipeline():
-  1. Try download "course-materials" / "{userId}/syllabus/approved-syllabus.json"
-  2. If success → parse blob as JSON → setSyllabusJson → skip to quality-check
-  3. If 404/error → fall through to existing PDF download + parse-syllabus flow
-  4. quality-check runs the same either way
-```
+**Overall layout improvements:**
+- Clean card-based design matching the Syllabus Review page style
+- All days expanded by default initially, collapsible via chevron
+- Each day shows: Day badge, topic (editable), date (editable), description textarea, resources
+- AI Suggest button styled with `<Sparkles>` icon, placed next to the description label
+- When AI is generating, show inline `<Loader2>` spinner with "Generating suggestion..." text
 
-The stage messaging will reflect the shortcut: show "Loading saved syllabus…" instead of "Analyzing your syllabus…" when using the cached JSON.
+**Bottom bar:**
+- "Export Plan" dropdown (PDF/Word) — keep existing export logic
+- "Publish Plan" button — professors don't need to complete all days; publish works with partial content
+- After publishing, "Continue to Diagnostic Questions" button appears
+- Remove the "Publish plan & activate Student TA" label — just "Publish Lesson Plan"
+
+**Post-setup access:**
+- The existing `TeachingPlan.tsx` (at `/teacher/teaching-plan`) already allows editing after setup. No routing changes needed.
+
+#### 3. New Edge Function: `suggest-lesson`
+**File: `supabase/functions/suggest-lesson/index.ts`**
+
+- Accepts: `{ dayNumber, dayTopic, existingDescription, courseObjectives, totalDays }`
+- System prompt: "You are an expert curriculum designer. Generate a detailed, actionable lesson description for a single day of a course. Include specific activities, timing suggestions, learning outcomes, and best practices. Be practical and detailed."
+- Uses Lovable AI gateway with `google/gemini-3-flash-preview`
+- Returns non-streaming JSON: `{ suggestion: string }`
+- Includes CORS headers and 429/402 error handling
+
+#### 4. Wire AI Suggest in CourseCreation
+**File: `src/pages/teacher/CourseCreation.tsx`**
+
+- Add `suggestingDayId` state to track which day is loading
+- On click "AI Suggest" for a day: call `supabase.functions.invoke("suggest-lesson", { body: {...} })`
+- On success: populate that day's description field with the suggestion
+- Professor can then edit, keep, or clear it
+- Toast on error
 
 ### Files Modified
-1. `src/pages/teacher/MaterialQualityCheck.tsx` — add JSON-first check in `runPipeline`
+1. `src/pages/teacher/CourseCreation.tsx` — icon fix, full plan phase redesign, AI suggest integration
+2. `supabase/functions/suggest-lesson/index.ts` — new edge function for AI lesson suggestions
 
