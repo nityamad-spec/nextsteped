@@ -1,62 +1,78 @@
 
 
-## Plan: Redesign Lesson Plan Output with AI Suggest & Editable Day View
+## Plan: Restructure Setup to 7 Steps — Split TA Settings, Add Exam Mode, Rename Step 6
 
 ### Summary
-Three changes: (1) swap the Lock icon on lesson plan uploads, (2) completely redesign the post-upload "plan" phase in `CourseCreation.tsx` to be an interactive, editable, day-by-day lesson plan with AI-powered suggestions per day, and (3) create a new edge function for AI suggestions. The output should mirror the polished review style of the Syllabus Review page.
+Split current "TA Settings" (step 5) into two steps: **TA Settings** (AI instructions only, step 5) and **Exam Mode** (exam/quiz rules, step 6). Update progress bar to 7 steps. Add download for lesson plan. Persist lesson plan to storage for TeachingPlan tab. Add custom instruction fields with read-only defaults.
 
 ### Changes
 
-#### 1. Fix Upload Icon
+#### 1. SetupProgressBar — 7 steps
+**File: `src/components/SetupProgressBar.tsx`**
+
+Update steps to:
+1. Profile & Course → 2. Syllabus Review → 3. Lesson Plan → 4. Diagnostic Qs → 5. TA Settings → 6. Exam Mode → 7. Publish
+
+Add route `/teacher/setup/exam-mode` for step 6.
+
+#### 2. AITASettings — AI Instructions only (step 5)
+**File: `src/pages/teacher/AITASettings.tsx`**
+
+- Remove all exam/quiz rules (Tabs component, exam/quiz state, estimate logic, approve buttons, preview card)
+- Keep only AI System Instructions card, restructured:
+  - **Study Mode**: read-only grayed-out textarea with `defaultStudyPrompt`, then editable textarea for custom instructions with placeholder guidelines (depth of explanation, terminology, examples, tone)
+  - **Exam Prep Mode**: same pattern — read-only default + editable custom
+  - Guidelines text explaining what custom instructions could include
+- Save button navigates to `/teacher/setup/exam-mode`
+- `currentStep` = 5
+
+#### 3. New ExamMode page (step 6)
+**File: `src/pages/teacher/ExamMode.tsx`** (NEW)
+
+Move all exam/quiz rules from current AITASettings:
+- Info note about custom questions
+- Tabs: Exam Rules + Daily Quiz Rules (all the selects, sliders, approve buttons)
+- Student Experience Preview card
+- Navigation: Back → `/teacher/setup/settings`, Continue → `/teacher/setup/publish` (disabled until both approved)
+- `currentStep` = 6
+
+#### 4. App.tsx — add route
+**File: `src/App.tsx`**
+
+- Import `ExamMode`
+- Add route: `/teacher/setup/exam-mode` → `ExamMode`
+
+#### 5. PublishEnrollment — update to step 7
+**File: `src/pages/teacher/PublishEnrollment.tsx`**
+
+- `currentStep` = 7
+- Back button navigates to `/teacher/setup/exam-mode`
+
+#### 6. CourseCreation — save plan JSON + download
 **File: `src/pages/teacher/CourseCreation.tsx`**
-- Replace `<Lock className="h-5 w-5 text-primary" />` on the "Upload Lesson Plans" card header with `<ClipboardList>` (already imported as it's available in lucide-react) — better represents internal lesson plans.
 
-#### 2. Redesign the Plan Phase Output
-**File: `src/pages/teacher/CourseCreation.tsx`**
+- On publish, save `published-plan.json` to storage at `{userId}/lesson-plan/published-plan.json`
+- Add "Download Lesson Plan" button (text export) visible after publishing
 
-Replace the current resource-accept/reject model with an editable lesson plan layout:
+#### 7. TeachingPlan — load published plan from storage
+**File: `src/pages/teacher/TeachingPlan.tsx`**
 
-**Each Day card (collapsible/expandable) contains:**
-- **Day header**: editable topic title, date range, weightage — inline edit on click
-- **Description field**: a `Textarea` auto-filled from uploads, fully editable by professor
-- **"AI Suggest" button** per day: calls the new edge function with context (all uploads, course objectives, day number, existing content) and streams back a detailed suggestion for that day's lesson description. Shows a loading spinner while generating, then populates the description field (professor can accept, edit, or dismiss).
-- **Resources list**: similar to current but simpler — editable titles/descriptions, add/remove
+- On mount, try loading `published-plan.json` from storage
+- If found, use as initial data instead of hardcoded `workshopPlan`
+- Keep all existing editing capabilities
 
-**Overall layout improvements:**
-- Clean card-based design matching the Syllabus Review page style
-- All days expanded by default initially, collapsible via chevron
-- Each day shows: Day badge, topic (editable), date (editable), description textarea, resources
-- AI Suggest button styled with `<Sparkles>` icon, placed next to the description label
-- When AI is generating, show inline `<Loader2>` spinner with "Generating suggestion..." text
+#### 8. Types update
+**File: `src/types/index.ts`**
 
-**Bottom bar:**
-- "Export Plan" dropdown (PDF/Word) — keep existing export logic
-- "Publish Plan" button — professors don't need to complete all days; publish works with partial content
-- After publishing, "Continue to Diagnostic Questions" button appears
-- Remove the "Publish plan & activate Student TA" label — just "Publish Lesson Plan"
-
-**Post-setup access:**
-- The existing `TeachingPlan.tsx` (at `/teacher/teaching-plan`) already allows editing after setup. No routing changes needed.
-
-#### 3. New Edge Function: `suggest-lesson`
-**File: `supabase/functions/suggest-lesson/index.ts`**
-
-- Accepts: `{ dayNumber, dayTopic, existingDescription, courseObjectives, totalDays }`
-- System prompt: "You are an expert curriculum designer. Generate a detailed, actionable lesson description for a single day of a course. Include specific activities, timing suggestions, learning outcomes, and best practices. Be practical and detailed."
-- Uses Lovable AI gateway with `google/gemini-3-flash-preview`
-- Returns non-streaming JSON: `{ suggestion: string }`
-- Includes CORS headers and 429/402 error handling
-
-#### 4. Wire AI Suggest in CourseCreation
-**File: `src/pages/teacher/CourseCreation.tsx`**
-
-- Add `suggestingDayId` state to track which day is loading
-- On click "AI Suggest" for a day: call `supabase.functions.invoke("suggest-lesson", { body: {...} })`
-- On success: populate that day's description field with the suggestion
-- Professor can then edit, keep, or clear it
-- Toast on error
+- Add `customStudyPrompt?: string` and `customExamPrompt?: string` to `TASettings`
 
 ### Files Modified
-1. `src/pages/teacher/CourseCreation.tsx` — icon fix, full plan phase redesign, AI suggest integration
-2. `supabase/functions/suggest-lesson/index.ts` — new edge function for AI lesson suggestions
+1. `src/components/SetupProgressBar.tsx` — 7 steps
+2. `src/pages/teacher/AITASettings.tsx` — AI instructions only with default/custom split
+3. `src/pages/teacher/ExamMode.tsx` — NEW, exam + quiz rules
+4. `src/App.tsx` — add exam-mode route
+5. `src/pages/teacher/PublishEnrollment.tsx` — step 7, back to exam-mode
+6. `src/pages/teacher/CourseCreation.tsx` — save plan JSON, download button
+7. `src/pages/teacher/TeachingPlan.tsx` — load published plan
+8. `src/types/index.ts` — custom prompt fields
 
