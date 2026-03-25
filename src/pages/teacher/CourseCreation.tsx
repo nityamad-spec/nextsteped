@@ -102,8 +102,13 @@ const replacementPool: Omit<Resource, "id">[] = [
 
 const CourseCreation = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
   const { toast } = useToast();
-  const [phase, setPhase] = useState<"generating" | "plan">("generating");
+  const courseId = (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
+  const [phase, setPhase] = useState<"upload" | "generating" | "plan">("upload");
+  const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
+  const [materialsFiles, setMaterialsFiles] = useState<UploadedFile[]>([]);
   const [genStep, setGenStep] = useState(0);
   const [genElapsed, setGenElapsed] = useState(0);
   const [days, setDays] = useState<DayPlan[]>(initialPlan);
