@@ -435,7 +435,7 @@ const AIChat = () => {
             <Button onClick={handleStartExam} className="gap-2">
               <Clock className="h-4 w-4" /> Start Exam
             </Button>
-            <Button onClick={handleStartQuiz} variant="secondary" className="gap-2">
+            <Button onClick={() => handleStartQuiz()} variant="secondary" className="gap-2">
               <MessageSquare className="h-4 w-4" /> Start Daily Quiz
             </Button>
           </div>
