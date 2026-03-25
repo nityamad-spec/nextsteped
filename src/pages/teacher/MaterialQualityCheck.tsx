@@ -26,11 +26,18 @@ import {
   Trash2,
 } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
+import FileUploadZone from "@/components/FileUploadZone";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 
 // ── Types ──────────────────────────────────────────────────────────
+
+interface UploadedFile {
+  name: string;
+  size: number;
+  path: string;
+}
 
 interface SyllabusJson {
   courseTitle: string;
@@ -58,6 +65,8 @@ interface QualityIssue {
 
 type PipelineStage = "idle" | "loading" | "parsing" | "checking" | "review" | "preview" | "saving" | "error";
 
+const UPLOAD_ACCEPT = ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
+
 const severityConfig = {
   error: { label: "Error", className: "bg-destructive/10 text-destructive border-destructive/30" },
   warning: { label: "Warning", className: "bg-warning/10 text-warning border-warning/30" },
@@ -66,7 +75,6 @@ const severityConfig = {
 
 // ── Helpers ────────────────────────────────────────────────────────
 
-/** Resolve a dot/bracket path like "schedule[2].description" to a value */
 function getByPath(obj: any, path: string): any {
   const keys = path.replace(/\[(\d+)\]/g, ".$1").split(".");
   let cur = obj;
@@ -77,7 +85,6 @@ function getByPath(obj: any, path: string): any {
   return cur;
 }
 
-/** Set a value at a dot/bracket path, returning a shallow-cloned structure */
 function setByPath(obj: any, path: string, value: any): any {
   const keys = path.replace(/\[(\d+)\]/g, ".$1").split(".");
   const clone = Array.isArray(obj) ? [...obj] : { ...obj };
@@ -99,7 +106,7 @@ const MaterialQualityCheck = () => {
   const courseId = (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
 
   const [stage, setStage] = useState<PipelineStage>("idle");
-  const [syllabusFiles, setSyllabusFiles] = useState<{ id: string; file_name: string; storage_path: string }[]>([]);
+  const [syllabusFiles, setSyllabusFiles] = useState<UploadedFile[]>([]);
   const [stageMessage, setStageMessage] = useState("Preparing…");
   const [syllabusJson, setSyllabusJson] = useState<SyllabusJson | null>(null);
   const [issues, setIssues] = useState<QualityIssue[]>([]);
@@ -112,6 +119,27 @@ const MaterialQualityCheck = () => {
   const pendingCount = issues.filter((i) => i.status === "pending").length;
   const resolvedCount = issues.filter((i) => i.status !== "pending").length;
   const allResolved = issues.length > 0 && pendingCount === 0;
+
+  // ── Load existing uploaded files on mount ───────────────────────
+
+  useEffect(() => {
+    const fetchFiles = async () => {
+      if (!user) return;
+      let query = supabase
+        .from("course_material_files")
+        .select("file_name, file_size, storage_path")
+        .eq("teacher_id", user.id)
+        .eq("folder_type", "syllabus");
+      if (courseId) query = query.eq("course_id", courseId);
+      const { data } = await query;
+      if (data) {
+        setSyllabusFiles(
+          data.map((f) => ({ name: f.file_name, size: f.file_size, path: f.storage_path }))
+        );
+      }
+    };
+    fetchFiles();
+  }, [user, courseId]);
 
   // ── Pipeline: fetch → parse → check ─────────────────────────────
 
@@ -130,13 +158,11 @@ const MaterialQualityCheck = () => {
         .download(`${user.id}/syllabus/approved-syllabus.json`);
 
       if (!existingErr && existingBlob) {
-        // Existing JSON found — skip parse step
         setStageMessage("Loading saved syllabus…");
         const jsonText = await existingBlob.text();
         parsed = JSON.parse(jsonText) as SyllabusJson;
         setSyllabusJson(parsed);
       } else {
-        // No existing JSON — full pipeline: fetch PDF → parse → JSON
         setStageMessage("Fetching your syllabus files…");
 
         const { data: files, error: filesErr } = await supabase
@@ -147,7 +173,7 @@ const MaterialQualityCheck = () => {
 
         if (filesErr) throw new Error(filesErr.message);
         if (!files || files.length === 0) {
-          setErrorMsg("No syllabus files found. Please go back and upload your syllabus first.");
+          setErrorMsg("No syllabus files found. Please upload your syllabus first.");
           setStage("error");
           return;
         }
@@ -161,7 +187,6 @@ const MaterialQualityCheck = () => {
 
         const fileContent = await blob.text();
 
-        // Parse syllabus to JSON via edge function
         setStage("parsing");
         setStageMessage("AI is analyzing your syllabus and extracting structured content…");
 
@@ -177,7 +202,7 @@ const MaterialQualityCheck = () => {
         setSyllabusJson(parsed);
       }
 
-      // Step 3: Quality check
+      // Quality check
       setStage("checking");
       setStageMessage("AI is reviewing for errors, inconsistencies, and improvements…");
 
@@ -209,34 +234,6 @@ const MaterialQualityCheck = () => {
       setStage("error");
     }
   }, [user]);
-
-  // Fetch syllabus file names on mount (lightweight, no AI calls)
-  useEffect(() => {
-    const fetchFileNames = async () => {
-      if (!user) return;
-      let query = supabase
-        .from("course_material_files")
-        .select("id, file_name, storage_path")
-        .eq("teacher_id", user.id)
-        .eq("folder_type", "syllabus");
-      if (courseId) query = query.eq("course_id", courseId);
-      const { data } = await query;
-      setSyllabusFiles(data || []);
-    };
-    fetchFileNames();
-  }, [user]);
-
-  const handleDeleteFile = async (file: { id: string; file_name: string; storage_path: string }) => {
-    if (!window.confirm(`Delete "${file.file_name}"? This cannot be undone.`)) return;
-    const { error: storageError } = await supabase.storage.from("course-materials").remove([file.storage_path]);
-    if (storageError) {
-      toast({ title: "Error", description: `Failed to delete file: ${storageError.message}`, variant: "destructive" });
-      return;
-    }
-    await supabase.from("course_material_files").delete().eq("id", file.id);
-    setSyllabusFiles((prev) => prev.filter((f) => f.id !== file.id));
-    toast({ title: "File deleted", description: `"${file.file_name}" has been removed.` });
-  };
 
   // ── Issue actions ────────────────────────────────────────────────
 
@@ -277,15 +274,12 @@ const MaterialQualityCheck = () => {
   const handleUndo = (id: string) => {
     const issue = issues.find((i) => i.id === id);
     if (issue && syllabusJson) {
-      // Revert the JSON to the original value
       setSyllabusJson(setByPath(syllabusJson, issue.jsonPath, issue.original));
     }
     setIssues((prev) =>
       prev.map((i) => (i.id === id ? { ...i, status: "pending", editedCorrection: undefined } : i))
     );
   };
-
-  // ── Transition to preview once all resolved ─────────────────────
 
   useEffect(() => {
     if (allResolved && stage === "review") {
@@ -310,14 +304,24 @@ const MaterialQualityCheck = () => {
 
       if (uploadErr) throw new Error(uploadErr.message);
 
-      // Update specific course by id, or fall back to teacher_id
       const updateQuery = courseId
-        ? supabase.from("courses").update({ syllabus_json_path: storagePath } as any).eq("id", courseId)
-        : supabase.from("courses").update({ syllabus_json_path: storagePath } as any).eq("teacher_id", user.id);
+        ? supabase.from("courses").update({ syllabus_json_path: storagePath, syllabus_uploaded: true } as any).eq("id", courseId)
+        : supabase.from("courses").update({ syllabus_json_path: storagePath, syllabus_uploaded: true } as any).eq("teacher_id", user.id);
       const { error: updateErr } = await updateQuery;
 
       if (updateErr) {
-        console.warn("Could not update course with syllabus path (course may not exist yet):", updateErr.message);
+        console.warn("Could not update course with syllabus path:", updateErr.message);
+      }
+
+      // Backfill course_id on uploaded files
+      if (courseId) {
+        const paths = syllabusFiles.map((f) => f.path);
+        if (paths.length > 0) {
+          await supabase
+            .from("course_material_files")
+            .update({ course_id: courseId })
+            .in("storage_path", paths);
+        }
       }
 
       setStage("preview");
@@ -330,7 +334,7 @@ const MaterialQualityCheck = () => {
     }
   };
 
-  // ── Render: Idle state — show files and Review button ─────────────
+  // ── Render: Idle state — upload + Review button ──────────────────
 
   if (stage === "idle") {
     return (
@@ -340,42 +344,43 @@ const MaterialQualityCheck = () => {
 
           <div className="mb-8 text-center">
             <h1 className="font-heading text-3xl font-bold">
-              Syllabus Quality <span className="text-primary">Check</span>
+              Syllabus <span className="text-primary">Review</span>
             </h1>
             <p className="mt-2 text-muted-foreground">
-              Review your uploaded syllabus with AI-powered analysis before proceeding.
+              Upload your syllabus and AICTE guidelines, then review with AI-powered analysis.
             </p>
           </div>
 
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
-                <FileText className="h-5 w-5 text-primary" /> Uploaded Syllabus Files
+                <FileText className="h-5 w-5 text-primary" /> Upload Syllabus & AICTE Guidelines
               </CardTitle>
               <CardDescription>
-                These files will be parsed and analyzed by AI for quality and consistency.
+                Upload your course syllabus and any AICTE guidelines documents. These will be parsed and analyzed by AI for quality and consistency.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              {syllabusFiles.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No syllabus files detected. Please go back and upload your syllabus first.</p>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
+              </p>
+              {user ? (
+                <FileUploadZone
+                  folderPath={`${user.id}/syllabus`}
+                  accept={UPLOAD_ACCEPT}
+                  files={syllabusFiles}
+                  onFilesChange={setSyllabusFiles}
+                  teacherId={user.id}
+                  folderType="syllabus"
+                  courseId={courseId}
+                />
               ) : (
-                <ul className="space-y-2">
-                  {syllabusFiles.map((f) => (
-                    <li key={f.id} className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <span className="flex-1 truncate">{f.file_name}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => handleDeleteFile(f)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
+                <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                  Preparing upload area…
+                </div>
               )}
             </CardContent>
           </Card>
@@ -389,7 +394,7 @@ const MaterialQualityCheck = () => {
               disabled={syllabusFiles.length === 0}
               size="lg"
             >
-              <BookOpen className="mr-2 h-4 w-4" /> Review
+              <BookOpen className="mr-2 h-4 w-4" /> Review Syllabus
             </Button>
           </div>
         </div>
@@ -424,7 +429,7 @@ const MaterialQualityCheck = () => {
             <h2 className="font-heading text-xl font-semibold">Something went wrong</h2>
             <p className="text-sm text-muted-foreground">{errorMsg}</p>
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => navigate("/teacher/onboarding")}>
+              <Button variant="outline" onClick={() => setStage("idle")}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
               </Button>
               <Button onClick={() => { setStage("loading"); runPipeline(); }}>
@@ -437,17 +442,16 @@ const MaterialQualityCheck = () => {
     );
   }
 
-  // ── Render: Review issues ────────────────────────────────────────
+  // ── Render: Review issues / Preview ──────────────────────────────
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-3xl">
         <SetupProgressBar currentStep={2} />
 
-        {/* Header */}
         <div className="mb-8 text-center">
           <h1 className="font-heading text-3xl font-bold">
-            Syllabus Quality <span className="text-primary">Check</span>
+            Syllabus <span className="text-primary">Review</span>
           </h1>
           <p className="mt-2 text-muted-foreground">
             {stage === "preview"
@@ -459,7 +463,6 @@ const MaterialQualityCheck = () => {
         {/* Review Issues Section */}
         {stage === "review" && (
           <>
-            {/* Summary Bar */}
             <Card className="mb-6">
               <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
                 <div className="flex items-center gap-6">
@@ -475,7 +478,6 @@ const MaterialQualityCheck = () => {
               </CardContent>
             </Card>
 
-            {/* Issues List */}
             <div className="space-y-3">
               {issues.map((issue) => {
                 const isExpanded = expandedId === issue.id;
@@ -605,7 +607,6 @@ const MaterialQualityCheck = () => {
               </Card>
             )}
 
-            {/* Syllabus Preview */}
             <SyllabusPreview syllabus={syllabusJson} />
 
             {!finalApproved ? (
@@ -630,11 +631,11 @@ const MaterialQualityCheck = () => {
 
         {/* Navigation */}
         <div className="mt-8 flex justify-between">
-          <Button variant="ghost" onClick={() => navigate("/teacher/onboarding")}>
+          <Button variant="ghost" onClick={() => stage === "idle" ? navigate("/teacher/onboarding") : setStage("idle")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
-          <Button onClick={() => navigate("/teacher/setup/syllabus")} disabled={!finalApproved}>
-            Continue to Teaching Plan <ArrowRight className="ml-2 h-4 w-4" />
+          <Button onClick={() => navigate("/teacher/setup/syllabus", { state: { courseId } })} disabled={!finalApproved}>
+            Continue to Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -657,7 +658,6 @@ function SyllabusPreview({ syllabus }: { syllabus: SyllabusJson }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Description */}
         {syllabus.description && (
           <section>
             <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -667,7 +667,6 @@ function SyllabusPreview({ syllabus }: { syllabus: SyllabusJson }) {
           </section>
         )}
 
-        {/* Learning Objectives */}
         {syllabus.learningObjectives?.length > 0 && (
           <section>
             <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -681,7 +680,6 @@ function SyllabusPreview({ syllabus }: { syllabus: SyllabusJson }) {
           </section>
         )}
 
-        {/* Schedule */}
         {syllabus.schedule?.length > 0 && (
           <section>
             <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -712,7 +710,6 @@ function SyllabusPreview({ syllabus }: { syllabus: SyllabusJson }) {
           </section>
         )}
 
-        {/* Grading Policy */}
         {syllabus.gradingPolicy?.components?.length > 0 && (
           <section>
             <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -734,7 +731,6 @@ function SyllabusPreview({ syllabus }: { syllabus: SyllabusJson }) {
           </section>
         )}
 
-        {/* Policies */}
         {syllabus.policies?.length > 0 && (
           <section>
             <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -751,7 +747,6 @@ function SyllabusPreview({ syllabus }: { syllabus: SyllabusJson }) {
           </section>
         )}
 
-        {/* Resources */}
         {syllabus.resources?.length > 0 && (
           <section>
             <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">

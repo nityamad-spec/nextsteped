@@ -11,26 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { ArrowRight, ArrowLeft, User, FileText, BookOpen, Plus, Info, HelpCircle, X, Lock } from "lucide-react";
+import { ArrowRight, ArrowLeft, User, Plus, X } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
-import FileUploadZone from "@/components/FileUploadZone";
 import { toast } from "sonner";
-
-const UPLOAD_ACCEPT = ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
-
-const bestPracticeStandards = [
-  { format: "Slides (PPTX)", tips: "Use clear headings per slide, limit to 6 bullet points, include visuals/diagrams, add speaker notes for context." },
-  { format: "Documents (DOCX/PDF)", tips: "Use structured headings (H1-H3), number sections, include a table of contents for long docs, cite sources." },
-  { format: "Exams / Problem Sets", tips: "Clearly state point values, group by topic/difficulty, provide a rubric or answer key, include time estimates." },
-  { format: "General", tips: "Use consistent naming conventions, remove personal/sensitive data, ensure accessibility (alt text, readable fonts)." },
-];
-
-interface UploadedFile {
-  name: string;
-  size: number;
-  path: string;
-}
 
 const TeacherOnboarding = () => {
   const { setTeacherProfile, setCurrentCourse } = useApp();
@@ -48,11 +31,6 @@ const TeacherOnboarding = () => {
   const [branch, setBranch] = useState("");
   const [studentYear, setStudentYear] = useState("");
   const [objectives, setObjectives] = useState("");
-  const [syllabusFiles, setSyllabusFiles] = useState<UploadedFile[]>([]);
-  const [materialsFiles, setMaterialsFiles] = useState<UploadedFile[]>([]);
-  const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
-  const [showUploadInfo, setShowUploadInfo] = useState(false);
-  const [showBestPractice, setShowBestPractice] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -76,28 +54,6 @@ const TeacherOnboarding = () => {
         if (courseRes.data.objectives) setObjectives((courseRes.data.objectives as string[]).join("\n"));
       }
 
-      // Fetch files scoped by course_id if available
-      const courseId = courseRes.data?.id;
-      let filesQuery = supabase
-        .from("course_material_files")
-        .select("file_name, file_size, storage_path, folder_type")
-        .eq("teacher_id", user.id);
-      if (courseId) {
-        filesQuery = filesQuery.eq("course_id", courseId);
-      }
-      const filesRes = await filesQuery;
-
-      if (filesRes.data) {
-        const mapFile = (f: { file_name: string; file_size: number; storage_path: string }) => ({
-          name: f.file_name,
-          size: f.file_size,
-          path: f.storage_path,
-        });
-        setSyllabusFiles(filesRes.data.filter((f) => f.folder_type === "syllabus").map(mapFile));
-        setMaterialsFiles(filesRes.data.filter((f) => f.folder_type === "materials").map(mapFile));
-        setLessonPlanFiles(filesRes.data.filter((f) => f.folder_type === "lesson-plans").map(mapFile));
-      }
-
       setLoading(false);
     };
     fetchExistingData();
@@ -110,8 +66,7 @@ const TeacherOnboarding = () => {
     term &&
     branch.trim() &&
     studentYear &&
-    objectives.trim() &&
-    syllabusFiles.length > 0;
+    objectives.trim();
 
   const addSection = () => {
     const trimmed = sectionInput.trim();
@@ -128,7 +83,7 @@ const TeacherOnboarding = () => {
   const handleContinue = async () => {
     if (!user) return;
 
-    // Upsert profile — update if exists, insert if not
+    // Upsert profile
     const { data: existingProfile } = await supabase
       .from("profiles")
       .select("id")
@@ -157,15 +112,13 @@ const TeacherOnboarding = () => {
       }
     }
 
-    // Upsert course — update existing or insert new
+    // Upsert course
     const coursePayload = {
       name: courseName,
       branch,
       term,
       sections,
       objectives: objectives.split("\n").filter(Boolean),
-      syllabus_uploaded: syllabusFiles.length > 0,
-      materials_uploaded: materialsFiles.length > 0,
     };
 
     const { data: existingCourse } = await supabase
@@ -197,19 +150,6 @@ const TeacherOnboarding = () => {
         return;
       }
       courseId = courseData.id;
-    }
-
-    // Backfill course_id on all uploaded file metadata rows
-    const allPaths = [
-      ...syllabusFiles.map((f) => f.path),
-      ...materialsFiles.map((f) => f.path),
-      ...lessonPlanFiles.map((f) => f.path),
-    ];
-    if (allPaths.length > 0) {
-      await supabase
-        .from("course_material_files")
-        .update({ course_id: courseId })
-        .in("storage_path", allPaths);
     }
 
     // Store courseId for downstream pages
@@ -246,7 +186,7 @@ const TeacherOnboarding = () => {
           <h1 className="font-heading text-3xl font-bold">
             Welcome to Next<span className="text-primary">Step</span>
           </h1>
-          <p className="mt-2 text-muted-foreground">Set up your profile, course, and upload materials</p>
+          <p className="mt-2 text-muted-foreground">Set up your profile and course details</p>
         </div>
 
         <Card>
@@ -257,7 +197,7 @@ const TeacherOnboarding = () => {
               </div>
               <div>
                 <CardTitle>Professor Profile & Course Setup</CardTitle>
-                <CardDescription>Your information, course details, and materials</CardDescription>
+                <CardDescription>Your information and course details</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -360,157 +300,17 @@ const TeacherOnboarding = () => {
                 />
               </div>
 
-              {/* Syllabus Upload */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Upload Syllabus & Guidelines</Label>
-                <p className="text-xs text-muted-foreground">Upload your course syllabus and AICTE guidelines.</p>
-                <p className="text-xs text-muted-foreground">
-                  <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
-                </p>
-                {user ? (
-                  <FileUploadZone
-                    folderPath={`${user.id}/syllabus`}
-                    accept={UPLOAD_ACCEPT}
-                    files={syllabusFiles}
-                    onFilesChange={setSyllabusFiles}
-                    teacherId={user.id}
-                    folderType="syllabus"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
-                    Preparing upload area…
-                  </div>
-                )}
-              </div>
-
-              {/* Student-Facing Materials Upload */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2"><BookOpen className="h-4 w-4" /> Upload Course Materials <span className="text-[10px] font-normal text-muted-foreground">(Student-Facing · Optional)</span></Label>
-                <p className="text-xs text-muted-foreground">
-                  These materials will be used to understand the curriculum and power the AI Teaching Assistant for students.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
-                </p>
-                {user ? (
-                  <FileUploadZone
-                    folderPath={`${user.id}/materials`}
-                    accept={UPLOAD_ACCEPT}
-                    files={materialsFiles}
-                    onFilesChange={setMaterialsFiles}
-                    teacherId={user.id}
-                    folderType="materials"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
-                    Preparing upload area…
-                  </div>
-                )}
-
-                <button
-                  onClick={() => setShowUploadInfo(true)}
-                  className="flex items-center gap-1 text-xs text-primary hover:underline"
-                >
-                  <HelpCircle className="h-3 w-3" /> What happens to my uploads?
-                </button>
-
-                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 mt-2">
-                  <button
-                    onClick={() => setShowBestPractice(!showBestPractice)}
-                    className="flex items-center gap-2 w-full text-left"
-                  >
-                    <Info className="h-4 w-4 text-primary shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-xs font-medium text-foreground">Best Practice Format Standards</p>
-                      <p className="text-[11px] text-muted-foreground">Recommended formatting guidelines for your materials</p>
-                    </div>
-                  </button>
-                  {showBestPractice && (
-                    <div className="mt-3 space-y-2 border-t pt-3">
-                      {bestPracticeStandards.map((bp, i) => (
-                        <div key={i} className="rounded-md bg-background p-2.5">
-                          <p className="text-xs font-medium text-foreground">{bp.format}</p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">{bp.tips}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Teacher Lesson Plans Upload (Internal) */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2"><Lock className="h-4 w-4" /> Upload Lesson Plans <span className="text-[10px] font-normal text-muted-foreground">(Internal · Optional)</span></Label>
-                <p className="text-xs text-muted-foreground">
-                  These files help us understand the structure of your course's topics over the semester and each class or weekly topic covered, guiding your instruction plan.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
-                </p>
-                {user ? (
-                  <FileUploadZone
-                    folderPath={`${user.id}/lesson-plans`}
-                    accept={UPLOAD_ACCEPT}
-                    files={lessonPlanFiles}
-                    onFilesChange={setLessonPlanFiles}
-                    teacherId={user.id}
-                    folderType="lesson-plans"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
-                    Preparing upload area…
-                  </div>
-                )}
-              </div>
-
               <div className="flex justify-between pt-2">
                 <Button variant="ghost" onClick={() => navigate("/")}>
                   <ArrowLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
                 <Button onClick={handleContinue} disabled={!isValid}>
-                  Continue to Quality Check <ArrowRight className="ml-2 h-4 w-4" />
+                  Continue to Syllabus Review <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </motion.div>
           </CardContent>
         </Card>
-
-        <Dialog open={showUploadInfo} onOpenChange={setShowUploadInfo}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>How uploads are used</DialogTitle>
-              <DialogDescription>Your materials help power the AI Teaching Assistant</DialogDescription>
-            </DialogHeader>
-            <ul className="space-y-3 text-sm">
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 shrink-0 text-primary">✓</span>
-                <span>We use your uploads to generate teaching plans and ground the Student TA.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 shrink-0 text-primary">✓</span>
-                <span>You can remove files anytime.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 shrink-0 text-primary">✓</span>
-                <span>Generated content can include suggestions beyond uploads; those will be labeled.</span>
-              </li>
-            </ul>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button>Got it</Button>
-              </DialogClose>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </div>
   );
