@@ -2,18 +2,20 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Slider } from "@/components/ui/slider";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import {
   ArrowRight, ArrowLeft, Brain, Plus, Pencil, Trash2, Check, X,
-  ChevronDown, ChevronUp, GripVertical, Info,
+  ChevronDown, ChevronUp, Info, Settings2, AlertTriangle,
 } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import { useToast } from "@/hooks/use-toast";
@@ -34,6 +36,21 @@ const questionTypeColors: Record<QuestionType, string> = {
   code: "bg-destructive/10 text-destructive",
 };
 
+const bloomLabels: Record<number, string> = {
+  1: "Remember",
+  2: "Understand",
+  3: "Apply",
+  4: "Analyze",
+  5: "Evaluate",
+  6: "Create",
+};
+
+const difficultyToEstimate = (d: "Easy" | "Medium" | "Hard"): number =>
+  d === "Easy" ? 0.2 : d === "Medium" ? 0.5 : 0.8;
+
+const estimateToDifficulty = (e: number): "Easy" | "Medium" | "Hard" =>
+  e <= 0.33 ? "Easy" : e <= 0.66 ? "Medium" : "Hard";
+
 interface DiagnosticQuestion {
   id: string;
   question: string;
@@ -45,64 +62,89 @@ interface DiagnosticQuestion {
   correctAnswer?: string;
   explanation: string;
   approved: boolean;
+  // DB metadata fields
+  itemId: string;
+  difficultyEstimate: number;
+  bloomLevel: number;
+  bloomJustification: string;
+  difficultyJustification: string;
+  isDistractor: boolean;
 }
 
 const makeId = () => `dq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-// Auto-generated starter questions based on course material
+const generateItemId = (topic: string, index: number): string => {
+  const sanitized = topic.replace(/[^a-zA-Z0-9]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "") || "General";
+  return `COURSE/${sanitized}/Q${String(index + 1).padStart(3, "0")}`;
+};
+
 const generatedQuestions: DiagnosticQuestion[] = [
   {
     id: "dq1", question: "What is the output of print(type(3.14)) in Python?",
     type: "mcq", topic: "Variables & Data Types", difficulty: "Easy",
     options: ["<class 'float'>", "<class 'int'>", "<class 'str'>", "<class 'double'>"],
     correctIndex: 0, explanation: "3.14 is a floating-point number, so type() returns <class 'float'>.",
-    approved: false,
+    approved: false, itemId: "COURSE/Variables_Data_Types/Q001", difficultyEstimate: 0.2,
+    bloomLevel: 1, bloomJustification: "Recall of Python data types.", difficultyJustification: "Basic recall; easy difficulty.",
+    isDistractor: false,
   },
   {
     id: "dq2", question: "Which loop is best when you know the number of iterations?",
     type: "mcq", topic: "Control Flow", difficulty: "Medium",
     options: ["while loop", "for loop", "do-while loop", "repeat loop"],
     correctIndex: 1, explanation: "A for loop is ideal when the number of iterations is known in advance.",
-    approved: false,
+    approved: false, itemId: "COURSE/Control_Flow/Q001", difficultyEstimate: 0.5,
+    bloomLevel: 2, bloomJustification: "Understanding loop semantics.", difficultyJustification: "Requires conceptual understanding.",
+    isDistractor: false,
   },
   {
     id: "dq3", question: "What does the 'return' statement do in a function?",
     type: "mcq", topic: "Functions", difficulty: "Hard",
     options: ["Exits the function and returns a value", "Prints a value", "Loops the function", "Imports a module"],
     correctIndex: 0, explanation: "The return statement exits the function and optionally passes back a value to the caller.",
-    approved: false,
+    approved: false, itemId: "COURSE/Functions/Q001", difficultyEstimate: 0.8,
+    bloomLevel: 3, bloomJustification: "Applying knowledge of function mechanics.", difficultyJustification: "Requires deeper understanding of execution flow.",
+    isDistractor: false,
   },
   {
     id: "dq4", question: "How do you access the value associated with key 'name' in a dictionary d?",
     type: "mcq", topic: "Lists & Dictionaries", difficulty: "Medium",
     options: ["d['name']", "d.name", "d(name)", "d->name"],
     correctIndex: 0, explanation: "Dictionary values are accessed using square bracket notation with the key.",
-    approved: false,
+    approved: false, itemId: "COURSE/Lists_Dictionaries/Q001", difficultyEstimate: 0.5,
+    bloomLevel: 1, bloomJustification: "Remembering dictionary syntax.", difficultyJustification: "Standard syntax recall.",
+    isDistractor: false,
   },
   {
     id: "dq5", question: "Python is a statically typed language.",
     type: "true_false", topic: "Variables & Data Types", difficulty: "Easy",
     options: ["True", "False"], correctIndex: 1,
     explanation: "Python is dynamically typed — variable types are determined at runtime, not at compile time.",
-    approved: false,
+    approved: false, itemId: "COURSE/Variables_Data_Types/Q002", difficultyEstimate: 0.2,
+    bloomLevel: 1, bloomJustification: "Recall of language characteristics.", difficultyJustification: "Basic factual recall.",
+    isDistractor: false,
   },
   {
     id: "dq6", question: "What is the correct way to open a file for reading in Python?",
     type: "mcq", topic: "File Handling", difficulty: "Easy",
     options: ["open('file.txt', 'r')", "open('file.txt', 'w')", "read('file.txt')", "file.open('file.txt')"],
     correctIndex: 0, explanation: "open() with 'r' mode opens a file for reading.",
-    approved: false,
+    approved: false, itemId: "COURSE/File_Handling/Q001", difficultyEstimate: 0.2,
+    bloomLevel: 1, bloomJustification: "Recall of file I/O syntax.", difficultyJustification: "Basic API recall.",
+    isDistractor: false,
   },
   {
     id: "dq7", question: "What is __init__ in a Python class?",
     type: "mcq", topic: "OOP Basics", difficulty: "Medium",
     options: ["Constructor method", "Destructor method", "Static method", "Class method"],
     correctIndex: 0, explanation: "__init__ is the constructor method called when an object is instantiated.",
-    approved: false,
+    approved: false, itemId: "COURSE/OOP_Basics/Q001", difficultyEstimate: 0.5,
+    bloomLevel: 2, bloomJustification: "Understanding class instantiation.", difficultyJustification: "Requires conceptual OOP knowledge.",
+    isDistractor: false,
   },
 ];
 
-const emptyQuestion = (type: QuestionType = "mcq"): DiagnosticQuestion => ({
+const emptyQuestion = (type: QuestionType = "mcq", index: number = 0): DiagnosticQuestion => ({
   id: makeId(),
   question: "",
   type,
@@ -113,6 +155,12 @@ const emptyQuestion = (type: QuestionType = "mcq"): DiagnosticQuestion => ({
   correctAnswer: type === "short_answer" || type === "code" ? "" : undefined,
   explanation: "",
   approved: false,
+  itemId: generateItemId("General", index),
+  difficultyEstimate: 0.5,
+  bloomLevel: 1,
+  bloomJustification: "",
+  difficultyJustification: "",
+  isDistractor: false,
 });
 
 const DiagnosticQuestionsSetup = () => {
@@ -124,6 +172,7 @@ const DiagnosticQuestionsSetup = () => {
   const [editDraft, setEditDraft] = useState<DiagnosticQuestion | null>(null);
   const [removeConfirm, setRemoveConfirm] = useState<{ id: string; title: string } | null>(null);
   const [approveAllConfirm, setApproveAllConfirm] = useState(false);
+  const [metadataOpen, setMetadataOpen] = useState(false);
 
   const approvedCount = questions.filter((q) => q.approved).length;
   const allApproved = questions.length > 0 && approvedCount === questions.length;
@@ -139,6 +188,7 @@ const DiagnosticQuestionsSetup = () => {
   const startEdit = (q: DiagnosticQuestion) => {
     setEditingId(q.id);
     setEditDraft({ ...q, options: q.options ? [...q.options] : undefined });
+    setMetadataOpen(false);
     if (!expandedIds.includes(q.id)) setExpandedIds((prev) => [...prev, q.id]);
   };
 
@@ -151,11 +201,13 @@ const DiagnosticQuestionsSetup = () => {
     setQuestions((prev) => prev.map((q) => q.id === editingId ? { ...editDraft } : q));
     setEditingId(null);
     setEditDraft(null);
+    setMetadataOpen(false);
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setEditDraft(null);
+    setMetadataOpen(false);
   };
 
   const confirmRemove = (q: DiagnosticQuestion) => {
@@ -181,7 +233,7 @@ const DiagnosticQuestionsSetup = () => {
   };
 
   const addQuestion = (type: QuestionType) => {
-    const newQ = emptyQuestion(type);
+    const newQ = emptyQuestion(type, questions.length);
     setQuestions((prev) => [...prev, newQ]);
     setExpandedIds((prev) => [...prev, newQ.id]);
     startEdit(newQ);
@@ -259,6 +311,7 @@ const DiagnosticQuestionsSetup = () => {
                       {questionTypeLabels[q.type]}
                     </Badge>
                     <Badge variant="outline" className="text-[10px]">{q.difficulty}</Badge>
+                    {q.isDistractor && <AlertTriangle className="h-3 w-3 text-muted-foreground" />}
                     {q.approved && <Check className="h-3.5 w-3.5 text-primary" />}
                     {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                   </div>
@@ -316,8 +369,8 @@ const DiagnosticQuestionsSetup = () => {
                                 <Input className="h-8 text-xs" value={editDraft.topic} onChange={(e) => setEditDraft({ ...editDraft, topic: e.target.value })} placeholder="e.g. Variables & Data Types" />
                               </div>
                               <div className="space-y-1.5">
-                                <Label className="text-xs">Difficulty</Label>
-                                <Select value={editDraft.difficulty} onValueChange={(v: "Easy" | "Medium" | "Hard") => setEditDraft({ ...editDraft, difficulty: v })}>
+                                <Label className="text-xs">Difficulty Label</Label>
+                                <Select value={editDraft.difficulty} onValueChange={(v: "Easy" | "Medium" | "Hard") => setEditDraft({ ...editDraft, difficulty: v, difficultyEstimate: difficultyToEstimate(v) })}>
                                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="Easy">Easy</SelectItem>
@@ -409,6 +462,105 @@ const DiagnosticQuestionsSetup = () => {
                               />
                             </div>
 
+                            {/* Advanced Metadata (collapsible) */}
+                            <Collapsible open={metadataOpen} onOpenChange={setMetadataOpen}>
+                              <CollapsibleTrigger asChild>
+                                <Button variant="ghost" size="sm" className="text-xs h-7 w-full justify-start gap-2 text-muted-foreground hover:text-foreground">
+                                  <Settings2 className="h-3.5 w-3.5" />
+                                  Advanced Metadata
+                                  {metadataOpen ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+                                </Button>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <div className="mt-2 space-y-3 rounded-lg border border-dashed border-muted-foreground/30 p-3">
+                                  {/* Item ID */}
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Item ID</Label>
+                                    <Input
+                                      className="h-8 text-xs font-mono"
+                                      value={editDraft.itemId}
+                                      onChange={(e) => setEditDraft({ ...editDraft, itemId: e.target.value })}
+                                      placeholder="e.g. PWIM/Python_Environment/Q001"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground">Hierarchical identifier for this question</p>
+                                  </div>
+
+                                  {/* Difficulty Estimate Slider */}
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-center justify-between">
+                                      <Label className="text-xs">Difficulty Estimate</Label>
+                                      <span className="text-xs font-mono text-muted-foreground">{editDraft.difficultyEstimate.toFixed(2)}</span>
+                                    </div>
+                                    <Slider
+                                      value={[editDraft.difficultyEstimate]}
+                                      onValueChange={([v]) => setEditDraft({
+                                        ...editDraft,
+                                        difficultyEstimate: Math.round(v * 100) / 100,
+                                        difficulty: estimateToDifficulty(v),
+                                      })}
+                                      min={0}
+                                      max={1}
+                                      step={0.05}
+                                      className="w-full"
+                                    />
+                                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                                      <span>Easy (0.0)</span>
+                                      <span>Medium (0.5)</span>
+                                      <span>Hard (1.0)</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Difficulty Justification */}
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Difficulty Justification</Label>
+                                    <textarea
+                                      className="flex min-h-[40px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                      value={editDraft.difficultyJustification}
+                                      onChange={(e) => setEditDraft({ ...editDraft, difficultyJustification: e.target.value })}
+                                      placeholder="Why this difficulty level?"
+                                    />
+                                  </div>
+
+                                  {/* Bloom Level */}
+                                  <div className="grid gap-3 sm:grid-cols-2">
+                                    <div className="space-y-1.5">
+                                      <Label className="text-xs">Bloom's Taxonomy Level</Label>
+                                      <Select value={String(editDraft.bloomLevel)} onValueChange={(v) => setEditDraft({ ...editDraft, bloomLevel: parseInt(v) })}>
+                                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                          {Object.entries(bloomLabels).map(([level, label]) => (
+                                            <SelectItem key={level} value={level}>{level} — {label}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <Label className="text-xs">Bloom Justification</Label>
+                                      <textarea
+                                        className="flex min-h-[32px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                        value={editDraft.bloomJustification}
+                                        onChange={(e) => setEditDraft({ ...editDraft, bloomJustification: e.target.value })}
+                                        placeholder="Why this Bloom level?"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Is Distractor */}
+                                  <div className="flex items-center gap-2 pt-1">
+                                    <Checkbox
+                                      id="is-distractor"
+                                      checked={editDraft.isDistractor}
+                                      onCheckedChange={(checked) => setEditDraft({ ...editDraft, isDistractor: !!checked })}
+                                    />
+                                    <Label htmlFor="is-distractor" className="text-xs cursor-pointer">
+                                      Mark as distractor question
+                                    </Label>
+                                    <span className="text-[10px] text-muted-foreground ml-1">(used for calibration, not scored)</span>
+                                  </div>
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+
                             <div className="flex items-center gap-2 pt-1">
                               <Button size="sm" onClick={saveEdit}><Check className="mr-1 h-3.5 w-3.5" /> Save</Button>
                               <Button size="sm" variant="ghost" onClick={cancelEdit}><X className="mr-1 h-3.5 w-3.5" /> Cancel</Button>
@@ -417,11 +569,22 @@ const DiagnosticQuestionsSetup = () => {
                         ) : (
                           /* View mode */
                           <div className="space-y-2">
-                            {q.topic && (
-                              <div className="flex items-center gap-2">
-                                <Badge variant="secondary" className="text-[10px]">{q.topic}</Badge>
-                                <Badge variant="outline" className="text-[10px]">{q.difficulty}</Badge>
-                              </div>
+                            {/* Topic + difficulty + metadata badges */}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {q.topic && <Badge variant="secondary" className="text-[10px]">{q.topic}</Badge>}
+                              <Badge variant="outline" className="text-[10px]">{q.difficulty}</Badge>
+                              <Badge variant="outline" className="text-[10px] font-mono">{q.difficultyEstimate.toFixed(2)}</Badge>
+                              <Badge variant="outline" className="text-[10px]">Bloom {q.bloomLevel}: {bloomLabels[q.bloomLevel]}</Badge>
+                              {q.isDistractor && (
+                                <Badge variant="outline" className="text-[10px] border-destructive/50 text-destructive">
+                                  <AlertTriangle className="mr-0.5 h-2.5 w-2.5" /> Distractor
+                                </Badge>
+                              )}
+                            </div>
+
+                            {/* Item ID */}
+                            {q.itemId && (
+                              <p className="text-[10px] font-mono text-muted-foreground">{q.itemId}</p>
                             )}
 
                             {/* Display options for MCQ / True-False */}
@@ -449,6 +612,18 @@ const DiagnosticQuestionsSetup = () => {
                               <div className="rounded-md bg-muted/30 px-3 py-2">
                                 <p className="text-[10px] font-medium text-muted-foreground mb-0.5">Explanation</p>
                                 <p className="text-xs text-muted-foreground">{q.explanation}</p>
+                              </div>
+                            )}
+
+                            {/* Justifications (if present) */}
+                            {(q.bloomJustification || q.difficultyJustification) && (
+                              <div className="rounded-md bg-muted/20 px-3 py-2 space-y-1">
+                                {q.bloomJustification && (
+                                  <p className="text-[10px] text-muted-foreground"><span className="font-medium">Bloom:</span> {q.bloomJustification}</p>
+                                )}
+                                {q.difficultyJustification && (
+                                  <p className="text-[10px] text-muted-foreground"><span className="font-medium">Difficulty:</span> {q.difficultyJustification}</p>
+                                )}
                               </div>
                             )}
 
