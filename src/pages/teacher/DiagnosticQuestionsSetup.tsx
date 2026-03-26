@@ -76,7 +76,7 @@ interface DiagnosticQuestion {
 
 interface ConceptOption {
   id: string;
-  concept_id: string;
+  concept_code: string;
   weight: number;
 }
 
@@ -209,9 +209,9 @@ const DiagnosticQuestionsSetup = () => {
           .order("created_at", { ascending: true }),
         supabase
           .from("concepts")
-          .select("id, concept_id, weight")
+          .select("id, concept_code, weight")
           .eq("course_id", courseId)
-          .order("concept_id", { ascending: true }),
+          .order("concept_code", { ascending: true }),
       ]);
 
       if (questionsRes.error) {
@@ -482,7 +482,7 @@ const DiagnosticQuestionsSetup = () => {
                                     setEditDraft({
                                       ...editDraft,
                                       conceptId: v === "__none__" ? undefined : v,
-                                      topic: selectedConcept ? selectedConcept.concept_id : editDraft.topic,
+                                      topic: selectedConcept ? selectedConcept.concept_code : editDraft.topic,
                                     });
                                   }}
                                 >
@@ -491,7 +491,7 @@ const DiagnosticQuestionsSetup = () => {
                                     <SelectItem value="__none__">— None —</SelectItem>
                                     {concepts.map((c) => (
                                       <SelectItem key={c.id} value={c.id}>
-                                        {c.concept_id} <span className="text-muted-foreground ml-1">(w: {c.weight})</span>
+                                        {c.concept_code} <span className="text-muted-foreground ml-1">(w: {c.weight})</span>
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -715,7 +715,7 @@ const DiagnosticQuestionsSetup = () => {
                               {(() => {
                                 const concept = concepts.find((c) => c.id === q.conceptId);
                                 return concept ? (
-                                  <Badge className="text-[10px] bg-primary/10 text-primary border-primary/30">{concept.concept_id}</Badge>
+                                  <Badge className="text-[10px] bg-primary/10 text-primary border-primary/30">{concept.concept_code}</Badge>
                                 ) : null;
                               })()}
                               {q.topic && <Badge variant="secondary" className="text-[10px]">{q.topic}</Badge>}

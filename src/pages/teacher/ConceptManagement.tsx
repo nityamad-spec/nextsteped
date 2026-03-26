@@ -14,7 +14,7 @@ import { ArrowLeft, ArrowRight, Plus, Pencil, Trash2, Save, X, Loader2 } from "l
 
 interface Concept {
   id: string;
-  concept_id: string;
+  concept_code: string;
   weight: number;
   course_id: string;
 }
@@ -49,7 +49,7 @@ const ConceptManagement = () => {
       .from("concepts")
       .select("*")
       .eq("course_id", courseId)
-      .order("concept_id");
+      .order("concept_code");
     if (error) {
       toast({ title: "Error loading concepts", description: error.message, variant: "destructive" });
     } else {
@@ -72,7 +72,7 @@ const ConceptManagement = () => {
     }
     setSaving(true);
     const { error } = await supabase.from("concepts").insert({
-      concept_id: newConceptId.trim(),
+      concept_code: newConceptId.trim(),
       weight,
       course_id: courseId,
     });
@@ -90,7 +90,7 @@ const ConceptManagement = () => {
 
   const handleEdit = (c: Concept) => {
     setEditingId(c.id);
-    setEditConceptId(c.concept_id);
+    setEditConceptId(c.concept_code);
     setEditWeight(String(c.weight));
   };
 
@@ -104,7 +104,7 @@ const ConceptManagement = () => {
     setSaving(true);
     const { error } = await supabase
       .from("concepts")
-      .update({ concept_id: editConceptId.trim(), weight })
+      .update({ concept_code: editConceptId.trim(), weight })
       .eq("id", editingId);
     if (error) {
       toast({ title: "Error updating concept", description: error.message, variant: "destructive" });
@@ -234,7 +234,7 @@ const ConceptManagement = () => {
                           </>
                         ) : (
                           <>
-                            <TableCell className="font-mono text-sm">{c.concept_id}</TableCell>
+                            <TableCell className="font-mono text-sm">{c.concept_code}</TableCell>
                             <TableCell>{Number(c.weight).toFixed(2)}</TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
