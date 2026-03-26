@@ -43,11 +43,11 @@ const AdminDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     const [appsRes, coursesRes] = await Promise.all([
-      supabase.from("teacher_applications").select("*").order("created_at", { ascending: false }),
+      supabase.from("teacher_applications" as any).select("*").order("created_at", { ascending: false }),
       supabase.from("courses").select("id, name, course_code"),
     ]);
 
-    if (appsRes.data) setApplications(appsRes.data);
+    if (appsRes.data) setApplications(appsRes.data as any);
     if (coursesRes.data) setCourses(coursesRes.data);
     setLoading(false);
   };
