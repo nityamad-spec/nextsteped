@@ -446,7 +446,7 @@ const DiagnosticQuestionsSetup = () => {
             const isEditing = editingId === q.id;
 
             return (
-              <Card key={q.id} className={q.approved ? "border-primary/30" : ""}>
+              <Card key={q.id} className={`${q.approved ? "border-primary/30" : ""} ${q.inTest ? "ring-1 ring-primary/20" : ""}`}>
                 <div
                   className={`flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors ${q.approved ? "bg-primary/5" : ""}`}
                   onClick={() => !isEditing && toggleExpand(q.id)}
@@ -456,6 +456,9 @@ const DiagnosticQuestionsSetup = () => {
                     <span className="text-sm truncate">{q.question || "New question..."}</span>
                   </div>
                   <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                    {q.inTest && (
+                      <Badge className="text-[10px] bg-primary/20 text-primary border-primary/30">In Test</Badge>
+                    )}
                     <Badge variant="outline" className={`text-[10px] ${questionTypeColors[q.type]}`}>
                       {questionTypeLabels[q.type]}
                     </Badge>
@@ -815,21 +818,33 @@ const DiagnosticQuestionsSetup = () => {
                               </div>
                             )}
 
-                            <div className="flex items-center gap-2 pt-1">
+                            <div className="flex items-center gap-2 pt-1 flex-wrap">
                               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => startEdit(q)}>
                                 <Pencil className="mr-1 h-3 w-3" /> Edit
                               </Button>
                               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => confirmRemove(q)}>
                                 <Trash2 className="mr-1 h-3 w-3" /> Remove
                               </Button>
-                              <Button
-                                size="sm"
-                                variant={q.approved ? "default" : "outline"}
-                                className="h-7 text-xs ml-auto"
-                                onClick={() => toggleApprove(q.id)}
-                              >
-                                {q.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve"}
-                              </Button>
+                              <div className="flex items-center gap-2 ml-auto">
+                                <div className="flex items-center gap-1.5">
+                                  <Switch
+                                    checked={q.inTest}
+                                    onCheckedChange={() => toggleInTest(q)}
+                                    className="scale-75"
+                                  />
+                                  <Label className="text-xs text-muted-foreground cursor-pointer" onClick={() => toggleInTest(q)}>
+                                    {q.inTest ? "In Test" : "Not in Test"}
+                                  </Label>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant={q.approved ? "default" : "outline"}
+                                  className="h-7 text-xs"
+                                  onClick={() => toggleApprove(q.id)}
+                                >
+                                  {q.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve"}
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         )}
