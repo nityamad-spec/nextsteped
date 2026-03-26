@@ -222,6 +222,7 @@ export type Database = {
       courses: {
         Row: {
           branch: string | null
+          course_code: string | null
           created_at: string
           end_date: string | null
           enrollment_code: string
@@ -240,6 +241,7 @@ export type Database = {
         }
         Insert: {
           branch?: string | null
+          course_code?: string | null
           created_at?: string
           end_date?: string | null
           enrollment_code?: string
@@ -258,6 +260,7 @@ export type Database = {
         }
         Update: {
           branch?: string | null
+          course_code?: string | null
           created_at?: string
           end_date?: string | null
           enrollment_code?: string
