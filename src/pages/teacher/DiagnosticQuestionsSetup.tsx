@@ -712,6 +712,12 @@ const DiagnosticQuestionsSetup = () => {
                           <div className="space-y-2">
                             {/* Topic + difficulty + metadata badges */}
                             <div className="flex flex-wrap items-center gap-1.5">
+                              {(() => {
+                                const concept = concepts.find((c) => c.id === q.conceptId);
+                                return concept ? (
+                                  <Badge className="text-[10px] bg-primary/10 text-primary border-primary/30">{concept.concept_id}</Badge>
+                                ) : null;
+                              })()}
                               {q.topic && <Badge variant="secondary" className="text-[10px]">{q.topic}</Badge>}
                               <Badge variant="outline" className="text-[10px]">{q.difficulty}</Badge>
                               <Badge variant="outline" className="text-[10px] font-mono">{q.difficultyEstimate.toFixed(2)}</Badge>
