@@ -41,7 +41,7 @@ const TeacherOnboarding = () => {
       
       const courseFields = "id, branch, term, sections, objectives, course_code, name";
 
-      const profileRes = await supabase.from("profiles").select("name, department").eq("id", user.id).maybeSingle();
+      const profileRes = await supabase.from("profiles").select("name, department, graduation_year").eq("id", user.id).maybeSingle();
 
       let courseRes: { data: any } = { data: null };
 
