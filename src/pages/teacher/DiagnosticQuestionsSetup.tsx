@@ -71,6 +71,13 @@ interface DiagnosticQuestion {
   bloomJustification: string;
   difficultyJustification: string;
   isDistractor: boolean;
+  conceptId?: string; // FK to concepts table
+}
+
+interface ConceptOption {
+  id: string;
+  concept_id: string;
+  weight: number;
 }
 
 const makeId = () => `dq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
