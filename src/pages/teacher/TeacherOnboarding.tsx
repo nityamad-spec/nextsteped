@@ -36,9 +36,22 @@ const TeacherOnboarding = () => {
     if (!user) return;
     const fetchExistingData = async () => {
       setLoading(true);
+      const storedCourseId = localStorage.getItem("currentCourseId");
+      
+      let courseQuery = supabase.from("courses")
+        .select("id, branch, term, sections, objectives, course_code, name");
+      
+      if (storedCourseId) {
+        courseQuery = courseQuery.eq("id", storedCourseId);
+      } else {
+        courseQuery = courseQuery.eq("teacher_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+      }
+
       const [profileRes, courseRes] = await Promise.all([
         supabase.from("profiles").select("name, department, graduation_year").eq("id", user.id).maybeSingle(),
-        supabase.from("courses").select("id, branch, term, sections, objectives, course_code, name").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        courseQuery.maybeSingle(),
       ]);
 
       if (profileRes.data) {
@@ -48,6 +61,7 @@ const TeacherOnboarding = () => {
       }
 
       if (courseRes.data) {
+        localStorage.setItem("currentCourseId", courseRes.data.id);
         if (courseRes.data.branch) setBranch(courseRes.data.branch);
         if (courseRes.data.term) setTerm(courseRes.data.term);
         if (courseRes.data.sections) setSections(courseRes.data.sections as string[]);
