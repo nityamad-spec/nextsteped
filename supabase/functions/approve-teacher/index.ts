@@ -37,7 +37,6 @@ Deno.serve(async (req) => {
 
     const adminId = claimsData.claims.sub;
 
-    // Check admin role using service role client
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
@@ -62,7 +61,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get the application
     const { data: application, error: appError } = await adminClient
       .from("teacher_applications")
       .select("*")
@@ -98,10 +96,8 @@ Deno.serve(async (req) => {
     }
 
     if (action === "approve") {
-      // Generate a random temporary password
       const tempPassword = crypto.randomUUID().slice(0, 16) + "!Aa1";
 
-      // Create auth user (email_confirm: false triggers verification email)
       const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email: application.email,
         password: tempPassword,
@@ -111,7 +107,6 @@ Deno.serve(async (req) => {
 
       if (createError) throw createError;
 
-      // Create profile
       const { error: profileError } = await adminClient
         .from("profiles")
         .insert({
@@ -122,8 +117,9 @@ Deno.serve(async (req) => {
 
       if (profileError) throw profileError;
 
-      // If assigning as collaborator to existing course
+      // Handle different assignment types
       if (assignmentType === "collaborator" && courseId) {
+        // Add as collaborator to existing course
         const { error: ctError } = await adminClient
           .from("course_teachers")
           .insert({
@@ -131,9 +127,55 @@ Deno.serve(async (req) => {
             teacher_id: newUser.user.id,
             role: "collaborator",
           });
-
         if (ctError) throw ctError;
+
+      } else if (assignmentType === "owner_swap" && courseId) {
+        // Get current course owner
+        const { data: course, error: courseError } = await adminClient
+          .from("courses")
+          .select("teacher_id")
+          .eq("id", courseId)
+          .single();
+
+        if (courseError || !course) throw new Error("Course not found");
+
+        const oldOwnerId = course.teacher_id;
+
+        // Update courses.teacher_id to the new teacher
+        const { error: updateCourseError } = await adminClient
+          .from("courses")
+          .update({ teacher_id: newUser.user.id })
+          .eq("id", courseId);
+        if (updateCourseError) throw updateCourseError;
+
+        // Demote old owner to collaborator in course_teachers
+        // First delete any existing row, then insert as collaborator
+        await adminClient
+          .from("course_teachers")
+          .delete()
+          .eq("course_id", courseId)
+          .eq("teacher_id", oldOwnerId);
+
+        const { error: demoteError } = await adminClient
+          .from("course_teachers")
+          .insert({
+            course_id: courseId,
+            teacher_id: oldOwnerId,
+            role: "collaborator",
+          });
+        if (demoteError) throw demoteError;
+
+        // Add new teacher as owner in course_teachers
+        const { error: newOwnerError } = await adminClient
+          .from("course_teachers")
+          .insert({
+            course_id: courseId,
+            teacher_id: newUser.user.id,
+            role: "owner",
+          });
+        if (newOwnerError) throw newOwnerError;
       }
+      // assignmentType === "new_course" requires no additional action — teacher creates their own course later
 
       // Update application status
       await adminClient
@@ -147,8 +189,8 @@ Deno.serve(async (req) => {
         })
         .eq("id", applicationId);
 
-      // Send password reset email so teacher can set their own password
-      const { error: resetError } = await adminClient.auth.admin.generateLink({
+      // Send password reset email
+      await adminClient.auth.admin.generateLink({
         type: "recovery",
         email: application.email,
       });

@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle, XCircle, UserPlus, Users, Clock, BookOpen } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { CheckCircle, XCircle, UserPlus, Users, Clock, BookOpen, Crown, PlusCircle } from "lucide-react";
 
 interface TeacherApplication {
   id: string;
@@ -28,6 +30,8 @@ interface Course {
   course_code: string | null;
 }
 
+type AssignmentRole = "collaborator" | "owner_swap" | "new_course";
+
 const AdminDashboard = () => {
   const { user } = useAuth();
   const [applications, setApplications] = useState<TeacherApplication[]>([]);
@@ -35,6 +39,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedCourses, setSelectedCourses] = useState<Record<string, string>>({});
+  const [selectedRoles, setSelectedRoles] = useState<Record<string, AssignmentRole>>({});
 
   useEffect(() => {
     fetchData();
@@ -52,19 +57,20 @@ const AdminDashboard = () => {
     setLoading(false);
   };
 
-  const handleAction = async (applicationId: string, action: "approve" | "reject", assignmentType?: string) => {
+  const handleAction = async (applicationId: string, action: "approve" | "reject") => {
     setProcessingId(applicationId);
     try {
-      const courseId = assignmentType === "collaborator" ? selectedCourses[applicationId] : undefined;
+      const role = selectedRoles[applicationId] || "new_course";
+      const courseId = role !== "new_course" ? selectedCourses[applicationId] : undefined;
 
-      if (assignmentType === "collaborator" && !courseId) {
-        toast.error("Please select a course to assign the teacher to");
+      if (role !== "new_course" && !courseId) {
+        toast.error("Please select a course");
         setProcessingId(null);
         return;
       }
 
       const { data, error } = await supabase.functions.invoke("approve-teacher", {
-        body: { applicationId, action, assignmentType, courseId },
+        body: { applicationId, action, assignmentType: action === "approve" ? role : undefined, courseId },
       });
 
       if (error) throw error;
@@ -78,9 +84,23 @@ const AdminDashboard = () => {
     }
   };
 
+  const getApproveLabel = (appId: string) => {
+    const role = selectedRoles[appId] || "new_course";
+    switch (role) {
+      case "collaborator": return "Approve as Collaborator";
+      case "owner_swap": return "Approve as Owner (Swap)";
+      case "new_course": return "Approve for New Course";
+    }
+  };
+
   const pending = applications.filter((a) => a.status === "pending");
   const approved = applications.filter((a) => a.status === "approved");
   const rejected = applications.filter((a) => a.status === "rejected");
+
+  const showCourseDropdown = (appId: string) => {
+    const role = selectedRoles[appId];
+    return role === "collaborator" || role === "owner_swap";
+  };
 
   if (loading) {
     return (
@@ -176,9 +196,42 @@ const AdminDashboard = () => {
                     Applied {new Date(app.created_at).toLocaleDateString()}
                   </p>
 
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                    <div className="flex-1 space-y-1">
-                      <label className="text-sm font-medium">Assign to course (optional)</label>
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium">Assignment Role</label>
+                    <RadioGroup
+                      value={selectedRoles[app.id] || ""}
+                      onValueChange={(v) =>
+                        setSelectedRoles((prev) => ({ ...prev, [app.id]: v as AssignmentRole }))
+                      }
+                      className="space-y-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="collaborator" id={`${app.id}-collab`} />
+                        <Label htmlFor={`${app.id}-collab`} className="flex items-center gap-1.5 cursor-pointer">
+                          <BookOpen className="h-4 w-4 text-muted-foreground" />
+                          Collaborator on existing course
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="owner_swap" id={`${app.id}-swap`} />
+                        <Label htmlFor={`${app.id}-swap`} className="flex items-center gap-1.5 cursor-pointer">
+                          <Crown className="h-4 w-4 text-muted-foreground" />
+                          Owner of existing course (current owner becomes collaborator)
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="new_course" id={`${app.id}-new`} />
+                        <Label htmlFor={`${app.id}-new`} className="flex items-center gap-1.5 cursor-pointer">
+                          <PlusCircle className="h-4 w-4 text-muted-foreground" />
+                          Owner of a brand new course
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  {showCourseDropdown(app.id) && (
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">Select course</label>
                       <Select
                         value={selectedCourses[app.id] || ""}
                         onValueChange={(v) => setSelectedCourses((prev) => ({ ...prev, [app.id]: v }))}
@@ -195,34 +248,28 @@ const AdminDashboard = () => {
                         </SelectContent>
                       </Select>
                     </div>
+                  )}
 
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        disabled={processingId === app.id}
-                        onClick={() =>
-                          handleAction(
-                            app.id,
-                            "approve",
-                            selectedCourses[app.id] ? "collaborator" : "new_course"
-                          )
-                        }
-                        className="gap-1"
-                      >
-                        <CheckCircle className="h-4 w-4" />
-                        {selectedCourses[app.id] ? "Approve as Collaborator" : "Approve as Owner"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        disabled={processingId === app.id}
-                        onClick={() => handleAction(app.id, "reject")}
-                        className="gap-1"
-                      >
-                        <XCircle className="h-4 w-4" />
-                        Reject
-                      </Button>
-                    </div>
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      size="sm"
+                      disabled={processingId === app.id || !selectedRoles[app.id]}
+                      onClick={() => handleAction(app.id, "approve")}
+                      className="gap-1"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      {getApproveLabel(app.id)}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={processingId === app.id}
+                      onClick={() => handleAction(app.id, "reject")}
+                      className="gap-1"
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Reject
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -260,8 +307,10 @@ const AdminDashboard = () => {
                       <Badge variant="secondary">
                         {app.assignment_type === "collaborator" ? (
                           <><BookOpen className="mr-1 h-3 w-3" />Collaborator</>
+                        ) : app.assignment_type === "owner_swap" ? (
+                          <><Crown className="mr-1 h-3 w-3" />Owner (Swapped)</>
                         ) : (
-                          <><UserPlus className="mr-1 h-3 w-3" />New Course Owner</>
+                          <><PlusCircle className="mr-1 h-3 w-3" />New Course Owner</>
                         )}
                       </Badge>
                     )}
