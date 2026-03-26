@@ -351,7 +351,7 @@ const DiagnosticQuestionsSetup = () => {
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto w-full max-w-3xl">
-        <SetupProgressBar currentStep={4} />
+        <SetupProgressBar currentStep={5} />
         <div className="mb-6 text-center">
           <h1 className="font-heading text-3xl font-bold">Student Diagnostic Questions</h1>
           <p className="text-muted-foreground">Review and customize the diagnostic quiz students will take when they join your course</p>
