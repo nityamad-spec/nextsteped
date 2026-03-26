@@ -71,6 +71,13 @@ interface DiagnosticQuestion {
   bloomJustification: string;
   difficultyJustification: string;
   isDistractor: boolean;
+  conceptId?: string; // FK to concepts table
+}
+
+interface ConceptOption {
+  id: string;
+  concept_id: string;
+  weight: number;
 }
 
 const makeId = () => `dq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -97,6 +104,7 @@ const emptyQuestion = (type: QuestionType = "mcq", index: number = 0): Diagnosti
   bloomJustification: "",
   difficultyJustification: "",
   isDistractor: false,
+  conceptId: undefined,
 });
 
 // --- DB helpers ---
@@ -129,13 +137,14 @@ function dbRowToQuestion(row: any): DiagnosticQuestion {
     correctIndex,
     correctAnswer,
     explanation: row.explanation || "",
-    approved: true, // loaded from DB = previously saved
+    approved: true,
     itemId: row.item_id,
     difficultyEstimate: Number(row.difficulty_estimate),
     bloomLevel: row.bloom_level,
     bloomJustification: row.bloom_justification || "",
     difficultyJustification: row.difficulty_justification || "",
     isDistractor: row.is_distractor,
+    conceptId: row.concept_id || undefined,
   };
 }
 
@@ -162,6 +171,7 @@ function questionToDbRow(q: DiagnosticQuestion, courseId: string, teacherId: str
     topic: q.topic || null,
     course_id: courseId,
     teacher_id: teacherId,
+    concept_id: q.conceptId || null,
   };
 }
 
@@ -170,6 +180,7 @@ const DiagnosticQuestionsSetup = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [questions, setQuestions] = useState<DiagnosticQuestion[]>([]);
+  const [concepts, setConcepts] = useState<ConceptOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
@@ -183,25 +194,39 @@ const DiagnosticQuestionsSetup = () => {
 
   // Fetch questions from DB on mount
   useEffect(() => {
-    const fetchQuestions = async () => {
+    const fetchData = async () => {
       if (!courseId) {
         setLoading(false);
         return;
       }
-      const { data, error } = await supabase
-        .from("diagnostic_questions")
-        .select("*")
-        .eq("course_id", courseId)
-        .order("created_at", { ascending: true });
 
-      if (error) {
-        toast({ title: "Failed to load questions", description: error.message, variant: "destructive" });
-      } else if (data) {
-        setQuestions(data.map(dbRowToQuestion));
+      // Fetch questions and concepts in parallel
+      const [questionsRes, conceptsRes] = await Promise.all([
+        supabase
+          .from("diagnostic_questions")
+          .select("*")
+          .eq("course_id", courseId)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("concepts")
+          .select("id, concept_id, weight")
+          .eq("course_id", courseId)
+          .order("concept_id", { ascending: true }),
+      ]);
+
+      if (questionsRes.error) {
+        toast({ title: "Failed to load questions", description: questionsRes.error.message, variant: "destructive" });
+      } else if (questionsRes.data) {
+        setQuestions(questionsRes.data.map(dbRowToQuestion));
       }
+
+      if (conceptsRes.data) {
+        setConcepts(conceptsRes.data);
+      }
+
       setLoading(false);
     };
-    fetchQuestions();
+    fetchData();
   }, [courseId]);
 
   const approvedCount = questions.filter((q) => q.approved).length;
@@ -446,11 +471,42 @@ const DiagnosticQuestionsSetup = () => {
                               />
                             </div>
 
+                            {/* Concept + Topic row */}
                             <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="space-y-1.5">
+                                <Label className="text-xs">Concept</Label>
+                                <Select
+                                  value={editDraft.conceptId || "__none__"}
+                                  onValueChange={(v) => {
+                                    const selectedConcept = concepts.find((c) => c.id === v);
+                                    setEditDraft({
+                                      ...editDraft,
+                                      conceptId: v === "__none__" ? undefined : v,
+                                      topic: selectedConcept ? selectedConcept.concept_id : editDraft.topic,
+                                    });
+                                  }}
+                                >
+                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select concept…" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none__">— None —</SelectItem>
+                                    {concepts.map((c) => (
+                                      <SelectItem key={c.id} value={c.id}>
+                                        {c.concept_id} <span className="text-muted-foreground ml-1">(w: {c.weight})</span>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {concepts.length === 0 && (
+                                  <p className="text-[10px] text-muted-foreground">No concepts defined for this course yet</p>
+                                )}
+                              </div>
                               <div className="space-y-1.5">
                                 <Label className="text-xs">Topic</Label>
                                 <Input className="h-8 text-xs" value={editDraft.topic} onChange={(e) => setEditDraft({ ...editDraft, topic: e.target.value })} placeholder="e.g. Variables & Data Types" />
                               </div>
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-2">
                               <div className="space-y-1.5">
                                 <Label className="text-xs">Difficulty Label</Label>
                                 <Select value={editDraft.difficulty} onValueChange={(v: "Easy" | "Medium" | "Hard") => setEditDraft({ ...editDraft, difficulty: v, difficultyEstimate: difficultyToEstimate(v) })}>
@@ -656,6 +712,12 @@ const DiagnosticQuestionsSetup = () => {
                           <div className="space-y-2">
                             {/* Topic + difficulty + metadata badges */}
                             <div className="flex flex-wrap items-center gap-1.5">
+                              {(() => {
+                                const concept = concepts.find((c) => c.id === q.conceptId);
+                                return concept ? (
+                                  <Badge className="text-[10px] bg-primary/10 text-primary border-primary/30">{concept.concept_id}</Badge>
+                                ) : null;
+                              })()}
                               {q.topic && <Badge variant="secondary" className="text-[10px]">{q.topic}</Badge>}
                               <Badge variant="outline" className="text-[10px]">{q.difficulty}</Badge>
                               <Badge variant="outline" className="text-[10px] font-mono">{q.difficultyEstimate.toFixed(2)}</Badge>
