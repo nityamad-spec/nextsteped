@@ -106,7 +106,7 @@ const Auth = () => {
           </h1>
           <p className="mt-2 text-muted-foreground">
             {isLogin ? "Sign in to continue" : "Create your account"}
-            {" "}as {role === "teacher" ? "Professor" : "Student"}
+            {" "}as {role === "teacher" ? "Professor" : role === "admin" ? "Admin" : "Student"}
           </p>
         </div>
 
