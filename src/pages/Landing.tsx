@@ -108,14 +108,22 @@ const Landing = () => {
         </motion.button>
       </div>
 
-      <motion.p
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.8 }}
-        className="mt-12 text-xs text-muted-foreground"
+        className="mt-12 flex flex-col items-center gap-2"
       >
-        Built for the future of education
-      </motion.p>
+        <p className="text-xs text-muted-foreground">
+          Built for the future of education
+        </p>
+        <button
+          onClick={() => navigate("/auth?role=admin")}
+          className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+        >
+          Admin Login
+        </button>
+      </motion.div>
     </div>
   );
 };

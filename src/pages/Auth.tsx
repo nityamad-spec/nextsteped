@@ -64,11 +64,25 @@ const Auth = () => {
         setLoading(false);
         return;
       }
-      const { error } = await signUp(email, password, name, role);
-      if (error) {
-        toast.error(error);
+
+      if (role === "teacher") {
+        // Teacher signup: submit application instead of creating account
+        const { error: appError } = await supabase
+          .from("teacher_applications" as any)
+          .insert({ email, name } as any);
+
+        if (appError) {
+          toast.error(appError.message || "Failed to submit application");
+        } else {
+          toast.success("Your application has been submitted! An admin will review it shortly.");
+        }
       } else {
-        toast.success("Check your email to verify your account");
+        const { error } = await signUp(email, password, name, role);
+        if (error) {
+          toast.error(error);
+        } else {
+          toast.success("Check your email to verify your account");
+        }
       }
     }
     setLoading(false);

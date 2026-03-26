@@ -34,6 +34,8 @@ import StudentProgress from "./pages/student/Progress";
 import Feedback from "./pages/student/Feedback";
 import ComingSoon from "./components/ComingSoon";
 import NotFound from "./pages/NotFound";
+import AdminLayout from "./layouts/AdminLayout";
+import AdminDashboard from "./pages/admin/AdminDashboard";
 
 const queryClient = new QueryClient();
 
@@ -123,8 +125,9 @@ function AuthRedirect() {
 
   if (loading || checking) return null;
   if (user) {
-    const role = profileRole || "student";
-    return <Navigate to={role === "teacher" ? "/teacher" : "/student"} replace />;
+    const r = profileRole || "student";
+    if (r === "admin") return <Navigate to="/admin/dashboard" replace />;
+    return <Navigate to={r === "teacher" ? "/teacher" : "/student"} replace />;
   }
   return <Auth />;
 }
@@ -170,6 +173,12 @@ const App = () => (
                 <Route path="/student/chat" element={<AIChat />} />
                 <Route path="/student/feedback" element={<Feedback />} />
                 <Route path="/student/progress" element={<StudentProgress />} />
+              </Route>
+
+              {/* Admin routes */}
+              <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
+                <Route index element={<AdminDashboard />} />
+                <Route path="dashboard" element={<AdminDashboard />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
