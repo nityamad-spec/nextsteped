@@ -252,25 +252,64 @@ const AdminDashboard = () => {
                   )}
 
                   <div className="flex gap-2 pt-2">
-                    <Button
-                      size="sm"
-                      disabled={processingId === app.id || !selectedRoles[app.id]}
-                      onClick={() => handleAction(app.id, "approve")}
-                      className="gap-1"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      {getApproveLabel(app.id)}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      disabled={processingId === app.id}
-                      onClick={() => handleAction(app.id, "reject")}
-                      className="gap-1"
-                    >
-                      <XCircle className="h-4 w-4" />
-                      Reject
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          disabled={processingId === app.id || !selectedRoles[app.id]}
+                          className="gap-1"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          {getApproveLabel(app.id)}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Approve {app.name}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will create an account for <strong>{app.email}</strong> and send them an invite email.
+                            {selectedRoles[app.id] === "owner_swap" && " The current course owner will be demoted to collaborator."}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleAction(app.id, "approve")}>
+                            Yes, approve
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={processingId === app.id}
+                          className="gap-1"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Reject
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Reject {app.name}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will reject the application from <strong>{app.email}</strong>. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleAction(app.id, "reject")}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Yes, reject
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </CardContent>
               </Card>
