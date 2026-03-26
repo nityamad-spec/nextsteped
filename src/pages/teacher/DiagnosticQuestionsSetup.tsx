@@ -387,10 +387,12 @@ const DiagnosticQuestionsSetup = () => {
 
   const addQuestion = (type: QuestionType) => {
     const newQ = emptyQuestion(type, questions.length);
-    setQuestions((prev) => [...prev, newQ]);
+    setQuestions((prev) => [newQ, ...prev]);
     setExpandedIds((prev) => [...prev, newQ.id]);
     startEdit(newQ);
   };
+
+  const hasActiveFilter = filterConcept !== "all" || filterType !== "all" || filterDifficulty !== "all" || filterBloom !== "all";
 
   const approveAll = () => {
     setQuestions((prev) => prev.map((q) => ({ ...q, approved: true })));
@@ -457,22 +459,24 @@ const DiagnosticQuestionsSetup = () => {
           <div className="flex items-center justify-between border-t pt-2">
             <span className="text-sm">
               <span className="font-medium">{inTestCount}</span> of {questions.length} questions in diagnostic test
-              {filteredQuestions.length !== questions.length && (
+              {hasActiveFilter && (
                 <span className="text-muted-foreground"> (showing {filteredQuestions.length} filtered)</span>
               )}
             </span>
-            <div className="flex items-center gap-2">
-              {filteredQuestions.some((q) => !q.inTest) && filteredQuestions.length > 0 && (
-                <Button variant="outline" size="sm" onClick={() => bulkSetInTest(true)}>
-                  Add {filteredQuestions.length !== questions.length ? "Filtered" : "All"} to Test
-                </Button>
-              )}
-              {filteredQuestions.some((q) => q.inTest) && (
-                <Button variant="outline" size="sm" onClick={() => bulkSetInTest(false)}>
-                  Remove {filteredQuestions.length !== questions.length ? "Filtered" : "All"} from Test
-                </Button>
-              )}
-            </div>
+            {hasActiveFilter && (
+              <div className="flex items-center gap-2">
+                {filteredQuestions.some((q) => !q.inTest) && filteredQuestions.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => bulkSetInTest(true)}>
+                    Add Filtered to Test
+                  </Button>
+                )}
+                {filteredQuestions.some((q) => q.inTest) && (
+                  <Button variant="outline" size="sm" onClick={() => bulkSetInTest(false)}>
+                    Remove Filtered from Test
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -629,25 +633,44 @@ const DiagnosticQuestionsSetup = () => {
           )}
         </div>
 
+        {/* Add question — always visible */}
+        <div className="mb-4 flex flex-wrap gap-2">
+          <span className="text-sm text-muted-foreground self-center mr-1">Add question:</span>
+          {(Object.entries(questionTypeLabels) as [QuestionType, string][]).map(([type, label]) => (
+            <Button key={type} variant="outline" size="sm" onClick={() => addQuestion(type)}>
+              <Plus className="mr-1 h-3.5 w-3.5" /> {label}
+            </Button>
+          ))}
+        </div>
+
         {/* Empty state */}
         {questions.length === 0 && (
           <div className="mb-6 rounded-lg border border-dashed border-muted-foreground/30 py-12 text-center">
             <Brain className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">No questions yet</p>
-            <p className="text-xs text-muted-foreground mt-1">Click the buttons below to add your first diagnostic question.</p>
+            <p className="text-xs text-muted-foreground mt-1">Click the buttons above to add your first diagnostic question.</p>
           </div>
         )}
 
-        {filteredQuestions.length === 0 && questions.length > 0 && (
+        {!hasActiveFilter && questions.length > 0 && (
+          <div className="mb-6 rounded-lg border border-dashed border-muted-foreground/30 py-12 text-center">
+            <Filter className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">Use the filters above to browse questions</p>
+            <p className="text-xs text-muted-foreground mt-1">{questions.length} questions in the bank · {inTestCount} selected for diagnostic test</p>
+          </div>
+        )}
+
+        {hasActiveFilter && filteredQuestions.length === 0 && (
           <div className="mb-6 rounded-lg border border-dashed border-muted-foreground/30 py-8 text-center">
             <Filter className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
             <p className="text-sm text-muted-foreground">No questions match the current filters</p>
           </div>
         )}
 
-        {/* Questions list */}
-        <div className="space-y-2 mb-6">
-          {filteredQuestions.map((q, idx) => {
+        {/* Questions list — only when filters active */}
+        {hasActiveFilter && (
+          <div className="space-y-2 mb-6">
+            {filteredQuestions.map((q, idx) => {
             const isExpanded = expandedIds.includes(q.id);
             const isEditing = editingId === q.id;
 
@@ -1063,15 +1086,7 @@ const DiagnosticQuestionsSetup = () => {
           })}
         </div>
 
-        {/* Add question */}
-        <div className="mb-6 flex flex-wrap gap-2">
-          <span className="text-sm text-muted-foreground self-center mr-1">Add question:</span>
-          {(Object.entries(questionTypeLabels) as [QuestionType, string][]).map(([type, label]) => (
-            <Button key={type} variant="outline" size="sm" onClick={() => addQuestion(type)}>
-              <Plus className="mr-1 h-3.5 w-3.5" /> {label}
-            </Button>
-          ))}
-        </div>
+
 
         {/* Navigation */}
         <div className="flex justify-between">
