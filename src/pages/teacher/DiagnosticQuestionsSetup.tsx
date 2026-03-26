@@ -17,7 +17,9 @@ import {
 import {
   ArrowRight, ArrowLeft, Brain, Plus, Pencil, Trash2, Check, X,
   ChevronDown, ChevronUp, Info, Settings2, AlertTriangle, Loader2,
+  BarChart3, Filter,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
