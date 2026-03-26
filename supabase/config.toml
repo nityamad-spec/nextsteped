@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.seed-concepts]
 verify_jwt = false
+
+[functions.seed-questions]
+verify_jwt = false
