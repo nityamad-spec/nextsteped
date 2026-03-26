@@ -362,7 +362,7 @@ export type Database = {
           format: string
           id: string
           is_distractor: boolean
-          item_id: string
+          item_code: string
           options: Json | null
           teacher_id: string
           topic: string | null
@@ -382,7 +382,7 @@ export type Database = {
           format?: string
           id?: string
           is_distractor?: boolean
-          item_id: string
+          item_code: string
           options?: Json | null
           teacher_id: string
           topic?: string | null
@@ -402,7 +402,7 @@ export type Database = {
           format?: string
           id?: string
           is_distractor?: boolean
-          item_id?: string
+          item_code?: string
           options?: Json | null
           teacher_id?: string
           topic?: string | null
