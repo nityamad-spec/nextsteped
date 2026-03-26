@@ -139,6 +139,38 @@ export type Database = {
           },
         ]
       }
+      concepts: {
+        Row: {
+          concept_id: string
+          course_id: string
+          created_at: string
+          id: string
+          weight: number
+        }
+        Insert: {
+          concept_id: string
+          course_id: string
+          created_at?: string
+          id?: string
+          weight?: number
+        }
+        Update: {
+          concept_id?: string
+          course_id?: string
+          created_at?: string
+          id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "concepts_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_material_files: {
         Row: {
           course_id: string | null
@@ -275,6 +307,7 @@ export type Database = {
           answer: string
           bloom_justification: string | null
           bloom_level: number
+          concept_id: string | null
           content_text: string
           course_id: string
           created_at: string
@@ -294,6 +327,7 @@ export type Database = {
           answer: string
           bloom_justification?: string | null
           bloom_level?: number
+          concept_id?: string | null
           content_text: string
           course_id: string
           created_at?: string
@@ -313,6 +347,7 @@ export type Database = {
           answer?: string
           bloom_justification?: string | null
           bloom_level?: number
+          concept_id?: string | null
           content_text?: string
           course_id?: string
           created_at?: string
@@ -329,6 +364,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "diagnostic_questions_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "diagnostic_questions_course_id_fkey"
             columns: ["course_id"]
