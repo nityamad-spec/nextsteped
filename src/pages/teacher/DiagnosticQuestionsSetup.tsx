@@ -387,10 +387,12 @@ const DiagnosticQuestionsSetup = () => {
 
   const addQuestion = (type: QuestionType) => {
     const newQ = emptyQuestion(type, questions.length);
-    setQuestions((prev) => [...prev, newQ]);
+    setQuestions((prev) => [newQ, ...prev]);
     setExpandedIds((prev) => [...prev, newQ.id]);
     startEdit(newQ);
   };
+
+  const hasActiveFilter = filterConcept !== "all" || filterType !== "all" || filterDifficulty !== "all" || filterBloom !== "all";
 
   const approveAll = () => {
     setQuestions((prev) => prev.map((q) => ({ ...q, approved: true })));
@@ -457,22 +459,24 @@ const DiagnosticQuestionsSetup = () => {
           <div className="flex items-center justify-between border-t pt-2">
             <span className="text-sm">
               <span className="font-medium">{inTestCount}</span> of {questions.length} questions in diagnostic test
-              {filteredQuestions.length !== questions.length && (
+              {hasActiveFilter && (
                 <span className="text-muted-foreground"> (showing {filteredQuestions.length} filtered)</span>
               )}
             </span>
-            <div className="flex items-center gap-2">
-              {filteredQuestions.some((q) => !q.inTest) && filteredQuestions.length > 0 && (
-                <Button variant="outline" size="sm" onClick={() => bulkSetInTest(true)}>
-                  Add {filteredQuestions.length !== questions.length ? "Filtered" : "All"} to Test
-                </Button>
-              )}
-              {filteredQuestions.some((q) => q.inTest) && (
-                <Button variant="outline" size="sm" onClick={() => bulkSetInTest(false)}>
-                  Remove {filteredQuestions.length !== questions.length ? "Filtered" : "All"} from Test
-                </Button>
-              )}
-            </div>
+            {hasActiveFilter && (
+              <div className="flex items-center gap-2">
+                {filteredQuestions.some((q) => !q.inTest) && filteredQuestions.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => bulkSetInTest(true)}>
+                    Add Filtered to Test
+                  </Button>
+                )}
+                {filteredQuestions.some((q) => q.inTest) && (
+                  <Button variant="outline" size="sm" onClick={() => bulkSetInTest(false)}>
+                    Remove Filtered from Test
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -629,442 +633,8 @@ const DiagnosticQuestionsSetup = () => {
           )}
         </div>
 
-        {/* Empty state */}
-        {questions.length === 0 && (
-          <div className="mb-6 rounded-lg border border-dashed border-muted-foreground/30 py-12 text-center">
-            <Brain className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">No questions yet</p>
-            <p className="text-xs text-muted-foreground mt-1">Click the buttons below to add your first diagnostic question.</p>
-          </div>
-        )}
-
-        {filteredQuestions.length === 0 && questions.length > 0 && (
-          <div className="mb-6 rounded-lg border border-dashed border-muted-foreground/30 py-8 text-center">
-            <Filter className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
-            <p className="text-sm text-muted-foreground">No questions match the current filters</p>
-          </div>
-        )}
-
-        {/* Questions list */}
-        <div className="space-y-2 mb-6">
-          {filteredQuestions.map((q, idx) => {
-            const isExpanded = expandedIds.includes(q.id);
-            const isEditing = editingId === q.id;
-
-            return (
-              <Card key={q.id} className={`${q.approved ? "border-primary/30" : ""} ${q.inTest ? "ring-1 ring-primary/20" : ""}`}>
-                <div
-                  className={`flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors ${q.approved ? "bg-primary/5" : ""}`}
-                  onClick={() => !isEditing && toggleExpand(q.id)}
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <span className="text-xs font-mono text-muted-foreground w-5 shrink-0">Q{idx + 1}</span>
-                    <span className="text-sm truncate">{q.question || "New question..."}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 ml-2 shrink-0">
-                    {q.inTest && (
-                      <Badge className="text-[10px] bg-primary/20 text-primary border-primary/30">In Test</Badge>
-                    )}
-                    <Badge variant="outline" className={`text-[10px] ${questionTypeColors[q.type]}`}>
-                      {questionTypeLabels[q.type]}
-                    </Badge>
-                    <Badge variant="outline" className="text-[10px]">{q.difficulty}</Badge>
-                    {q.isDistractor && <AlertTriangle className="h-3 w-3 text-muted-foreground" />}
-                    {q.approved && <Check className="h-3.5 w-3.5 text-primary" />}
-                    {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                  </div>
-                </div>
-
-                <AnimatePresence>
-                  {isExpanded && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-                      <CardContent className="pt-0 pb-4 space-y-3">
-                        {isEditing && editDraft ? (
-                          /* Edit mode */
-                          <div className="space-y-3">
-                            <div className="space-y-1.5">
-                              <Label className="text-xs">Question Type</Label>
-                              <Select value={editDraft.type} onValueChange={(v: QuestionType) => {
-                                const newDraft = { ...editDraft, type: v };
-                                if (v === "mcq") {
-                                  newDraft.options = ["", "", "", ""];
-                                  newDraft.correctIndex = 0;
-                                  newDraft.correctAnswer = undefined;
-                                } else if (v === "true_false") {
-                                  newDraft.options = ["True", "False"];
-                                  newDraft.correctIndex = 0;
-                                  newDraft.correctAnswer = undefined;
-                                } else {
-                                  newDraft.options = undefined;
-                                  newDraft.correctIndex = undefined;
-                                  newDraft.correctAnswer = "";
-                                }
-                                setEditDraft(newDraft);
-                              }}>
-                                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="mcq">Multiple Choice</SelectItem>
-                                  <SelectItem value="true_false">True / False</SelectItem>
-                                  <SelectItem value="short_answer">Short Answer</SelectItem>
-                                  <SelectItem value="code">Code</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <div className="space-y-1.5">
-                              <Label className="text-xs">Question Text</Label>
-                              <textarea
-                                className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                value={editDraft.question}
-                                onChange={(e) => setEditDraft({ ...editDraft, question: e.target.value })}
-                                placeholder="Enter question text..."
-                              />
-                            </div>
-
-                            {/* Concept + Topic row */}
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <div className="space-y-1.5">
-                                <Label className="text-xs">Concept</Label>
-                                <Select
-                                  value={editDraft.conceptId || "__none__"}
-                                  onValueChange={(v) => {
-                                    const selectedConcept = concepts.find((c) => c.id === v);
-                                    setEditDraft({
-                                      ...editDraft,
-                                      conceptId: v === "__none__" ? undefined : v,
-                                      topic: selectedConcept ? selectedConcept.concept_code : editDraft.topic,
-                                    });
-                                  }}
-                                >
-                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select concept…" /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="__none__">— None —</SelectItem>
-                                    {concepts.map((c) => (
-                                      <SelectItem key={c.id} value={c.id}>
-                                        {c.concept_code} <span className="text-muted-foreground ml-1">(w: {c.weight})</span>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                {concepts.length === 0 && (
-                                  <p className="text-[10px] text-muted-foreground">No concepts defined for this course yet</p>
-                                )}
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label className="text-xs">Topic</Label>
-                                <Input className="h-8 text-xs" value={editDraft.topic} onChange={(e) => setEditDraft({ ...editDraft, topic: e.target.value })} placeholder="e.g. Variables & Data Types" />
-                              </div>
-                            </div>
-
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <div className="space-y-1.5">
-                                <Label className="text-xs">Difficulty Label</Label>
-                                <Select value={editDraft.difficulty} onValueChange={(v: "Easy" | "Medium" | "Hard") => setEditDraft({ ...editDraft, difficulty: v, difficultyEstimate: difficultyToEstimate(v) })}>
-                                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="Easy">Easy</SelectItem>
-                                    <SelectItem value="Medium">Medium</SelectItem>
-                                    <SelectItem value="Hard">Hard</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-
-                            {/* MCQ options */}
-                            {(editDraft.type === "mcq") && editDraft.options && (
-                              <div className="space-y-1.5">
-                                <Label className="text-xs">Answer Options (click radio to set correct answer)</Label>
-                                {editDraft.options.map((opt, i) => (
-                                  <div key={i} className="flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditDraft({ ...editDraft, correctIndex: i })}
-                                      className={`h-4 w-4 rounded-full border-2 shrink-0 ${editDraft.correctIndex === i ? "border-primary bg-primary" : "border-muted-foreground"}`}
-                                    />
-                                    <Input
-                                      className="h-8 text-xs flex-1"
-                                      value={opt}
-                                      onChange={(e) => {
-                                        const newOpts = [...(editDraft.options || [])];
-                                        newOpts[i] = e.target.value;
-                                        setEditDraft({ ...editDraft, options: newOpts });
-                                      }}
-                                      placeholder={`Option ${String.fromCharCode(65 + i)}`}
-                                    />
-                                    {editDraft.options!.length > 2 && (
-                                      <button onClick={() => {
-                                        const newOpts = editDraft.options!.filter((_, j) => j !== i);
-                                        const newCorrect = editDraft.correctIndex !== undefined && editDraft.correctIndex >= newOpts.length ? newOpts.length - 1 : editDraft.correctIndex;
-                                        setEditDraft({ ...editDraft, options: newOpts, correctIndex: newCorrect });
-                                      }} className="text-muted-foreground hover:text-destructive">
-                                        <X className="h-3.5 w-3.5" />
-                                      </button>
-                                    )}
-                                  </div>
-                                ))}
-                                {editDraft.options.length < 6 && (
-                                  <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setEditDraft({ ...editDraft, options: [...(editDraft.options || []), ""] })}>
-                                    <Plus className="mr-1 h-3 w-3" /> Add Option
-                                  </Button>
-                                )}
-                              </div>
-                            )}
-
-                            {/* True/False options */}
-                            {editDraft.type === "true_false" && (
-                              <div className="space-y-1.5">
-                                <Label className="text-xs">Correct Answer</Label>
-                                <div className="flex gap-3">
-                                  {["True", "False"].map((val, i) => (
-                                    <button
-                                      key={val}
-                                      onClick={() => setEditDraft({ ...editDraft, correctIndex: i })}
-                                      className={`rounded-lg border px-4 py-2 text-sm ${editDraft.correctIndex === i ? "border-primary bg-primary/5 font-medium" : "hover:bg-muted"}`}
-                                    >
-                                      {val}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Short answer / Code answer */}
-                            {(editDraft.type === "short_answer" || editDraft.type === "code") && (
-                              <div className="space-y-1.5">
-                                <Label className="text-xs">Expected Answer / Key</Label>
-                                <textarea
-                                  className="flex min-h-[50px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                  value={editDraft.correctAnswer || ""}
-                                  onChange={(e) => setEditDraft({ ...editDraft, correctAnswer: e.target.value })}
-                                  placeholder={editDraft.type === "code" ? "Expected code output or solution..." : "Expected answer..."}
-                                />
-                              </div>
-                            )}
-
-                            <div className="space-y-1.5">
-                              <Label className="text-xs">Explanation (shown after student answers)</Label>
-                              <textarea
-                                className="flex min-h-[50px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                value={editDraft.explanation}
-                                onChange={(e) => setEditDraft({ ...editDraft, explanation: e.target.value })}
-                                placeholder="Explain the correct answer..."
-                              />
-                            </div>
-
-                            {/* Advanced Metadata (collapsible) */}
-                            <Collapsible open={metadataOpen} onOpenChange={setMetadataOpen}>
-                              <CollapsibleTrigger asChild>
-                                <Button variant="ghost" size="sm" className="text-xs h-7 w-full justify-start gap-2 text-muted-foreground hover:text-foreground">
-                                  <Settings2 className="h-3.5 w-3.5" />
-                                  Advanced Metadata
-                                  {metadataOpen ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
-                                </Button>
-                              </CollapsibleTrigger>
-                              <CollapsibleContent>
-                                <div className="mt-2 space-y-3 rounded-lg border border-dashed border-muted-foreground/30 p-3">
-                                  {/* Item ID */}
-                                  <div className="space-y-1.5">
-                                    <Label className="text-xs">Item ID</Label>
-                                    <Input
-                                      className="h-8 text-xs font-mono"
-                                      value={editDraft.itemId}
-                                      onChange={(e) => setEditDraft({ ...editDraft, itemId: e.target.value })}
-                                      placeholder="e.g. PWIM/Python_Environment/Q001"
-                                    />
-                                    <p className="text-[10px] text-muted-foreground">Hierarchical identifier for this question</p>
-                                  </div>
-
-                                  {/* Difficulty Estimate Slider */}
-                                  <div className="space-y-1.5">
-                                    <div className="flex items-center justify-between">
-                                      <Label className="text-xs">Difficulty Estimate</Label>
-                                      <span className="text-xs font-mono text-muted-foreground">{editDraft.difficultyEstimate.toFixed(2)}</span>
-                                    </div>
-                                    <Slider
-                                      value={[editDraft.difficultyEstimate]}
-                                      onValueChange={([v]) => setEditDraft({
-                                        ...editDraft,
-                                        difficultyEstimate: Math.round(v * 100) / 100,
-                                        difficulty: estimateToDifficulty(v),
-                                      })}
-                                      min={0}
-                                      max={1}
-                                      step={0.05}
-                                      className="w-full"
-                                    />
-                                    <div className="flex justify-between text-[10px] text-muted-foreground">
-                                      <span>Easy (0.0)</span>
-                                      <span>Medium (0.5)</span>
-                                      <span>Hard (1.0)</span>
-                                    </div>
-                                  </div>
-
-                                  {/* Difficulty Justification */}
-                                  <div className="space-y-1.5">
-                                    <Label className="text-xs">Difficulty Justification</Label>
-                                    <textarea
-                                      className="flex min-h-[40px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                      value={editDraft.difficultyJustification}
-                                      onChange={(e) => setEditDraft({ ...editDraft, difficultyJustification: e.target.value })}
-                                      placeholder="Why this difficulty level?"
-                                    />
-                                  </div>
-
-                                  {/* Bloom Level */}
-                                  <div className="grid gap-3 sm:grid-cols-2">
-                                    <div className="space-y-1.5">
-                                      <Label className="text-xs">Bloom's Taxonomy Level</Label>
-                                      <Select value={String(editDraft.bloomLevel)} onValueChange={(v) => setEditDraft({ ...editDraft, bloomLevel: parseInt(v) })}>
-                                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                          {Object.entries(bloomLabels).map(([level, label]) => (
-                                            <SelectItem key={level} value={level}>{level} — {label}</SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <Label className="text-xs">Bloom Justification</Label>
-                                      <textarea
-                                        className="flex min-h-[32px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                        value={editDraft.bloomJustification}
-                                        onChange={(e) => setEditDraft({ ...editDraft, bloomJustification: e.target.value })}
-                                        placeholder="Why this Bloom level?"
-                                      />
-                                    </div>
-                                  </div>
-
-                                  {/* Is Distractor */}
-                                  <div className="flex items-center gap-2 pt-1">
-                                    <Checkbox
-                                      id="is-distractor"
-                                      checked={editDraft.isDistractor}
-                                      onCheckedChange={(checked) => setEditDraft({ ...editDraft, isDistractor: !!checked })}
-                                    />
-                                    <Label htmlFor="is-distractor" className="text-xs cursor-pointer">
-                                      Mark as distractor question
-                                    </Label>
-                                    <span className="text-[10px] text-muted-foreground ml-1">(used for calibration, not scored)</span>
-                                  </div>
-                                </div>
-                              </CollapsibleContent>
-                            </Collapsible>
-
-                            <div className="flex items-center gap-2 pt-1">
-                              <Button size="sm" onClick={saveEdit} disabled={saving}>
-                                {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1 h-3.5 w-3.5" />} Save
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={cancelEdit}><X className="mr-1 h-3.5 w-3.5" /> Cancel</Button>
-                            </div>
-                          </div>
-                        ) : (
-                          /* View mode */
-                          <div className="space-y-2">
-                            {/* Topic + difficulty + metadata badges */}
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {(() => {
-                                const concept = concepts.find((c) => c.id === q.conceptId);
-                                return concept ? (
-                                  <Badge className="text-[10px] bg-primary/10 text-primary border-primary/30">{concept.concept_code}</Badge>
-                                ) : null;
-                              })()}
-                              {q.topic && <Badge variant="secondary" className="text-[10px]">{q.topic}</Badge>}
-                              <Badge variant="outline" className="text-[10px]">{q.difficulty}</Badge>
-                              <Badge variant="outline" className="text-[10px] font-mono">{q.difficultyEstimate.toFixed(2)}</Badge>
-                              <Badge variant="outline" className="text-[10px]">Bloom {q.bloomLevel}: {bloomLabels[q.bloomLevel]}</Badge>
-                              {q.isDistractor && (
-                                <Badge variant="outline" className="text-[10px] border-destructive/50 text-destructive">
-                                  <AlertTriangle className="mr-0.5 h-2.5 w-2.5" /> Distractor
-                                </Badge>
-                              )}
-                            </div>
-
-                            {/* Item ID */}
-                            {q.itemId && (
-                              <p className="text-[10px] font-mono text-muted-foreground">{q.itemId}</p>
-                            )}
-
-                            {/* Display options for MCQ / True-False */}
-                            {q.options && (
-                              <div className="space-y-1">
-                                {q.options.map((opt, i) => (
-                                  <div key={i} className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-xs ${q.correctIndex === i ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground"}`}>
-                                    <span className="font-mono">{String.fromCharCode(65 + i)}.</span>
-                                    <span>{opt}</span>
-                                    {q.correctIndex === i && <Check className="h-3 w-3 ml-auto" />}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Display expected answer for short answer / code */}
-                            {q.correctAnswer && (
-                              <div className="rounded-md bg-muted/50 px-3 py-2">
-                                <p className="text-[10px] font-medium text-muted-foreground mb-1">Expected Answer</p>
-                                <p className={`text-xs ${q.type === "code" ? "font-mono" : ""}`}>{q.correctAnswer}</p>
-                              </div>
-                            )}
-
-                            {q.explanation && (
-                              <div className="rounded-md bg-muted/30 px-3 py-2">
-                                <p className="text-[10px] font-medium text-muted-foreground mb-0.5">Explanation</p>
-                                <p className="text-xs text-muted-foreground">{q.explanation}</p>
-                              </div>
-                            )}
-
-                            {/* Justifications (if present) */}
-                            {(q.bloomJustification || q.difficultyJustification) && (
-                              <div className="rounded-md bg-muted/20 px-3 py-2 space-y-1">
-                                {q.bloomJustification && (
-                                  <p className="text-[10px] text-muted-foreground"><span className="font-medium">Bloom:</span> {q.bloomJustification}</p>
-                                )}
-                                {q.difficultyJustification && (
-                                  <p className="text-[10px] text-muted-foreground"><span className="font-medium">Difficulty:</span> {q.difficultyJustification}</p>
-                                )}
-                              </div>
-                            )}
-
-                            <div className="flex items-center gap-2 pt-1 flex-wrap">
-                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => startEdit(q)}>
-                                <Pencil className="mr-1 h-3 w-3" /> Edit
-                              </Button>
-                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => confirmRemove(q)}>
-                                <Trash2 className="mr-1 h-3 w-3" /> Remove
-                              </Button>
-                              <div className="flex items-center gap-2 ml-auto">
-                                <div className="flex items-center gap-1.5">
-                                  <Switch
-                                    checked={q.inTest}
-                                    onCheckedChange={() => toggleInTest(q)}
-                                    className="scale-75"
-                                  />
-                                  <Label className="text-xs text-muted-foreground cursor-pointer" onClick={() => toggleInTest(q)}>
-                                    {q.inTest ? "In Test" : "Not in Test"}
-                                  </Label>
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant={q.approved ? "default" : "outline"}
-                                  className="h-7 text-xs"
-                                  onClick={() => toggleApprove(q.id)}
-                                >
-                                  {q.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve"}
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </Card>
-            );
-          })}
-        </div>
-
-        {/* Add question */}
-        <div className="mb-6 flex flex-wrap gap-2">
+        {/* Add question — always visible */}
+        <div className="mb-4 flex flex-wrap gap-2">
           <span className="text-sm text-muted-foreground self-center mr-1">Add question:</span>
           {(Object.entries(questionTypeLabels) as [QuestionType, string][]).map(([type, label]) => (
             <Button key={type} variant="outline" size="sm" onClick={() => addQuestion(type)}>
@@ -1072,6 +642,66 @@ const DiagnosticQuestionsSetup = () => {
             </Button>
           ))}
         </div>
+
+        {/* Empty state */}
+        {questions.length === 0 && (
+          <div className="mb-6 rounded-lg border border-dashed border-muted-foreground/30 py-12 text-center">
+            <Brain className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">No questions yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Click the buttons above to add your first diagnostic question.</p>
+          </div>
+        )}
+
+        {!hasActiveFilter && questions.length > 0 && (
+          <div className="mb-6 rounded-lg border border-dashed border-muted-foreground/30 py-12 text-center">
+            <Filter className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">Use the filters above to browse questions</p>
+            <p className="text-xs text-muted-foreground mt-1">{questions.length} questions in the bank · {inTestCount} selected for diagnostic test</p>
+          </div>
+        )}
+
+        {hasActiveFilter && filteredQuestions.length === 0 && (
+          <div className="mb-6 rounded-lg border border-dashed border-muted-foreground/30 py-8 text-center">
+            <Filter className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
+            <p className="text-sm text-muted-foreground">No questions match the current filters</p>
+          </div>
+        )}
+
+        {/* Questions list — only when filters active */}
+        {hasActiveFilter && (
+          <div className="space-y-2 mb-6">
+            {filteredQuestions.map((q, idx) => {
+              const isExpanded = expandedIds.includes(q.id);
+              const isEditing = editingId === q.id;
+
+              return (
+                <Card key={q.id} className={`${q.approved ? "border-primary/30" : ""} ${q.inTest ? "ring-1 ring-primary/20" : ""}`}>
+                  <div
+                    className={`flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors ${q.approved ? "bg-primary/5" : ""}`}
+                    onClick={() => !isEditing && toggleExpand(q.id)}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <span className="text-xs font-mono text-muted-foreground w-5 shrink-0">Q{idx + 1}</span>
+                      <span className="text-sm truncate">{q.question || "New question..."}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                      {q.inTest && (
+                        <Badge className="text-[10px] bg-primary/20 text-primary border-primary/30">In Test</Badge>
+                      )}
+                      <Badge variant="outline" className={`text-[10px] ${questionTypeColors[q.type]}`}>
+                        {questionTypeLabels[q.type]}
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px]">{q.difficulty}</Badge>
+                      {q.isDistractor && <AlertTriangle className="h-3 w-3 text-muted-foreground" />}
+                      {q.approved && <Check className="h-3.5 w-3.5 text-primary" />}
+                      {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                    </div>
+                  </div>
+
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
+                        <CardContent className="pt-0 pb-4 space-y-3">
 
         {/* Navigation */}
         <div className="flex justify-between">
