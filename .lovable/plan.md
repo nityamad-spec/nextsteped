@@ -1,42 +1,66 @@
 
 
-## Plan: Add Inline Editing to Syllabus Preview
+## Plan: Create Backend Table for Diagnostic Test Questions
 
 ### Summary
-Make the `SyllabusPreview` component editable so professors can click on any section and modify content directly. Changes update the `previewJson` state and can be saved back to storage.
+Create a `diagnostic_questions` table in the database to store professor-defined diagnostic quiz questions with the rich metadata format provided (item_id, bloom level, difficulty estimate, distractor flag, etc.). This replaces the current hardcoded `questionBank.ts` approach.
 
-### Changes
+### Database Migration
 
-#### 1. Make `SyllabusPreview` editable
-**File: `src/pages/teacher/MaterialQualityCheck.tsx`**
+Create table `diagnostic_questions`:
 
-- Add an `editable` prop and an `onChange` callback to `SyllabusPreview`
-- When `editable` is true, each section gets a small pencil/edit icon button
-- Clicking it toggles that section into edit mode:
-  - **Text fields** (courseTitle, courseCode, instructor, term, description): inline `<Input>` or `<Textarea>`
-  - **List fields** (learningObjectives, resources): each item becomes an editable input with delete button; plus an "Add" button at the bottom
-  - **Schedule table**: each cell becomes an `<Input>`; add/remove row buttons
-  - **Grading components**: each name/weight/description becomes editable; add/remove component
-  - **Policies**: title and content become editable; add/remove policy
-- A Save/Cancel button pair appears per section when in edit mode
-- On save, call `onChange(updatedSyllabus)` which updates the parent state
+```sql
+CREATE TABLE public.diagnostic_questions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id uuid REFERENCES public.courses(id) ON DELETE CASCADE NOT NULL,
+  teacher_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  item_id text NOT NULL,                    -- e.g. "PWIM/Python_Environment/Q001"
+  content_text text NOT NULL,               -- full question text including options
+  format text NOT NULL DEFAULT 'mcq',       -- mcq, true_false, short_answer, code
+  answer text NOT NULL,                     -- correct answer (e.g. "B")
+  difficulty_estimate numeric(3,2) NOT NULL DEFAULT 0.5, -- 0.0 to 1.0
+  bloom_level integer NOT NULL DEFAULT 1,   -- 1-6 (Bloom's taxonomy)
+  bloom_justification text,
+  difficulty_justification text,
+  is_distractor boolean NOT NULL DEFAULT false,
+  topic text,                               -- e.g. "Python_Environment"
+  options jsonb,                            -- array of option strings for MCQ
+  explanation text,                         -- why the answer is correct
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
 
-#### 2. Wire up editing in the parent
-**File: `src/pages/teacher/MaterialQualityCheck.tsx`**
+ALTER TABLE public.diagnostic_questions ENABLE ROW LEVEL SECURITY;
 
-- Pass `editable={true}` and `onChange={setPreviewJson}` when rendering the preview in idle stage
-- Pass `editable={true}` and `onChange={setSyllabusJson}` when rendering in the preview stage
-- Add a "Save Changes" button that re-uploads the updated JSON to storage as `approved-syllabus.json`
-- Show a toast on successful save
+-- Teachers can fully manage their own questions
+CREATE POLICY "Teachers can manage own diagnostic questions"
+  ON public.diagnostic_questions FOR ALL
+  TO authenticated
+  USING (auth.uid() = teacher_id);
 
-#### 3. Section-level edit state management
-**Inside `SyllabusPreview`**
+-- Students can view questions for courses they're enrolled in
+CREATE POLICY "Students can view diagnostic questions for enrolled courses"
+  ON public.diagnostic_questions FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.enrollments
+      WHERE enrollments.course_id = diagnostic_questions.course_id
+        AND enrollments.student_id = auth.uid()
+    )
+  );
+```
 
-- Track `editingSection: string | null` state (e.g., "description", "objectives", "schedule", "grading", "policies", "resources", "header")
-- Hold a local draft copy of the section being edited
-- On "Save" for a section, merge draft into the full syllabus object and call `onChange`
-- On "Cancel", discard draft and exit edit mode
+### Key Design Decisions
+
+- **`item_id`** stores the hierarchical ID format (e.g. `PWIM/Python_Environment/Q001`) as a text field for flexible naming
+- **`difficulty_estimate`** is a numeric 0-1 scale (not the Easy/Medium/Hard enum) to match the provided format
+- **`bloom_level`** is an integer 1-6 mapping to Bloom's taxonomy levels
+- **`options`** stored as JSONB array for flexible option counts
+- **`is_distractor`** boolean flag preserved from the provided schema
+- **`course_id` + `teacher_id`** foreign keys for ownership and access control
+- RLS ensures teachers manage their own questions and students can only read questions for enrolled courses
 
 ### Files Modified
-1. `src/pages/teacher/MaterialQualityCheck.tsx` — refactor `SyllabusPreview` to support inline editing, wire up in both idle and preview stages
+1. New database migration — create `diagnostic_questions` table with RLS policies
 
