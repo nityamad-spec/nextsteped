@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -72,6 +73,7 @@ interface DiagnosticQuestion {
   difficultyJustification: string;
   isDistractor: boolean;
   conceptId?: string; // FK to concepts table
+  inTest: boolean;
 }
 
 interface ConceptOption {
@@ -105,6 +107,7 @@ const emptyQuestion = (type: QuestionType = "mcq", index: number = 0): Diagnosti
   difficultyJustification: "",
   isDistractor: false,
   conceptId: undefined,
+  inTest: false,
 });
 
 // --- DB helpers ---
@@ -145,6 +148,7 @@ function dbRowToQuestion(row: any): DiagnosticQuestion {
     difficultyJustification: row.difficulty_justification || "",
     isDistractor: row.is_distractor,
     conceptId: row.concept_id || undefined,
+    inTest: row.in_test ?? false,
   };
 }
 
@@ -172,6 +176,7 @@ function questionToDbRow(q: DiagnosticQuestion, courseId: string, teacherId: str
     course_id: courseId,
     teacher_id: teacherId,
     concept_id: q.conceptId || null,
+    in_test: q.inTest,
   };
 }
 
