@@ -23,9 +23,28 @@ Deno.serve(async (req) => {
 
     // Check if admin already exists
     const { data: existingUsers } = await adminClient.auth.admin.listUsers();
-    const adminExists = existingUsers?.users?.some((u) => u.email === email);
+    const existingAdmin = existingUsers?.users?.find((u) => u.email === email);
 
-    if (adminExists) {
+    if (existingAdmin) {
+      // Ensure profile exists
+      const { data: existingProfile } = await adminClient
+        .from("profiles")
+        .select("id")
+        .eq("id", existingAdmin.id)
+        .maybeSingle();
+
+      if (!existingProfile) {
+        await adminClient.from("profiles").insert({
+          id: existingAdmin.id,
+          name: "Admin",
+          role: "admin",
+        });
+        return new Response(
+          JSON.stringify({ message: "Admin profile created for existing user" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       return new Response(
         JSON.stringify({ message: "Admin account already exists" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
