@@ -96,14 +96,11 @@ Deno.serve(async (req) => {
     }
 
     if (action === "approve") {
-      const tempPassword = crypto.randomUUID().slice(0, 16) + "!Aa1";
-
-      const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
-        email: application.email,
-        password: tempPassword,
-        email_confirm: false,
-        user_metadata: { name: application.name, role: "teacher" },
-      });
+      // Invite user — this creates the account AND sends an invite email
+      const { data: newUser, error: createError } = await adminClient.auth.admin.inviteUserByEmail(
+        application.email,
+        { data: { name: application.name, role: "teacher" } }
+      );
 
       if (createError) throw createError;
 
@@ -189,11 +186,7 @@ Deno.serve(async (req) => {
         })
         .eq("id", applicationId);
 
-      // Send password reset email
-      await adminClient.auth.admin.generateLink({
-        type: "recovery",
-        email: application.email,
-      });
+      // Invite email is sent automatically by inviteUserByEmail above
 
       return new Response(
         JSON.stringify({ 
