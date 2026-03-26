@@ -370,6 +370,9 @@ const CourseDashboard = () => {
             })()}
           </CardContent>
         </Card>
+
+        {/* Collaborators */}
+        <CourseCollaborators />
       </div>
     </div>
   );
