@@ -471,11 +471,42 @@ const DiagnosticQuestionsSetup = () => {
                               />
                             </div>
 
+                            {/* Concept + Topic row */}
                             <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="space-y-1.5">
+                                <Label className="text-xs">Concept</Label>
+                                <Select
+                                  value={editDraft.conceptId || "__none__"}
+                                  onValueChange={(v) => {
+                                    const selectedConcept = concepts.find((c) => c.id === v);
+                                    setEditDraft({
+                                      ...editDraft,
+                                      conceptId: v === "__none__" ? undefined : v,
+                                      topic: selectedConcept ? selectedConcept.concept_id : editDraft.topic,
+                                    });
+                                  }}
+                                >
+                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select concept…" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none__">— None —</SelectItem>
+                                    {concepts.map((c) => (
+                                      <SelectItem key={c.id} value={c.id}>
+                                        {c.concept_id} <span className="text-muted-foreground ml-1">(w: {c.weight})</span>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {concepts.length === 0 && (
+                                  <p className="text-[10px] text-muted-foreground">No concepts defined for this course yet</p>
+                                )}
+                              </div>
                               <div className="space-y-1.5">
                                 <Label className="text-xs">Topic</Label>
                                 <Input className="h-8 text-xs" value={editDraft.topic} onChange={(e) => setEditDraft({ ...editDraft, topic: e.target.value })} placeholder="e.g. Variables & Data Types" />
                               </div>
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-2">
                               <div className="space-y-1.5">
                                 <Label className="text-xs">Difficulty Label</Label>
                                 <Select value={editDraft.difficulty} onValueChange={(v: "Easy" | "Medium" | "Hard") => setEditDraft({ ...editDraft, difficulty: v, difficultyEstimate: difficultyToEstimate(v) })}>
