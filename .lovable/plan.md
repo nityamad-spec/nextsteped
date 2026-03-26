@@ -1,51 +1,120 @@
 
 
-## Plan: Collaborator Management UI on Teacher Dashboard
+## Plan: Admin Role, Dashboard, and Teacher Approval Flow
 
 ### Summary
-Add a "Collaborators" section to the Course Dashboard page where course owners can view, add, and remove collaborators. Collaborators see a read-only list. Uses the existing `course_teachers` table with its RLS policies.
+Introduce an admin role with a dedicated dashboard. Teacher signups go into a "pending approval" state. The admin reviews pending teachers and either approves them (assigning to an existing course as collaborator or allowing new course creation) or rejects them. A default admin account is seeded via migration.
 
-### Changes
+### Database Changes
 
-#### 1. New file: `src/components/CourseCollaborators.tsx`
-
-A self-contained component that:
-- **Fetches** collaborators from `course_teachers` joined with `profiles` for the current course (stored in localStorage as `currentCourseId`)
-- **Displays** a table/list showing each collaborator's name, role (owner/collaborator), and join date
-- **Add collaborator**: Owner sees an input field to enter a teacher's email. On submit, look up the email in `profiles` (need a new RLS policy or use an edge function — see DB changes below), then insert into `course_teachers`
-- **Remove collaborator**: Owner sees a delete button next to each non-owner collaborator row. Deletes from `course_teachers`
-- **Role display**: Badge showing "Owner" (primary) or "Collaborator" (secondary)
-- Uses Avatar with fallback initials, and a confirmation dialog before removal
-
-#### 2. Database migration — allow profile lookup by authenticated users
-
-Currently `profiles` RLS only allows `SELECT` on own profile. To let course owners find collaborators by email, add a limited policy:
+**1. Create `teacher_applications` table**
+Stores pending teacher signup requests before admin approval.
 
 ```sql
--- Allow authenticated users to view teacher profiles (name + id only)
--- This is needed so course owners can search for collaborators
-CREATE POLICY "Authenticated users can view teacher profiles"
-  ON public.profiles FOR SELECT TO authenticated
-  USING (role = 'teacher');
+CREATE TABLE public.teacher_applications (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email text NOT NULL,
+  name text NOT NULL,
+  status text NOT NULL DEFAULT 'pending', -- pending, approved, rejected
+  assigned_course_id uuid REFERENCES public.courses(id) ON DELETE SET NULL,
+  assignment_type text, -- 'collaborator' or 'new_course'
+  admin_notes text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  reviewed_at timestamptz,
+  reviewed_by uuid
+);
+
+ALTER TABLE public.teacher_applications ENABLE ROW LEVEL SECURITY;
+
+-- Only admins can view/manage applications
+CREATE POLICY "Admins can manage teacher applications"
+  ON public.teacher_applications FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- Teachers can view their own application status
+CREATE POLICY "Users can view own application"
+  ON public.teacher_applications FOR SELECT TO authenticated
+  USING (email = (SELECT email FROM auth.users WHERE id = auth.uid()));
 ```
 
-This exposes only teacher profiles to authenticated users, which is acceptable since teacher names are not sensitive.
+**2. Seed the default admin account**
 
-#### 3. Modify: `src/pages/teacher/CourseDashboard.tsx`
+Use a migration with a PL/pgSQL block to:
+- Create an auth user via `auth.users` insert (email: `admin@nextstep.ai`, encrypted password)
+- Insert a profile row with `role = 'admin'`
 
-- Import and render `<CourseCollaborators />` as a new Card section at the bottom of the dashboard (after the existing Topic Mastery section)
+```sql
+-- Insert admin user into auth.users and profiles
+-- (Uses Supabase's internal auth schema for seeding)
+```
 
-### Component Behavior
+Note: Since we cannot directly insert into `auth.users` via a migration safely, we will instead use an edge function or the admin API to create this user on first deploy. Alternatively, the admin account will be created manually and the profile seeded via migration.
 
-- On mount, fetch `course_teachers` rows for the current course, joining `profiles` to get names
-- Determine if current user is owner (`role = 'owner'` in their `course_teachers` row, or `courses.teacher_id = auth.uid()`)
-- **Owner view**: sees add/remove controls
-- **Collaborator view**: sees read-only list
-- Toast notifications on add/remove success/failure
-- Loading skeleton while fetching
+**Revised approach**: Create the admin profile row via migration after the admin signs up through the normal auth flow. We will:
+1. Enable auto-confirm for this one account
+2. Use an edge function `seed-admin` that creates the user via the Supabase Admin API and inserts the profile
 
-### Files Modified
-1. New database migration — add teacher profile visibility policy
-2. `src/components/CourseCollaborators.tsx` — new component
-3. `src/pages/teacher/CourseDashboard.tsx` — integrate collaborators section
+### Auth Flow Changes
+
+**Teacher signup flow (modified)**:
+1. Teacher fills out signup form as before
+2. Instead of creating a Supabase auth account immediately, insert a row into `teacher_applications` with status `pending`
+3. Show a "Your application is under review" message
+4. No verification email is sent yet
+
+**Admin approval flow**:
+1. Admin logs in (normal auth flow, profile role = `admin`)
+2. Admin dashboard shows pending teacher applications
+3. For each application, admin can:
+   - **Approve as collaborator**: Select an existing course, then approve. System creates the auth account, sends verification email, and pre-assigns the teacher to the course
+   - **Approve as new course owner**: Approve without assigning. Teacher creates their own course after verifying
+   - **Reject**: Mark application as rejected
+4. On approval, an edge function creates the teacher's auth account (using service role key) and triggers the verification email
+
+### New Files
+
+1. **`supabase/functions/seed-admin/index.ts`** — One-time edge function to create the default admin account using the Admin API
+2. **`supabase/functions/approve-teacher/index.ts`** — Edge function that creates a teacher auth account, profile, and optionally assigns to a course
+3. **`src/pages/admin/AdminDashboard.tsx`** — Main admin page showing pending/approved/rejected teacher applications with action buttons
+4. **`src/pages/admin/AdminLogin.tsx`** — Admin-specific login (or reuse Auth page with role=admin)
+5. **`src/layouts/AdminLayout.tsx`** — Simple layout for admin pages
+
+### Modified Files
+
+1. **`src/pages/Auth.tsx`** — When `role=teacher` and `isLogin=false` (signup): instead of calling `signUp`, insert into `teacher_applications` and show pending message
+2. **`src/App.tsx`** — Add admin routes (`/admin`, `/admin/dashboard`), update `AuthRedirect` to handle `admin` role
+3. **`src/pages/Landing.tsx`** — Add a subtle admin login link (or access via `/admin` directly)
+4. **`src/contexts/AuthContext.tsx`** — No changes needed (admin logs in via normal signIn)
+
+### Component Details: AdminDashboard
+
+- Tabs: Pending | Approved | Rejected
+- Each pending card shows: teacher name, email, submitted date
+- Action buttons per card:
+  - "Approve as Collaborator" — opens a dropdown to select an existing course, then calls `approve-teacher` edge function
+  - "Approve as Owner" — calls `approve-teacher` with `assignment_type: 'new_course'`
+  - "Reject" — updates status to `rejected`
+- Approved/Rejected tabs show historical records
+
+### Edge Function: `approve-teacher`
+
+1. Receives `{ applicationId, assignmentType, courseId? }`
+2. Validates caller is admin (check profile role via service role)
+3. Creates auth user via `supabase.auth.admin.createUser({ email, password: random, email_confirm: false })`
+4. This triggers the verification email automatically
+5. Inserts profile row with `role: 'teacher'`
+6. If `assignmentType = 'collaborator'`, inserts into `course_teachers`
+7. Updates `teacher_applications` status to `approved`
+
+### Security
+
+- `teacher_applications` RLS restricts all writes to admin role
+- The `approve-teacher` edge function uses service role key for auth user creation
+- Admin role check uses the `profiles.role` column (not localStorage)
+- The admin profile policy allows self-select which already exists
 
