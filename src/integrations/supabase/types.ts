@@ -361,6 +361,7 @@ export type Database = {
           explanation: string | null
           format: string
           id: string
+          in_test: boolean
           is_distractor: boolean
           item_code: string
           options: Json | null
@@ -381,6 +382,7 @@ export type Database = {
           explanation?: string | null
           format?: string
           id?: string
+          in_test?: boolean
           is_distractor?: boolean
           item_code: string
           options?: Json | null
@@ -401,6 +403,7 @@ export type Database = {
           explanation?: string | null
           format?: string
           id?: string
+          in_test?: boolean
           is_distractor?: boolean
           item_code?: string
           options?: Json | null

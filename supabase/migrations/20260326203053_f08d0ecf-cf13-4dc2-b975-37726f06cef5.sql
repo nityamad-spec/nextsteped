@@ -1,0 +1,1 @@
+ALTER TABLE diagnostic_questions ADD COLUMN in_test boolean NOT NULL DEFAULT false;
