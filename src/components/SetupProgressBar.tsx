@@ -4,6 +4,7 @@ const steps = [
   { label: "Profile & Course", path: "/teacher/onboarding" },
   { label: "Syllabus Review", path: "/teacher/setup/quality-check" },
   { label: "Lesson Plan", path: "/teacher/setup/syllabus" },
+  { label: "Concepts", path: "/teacher/setup/concepts" },
   { label: "Diagnostic Qs", path: "/teacher/setup/diagnostic" },
   { label: "TA Settings", path: "/teacher/setup/settings" },
   { label: "Exam Mode", path: "/teacher/setup/exam-mode" },
