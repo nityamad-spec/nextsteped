@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, MessageSquare, AlertTriangle, TrendingUp, BarChart3, ArrowUp, ArrowDown, Minus, Shield, ChevronDown } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import CourseCollaborators from "@/components/CourseCollaborators";
 
 const masteryColors: Record<string, string> = {
   Beginner: "bg-mastery-beginner/20 text-mastery-beginner",
@@ -369,6 +370,9 @@ const CourseDashboard = () => {
             })()}
           </CardContent>
         </Card>
+
+        {/* Collaborators */}
+        <CourseCollaborators />
       </div>
     </div>
   );
