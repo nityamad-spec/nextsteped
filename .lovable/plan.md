@@ -1,58 +1,25 @@
 
 
-## Plan: Create Course-Teachers Junction Table for N:N Mapping
+## Plan: Add All Teachers as Collaborators to PWIM Course
 
-### Summary
-Create a `course_teachers` junction table that maps courses to teachers in a many-to-many relationship, allowing multiple teachers to collaborate on a single course. The existing `courses.teacher_id` column is preserved as the "owner" teacher for backward compatibility.
+### Current State
+- **1 course** exists: `PWIM` (id: `cc551ce8-378e-468b-969b-b99bb1c04495`, owner: `b976c587...` / Rhea)
+- **3 teacher profiles**: Akash (`b58dc64d...`), X (`93fc4b95...`), Rhea (`b976c587...`)
+- **No other courses** exist, so no deletion needed
+- `course_teachers` table is empty
 
-### Database Migration
+### Data Operations (via insert tool)
+
+Insert 3 rows into `course_teachers`:
 
 ```sql
--- Junction table for N:N course-teacher mapping
-CREATE TABLE public.course_teachers (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  course_id uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
-  teacher_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  role text NOT NULL DEFAULT 'collaborator',
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (course_id, teacher_id)
-);
-
-ALTER TABLE public.course_teachers ENABLE ROW LEVEL SECURITY;
-
--- Teachers can view courses they belong to
-CREATE POLICY "Teachers can view own course_teachers"
-  ON public.course_teachers FOR SELECT TO authenticated
-  USING (auth.uid() = teacher_id);
-
--- Course owners can manage collaborators
-CREATE POLICY "Course owners can manage course_teachers"
-  ON public.course_teachers FOR ALL TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM courses
-      WHERE courses.id = course_teachers.course_id
-        AND courses.teacher_id = auth.uid()
-    )
-  );
-
--- Teachers can insert themselves (for accepting invites later)
-CREATE POLICY "Teachers can insert own membership"
-  ON public.course_teachers FOR INSERT TO authenticated
-  WITH CHECK (auth.uid() = teacher_id);
+INSERT INTO course_teachers (course_id, teacher_id, role) VALUES
+  ('cc551ce8-378e-468b-969b-b99bb1c04495', 'b976c587-6e7a-4121-89ab-69f3bb00dbae', 'owner'),
+  ('cc551ce8-378e-468b-969b-b99bb1c04495', 'b58dc64d-d1e4-4411-8dc1-743f50bc6a11', 'collaborator'),
+  ('cc551ce8-378e-468b-969b-b99bb1c04495', '93fc4b95-32b9-4f17-890d-f87f17f98e7e', 'collaborator');
 ```
 
-### Design Decisions
-
-- **`role` column** — distinguishes `'owner'` from `'collaborator'`; extensible to `'viewer'` etc. later
-- **`courses.teacher_id` kept** — remains as the canonical owner; avoids breaking all existing queries across 7+ files
-- **`UNIQUE (course_id, teacher_id)`** — prevents duplicate memberships
-- **`ON DELETE CASCADE`** on both FKs — cleanup when course or teacher profile is deleted
-- **RLS** — owners can add/remove collaborators; collaborators can see their own memberships
-
-### Scope
-This migration only creates the schema. No application code or UI changes are included — those would be a follow-up to wire collaborator management into the teacher dashboard.
-
-### Files Modified
-1. New database migration — create `course_teachers` junction table with RLS policies
+- Rhea (the `courses.teacher_id` owner) gets role `'owner'`
+- Akash and X get role `'collaborator'`
+- No schema changes or code changes needed — this is a data-only operation
 
