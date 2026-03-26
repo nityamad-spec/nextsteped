@@ -61,6 +61,7 @@ const TeacherOnboarding = () => {
       }
 
       if (courseRes.data) {
+        localStorage.setItem("currentCourseId", courseRes.data.id);
         if (courseRes.data.branch) setBranch(courseRes.data.branch);
         if (courseRes.data.term) setTerm(courseRes.data.term);
         if (courseRes.data.sections) setSections(courseRes.data.sections as string[]);
