@@ -236,6 +236,23 @@ const DiagnosticQuestionsSetup = () => {
 
   const approvedCount = questions.filter((q) => q.approved).length;
   const allApproved = questions.length > 0 && approvedCount === questions.length;
+  const inTestCount = questions.filter((q) => q.inTest).length;
+
+  const toggleInTest = async (q: DiagnosticQuestion) => {
+    const newVal = !q.inTest;
+    setQuestions((prev) => prev.map((x) => x.id === q.id ? { ...x, inTest: newVal } : x));
+    if (q.dbId) {
+      await supabase.from("diagnostic_questions").update({ in_test: newVal }).eq("id", q.dbId);
+    }
+  };
+
+  const bulkSetInTest = async (value: boolean) => {
+    setQuestions((prev) => prev.map((q) => ({ ...q, inTest: value })));
+    if (courseId) {
+      await supabase.from("diagnostic_questions").update({ in_test: value }).eq("course_id", courseId);
+    }
+    toast({ title: value ? "All questions added to test" : "All questions removed from test" });
+  };
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
