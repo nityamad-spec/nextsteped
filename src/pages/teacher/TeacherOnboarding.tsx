@@ -23,8 +23,8 @@ const TeacherOnboarding = () => {
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("");
-  const courseCode = "PY101";
-  const courseName = "Intro to Python";
+  const [courseCode, setCourseCode] = useState("");
+  const [courseName, setCourseName] = useState("");
   const [sections, setSections] = useState<string[]>([]);
   const [sectionInput, setSectionInput] = useState("");
   const [term, setTerm] = useState("");
@@ -38,7 +38,7 @@ const TeacherOnboarding = () => {
       setLoading(true);
       const [profileRes, courseRes] = await Promise.all([
         supabase.from("profiles").select("name, department, graduation_year").eq("id", user.id).maybeSingle(),
-        supabase.from("courses").select("id, branch, term, sections, objectives").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("courses").select("id, branch, term, sections, objectives, course_code, name").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       ]);
 
       if (profileRes.data) {
@@ -52,6 +52,8 @@ const TeacherOnboarding = () => {
         if (courseRes.data.term) setTerm(courseRes.data.term);
         if (courseRes.data.sections) setSections(courseRes.data.sections as string[]);
         if (courseRes.data.objectives) setObjectives((courseRes.data.objectives as string[]).join("\n"));
+        if (courseRes.data.course_code) setCourseCode(courseRes.data.course_code);
+        if (courseRes.data.name) setCourseName(courseRes.data.name);
       }
 
       setLoading(false);
@@ -62,6 +64,8 @@ const TeacherOnboarding = () => {
   const isValid =
     name.trim() &&
     department &&
+    courseCode.trim() &&
+    courseName.trim() &&
     sections.length > 0 &&
     term &&
     branch.trim() &&
@@ -114,7 +118,8 @@ const TeacherOnboarding = () => {
 
     // Upsert course
     const coursePayload = {
-      name: courseName,
+      name: courseName.trim(),
+      course_code: courseCode.trim(),
       branch,
       term,
       sections,
@@ -220,14 +225,15 @@ const TeacherOnboarding = () => {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Course</Label>
-                <Select value={courseCode} disabled>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PY101">PY101 — Intro to Python</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Course Code</Label>
+                  <Input placeholder="e.g. PY101" value={courseCode} onChange={(e) => setCourseCode(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Course Name</Label>
+                  <Input placeholder="e.g. Intro to Python" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
+                </div>
               </div>
 
               <div className="space-y-2">
