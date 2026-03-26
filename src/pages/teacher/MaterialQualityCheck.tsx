@@ -115,6 +115,7 @@ const MaterialQualityCheck = () => {
   const [editText, setEditText] = useState("");
   const [finalApproved, setFinalApproved] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [previewJson, setPreviewJson] = useState<SyllabusJson | null>(null);
 
   const pendingCount = issues.filter((i) => i.status === "pending").length;
   const resolvedCount = issues.filter((i) => i.status !== "pending").length;
@@ -140,6 +141,27 @@ const MaterialQualityCheck = () => {
     };
     fetchFiles();
   }, [user, courseId]);
+
+  // ── Load existing approved syllabus JSON on mount ───────────────
+  useEffect(() => {
+    const loadApproved = async () => {
+      if (!user) return;
+      const { data: blob, error } = await supabase.storage
+        .from("course-materials")
+        .download(`${user.id}/syllabus/approved-syllabus.json`);
+      if (!error && blob) {
+        try {
+          const text = await blob.text();
+          const json = JSON.parse(text) as SyllabusJson;
+          setPreviewJson(json);
+          setFinalApproved(true);
+        } catch (e) {
+          console.warn("Failed to parse existing approved syllabus:", e);
+        }
+      }
+    };
+    loadApproved();
+  }, [user]);
 
   // ── Pipeline: fetch → parse → check ─────────────────────────────
 
@@ -381,6 +403,22 @@ const MaterialQualityCheck = () => {
             </CardContent>
           </Card>
 
+          {previewJson && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <CheckCircle2 className="h-5 w-5 text-primary" /> Previously Approved Syllabus
+                </CardTitle>
+                <CardDescription>
+                  Your syllabus was previously reviewed and approved. You can continue or re-upload and re-review if needed.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <SyllabusPreview syllabus={previewJson} />
+              </CardContent>
+            </Card>
+          )}
+
           <div className="flex justify-center gap-3">
             <Button variant="outline" onClick={() => navigate("/teacher/onboarding")}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
@@ -389,9 +427,18 @@ const MaterialQualityCheck = () => {
               onClick={runPipeline}
               disabled={syllabusFiles.length === 0}
               size="lg"
+              variant={previewJson ? "outline" : "default"}
             >
-              <BookOpen className="mr-2 h-4 w-4" /> Review Syllabus
+              <BookOpen className="mr-2 h-4 w-4" /> {previewJson ? "Re-Review Syllabus" : "Review Syllabus"}
             </Button>
+            {previewJson && (
+              <Button
+                size="lg"
+                onClick={() => navigate("/teacher/setup/course-creation", { state: { courseId } })}
+              >
+                Continue to Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
