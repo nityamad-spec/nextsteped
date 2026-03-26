@@ -1,21 +1,43 @@
 
 
-## Plan: Add Course Code Input to Teacher Onboarding
+## Plan: Improve Course Auto-Population with Specific Course ID
 
-### Summary
-Replace the hardcoded `courseCode = "PY101"` and `courseName = "Intro to Python"` constants with editable state fields, adding a `course_code` input and making the course name editable. The `course_code` value will be persisted to the `courses.course_code` column.
+### Problem
+The current `useEffect` always fetches the *most recent* course by `teacher_id`. If a teacher navigates back to this page after creating a course, it should prioritize the `currentCourseId` stored in localStorage to load the correct course. Additionally, the `localStorage` courseId should be set immediately after fetching so downstream pages have it available.
+
+### Current State
+The page already auto-populates all fields from the database (lines 35–62). The fetch logic queries `profiles` and `courses` tables and populates `name`, `department`, `graduation_year`, `branch`, `term`, `sections`, `objectives`, `course_code`, and `courseName`.
 
 ### Changes
 
 **File: `src/pages/teacher/TeacherOnboarding.tsx`**
 
-1. **Convert constants to state** — change `courseCode` and `courseName` from constants to `useState` variables
-2. **Load existing values** — add `course_code, name` to the course select query; populate state on fetch
-3. **Add course_code input field** — place it next to (or above) the existing Course field; text input with placeholder like "PY101"
-4. **Make course name editable** — replace the disabled `<Select>` with an `<Input>` for the course name
-5. **Include in validation** — add `courseCode.trim()` and `courseName.trim()` to the `isValid` check
-6. **Persist on save** — add `course_code: courseCode` to the `coursePayload` object that gets inserted/updated in the `courses` table
+1. **Use `currentCourseId` from localStorage when available** — modify the course fetch query to first check `localStorage.getItem("currentCourseId")` and use `.eq("id", storedCourseId)` if present, falling back to the existing `teacher_id` + latest ordering query
+2. **Set `currentCourseId` in localStorage on fetch** — when a course is found during load, immediately store its `id` in localStorage so downstream pages have the right context
+3. **No UI changes needed** — the form fields and their bindings are already correct
+
+### Technical Details
+```typescript
+// Updated fetch logic
+const storedCourseId = localStorage.getItem("currentCourseId");
+let courseQuery = supabase.from("courses")
+  .select("id, branch, term, sections, objectives, course_code, name");
+
+if (storedCourseId) {
+  courseQuery = courseQuery.eq("id", storedCourseId);
+} else {
+  courseQuery = courseQuery.eq("teacher_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(1);
+}
+
+// After fetch, store courseId
+if (courseRes.data) {
+  localStorage.setItem("currentCourseId", courseRes.data.id);
+  // ... populate fields
+}
+```
 
 ### Files Modified
-1. `src/pages/teacher/TeacherOnboarding.tsx`
+1. `src/pages/teacher/TeacherOnboarding.tsx` — improve course fetch to use stored courseId, set courseId on load
 
