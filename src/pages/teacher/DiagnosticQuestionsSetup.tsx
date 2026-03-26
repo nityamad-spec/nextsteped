@@ -240,6 +240,45 @@ const DiagnosticQuestionsSetup = () => {
   const allApproved = questions.length > 0 && approvedCount === questions.length;
   const inTestCount = questions.filter((q) => q.inTest).length;
 
+  // --- Filters ---
+  const [filterConcept, setFilterConcept] = useState("all");
+  const [filterType, setFilterType] = useState("all");
+  const [filterDifficulty, setFilterDifficulty] = useState("all");
+  const [filterBloom, setFilterBloom] = useState("all");
+  const [analysisOpen, setAnalysisOpen] = useState(false);
+
+  const filteredQuestions = useMemo(() => {
+    return questions.filter((q) => {
+      if (filterConcept !== "all" && q.conceptId !== filterConcept) return false;
+      if (filterType !== "all" && q.type !== filterType) return false;
+      if (filterDifficulty !== "all" && q.difficulty !== filterDifficulty) return false;
+      if (filterBloom !== "all" && String(q.bloomLevel) !== filterBloom) return false;
+      return true;
+    });
+  }, [questions, filterConcept, filterType, filterDifficulty, filterBloom]);
+
+  // --- Test Composition Analysis ---
+  const testAnalysis = useMemo(() => {
+    const inTest = questions.filter((q) => q.inTest);
+    const total = inTest.length;
+    if (total === 0) return null;
+
+    const byDifficulty: Record<string, number> = { Easy: 0, Medium: 0, Hard: 0 };
+    const byType: Record<string, number> = {};
+    const byConcept: Record<string, number> = {};
+    const byBloom: Record<number, number> = {};
+
+    for (const q of inTest) {
+      byDifficulty[q.difficulty] = (byDifficulty[q.difficulty] || 0) + 1;
+      byType[q.type] = (byType[q.type] || 0) + 1;
+      const conceptLabel = concepts.find((c) => c.id === q.conceptId)?.concept_code || "Unassigned";
+      byConcept[conceptLabel] = (byConcept[conceptLabel] || 0) + 1;
+      byBloom[q.bloomLevel] = (byBloom[q.bloomLevel] || 0) + 1;
+    }
+
+    return { total, byDifficulty, byType, byConcept, byBloom };
+  }, [questions, concepts]);
+
   const toggleInTest = async (q: DiagnosticQuestion) => {
     const newVal = !q.inTest;
     setQuestions((prev) => prev.map((x) => x.id === q.id ? { ...x, inTest: newVal } : x));
@@ -249,11 +288,13 @@ const DiagnosticQuestionsSetup = () => {
   };
 
   const bulkSetInTest = async (value: boolean) => {
-    setQuestions((prev) => prev.map((q) => ({ ...q, inTest: value })));
-    if (courseId) {
-      await supabase.from("diagnostic_questions").update({ in_test: value }).eq("course_id", courseId);
+    const targetIds = filteredQuestions.map((q) => q.id);
+    const targetDbIds = filteredQuestions.filter((q) => q.dbId).map((q) => q.dbId!);
+    setQuestions((prev) => prev.map((q) => targetIds.includes(q.id) ? { ...q, inTest: value } : q));
+    if (targetDbIds.length > 0) {
+      await supabase.from("diagnostic_questions").update({ in_test: value }).in("id", targetDbIds);
     }
-    toast({ title: value ? "All questions added to test" : "All questions removed from test" });
+    toast({ title: value ? `${targetIds.length} questions added to test` : `${targetIds.length} questions removed from test` });
   };
 
   const toggleExpand = (id: string) => {
