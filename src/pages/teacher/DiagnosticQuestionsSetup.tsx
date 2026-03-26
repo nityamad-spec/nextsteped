@@ -104,6 +104,7 @@ const emptyQuestion = (type: QuestionType = "mcq", index: number = 0): Diagnosti
   bloomJustification: "",
   difficultyJustification: "",
   isDistractor: false,
+  conceptId: undefined,
 });
 
 // --- DB helpers ---
@@ -136,13 +137,14 @@ function dbRowToQuestion(row: any): DiagnosticQuestion {
     correctIndex,
     correctAnswer,
     explanation: row.explanation || "",
-    approved: true, // loaded from DB = previously saved
+    approved: true,
     itemId: row.item_id,
     difficultyEstimate: Number(row.difficulty_estimate),
     bloomLevel: row.bloom_level,
     bloomJustification: row.bloom_justification || "",
     difficultyJustification: row.difficulty_justification || "",
     isDistractor: row.is_distractor,
+    conceptId: row.concept_id || undefined,
   };
 }
 
@@ -169,6 +171,7 @@ function questionToDbRow(q: DiagnosticQuestion, courseId: string, teacherId: str
     topic: q.topic || null,
     course_id: courseId,
     teacher_id: teacherId,
+    concept_id: q.conceptId || null,
   };
 }
 
@@ -177,6 +180,7 @@ const DiagnosticQuestionsSetup = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [questions, setQuestions] = useState<DiagnosticQuestion[]>([]);
+  const [concepts, setConcepts] = useState<ConceptOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
@@ -190,25 +194,39 @@ const DiagnosticQuestionsSetup = () => {
 
   // Fetch questions from DB on mount
   useEffect(() => {
-    const fetchQuestions = async () => {
+    const fetchData = async () => {
       if (!courseId) {
         setLoading(false);
         return;
       }
-      const { data, error } = await supabase
-        .from("diagnostic_questions")
-        .select("*")
-        .eq("course_id", courseId)
-        .order("created_at", { ascending: true });
 
-      if (error) {
-        toast({ title: "Failed to load questions", description: error.message, variant: "destructive" });
-      } else if (data) {
-        setQuestions(data.map(dbRowToQuestion));
+      // Fetch questions and concepts in parallel
+      const [questionsRes, conceptsRes] = await Promise.all([
+        supabase
+          .from("diagnostic_questions")
+          .select("*")
+          .eq("course_id", courseId)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("concepts")
+          .select("id, concept_id, weight")
+          .eq("course_id", courseId)
+          .order("concept_id", { ascending: true }),
+      ]);
+
+      if (questionsRes.error) {
+        toast({ title: "Failed to load questions", description: questionsRes.error.message, variant: "destructive" });
+      } else if (questionsRes.data) {
+        setQuestions(questionsRes.data.map(dbRowToQuestion));
       }
+
+      if (conceptsRes.data) {
+        setConcepts(conceptsRes.data);
+      }
+
       setLoading(false);
     };
-    fetchQuestions();
+    fetchData();
   }, [courseId]);
 
   const approvedCount = questions.filter((q) => q.approved).length;
