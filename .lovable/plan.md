@@ -1,49 +1,20 @@
 
 
-## Plan: Add Filters and Test Analysis Report to Diagnostic Questions Page
+## Plan: Hide Questions Until Filters Applied + Add Question Form at Top
 
-### Summary
-Add a filter bar below the summary section and an analytics report panel at the top of the page that shows the distribution of questions selected for the diagnostic test across difficulty, question type, concept, and Bloom's level.
+### Changes
 
-### 1. Filter Bar (below existing summary bar)
+1. **Don't show questions on page load** — Start with an empty list view. Show a prompt like "Use filters above to browse questions." Only display the question list once at least one filter is set to something other than "All".
 
-Add four filter dropdowns in a horizontal row:
-- **Concept**: dropdown listing all concepts for the course (from `concepts` state) + "All"
-- **Question Type**: dropdown with MCQ, True/False, Short Answer, Code + "All"
-- **Difficulty**: dropdown with Easy, Medium, Hard + "All"
-- **Bloom's Level**: dropdown with levels 1-6 + "All"
+2. **Move "Add Question" form/button to the top** — Place the add-new-question UI above the question list (below filters) so teachers don't need to scroll.
 
-Filter state: `filterConcept`, `filterType`, `filterDifficulty`, `filterBloom` — all default to `"all"`.
+3. **Logic**: `filteredQuestions` returns empty array when all four filters are `"all"`. Once any filter is changed, matching questions appear.
 
-The question list renders only questions matching all active filters. Bulk actions (Add All to Test, Remove All from Test) apply only to filtered questions.
+### Single file change
+`src/pages/teacher/DiagnosticQuestionsSetup.tsx`
 
-### 2. Test Analysis Report (collapsible card above filters)
-
-A collapsible panel titled "Test Composition Analysis" that computes stats from questions where `inTest === true`:
-
-**Four mini distribution tables/bars:**
-
-| Section | Display |
-|---------|---------|
-| **By Difficulty** | Count + percentage for Easy / Medium / Hard |
-| **By Question Type** | Count + percentage for MCQ / True-False / Short Answer / Code |
-| **By Concept** | Count + percentage per concept_code (with weight comparison) |
-| **By Bloom's Level** | Count + percentage for each level 1-6 |
-
-Each section shows a simple horizontal bar or badge-based breakdown. Use existing Badge and Progress components. Show "No questions in test" if `inTestCount === 0`.
-
-### 3. Implementation Details
-
-**Single file change**: `src/pages/teacher/DiagnosticQuestionsSetup.tsx`
-
-- Add 4 filter state variables
-- Compute `filteredQuestions` from `questions` based on filters
-- Render filter row using existing `Select` components
-- Compute test analysis stats with `useMemo` from `questions.filter(q => q.inTest)`
-- Render analysis report as a `Collapsible` card
-- Replace `questions.map(...)` in the list with `filteredQuestions.map(...)`
-- Update bulk in-test actions to apply to `filteredQuestions` only
-
-### Files Modified
-1. `src/pages/teacher/DiagnosticQuestionsSetup.tsx`
+- Add a computed boolean: `const hasActiveFilter = filterConcept !== "all" || filterType !== "all" || filterDifficulty !== "all" || filterBloom !== "all"`
+- When `!hasActiveFilter`, render a placeholder message instead of the question list
+- Bulk actions also hidden when no filter active
+- Move the "Add New Question" button/dialog trigger to sit just below the filter bar, always visible
 
