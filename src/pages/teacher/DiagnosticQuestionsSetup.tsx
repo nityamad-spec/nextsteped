@@ -1084,9 +1084,8 @@ const DiagnosticQuestionsSetup = () => {
               </Card>
             );
           })}
-        </div>
-
-
+          </div>
+        )}
 
         {/* Navigation */}
         <div className="flex justify-between">
