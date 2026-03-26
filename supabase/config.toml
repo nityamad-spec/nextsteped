@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.approve-teacher]
 verify_jwt = false
+
+[functions.seed-concepts]
+verify_jwt = false
