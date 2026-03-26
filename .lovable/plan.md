@@ -1,63 +1,29 @@
 
 
-## Plan: Create Concepts Table Linked to Diagnostic Questions
+## Plan: Add Concept Selector Dropdown to Diagnostic Questions UI
 
 ### Summary
-Create a `concepts` table to store course concepts (e.g., `PWIM/Python_Environment`, `PWIM/Variables`) with their metadata, then update the `diagnostic_questions` table to reference concepts via a foreign key instead of a plain text `topic` field.
+Add a concept selector dropdown to the question edit form that loads concepts from the `concepts` table (filtered by `course_id`) and saves the selected `concept_id` foreign key when persisting questions.
 
-### JSON Structure Observed
-Each concept has:
-- **`concept_id`** — hierarchical ID like `PWIM/Python_Environment`
-- **`weight`** — numeric weight (e.g., 0.03, 0.06) representing importance in the course
-- Questions are nested under concepts
+### Changes
 
-### Database Migration
+**File: `src/pages/teacher/DiagnosticQuestionsSetup.tsx`**
 
-```sql
--- 1. Create concepts table
-CREATE TABLE public.concepts (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  course_id uuid REFERENCES public.courses(id) ON DELETE CASCADE NOT NULL,
-  concept_id text NOT NULL,          -- e.g. "PWIM/Python_Environment"
-  weight numeric(5,4) NOT NULL DEFAULT 0.0,  -- importance weight (0.0 to 1.0)
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(course_id, concept_id)
-);
+1. **Extend `DiagnosticQuestion` interface** — add `conceptId?: string` field to track the FK
+2. **Fetch concepts on mount** — query `supabase.from("concepts").select("*").eq("course_id", courseId)` alongside existing questions fetch; store in a `concepts` state array
+3. **Update `dbRowToQuestion`** — map `row.concept_id` to `conceptId`
+4. **Update `questionToDbRow`** — include `concept_id: q.conceptId || null` in the returned object
+5. **Add concept `<Select>` dropdown in the edit form** — placed near the existing `topic` field; lists all loaded concepts by their `concept_id` text (e.g., "PWIM/Python_Environment"); includes a "None" option to clear
+6. **Auto-fill `topic` from concept** — when a concept is selected, optionally sync the `topic` text field to the concept's `concept_id` string for consistency
+7. **Update view mode** — show selected concept as a badge alongside existing topic display
+8. **Handle empty concepts gracefully** — if no concepts exist for the course, show "No concepts defined yet" in the dropdown with a disabled state
 
-ALTER TABLE public.concepts ENABLE ROW LEVEL SECURITY;
+### Technical Details
 
--- Teachers can manage concepts for their own courses
-CREATE POLICY "Teachers can manage own concepts"
-  ON public.concepts FOR ALL TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.courses
-    WHERE courses.id = concepts.course_id
-      AND courses.teacher_id = auth.uid()
-  ));
-
--- Students can view concepts for enrolled courses
-CREATE POLICY "Students can view concepts for enrolled courses"
-  ON public.concepts FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.enrollments
-    WHERE enrollments.course_id = concepts.course_id
-      AND enrollments.student_id = auth.uid()
-  ));
-
--- 2. Add concept_id FK to diagnostic_questions
-ALTER TABLE public.diagnostic_questions
-  ADD COLUMN concept_id uuid REFERENCES public.concepts(id) ON DELETE SET NULL;
-```
-
-### Key Design Decisions
-
-- **`concept_id` (text)** stores the hierarchical ID (e.g., `PWIM/Variables`) as a human-readable identifier, separate from the UUID primary key
-- **`weight`** captures the concept's relative importance in the course (sums to ~1.0 across all concepts)
-- **`UNIQUE(course_id, concept_id)`** prevents duplicate concept IDs within a course
-- **Foreign key on `diagnostic_questions.concept_id`** replaces the loose text `topic` field with a proper relational link; uses `SET NULL` on delete so questions survive concept removal
-- The existing `topic` text column on `diagnostic_questions` is preserved for backward compatibility (can be deprecated later)
-- **No data upload** — this migration only creates the schema
+- Concepts state: `const [concepts, setConcepts] = useState<{id: string, concept_id: string, weight: number}[]>([])`
+- The dropdown maps `concept.id` (UUID) as the select value, displays `concept.concept_id` (text) as the label
+- On save, `concept_id` UUID is written to `diagnostic_questions.concept_id` FK column
 
 ### Files Modified
-1. New database migration — create `concepts` table, add FK column to `diagnostic_questions`
+1. `src/pages/teacher/DiagnosticQuestionsSetup.tsx` — add concept fetch, dropdown widget, and FK persistence
 
