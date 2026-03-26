@@ -627,6 +627,7 @@ const DiagnosticQuestionsSetup = () => {
               <X className="h-3 w-3 mr-1" /> Clear
             </Button>
           )}
+        </div>
 
         {/* Empty state */}
         {questions.length === 0 && (
@@ -637,9 +638,16 @@ const DiagnosticQuestionsSetup = () => {
           </div>
         )}
 
+        {filteredQuestions.length === 0 && questions.length > 0 && (
+          <div className="mb-6 rounded-lg border border-dashed border-muted-foreground/30 py-8 text-center">
+            <Filter className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
+            <p className="text-sm text-muted-foreground">No questions match the current filters</p>
+          </div>
+        )}
+
         {/* Questions list */}
         <div className="space-y-2 mb-6">
-          {questions.map((q, idx) => {
+          {filteredQuestions.map((q, idx) => {
             const isExpanded = expandedIds.includes(q.id);
             const isEditing = editingId === q.id;
 
