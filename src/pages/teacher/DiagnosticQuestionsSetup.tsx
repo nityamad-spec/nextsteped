@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,9 @@ import {
 import {
   ArrowRight, ArrowLeft, Brain, Plus, Pencil, Trash2, Check, X,
   ChevronDown, ChevronUp, Info, Settings2, AlertTriangle, Loader2,
+  BarChart3, Filter,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -238,6 +240,45 @@ const DiagnosticQuestionsSetup = () => {
   const allApproved = questions.length > 0 && approvedCount === questions.length;
   const inTestCount = questions.filter((q) => q.inTest).length;
 
+  // --- Filters ---
+  const [filterConcept, setFilterConcept] = useState("all");
+  const [filterType, setFilterType] = useState("all");
+  const [filterDifficulty, setFilterDifficulty] = useState("all");
+  const [filterBloom, setFilterBloom] = useState("all");
+  const [analysisOpen, setAnalysisOpen] = useState(false);
+
+  const filteredQuestions = useMemo(() => {
+    return questions.filter((q) => {
+      if (filterConcept !== "all" && q.conceptId !== filterConcept) return false;
+      if (filterType !== "all" && q.type !== filterType) return false;
+      if (filterDifficulty !== "all" && q.difficulty !== filterDifficulty) return false;
+      if (filterBloom !== "all" && String(q.bloomLevel) !== filterBloom) return false;
+      return true;
+    });
+  }, [questions, filterConcept, filterType, filterDifficulty, filterBloom]);
+
+  // --- Test Composition Analysis ---
+  const testAnalysis = useMemo(() => {
+    const inTest = questions.filter((q) => q.inTest);
+    const total = inTest.length;
+    if (total === 0) return null;
+
+    const byDifficulty: Record<string, number> = { Easy: 0, Medium: 0, Hard: 0 };
+    const byType: Record<string, number> = {};
+    const byConcept: Record<string, number> = {};
+    const byBloom: Record<number, number> = {};
+
+    for (const q of inTest) {
+      byDifficulty[q.difficulty] = (byDifficulty[q.difficulty] || 0) + 1;
+      byType[q.type] = (byType[q.type] || 0) + 1;
+      const conceptLabel = concepts.find((c) => c.id === q.conceptId)?.concept_code || "Unassigned";
+      byConcept[conceptLabel] = (byConcept[conceptLabel] || 0) + 1;
+      byBloom[q.bloomLevel] = (byBloom[q.bloomLevel] || 0) + 1;
+    }
+
+    return { total, byDifficulty, byType, byConcept, byBloom };
+  }, [questions, concepts]);
+
   const toggleInTest = async (q: DiagnosticQuestion) => {
     const newVal = !q.inTest;
     setQuestions((prev) => prev.map((x) => x.id === q.id ? { ...x, inTest: newVal } : x));
@@ -247,11 +288,13 @@ const DiagnosticQuestionsSetup = () => {
   };
 
   const bulkSetInTest = async (value: boolean) => {
-    setQuestions((prev) => prev.map((q) => ({ ...q, inTest: value })));
-    if (courseId) {
-      await supabase.from("diagnostic_questions").update({ in_test: value }).eq("course_id", courseId);
+    const targetIds = filteredQuestions.map((q) => q.id);
+    const targetDbIds = filteredQuestions.filter((q) => q.dbId).map((q) => q.dbId!);
+    setQuestions((prev) => prev.map((q) => targetIds.includes(q.id) ? { ...q, inTest: value } : q));
+    if (targetDbIds.length > 0) {
+      await supabase.from("diagnostic_questions").update({ in_test: value }).in("id", targetDbIds);
     }
-    toast({ title: value ? "All questions added to test" : "All questions removed from test" });
+    toast({ title: value ? `${targetIds.length} questions added to test` : `${targetIds.length} questions removed from test` });
   };
 
   const toggleExpand = (id: string) => {
@@ -414,20 +457,176 @@ const DiagnosticQuestionsSetup = () => {
           <div className="flex items-center justify-between border-t pt-2">
             <span className="text-sm">
               <span className="font-medium">{inTestCount}</span> of {questions.length} questions in diagnostic test
+              {filteredQuestions.length !== questions.length && (
+                <span className="text-muted-foreground"> (showing {filteredQuestions.length} filtered)</span>
+              )}
             </span>
             <div className="flex items-center gap-2">
-              {inTestCount < questions.length && questions.length > 0 && (
+              {filteredQuestions.some((q) => !q.inTest) && filteredQuestions.length > 0 && (
                 <Button variant="outline" size="sm" onClick={() => bulkSetInTest(true)}>
-                  Add All to Test
+                  Add {filteredQuestions.length !== questions.length ? "Filtered" : "All"} to Test
                 </Button>
               )}
-              {inTestCount > 0 && (
+              {filteredQuestions.some((q) => q.inTest) && (
                 <Button variant="outline" size="sm" onClick={() => bulkSetInTest(false)}>
-                  Remove All from Test
+                  Remove {filteredQuestions.length !== questions.length ? "Filtered" : "All"} from Test
                 </Button>
               )}
             </div>
           </div>
+        </div>
+
+        {/* Test Composition Analysis */}
+        <Collapsible open={analysisOpen} onOpenChange={setAnalysisOpen} className="mb-4">
+          <Card>
+            <CollapsibleTrigger className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">Test Composition Analysis</span>
+                {testAnalysis && (
+                  <Badge variant="outline" className="text-[10px]">{testAnalysis.total} questions</Badge>
+                )}
+              </div>
+              {analysisOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-4 pb-4">
+                {!testAnalysis ? (
+                  <p className="text-sm text-muted-foreground py-2">No questions in test yet. Toggle questions above to include them.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    {/* By Difficulty */}
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">By Difficulty</p>
+                      <div className="space-y-1.5">
+                        {["Easy", "Medium", "Hard"].map((d) => {
+                          const count = testAnalysis.byDifficulty[d] || 0;
+                          const pct = Math.round((count / testAnalysis.total) * 100);
+                          return (
+                            <div key={d} className="flex items-center gap-2">
+                              <span className="text-xs w-14">{d}</span>
+                              <Progress value={pct} className="h-2 flex-1" />
+                              <span className="text-xs text-muted-foreground w-16 text-right">{count} ({pct}%)</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* By Question Type */}
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">By Question Type</p>
+                      <div className="space-y-1.5">
+                        {(["mcq", "true_false", "short_answer", "code"] as QuestionType[]).map((t) => {
+                          const count = testAnalysis.byType[t] || 0;
+                          const pct = Math.round((count / testAnalysis.total) * 100);
+                          return (
+                            <div key={t} className="flex items-center gap-2">
+                              <span className="text-xs w-24 truncate">{questionTypeLabels[t]}</span>
+                              <Progress value={pct} className="h-2 flex-1" />
+                              <span className="text-xs text-muted-foreground w-16 text-right">{count} ({pct}%)</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* By Bloom's Level */}
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">By Bloom's Level</p>
+                      <div className="space-y-1.5">
+                        {[1, 2, 3, 4, 5, 6].map((bl) => {
+                          const count = testAnalysis.byBloom[bl] || 0;
+                          const pct = Math.round((count / testAnalysis.total) * 100);
+                          return (
+                            <div key={bl} className="flex items-center gap-2">
+                              <span className="text-xs w-24 truncate">L{bl} {bloomLabels[bl]}</span>
+                              <Progress value={pct} className="h-2 flex-1" />
+                              <span className="text-xs text-muted-foreground w-16 text-right">{count} ({pct}%)</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* By Concept */}
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">By Concept</p>
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                        {Object.entries(testAnalysis.byConcept).sort((a, b) => b[1] - a[1]).map(([concept, count]) => {
+                          const pct = Math.round((count / testAnalysis.total) * 100);
+                          const weight = concepts.find((c) => c.concept_code === concept)?.weight;
+                          return (
+                            <div key={concept} className="flex items-center gap-2">
+                              <span className="text-xs w-24 truncate" title={concept}>{concept}</span>
+                              <Progress value={pct} className="h-2 flex-1" />
+                              <span className="text-xs text-muted-foreground w-20 text-right">
+                                {count} ({pct}%){weight !== undefined ? ` W:${weight}` : ""}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
+        {/* Filter bar */}
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border px-4 py-3 bg-muted/20">
+          <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Select value={filterConcept} onValueChange={setFilterConcept}>
+            <SelectTrigger className="w-[160px] h-8 text-xs">
+              <SelectValue placeholder="All Concepts" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Concepts</SelectItem>
+              {concepts.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.concept_code}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-[140px] h-8 text-xs">
+              <SelectValue placeholder="All Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {(["mcq", "true_false", "short_answer", "code"] as QuestionType[]).map((t) => (
+                <SelectItem key={t} value={t}>{questionTypeLabels[t]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterDifficulty} onValueChange={setFilterDifficulty}>
+            <SelectTrigger className="w-[120px] h-8 text-xs">
+              <SelectValue placeholder="All Difficulty" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Difficulty</SelectItem>
+              <SelectItem value="Easy">Easy</SelectItem>
+              <SelectItem value="Medium">Medium</SelectItem>
+              <SelectItem value="Hard">Hard</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterBloom} onValueChange={setFilterBloom}>
+            <SelectTrigger className="w-[140px] h-8 text-xs">
+              <SelectValue placeholder="All Bloom's" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Bloom's</SelectItem>
+              {[1, 2, 3, 4, 5, 6].map((bl) => (
+                <SelectItem key={bl} value={String(bl)}>L{bl} {bloomLabels[bl]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {(filterConcept !== "all" || filterType !== "all" || filterDifficulty !== "all" || filterBloom !== "all") && (
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setFilterConcept("all"); setFilterType("all"); setFilterDifficulty("all"); setFilterBloom("all"); }}>
+              <X className="h-3 w-3 mr-1" /> Clear
+            </Button>
+          )}
         </div>
 
         {/* Empty state */}
@@ -439,9 +638,16 @@ const DiagnosticQuestionsSetup = () => {
           </div>
         )}
 
+        {filteredQuestions.length === 0 && questions.length > 0 && (
+          <div className="mb-6 rounded-lg border border-dashed border-muted-foreground/30 py-8 text-center">
+            <Filter className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
+            <p className="text-sm text-muted-foreground">No questions match the current filters</p>
+          </div>
+        )}
+
         {/* Questions list */}
         <div className="space-y-2 mb-6">
-          {questions.map((q, idx) => {
+          {filteredQuestions.map((q, idx) => {
             const isExpanded = expandedIds.includes(q.id);
             const isEditing = editingId === q.id;
 
