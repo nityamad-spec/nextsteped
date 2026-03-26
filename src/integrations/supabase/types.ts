@@ -270,6 +270,81 @@ export type Database = {
         }
         Relationships: []
       }
+      diagnostic_questions: {
+        Row: {
+          answer: string
+          bloom_justification: string | null
+          bloom_level: number
+          content_text: string
+          course_id: string
+          created_at: string
+          difficulty_estimate: number
+          difficulty_justification: string | null
+          explanation: string | null
+          format: string
+          id: string
+          is_distractor: boolean
+          item_id: string
+          options: Json | null
+          teacher_id: string
+          topic: string | null
+          updated_at: string
+        }
+        Insert: {
+          answer: string
+          bloom_justification?: string | null
+          bloom_level?: number
+          content_text: string
+          course_id: string
+          created_at?: string
+          difficulty_estimate?: number
+          difficulty_justification?: string | null
+          explanation?: string | null
+          format?: string
+          id?: string
+          is_distractor?: boolean
+          item_id: string
+          options?: Json | null
+          teacher_id: string
+          topic?: string | null
+          updated_at?: string
+        }
+        Update: {
+          answer?: string
+          bloom_justification?: string | null
+          bloom_level?: number
+          content_text?: string
+          course_id?: string
+          created_at?: string
+          difficulty_estimate?: number
+          difficulty_justification?: string | null
+          explanation?: string | null
+          format?: string
+          id?: string
+          is_distractor?: boolean
+          item_id?: string
+          options?: Json | null
+          teacher_id?: string
+          topic?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diagnostic_questions_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diagnostic_questions_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diagnostic_results: {
         Row: {
           answers: Json
