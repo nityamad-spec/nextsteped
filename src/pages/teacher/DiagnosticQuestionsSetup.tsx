@@ -698,20 +698,7 @@ const DiagnosticQuestionsSetup = () => {
                     </div>
                   </div>
 
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-                        <CardContent className="pt-0 pb-4 space-y-3">
-                          <p className="text-sm text-muted-foreground italic">Expand to view/edit question details</p>
-                        </CardContent>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+PLACEHOLDER_FOR_EXPANDED_CONTENT
 
 
         <div className="flex justify-between">
