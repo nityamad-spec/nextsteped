@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -72,6 +73,7 @@ interface DiagnosticQuestion {
   difficultyJustification: string;
   isDistractor: boolean;
   conceptId?: string; // FK to concepts table
+  inTest: boolean;
 }
 
 interface ConceptOption {
@@ -105,6 +107,7 @@ const emptyQuestion = (type: QuestionType = "mcq", index: number = 0): Diagnosti
   difficultyJustification: "",
   isDistractor: false,
   conceptId: undefined,
+  inTest: false,
 });
 
 // --- DB helpers ---
@@ -145,6 +148,7 @@ function dbRowToQuestion(row: any): DiagnosticQuestion {
     difficultyJustification: row.difficulty_justification || "",
     isDistractor: row.is_distractor,
     conceptId: row.concept_id || undefined,
+    inTest: row.in_test ?? false,
   };
 }
 
@@ -172,6 +176,7 @@ function questionToDbRow(q: DiagnosticQuestion, courseId: string, teacherId: str
     course_id: courseId,
     teacher_id: teacherId,
     concept_id: q.conceptId || null,
+    in_test: q.inTest,
   };
 }
 
@@ -231,6 +236,23 @@ const DiagnosticQuestionsSetup = () => {
 
   const approvedCount = questions.filter((q) => q.approved).length;
   const allApproved = questions.length > 0 && approvedCount === questions.length;
+  const inTestCount = questions.filter((q) => q.inTest).length;
+
+  const toggleInTest = async (q: DiagnosticQuestion) => {
+    const newVal = !q.inTest;
+    setQuestions((prev) => prev.map((x) => x.id === q.id ? { ...x, inTest: newVal } : x));
+    if (q.dbId) {
+      await supabase.from("diagnostic_questions").update({ in_test: newVal }).eq("id", q.dbId);
+    }
+  };
+
+  const bulkSetInTest = async (value: boolean) => {
+    setQuestions((prev) => prev.map((q) => ({ ...q, inTest: value })));
+    if (courseId) {
+      await supabase.from("diagnostic_questions").update({ in_test: value }).eq("course_id", courseId);
+    }
+    toast({ title: value ? "All questions added to test" : "All questions removed from test" });
+  };
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -368,24 +390,43 @@ const DiagnosticQuestionsSetup = () => {
         </div>
 
         {/* Summary bar */}
-        <div className="mb-4 flex items-center justify-between rounded-lg border px-4 py-2.5 bg-muted/30">
-          <div className="flex items-center gap-3">
-            <Brain className="h-4 w-4 text-primary" />
-            <span className="text-sm">
-              <span className="font-medium">{approvedCount}</span> of {questions.length} questions approved
-            </span>
+        <div className="mb-4 flex flex-col gap-2 rounded-lg border px-4 py-2.5 bg-muted/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Brain className="h-4 w-4 text-primary" />
+              <span className="text-sm">
+                <span className="font-medium">{approvedCount}</span> of {questions.length} questions approved
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {!allApproved && questions.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => setApproveAllConfirm(true)}>
+                  <Check className="mr-1 h-3.5 w-3.5" /> Approve All
+                </Button>
+              )}
+              {allApproved && (
+                <Badge className="bg-primary text-primary-foreground">
+                  <Check className="mr-1 h-3 w-3" /> All Approved
+                </Badge>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {!allApproved && questions.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => setApproveAllConfirm(true)}>
-                <Check className="mr-1 h-3.5 w-3.5" /> Approve All
-              </Button>
-            )}
-            {allApproved && (
-              <Badge className="bg-primary text-primary-foreground">
-                <Check className="mr-1 h-3 w-3" /> All Approved
-              </Badge>
-            )}
+          <div className="flex items-center justify-between border-t pt-2">
+            <span className="text-sm">
+              <span className="font-medium">{inTestCount}</span> of {questions.length} questions in diagnostic test
+            </span>
+            <div className="flex items-center gap-2">
+              {inTestCount < questions.length && questions.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => bulkSetInTest(true)}>
+                  Add All to Test
+                </Button>
+              )}
+              {inTestCount > 0 && (
+                <Button variant="outline" size="sm" onClick={() => bulkSetInTest(false)}>
+                  Remove All from Test
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -405,7 +446,7 @@ const DiagnosticQuestionsSetup = () => {
             const isEditing = editingId === q.id;
 
             return (
-              <Card key={q.id} className={q.approved ? "border-primary/30" : ""}>
+              <Card key={q.id} className={`${q.approved ? "border-primary/30" : ""} ${q.inTest ? "ring-1 ring-primary/20" : ""}`}>
                 <div
                   className={`flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors ${q.approved ? "bg-primary/5" : ""}`}
                   onClick={() => !isEditing && toggleExpand(q.id)}
@@ -415,6 +456,9 @@ const DiagnosticQuestionsSetup = () => {
                     <span className="text-sm truncate">{q.question || "New question..."}</span>
                   </div>
                   <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                    {q.inTest && (
+                      <Badge className="text-[10px] bg-primary/20 text-primary border-primary/30">In Test</Badge>
+                    )}
                     <Badge variant="outline" className={`text-[10px] ${questionTypeColors[q.type]}`}>
                       {questionTypeLabels[q.type]}
                     </Badge>
@@ -774,21 +818,33 @@ const DiagnosticQuestionsSetup = () => {
                               </div>
                             )}
 
-                            <div className="flex items-center gap-2 pt-1">
+                            <div className="flex items-center gap-2 pt-1 flex-wrap">
                               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => startEdit(q)}>
                                 <Pencil className="mr-1 h-3 w-3" /> Edit
                               </Button>
                               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => confirmRemove(q)}>
                                 <Trash2 className="mr-1 h-3 w-3" /> Remove
                               </Button>
-                              <Button
-                                size="sm"
-                                variant={q.approved ? "default" : "outline"}
-                                className="h-7 text-xs ml-auto"
-                                onClick={() => toggleApprove(q.id)}
-                              >
-                                {q.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve"}
-                              </Button>
+                              <div className="flex items-center gap-2 ml-auto">
+                                <div className="flex items-center gap-1.5">
+                                  <Switch
+                                    checked={q.inTest}
+                                    onCheckedChange={() => toggleInTest(q)}
+                                    className="scale-75"
+                                  />
+                                  <Label className="text-xs text-muted-foreground cursor-pointer" onClick={() => toggleInTest(q)}>
+                                    {q.inTest ? "In Test" : "Not in Test"}
+                                  </Label>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant={q.approved ? "default" : "outline"}
+                                  className="h-7 text-xs"
+                                  onClick={() => toggleApprove(q.id)}
+                                >
+                                  {q.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve"}
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         )}

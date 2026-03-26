@@ -4,19 +4,29 @@ import { motion } from "framer-motion";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { mockQuizQuestions } from "@/data/mockData";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { ArrowRight, ArrowLeft, Brain, Zap } from "lucide-react";
+import { ArrowRight, ArrowLeft, Brain, Zap, Loader2 } from "lucide-react";
 
 const confidenceLabels: Record<number, string> = {
   0: "Just Guessing",
   50: "Somewhat Confident",
   100: "Very Confident",
 };
+
+interface QuizQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  topic: string;
+  explanation: string;
+}
+
+const answerLetters = ["A", "B", "C", "D", "E", "F"];
 
 const DiagnosticQuiz = () => {
   const { studentProfile, setStudentProfile, setDiagnosticComplete } = useApp();
@@ -31,27 +41,62 @@ const DiagnosticQuiz = () => {
   const [saving, setSaving] = useState(false);
   const [questionStartTime, setQuestionStartTime] = useState<number>(0);
   const [questionTimes, setQuestionTimes] = useState<number[]>([]);
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
 
-  // Check if diagnostic already completed
+  // Check if diagnostic already completed & fetch questions
   useEffect(() => {
-    const checkExisting = async () => {
+    const init = async () => {
       if (!user) return;
-      const { data } = await supabase
+
+      // Check existing result
+      const { data: existing } = await supabase
         .from("diagnostic_results")
         .select("*")
         .eq("student_id", user.id)
         .maybeSingle();
-      if (data) {
+
+      if (existing) {
         setDiagnosticComplete(true);
         navigate("/student/home", { replace: true });
-      } else {
-        setPhase("intro");
+        return;
       }
+
+      // Fetch in_test questions from DB
+      const { data: dbQuestions, error } = await supabase
+        .from("diagnostic_questions")
+        .select("*")
+        .eq("in_test", true)
+        .in("format", ["mcq", "true_false"])
+        .order("difficulty_estimate", { ascending: true });
+
+      if (error || !dbQuestions || dbQuestions.length === 0) {
+        // Fallback: no questions available
+        setQuestions([]);
+        setPhase("intro");
+        return;
+      }
+
+      const mapped: QuizQuestion[] = dbQuestions.map((row) => {
+        const options = (row.options as string[]) || [];
+        const idx = answerLetters.indexOf(row.answer);
+        const correctIndex = idx >= 0 ? idx : options.indexOf(row.answer);
+
+        return {
+          id: row.id,
+          question: row.content_text,
+          options,
+          correctIndex: correctIndex >= 0 ? correctIndex : 0,
+          topic: row.topic || "",
+          explanation: row.explanation || "",
+        };
+      });
+
+      setQuestions(mapped);
+      setPhase("intro");
     };
-    checkExisting();
+    init();
   }, [user]);
 
-  const questions = mockQuizQuestions.slice(0, 7);
   const question = questions[currentQ];
 
   const handleAnswer = async () => {
@@ -71,25 +116,25 @@ const DiagnosticQuiz = () => {
       setQuestionStartTime(Date.now());
     } else {
       const correct = newAnswers.filter((a, i) => a === questions[i].correctIndex).length;
-      const level = correct >= 6 ? "Expert" : correct >= 4 ? "Advanced" : correct >= 2 ? "Intermediate" : "Beginner";
+      const total = questions.length;
+      const ratio = correct / total;
+      const level = ratio >= 0.85 ? "Expert" : ratio >= 0.6 ? "Advanced" : ratio >= 0.35 ? "Intermediate" : "Beginner";
+      
       if (studentProfile) {
         setStudentProfile({ ...studentProfile, learnerLevel: level });
       }
 
-      // Save to database
       if (user) {
         setSaving(true);
         await supabase.from("diagnostic_results").insert({
           student_id: user.id,
           score: correct,
-          total_questions: questions.length,
+          total_questions: total,
           learner_level: level,
           answers: newAnswers as unknown as import("@/integrations/supabase/types").Json,
           confidences: newConfidences as unknown as import("@/integrations/supabase/types").Json,
           question_times: newQuestionTimes as unknown as import("@/integrations/supabase/types").Json,
         });
-
-        // Also update profile learner_level in DB
         await supabase.from("profiles").update({ learner_level: level }).eq("id", user.id);
         setSaving(false);
       }
@@ -101,7 +146,10 @@ const DiagnosticQuiz = () => {
   if (phase === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -116,19 +164,31 @@ const DiagnosticQuiz = () => {
                 <Brain className="h-8 w-8 text-primary" />
               </div>
               <h2 className="font-heading text-2xl font-bold">Diagnostic Quiz</h2>
-              <p className="text-muted-foreground">
-                This quiz uses <strong>adaptive testing</strong> — the difficulty level of questions adjusts based on how you answer. Answer honestly to get the most accurate assessment of your current knowledge level.
-              </p>
-              <div className="flex items-center justify-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-                <Zap className="h-4 w-4 text-primary shrink-0" />
-                <p className="text-sm text-left">
-                  <span className="font-medium text-foreground">How it works:</span>{" "}
-                  <span className="text-muted-foreground">Questions get harder or easier based on your responses. This helps us pinpoint your exact knowledge level quickly.</span>
-                </p>
-              </div>
-              <Button onClick={() => { setPhase("quiz"); setQuestionStartTime(Date.now()); }} className="w-full">
-                Start Quiz <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+              {questions.length === 0 ? (
+                <>
+                  <p className="text-muted-foreground">No diagnostic questions are available for this course yet. Please check back later or contact your instructor.</p>
+                  <Button onClick={() => navigate("/student/home")} className="w-full">
+                    Go to Home <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted-foreground">
+                    This quiz uses <strong>adaptive testing</strong> — the difficulty level of questions adjusts based on how you answer. Answer honestly to get the most accurate assessment of your current knowledge level.
+                  </p>
+                  <div className="flex items-center justify-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                    <Zap className="h-4 w-4 text-primary shrink-0" />
+                    <p className="text-sm text-left">
+                      <span className="font-medium text-foreground">How it works:</span>{" "}
+                      <span className="text-muted-foreground">Questions get harder or easier based on your responses. This helps us pinpoint your exact knowledge level quickly.</span>
+                    </p>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{questions.length} questions</p>
+                  <Button onClick={() => { setPhase("quiz"); setQuestionStartTime(Date.now()); }} className="w-full">
+                    Start Quiz <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -163,6 +223,8 @@ const DiagnosticQuiz = () => {
       </div>
     );
   }
+
+  if (!question) return null;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
