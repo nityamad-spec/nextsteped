@@ -49,7 +49,7 @@ const Auth = () => {
 
       const userRole = profile?.role || user.user_metadata?.role || role;
 
-      if (profile && profile.role !== role) {
+      if (profile && profile.role !== role && role !== "admin") {
         toast.error(`This account is registered as a ${profile.role}. Please sign in from the correct page.`);
         await supabase.auth.signOut();
         setLoading(false);
@@ -57,7 +57,11 @@ const Auth = () => {
       }
 
       toast.success("Welcome back!");
-      navigate(userRole === "teacher" ? "/teacher" : "/student");
+      if (userRole === "admin") {
+        navigate("/admin/dashboard");
+      } else {
+        navigate(userRole === "teacher" ? "/teacher" : "/student");
+      }
     } else {
       if (!name.trim()) {
         toast.error("Please enter your name");
