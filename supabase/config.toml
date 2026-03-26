@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.quality-check]
 verify_jwt = false
+
+[functions.seed-admin]
+verify_jwt = false
+
+[functions.approve-teacher]
+verify_jwt = false

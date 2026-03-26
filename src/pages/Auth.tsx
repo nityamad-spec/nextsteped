@@ -49,7 +49,7 @@ const Auth = () => {
 
       const userRole = profile?.role || user.user_metadata?.role || role;
 
-      if (profile && profile.role !== role) {
+      if (profile && profile.role !== role && role !== "admin") {
         toast.error(`This account is registered as a ${profile.role}. Please sign in from the correct page.`);
         await supabase.auth.signOut();
         setLoading(false);
@@ -57,18 +57,36 @@ const Auth = () => {
       }
 
       toast.success("Welcome back!");
-      navigate(userRole === "teacher" ? "/teacher" : "/student");
+      if (userRole === "admin") {
+        navigate("/admin/dashboard");
+      } else {
+        navigate(userRole === "teacher" ? "/teacher" : "/student");
+      }
     } else {
       if (!name.trim()) {
         toast.error("Please enter your name");
         setLoading(false);
         return;
       }
-      const { error } = await signUp(email, password, name, role);
-      if (error) {
-        toast.error(error);
+
+      if (role === "teacher") {
+        // Teacher signup: submit application instead of creating account
+        const { error: appError } = await supabase
+          .from("teacher_applications" as any)
+          .insert({ email, name } as any);
+
+        if (appError) {
+          toast.error(appError.message || "Failed to submit application");
+        } else {
+          toast.success("Your application has been submitted! An admin will review it shortly.");
+        }
       } else {
-        toast.success("Check your email to verify your account");
+        const { error } = await signUp(email, password, name, role);
+        if (error) {
+          toast.error(error);
+        } else {
+          toast.success("Check your email to verify your account");
+        }
       }
     }
     setLoading(false);
@@ -88,7 +106,7 @@ const Auth = () => {
           </h1>
           <p className="mt-2 text-muted-foreground">
             {isLogin ? "Sign in to continue" : "Create your account"}
-            {" "}as {role === "teacher" ? "Professor" : "Student"}
+            {" "}as {role === "teacher" ? "Professor" : role === "admin" ? "Admin" : "Student"}
           </p>
         </div>
 
