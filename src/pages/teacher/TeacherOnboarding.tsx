@@ -39,21 +39,42 @@ const TeacherOnboarding = () => {
       setLoading(true);
       const storedCourseId = localStorage.getItem("currentCourseId");
       
-      let courseQuery = supabase.from("courses")
-        .select("id, branch, term, sections, objectives, course_code, name");
-      
-      if (storedCourseId) {
-        courseQuery = courseQuery.eq("id", storedCourseId);
-      } else {
-        courseQuery = courseQuery.eq("teacher_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(1);
-      }
+      const courseFields = "id, branch, term, sections, objectives, course_code, name";
 
-      const [profileRes, courseRes] = await Promise.all([
-        supabase.from("profiles").select("name, department, graduation_year").eq("id", user.id).maybeSingle(),
-        courseQuery.maybeSingle(),
-      ]);
+      const profileRes = await supabase.from("profiles").select("name, department").eq("id", user.id).maybeSingle();
+
+      let courseRes: { data: any } = { data: null };
+
+      if (storedCourseId) {
+        courseRes = await supabase.from("courses").select(courseFields).eq("id", storedCourseId).maybeSingle();
+      } else {
+        // Try owned course first
+        const owned = await supabase.from("courses")
+          .select(courseFields)
+          .eq("teacher_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (owned.data) {
+          courseRes = owned;
+        } else {
+          // Fallback: find course via course_teachers (collaborator)
+          const membership = await supabase.from("course_teachers")
+            .select("course_id")
+            .eq("teacher_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (membership.data?.course_id) {
+            courseRes = await supabase.from("courses")
+              .select(courseFields)
+              .eq("id", membership.data.course_id)
+              .maybeSingle();
+          }
+        }
+      }
 
       if (profileRes.data) {
         if (profileRes.data.name) setName(profileRes.data.name);
