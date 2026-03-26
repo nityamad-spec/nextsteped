@@ -1,42 +1,37 @@
 
 
-## Plan: Edge Function to Seed Diagnostic Questions
+## Plan: Add `in_test` Flag to Diagnostic Questions
 
-### Clarification
-You mentioned "course_materials table" — based on our earlier conversation, this should be the **diagnostic_questions** table. The plan proceeds with that assumption.
+### Problem
+All diagnostic questions in the database are currently treated as active test questions. There's no way for teachers to maintain a question bank separately from what students actually see in the diagnostic test.
 
-### Edge Function: `seed-questions`
+### Solution
+Add a boolean column `in_test` (default `false`) to the `diagnostic_questions` table. Teachers can toggle individual questions on/off for the diagnostic test. The student-facing quiz only fetches questions where `in_test = true`.
 
-**File**: `supabase/functions/seed-questions/index.ts`
+### Steps
 
-Accepts the full question_bank JSON, transforms all questions, and bulk-inserts them into `diagnostic_questions`.
+1. **Database migration** — Add column:
+   ```sql
+   ALTER TABLE diagnostic_questions ADD COLUMN in_test boolean NOT NULL DEFAULT false;
+   ```
 
-### Transformation Rules
-- `single_token_fill` → `short_answer` (options = null)
-- `code_output` → `short_answer` (options = null)
-- `code_completion` → `short_answer` (options = null)
-- `match_following` → **skip**
-- `mcq` → `mcq` (parse options from content_text, strip them from the text)
-- `true_false` → `true_false` (options = `["True", "False"]`, answer mapped to "A"/"B")
+2. **Update `src/pages/teacher/DiagnosticQuestionsSetup.tsx`**:
+   - Add an `in_test` toggle (switch or checkbox) per question in the list view
+   - Allow bulk toggling (e.g. "Add selected to test" / "Remove from test")
+   - Show a visual indicator (badge or highlight) for questions marked `in_test`
+   - Display a count summary: "X of Y questions in diagnostic test"
+   - Wire toggle to update the database column
 
-### Logic
-1. Parse incoming JSON (`fileContent`)
-2. Look up PWIM course → get `course_id` and `teacher_id` (course owner)
-3. Look up all concepts for the course from `concepts` table → build a `concept_code → UUID` map
-4. Iterate each concept's questions:
-   - Skip `match_following` format
-   - Map format names as above
-   - For MCQ: extract options from content_text lines (A/B/C/D), strip them from content, store as JSON array
-   - For true_false: set options to `["True", "False"]`, map answer "True"→"A", "False"→"B"
-   - For short_answer: options = null, answer = raw text
-   - Map `item_id` → `item_code`
-5. Delete existing diagnostic_questions for this course
-6. Bulk insert all transformed rows
+3. **Update `src/pages/student/DiagnosticQuiz.tsx`**:
+   - Change the query to fetch only from `diagnostic_questions` where `in_test = true` instead of using `mockQuizQuestions`
+   - This also replaces the current mock data dependency with real DB questions
 
-### Config
-Add `[functions.seed-questions]` with `verify_jwt = false` to `supabase/config.toml`.
+4. **Update `supabase/functions/seed-questions/index.ts`**:
+   - Include `in_test: false` in seeded rows (matches default, but explicit)
 
 ### Files Modified
-1. `supabase/functions/seed-questions/index.ts` — new edge function
-2. `supabase/config.toml` — add function config block
+1. New migration SQL
+2. `src/pages/teacher/DiagnosticQuestionsSetup.tsx`
+3. `src/pages/student/DiagnosticQuiz.tsx`
+4. `supabase/functions/seed-questions/index.ts`
 
