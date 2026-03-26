@@ -134,6 +134,7 @@ Deno.serve(async (req) => {
           concept_id: conceptUuid,
           course_id: course.id,
           teacher_id: course.teacher_id,
+          in_test: false,
         });
       }
     }
