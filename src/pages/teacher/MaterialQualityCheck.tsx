@@ -417,8 +417,26 @@ const MaterialQualityCheck = () => {
                   Your syllabus was previously reviewed and approved. You can continue or re-upload and re-review if needed.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <SyllabusPreview syllabus={previewJson} editable onChange={setPreviewJson} />
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    className="gap-1"
+                    onClick={async () => {
+                      if (!user || !previewJson) return;
+                      const blob = new Blob([JSON.stringify(previewJson, null, 2)], { type: "application/json" });
+                      const { error } = await supabase.storage.from("course-materials").upload(`${user.id}/syllabus/approved-syllabus.json`, blob, { upsert: true });
+                      if (error) {
+                        toast({ title: "Save failed", description: error.message, variant: "destructive" });
+                      } else {
+                        toast({ title: "Changes saved", description: "Your syllabus edits have been saved." });
+                      }
+                    }}
+                  >
+                    <Save className="h-3.5 w-3.5" /> Save Changes
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
