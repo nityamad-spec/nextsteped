@@ -1,0 +1,1 @@
+ALTER TABLE public.courses ADD COLUMN graduation_year TEXT;

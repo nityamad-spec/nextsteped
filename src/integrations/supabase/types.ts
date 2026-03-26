@@ -265,6 +265,7 @@ export type Database = {
           created_at: string
           end_date: string | null
           enrollment_code: string
+          graduation_year: string | null
           id: string
           materials_uploaded: boolean
           name: string
@@ -284,6 +285,7 @@ export type Database = {
           created_at?: string
           end_date?: string | null
           enrollment_code?: string
+          graduation_year?: string | null
           id?: string
           materials_uploaded?: boolean
           name: string
@@ -303,6 +305,7 @@ export type Database = {
           created_at?: string
           end_date?: string | null
           enrollment_code?: string
+          graduation_year?: string | null
           id?: string
           materials_uploaded?: boolean
           name?: string
