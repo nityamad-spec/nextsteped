@@ -1,29 +1,47 @@
 
 
-## Plan: Add Concept Selector Dropdown to Diagnostic Questions UI
+## Plan: Build Concept Management Page with DB Integration
 
 ### Summary
-Add a concept selector dropdown to the question edit form that loads concepts from the `concepts` table (filtered by `course_id`) and saves the selected `concept_id` foreign key when persisting questions.
+Create a new `/teacher/setup/concepts` page (step 4) where teachers can CRUD concepts from the `concepts` table. Insert it between Lesson Plan and Diagnostic Qs in the pipeline, bumping subsequent steps.
 
 ### Changes
 
-**File: `src/pages/teacher/DiagnosticQuestionsSetup.tsx`**
+#### 1. New file: `src/pages/teacher/ConceptManagement.tsx`
+- Fetch concepts from `concepts` table filtered by `courseId` (from localStorage)
+- CRUD operations wired to the database:
+  - **Create**: Insert row with `concept_id` (text), `weight` (numeric input 0.0–1.0), `course_id`
+  - **Edit**: Inline edit mode, update row in DB on save
+  - **Delete**: Delete from DB with confirmation
+- Display total weight sum with a progress indicator toward 1.0
+- Table layout: concept_id, weight, actions (edit/delete)
+- Loading spinner, empty state ("No concepts yet")
+- SetupProgressBar at step 4
+- Navigation: Back to Lesson Plan, Continue to Diagnostic Questions
 
-1. **Extend `DiagnosticQuestion` interface** — add `conceptId?: string` field to track the FK
-2. **Fetch concepts on mount** — query `supabase.from("concepts").select("*").eq("course_id", courseId)` alongside existing questions fetch; store in a `concepts` state array
-3. **Update `dbRowToQuestion`** — map `row.concept_id` to `conceptId`
-4. **Update `questionToDbRow`** — include `concept_id: q.conceptId || null` in the returned object
-5. **Add concept `<Select>` dropdown in the edit form** — placed near the existing `topic` field; lists all loaded concepts by their `concept_id` text (e.g., "PWIM/Python_Environment"); includes a "None" option to clear
-6. **Auto-fill `topic` from concept** — when a concept is selected, optionally sync the `topic` text field to the concept's `concept_id` string for consistency
-7. **Update view mode** — show selected concept as a badge alongside existing topic display
-8. **Handle empty concepts gracefully** — if no concepts exist for the course, show "No concepts defined yet" in the dropdown with a disabled state
+#### 2. Update `src/components/SetupProgressBar.tsx`
+- Insert `{ label: "Concepts", path: "/teacher/setup/concepts" }` at index 3
+- Pipeline becomes 8 steps
 
-### Technical Details
+#### 3. Update `src/App.tsx`
+- Add route `/teacher/setup/concepts` → `ConceptManagement`
 
-- Concepts state: `const [concepts, setConcepts] = useState<{id: string, concept_id: string, weight: number}[]>([])`
-- The dropdown maps `concept.id` (UUID) as the select value, displays `concept.concept_id` (text) as the label
-- On save, `concept_id` UUID is written to `diagnostic_questions.concept_id` FK column
+#### 4. Update `src/pages/teacher/CourseCreation.tsx`
+- Change "Continue to Diagnostic Questions" button (line 975) to navigate to `/teacher/setup/concepts`
+
+#### 5. Bump `currentStep` in downstream pages
+- `DiagnosticQuestionsSetup`: 4→5
+- `AITASettings`: 5→6
+- `ExamMode`: 6→7
+- `PublishEnrollment`: 7→8
 
 ### Files Modified
-1. `src/pages/teacher/DiagnosticQuestionsSetup.tsx` — add concept fetch, dropdown widget, and FK persistence
+1. `src/pages/teacher/ConceptManagement.tsx` — new file (CRUD page wired to `concepts` table)
+2. `src/components/SetupProgressBar.tsx` — add "Concepts" step
+3. `src/App.tsx` — add route + import
+4. `src/pages/teacher/CourseCreation.tsx` — update continue navigation
+5. `src/pages/teacher/DiagnosticQuestionsSetup.tsx` — currentStep 4→5
+6. `src/pages/teacher/AITASettings.tsx` — currentStep 5→6
+7. `src/pages/teacher/ExamMode.tsx` — currentStep 6→7
+8. `src/pages/teacher/PublishEnrollment.tsx` — currentStep 7→8
 
