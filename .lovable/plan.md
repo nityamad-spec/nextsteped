@@ -1,36 +1,50 @@
 
 
-## Plan: Enhanced Admin Approval with Role Selection and Owner Swapping
+## Plan: Auto-populate Course Fields for Collaborators
 
-### Summary
-Redesign the pending application card UI to give the admin explicit control over three assignment options: (1) Collaborator on an existing course, (2) Owner of an existing course (demoting the current owner to collaborator), (3) Owner of a brand new course. The `approve-teacher` edge function is updated to handle the owner-swap logic.
+### Problem
+When a collaborator visits `/teacher/onboarding`, the fallback query (`courses.teacher_id = user.id`) finds nothing because they don't own the course. Only the owner's courses load. The `course_teachers` table links collaborators to courses but isn't queried.
 
-### UI Changes — `src/pages/admin/AdminDashboard.tsx`
+### Solution
+When no `currentCourseId` is in localStorage, add a fallback that checks `course_teachers` for the user's most recent course assignment.
 
-Replace the current single course dropdown + implicit role logic with:
+### Changes — `src/pages/teacher/TeacherOnboarding.tsx`
 
-1. **Role selector** (Radio group or Select): Three options:
-   - "Collaborator on existing course"
-   - "Owner of existing course" (swaps current owner to collaborator)
-   - "Owner of new course"
+Update the `fetchExistingData` function (lines 42-51):
 
-2. **Course dropdown**: Shown only when role is "collaborator" or "owner of existing course". Populated from the `courses` table (already fetched). Hidden when "Owner of new course" is selected.
+1. Keep the `storedCourseId` path unchanged (works for both owners and collaborators)
+2. When no stored ID exists, first try `courses.teacher_id = user.id` (owner lookup)
+3. If that returns nothing, query `course_teachers` for the user's latest course assignment, then fetch that course by ID
 
-3. **Approve button label** updates dynamically based on selection.
+```typescript
+// Pseudocode for the new fallback logic:
+if (storedCourseId) {
+  // fetch by ID (existing — works for both roles)
+} else {
+  // Try owned course first
+  const owned = await supabase.from("courses")
+    .select("id, branch, term, sections, objectives, course_code, name")
+    .eq("teacher_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-4. Track `selectedRoles` state per application (in addition to `selectedCourses`).
+  if (!owned.data) {
+    // Fallback: find course via course_teachers
+    const membership = await supabase.from("course_teachers")
+      .select("course_id")
+      .eq("teacher_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-### Edge Function Changes — `supabase/functions/approve-teacher/index.ts`
-
-Add handling for `assignmentType === "owner_swap"`:
-
-1. Create the new teacher's auth account and profile (same as current "approve" flow)
-2. Look up the current `courses.teacher_id` for the selected course
-3. Update `courses.teacher_id` to the new teacher's ID
-4. Update the existing `course_teachers` row for the old owner: change role from `'owner'` to `'collaborator'` (or insert if missing)
-5. Insert a `course_teachers` row for the new teacher with role `'owner'`
+    if (membership.data) {
+      // fetch course by membership.data.course_id
+    }
+  }
+}
+```
 
 ### Files Modified
-1. `src/pages/admin/AdminDashboard.tsx` — add role selector, conditional course dropdown, dynamic button labels
-2. `supabase/functions/approve-teacher/index.ts` — add `owner_swap` assignment type with owner demotion logic
+1. `src/pages/teacher/TeacherOnboarding.tsx` — add collaborator course lookup fallback
 
