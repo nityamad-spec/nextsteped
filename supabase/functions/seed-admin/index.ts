@@ -34,11 +34,12 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!existingProfile) {
-        await adminClient.from("profiles").insert({
+        const { error: pErr } = await adminClient.from("profiles").insert({
           id: existingAdmin.id,
           name: "Admin",
           role: "admin",
         });
+        if (pErr) throw pErr;
         return new Response(
           JSON.stringify({ message: "Admin profile created for existing user" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
