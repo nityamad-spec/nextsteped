@@ -1,66 +1,45 @@
 
 
-## Plan: Create Backend Table for Diagnostic Test Questions
+## Plan: Add Missing DB Fields to Diagnostic Questions UI
 
-### Summary
-Create a `diagnostic_questions` table in the database to store professor-defined diagnostic quiz questions with the rich metadata format provided (item_id, bloom level, difficulty estimate, distractor flag, etc.). This replaces the current hardcoded `questionBank.ts` approach.
+### Problem
+The `diagnostic_questions` table has several columns not captured by the current edit form:
+- **item_id** — hierarchical question ID (e.g. `PWIM/Python_Environment/Q001`)
+- **difficulty_estimate** — numeric 0.0–1.0 (UI only has Easy/Medium/Hard label, no numeric mapping)
+- **bloom_level** — integer 1–6 (Bloom's taxonomy)
+- **bloom_justification** — text explaining the Bloom level choice
+- **difficulty_justification** — text explaining the difficulty rating
+- **is_distractor** — boolean flag
 
-### Database Migration
+### Changes
 
-Create table `diagnostic_questions`:
+**File: `src/pages/teacher/DiagnosticQuestionsSetup.tsx`**
 
-```sql
-CREATE TABLE public.diagnostic_questions (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  course_id uuid REFERENCES public.courses(id) ON DELETE CASCADE NOT NULL,
-  teacher_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-  item_id text NOT NULL,                    -- e.g. "PWIM/Python_Environment/Q001"
-  content_text text NOT NULL,               -- full question text including options
-  format text NOT NULL DEFAULT 'mcq',       -- mcq, true_false, short_answer, code
-  answer text NOT NULL,                     -- correct answer (e.g. "B")
-  difficulty_estimate numeric(3,2) NOT NULL DEFAULT 0.5, -- 0.0 to 1.0
-  bloom_level integer NOT NULL DEFAULT 1,   -- 1-6 (Bloom's taxonomy)
-  bloom_justification text,
-  difficulty_justification text,
-  is_distractor boolean NOT NULL DEFAULT false,
-  topic text,                               -- e.g. "Python_Environment"
-  options jsonb,                            -- array of option strings for MCQ
-  explanation text,                         -- why the answer is correct
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
+1. **Extend `DiagnosticQuestion` interface** with the missing fields:
+   - `itemId: string` (auto-generated default from topic + index, editable)
+   - `difficultyEstimate: number` (0.0–1.0)
+   - `bloomLevel: number` (1–6)
+   - `bloomJustification: string`
+   - `difficultyJustification: string`
+   - `isDistractor: boolean`
 
-ALTER TABLE public.diagnostic_questions ENABLE ROW LEVEL SECURITY;
+2. **Add UI widgets in the edit form** (inside the existing edit mode section):
+   - **Item ID**: `<Input>` field with auto-generated placeholder
+   - **Difficulty Estimate**: `<Slider>` (0–1 range, step 0.05) displayed alongside the existing Easy/Medium/Hard dropdown; auto-sync the dropdown to preset ranges (Easy: 0–0.33, Medium: 0.34–0.66, Hard: 0.67–1.0)
+   - **Bloom Level**: `<Select>` with options 1–6 labeled with Bloom names (1: Remember, 2: Understand, 3: Apply, 4: Analyze, 5: Evaluate, 6: Create)
+   - **Bloom Justification**: `<Textarea>` below Bloom level select
+   - **Difficulty Justification**: `<Textarea>` below difficulty estimate slider
+   - **Is Distractor**: `<Checkbox>` with label "Mark as distractor question"
 
--- Teachers can fully manage their own questions
-CREATE POLICY "Teachers can manage own diagnostic questions"
-  ON public.diagnostic_questions FOR ALL
-  TO authenticated
-  USING (auth.uid() = teacher_id);
+3. **Update view mode** to display the new metadata fields (Bloom level badge, difficulty estimate value, distractor flag, justifications in collapsible sections)
 
--- Students can view questions for courses they're enrolled in
-CREATE POLICY "Students can view diagnostic questions for enrolled courses"
-  ON public.diagnostic_questions FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.enrollments
-      WHERE enrollments.course_id = diagnostic_questions.course_id
-        AND enrollments.student_id = auth.uid()
-    )
-  );
-```
+4. **Update `emptyQuestion` factory** to include sensible defaults for new fields
 
-### Key Design Decisions
+5. **Update `generatedQuestions` seed data** with sample values for the new fields
 
-- **`item_id`** stores the hierarchical ID format (e.g. `PWIM/Python_Environment/Q001`) as a text field for flexible naming
-- **`difficulty_estimate`** is a numeric 0-1 scale (not the Easy/Medium/Hard enum) to match the provided format
-- **`bloom_level`** is an integer 1-6 mapping to Bloom's taxonomy levels
-- **`options`** stored as JSONB array for flexible option counts
-- **`is_distractor`** boolean flag preserved from the provided schema
-- **`course_id` + `teacher_id`** foreign keys for ownership and access control
-- RLS ensures teachers manage their own questions and students can only read questions for enrolled courses
+### Layout
+The edit form will organize fields into a collapsible "Advanced Metadata" section below the existing fields to keep the form clean for quick edits while making all DB fields accessible.
 
 ### Files Modified
-1. New database migration — create `diagnostic_questions` table with RLS policies
+1. `src/pages/teacher/DiagnosticQuestionsSetup.tsx` — add missing field widgets, update types, update view/edit modes
 
