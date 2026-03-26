@@ -1,43 +1,20 @@
 
 
-## Plan: Improve Course Auto-Population with Specific Course ID
+## Plan: Add Loading Skeleton to Teacher Onboarding
 
-### Problem
-The current `useEffect` always fetches the *most recent* course by `teacher_id`. If a teacher navigates back to this page after creating a course, it should prioritize the `currentCourseId` stored in localStorage to load the correct course. Additionally, the `localStorage` courseId should be set immediately after fetching so downstream pages have it available.
-
-### Current State
-The page already auto-populates all fields from the database (lines 35–62). The fetch logic queries `profiles` and `courses` tables and populates `name`, `department`, `graduation_year`, `branch`, `term`, `sections`, `objectives`, `course_code`, and `courseName`.
+### Summary
+Replace the current spinner loading state with a skeleton layout that mirrors the form structure, giving users a better visual preview while data loads.
 
 ### Changes
 
 **File: `src/pages/teacher/TeacherOnboarding.tsx`**
 
-1. **Use `currentCourseId` from localStorage when available** — modify the course fetch query to first check `localStorage.getItem("currentCourseId")` and use `.eq("id", storedCourseId)` if present, falling back to the existing `teacher_id` + latest ordering query
-2. **Set `currentCourseId` in localStorage on fetch** — when a course is found during load, immediately store its `id` in localStorage so downstream pages have the right context
-3. **No UI changes needed** — the form fields and their bindings are already correct
-
-### Technical Details
-```typescript
-// Updated fetch logic
-const storedCourseId = localStorage.getItem("currentCourseId");
-let courseQuery = supabase.from("courses")
-  .select("id, branch, term, sections, objectives, course_code, name");
-
-if (storedCourseId) {
-  courseQuery = courseQuery.eq("id", storedCourseId);
-} else {
-  courseQuery = courseQuery.eq("teacher_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(1);
-}
-
-// After fetch, store courseId
-if (courseRes.data) {
-  localStorage.setItem("currentCourseId", courseRes.data.id);
-  // ... populate fields
-}
-```
+1. **Import `Skeleton`** from `@/components/ui/skeleton`
+2. **Replace the spinner block (lines 189–197)** with a skeleton version that preserves the page layout:
+   - `SetupProgressBar` and heading render normally (static content)
+   - Inside the Card, render skeleton rectangles matching the form fields: Full Name, Department, Course Code + Course Name (2-col grid), Sections, Term + Branch (2-col grid), Graduation Year, Learning Objectives, and button row
+   - Each skeleton uses appropriate height (`h-10` for inputs, `h-[80px]` for textarea, `h-4 w-24` for labels)
 
 ### Files Modified
-1. `src/pages/teacher/TeacherOnboarding.tsx` — improve course fetch to use stored courseId, set courseId on load
+1. `src/pages/teacher/TeacherOnboarding.tsx` — replace spinner with skeleton form layout
 
