@@ -39,9 +39,9 @@ const TeacherOnboarding = () => {
       setLoading(true);
       const storedCourseId = localStorage.getItem("currentCourseId");
       
-      const courseFields = "id, branch, term, sections, objectives, course_code, name";
+      const courseFields = "id, branch, term, sections, objectives, course_code, name, graduation_year";
 
-      const profileRes = await supabase.from("profiles").select("name, department, graduation_year").eq("id", user.id).maybeSingle();
+      const profileRes = await supabase.from("profiles").select("name, department").eq("id", user.id).maybeSingle();
 
       let courseRes: { data: any } = { data: null };
 
@@ -79,7 +79,6 @@ const TeacherOnboarding = () => {
       if (profileRes.data) {
         if (profileRes.data.name) setName(profileRes.data.name);
         if (profileRes.data.department) setDepartment(profileRes.data.department);
-        if (profileRes.data.graduation_year) setStudentYear(profileRes.data.graduation_year);
       }
 
       if (courseRes.data) {
@@ -90,6 +89,7 @@ const TeacherOnboarding = () => {
         if (courseRes.data.objectives) setObjectives((courseRes.data.objectives as string[]).join("\n"));
         if (courseRes.data.course_code) setCourseCode(courseRes.data.course_code);
         if (courseRes.data.name) setCourseName(courseRes.data.name);
+        if (courseRes.data.graduation_year) setStudentYear(courseRes.data.graduation_year);
       }
 
       setLoading(false);
@@ -132,7 +132,7 @@ const TeacherOnboarding = () => {
 
     if (existingProfile) {
       const { error: profileError } = await supabase.from("profiles")
-        .update({ name, department, graduation_year: studentYear })
+        .update({ name, department })
         .eq("id", user.id);
       if (profileError) {
         toast.error("Failed to update profile: " + profileError.message);
@@ -144,7 +144,6 @@ const TeacherOnboarding = () => {
         name,
         role: "teacher",
         department,
-        graduation_year: studentYear,
       });
       if (profileError) {
         toast.error("Failed to save profile: " + profileError.message);
@@ -160,6 +159,7 @@ const TeacherOnboarding = () => {
       term,
       sections,
       objectives: objectives.split("\n").filter(Boolean),
+      graduation_year: studentYear,
     };
 
     const { data: existingCourse } = await supabase
