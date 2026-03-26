@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -15,10 +15,12 @@ import {
 } from "@/components/ui/dialog";
 import {
   ArrowRight, ArrowLeft, Brain, Plus, Pencil, Trash2, Check, X,
-  ChevronDown, ChevronUp, Info, Settings2, AlertTriangle,
+  ChevronDown, ChevronUp, Info, Settings2, AlertTriangle, Loader2,
 } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 type QuestionType = "mcq" | "true_false" | "short_answer" | "code";
 
@@ -53,6 +55,7 @@ const estimateToDifficulty = (e: number): "Easy" | "Medium" | "Hard" =>
 
 interface DiagnosticQuestion {
   id: string;
+  dbId?: string; // UUID from database
   question: string;
   type: QuestionType;
   topic: string;
@@ -62,7 +65,6 @@ interface DiagnosticQuestion {
   correctAnswer?: string;
   explanation: string;
   approved: boolean;
-  // DB metadata fields
   itemId: string;
   difficultyEstimate: number;
   bloomLevel: number;
@@ -77,72 +79,6 @@ const generateItemId = (topic: string, index: number): string => {
   const sanitized = topic.replace(/[^a-zA-Z0-9]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "") || "General";
   return `COURSE/${sanitized}/Q${String(index + 1).padStart(3, "0")}`;
 };
-
-const generatedQuestions: DiagnosticQuestion[] = [
-  {
-    id: "dq1", question: "What is the output of print(type(3.14)) in Python?",
-    type: "mcq", topic: "Variables & Data Types", difficulty: "Easy",
-    options: ["<class 'float'>", "<class 'int'>", "<class 'str'>", "<class 'double'>"],
-    correctIndex: 0, explanation: "3.14 is a floating-point number, so type() returns <class 'float'>.",
-    approved: false, itemId: "COURSE/Variables_Data_Types/Q001", difficultyEstimate: 0.2,
-    bloomLevel: 1, bloomJustification: "Recall of Python data types.", difficultyJustification: "Basic recall; easy difficulty.",
-    isDistractor: false,
-  },
-  {
-    id: "dq2", question: "Which loop is best when you know the number of iterations?",
-    type: "mcq", topic: "Control Flow", difficulty: "Medium",
-    options: ["while loop", "for loop", "do-while loop", "repeat loop"],
-    correctIndex: 1, explanation: "A for loop is ideal when the number of iterations is known in advance.",
-    approved: false, itemId: "COURSE/Control_Flow/Q001", difficultyEstimate: 0.5,
-    bloomLevel: 2, bloomJustification: "Understanding loop semantics.", difficultyJustification: "Requires conceptual understanding.",
-    isDistractor: false,
-  },
-  {
-    id: "dq3", question: "What does the 'return' statement do in a function?",
-    type: "mcq", topic: "Functions", difficulty: "Hard",
-    options: ["Exits the function and returns a value", "Prints a value", "Loops the function", "Imports a module"],
-    correctIndex: 0, explanation: "The return statement exits the function and optionally passes back a value to the caller.",
-    approved: false, itemId: "COURSE/Functions/Q001", difficultyEstimate: 0.8,
-    bloomLevel: 3, bloomJustification: "Applying knowledge of function mechanics.", difficultyJustification: "Requires deeper understanding of execution flow.",
-    isDistractor: false,
-  },
-  {
-    id: "dq4", question: "How do you access the value associated with key 'name' in a dictionary d?",
-    type: "mcq", topic: "Lists & Dictionaries", difficulty: "Medium",
-    options: ["d['name']", "d.name", "d(name)", "d->name"],
-    correctIndex: 0, explanation: "Dictionary values are accessed using square bracket notation with the key.",
-    approved: false, itemId: "COURSE/Lists_Dictionaries/Q001", difficultyEstimate: 0.5,
-    bloomLevel: 1, bloomJustification: "Remembering dictionary syntax.", difficultyJustification: "Standard syntax recall.",
-    isDistractor: false,
-  },
-  {
-    id: "dq5", question: "Python is a statically typed language.",
-    type: "true_false", topic: "Variables & Data Types", difficulty: "Easy",
-    options: ["True", "False"], correctIndex: 1,
-    explanation: "Python is dynamically typed — variable types are determined at runtime, not at compile time.",
-    approved: false, itemId: "COURSE/Variables_Data_Types/Q002", difficultyEstimate: 0.2,
-    bloomLevel: 1, bloomJustification: "Recall of language characteristics.", difficultyJustification: "Basic factual recall.",
-    isDistractor: false,
-  },
-  {
-    id: "dq6", question: "What is the correct way to open a file for reading in Python?",
-    type: "mcq", topic: "File Handling", difficulty: "Easy",
-    options: ["open('file.txt', 'r')", "open('file.txt', 'w')", "read('file.txt')", "file.open('file.txt')"],
-    correctIndex: 0, explanation: "open() with 'r' mode opens a file for reading.",
-    approved: false, itemId: "COURSE/File_Handling/Q001", difficultyEstimate: 0.2,
-    bloomLevel: 1, bloomJustification: "Recall of file I/O syntax.", difficultyJustification: "Basic API recall.",
-    isDistractor: false,
-  },
-  {
-    id: "dq7", question: "What is __init__ in a Python class?",
-    type: "mcq", topic: "OOP Basics", difficulty: "Medium",
-    options: ["Constructor method", "Destructor method", "Static method", "Class method"],
-    correctIndex: 0, explanation: "__init__ is the constructor method called when an object is instantiated.",
-    approved: false, itemId: "COURSE/OOP_Basics/Q001", difficultyEstimate: 0.5,
-    bloomLevel: 2, bloomJustification: "Understanding class instantiation.", difficultyJustification: "Requires conceptual OOP knowledge.",
-    isDistractor: false,
-  },
-];
 
 const emptyQuestion = (type: QuestionType = "mcq", index: number = 0): DiagnosticQuestion => ({
   id: makeId(),
@@ -163,16 +99,110 @@ const emptyQuestion = (type: QuestionType = "mcq", index: number = 0): Diagnosti
   isDistractor: false,
 });
 
+// --- DB helpers ---
+
+const answerLetters = ["A", "B", "C", "D", "E", "F"];
+
+function dbRowToQuestion(row: any): DiagnosticQuestion {
+  const options = row.options as string[] | null;
+  const format = row.format as QuestionType;
+  let correctIndex: number | undefined;
+  let correctAnswer: string | undefined;
+
+  if ((format === "mcq" || format === "true_false") && options) {
+    // answer is stored as "A", "B", etc. or "True"/"False"
+    const idx = answerLetters.indexOf(row.answer);
+    correctIndex = idx >= 0 ? idx : options.indexOf(row.answer);
+    if (correctIndex < 0) correctIndex = 0;
+  } else {
+    correctAnswer = row.answer || "";
+  }
+
+  return {
+    id: row.item_id,
+    dbId: row.id,
+    question: row.content_text,
+    type: format,
+    topic: row.topic || "",
+    difficulty: estimateToDifficulty(Number(row.difficulty_estimate)),
+    options: options || undefined,
+    correctIndex,
+    correctAnswer,
+    explanation: row.explanation || "",
+    approved: true, // loaded from DB = previously saved
+    itemId: row.item_id,
+    difficultyEstimate: Number(row.difficulty_estimate),
+    bloomLevel: row.bloom_level,
+    bloomJustification: row.bloom_justification || "",
+    difficultyJustification: row.difficulty_justification || "",
+    isDistractor: row.is_distractor,
+  };
+}
+
+function questionToDbRow(q: DiagnosticQuestion, courseId: string, teacherId: string) {
+  let answer: string;
+  if ((q.type === "mcq" || q.type === "true_false") && q.correctIndex !== undefined) {
+    answer = answerLetters[q.correctIndex] || "A";
+  } else {
+    answer = q.correctAnswer || "";
+  }
+
+  return {
+    item_id: q.itemId,
+    content_text: q.question,
+    format: q.type,
+    answer,
+    difficulty_estimate: q.difficultyEstimate,
+    bloom_level: q.bloomLevel,
+    bloom_justification: q.bloomJustification || null,
+    difficulty_justification: q.difficultyJustification || null,
+    is_distractor: q.isDistractor,
+    options: q.options || null,
+    explanation: q.explanation || null,
+    topic: q.topic || null,
+    course_id: courseId,
+    teacher_id: teacherId,
+  };
+}
+
 const DiagnosticQuestionsSetup = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [questions, setQuestions] = useState<DiagnosticQuestion[]>(generatedQuestions);
+  const { user } = useAuth();
+  const [questions, setQuestions] = useState<DiagnosticQuestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<DiagnosticQuestion | null>(null);
-  const [removeConfirm, setRemoveConfirm] = useState<{ id: string; title: string } | null>(null);
+  const [removeConfirm, setRemoveConfirm] = useState<{ id: string; title: string; dbId?: string } | null>(null);
   const [approveAllConfirm, setApproveAllConfirm] = useState(false);
   const [metadataOpen, setMetadataOpen] = useState(false);
+
+  const courseId = localStorage.getItem("currentCourseId");
+
+  // Fetch questions from DB on mount
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      if (!courseId) {
+        setLoading(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("diagnostic_questions")
+        .select("*")
+        .eq("course_id", courseId)
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        toast({ title: "Failed to load questions", description: error.message, variant: "destructive" });
+      } else if (data) {
+        setQuestions(data.map(dbRowToQuestion));
+      }
+      setLoading(false);
+    };
+    fetchQuestions();
+  }, [courseId]);
 
   const approvedCount = questions.filter((q) => q.approved).length;
   const allApproved = questions.length > 0 && approvedCount === questions.length;
@@ -192,44 +222,77 @@ const DiagnosticQuestionsSetup = () => {
     if (!expandedIds.includes(q.id)) setExpandedIds((prev) => [...prev, q.id]);
   };
 
-  const saveEdit = () => {
-    if (!editDraft || !editingId) return;
+  const saveEdit = async () => {
+    if (!editDraft || !editingId || !courseId || !user) return;
     if (!editDraft.question.trim()) {
       toast({ title: "Question text is required", variant: "destructive" });
       return;
     }
+
+    setSaving(true);
+    const row = questionToDbRow(editDraft, courseId, user.id);
+
+    if (editDraft.dbId) {
+      // Update existing
+      const { error } = await supabase
+        .from("diagnostic_questions")
+        .update({ ...row, updated_at: new Date().toISOString() })
+        .eq("id", editDraft.dbId);
+      if (error) {
+        toast({ title: "Failed to save", description: error.message, variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+    } else {
+      // Insert new
+      const { data, error } = await supabase
+        .from("diagnostic_questions")
+        .insert(row)
+        .select("id")
+        .single();
+      if (error) {
+        toast({ title: "Failed to save", description: error.message, variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+      editDraft.dbId = data.id;
+    }
+
     setQuestions((prev) => prev.map((q) => q.id === editingId ? { ...editDraft } : q));
     setEditingId(null);
     setEditDraft(null);
     setMetadataOpen(false);
+    setSaving(false);
+    toast({ title: "Question saved" });
   };
 
   const cancelEdit = () => {
+    // If it was a new unsaved question (no dbId), remove it
+    if (editDraft && !editDraft.dbId) {
+      setQuestions((prev) => prev.filter((q) => q.id !== editingId));
+    }
     setEditingId(null);
     setEditDraft(null);
     setMetadataOpen(false);
   };
 
   const confirmRemove = (q: DiagnosticQuestion) => {
-    setRemoveConfirm({ id: q.id, title: q.question.slice(0, 60) || "Untitled question" });
+    setRemoveConfirm({ id: q.id, title: q.question.slice(0, 60) || "Untitled question", dbId: q.dbId });
   };
 
-  const executeRemove = () => {
+  const executeRemove = async () => {
     if (!removeConfirm) return;
-    const removed = questions.find((q) => q.id === removeConfirm.id);
+    if (removeConfirm.dbId) {
+      const { error } = await supabase.from("diagnostic_questions").delete().eq("id", removeConfirm.dbId);
+      if (error) {
+        toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
+        setRemoveConfirm(null);
+        return;
+      }
+    }
     setQuestions((prev) => prev.filter((q) => q.id !== removeConfirm.id));
     setRemoveConfirm(null);
-    if (removed) {
-      toast({
-        title: "Question removed",
-        description: removed.question.slice(0, 50),
-        action: (
-          <Button variant="outline" size="sm" onClick={() => setQuestions((prev) => [...prev, removed])}>
-            Undo
-          </Button>
-        ),
-      });
-    }
+    toast({ title: "Question removed" });
   };
 
   const addQuestion = (type: QuestionType) => {
@@ -248,6 +311,17 @@ const DiagnosticQuestionsSetup = () => {
   const handleContinue = () => {
     navigate("/teacher/setup/settings");
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading diagnostic questions…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background px-4 py-8">
@@ -289,6 +363,15 @@ const DiagnosticQuestionsSetup = () => {
             )}
           </div>
         </div>
+
+        {/* Empty state */}
+        {questions.length === 0 && (
+          <div className="mb-6 rounded-lg border border-dashed border-muted-foreground/30 py-12 text-center">
+            <Brain className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">No questions yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Click the buttons below to add your first diagnostic question.</p>
+          </div>
+        )}
 
         {/* Questions list */}
         <div className="space-y-2 mb-6">
@@ -562,7 +645,9 @@ const DiagnosticQuestionsSetup = () => {
                             </Collapsible>
 
                             <div className="flex items-center gap-2 pt-1">
-                              <Button size="sm" onClick={saveEdit}><Check className="mr-1 h-3.5 w-3.5" /> Save</Button>
+                              <Button size="sm" onClick={saveEdit} disabled={saving}>
+                                {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1 h-3.5 w-3.5" />} Save
+                              </Button>
                               <Button size="sm" variant="ghost" onClick={cancelEdit}><X className="mr-1 h-3.5 w-3.5" /> Cancel</Button>
                             </div>
                           </div>
