@@ -418,7 +418,7 @@ const MaterialQualityCheck = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <SyllabusPreview syllabus={previewJson} />
+                <SyllabusPreview syllabus={previewJson} editable onChange={setPreviewJson} />
               </CardContent>
             </Card>
           )}
@@ -663,7 +663,7 @@ const MaterialQualityCheck = () => {
               </Card>
             )}
 
-            <SyllabusPreview syllabus={syllabusJson} />
+            <SyllabusPreview syllabus={syllabusJson} editable onChange={setSyllabusJson} />
 
             {!finalApproved ? (
               <div className="flex justify-center">
@@ -701,118 +701,311 @@ const MaterialQualityCheck = () => {
 
 // ── Syllabus Preview Sub-Component ─────────────────────────────────
 
-function SyllabusPreview({ syllabus }: { syllabus: SyllabusJson }) {
+function SyllabusPreview({
+  syllabus,
+  editable = false,
+  onChange,
+}: {
+  syllabus: SyllabusJson;
+  editable?: boolean;
+  onChange?: (updated: SyllabusJson) => void;
+}) {
+  const [editingSection, setEditingSection] = useState<string | null>(null);
+  const [draft, setDraft] = useState<any>(null);
+
+  const startEdit = (section: string, value: any) => {
+    setEditingSection(section);
+    setDraft(JSON.parse(JSON.stringify(value)));
+  };
+
+  const cancelEdit = () => {
+    setEditingSection(null);
+    setDraft(null);
+  };
+
+  const saveEdit = (section: string) => {
+    if (!onChange) return;
+    const updated = { ...syllabus };
+    switch (section) {
+      case "header":
+        updated.courseTitle = draft.courseTitle;
+        updated.courseCode = draft.courseCode;
+        updated.instructor = draft.instructor;
+        updated.term = draft.term;
+        break;
+      case "description":
+        updated.description = draft;
+        break;
+      case "objectives":
+        updated.learningObjectives = draft;
+        break;
+      case "schedule":
+        updated.schedule = draft;
+        break;
+      case "grading":
+        updated.gradingPolicy = { components: draft };
+        break;
+      case "policies":
+        updated.policies = draft;
+        break;
+      case "resources":
+        updated.resources = draft;
+        break;
+    }
+    onChange(updated);
+    setEditingSection(null);
+    setDraft(null);
+  };
+
+  const SectionHeader = ({ icon: Icon, label, section, value }: { icon: any; label: string; section: string; value: any }) => (
+    <div className="mb-2 flex items-center justify-between">
+      <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        <Icon className="h-4 w-4" /> {label}
+      </h3>
+      {editable && editingSection !== section && (
+        <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => startEdit(section, value)}>
+          <Pencil className="h-3 w-3" /> Edit
+        </Button>
+      )}
+      {editingSection === section && (
+        <div className="flex gap-1">
+          <Button variant="default" size="sm" className="h-7 gap-1 text-xs" onClick={() => saveEdit(section)}>
+            <Save className="h-3 w-3" /> Save
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={cancelEdit}>
+            <X className="h-3 w-3" /> Cancel
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-primary" />
-          {syllabus.courseTitle || "Untitled Course"}
-        </CardTitle>
-        <CardDescription>
-          {[syllabus.courseCode, syllabus.term, syllabus.instructor].filter(Boolean).join(" • ")}
-        </CardDescription>
+        {editingSection === "header" ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-muted-foreground">Edit Header</span>
+              <div className="flex gap-1">
+                <Button variant="default" size="sm" className="h-7 gap-1 text-xs" onClick={() => saveEdit("header")}>
+                  <Save className="h-3 w-3" /> Save
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={cancelEdit}>
+                  <X className="h-3 w-3" /> Cancel
+                </Button>
+              </div>
+            </div>
+            <Input placeholder="Course Title" value={draft.courseTitle} onChange={(e) => setDraft({ ...draft, courseTitle: e.target.value })} />
+            <div className="grid grid-cols-3 gap-2">
+              <Input placeholder="Course Code" value={draft.courseCode} onChange={(e) => setDraft({ ...draft, courseCode: e.target.value })} />
+              <Input placeholder="Term" value={draft.term} onChange={(e) => setDraft({ ...draft, term: e.target.value })} />
+              <Input placeholder="Instructor" value={draft.instructor} onChange={(e) => setDraft({ ...draft, instructor: e.target.value })} />
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                {syllabus.courseTitle || "Untitled Course"}
+              </CardTitle>
+              <CardDescription>
+                {[syllabus.courseCode, syllabus.term, syllabus.instructor].filter(Boolean).join(" • ")}
+              </CardDescription>
+            </div>
+            {editable && (
+              <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => startEdit("header", { courseTitle: syllabus.courseTitle, courseCode: syllabus.courseCode, instructor: syllabus.instructor, term: syllabus.term })}>
+                <Pencil className="h-3 w-3" /> Edit
+              </Button>
+            )}
+          </div>
+        )}
       </CardHeader>
       <CardContent className="space-y-6">
-        {syllabus.description && (
+        {/* Description */}
+        {(syllabus.description || editingSection === "description") && (
           <section>
-            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              <BookOpen className="h-4 w-4" /> Course Description
-            </h3>
-            <p className="text-sm leading-relaxed">{syllabus.description}</p>
+            <SectionHeader icon={BookOpen} label="Course Description" section="description" value={syllabus.description} />
+            {editingSection === "description" ? (
+              <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={4} />
+            ) : (
+              <p className="text-sm leading-relaxed">{syllabus.description}</p>
+            )}
           </section>
         )}
 
-        {syllabus.learningObjectives?.length > 0 && (
+        {/* Learning Objectives */}
+        {(syllabus.learningObjectives?.length > 0 || editingSection === "objectives") && (
           <section>
-            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              <GraduationCap className="h-4 w-4" /> Learning Objectives
-            </h3>
-            <ul className="list-disc space-y-1 pl-5 text-sm">
-              {syllabus.learningObjectives.map((obj, i) => (
-                <li key={i}>{obj}</li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {syllabus.schedule?.length > 0 && (
-          <section>
-            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              <Calendar className="h-4 w-4" /> Weekly Schedule
-            </h3>
-            <div className="overflow-x-auto rounded-md border">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="px-3 py-2 text-left font-medium">Week</th>
-                    <th className="px-3 py-2 text-left font-medium">Topic</th>
-                    <th className="px-3 py-2 text-left font-medium">Description</th>
-                    <th className="px-3 py-2 text-left font-medium">Readings</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {syllabus.schedule.map((entry, i) => (
-                    <tr key={i} className="border-b last:border-0">
-                      <td className="px-3 py-2 font-medium">{entry.week}</td>
-                      <td className="px-3 py-2">{entry.topic}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{entry.description}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{entry.readings}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-
-        {syllabus.gradingPolicy?.components?.length > 0 && (
-          <section>
-            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              <ClipboardList className="h-4 w-4" /> Grading Policy
-            </h3>
-            <div className="space-y-2">
-              {syllabus.gradingPolicy.components.map((comp, i) => (
-                <div key={i} className="flex items-baseline justify-between rounded-md bg-muted/30 px-3 py-2">
-                  <div>
-                    <span className="font-medium">{comp.name}</span>
-                    {comp.description && (
-                      <span className="ml-2 text-muted-foreground">— {comp.description}</span>
-                    )}
+            <SectionHeader icon={GraduationCap} label="Learning Objectives" section="objectives" value={syllabus.learningObjectives} />
+            {editingSection === "objectives" ? (
+              <div className="space-y-2">
+                {(draft as string[]).map((obj: string, i: number) => (
+                  <div key={i} className="flex gap-2">
+                    <Input value={obj} onChange={(e) => { const d = [...draft]; d[i] = e.target.value; setDraft(d); }} />
+                    <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setDraft(draft.filter((_: any, j: number) => j !== i))}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
                   </div>
-                  <Badge variant="secondary">{comp.weight}</Badge>
-                </div>
-              ))}
-            </div>
+                ))}
+                <Button variant="outline" size="sm" className="gap-1" onClick={() => setDraft([...draft, ""])}>
+                  <Plus className="h-3 w-3" /> Add Objective
+                </Button>
+              </div>
+            ) : (
+              <ul className="list-disc space-y-1 pl-5 text-sm">
+                {syllabus.learningObjectives.map((obj, i) => (
+                  <li key={i}>{obj}</li>
+                ))}
+              </ul>
+            )}
           </section>
         )}
 
-        {syllabus.policies?.length > 0 && (
+        {/* Schedule */}
+        {(syllabus.schedule?.length > 0 || editingSection === "schedule") && (
           <section>
-            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              <ScrollText className="h-4 w-4" /> Policies
-            </h3>
-            <div className="space-y-3">
-              {syllabus.policies.map((policy, i) => (
-                <div key={i}>
-                  <p className="font-medium">{policy.title}</p>
-                  <p className="text-sm text-muted-foreground">{policy.content}</p>
-                </div>
-              ))}
-            </div>
+            <SectionHeader icon={Calendar} label="Weekly Schedule" section="schedule" value={syllabus.schedule} />
+            {editingSection === "schedule" ? (
+              <div className="space-y-2">
+                {(draft as SyllabusJson["schedule"]).map((entry, i) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <Input className="w-16" placeholder="Wk" value={String(entry.week)} onChange={(e) => { const d = [...draft]; d[i] = { ...d[i], week: Number(e.target.value) || 0 }; setDraft(d); }} />
+                    <Input placeholder="Topic" value={entry.topic} onChange={(e) => { const d = [...draft]; d[i] = { ...d[i], topic: e.target.value }; setDraft(d); }} />
+                    <Input placeholder="Description" value={entry.description} onChange={(e) => { const d = [...draft]; d[i] = { ...d[i], description: e.target.value }; setDraft(d); }} />
+                    <Input placeholder="Readings" value={entry.readings} onChange={(e) => { const d = [...draft]; d[i] = { ...d[i], readings: e.target.value }; setDraft(d); }} />
+                    <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setDraft(draft.filter((_: any, j: number) => j !== i))}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" className="gap-1" onClick={() => setDraft([...draft, { week: draft.length + 1, topic: "", description: "", readings: "" }])}>
+                  <Plus className="h-3 w-3" /> Add Week
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="px-3 py-2 text-left font-medium">Week</th>
+                      <th className="px-3 py-2 text-left font-medium">Topic</th>
+                      <th className="px-3 py-2 text-left font-medium">Description</th>
+                      <th className="px-3 py-2 text-left font-medium">Readings</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {syllabus.schedule.map((entry, i) => (
+                      <tr key={i} className="border-b last:border-0">
+                        <td className="px-3 py-2 font-medium">{entry.week}</td>
+                        <td className="px-3 py-2">{entry.topic}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{entry.description}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{entry.readings}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         )}
 
-        {Array.isArray(syllabus.resources) && syllabus.resources.length > 0 && (
+        {/* Grading Policy */}
+        {(syllabus.gradingPolicy?.components?.length > 0 || editingSection === "grading") && (
           <section>
-            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              <Library className="h-4 w-4" /> Resources
-            </h3>
-            <ul className="list-disc space-y-1 pl-5 text-sm">
-              {syllabus.resources.map((res, i) => (
-                <li key={i}>{typeof res === 'string' ? res : JSON.stringify(res)}</li>
-              ))}
-            </ul>
+            <SectionHeader icon={ClipboardList} label="Grading Policy" section="grading" value={syllabus.gradingPolicy?.components} />
+            {editingSection === "grading" ? (
+              <div className="space-y-2">
+                {(draft as SyllabusJson["gradingPolicy"]["components"]).map((comp, i) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <Input placeholder="Component" value={comp.name} onChange={(e) => { const d = [...draft]; d[i] = { ...d[i], name: e.target.value }; setDraft(d); }} />
+                    <Input className="w-24" placeholder="Weight" value={comp.weight} onChange={(e) => { const d = [...draft]; d[i] = { ...d[i], weight: e.target.value }; setDraft(d); }} />
+                    <Input placeholder="Description" value={comp.description} onChange={(e) => { const d = [...draft]; d[i] = { ...d[i], description: e.target.value }; setDraft(d); }} />
+                    <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setDraft(draft.filter((_: any, j: number) => j !== i))}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" className="gap-1" onClick={() => setDraft([...draft, { name: "", weight: "", description: "" }])}>
+                  <Plus className="h-3 w-3" /> Add Component
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {syllabus.gradingPolicy.components.map((comp, i) => (
+                  <div key={i} className="flex items-baseline justify-between rounded-md bg-muted/30 px-3 py-2">
+                    <div>
+                      <span className="font-medium">{comp.name}</span>
+                      {comp.description && <span className="ml-2 text-muted-foreground">— {comp.description}</span>}
+                    </div>
+                    <Badge variant="secondary">{comp.weight}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Policies */}
+        {(syllabus.policies?.length > 0 || editingSection === "policies") && (
+          <section>
+            <SectionHeader icon={ScrollText} label="Policies" section="policies" value={syllabus.policies} />
+            {editingSection === "policies" ? (
+              <div className="space-y-3">
+                {(draft as SyllabusJson["policies"]).map((policy, i) => (
+                  <div key={i} className="space-y-1 rounded-md border p-3">
+                    <div className="flex gap-2 items-center">
+                      <Input placeholder="Policy Title" value={policy.title} onChange={(e) => { const d = [...draft]; d[i] = { ...d[i], title: e.target.value }; setDraft(d); }} />
+                      <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setDraft(draft.filter((_: any, j: number) => j !== i))}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                    <Textarea placeholder="Policy Content" value={policy.content} onChange={(e) => { const d = [...draft]; d[i] = { ...d[i], content: e.target.value }; setDraft(d); }} rows={2} />
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" className="gap-1" onClick={() => setDraft([...draft, { title: "", content: "" }])}>
+                  <Plus className="h-3 w-3" /> Add Policy
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {syllabus.policies.map((policy, i) => (
+                  <div key={i}>
+                    <p className="font-medium">{policy.title}</p>
+                    <p className="text-sm text-muted-foreground">{policy.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Resources */}
+        {(Array.isArray(syllabus.resources) && syllabus.resources.length > 0 || editingSection === "resources") && (
+          <section>
+            <SectionHeader icon={Library} label="Resources" section="resources" value={syllabus.resources} />
+            {editingSection === "resources" ? (
+              <div className="space-y-2">
+                {(draft as string[]).map((res: string, i: number) => (
+                  <div key={i} className="flex gap-2">
+                    <Input value={res} onChange={(e) => { const d = [...draft]; d[i] = e.target.value; setDraft(d); }} />
+                    <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setDraft(draft.filter((_: any, j: number) => j !== i))}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" className="gap-1" onClick={() => setDraft([...draft, ""])}>
+                  <Plus className="h-3 w-3" /> Add Resource
+                </Button>
+              </div>
+            ) : (
+              <ul className="list-disc space-y-1 pl-5 text-sm">
+                {syllabus.resources.map((res, i) => (
+                  <li key={i}>{typeof res === 'string' ? res : JSON.stringify(res)}</li>
+                ))}
+              </ul>
+            )}
           </section>
         )}
       </CardContent>
