@@ -141,21 +141,21 @@ export type Database = {
       }
       concepts: {
         Row: {
-          concept_id: string
+          concept_code: string
           course_id: string
           created_at: string
           id: string
           weight: number
         }
         Insert: {
-          concept_id: string
+          concept_code: string
           course_id: string
           created_at?: string
           id?: string
           weight?: number
         }
         Update: {
-          concept_id?: string
+          concept_code?: string
           course_id?: string
           created_at?: string
           id?: string

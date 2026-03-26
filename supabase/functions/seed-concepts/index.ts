@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
 
     // Insert new concepts
     const rows = concepts.map((c: { concept_id: string; weight: number }) => ({
-      concept_id: c.concept_id,
+      concept_code: c.concept_id,
       weight: c.weight,
       course_id: course.id,
     }));
