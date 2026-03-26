@@ -1,46 +1,36 @@
 
 
-## Plan: Allow Collaborators to View Course Dashboard Data
+## Plan: Enhanced Admin Approval with Role Selection and Owner Swapping
 
-### Problem
-All RLS policies for course-related tables (courses, enrollments, student_feedback, diagnostic_questions, concepts, course_material_files, storage) only check `courses.teacher_id = auth.uid()`. Collaborators in `course_teachers` are locked out of all course data.
+### Summary
+Redesign the pending application card UI to give the admin explicit control over three assignment options: (1) Collaborator on an existing course, (2) Owner of an existing course (demoting the current owner to collaborator), (3) Owner of a brand new course. The `approve-teacher` edge function is updated to handle the owner-swap logic.
 
-### Solution
-Create a **security definer function** `is_course_member(course_id, user_id)` that returns true if the user is either the course owner OR a collaborator in `course_teachers`. Then update all relevant RLS policies to use this function instead of the direct `courses.teacher_id = auth.uid()` check.
+### UI Changes — `src/pages/admin/AdminDashboard.tsx`
 
-### Database Migration
+Replace the current single course dropdown + implicit role logic with:
 
-**1. Create helper function**
-```sql
-CREATE OR REPLACE FUNCTION public.is_course_member(_course_id uuid, _user_id uuid)
-RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM courses WHERE id = _course_id AND teacher_id = _user_id
-  ) OR EXISTS (
-    SELECT 1 FROM course_teachers WHERE course_id = _course_id AND teacher_id = _user_id
-  )
-$$;
-```
+1. **Role selector** (Radio group or Select): Three options:
+   - "Collaborator on existing course"
+   - "Owner of existing course" (swaps current owner to collaborator)
+   - "Owner of new course"
 
-**2. Update RLS policies on these tables:**
+2. **Course dropdown**: Shown only when role is "collaborator" or "owner of existing course". Populated from the `courses` table (already fetched). Hidden when "Owner of new course" is selected.
 
-| Table | Policy | Change |
-|-------|--------|--------|
-| `courses` | "Teachers can manage own courses" | Add a new SELECT policy for collaborators using `is_course_member`; keep the ALL policy for owners only |
-| `enrollments` | "Teachers can view course enrollments" | Replace `courses.teacher_id` check with `is_course_member(course_id, auth.uid())` |
-| `student_feedback` | "Teachers can view feedback for their courses" | Same replacement |
-| `diagnostic_questions` | "Teachers can manage own diagnostic questions" | Add a separate SELECT policy for collaborators |
-| `concepts` | "Teachers can manage own concepts" | Add a separate SELECT policy for collaborators |
-| `course_material_files` | "Teachers can select own files" | Replace `teacher_id = auth.uid()` with `is_course_member(course_id, auth.uid())` for SELECT |
+3. **Approve button label** updates dynamically based on selection.
 
-For tables where collaborators should only **view** (not edit), we add a separate SELECT policy rather than modifying the ALL policy.
+4. Track `selectedRoles` state per application (in addition to `selectedCourses`).
 
-### No Code Changes Required
-The dashboard components already fetch data using the authenticated user's session. Once RLS allows collaborators to read course data, the existing queries will work for them automatically.
+### Edge Function Changes — `supabase/functions/approve-teacher/index.ts`
+
+Add handling for `assignmentType === "owner_swap"`:
+
+1. Create the new teacher's auth account and profile (same as current "approve" flow)
+2. Look up the current `courses.teacher_id` for the selected course
+3. Update `courses.teacher_id` to the new teacher's ID
+4. Update the existing `course_teachers` row for the old owner: change role from `'owner'` to `'collaborator'` (or insert if missing)
+5. Insert a `course_teachers` row for the new teacher with role `'owner'`
 
 ### Files Modified
-1. New database migration — create `is_course_member` function and update ~6 RLS policies
+1. `src/pages/admin/AdminDashboard.tsx` — add role selector, conditional course dropdown, dynamic button labels
+2. `supabase/functions/approve-teacher/index.ts` — add `owner_swap` assignment type with owner demotion logic
 
