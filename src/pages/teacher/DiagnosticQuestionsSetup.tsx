@@ -390,24 +390,43 @@ const DiagnosticQuestionsSetup = () => {
         </div>
 
         {/* Summary bar */}
-        <div className="mb-4 flex items-center justify-between rounded-lg border px-4 py-2.5 bg-muted/30">
-          <div className="flex items-center gap-3">
-            <Brain className="h-4 w-4 text-primary" />
-            <span className="text-sm">
-              <span className="font-medium">{approvedCount}</span> of {questions.length} questions approved
-            </span>
+        <div className="mb-4 flex flex-col gap-2 rounded-lg border px-4 py-2.5 bg-muted/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Brain className="h-4 w-4 text-primary" />
+              <span className="text-sm">
+                <span className="font-medium">{approvedCount}</span> of {questions.length} questions approved
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {!allApproved && questions.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => setApproveAllConfirm(true)}>
+                  <Check className="mr-1 h-3.5 w-3.5" /> Approve All
+                </Button>
+              )}
+              {allApproved && (
+                <Badge className="bg-primary text-primary-foreground">
+                  <Check className="mr-1 h-3 w-3" /> All Approved
+                </Badge>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {!allApproved && questions.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => setApproveAllConfirm(true)}>
-                <Check className="mr-1 h-3.5 w-3.5" /> Approve All
-              </Button>
-            )}
-            {allApproved && (
-              <Badge className="bg-primary text-primary-foreground">
-                <Check className="mr-1 h-3 w-3" /> All Approved
-              </Badge>
-            )}
+          <div className="flex items-center justify-between border-t pt-2">
+            <span className="text-sm">
+              <span className="font-medium">{inTestCount}</span> of {questions.length} questions in diagnostic test
+            </span>
+            <div className="flex items-center gap-2">
+              {inTestCount < questions.length && questions.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => bulkSetInTest(true)}>
+                  Add All to Test
+                </Button>
+              )}
+              {inTestCount > 0 && (
+                <Button variant="outline" size="sm" onClick={() => bulkSetInTest(false)}>
+                  Remove All from Test
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
