@@ -189,10 +189,45 @@ const TeacherOnboarding = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-center space-y-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
-          <p className="text-sm text-muted-foreground">Loading your profile…</p>
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+        <div className="w-full max-w-xl">
+          <SetupProgressBar currentStep={1} />
+          <div className="mb-8 text-center">
+            <h1 className="font-heading text-3xl font-bold">
+              Welcome to Next<span className="text-primary">Step</span>
+            </h1>
+            <p className="mt-2 text-muted-foreground">Set up your profile and course details</p>
+          </div>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-10 w-10 rounded-lg" />
+                <div className="space-y-1.5">
+                  <Skeleton className="h-5 w-48" />
+                  <Skeleton className="h-4 w-36" />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+              <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+                <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+              </div>
+              <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+                <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+              </div>
+              <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+              <div className="space-y-2"><Skeleton className="h-4 w-32" /><Skeleton className="h-[80px] w-full" /></div>
+              <div className="flex justify-between pt-2">
+                <Skeleton className="h-10 w-24" />
+                <Skeleton className="h-10 w-56" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
