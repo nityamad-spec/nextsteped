@@ -115,6 +115,7 @@ const MaterialQualityCheck = () => {
   const [editText, setEditText] = useState("");
   const [finalApproved, setFinalApproved] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [previewJson, setPreviewJson] = useState<SyllabusJson | null>(null);
 
   const pendingCount = issues.filter((i) => i.status === "pending").length;
   const resolvedCount = issues.filter((i) => i.status !== "pending").length;
@@ -140,6 +141,27 @@ const MaterialQualityCheck = () => {
     };
     fetchFiles();
   }, [user, courseId]);
+
+  // ── Load existing approved syllabus JSON on mount ───────────────
+  useEffect(() => {
+    const loadApproved = async () => {
+      if (!user) return;
+      const { data: blob, error } = await supabase.storage
+        .from("course-materials")
+        .download(`${user.id}/syllabus/approved-syllabus.json`);
+      if (!error && blob) {
+        try {
+          const text = await blob.text();
+          const json = JSON.parse(text) as SyllabusJson;
+          setPreviewJson(json);
+          setFinalApproved(true);
+        } catch (e) {
+          console.warn("Failed to parse existing approved syllabus:", e);
+        }
+      }
+    };
+    loadApproved();
+  }, [user]);
 
   // ── Pipeline: fetch → parse → check ─────────────────────────────
 
