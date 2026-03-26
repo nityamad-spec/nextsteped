@@ -633,6 +633,53 @@ export type Database = {
           },
         ]
       }
+      teacher_applications: {
+        Row: {
+          admin_notes: string | null
+          assigned_course_id: string | null
+          assignment_type: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          assigned_course_id?: string | null
+          assignment_type?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          assigned_course_id?: string | null
+          assignment_type?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_applications_assigned_course_id_fkey"
+            columns: ["assigned_course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       universities: {
         Row: {
           created_at: string
