@@ -1,28 +1,19 @@
 
 
-## Plan: Edge Function to Seed Concepts from JSON
+## Plan: Rename `item_id` → `item_code` in diagnostic_questions
 
 ### Summary
-Create a backend function that accepts the uploaded JSON, extracts the concept IDs and weights from the top-level `concepts` array, looks up the course by `course_code = 'PWIM'`, and inserts concept rows into the `concepts` table. No UI changes.
+Rename the column `item_id` to `item_code` in the `diagnostic_questions` table and update the one file that references it.
 
-### Edge Function: `seed-concepts`
+### Steps
 
-**File**: `supabase/functions/seed-concepts/index.ts`
+1. **Database migration** — `ALTER TABLE diagnostic_questions RENAME COLUMN item_id TO item_code;`
 
-1. Accept POST with `{ fileContent: string }` (the raw JSON string)
-2. Parse JSON, extract `concepts` array — each entry has `concept_id` and `weight`
-3. Use service role client to query `courses` where `course_code = 'PWIM'` to get the course UUID
-4. Delete existing concepts for that course (to avoid duplicates on re-run)
-5. Insert all `{ concept_id, weight, course_id }` rows into the `concepts` table
-6. Return count of inserted concepts
+2. **Update `src/pages/teacher/DiagnosticQuestionsSetup.tsx`** — replace all `item_id` references with `item_code` (3 occurrences: two reads and one write).
 
-### Config
-Add `[functions.seed-concepts]` with `verify_jwt = false` to `supabase/config.toml`.
-
-### Invocation
-After deploying, call the function once with the uploaded JSON content to populate the database. This is a one-time data seeding operation.
+3. **`src/integrations/supabase/types.ts`** — auto-regenerated after migration, no manual edit needed.
 
 ### Files Modified
-1. `supabase/functions/seed-concepts/index.ts` — new edge function
-2. `supabase/config.toml` — add function config block
+1. New migration SQL
+2. `src/pages/teacher/DiagnosticQuestionsSetup.tsx`
 
