@@ -127,7 +127,7 @@ function dbRowToQuestion(row: any): DiagnosticQuestion {
   }
 
   return {
-    id: row.item_id,
+    id: row.item_code,
     dbId: row.id,
     question: row.content_text,
     type: format,
@@ -138,7 +138,7 @@ function dbRowToQuestion(row: any): DiagnosticQuestion {
     correctAnswer,
     explanation: row.explanation || "",
     approved: true,
-    itemId: row.item_id,
+    itemId: row.item_code,
     difficultyEstimate: Number(row.difficulty_estimate),
     bloomLevel: row.bloom_level,
     bloomJustification: row.bloom_justification || "",
@@ -157,7 +157,7 @@ function questionToDbRow(q: DiagnosticQuestion, courseId: string, teacherId: str
   }
 
   return {
-    item_id: q.itemId,
+    item_code: q.itemId,
     content_text: q.question,
     format: q.type,
     answer,
