@@ -24,11 +24,12 @@ const SettingsIntegrity = () => {
 
   useEffect(() => {
     const fetchCode = async () => {
-      if (!currentCourse?.id) return;
+      const courseId = currentCourse?.id || localStorage.getItem("currentCourseId");
+      if (!courseId) return;
       const { data } = await supabase
         .from("courses")
         .select("enrollment_code")
-        .eq("id", currentCourse.id)
+        .eq("id", courseId)
         .maybeSingle();
       if (data?.enrollment_code) setDbEnrollmentCode(data.enrollment_code);
     };
