@@ -24,6 +24,7 @@ interface QuizQuestion {
   correctIndex: number;
   topic: string;
   explanation: string;
+  courseId: string;
 }
 
 const answerLetters = ["A", "B", "C", "D", "E", "F"];
@@ -42,6 +43,7 @@ const DiagnosticQuiz = () => {
   const [questionStartTime, setQuestionStartTime] = useState<number>(0);
   const [questionTimes, setQuestionTimes] = useState<number[]>([]);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [questionIds, setQuestionIds] = useState<string[]>([]);
 
   // Check if diagnostic already completed & fetch questions
   useEffect(() => {
@@ -88,6 +90,7 @@ const DiagnosticQuiz = () => {
           correctIndex: correctIndex >= 0 ? correctIndex : 0,
           topic: row.topic || "",
           explanation: row.explanation || "",
+          courseId: row.course_id,
         };
       });
 
@@ -105,9 +108,11 @@ const DiagnosticQuiz = () => {
     const newAnswers = [...answers, selected];
     const newConfidences = [...confidences, confidence];
     const newQuestionTimes = [...questionTimes, elapsed];
+    const newQuestionIds = [...questionIds, question.id];
     setAnswers(newAnswers);
     setConfidences(newConfidences);
     setQuestionTimes(newQuestionTimes);
+    setQuestionIds(newQuestionIds);
     setSelected(null);
     setConfidence(50);
 
@@ -134,6 +139,8 @@ const DiagnosticQuiz = () => {
           answers: newAnswers as unknown as import("@/integrations/supabase/types").Json,
           confidences: newConfidences as unknown as import("@/integrations/supabase/types").Json,
           question_times: newQuestionTimes as unknown as import("@/integrations/supabase/types").Json,
+          question_ids: newQuestionIds as unknown as import("@/integrations/supabase/types").Json,
+          course_id: questions[0]?.courseId || null,
         });
         await supabase.from("profiles").update({ learner_level: level }).eq("id", user.id);
         setSaving(false);
