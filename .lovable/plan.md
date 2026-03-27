@@ -1,39 +1,24 @@
 
 
-## Plan: Replace Hardcoded Course with Enrollment Code Input
+## Plan: Fix Enrollment Code Not Displaying
 
-### Problem
-The student onboarding page has a hardcoded "PY101 — Intro to Python" course. Students cannot enter an enrollment code to join a specific course. The `handleComplete` function blindly picks the first published course instead of matching by code.
+### Root Cause
+When the teacher creates a course during onboarding (`TeacherOnboarding.tsx`), the course is inserted into the DB and the returned `id` should be stored in `currentCourse` via `setCurrentCourse`. However, the context object either lacks the DB `id` or it's not being set properly, so the `useEffect` in both `PublishEnrollment.tsx` and `SettingsIntegrity.tsx` skips the fetch.
 
-### Changes to `src/pages/student/StudentOnboarding.tsx`
+### Investigation Needed
+I need to read `TeacherOnboarding.tsx` to see how `setCurrentCourse` is called after course creation — specifically whether the Supabase-returned `id` is included in the object.
 
-#### 1. Replace the disabled course Select with an enrollment code Input field
-- Remove the hardcoded `courseCode = "PY101"` and `courseName = "Intro to Python"` constants
-- Add state: `enrollmentCode` (string), `resolvedCourse` (object with id, name, course_code, or null), `verifyingCode` (boolean)
-- Render an Input field labeled "Enrollment Code" where students type the code given by their teacher
+### Likely Fix
 
-#### 2. Add enrollment code verification
-- When the student types a code and clicks a "Verify" button (or on blur/debounce), query:
-  ```sql
-  SELECT id, name, course_code FROM courses
-  WHERE enrollment_code = :code AND published = true
-  LIMIT 1
-  ```
-- If found: store the course in `resolvedCourse` and show the course confirmation card (name + course_code)
-- If not found: show an inline error "Invalid enrollment code"
+**`src/pages/teacher/TeacherOnboarding.tsx`**: After the course insert, ensure the returned row's `id` and `enrollment_code` are included in the `setCurrentCourse(...)` call. Currently it may be setting a manually constructed object without the DB fields.
 
-#### 3. Update the course confirmation card
-- Instead of the static PY101 card, show it only when `resolvedCourse` is set, displaying the actual course name and code from the DB
+**Fallback fix for both display pages**: If `currentCourse.id` is present but `enrollment_code` wasn't fetched during onboarding, the existing `useEffect` fetch should work. The primary fix is ensuring `currentCourse.id` is set correctly from the DB insert response.
 
-#### 4. Update validation
-- Add `resolvedCourse` to the `isValid` check (enrollment code must resolve to a real course)
+### Files to Modify
+1. `src/pages/teacher/TeacherOnboarding.tsx` — include DB-returned `id` and `enrollment_code` in `setCurrentCourse`
 
-#### 5. Update `handleComplete`
-- Remove the "find first published course" query
-- Use `resolvedCourse.id` directly for the enrollment insert
-- Pass actual `resolvedCourse.name` and `resolvedCourse.course_code` to `setStudentProfile` and `setCurrentCourse`
-- Remove the `mockCourse` import (no longer needed)
-
-### Files Modified
-1. `src/pages/student/StudentOnboarding.tsx` — all changes above (single file edit)
+### Steps
+1. Read `TeacherOnboarding.tsx` to confirm the exact issue with `setCurrentCourse`
+2. Fix the course object to include the database `id` from the insert response
+3. Optionally also store `enrollment_code` in context so both pages can display it immediately without a separate fetch
 
