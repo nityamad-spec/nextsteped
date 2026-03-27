@@ -708,7 +708,7 @@ const MaterialQualityCheck = () => {
           <Button variant="ghost" onClick={() => navigate("/teacher/onboarding")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
-          <Button onClick={() => navigate("/teacher/setup/syllabus", { state: { courseId } })} disabled={!finalApproved}>
+          <Button onClick={() => navigate("/teacher/setup/lesson-plan", { state: { courseId } })} disabled={!finalApproved}>
             Continue to Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
