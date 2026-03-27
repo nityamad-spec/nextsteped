@@ -1,0 +1,1 @@
+CREATE POLICY "Anon can view published courses for enrollment" ON public.courses FOR SELECT TO anon USING (published = true);
