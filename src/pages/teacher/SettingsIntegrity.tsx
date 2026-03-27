@@ -13,6 +13,7 @@ import { Save, Calendar, UserPlus, Upload, Copy, FileText } from "lucide-react";
 
 const SettingsIntegrity = () => {
   const { currentCourse } = useApp();
+  const { user } = useAuth();
   const [saved, setSaved] = useState(false);
 
   const [publishSection, setPublishSection] = useState("");
@@ -26,16 +27,27 @@ const SettingsIntegrity = () => {
   useEffect(() => {
     const fetchCode = async () => {
       const courseId = currentCourse?.id || localStorage.getItem("currentCourseId");
-      if (!courseId) return;
-      const { data } = await supabase
-        .from("courses")
-        .select("enrollment_code")
-        .eq("id", courseId)
-        .maybeSingle();
-      if (data?.enrollment_code) setDbEnrollmentCode(data.enrollment_code);
+      if (courseId) {
+        const { data } = await supabase
+          .from("courses")
+          .select("enrollment_code")
+          .eq("id", courseId)
+          .maybeSingle();
+        if (data?.enrollment_code) { setDbEnrollmentCode(data.enrollment_code); return; }
+      }
+      if (user?.id) {
+        const { data } = await supabase
+          .from("courses")
+          .select("enrollment_code")
+          .eq("teacher_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data?.enrollment_code) setDbEnrollmentCode(data.enrollment_code);
+      }
     };
     fetchCode();
-  }, [currentCourse?.id]);
+  }, [currentCourse?.id, user?.id]);
 
   const enrollmentCode = dbEnrollmentCode || currentCourse?.enrollmentCode || "—";
 
