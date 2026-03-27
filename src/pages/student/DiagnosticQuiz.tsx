@@ -358,7 +358,7 @@ const DiagnosticQuiz = () => {
               )}
             </motion.div>
             <div className="mt-4 flex justify-between">
-              <Button variant="ghost" onClick={() => { if (currentQ > 0) { setCurrentQ(currentQ - 1); setSelected(null); setTextAnswer(""); setConfidence(50); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { navigate("/student/onboarding"); } }}>
+              <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; const prevConfidence = confidences[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setConfidence(prevConfidence ?? 50); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { navigate("/student/onboarding"); } }}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
               <Button onClick={handleAnswer} disabled={!hasAnswer}>
