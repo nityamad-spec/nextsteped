@@ -148,7 +148,7 @@ const App = () => (
               <Route path="/teacher" element={<ProtectedRoute><TeacherRedirect /></ProtectedRoute>} />
               <Route path="/teacher/onboarding" element={<ProtectedRoute><TeacherOnboarding /></ProtectedRoute>} />
               <Route path="/teacher/setup/quality-check" element={<ProtectedRoute><MaterialQualityCheck /></ProtectedRoute>} />
-              <Route path="/teacher/setup/syllabus" element={<ProtectedRoute><CourseCreation /></ProtectedRoute>} />
+              <Route path="/teacher/setup/syllabus" element={<Navigate to="/teacher/setup/course-creation" replace />} />
               <Route path="/teacher/setup/concepts" element={<ProtectedRoute><ConceptManagement /></ProtectedRoute>} />
               <Route path="/teacher/setup/diagnostic" element={<ProtectedRoute><DiagnosticQuestionsSetup /></ProtectedRoute>} />
               <Route path="/teacher/setup/settings" element={<ProtectedRoute><AITASettings /></ProtectedRoute>} />
