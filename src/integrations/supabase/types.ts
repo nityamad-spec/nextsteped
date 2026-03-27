@@ -507,9 +507,11 @@ export type Database = {
         Row: {
           answers: Json
           confidences: Json
+          course_id: string | null
           created_at: string
           id: string
           learner_level: string
+          question_ids: Json
           question_times: Json
           score: number
           student_id: string
@@ -518,9 +520,11 @@ export type Database = {
         Insert: {
           answers?: Json
           confidences?: Json
+          course_id?: string | null
           created_at?: string
           id?: string
           learner_level: string
+          question_ids?: Json
           question_times?: Json
           score: number
           student_id: string
@@ -529,9 +533,11 @@ export type Database = {
         Update: {
           answers?: Json
           confidences?: Json
+          course_id?: string | null
           created_at?: string
           id?: string
           learner_level?: string
+          question_ids?: Json
           question_times?: Json
           score?: number
           student_id?: string
