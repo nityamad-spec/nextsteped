@@ -44,11 +44,13 @@ const DiagnosticQuiz = () => {
   const [questionTimes, setQuestionTimes] = useState<number[]>([]);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [questionIds, setQuestionIds] = useState<string[]>([]);
+  const [initialized, setInitialized] = useState(false);
 
   // Check if diagnostic already completed & fetch questions
   useEffect(() => {
     const init = async () => {
-      if (!user) return;
+      if (!user || initialized) return;
+      setInitialized(true);
 
       // Find the student's enrolled course
       const { data: enrollment } = await supabase
