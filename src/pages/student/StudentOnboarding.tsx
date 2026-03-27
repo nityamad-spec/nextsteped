@@ -3,19 +3,19 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { mockCourse } from "@/data/mockData";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, ArrowLeft, User, BookOpen } from "lucide-react";
+import { ArrowRight, ArrowLeft, User, BookOpen, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface University { id: string; name: string }
 interface Degree { id: string; name: string }
 interface Branch { id: string; name: string; degree_id: string }
+interface ResolvedCourse { id: string; name: string; course_code: string | null }
 
 const StudentOnboarding = () => {
   const { setStudentProfile, setStudentOnboarded, setCurrentCourse } = useApp();
@@ -29,6 +29,11 @@ const StudentOnboarding = () => {
   const [universityId, setUniversityId] = useState("");
   const [degreeId, setDegreeId] = useState("");
   const [branchId, setBranchId] = useState("");
+
+  const [enrollmentCode, setEnrollmentCode] = useState("");
+  const [resolvedCourse, setResolvedCourse] = useState<ResolvedCourse | null>(null);
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [codeError, setCodeError] = useState("");
 
   const [universities, setUniversities] = useState<University[]>([]);
   const [degrees, setDegrees] = useState<Degree[]>([]);
@@ -49,9 +54,6 @@ const StudentOnboarding = () => {
     };
     check();
   }, [user]);
-
-  const courseCode = "PY101";
-  const courseName = "Intro to Python";
 
   useEffect(() => {
     const fetchData = async () => {
@@ -79,13 +81,39 @@ const StudentOnboarding = () => {
     fetchBranches();
   }, [degreeId]);
 
-  const isValid = name.trim() && rollNumber.trim() && universityId && degreeId && branchId && year;
+  const verifyEnrollmentCode = async () => {
+    const code = enrollmentCode.trim();
+    if (!code) return;
+    setVerifyingCode(true);
+    setCodeError("");
+    setResolvedCourse(null);
+    try {
+      const { data, error } = await supabase
+        .from("courses")
+        .select("id, name, course_code")
+        .eq("enrollment_code", code)
+        .eq("published", true)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (data) {
+        setResolvedCourse(data);
+      } else {
+        setCodeError("Invalid enrollment code. Please check with your instructor.");
+      }
+    } catch (err: any) {
+      setCodeError(err.message || "Failed to verify code");
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
+  const isValid = name.trim() && rollNumber.trim() && universityId && degreeId && branchId && year && resolvedCourse;
 
   const handleComplete = async () => {
-    if (!user) return;
+    if (!user || !resolvedCourse) return;
     setSaving(true);
     try {
-      // Save profile
       const { error } = await supabase.from("profiles").upsert({
         id: user.id,
         name,
@@ -98,22 +126,26 @@ const StudentOnboarding = () => {
       });
       if (error) throw error;
 
-      // Find published course and create enrollment
-      const { data: courses } = await supabase
-        .from("courses")
-        .select("id")
-        .eq("published", true)
-        .limit(1);
+      await supabase.from("enrollments").upsert(
+        { student_id: user.id, course_id: resolvedCourse.id },
+        { onConflict: "student_id,course_id" as any }
+      );
 
-      if (courses && courses.length > 0) {
-        await supabase.from("enrollments").upsert(
-          { student_id: user.id, course_id: courses[0].id },
-          { onConflict: "student_id,course_id" as any }
-        );
-      }
-
-      setStudentProfile({ name, courseCode, learnerLevel: "Beginner", topicBaseline: {} });
-      setCurrentCourse({ ...mockCourse, id: courseCode.toLowerCase(), name: courseName });
+      setStudentProfile({
+        name,
+        courseCode: resolvedCourse.course_code || "",
+        learnerLevel: "Beginner",
+        topicBaseline: {},
+      });
+      setCurrentCourse({
+        id: resolvedCourse.id,
+        name: resolvedCourse.name,
+        courseCode: resolvedCourse.course_code || "",
+        term: "",
+        objectives: [],
+        concepts: [],
+        lessonPlan: [],
+      });
       setStudentOnboarded(true);
       navigate("/student/diagnostic");
     } catch (err: any) {
@@ -224,35 +256,50 @@ const StudentOnboarding = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Your Course</Label>
-                <Select value={courseCode} disabled>
-                  <SelectTrigger className="h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PY101">
-                      <span className="font-medium">PY101</span>
-                      <span className="text-muted-foreground"> — Intro to Python</span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Enrollment Code</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter code from your instructor"
+                    value={enrollmentCode}
+                    onChange={(e) => {
+                      setEnrollmentCode(e.target.value);
+                      setResolvedCourse(null);
+                      setCodeError("");
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={verifyEnrollmentCode}
+                    disabled={!enrollmentCode.trim() || verifyingCode}
+                  >
+                    {verifyingCode ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify"}
+                  </Button>
+                </div>
+                {codeError && (
+                  <p className="text-sm text-destructive">{codeError}</p>
+                )}
               </div>
 
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
-                <Card className="border-primary/20 bg-primary/5">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <BookOpen className="h-5 w-5" />
+              {resolvedCourse && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
+                  <Card className="border-primary/20 bg-primary/5">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <CheckCircle2 className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{resolvedCourse.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Course Code: {resolvedCourse.course_code || "N/A"}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium">{courseName}</p>
-                        <p className="text-xs text-muted-foreground">Course Code: {courseCode}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )}
 
               <div className="flex justify-between pt-2">
                 <Button variant="ghost" onClick={() => navigate("/")}>
