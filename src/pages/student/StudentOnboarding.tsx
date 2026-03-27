@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, ArrowLeft, User, BookOpen, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowRight, ArrowLeft, User, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface University { id: string; name: string }
@@ -30,10 +30,9 @@ const StudentOnboarding = () => {
   const [degreeId, setDegreeId] = useState("");
   const [branchId, setBranchId] = useState("");
 
-  const [enrollmentCode, setEnrollmentCode] = useState("");
   const [resolvedCourse, setResolvedCourse] = useState<ResolvedCourse | null>(null);
-  const [verifyingCode, setVerifyingCode] = useState(false);
-  const [codeError, setCodeError] = useState("");
+  const [resolvingCourse, setResolvingCourse] = useState(false);
+  const [enrollmentCode, setEnrollmentCode] = useState("");
 
   const [universities, setUniversities] = useState<University[]>([]);
   const [degrees, setDegrees] = useState<Degree[]>([]);
@@ -53,6 +52,33 @@ const StudentOnboarding = () => {
       }
     };
     check();
+  }, [user]);
+
+  // Auto-resolve enrollment code from user metadata
+  useEffect(() => {
+    if (!user) return;
+    const code = user.user_metadata?.enrollment_code;
+    if (!code) return;
+    setEnrollmentCode(code);
+    setResolvingCourse(true);
+    const resolve = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("courses")
+          .select("id, name, course_code")
+          .eq("enrollment_code", code)
+          .eq("published", true)
+          .limit(1)
+          .maybeSingle();
+        if (error) throw error;
+        if (data) setResolvedCourse(data);
+      } catch (err: any) {
+        toast.error("Could not resolve your enrollment code. Contact your instructor.");
+      } finally {
+        setResolvingCourse(false);
+      }
+    };
+    resolve();
   }, [user]);
 
   useEffect(() => {
@@ -80,33 +106,6 @@ const StudentOnboarding = () => {
     };
     fetchBranches();
   }, [degreeId]);
-
-  const verifyEnrollmentCode = async () => {
-    const code = enrollmentCode.trim();
-    if (!code) return;
-    setVerifyingCode(true);
-    setCodeError("");
-    setResolvedCourse(null);
-    try {
-      const { data, error } = await supabase
-        .from("courses")
-        .select("id, name, course_code")
-        .eq("enrollment_code", code)
-        .eq("published", true)
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      if (data) {
-        setResolvedCourse(data);
-      } else {
-        setCodeError("Invalid enrollment code. Please check with your instructor.");
-      }
-    } catch (err: any) {
-      setCodeError(err.message || "Failed to verify code");
-    } finally {
-      setVerifyingCode(false);
-    }
-  };
 
   const isValid = name.trim() && rollNumber.trim() && universityId && degreeId && branchId && year && resolvedCourse;
 
@@ -143,7 +142,7 @@ const StudentOnboarding = () => {
         term: "First Semester",
         sections: [],
         objectives: [],
-        enrollmentCode: enrollmentCode.trim(),
+        enrollmentCode: enrollmentCode,
         syllabusUploaded: false,
         materialsUploaded: false,
         published: true,
@@ -182,13 +181,40 @@ const StudentOnboarding = () => {
                 <User className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle>Student Profile & Course Setup</CardTitle>
-                <CardDescription>Your information and course enrollment</CardDescription>
+                <CardTitle>Student Profile Setup</CardTitle>
+                <CardDescription>Your academic information</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+              {/* Course confirmation card */}
+              {resolvingCourse ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Resolving your course...
+                </div>
+              ) : resolvedCourse ? (
+                <Card className="border-primary/20 bg-primary/5">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <CheckCircle2 className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{resolvedCourse.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Course Code: {resolvedCourse.course_code || "N/A"}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <p className="text-sm text-destructive">
+                  No enrollment code found. Please sign up again with a valid code.
+                </p>
+              )}
+
               <div className="space-y-2">
                 <Label>Full Name</Label>
                 <Input placeholder="Enter your full name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
@@ -256,52 +282,6 @@ const StudentOnboarding = () => {
                   </SelectContent>
                 </Select>
               </div>
-
-              <div className="space-y-2">
-                <Label>Enrollment Code</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Enter code from your instructor"
-                    value={enrollmentCode}
-                    onChange={(e) => {
-                      setEnrollmentCode(e.target.value);
-                      setResolvedCourse(null);
-                      setCodeError("");
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={verifyEnrollmentCode}
-                    disabled={!enrollmentCode.trim() || verifyingCode}
-                  >
-                    {verifyingCode ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify"}
-                  </Button>
-                </div>
-                {codeError && (
-                  <p className="text-sm text-destructive">{codeError}</p>
-                )}
-              </div>
-
-              {resolvedCourse && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
-                  <Card className="border-primary/20 bg-primary/5">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                          <CheckCircle2 className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{resolvedCourse.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Course Code: {resolvedCourse.course_code || "N/A"}
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              )}
 
               <div className="flex justify-between pt-2">
                 <Button variant="ghost" onClick={() => navigate("/")}>
