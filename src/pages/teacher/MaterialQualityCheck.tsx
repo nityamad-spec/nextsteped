@@ -456,7 +456,7 @@ const MaterialQualityCheck = () => {
             {previewJson && (
               <Button
                 size="lg"
-                onClick={() => navigate("/teacher/setup/course-creation", { state: { courseId } })}
+                onClick={() => navigate("/teacher/setup/lesson-plan", { state: { courseId } })}
               >
                 Continue to Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
