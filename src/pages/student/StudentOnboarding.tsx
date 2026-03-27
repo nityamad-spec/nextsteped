@@ -140,8 +140,7 @@ const StudentOnboarding = () => {
       setCurrentCourse({
         id: resolvedCourse.id,
         name: resolvedCourse.name,
-        courseCode: resolvedCourse.course_code || "",
-        term: "First Semester" as const,
+        term: "First Semester",
         sections: [],
         objectives: [],
         enrollmentCode: enrollmentCode.trim(),
