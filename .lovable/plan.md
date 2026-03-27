@@ -1,49 +1,58 @@
 
 
-## Plan: Streamlined Student Signup with Enrollment Code
-
-### Current Flow
-1. Landing → Select Student → Auth page (name + email + password)
-2. Email verification → Login
-3. StudentOnboarding page (university, degree, branch, year, roll number, enrollment code)
-4. Diagnostic quiz
+## Plan: Store Question IDs in Diagnostic Results
 
 ### Problem
-The enrollment code is only entered during onboarding (step 3), after the student has already created an account. There is no upfront validation that the student has a valid course to join. The "student roster" concept is bypassed — any student can sign up freely.
+The `diagnostic_results` table stores `answers`, `confidences`, and `question_times` as plain arrays indexed by position. No question IDs are recorded. If a teacher later adds, removes, or reorders diagnostic questions, historical per-question analysis breaks because the positional mapping is lost.
 
-### Proposed Flow
-1. Landing → Select Student → Auth page (name + email + password + **enrollment code**)
-2. Enrollment code is verified against published courses **before** account creation
-3. Email verification → Login
-4. StudentOnboarding page (university, degree, branch, year, roll number — **no enrollment code here**)
-5. Enrollment record is created during onboarding using the code stored in user metadata
-6. Diagnostic quiz
+### Solution
+Replace the flat arrays with an array of structured objects that include the question ID, and add a `course_id` column for easier querying.
 
-### Changes
+### Database Migration
+Add a `question_ids` JSONB column and `course_id` UUID column to `diagnostic_results`:
 
-#### 1. `src/pages/Auth.tsx`
-- Add an enrollment code input field (visible only for student signup, not login)
-- Add a "Verify" button that checks the code against the `courses` table (same logic as current `StudentOnboarding`)
-- Show the resolved course name on successful verification
-- Block signup submission until the enrollment code is verified
-- Pass the verified enrollment code in `signUp()` user metadata: `data: { name, role, enrollment_code }`
+```sql
+ALTER TABLE diagnostic_results
+  ADD COLUMN question_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN course_id uuid;
+```
 
-#### 2. `src/pages/student/StudentOnboarding.tsx`
-- Remove the enrollment code input section entirely
-- On mount, read the enrollment code from `user.user_metadata.enrollment_code`
-- Auto-resolve the course from the code and display it as a read-only confirmation card
-- Create the enrollment record during `handleComplete` using the metadata code (same as today)
-- Remove `enrollmentCode`, `resolvedCourse`, `verifyingCode`, `codeError` state and the verify function
+No existing data is broken — old rows simply have empty `question_ids` and null `course_id`.
 
-#### 3. `src/contexts/AuthContext.tsx`
-- Update `signUp` to accept an optional `enrollment_code` parameter
-- Include it in `options.data` metadata when provided
+### Code Change: `src/pages/student/DiagnosticQuiz.tsx`
 
-### No Database Changes Required
-The enrollment code is already stored in the `courses` table with auto-generation. User metadata in Supabase auth naturally supports extra fields. No new tables or columns needed.
+1. **Track question IDs alongside answers** — add a `questionIds` state array that collects `question.id` at each step (parallel to `answers`, `confidences`, `questionTimes`).
+
+2. **Include in DB insert** — when saving results, add:
+   - `question_ids: questionIds` (array of UUID strings, positionally aligned with `answers`)
+   - `course_id`: derived from the first question's course association or from the student's enrolled course
+
+The insert becomes:
+```typescript
+await supabase.from("diagnostic_results").insert({
+  student_id: user.id,
+  score: correct,
+  total_questions: total,
+  learner_level: level,
+  answers: newAnswers,
+  confidences: newConfidences,
+  question_times: newQuestionTimes,
+  question_ids: questionIds,   // NEW
+  course_id: questions[0]?.courseId, // NEW (optional)
+});
+```
+
+3. **Populate `questionIds`** in `handleAnswer`:
+```typescript
+const newQuestionIds = [...questionIds, question.id];
+setQuestionIds(newQuestionIds);
+```
 
 ### Files Modified
-1. `src/pages/Auth.tsx` — add enrollment code field for student signup
-2. `src/pages/student/StudentOnboarding.tsx` — remove enrollment code input, read from metadata
-3. `src/contexts/AuthContext.tsx` — pass enrollment_code in signup metadata
+1. **Database migration** — add `question_ids` and `course_id` columns to `diagnostic_results`
+2. **`src/pages/student/DiagnosticQuiz.tsx`** — track and store question IDs alongside answers
+
+### Backward Compatibility
+- Old results with empty `question_ids` still work; `score` and `learner_level` remain valid
+- New results enable per-question drill-down even after the question bank changes
 
