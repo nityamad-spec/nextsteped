@@ -172,25 +172,31 @@ const TeacherOnboarding = () => {
 
     let courseId: string;
 
+    let enrollmentCode = "";
+
     if (existingCourse) {
-      const { error } = await supabase.from("courses")
+      const { data: updated, error } = await supabase.from("courses")
         .update(coursePayload)
-        .eq("id", existingCourse.id);
-      if (error) {
-        toast.error("Failed to update course: " + error.message);
+        .eq("id", existingCourse.id)
+        .select("id, enrollment_code")
+        .single();
+      if (error || !updated) {
+        toast.error("Failed to update course: " + (error?.message ?? "Unknown error"));
         return;
       }
-      courseId = existingCourse.id;
+      courseId = updated.id;
+      enrollmentCode = updated.enrollment_code;
     } else {
       const { data: courseData, error } = await supabase.from("courses")
         .insert({ ...coursePayload, teacher_id: user.id })
-        .select("id")
+        .select("id, enrollment_code")
         .single();
       if (error || !courseData) {
         toast.error("Failed to save course: " + (error?.message ?? "Unknown error"));
         return;
       }
       courseId = courseData.id;
+      enrollmentCode = courseData.enrollment_code;
     }
 
     // Store courseId for downstream pages
@@ -199,11 +205,13 @@ const TeacherOnboarding = () => {
     setTeacherProfile({ name, department, courses: [courseName] });
     setCurrentCourse({
       ...mockCourse,
+      id: courseId,
       name: courseName,
       branch,
       term: (term as any) || mockCourse.term,
       sections: sections.length > 0 ? sections : mockCourse.sections,
       objectives: objectives ? objectives.split("\n").filter(Boolean) : mockCourse.objectives,
+      enrollmentCode,
     });
     navigate("/teacher/setup/quality-check", { state: { courseId } });
   };
