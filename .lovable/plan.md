@@ -1,26 +1,35 @@
 
 
-## Plan: Add "In Test" Filter to Diagnostic Questions Page
+## Plan: Add Short Answer Support to Diagnostic Quiz
 
-### Change
-Add a fifth filter dropdown to the existing filter bar that lets the teacher filter by test inclusion status: "All", "In Test", or "Not in Test".
+### Problem
+The quiz currently filters to only `mcq` and `true_false` formats, excluding 28 `short_answer` questions. Students see 32 of 60 in-test questions.
 
-### File Modified
-`src/pages/teacher/DiagnosticQuestionsSetup.tsx`
+### Changes (single file: `src/pages/student/DiagnosticQuiz.tsx`)
 
-### Details
+**1. Update QuizQuestion type** — add `format` field (`"mcq" | "true_false" | "short_answer"`) and `correctAnswer` (string) to the interface.
 
-1. **Add state**: `const [filterInTest, setFilterInTest] = useState("all");`
+**2. Remove format filter from DB query** — delete `.in("format", ["mcq", "true_false"])` so all in-test questions load.
 
-2. **Update `filteredQuestions` memo**: Add a check:
-   ```
-   if (filterInTest === "yes" && !q.inTest) return false;
-   if (filterInTest === "no" && q.inTest) return false;
-   ```
+**3. Add text answer state** — new `textAnswer` state (string) alongside the existing `selected` (number) state.
 
-3. **Update `hasActiveFilter`**: Include `filterInTest !== "all"` in the condition.
+**4. Update question mapping** — store `format` and `answer` (raw correct answer string) on each mapped question.
 
-4. **Add dropdown to filter bar**: A new `<Select>` with options "All Status", "In Test", "Not in Test" — placed after the existing Bloom Level filter.
+**5. Render short answer UI** — when `question.format === "short_answer"`, show a `<Textarea>` instead of MCQ option buttons. The confidence slider appears once the student types something.
 
-Single file, minimal change.
+**6. Update scoring logic** — for short answer questions, do a case-insensitive trimmed comparison of the student's text against the stored correct answer. Store the text answer (or a sentinel like `-1`) in the answers array to keep array alignment consistent. The `handleAnswer` function checks `format` to decide whether to use `selected` (MCQ/TF) or `textAnswer` (short answer).
+
+**7. Update submit button disabled state** — disabled when MCQ has no selection OR short answer textarea is empty.
+
+**8. Reset `textAnswer` on navigation** — clear it alongside `selected` when moving between questions or going back.
+
+### Scoring Detail
+- MCQ/TF: unchanged (`selected === correctIndex`)
+- Short answer: `textAnswer.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase()`
+- The answers array stores `selected` index for MCQ or `-1` for short answer (with a parallel `textAnswers` string array for the actual text)
+
+### UX
+- Short answer questions show a text input area with placeholder "Type your answer..."
+- Same confidence slider appears after typing
+- Question type badge shown (e.g. "Short Answer") so students know what's expected
 
