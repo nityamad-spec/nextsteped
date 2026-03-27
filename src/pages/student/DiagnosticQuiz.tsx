@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, ArrowLeft, Brain, Zap, Loader2 } from "lucide-react";
 
 const confidenceLabels: Record<number, string> = {
@@ -22,9 +23,11 @@ interface QuizQuestion {
   question: string;
   options: string[];
   correctIndex: number;
+  correctAnswer: string;
   topic: string;
   explanation: string;
   courseId: string;
+  format: "mcq" | "true_false" | "short_answer";
 }
 
 const answerLetters = ["A", "B", "C", "D", "E", "F"];
@@ -35,8 +38,10 @@ const DiagnosticQuiz = () => {
   const navigate = useNavigate();
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
+  const [textAnswer, setTextAnswer] = useState("");
   const [confidence, setConfidence] = useState<number>(50);
   const [answers, setAnswers] = useState<number[]>([]);
+  const [textAnswers, setTextAnswers] = useState<string[]>([]);
   const [confidences, setConfidences] = useState<number[]>([]);
   const [phase, setPhase] = useState<"loading" | "intro" | "quiz" | "result">("loading");
   const [saving, setSaving] = useState(false);
@@ -46,13 +51,11 @@ const DiagnosticQuiz = () => {
   const [questionIds, setQuestionIds] = useState<string[]>([]);
   const [initialized, setInitialized] = useState(false);
 
-  // Check if diagnostic already completed & fetch questions
   useEffect(() => {
     const init = async () => {
       if (!user || initialized) return;
       setInitialized(true);
 
-      // Find the student's enrolled course
       const { data: enrollment } = await supabase
         .from("enrollments")
         .select("course_id")
@@ -63,13 +66,11 @@ const DiagnosticQuiz = () => {
       const courseId = enrollment?.course_id;
 
       if (!courseId) {
-        // No enrollment found — can't take diagnostic
         setQuestions([]);
         setPhase("intro");
         return;
       }
 
-      // Check existing result for this course
       const { data: existing } = await supabase
         .from("diagnostic_results")
         .select("id")
@@ -83,17 +84,14 @@ const DiagnosticQuiz = () => {
         return;
       }
 
-      // Fetch in_test questions for the enrolled course only
       const { data: dbQuestions, error } = await supabase
         .from("diagnostic_questions")
         .select("*")
         .eq("in_test", true)
         .eq("course_id", courseId)
-        .in("format", ["mcq", "true_false"])
         .order("difficulty_estimate", { ascending: true });
 
       if (error || !dbQuestions || dbQuestions.length === 0) {
-        // Fallback: no questions available
         setQuestions([]);
         setPhase("intro");
         return;
@@ -102,9 +100,9 @@ const DiagnosticQuiz = () => {
       const mapped: QuizQuestion[] = dbQuestions.map((row) => {
         let options = (row.options as string[]) || [];
         let questionText = row.content_text;
+        const format = row.format as QuizQuestion["format"];
 
-        // If options are null/empty, parse them from the content_text (A. / B. / C. / D. format)
-        if (!options || options.length === 0) {
+        if (format !== "short_answer" && (!options || options.length === 0)) {
           const optionRegex = /^([A-F])\.\s*(.+)$/gm;
           const parsed: string[] = [];
           let match;
@@ -113,7 +111,6 @@ const DiagnosticQuiz = () => {
           }
           if (parsed.length > 0) {
             options = parsed;
-            // Remove the option lines from the question text
             questionText = row.content_text.replace(/\n[A-F]\.\s*.+/g, "").trim();
           }
         }
@@ -124,11 +121,13 @@ const DiagnosticQuiz = () => {
         return {
           id: row.id,
           question: questionText,
-          options,
+          options: format === "short_answer" ? [] : options,
           correctIndex: correctIndex >= 0 ? correctIndex : 0,
+          correctAnswer: row.answer,
           topic: row.topic || "",
           explanation: row.explanation || "",
           courseId: row.course_id,
+          format,
         };
       });
 
@@ -139,30 +138,42 @@ const DiagnosticQuiz = () => {
   }, [user]);
 
   const question = questions[currentQ];
+  const isShortAnswer = question?.format === "short_answer";
+  const hasAnswer = isShortAnswer ? textAnswer.trim().length > 0 : selected !== null;
 
   const handleAnswer = async () => {
-    if (selected === null) return;
+    if (!hasAnswer) return;
     const elapsed = Date.now() - questionStartTime;
-    const newAnswers = [...answers, selected];
+    const answerValue = isShortAnswer ? -1 : selected!;
+    const newAnswers = [...answers, answerValue];
+    const newTextAnswers = [...textAnswers, isShortAnswer ? textAnswer.trim() : ""];
     const newConfidences = [...confidences, confidence];
     const newQuestionTimes = [...questionTimes, elapsed];
     const newQuestionIds = [...questionIds, question.id];
     setAnswers(newAnswers);
+    setTextAnswers(newTextAnswers);
     setConfidences(newConfidences);
     setQuestionTimes(newQuestionTimes);
     setQuestionIds(newQuestionIds);
     setSelected(null);
+    setTextAnswer("");
     setConfidence(50);
 
     if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
       setQuestionStartTime(Date.now());
     } else {
-      const correct = newAnswers.filter((a, i) => a === questions[i].correctIndex).length;
+      const correct = newAnswers.filter((a, i) => {
+        const q = questions[i];
+        if (q.format === "short_answer") {
+          return newTextAnswers[i].toLowerCase() === q.correctAnswer.trim().toLowerCase();
+        }
+        return a === q.correctIndex;
+      }).length;
       const total = questions.length;
       const ratio = correct / total;
       const level = ratio >= 0.85 ? "Expert" : ratio >= 0.6 ? "Advanced" : ratio >= 0.35 ? "Intermediate" : "Beginner";
-      
+
       if (studentProfile) {
         setStudentProfile({ ...studentProfile, learnerLevel: level });
       }
@@ -242,7 +253,13 @@ const DiagnosticQuiz = () => {
   }
 
   if (phase === "result") {
-    const finalScore = answers.filter((a, i) => a === questions[i].correctIndex).length;
+    const finalScore = answers.filter((a, i) => {
+      const q = questions[i];
+      if (q.format === "short_answer") {
+        return textAnswers[i]?.toLowerCase() === q.correctAnswer.trim().toLowerCase();
+      }
+      return a === q.correctIndex;
+    }).length;
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg">
@@ -271,6 +288,8 @@ const DiagnosticQuiz = () => {
 
   if (!question) return null;
 
+  const formatLabel = question.format === "short_answer" ? "Short Answer" : question.format === "true_false" ? "True / False" : "Multiple Choice";
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-lg">
@@ -284,24 +303,37 @@ const DiagnosticQuiz = () => {
         <Card>
           <CardContent className="p-6">
             <motion.div key={currentQ} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-              <Badge variant="secondary" className="mb-3">{question.topic}</Badge>
-              <p className="mb-4 text-sm font-medium">{question.question}</p>
-              <div className="space-y-2">
-                {question.options.map((opt, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setSelected(i)}
-                    className={`w-full rounded-lg border px-4 py-3 text-left text-sm transition-colors ${
-                      selected === i ? "border-primary bg-primary/5 font-medium" : "hover:bg-muted"
-                    }`}
-                  >
-                    <span className="mr-2 font-mono text-xs text-muted-foreground">{String.fromCharCode(65 + i)}.</span>
-                    {opt}
-                  </button>
-                ))}
+              <div className="mb-3 flex gap-2">
+                <Badge variant="secondary">{question.topic}</Badge>
+                <Badge variant="outline">{formatLabel}</Badge>
               </div>
+              <p className="mb-4 text-sm font-medium">{question.question}</p>
 
-              {selected !== null && (
+              {isShortAnswer ? (
+                <Textarea
+                  placeholder="Type your answer..."
+                  value={textAnswer}
+                  onChange={(e) => setTextAnswer(e.target.value)}
+                  className="min-h-[100px]"
+                />
+              ) : (
+                <div className="space-y-2">
+                  {question.options.map((opt, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setSelected(i)}
+                      className={`w-full rounded-lg border px-4 py-3 text-left text-sm transition-colors ${
+                        selected === i ? "border-primary bg-primary/5 font-medium" : "hover:bg-muted"
+                      }`}
+                    >
+                      <span className="mr-2 font-mono text-xs text-muted-foreground">{String.fromCharCode(65 + i)}.</span>
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {hasAnswer && (
                 <div className="mt-4 border-t pt-4">
                   <p className="mb-3 text-xs font-medium text-muted-foreground">How confident are you in your answer?</p>
                   <div className="px-2">
@@ -326,10 +358,10 @@ const DiagnosticQuiz = () => {
               )}
             </motion.div>
             <div className="mt-4 flex justify-between">
-              <Button variant="ghost" onClick={() => { if (currentQ > 0) { setCurrentQ(currentQ - 1); setSelected(null); setConfidence(50); setAnswers(answers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { navigate("/student/onboarding"); } }}>
+              <Button variant="ghost" onClick={() => { if (currentQ > 0) { setCurrentQ(currentQ - 1); setSelected(null); setTextAnswer(""); setConfidence(50); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { navigate("/student/onboarding"); } }}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
-              <Button onClick={handleAnswer} disabled={selected === null}>
+              <Button onClick={handleAnswer} disabled={!hasAnswer}>
                 {currentQ < questions.length - 1 ? "Next Question" : "Finish Quiz"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
