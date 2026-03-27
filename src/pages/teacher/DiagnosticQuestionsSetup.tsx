@@ -245,6 +245,7 @@ const DiagnosticQuestionsSetup = () => {
   const [filterType, setFilterType] = useState("all");
   const [filterDifficulty, setFilterDifficulty] = useState("all");
   const [filterBloom, setFilterBloom] = useState("all");
+  const [filterInTest, setFilterInTest] = useState("all");
   const [analysisOpen, setAnalysisOpen] = useState(false);
 
   const filteredQuestions = useMemo(() => {
@@ -253,9 +254,11 @@ const DiagnosticQuestionsSetup = () => {
       if (filterType !== "all" && q.type !== filterType) return false;
       if (filterDifficulty !== "all" && q.difficulty !== filterDifficulty) return false;
       if (filterBloom !== "all" && String(q.bloomLevel) !== filterBloom) return false;
+      if (filterInTest === "yes" && !q.inTest) return false;
+      if (filterInTest === "no" && q.inTest) return false;
       return true;
     });
-  }, [questions, filterConcept, filterType, filterDifficulty, filterBloom]);
+  }, [questions, filterConcept, filterType, filterDifficulty, filterBloom, filterInTest]);
 
   // --- Test Composition Analysis ---
   const testAnalysis = useMemo(() => {
@@ -392,7 +395,7 @@ const DiagnosticQuestionsSetup = () => {
     startEdit(newQ);
   };
 
-  const hasActiveFilter = filterConcept !== "all" || filterType !== "all" || filterDifficulty !== "all" || filterBloom !== "all";
+  const hasActiveFilter = filterConcept !== "all" || filterType !== "all" || filterDifficulty !== "all" || filterBloom !== "all" || filterInTest !== "all";
 
   const approveAll = () => {
     setQuestions((prev) => prev.map((q) => ({ ...q, approved: true })));
