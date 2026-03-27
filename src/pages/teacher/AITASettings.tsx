@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useApp } from "@/contexts/AppContext";
+import { useTASettings } from "@/hooks/useTASettings";
 import { defaultStudyPrompt, defaultExamPrompt } from "@/data/mockData";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -10,18 +11,30 @@ import { ArrowRight, ArrowLeft, MessageSquare, BookOpen, Brain, Info } from "luc
 import SetupProgressBar from "@/components/SetupProgressBar";
 
 const AITASettings = () => {
-  const { taSettings, setTASettings } = useApp();
+  const courseId = localStorage.getItem("currentCourseId");
+  const { taSettings, loading, saveTASettings } = useTASettings(courseId);
   const navigate = useNavigate();
-  const [customStudyPrompt, setCustomStudyPrompt] = useState(taSettings.customStudyPrompt || "");
-  const [customExamPrompt, setCustomExamPrompt] = useState(taSettings.customExamPrompt || "");
+  const [customStudyPrompt, setCustomStudyPrompt] = useState("");
+  const [customExamPrompt, setCustomExamPrompt] = useState("");
 
-  const handleSave = () => {
-    setTASettings({
-      ...taSettings,
-      customStudyPrompt,
-      customExamPrompt,
-    });
-    navigate("/teacher/setup/exam-mode");
+  useEffect(() => {
+    if (!loading) {
+      setCustomStudyPrompt(taSettings.customStudyPrompt || "");
+      setCustomExamPrompt(taSettings.customExamPrompt || "");
+    }
+  }, [loading, taSettings]);
+
+  const handleSave = async () => {
+    try {
+      await saveTASettings({
+        ...taSettings,
+        customStudyPrompt,
+        customExamPrompt,
+      });
+      navigate("/teacher/setup/exam-mode");
+    } catch {
+      toast.error("Failed to save settings. Please try again.");
+    }
   };
 
   return (

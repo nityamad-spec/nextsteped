@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useApp } from "@/contexts/AppContext";
+import { useTASettings } from "@/hooks/useTASettings";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,8 @@ const questionEstimate = (length: number, mix: string, difficulty: string) => {
 };
 
 const ExamMode = () => {
-  const { taSettings, setTASettings } = useApp();
+  const courseId = localStorage.getItem("currentCourseId");
+  const { taSettings, loading, saveTASettings } = useTASettings(courseId);
   const navigate = useNavigate();
   const [settings, setSettings] = useState(taSettings);
   const [examLength, setExamLength] = useState(taSettings.examTimeLimit || 60);
@@ -46,6 +48,18 @@ const ExamMode = () => {
   const [quizQuestionTypes, setQuizQuestionTypes] = useState(taSettings.quizQuestionMix || "mixed");
   const [quizDifficulty, setQuizDifficulty] = useState(taSettings.quizDifficulty || "Medium");
   const [quizTimeLimit, setQuizTimeLimit] = useState(taSettings.quizTimeLimit || 10);
+
+  useEffect(() => {
+    if (!loading) {
+      setSettings(taSettings);
+      setExamLength(taSettings.examTimeLimit || 60);
+      setExamQuestionTypes(taSettings.examQuestionMix || "mixed");
+      setQuizNumQuestions(taSettings.quizNumQuestions || 5);
+      setQuizQuestionTypes(taSettings.quizQuestionMix || "mixed");
+      setQuizDifficulty(taSettings.quizDifficulty || "Medium");
+      setQuizTimeLimit(taSettings.quizTimeLimit || 10);
+    }
+  }, [loading, taSettings]);
 
   const estimate = useMemo(() => questionEstimate(examLength, examQuestionTypes, settings.examDifficulty), [examLength, examQuestionTypes, settings.examDifficulty]);
   const [customBreakdown, setCustomBreakdown] = useState<Record<string, number>>(estimate.breakdown);
@@ -72,17 +86,21 @@ const ExamMode = () => {
 
   const canContinue = examApproved && quizApproved;
 
-  const handleSave = () => {
-    setTASettings({
-      ...settings,
-      examTimeLimit: examLength,
-      examQuestionMix: examQuestionTypes,
-      quizNumQuestions,
-      quizQuestionMix: quizQuestionTypes,
-      quizDifficulty,
-      quizTimeLimit,
-    });
-    navigate("/teacher/setup/publish");
+  const handleSave = async () => {
+    try {
+      await saveTASettings({
+        ...settings,
+        examTimeLimit: examLength,
+        examQuestionMix: examQuestionTypes,
+        quizNumQuestions,
+        quizQuestionMix: quizQuestionTypes,
+        quizDifficulty,
+        quizTimeLimit,
+      });
+      navigate("/teacher/setup/publish");
+    } catch {
+      toast.error("Failed to save exam settings. Please try again.");
+    }
   };
 
   return (
