@@ -160,16 +160,6 @@ const Feedback = () => {
             />
           </div>
 
-          {/* Q4 */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Did you find the difficulty of questions matched where you are in your learning?</Label>
-            <NumberScale
-              value={answers.difficulty_match as number | null}
-              onChange={(v) => setAnswer("difficulty_match", v)}
-              lowLabel="1 — Not at all"
-              highLabel="5 — Perfectly matched"
-            />
-          </div>
 
           {/* Q5 */}
           <div className="space-y-3">
