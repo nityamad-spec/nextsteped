@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useApp } from "@/contexts/AppContext";
+import { useState, useEffect } from "react";
+import { useTASettings } from "@/hooks/useTASettings";
+import { toast } from "sonner";
 import { mockQuizQuestions } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,8 @@ const seedQuestions: EditableQuestion[] = mockQuizQuestions.map((q, i) => {
 });
 
 const Assessments = () => {
-  const { taSettings, setTASettings } = useApp();
+  const courseId = localStorage.getItem("currentCourseId");
+  const { taSettings, loading: taLoading, saveTASettings } = useTASettings(courseId);
   const [questions, setQuestions] = useState<EditableQuestion[]>(seedQuestions);
   const [examPredefinedOnly, setExamPredefinedOnly] = useState(false);
 
