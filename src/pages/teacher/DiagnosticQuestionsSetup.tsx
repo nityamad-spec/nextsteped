@@ -1089,7 +1089,7 @@ const DiagnosticQuestionsSetup = () => {
 
         {/* Navigation */}
         <div className="flex justify-between">
-          <Button variant="ghost" onClick={() => navigate("/teacher/setup/lesson-plan")}>
+          <Button variant="ghost" onClick={() => navigate("/teacher/setup/concepts")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
           <Button onClick={handleContinue} disabled={!allApproved}>
