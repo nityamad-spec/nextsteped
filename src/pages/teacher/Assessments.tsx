@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useApp } from "@/contexts/AppContext";
+import { useState, useEffect } from "react";
+import { useTASettings } from "@/hooks/useTASettings";
+import { toast } from "sonner";
 import { mockQuizQuestions } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,8 @@ const seedQuestions: EditableQuestion[] = mockQuizQuestions.map((q, i) => {
 });
 
 const Assessments = () => {
-  const { taSettings, setTASettings } = useApp();
+  const courseId = localStorage.getItem("currentCourseId");
+  const { taSettings, loading: taLoading, saveTASettings } = useTASettings(courseId);
   const [questions, setQuestions] = useState<EditableQuestion[]>(seedQuestions);
   const [examPredefinedOnly, setExamPredefinedOnly] = useState(false);
 
@@ -141,12 +143,18 @@ const Assessments = () => {
     setFormOptions(prev => prev.map((o, i) => i === index ? value : o));
   };
 
-  const handleSaveQuizSettings = () => {
-    setTASettings({ ...taSettings, quizNumQuestions, quizQuestionMix: quizQuestionTypes, quizTimeLimit });
+  const handleSaveQuizSettings = async () => {
+    try {
+      await saveTASettings({ ...taSettings, quizNumQuestions, quizQuestionMix: quizQuestionTypes, quizTimeLimit });
+      toast.success("Quiz settings saved");
+    } catch { toast.error("Failed to save quiz settings"); }
   };
 
-  const handleSaveExamSettings = () => {
-    setTASettings({ ...taSettings, examTimeLimit });
+  const handleSaveExamSettings = async () => {
+    try {
+      await saveTASettings({ ...taSettings, examTimeLimit });
+      toast.success("Exam settings saved");
+    } catch { toast.error("Failed to save exam settings"); }
   };
 
   const filterQuestions = (list: EditableQuestion[], includeDay = false) => {
@@ -340,7 +348,7 @@ const Assessments = () => {
               </div>
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Exam Question Types</Label>
-                <Select value={taSettings.examQuestionMix} onValueChange={(v) => setTASettings({ ...taSettings, examQuestionMix: v })}>
+                <Select value={taSettings.examQuestionMix} onValueChange={(v) => saveTASettings({ ...taSettings, examQuestionMix: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="mixed">Mixed (MCQ + Short Answer + Problem Solving)</SelectItem>
@@ -352,7 +360,7 @@ const Assessments = () => {
               </div>
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Exam Difficulty</Label>
-                <Select value={taSettings.examDifficulty} onValueChange={(v: any) => setTASettings({ ...taSettings, examDifficulty: v })}>
+                <Select value={taSettings.examDifficulty} onValueChange={(v: any) => saveTASettings({ ...taSettings, examDifficulty: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Easy">Easy</SelectItem>
