@@ -629,8 +629,18 @@ const DiagnosticQuestionsSetup = () => {
               ))}
             </SelectContent>
           </Select>
-          {(filterConcept !== "all" || filterType !== "all" || filterDifficulty !== "all" || filterBloom !== "all") && (
-            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setFilterConcept("all"); setFilterType("all"); setFilterDifficulty("all"); setFilterBloom("all"); }}>
+          <Select value={filterInTest} onValueChange={setFilterInTest}>
+            <SelectTrigger className="w-[130px] h-8 text-xs">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="yes">In Test</SelectItem>
+              <SelectItem value="no">Not in Test</SelectItem>
+            </SelectContent>
+          </Select>
+          {(filterConcept !== "all" || filterType !== "all" || filterDifficulty !== "all" || filterBloom !== "all" || filterInTest !== "all") && (
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setFilterConcept("all"); setFilterType("all"); setFilterDifficulty("all"); setFilterBloom("all"); setFilterInTest("all"); }}>
               <X className="h-3 w-3 mr-1" /> Clear
             </Button>
           )}
