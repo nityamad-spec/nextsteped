@@ -44,6 +44,7 @@ const DiagnosticQuiz = () => {
   const [questionTimes, setQuestionTimes] = useState<number[]>([]);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [questionIds, setQuestionIds] = useState<string[]>([]);
+  const [initialized, setInitialized] = useState(false);
 
   // Check if diagnostic already completed & fetch questions
   useEffect(() => {
