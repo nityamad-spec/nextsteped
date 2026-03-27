@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useApp } from "@/contexts/AppContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -19,9 +20,25 @@ const SettingsIntegrity = () => {
   const [weeklyNudges, setWeeklyNudges] = useState(true);
   const [csvUploaded, setCsvUploaded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [dbEnrollmentCode, setDbEnrollmentCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCode = async () => {
+      if (!currentCourse?.id) return;
+      const { data } = await supabase
+        .from("courses")
+        .select("enrollment_code")
+        .eq("id", currentCourse.id)
+        .maybeSingle();
+      if (data?.enrollment_code) setDbEnrollmentCode(data.enrollment_code);
+    };
+    fetchCode();
+  }, [currentCourse?.id]);
+
+  const enrollmentCode = dbEnrollmentCode || currentCourse?.enrollmentCode || "—";
 
   const copyCode = () => {
-    navigator.clipboard.writeText(currentCourse?.enrollmentCode || "NEXTOS301");
+    navigator.clipboard.writeText(enrollmentCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -86,7 +103,7 @@ const SettingsIntegrity = () => {
             <div className="rounded-lg border bg-muted/30 p-4 text-center">
               <p className="text-sm font-medium">Course Enrollment Code</p>
               <div className="mt-2 flex items-center justify-center gap-2">
-                <span className="font-mono text-2xl font-bold text-primary">{currentCourse?.enrollmentCode || "NEXTOS301"}</span>
+                <span className="font-mono text-2xl font-bold text-primary">{enrollmentCode}</span>
                 <button onClick={copyCode} className="rounded p-1 hover:bg-muted"><Copy className="h-4 w-4" /></button>
               </div>
               {copied && <p className="mt-1 text-xs text-primary">Copied!</p>}
