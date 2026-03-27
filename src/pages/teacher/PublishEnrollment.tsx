@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import SetupProgressBar from "@/components/SetupProgressBar";
 const PublishEnrollment = () => {
   const navigate = useNavigate();
   const { currentCourse, setTeacherOnboarded } = useApp();
-
+  const { user } = useAuth();
   const courseSections = currentCourse?.sections || [];
   const hasMultipleSections = courseSections.length > 1;
 
@@ -29,16 +30,29 @@ const PublishEnrollment = () => {
 
   useEffect(() => {
     const fetchCode = async () => {
-      if (!currentCourse?.id) return;
-      const { data } = await supabase
-        .from("courses")
-        .select("enrollment_code")
-        .eq("id", currentCourse.id)
-        .maybeSingle();
-      if (data?.enrollment_code) setDbEnrollmentCode(data.enrollment_code);
+      const courseId = currentCourse?.id || localStorage.getItem("currentCourseId");
+      if (courseId) {
+        const { data } = await supabase
+          .from("courses")
+          .select("enrollment_code")
+          .eq("id", courseId)
+          .maybeSingle();
+        if (data?.enrollment_code) { setDbEnrollmentCode(data.enrollment_code); return; }
+      }
+      // Fallback: fetch latest course by teacher
+      if (user?.id) {
+        const { data } = await supabase
+          .from("courses")
+          .select("enrollment_code")
+          .eq("teacher_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data?.enrollment_code) setDbEnrollmentCode(data.enrollment_code);
+      }
     };
     fetchCode();
-  }, [currentCourse?.id]);
+  }, [currentCourse?.id, user?.id]);
 
   const enrollmentCode = dbEnrollmentCode || currentCourse?.enrollmentCode || "—";
 
