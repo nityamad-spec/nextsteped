@@ -141,10 +141,13 @@ const StudentOnboarding = () => {
         id: resolvedCourse.id,
         name: resolvedCourse.name,
         courseCode: resolvedCourse.course_code || "",
-        term: "",
+        term: "First Semester" as const,
+        sections: [],
         objectives: [],
-        concepts: [],
-        lessonPlan: [],
+        enrollmentCode: enrollmentCode.trim(),
+        syllabusUploaded: false,
+        materialsUploaded: false,
+        published: true,
       });
       setStudentOnboarded(true);
       navigate("/student/diagnostic");
