@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { ChatSession, Course, StudentProfile, TASettings, TeacherProfile, UserRole } from "@/types";
-import { defaultTASettings, mockCourse } from "@/data/mockData";
+import { ChatSession, Course, StudentProfile, TeacherProfile, UserRole } from "@/types";
+import { mockCourse } from "@/data/mockData";
 
 interface AppState {
   role: UserRole | null;
@@ -11,8 +11,6 @@ interface AppState {
   setStudentProfile: (p: StudentProfile | null) => void;
   currentCourse: Course | null;
   setCurrentCourse: (c: Course | null) => void;
-  taSettings: TASettings;
-  setTASettings: (s: TASettings) => void;
   teacherOnboarded: boolean;
   setTeacherOnboarded: (v: boolean) => void;
   studentOnboarded: boolean;
@@ -52,7 +50,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [teacherProfile, setTeacherProfile] = usePersistedState<TeacherProfile | null>("ns_teacher_profile", null);
   const [studentProfile, setStudentProfile] = usePersistedState<StudentProfile | null>("ns_student_profile", null);
   const [currentCourse, setCurrentCourse] = usePersistedState<Course | null>("ns_current_course", null);
-  const [taSettings, setTASettings] = usePersistedState<TASettings>("ns_ta_settings", defaultTASettings);
   const [teacherOnboarded, setTeacherOnboarded] = usePersistedState("ns_teacher_onboarded", false);
   const [studentOnboarded, setStudentOnboarded] = usePersistedState("ns_student_onboarded", false);
   const [diagnosticComplete, setDiagnosticComplete] = usePersistedState("ns_diagnostic_complete", false);
@@ -66,7 +63,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTeacherProfile(null);
     setStudentProfile(null);
     setCurrentCourse(null);
-    setTASettings(defaultTASettings);
     setTeacherOnboarded(false);
     setStudentOnboarded(false);
     setDiagnosticComplete(false);
@@ -83,7 +79,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         teacherProfile, setTeacherProfile,
         studentProfile, setStudentProfile,
         currentCourse, setCurrentCourse,
-        taSettings, setTASettings,
         teacherOnboarded, setTeacherOnboarded,
         studentOnboarded, setStudentOnboarded,
         diagnosticComplete, setDiagnosticComplete,
