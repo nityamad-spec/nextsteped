@@ -50,11 +50,29 @@ const DiagnosticQuiz = () => {
     const init = async () => {
       if (!user) return;
 
-      // Check existing result
+      // Find the student's enrolled course
+      const { data: enrollment } = await supabase
+        .from("enrollments")
+        .select("course_id")
+        .eq("student_id", user.id)
+        .limit(1)
+        .maybeSingle();
+
+      const courseId = enrollment?.course_id;
+
+      if (!courseId) {
+        // No enrollment found — can't take diagnostic
+        setQuestions([]);
+        setPhase("intro");
+        return;
+      }
+
+      // Check existing result for this course
       const { data: existing } = await supabase
         .from("diagnostic_results")
-        .select("*")
+        .select("id")
         .eq("student_id", user.id)
+        .eq("course_id", courseId)
         .maybeSingle();
 
       if (existing) {
@@ -63,11 +81,12 @@ const DiagnosticQuiz = () => {
         return;
       }
 
-      // Fetch in_test questions from DB
+      // Fetch in_test questions for the enrolled course only
       const { data: dbQuestions, error } = await supabase
         .from("diagnostic_questions")
         .select("*")
         .eq("in_test", true)
+        .eq("course_id", courseId)
         .in("format", ["mcq", "true_false"])
         .order("difficulty_estimate", { ascending: true });
 
