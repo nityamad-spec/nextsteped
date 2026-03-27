@@ -1,0 +1,1 @@
+UPDATE courses SET published = true WHERE id = 'cc551ce8-378e-468b-969b-b99bb1c04495';
