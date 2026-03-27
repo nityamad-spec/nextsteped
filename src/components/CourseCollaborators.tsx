@@ -35,6 +35,38 @@ export default function CourseCollaborators() {
     if (!courseId || !user) return;
     setLoading(true);
 
+    // 1. Fetch course to determine owner
+    const { data: course } = await supabase
+      .from("courses")
+      .select("teacher_id")
+      .eq("id", courseId)
+      .single();
+
+    const ownerId = course?.teacher_id;
+    const ownerIsMe = ownerId === user.id;
+    setIsOwner(ownerIsMe);
+
+    // 2. Fetch owner profile
+    let ownerRow: Collaborator | null = null;
+    if (ownerId) {
+      const { data: ownerProfile } = await supabase
+        .from("profiles")
+        .select("id, name, created_at")
+        .eq("id", ownerId)
+        .single();
+
+      if (ownerProfile) {
+        ownerRow = {
+          id: `owner-${ownerProfile.id}`,
+          teacher_id: ownerProfile.id,
+          role: "owner",
+          created_at: ownerProfile.created_at,
+          name: ownerProfile.name || "Unknown",
+        };
+      }
+    }
+
+    // 3. Fetch collaborators from course_teachers
     const { data, error } = await supabase
       .from("course_teachers")
       .select("id, teacher_id, role, created_at, profiles(name)")
@@ -46,17 +78,17 @@ export default function CourseCollaborators() {
       return;
     }
 
-    const mapped: Collaborator[] = (data || []).map((row: any) => ({
-      id: row.id,
-      teacher_id: row.teacher_id,
-      role: row.role,
-      created_at: row.created_at,
-      name: row.profiles?.name || "Unknown",
-    }));
+    const mapped: Collaborator[] = (data || [])
+      .filter((row: any) => row.teacher_id !== ownerId) // exclude owner if duplicated
+      .map((row: any) => ({
+        id: row.id,
+        teacher_id: row.teacher_id,
+        role: row.role || "collaborator",
+        created_at: row.created_at,
+        name: row.profiles?.name || "Unknown",
+      }));
 
-    setCollaborators(mapped);
-    const myRow = mapped.find((c) => c.teacher_id === user.id);
-    setIsOwner(myRow?.role === "owner");
+    setCollaborators(ownerRow ? [ownerRow, ...mapped] : mapped);
     setLoading(false);
   };
 
@@ -68,17 +100,6 @@ export default function CourseCollaborators() {
     if (!email.trim() || !courseId) return;
     setAdding(true);
 
-    // Look up teacher by email in auth metadata via profiles
-    // We need to find the profile. Since we can't query auth.users,
-    // we'll search profiles where role = 'teacher'. The email isn't in profiles,
-    // so we use supabase auth admin. Instead, let's look up by name for now
-    // Actually, we need email. Let's query auth users via a workaround:
-    // We'll use the profiles table joined with the email concept.
-    // Since profiles don't store email, we search via supabase.auth — but that's admin only.
-    // Best approach: use an RPC or edge function. For simplicity, let's search by name.
-
-    // Actually the plan says "enter a teacher's email" but profiles don't have email.
-    // Let's search by name instead for now.
     const { data: teachers, error: searchError } = await supabase
       .from("profiles")
       .select("id, name")
@@ -91,7 +112,6 @@ export default function CourseCollaborators() {
       return;
     }
 
-    // Check if already a collaborator
     const teacher = teachers[0];
     if (collaborators.some((c) => c.teacher_id === teacher.id)) {
       toast({ title: "Already added", description: `${teacher.name} is already a collaborator.`, variant: "destructive" });
@@ -218,7 +238,6 @@ export default function CourseCollaborators() {
           </>
         )}
 
-        {/* Remove confirmation dialog */}
         <Dialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)}>
           <DialogContent>
             <DialogHeader>
