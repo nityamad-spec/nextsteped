@@ -98,13 +98,30 @@ const DiagnosticQuiz = () => {
       }
 
       const mapped: QuizQuestion[] = dbQuestions.map((row) => {
-        const options = (row.options as string[]) || [];
+        let options = (row.options as string[]) || [];
+        let questionText = row.content_text;
+
+        // If options are null/empty, parse them from the content_text (A. / B. / C. / D. format)
+        if (!options || options.length === 0) {
+          const optionRegex = /^([A-F])\.\s*(.+)$/gm;
+          const parsed: string[] = [];
+          let match;
+          while ((match = optionRegex.exec(row.content_text)) !== null) {
+            parsed.push(match[2].trim());
+          }
+          if (parsed.length > 0) {
+            options = parsed;
+            // Remove the option lines from the question text
+            questionText = row.content_text.replace(/\n[A-F]\.\s*.+/g, "").trim();
+          }
+        }
+
         const idx = answerLetters.indexOf(row.answer);
         const correctIndex = idx >= 0 ? idx : options.indexOf(row.answer);
 
         return {
           id: row.id,
-          question: row.content_text,
+          question: questionText,
           options,
           correctIndex: correctIndex >= 0 ? correctIndex : 0,
           topic: row.topic || "",
