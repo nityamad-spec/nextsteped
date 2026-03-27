@@ -87,7 +87,6 @@ const Feedback = () => {
     answers.ease != null &&
     answers.clarity != null &&
     answers.understanding != null &&
-    answers.difficulty_match != null &&
     answers.guided != null &&
     answers.comparison != null &&
     answers.usefulness != null;
