@@ -16,7 +16,7 @@ import SetupProgressBar from "@/components/SetupProgressBar";
 const PublishEnrollment = () => {
   const navigate = useNavigate();
   const { currentCourse, setTeacherOnboarded } = useApp();
-
+  const { user } = useAuth();
   const courseSections = currentCourse?.sections || [];
   const hasMultipleSections = courseSections.length > 1;
 
@@ -31,16 +31,28 @@ const PublishEnrollment = () => {
   useEffect(() => {
     const fetchCode = async () => {
       const courseId = currentCourse?.id || localStorage.getItem("currentCourseId");
-      if (!courseId) return;
-      const { data } = await supabase
-        .from("courses")
-        .select("enrollment_code")
-        .eq("id", courseId)
-        .maybeSingle();
-      if (data?.enrollment_code) setDbEnrollmentCode(data.enrollment_code);
+      if (courseId) {
+        const { data } = await supabase
+          .from("courses")
+          .select("enrollment_code")
+          .eq("id", courseId)
+          .maybeSingle();
+        if (data?.enrollment_code) { setDbEnrollmentCode(data.enrollment_code); return; }
+      }
+      // Fallback: fetch latest course by teacher
+      if (user?.id) {
+        const { data } = await supabase
+          .from("courses")
+          .select("enrollment_code")
+          .eq("teacher_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data?.enrollment_code) setDbEnrollmentCode(data.enrollment_code);
+      }
     };
     fetchCode();
-  }, [currentCourse?.id]);
+  }, [currentCourse?.id, user?.id]);
 
   const enrollmentCode = dbEnrollmentCode || currentCourse?.enrollmentCode || "—";
 
