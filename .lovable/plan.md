@@ -1,13 +1,15 @@
 
 
-## Plan: Remove Legacy Redirect Routes
+## Plan: Fix 3 Broken Navigation Links to `/teacher/setup/syllabus`
 
-Remove the two `<Navigate>` redirect routes for `/teacher/setup/course-creation` and `/teacher/setup/syllabus` from `src/App.tsx` since `/teacher/setup/lesson-plan` is now the canonical route and no code references the old paths.
+Replace all remaining references to `/teacher/setup/syllabus` with `/teacher/setup/lesson-plan` in three files:
 
-### File Modified
-`src/App.tsx` — delete these two lines:
-```tsx
-<Route path="/teacher/setup/syllabus" element={<Navigate to="/teacher/setup/lesson-plan" replace />} />
-<Route path="/teacher/setup/course-creation" element={<Navigate to="/teacher/setup/lesson-plan" replace />} />
-```
+1. **`src/pages/teacher/MaterialQualityCheck.tsx`** (line 711) — Forward button uses old path
+2. **`src/pages/teacher/ConceptManagement.tsx`** (line 302) — Back button uses old path
+3. **`src/pages/teacher/DiagnosticQuestionsSetup.tsx`** (line 1092) — Back button uses old path
+
+Each is a single string replacement: `"/teacher/setup/syllabus"` → `"/teacher/setup/lesson-plan"`.
+
+### Result
+All 8 steps will have correct forward/back navigation with no dead links.
 
