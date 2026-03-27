@@ -1,83 +1,39 @@
 
 
-## Plan: Persist TA Settings in the Database
+## Plan: Replace Hardcoded Course with Enrollment Code Input
 
 ### Problem
-TA settings (AI prompts, exam config, quiz config) are stored only in `localStorage`, so they are lost on cache clear and invisible to collaborators.
+The student onboarding page has a hardcoded "PY101 — Intro to Python" course. Students cannot enter an enrollment code to join a specific course. The `handleComplete` function blindly picks the first published course instead of matching by code.
 
-### Database Change
+### Changes to `src/pages/student/StudentOnboarding.tsx`
 
-Create a new `course_ta_settings` table tied to `course_id`:
+#### 1. Replace the disabled course Select with an enrollment code Input field
+- Remove the hardcoded `courseCode = "PY101"` and `courseName = "Intro to Python"` constants
+- Add state: `enrollmentCode` (string), `resolvedCourse` (object with id, name, course_code, or null), `verifyingCode` (boolean)
+- Render an Input field labeled "Enrollment Code" where students type the code given by their teacher
 
-```sql
-CREATE TABLE public.course_ta_settings (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  course_id uuid NOT NULL UNIQUE,
-  hint_ladder boolean NOT NULL DEFAULT true,
-  knowledge_sources text NOT NULL DEFAULT 'uploaded_and_web',
-  plagiarism_warnings boolean NOT NULL DEFAULT true,
-  exam_time_limit integer NOT NULL DEFAULT 60,
-  exam_difficulty text NOT NULL DEFAULT 'Mixed',
-  exam_question_mix text NOT NULL DEFAULT '40% MCQ, 30% Short Answer, 30% Coding',
-  exam_presentation text DEFAULT 'all_at_once',
-  custom_study_prompt text DEFAULT '',
-  custom_exam_prompt text DEFAULT '',
-  quiz_num_questions integer DEFAULT 5,
-  quiz_question_mix text DEFAULT 'mixed',
-  quiz_difficulty text DEFAULT 'Medium',
-  quiz_time_limit integer DEFAULT 10,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
+#### 2. Add enrollment code verification
+- When the student types a code and clicks a "Verify" button (or on blur/debounce), query:
+  ```sql
+  SELECT id, name, course_code FROM courses
+  WHERE enrollment_code = :code AND published = true
+  LIMIT 1
+  ```
+- If found: store the course in `resolvedCourse` and show the course confirmation card (name + course_code)
+- If not found: show an inline error "Invalid enrollment code"
 
-ALTER TABLE public.course_ta_settings ENABLE ROW LEVEL SECURITY;
+#### 3. Update the course confirmation card
+- Instead of the static PY101 card, show it only when `resolvedCourse` is set, displaying the actual course name and code from the DB
 
--- Teachers (owner) can do everything
-CREATE POLICY "Teachers can manage own course TA settings"
-  ON public.course_ta_settings FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM courses WHERE courses.id = course_id AND courses.teacher_id = auth.uid()));
+#### 4. Update validation
+- Add `resolvedCourse` to the `isValid` check (enrollment code must resolve to a real course)
 
--- Collaborators can view
-CREATE POLICY "Collaborators can view TA settings"
-  ON public.course_ta_settings FOR SELECT TO authenticated
-  USING (is_course_member(course_id, auth.uid()));
-
--- Students can view (needed for AI chat to use correct prompts/limits)
-CREATE POLICY "Students can view TA settings for enrolled courses"
-  ON public.course_ta_settings FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM enrollments WHERE enrollments.course_id = course_ta_settings.course_id AND enrollments.student_id = auth.uid()));
-```
-
-### Code Changes
-
-#### 1. New hook: `src/hooks/useTASettings.ts`
-- Fetches settings from `course_ta_settings` by `courseId`
-- Returns `{ taSettings, loading, saveTASettings }` 
-- `saveTASettings` does an upsert (insert on conflict update)
-- Falls back to `defaultTASettings` if no DB row exists yet
-
-#### 2. Update `AITASettings.tsx` (step 6)
-- Replace `useApp().taSettings` with `useTASettings(courseId)`
-- On save, call `saveTASettings()` instead of `setTASettings()`
-- Get `courseId` from `localStorage.getItem("currentCourseId")`
-
-#### 3. Update `ExamMode.tsx` (step 7)
-- Same pattern: use `useTASettings(courseId)` for load and save
-
-#### 4. Update `AIChat.tsx` (student side)
-- Fetch TA settings from DB using the student's enrolled course ID instead of `useApp().taSettings`
-- This ensures students see the teacher's actual configured settings
-
-#### 5. Update `AppContext.tsx`
-- Remove `taSettings` / `setTASettings` from context (no longer needed in global state)
-- Remove the `localStorage` key `ns_ta_settings`
+#### 5. Update `handleComplete`
+- Remove the "find first published course" query
+- Use `resolvedCourse.id` directly for the enrollment insert
+- Pass actual `resolvedCourse.name` and `resolvedCourse.course_code` to `setStudentProfile` and `setCurrentCourse`
+- Remove the `mockCourse` import (no longer needed)
 
 ### Files Modified
-1. **New migration** — `course_ta_settings` table + RLS policies
-2. **New file** — `src/hooks/useTASettings.ts`
-3. `src/pages/teacher/AITASettings.tsx` — use new hook
-4. `src/pages/teacher/ExamMode.tsx` — use new hook
-5. `src/pages/student/AIChat.tsx` — fetch from DB
-6. `src/contexts/AppContext.tsx` — remove taSettings state
-7. `src/types/index.ts` — no changes needed (TASettings interface stays)
+1. `src/pages/student/StudentOnboarding.tsx` — all changes above (single file edit)
 
