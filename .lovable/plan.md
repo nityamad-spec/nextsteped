@@ -1,42 +1,42 @@
 
 
-## Plan: Restore Previous Answers on Back Navigation
+## Plan: Per-Course Enrollment Control + Global Teacher Application Toggle
 
-### Problem
-When a student navigates back to a previous question, the answer fields (`selected`, `textAnswer`, `confidence`) are reset to empty. The data exists in the arrays but isn't loaded back into the UI state.
+### Overview
+Give the admin two controls:
+1. **Per-course student enrollment toggle** — close/open enrollment for individual courses
+2. **Global teacher application toggle** — disable/enable the teacher signup form entirely
 
-### Root Cause
-The Back button handler (line 361) sets `setSelected(null)`, `setTextAnswer("")`, `setConfidence(50)` and truncates the answer arrays. This discards the stored answer instead of restoring it.
+### Database Changes
 
-### Fix (single file: `src/pages/student/DiagnosticQuiz.tsx`)
+**1. Add `enrollment_open` column to `courses` table**
+- `enrollment_open boolean NOT NULL DEFAULT true`
+- Courses with `enrollment_open = false` reject new student signups using that enrollment code
 
-**Change the Back button handler** to restore the previous question's saved answer instead of clearing it:
-
-1. When going back to question index `prevQ = currentQ - 1`:
-   - Set `selected` to `answers[prevQ]` (or `null` if it was a short answer with value `-1`)
-   - Set `textAnswer` to `textAnswers[prevQ]`
-   - Set `confidence` to `confidences[prevQ]`
-2. Truncate all arrays by removing the last entry (same as now) so the restored answer can be re-submitted when the student clicks Next again
-
-**Updated Back handler logic:**
+**2. Create `admin_settings` table for global flags**
 ```
-const prevQ = currentQ - 1;
-const prevAnswer = answers[prevQ];
-const prevText = textAnswers[prevQ];
-const prevConfidence = confidences[prevQ];
-
-setCurrentQ(prevQ);
-setSelected(prevAnswer === -1 ? null : prevAnswer);
-setTextAnswer(prevText || "");
-setConfidence(prevConfidence ?? 50);
-setAnswers(answers.slice(0, -1));
-setTextAnswers(textAnswers.slice(0, -1));
-setConfidences(confidences.slice(0, -1));
-setQuestionTimes(questionTimes.slice(0, -1));
-setQuestionIds(questionIds.slice(0, -1));
-setQuestionStartTime(Date.now());
+admin_settings (
+  key text PRIMARY KEY,
+  value text NOT NULL,
+  updated_at timestamptz DEFAULT now()
+)
 ```
+- Seed with row: `key = 'teacher_signups_enabled'`, `value = 'true'`
+- RLS: admins can read/write, authenticated can read
 
-### Result
-Students see their previously selected MCQ option, typed short answer, and confidence level pre-filled when navigating back. They can change their answer and proceed forward again.
+### Frontend Changes
+
+**3. Auth page (`src/pages/Auth.tsx`)**
+- When verifying enrollment code, also check `enrollment_open = true` — show "Enrollment is closed for this course" if false
+- When rendering teacher signup form, fetch `admin_settings` for `teacher_signups_enabled` — if `'false'`, show a message like "Teacher registrations are currently closed" and disable the form
+
+**4. Admin Dashboard (`src/pages/admin/AdminDashboard.tsx`)**
+- Add a new "Settings" tab with:
+  - **Teacher Applications toggle**: Switch to enable/disable teacher signups globally (reads/writes `admin_settings`)
+  - **Course Enrollment table**: List all courses with a toggle switch per course to open/close enrollment (updates `courses.enrollment_open`)
+
+### Files Modified
+- 1 migration (add column + create table + seed + RLS)
+- `src/pages/Auth.tsx` — enrollment code verification + teacher signup gate
+- `src/pages/admin/AdminDashboard.tsx` — new Settings tab with toggles
 
