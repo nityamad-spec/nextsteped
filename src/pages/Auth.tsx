@@ -29,6 +29,24 @@ const Auth = () => {
   const [resolvedCourse, setResolvedCourse] = useState<ResolvedCourse | null>(null);
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [codeError, setCodeError] = useState("");
+  const [teacherSignupsEnabled, setTeacherSignupsEnabled] = useState(true);
+  const [teacherSignupsLoading, setTeacherSignupsLoading] = useState(false);
+
+  // Fetch teacher signup setting when on teacher signup
+  useEffect(() => {
+    if (!isLogin && role === "teacher") {
+      setTeacherSignupsLoading(true);
+      supabase
+        .from("admin_settings" as any)
+        .select("value")
+        .eq("key", "teacher_signups_enabled")
+        .maybeSingle()
+        .then(({ data }) => {
+          setTeacherSignupsEnabled((data as any)?.value !== "false");
+          setTeacherSignupsLoading(false);
+        });
+    }
+  }, [isLogin, role]);
 
   const verifyEnrollmentCode = async () => {
     const code = enrollmentCode.trim();
@@ -42,11 +60,16 @@ const Auth = () => {
         .select("id, name, course_code")
         .eq("enrollment_code", code)
         .eq("published", true)
+        .select("id, name, course_code, enrollment_open")
         .limit(1)
         .maybeSingle();
       if (error) throw error;
       if (data) {
-        setResolvedCourse(data);
+        if (!(data as any).enrollment_open) {
+          setCodeError("Enrollment is closed for this course. Please contact your instructor.");
+        } else {
+          setResolvedCourse(data);
+        }
       } else {
         setCodeError("Invalid enrollment code. Please check with your instructor.");
       }
