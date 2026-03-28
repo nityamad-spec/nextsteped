@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,24 @@ const Auth = () => {
   const [resolvedCourse, setResolvedCourse] = useState<ResolvedCourse | null>(null);
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [codeError, setCodeError] = useState("");
+  const [teacherSignupsEnabled, setTeacherSignupsEnabled] = useState(true);
+  const [teacherSignupsLoading, setTeacherSignupsLoading] = useState(false);
+
+  // Fetch teacher signup setting when on teacher signup
+  useEffect(() => {
+    if (!isLogin && role === "teacher") {
+      setTeacherSignupsLoading(true);
+      supabase
+        .from("admin_settings" as any)
+        .select("value")
+        .eq("key", "teacher_signups_enabled")
+        .maybeSingle()
+        .then(({ data }) => {
+          setTeacherSignupsEnabled((data as any)?.value !== "false");
+          setTeacherSignupsLoading(false);
+        });
+    }
+  }, [isLogin, role]);
 
   const verifyEnrollmentCode = async () => {
     const code = enrollmentCode.trim();
@@ -39,14 +57,18 @@ const Auth = () => {
     try {
       const { data, error } = await supabase
         .from("courses")
-        .select("id, name, course_code")
+        .select("id, name, course_code, enrollment_open")
         .eq("enrollment_code", code)
         .eq("published", true)
         .limit(1)
         .maybeSingle();
       if (error) throw error;
       if (data) {
-        setResolvedCourse(data);
+        if (!(data as any).enrollment_open) {
+          setCodeError("Enrollment is closed for this course. Please contact your instructor.");
+        } else {
+          setResolvedCourse(data);
+        }
       } else {
         setCodeError("Invalid enrollment code. Please check with your instructor.");
       }
@@ -264,10 +286,26 @@ const Auth = () => {
                 </>
               )}
 
+              {!isLogin && role === "teacher" && !teacherSignupsEnabled && (
+                <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-center">
+                  <p className="text-sm font-medium text-destructive">
+                    Teacher registrations are currently closed
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Please contact the administrator for more information.
+                  </p>
+                </div>
+              )}
+
               <Button
                 type="submit"
                 className="w-full"
-                disabled={loading || (showEnrollmentField && !resolvedCourse)}
+                disabled={
+                  loading ||
+                  (showEnrollmentField && !resolvedCourse) ||
+                  (!isLogin && role === "teacher" && !teacherSignupsEnabled) ||
+                  teacherSignupsLoading
+                }
               >
                 {loading ? "Please wait..." : isLogin ? "Sign In" : "Sign Up"}
               </Button>
