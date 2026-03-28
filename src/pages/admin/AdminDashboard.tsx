@@ -31,6 +31,7 @@ interface Course {
   id: string;
   name: string;
   course_code: string | null;
+  enrollment_open?: boolean;
 }
 
 type AssignmentRole = "collaborator" | "owner_swap" | "new_course";
@@ -43,6 +44,8 @@ const AdminDashboard = () => {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedCourses, setSelectedCourses] = useState<Record<string, string>>({});
   const [selectedRoles, setSelectedRoles] = useState<Record<string, AssignmentRole>>({});
+  const [teacherSignupsEnabled, setTeacherSignupsEnabled] = useState(true);
+  const [togglingEnrollment, setTogglingEnrollment] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -50,14 +53,45 @@ const AdminDashboard = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    const [appsRes, coursesRes] = await Promise.all([
+    const [appsRes, coursesRes, settingsRes] = await Promise.all([
       supabase.from("teacher_applications" as any).select("*").order("created_at", { ascending: false }),
-      supabase.from("courses").select("id, name, course_code"),
+      supabase.from("courses").select("id, name, course_code, enrollment_open"),
+      supabase.from("admin_settings" as any).select("*").eq("key", "teacher_signups_enabled").maybeSingle(),
     ]);
 
     if (appsRes.data) setApplications(appsRes.data as any);
-    if (coursesRes.data) setCourses(coursesRes.data);
+    if (coursesRes.data) setCourses(coursesRes.data as any);
+    if (settingsRes.data) setTeacherSignupsEnabled((settingsRes.data as any).value !== "false");
     setLoading(false);
+  };
+
+  const toggleTeacherSignups = async (enabled: boolean) => {
+    setTeacherSignupsEnabled(enabled);
+    const { error } = await supabase
+      .from("admin_settings" as any)
+      .update({ value: enabled ? "true" : "false", updated_at: new Date().toISOString() } as any)
+      .eq("key", "teacher_signups_enabled");
+    if (error) {
+      toast.error("Failed to update setting");
+      setTeacherSignupsEnabled(!enabled);
+    } else {
+      toast.success(enabled ? "Teacher signups enabled" : "Teacher signups disabled");
+    }
+  };
+
+  const toggleCourseEnrollment = async (courseId: string, open: boolean) => {
+    setTogglingEnrollment(courseId);
+    const { error } = await supabase
+      .from("courses")
+      .update({ enrollment_open: open } as any)
+      .eq("id", courseId);
+    if (error) {
+      toast.error("Failed to update enrollment status");
+    } else {
+      setCourses((prev) => prev.map((c) => (c.id === courseId ? { ...c, enrollment_open: open } : c)));
+      toast.success(open ? "Enrollment opened" : "Enrollment closed");
+    }
+    setTogglingEnrollment(null);
   };
 
   const handleAction = async (applicationId: string, action: "approve" | "reject") => {
