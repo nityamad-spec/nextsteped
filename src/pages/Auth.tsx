@@ -64,7 +64,7 @@ const Auth = () => {
         .maybeSingle();
       if (error) throw error;
       if (data) {
-        if (!(data as any).enrollment_open) {
+        if (!data.enrollment_open) {
           setCodeError("Enrollment is closed for this course. Please contact your instructor.");
         } else {
           setResolvedCourse(data);
