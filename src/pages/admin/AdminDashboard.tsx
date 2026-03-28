@@ -434,6 +434,14 @@ const AdminDashboard = () => {
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-6">
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
+            <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+              ℹ️ Backend Auth settings take precedence
+            </p>
+            <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+              If signups are disabled at the backend level (Cloud Auth settings), these toggles will have no effect — all signups will be blocked regardless.
+            </p>
+          </div>
           <Card>
             <CardHeader>
               <CardTitle>Teacher Applications</CardTitle>

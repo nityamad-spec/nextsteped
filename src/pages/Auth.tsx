@@ -147,7 +147,11 @@ const Auth = () => {
 
         const { error } = await signUp(email, password, name, role, enrollmentCode.trim());
         if (error) {
-          toast.error(error);
+          if (error === "SIGNUPS_DISABLED") {
+            toast.error("All signups are currently disabled by the system administrator.");
+          } else {
+            toast.error(error);
+          }
         } else {
           toast.success("Check your email to verify your account");
         }
