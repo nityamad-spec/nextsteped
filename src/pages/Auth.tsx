@@ -37,12 +37,12 @@ const Auth = () => {
     if (!isLogin && role === "teacher") {
       setTeacherSignupsLoading(true);
       supabase
-        .from("admin_settings" as any)
+        .from("admin_settings")
         .select("value")
         .eq("key", "teacher_signups_enabled")
         .maybeSingle()
         .then(({ data }) => {
-          setTeacherSignupsEnabled((data as any)?.value !== "false");
+          setTeacherSignupsEnabled(data?.value !== "false");
           setTeacherSignupsLoading(false);
         });
     }
@@ -64,7 +64,7 @@ const Auth = () => {
         .maybeSingle();
       if (error) throw error;
       if (data) {
-        if (!(data as any).enrollment_open) {
+        if (!data.enrollment_open) {
           setCodeError("Enrollment is closed for this course. Please contact your instructor.");
         } else {
           setResolvedCourse(data);
@@ -129,8 +129,8 @@ const Auth = () => {
       if (role === "teacher") {
         // Teacher signup: submit application instead of creating account
         const { error: appError } = await supabase
-          .from("teacher_applications" as any)
-          .insert({ email, name } as any);
+          .from("teacher_applications")
+          .insert({ email, name });
 
         if (appError) {
           toast.error(appError.message || "Failed to submit application");
