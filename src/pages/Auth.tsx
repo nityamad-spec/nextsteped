@@ -37,12 +37,12 @@ const Auth = () => {
     if (!isLogin && role === "teacher") {
       setTeacherSignupsLoading(true);
       supabase
-        .from("admin_settings" as any)
+        .from("admin_settings")
         .select("value")
         .eq("key", "teacher_signups_enabled")
         .maybeSingle()
         .then(({ data }) => {
-          setTeacherSignupsEnabled((data as any)?.value !== "false");
+          setTeacherSignupsEnabled(data?.value !== "false");
           setTeacherSignupsLoading(false);
         });
     }
