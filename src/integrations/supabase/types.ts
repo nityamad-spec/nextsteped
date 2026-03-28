@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       branches: {
         Row: {
           created_at: string
@@ -333,6 +351,7 @@ export type Database = {
           created_at: string
           end_date: string | null
           enrollment_code: string
+          enrollment_open: boolean
           graduation_year: string | null
           id: string
           materials_uploaded: boolean
@@ -353,6 +372,7 @@ export type Database = {
           created_at?: string
           end_date?: string | null
           enrollment_code?: string
+          enrollment_open?: boolean
           graduation_year?: string | null
           id?: string
           materials_uploaded?: boolean
@@ -373,6 +393,7 @@ export type Database = {
           created_at?: string
           end_date?: string | null
           enrollment_code?: string
+          enrollment_open?: boolean
           graduation_year?: string | null
           id?: string
           materials_uploaded?: boolean
