@@ -129,8 +129,8 @@ const Auth = () => {
       if (role === "teacher") {
         // Teacher signup: submit application instead of creating account
         const { error: appError } = await supabase
-          .from("teacher_applications" as any)
-          .insert({ email, name } as any);
+          .from("teacher_applications")
+          .insert({ email, name });
 
         if (appError) {
           toast.error(appError.message || "Failed to submit application");
