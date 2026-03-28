@@ -156,8 +156,8 @@ const AdminDashboard = () => {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight text-foreground">Teacher Applications</h2>
-        <p className="text-muted-foreground">Review and manage teacher signup requests</p>
+        <h2 className="text-3xl font-bold tracking-tight text-foreground">Admin Dashboard</h2>
+        <p className="text-muted-foreground">Manage teacher applications and system settings</p>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -200,6 +200,9 @@ const AdminDashboard = () => {
           </TabsTrigger>
           <TabsTrigger value="rejected" className="gap-2">
             <XCircle className="h-4 w-4" /> Rejected ({rejected.length})
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="gap-2">
+            <Settings className="h-4 w-4" /> Settings
           </TabsTrigger>
         </TabsList>
 
@@ -428,6 +431,73 @@ const AdminDashboard = () => {
               </Card>
             ))
           )}
+        </TabsContent>
+
+        <TabsContent value="settings" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Teacher Applications</CardTitle>
+              <CardDescription>Control whether new teacher applications can be submitted</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Allow teacher signups</p>
+                  <p className="text-xs text-muted-foreground">
+                    {teacherSignupsEnabled
+                      ? "Teachers can submit new applications"
+                      : "Teacher application form is disabled"}
+                  </p>
+                </div>
+                <Switch
+                  checked={teacherSignupsEnabled}
+                  onCheckedChange={toggleTeacherSignups}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Course Enrollment</CardTitle>
+              <CardDescription>Open or close student enrollment per course</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {courses.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No courses found</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Course</TableHead>
+                      <TableHead>Code</TableHead>
+                      <TableHead className="text-right">Enrollment</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {courses.map((course) => (
+                      <TableRow key={course.id}>
+                        <TableCell className="font-medium">{course.name}</TableCell>
+                        <TableCell className="text-muted-foreground">{course.course_code || "—"}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <span className="text-xs text-muted-foreground">
+                              {course.enrollment_open !== false ? "Open" : "Closed"}
+                            </span>
+                            <Switch
+                              checked={course.enrollment_open !== false}
+                              onCheckedChange={(open) => toggleCourseEnrollment(course.id, open)}
+                              disabled={togglingEnrollment === course.id}
+                            />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
