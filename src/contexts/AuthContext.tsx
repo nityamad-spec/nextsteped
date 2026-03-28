@@ -45,7 +45,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data: metadata,
       },
     });
-    if (error) return { error: error.message };
+    if (error) {
+      if (error.message?.toLowerCase().includes("signups not allowed") || error.message?.toLowerCase().includes("signup_disabled")) {
+        return { error: "SIGNUPS_DISABLED" };
+      }
+      return { error: error.message };
+    }
     // Supabase returns a user with empty identities if the email already exists
     if (data.user && data.user.identities && data.user.identities.length === 0) {
       return { error: "An account with this email already exists. Please sign in instead." };
