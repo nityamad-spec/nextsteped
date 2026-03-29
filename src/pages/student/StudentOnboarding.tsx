@@ -323,11 +323,9 @@ const StudentOnboarding = () => {
                     <SelectValue placeholder="Select graduation year" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="2027">2027</SelectItem>
-                    <SelectItem value="2028">2028</SelectItem>
-                    <SelectItem value="2029">2029</SelectItem>
-                    <SelectItem value="2030">2030</SelectItem>
-                    <SelectItem value="2031">2031</SelectItem>
+                    {filteredYears.map((y) => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
