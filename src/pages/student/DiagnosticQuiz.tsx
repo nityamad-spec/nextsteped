@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, ArrowLeft, Brain, Zap, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const confidenceLabels: Record<number, string> = {
   0: "Just Guessing",
@@ -59,7 +60,7 @@ const DiagnosticQuiz = () => {
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [textAnswer, setTextAnswer] = useState("");
-  const [confidence, setConfidence] = useState<number>(50);
+  const [confidence, setConfidence] = useState<number | null>(null);
   const [answers, setAnswers] = useState<number[]>([]);
   const [textAnswers, setTextAnswers] = useState<string[]>([]);
   const [confidences, setConfidences] = useState<number[]>([]);
@@ -167,14 +168,15 @@ const DiagnosticQuiz = () => {
   const question = questions[currentQ];
   const isShortAnswer = question?.format === "short_answer";
   const hasAnswer = isShortAnswer ? textAnswer.trim().length > 0 : selected !== null;
+  const canProceed = hasAnswer && confidence !== null;
 
   const handleAnswer = async () => {
-    if (!hasAnswer) return;
+    if (!canProceed) return;
     const elapsed = Date.now() - questionStartTime;
     const answerValue = isShortAnswer ? -1 : selected!;
     const newAnswers = [...answers, answerValue];
     const newTextAnswers = [...textAnswers, isShortAnswer ? textAnswer.trim() : ""];
-    const newConfidences = [...confidences, confidence];
+    const newConfidences = [...confidences, confidence!];
     const newQuestionTimes = [...questionTimes, elapsed];
     const newQuestionIds = [...questionIds, question.id];
     setAnswers(newAnswers);
@@ -184,7 +186,7 @@ const DiagnosticQuiz = () => {
     setQuestionIds(newQuestionIds);
     setSelected(null);
     setTextAnswer("");
-    setConfidence(50);
+    setConfidence(null);
 
     if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
@@ -362,15 +364,17 @@ const DiagnosticQuiz = () => {
 
               {hasAnswer && (
                 <div className="mt-4 border-t pt-4">
-                  <p className="mb-3 text-xs font-medium text-muted-foreground">How confident are you in your answer?</p>
+                  <p className="mb-3 text-xs font-medium text-muted-foreground">
+                    How confident are you in your answer? <span className="text-destructive">*</span>
+                  </p>
                   <div className="px-2">
                     <Slider
-                      value={[confidence]}
+                      value={confidence !== null ? [confidence] : [50]}
                       onValueChange={(val) => setConfidence(val[0])}
                       min={0}
                       max={100}
                       step={50}
-                      className="mb-2"
+                      className={cn("mb-2", confidence === null && "opacity-40")}
                     />
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Just Guessing</span>
@@ -378,17 +382,23 @@ const DiagnosticQuiz = () => {
                       <span>Very Confident</span>
                     </div>
                   </div>
-                  <p className="mt-2 text-center text-sm font-medium text-primary">
-                    {confidenceLabels[confidence] || "Somewhat Confident"}
-                  </p>
+                  {confidence === null ? (
+                    <p className="mt-2 text-center text-sm font-medium text-muted-foreground italic">
+                      Please select your confidence level
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-center text-sm font-medium text-primary">
+                      {confidenceLabels[confidence] || "Somewhat Confident"}
+                    </p>
+                  )}
                 </div>
               )}
             </motion.div>
             <div className="mt-4 flex justify-between">
-              <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; const prevConfidence = confidences[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setConfidence(prevConfidence ?? 50); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { navigate("/student/onboarding"); } }}>
+              <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; const prevConfidence = confidences[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setConfidence(prevConfidence ?? null); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { navigate("/student/onboarding"); } }}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
-              <Button onClick={handleAnswer} disabled={!hasAnswer}>
+              <Button onClick={handleAnswer} disabled={!canProceed}>
                 {currentQ < questions.length - 1 ? "Next Question" : "Finish Quiz"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
