@@ -15,7 +15,7 @@ import { toast } from "sonner";
 interface University { id: string; name: string }
 interface Degree { id: string; name: string }
 interface Branch { id: string; name: string; degree_id: string }
-interface ResolvedCourse { id: string; name: string; course_code: string | null }
+interface ResolvedCourse { id: string; name: string; course_code: string | null; sections: string[] | null }
 
 const StudentOnboarding = () => {
   const { setStudentProfile, setStudentOnboarded, setCurrentCourse } = useApp();
@@ -33,6 +33,7 @@ const StudentOnboarding = () => {
   const [resolvedCourse, setResolvedCourse] = useState<ResolvedCourse | null>(null);
   const [resolvingCourse, setResolvingCourse] = useState(false);
   const [enrollmentCode, setEnrollmentCode] = useState("");
+  const [section, setSection] = useState("");
 
   const [universities, setUniversities] = useState<University[]>([]);
   const [degrees, setDegrees] = useState<Degree[]>([]);
@@ -65,7 +66,7 @@ const StudentOnboarding = () => {
       try {
         const { data, error } = await supabase
           .from("courses")
-          .select("id, name, course_code")
+          .select("id, name, course_code, sections")
           .eq("enrollment_code", code)
           .eq("published", true)
           .limit(1)
@@ -107,7 +108,8 @@ const StudentOnboarding = () => {
     fetchBranches();
   }, [degreeId]);
 
-  const isValid = name.trim() && rollNumber.trim() && universityId && degreeId && branchId && year && resolvedCourse;
+  const hasSections = resolvedCourse?.sections && resolvedCourse.sections.length > 0;
+  const isValid = name.trim() && rollNumber.trim() && universityId && degreeId && branchId && year && resolvedCourse && (!hasSections || section);
 
   const handleComplete = async () => {
     if (!user || !resolvedCourse) return;
@@ -126,7 +128,7 @@ const StudentOnboarding = () => {
       if (error) throw error;
 
       await supabase.from("enrollments").upsert(
-        { student_id: user.id, course_id: resolvedCourse.id },
+        { student_id: user.id, course_id: resolvedCourse.id, ...(section ? { section } : {}) },
         { onConflict: "student_id,course_id" as any }
       );
 
@@ -213,6 +215,22 @@ const StudentOnboarding = () => {
                 <p className="text-sm text-destructive">
                   No enrollment code found. Please sign up again with a valid code.
                 </p>
+              )}
+
+              {hasSections && (
+                <div className="space-y-2">
+                  <Label>Section</Label>
+                  <Select value={section} onValueChange={setSection}>
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Select your section" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {resolvedCourse!.sections!.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
 
               <div className="space-y-2">
