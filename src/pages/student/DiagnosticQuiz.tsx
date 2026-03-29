@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, ArrowLeft, Brain, Zap, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const confidenceLabels: Record<number, string> = {
   0: "Just Guessing",
