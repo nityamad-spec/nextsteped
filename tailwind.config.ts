@@ -60,7 +60,7 @@ export default {
           foreground: "hsl(var(--warning-foreground))",
         },
         "mastery-beginner": "hsl(var(--mastery-beginner))",
-        "mastery-developing": "hsl(var(--mastery-developing))",
+        "mastery-progressing": "hsl(var(--mastery-progressing))",
         "mastery-proficient": "hsl(var(--mastery-proficient))",
         "mastery-expert": "hsl(var(--mastery-expert))",
         "mastery-movedup": "hsl(var(--mastery-movedup))",

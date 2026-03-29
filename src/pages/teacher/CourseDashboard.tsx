@@ -11,43 +11,43 @@ import CourseCollaborators from "@/components/CourseCollaborators";
 
 const masteryColors: Record<string, string> = {
   Beginner: "bg-mastery-beginner/20 text-mastery-beginner",
-  Developing: "bg-mastery-developing/20 text-mastery-developing",
+  Progressing: "bg-mastery-progressing/20 text-mastery-progressing",
   Proficient: "bg-mastery-proficient/20 text-mastery-proficient",
   Expert: "bg-mastery-expert/20 text-mastery-expert",
 };
 
 const masteryBarColors: Record<string, string> = {
   Beginner: "[&>div]:bg-mastery-beginner",
-  Developing: "[&>div]:bg-mastery-developing",
+  Progressing: "[&>div]:bg-mastery-progressing",
   Proficient: "[&>div]:bg-mastery-proficient",
   Expert: "[&>div]:bg-mastery-expert",
 };
 
-const topicInsights: Record<string, { beginner: number; developing: number; proficient: number; expert: number; summary: string; detail: string }> = {
-  "Process Management": { beginner: 2, developing: 4, proficient: 15, expert: 24, summary: "Students demonstrate strong understanding of process lifecycle, creation, and termination.", detail: "Most students can explain context switching, PCBs, and process states. This topic can serve as a foundation to reinforce related concepts like scheduling." },
-  "CPU Scheduling": { beginner: 3, developing: 6, proficient: 18, expert: 18, summary: "Solid grasp of scheduling algorithms across the class.", detail: "Students can compare FCFS, SJF, and Round Robin effectively. A few still struggle with priority inversion edge cases." },
-  "Memory Management": { beginner: 8, developing: 14, proficient: 15, expert: 8, summary: "Mixed understanding — allocation strategies are a common stumbling block.", detail: "Students understand basic concepts but have difficulty with fragmentation analysis and choosing between paging vs segmentation in applied scenarios." },
-  "Virtual Memory": { beginner: 15, developing: 14, proficient: 10, expert: 6, summary: "Significant gaps in page replacement and demand paging concepts.", detail: "Many students confuse page faults with segmentation faults. Consider revisiting TLB mechanics and running the Page Table Simulator again." },
-  "File Systems": { beginner: 7, developing: 16, proficient: 14, expert: 8, summary: "Students understand structure but struggle with implementation details.", detail: "EXT4 case study helped with design intuition, but inode allocation and journaling concepts need reinforcement." },
-  "Synchronization": { beginner: 18, developing: 13, proficient: 10, expert: 4, summary: "Concurrency primitives remain challenging for most students.", detail: "Producer-consumer and readers-writers problems are frequently confused. The mutex vs semaphore distinction needs more practice." },
-  "Deadlocks": { beginner: 20, developing: 12, proficient: 8, expert: 5, summary: "Deadlock detection is understood, but prevention strategies are weak.", detail: "Students can identify deadlocks in diagrams but struggle to apply Banker's algorithm or explain resource ordering in practice." },
-  "I/O Systems": { beginner: 6, developing: 13, proficient: 16, expert: 10, summary: "Reasonable understanding of I/O models, weaker on modern storage.", detail: "DMA and interrupt-driven I/O are well understood. NVMe and SSD internals from the industry white paper need more discussion." },
+const topicInsights: Record<string, { beginner: number; progressing: number; proficient: number; expert: number; summary: string; detail: string }> = {
+  "Process Management": { beginner: 2, progressing: 4, proficient: 15, expert: 24, summary: "Students demonstrate strong understanding of process lifecycle, creation, and termination.", detail: "Most students can explain context switching, PCBs, and process states. This topic can serve as a foundation to reinforce related concepts like scheduling." },
+  "CPU Scheduling": { beginner: 3, progressing: 6, proficient: 18, expert: 18, summary: "Solid grasp of scheduling algorithms across the class.", detail: "Students can compare FCFS, SJF, and Round Robin effectively. A few still struggle with priority inversion edge cases." },
+  "Memory Management": { beginner: 8, progressing: 14, proficient: 15, expert: 8, summary: "Mixed understanding — allocation strategies are a common stumbling block.", detail: "Students understand basic concepts but have difficulty with fragmentation analysis and choosing between paging vs segmentation in applied scenarios." },
+  "Virtual Memory": { beginner: 15, progressing: 14, proficient: 10, expert: 6, summary: "Significant gaps in page replacement and demand paging concepts.", detail: "Many students confuse page faults with segmentation faults. Consider revisiting TLB mechanics and running the Page Table Simulator again." },
+  "File Systems": { beginner: 7, progressing: 16, proficient: 14, expert: 8, summary: "Students understand structure but struggle with implementation details.", detail: "EXT4 case study helped with design intuition, but inode allocation and journaling concepts need reinforcement." },
+  "Synchronization": { beginner: 18, progressing: 13, proficient: 10, expert: 4, summary: "Concurrency primitives remain challenging for most students.", detail: "Producer-consumer and readers-writers problems are frequently confused. The mutex vs semaphore distinction needs more practice." },
+  "Deadlocks": { beginner: 20, progressing: 12, proficient: 8, expert: 5, summary: "Deadlock detection is understood, but prevention strategies are weak.", detail: "Students can identify deadlocks in diagrams but struggle to apply Banker's algorithm or explain resource ordering in practice." },
+  "I/O Systems": { beginner: 6, progressing: 13, proficient: 16, expert: 10, summary: "Reasonable understanding of I/O models, weaker on modern storage.", detail: "DMA and interrupt-driven I/O are well understood. NVMe and SSD internals from the industry white paper need more discussion." },
 };
 
 const weeklyData = [
-  { week: "Week 1", active: 45, sessions: 89, up: 0, down: 0, stayed: 45, beginner: 20, developing: 15, proficient: 8, expert: 2, insight: "" },
-  { week: "Week 2", active: 44, sessions: 102, up: 3, down: 1, stayed: 40, beginner: 17, developing: 16, proficient: 9, expert: 2, insight: "3 students moved up — early momentum is building." },
-  { week: "Week 3", active: 42, sessions: 95, up: 4, down: 2, stayed: 36, beginner: 14, developing: 15, proficient: 10, expert: 3, insight: "2 students dropped a level. Consider reviewing Week 3 material (Advanced Scheduling) for common pain points." },
-  { week: "Week 4", active: 40, sessions: 78, up: 5, down: 1, stayed: 34, beginner: 10, developing: 14, proficient: 12, expert: 4, insight: "Strong upward movement. Sessions dipped — students may be consolidating knowledge independently." },
-  { week: "Week 5", active: 43, sessions: 112, up: 7, down: 1, stayed: 35, beginner: 8, developing: 13, proficient: 15, expert: 7, insight: "Highest engagement week. 7 students leveled up — the Synchronization topic is resonating well." },
-  { week: "Week 6", active: 41, sessions: 98, up: 3, down: 1, stayed: 37, beginner: 6, developing: 12, proficient: 14, expert: 9, insight: "Steady progress. Beginner count is decreasing — the class is maturing overall." },
+  { week: "Week 1", active: 45, sessions: 89, up: 0, down: 0, stayed: 45, beginner: 20, progressing: 15, proficient: 8, expert: 2, insight: "" },
+  { week: "Week 2", active: 44, sessions: 102, up: 3, down: 1, stayed: 40, beginner: 17, progressing: 16, proficient: 9, expert: 2, insight: "3 students moved up — early momentum is building." },
+  { week: "Week 3", active: 42, sessions: 95, up: 4, down: 2, stayed: 36, beginner: 14, progressing: 15, proficient: 10, expert: 3, insight: "2 students dropped a level. Consider reviewing Week 3 material (Advanced Scheduling) for common pain points." },
+  { week: "Week 4", active: 40, sessions: 78, up: 5, down: 1, stayed: 34, beginner: 10, progressing: 14, proficient: 12, expert: 4, insight: "Strong upward movement. Sessions dipped — students may be consolidating knowledge independently." },
+  { week: "Week 5", active: 43, sessions: 112, up: 7, down: 1, stayed: 35, beginner: 8, progressing: 13, proficient: 15, expert: 7, insight: "Highest engagement week. 7 students leveled up — the Synchronization topic is resonating well." },
+  { week: "Week 6", active: 41, sessions: 98, up: 3, down: 1, stayed: 37, beginner: 6, progressing: 12, proficient: 14, expert: 9, insight: "Steady progress. Beginner count is decreasing — the class is maturing overall." },
 ];
 
 const masteryTimelineData = weeklyData.map((w) => {
-  const total = w.beginner + w.developing + w.proficient + w.expert;
+  const total = w.beginner + w.progressing + w.proficient + w.expert;
   return {
     week: w.week,
-    avgMastery: total > 0 ? Math.round(((w.proficient * 70 + w.expert * 90 + w.developing * 45 + w.beginner * 20) / total)) : 0,
+    avgMastery: total > 0 ? Math.round(((w.proficient * 70 + w.expert * 90 + w.progressing * 45 + w.beginner * 20) / total)) : 0,
     proficientPct: total > 0 ? Math.round(((w.proficient + w.expert) / total) * 100) : 0,
     beginnerPct: total > 0 ? Math.round((w.beginner / total) * 100) : 0,
   };
@@ -225,9 +225,9 @@ const CourseDashboard = () => {
                               <p className="text-lg font-bold text-mastery-beginner">{w.beginner}</p>
                               <p className="text-[10px] text-mastery-beginner/80">Beginner</p>
                             </div>
-                            <div className="rounded-lg bg-mastery-developing/10 p-2.5 text-center">
-                              <p className="text-lg font-bold text-mastery-developing">{w.developing}</p>
-                              <p className="text-[10px] text-mastery-developing/80">Developing</p>
+                            <div className="rounded-lg bg-mastery-progressing/10 p-2.5 text-center">
+                              <p className="text-lg font-bold text-mastery-progressing">{w.progressing}</p>
+                              <p className="text-[10px] text-mastery-progressing/80">Progressing</p>
                             </div>
                             <div className="rounded-lg bg-mastery-proficient/10 p-2.5 text-center">
                               <p className="text-lg font-bold text-mastery-proficient">{w.proficient}</p>
@@ -326,11 +326,11 @@ const CourseDashboard = () => {
             {expandedTopic && topicInsights[expandedTopic] && (() => {
               const t = topicInsights[expandedTopic];
               const mastery = mockTopics.find(tp => tp.name === expandedTopic)?.mastery || 0;
-              const total = t.beginner + t.developing + t.proficient + t.expert;
+              const total = t.beginner + t.progressing + t.proficient + t.expert;
               const levelLabel = mastery >= 70 ? "Mastered" : mastery >= 50 ? "Progressing" : "Needs Attention";
               const levelColor = mastery >= 70 ? "text-mastery-expert" : mastery >= 50 ? "text-warning" : "text-destructive";
               const levelBg = mastery >= 70 ? "bg-mastery-expert/10" : mastery >= 50 ? "bg-warning/10" : "bg-destructive/10";
-              const notMastered = t.beginner + t.developing;
+              const notMastered = t.beginner + t.progressing;
               return (
                 <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
                   <div className="flex items-center justify-between">
@@ -346,9 +346,9 @@ const CourseDashboard = () => {
                       <p className="text-lg font-bold text-mastery-beginner">{t.beginner}</p>
                       <p className="text-[10px] text-mastery-beginner/80">Beginner</p>
                     </div>
-                    <div className="rounded-lg bg-mastery-developing/10 p-2.5 text-center">
-                      <p className="text-lg font-bold text-mastery-developing">{t.developing}</p>
-                      <p className="text-[10px] text-mastery-developing/80">Developing</p>
+                    <div className="rounded-lg bg-mastery-progressing/10 p-2.5 text-center">
+                      <p className="text-lg font-bold text-mastery-progressing">{t.progressing}</p>
+                      <p className="text-[10px] text-mastery-progressing/80">Progressing</p>
                     </div>
                     <div className="rounded-lg bg-mastery-proficient/10 p-2.5 text-center">
                       <p className="text-lg font-bold text-mastery-proficient">{t.proficient}</p>

@@ -118,7 +118,7 @@ export const mockDashboard: DashboardMetrics = {
   activeStudents: 47,
   totalSessions: 312,
   topMisunderstood: ["Lists & Dictionaries", "Error Handling", "OOP Basics", "File Handling", "Functions"],
-  masteryDistribution: { Beginner: 8, Developing: 18, Proficient: 15, Expert: 6 },
+  masteryDistribution: { Beginner: 8, Progressing: 18, Proficient: 15, Expert: 6 },
   atRiskCount: 5,
 };
 

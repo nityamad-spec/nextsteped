@@ -24,7 +24,7 @@ const masteryMovement = [
 
 const levelColors: Record<string, string> = {
   Beginner: "bg-mastery-beginner/10 text-mastery-beginner",
-  Developing: "bg-mastery-developing/10 text-mastery-developing",
+  Progressing: "bg-mastery-progressing/10 text-mastery-progressing",
   Proficient: "bg-mastery-proficient/10 text-mastery-proficient",
   Expert: "bg-mastery-expert/10 text-mastery-expert",
 };
@@ -193,12 +193,12 @@ const StudentInsights = () => {
                   key={topic.id}
                   onClick={() => setExpandedTopic(expandedTopic === topic.name ? null : topic.name)}
                   className={`rounded-lg p-3 text-center transition-all cursor-pointer ${
-                    (topic.mastery || 0) >= 70 ? "bg-mastery-expert/10 hover:bg-mastery-expert/20" : (topic.mastery || 0) >= 50 ? "bg-mastery-developing/10 hover:bg-mastery-developing/20" : "bg-destructive/10 hover:bg-destructive/20"
+                    (topic.mastery || 0) >= 70 ? "bg-mastery-expert/10 hover:bg-mastery-expert/20" : (topic.mastery || 0) >= 50 ? "bg-mastery-progressing/10 hover:bg-mastery-progressing/20" : "bg-destructive/10 hover:bg-destructive/20"
                   } ${expandedTopic === topic.name ? "ring-2 ring-primary" : ""}`}
                 >
                   <p className="text-xs font-medium">{topic.name}</p>
                   <p className={`text-lg font-bold ${
-                    (topic.mastery || 0) >= 70 ? "text-mastery-expert" : (topic.mastery || 0) >= 50 ? "text-mastery-developing" : "text-destructive"
+                    (topic.mastery || 0) >= 70 ? "text-mastery-expert" : (topic.mastery || 0) >= 50 ? "text-mastery-progressing" : "text-destructive"
                   }`}>{topic.mastery}%</p>
                 </button>
               ))}
