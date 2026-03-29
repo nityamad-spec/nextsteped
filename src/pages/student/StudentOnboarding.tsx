@@ -94,6 +94,7 @@ const StudentOnboarding = () => {
     fetchData();
   }, []);
 
+  // Filter branches by course-specified branches and degree
   useEffect(() => {
     if (!degreeId) { setBranches([]); setBranchId(""); return; }
     const fetchBranches = async () => {
@@ -102,11 +103,39 @@ const StudentOnboarding = () => {
         .select("id, name, degree_id")
         .eq("degree_id", degreeId)
         .order("name");
-      if (data) setBranches(data);
-      setBranchId("");
+      if (data) {
+        // Filter to only course-specified branches if available
+        const courseBranches = resolvedCourse?.branch;
+        const filtered = courseBranches && courseBranches.length > 0
+          ? data.filter((b) => courseBranches.includes(b.name))
+          : data;
+        setBranches(filtered);
+        // Auto-select if only one option
+        if (filtered.length === 1) {
+          setBranchId(filtered[0].id);
+        } else {
+          setBranchId("");
+        }
+      } else {
+        setBranches([]);
+        setBranchId("");
+      }
     };
     fetchBranches();
-  }, [degreeId]);
+  }, [degreeId, resolvedCourse]);
+
+  // Compute filtered graduation years from course
+  const courseYears = resolvedCourse?.graduation_year;
+  const filteredYears = courseYears && courseYears.length > 0
+    ? courseYears
+    : ["2027", "2028", "2029", "2030", "2031"];
+
+  // Auto-select year if only one option
+  useEffect(() => {
+    if (filteredYears.length === 1 && year !== filteredYears[0]) {
+      setYear(filteredYears[0]);
+    }
+  }, [filteredYears.length]);
 
   const hasSections = resolvedCourse?.sections && resolvedCourse.sections.length > 0;
   const isValid = name.trim() && rollNumber.trim() && universityId && degreeId && branchId && year && resolvedCourse && (!hasSections || section);
