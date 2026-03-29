@@ -1,33 +1,23 @@
 
 
-## Plan: Add Section Field to Student Profile Setup
+## Plan: Add Roll Number and Email to Profiles Table
 
 ### Problem
-Students currently don't specify which section they belong to during onboarding. Since courses support multiple sections, this data is needed for teachers to filter by section on the Course Dashboard.
-
-### Approach
-Add a dropdown to the student onboarding form that shows the sections defined on the resolved course. Store the selected section on the `enrollments` table (since section is course-specific, not student-global).
+The student onboarding form collects a roll number but never persists it. Email is available from the auth user but not stored in the profiles table for easy querying.
 
 ### Changes
 
-**1. Database migration** — Add `section` column to `enrollments`
+**1. Database migration** — Add two columns to `profiles`
 ```sql
-ALTER TABLE enrollments ADD COLUMN section text;
+ALTER TABLE public.profiles ADD COLUMN roll_number text;
+ALTER TABLE public.profiles ADD COLUMN email text;
 ```
 
 **2. `src/pages/student/StudentOnboarding.tsx`**
-- Add `section` state variable
-- After resolving the course, extract its `sections` array (already returned from the courses query — just add `sections` to the select)
-- Render a Select dropdown for section (populated from `resolvedCourse.sections`), shown only when the course has sections defined
-- Add `section` to the validation guard (`isValid`)
-- Pass the selected section when upserting into `enrollments`
-
-**3. `src/integrations/supabase/types.ts`** — auto-updated (no manual edit)
-
-### UI
-The section dropdown appears after the course confirmation card, before Full Name, using the same Select component style as other fields. If the course has no sections defined, the field is hidden and not required.
+- Include `roll_number` and `email` (from `user.email`) in the `profiles.upsert()` call
+- No UI changes needed — roll number input and email already exist
 
 ### Files Modified
-- 1 database migration (add `section` to `enrollments`)
+- 1 database migration
 - `src/pages/student/StudentOnboarding.tsx`
 
