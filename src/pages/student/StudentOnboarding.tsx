@@ -15,7 +15,7 @@ import { toast } from "sonner";
 interface University { id: string; name: string }
 interface Degree { id: string; name: string }
 interface Branch { id: string; name: string; degree_id: string }
-interface ResolvedCourse { id: string; name: string; course_code: string | null; sections: string[] | null }
+interface ResolvedCourse { id: string; name: string; course_code: string | null; sections: string[] | null; branch: string[] | null; graduation_year: string[] | null }
 
 const StudentOnboarding = () => {
   const { setStudentProfile, setStudentOnboarded, setCurrentCourse } = useApp();
@@ -66,7 +66,7 @@ const StudentOnboarding = () => {
       try {
         const { data, error } = await supabase
           .from("courses")
-          .select("id, name, course_code, sections")
+          .select("id, name, course_code, sections, branch, graduation_year")
           .eq("enrollment_code", code)
           .eq("published", true)
           .limit(1)
@@ -94,6 +94,7 @@ const StudentOnboarding = () => {
     fetchData();
   }, []);
 
+  // Filter branches by course-specified branches and degree
   useEffect(() => {
     if (!degreeId) { setBranches([]); setBranchId(""); return; }
     const fetchBranches = async () => {
@@ -102,11 +103,39 @@ const StudentOnboarding = () => {
         .select("id, name, degree_id")
         .eq("degree_id", degreeId)
         .order("name");
-      if (data) setBranches(data);
-      setBranchId("");
+      if (data) {
+        // Filter to only course-specified branches if available
+        const courseBranches = resolvedCourse?.branch;
+        const filtered = courseBranches && courseBranches.length > 0
+          ? data.filter((b) => courseBranches.includes(b.name))
+          : data;
+        setBranches(filtered);
+        // Auto-select if only one option
+        if (filtered.length === 1) {
+          setBranchId(filtered[0].id);
+        } else {
+          setBranchId("");
+        }
+      } else {
+        setBranches([]);
+        setBranchId("");
+      }
     };
     fetchBranches();
-  }, [degreeId]);
+  }, [degreeId, resolvedCourse]);
+
+  // Compute filtered graduation years from course
+  const courseYears = resolvedCourse?.graduation_year;
+  const filteredYears = courseYears && courseYears.length > 0
+    ? courseYears
+    : ["2027", "2028", "2029", "2030", "2031"];
+
+  // Auto-select year if only one option
+  useEffect(() => {
+    if (filteredYears.length === 1 && year !== filteredYears[0]) {
+      setYear(filteredYears[0]);
+    }
+  }, [filteredYears.length]);
 
   const hasSections = resolvedCourse?.sections && resolvedCourse.sections.length > 0;
   const isValid = name.trim() && rollNumber.trim() && universityId && degreeId && branchId && year && resolvedCourse && (!hasSections || section);
@@ -294,11 +323,9 @@ const StudentOnboarding = () => {
                     <SelectValue placeholder="Select graduation year" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="2027">2027</SelectItem>
-                    <SelectItem value="2028">2028</SelectItem>
-                    <SelectItem value="2029">2029</SelectItem>
-                    <SelectItem value="2030">2030</SelectItem>
-                    <SelectItem value="2031">2031</SelectItem>
+                    {filteredYears.map((y) => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
