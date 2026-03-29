@@ -39,6 +39,12 @@ const TeacherOnboarding = () => {
   const availableYears = ["2027", "2028", "2029", "2030", "2031"];
 
   useEffect(() => {
+    supabase.from("branches").select("id, name").order("name").then(({ data }) => {
+      if (data) setAllBranches(data);
+    });
+  }, []);
+
+  useEffect(() => {
     if (!user) return;
     const fetchExistingData = async () => {
       setLoading(true);
@@ -53,7 +59,6 @@ const TeacherOnboarding = () => {
       if (storedCourseId) {
         courseRes = await supabase.from("courses").select(courseFields).eq("id", storedCourseId).maybeSingle();
       } else {
-        // Try owned course first
         const owned = await supabase.from("courses")
           .select(courseFields)
           .eq("teacher_id", user.id)
@@ -64,7 +69,6 @@ const TeacherOnboarding = () => {
         if (owned.data) {
           courseRes = owned;
         } else {
-          // Fallback: find course via course_teachers (collaborator)
           const membership = await supabase.from("course_teachers")
             .select("course_id")
             .eq("teacher_id", user.id)
@@ -88,13 +92,17 @@ const TeacherOnboarding = () => {
 
       if (courseRes.data) {
         localStorage.setItem("currentCourseId", courseRes.data.id);
-        if (courseRes.data.branch) setBranch(courseRes.data.branch);
+        if (courseRes.data.branch && Array.isArray(courseRes.data.branch)) {
+          setSelectedBranches(courseRes.data.branch);
+        }
         if (courseRes.data.term) setTerm(courseRes.data.term);
         if (courseRes.data.sections) setSections(courseRes.data.sections as string[]);
         if (courseRes.data.objectives) setObjectives((courseRes.data.objectives as string[]).join("\n"));
         if (courseRes.data.course_code) setCourseCode(courseRes.data.course_code);
         if (courseRes.data.name) setCourseName(courseRes.data.name);
-        if (courseRes.data.graduation_year) setStudentYear(courseRes.data.graduation_year);
+        if (courseRes.data.graduation_year && Array.isArray(courseRes.data.graduation_year)) {
+          setSelectedYears(courseRes.data.graduation_year);
+        }
       }
 
       setLoading(false);
