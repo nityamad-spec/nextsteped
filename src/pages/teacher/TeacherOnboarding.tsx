@@ -132,7 +132,7 @@ const TeacherOnboarding = () => {
 
     if (existingProfile) {
       const { error: profileError } = await supabase.from("profiles")
-        .update({ name, department })
+        .update({ name, department, email: user.email || "" })
         .eq("id", user.id);
       if (profileError) {
         toast.error("Failed to update profile: " + profileError.message);
@@ -144,6 +144,7 @@ const TeacherOnboarding = () => {
         name,
         role: "teacher",
         department,
+        email: user.email || "",
       });
       if (profileError) {
         toast.error("Failed to save profile: " + profileError.message);
