@@ -1,34 +1,33 @@
 
 
-## Plan: Mandate Confidence Level Selection
+## Plan: Add Section Field to Student Profile Setup
 
 ### Problem
-Currently, the confidence slider defaults to 50 ("Somewhat Confident") and students can skip past it without actively choosing. This means the confidence data may not reflect genuine self-assessment.
+Students currently don't specify which section they belong to during onboarding. Since courses support multiple sections, this data is needed for teachers to filter by section on the Course Dashboard.
 
 ### Approach
-Make the confidence slider **disabled and unset** when each question loads. The "Next Question" / "Finish Quiz" button stays disabled until the student both answers the question **and** explicitly sets a confidence level.
+Add a dropdown to the student onboarding form that shows the sections defined on the resolved course. Store the selected section on the `enrollments` table (since section is course-specific, not student-global).
 
 ### Changes
 
-**`src/pages/student/DiagnosticQuiz.tsx`**
-
-1. **Change confidence state to `null` initially** — `useState<number | null>(null)` instead of `useState<number>(50)`
-2. **Reset confidence to `null`** on each new question (in `handleAnswer` and back-navigation)
-3. **Update `hasAnswer` guard** — require `confidence !== null` in addition to having an answer selected
-4. **Disable the slider visually** when no answer is selected (keep current behavior of showing it only after answering), but once visible, start it in an **unset state** with no thumb position highlighted
-5. **Show a prompt** like "Please select your confidence level" when the slider is unset
-6. **Back navigation** — restore the previously saved confidence value when going back (already stored in `confidences` array)
-
-### UX Flow
-```text
-1. Student sees question → selects answer
-2. Confidence slider appears (no value selected, thumb at center but grayed out)
-3. Student taps/drags to set confidence → button enables
-4. Student clicks Next → moves to next question with slider reset
+**1. Database migration** — Add `section` column to `enrollments`
+```sql
+ALTER TABLE enrollments ADD COLUMN section text;
 ```
 
-### Files Modified
-- `src/pages/student/DiagnosticQuiz.tsx`
+**2. `src/pages/student/StudentOnboarding.tsx`**
+- Add `section` state variable
+- After resolving the course, extract its `sections` array (already returned from the courses query — just add `sections` to the select)
+- Render a Select dropdown for section (populated from `resolvedCourse.sections`), shown only when the course has sections defined
+- Add `section` to the validation guard (`isValid`)
+- Pass the selected section when upserting into `enrollments`
 
-### No database changes needed
+**3. `src/integrations/supabase/types.ts`** — auto-updated (no manual edit)
+
+### UI
+The section dropdown appears after the course confirmation card, before Full Name, using the same Select component style as other fields. If the course has no sections defined, the field is hidden and not required.
+
+### Files Modified
+- 1 database migration (add `section` to `enrollments`)
+- `src/pages/student/StudentOnboarding.tsx`
 
