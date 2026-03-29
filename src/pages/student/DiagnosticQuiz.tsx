@@ -131,6 +131,11 @@ const DiagnosticQuiz = () => {
         };
       });
 
+      // Fisher-Yates shuffle for randomized question order
+      for (let i = mapped.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [mapped[i], mapped[j]] = [mapped[j], mapped[i]];
+      }
       setQuestions(mapped);
       setPhase("intro");
     };
