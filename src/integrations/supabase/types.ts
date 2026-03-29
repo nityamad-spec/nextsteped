@@ -243,7 +243,10 @@ export type Database = {
           created_at: string
           custom_exam_prompt: string | null
           custom_study_prompt: string | null
+          exam_approved: boolean
           exam_difficulty: string
+          exam_manual_count: number | null
+          exam_manual_questions: boolean
           exam_presentation: string | null
           exam_question_mix: string
           exam_time_limit: number
@@ -251,6 +254,7 @@ export type Database = {
           id: string
           knowledge_sources: string
           plagiarism_warnings: boolean
+          quiz_approved: boolean
           quiz_difficulty: string | null
           quiz_num_questions: number | null
           quiz_question_mix: string | null
@@ -262,7 +266,10 @@ export type Database = {
           created_at?: string
           custom_exam_prompt?: string | null
           custom_study_prompt?: string | null
+          exam_approved?: boolean
           exam_difficulty?: string
+          exam_manual_count?: number | null
+          exam_manual_questions?: boolean
           exam_presentation?: string | null
           exam_question_mix?: string
           exam_time_limit?: number
@@ -270,6 +277,7 @@ export type Database = {
           id?: string
           knowledge_sources?: string
           plagiarism_warnings?: boolean
+          quiz_approved?: boolean
           quiz_difficulty?: string | null
           quiz_num_questions?: number | null
           quiz_question_mix?: string | null
@@ -281,7 +289,10 @@ export type Database = {
           created_at?: string
           custom_exam_prompt?: string | null
           custom_study_prompt?: string | null
+          exam_approved?: boolean
           exam_difficulty?: string
+          exam_manual_count?: number | null
+          exam_manual_questions?: boolean
           exam_presentation?: string | null
           exam_question_mix?: string
           exam_time_limit?: number
@@ -289,6 +300,7 @@ export type Database = {
           id?: string
           knowledge_sources?: string
           plagiarism_warnings?: boolean
+          quiz_approved?: boolean
           quiz_difficulty?: string | null
           quiz_num_questions?: number | null
           quiz_question_mix?: string | null
