@@ -117,8 +117,8 @@ const TeacherOnboarding = () => {
     courseName.trim() &&
     sections.length > 0 &&
     term &&
-    branch.trim() &&
-    studentYear &&
+    selectedBranches.length > 0 &&
+    selectedYears.length > 0 &&
     objectives.trim();
 
   const addSection = () => {
@@ -169,11 +169,11 @@ const TeacherOnboarding = () => {
     const coursePayload = {
       name: courseName.trim(),
       course_code: courseCode.trim(),
-      branch,
+      branch: selectedBranches,
       term,
       sections,
       objectives: objectives.split("\n").filter(Boolean),
-      graduation_year: studentYear,
+      graduation_year: selectedYears,
     };
 
     const { data: existingCourse } = await supabase
@@ -221,7 +221,7 @@ const TeacherOnboarding = () => {
       ...mockCourse,
       id: courseId,
       name: courseName,
-      branch,
+      branch: selectedBranches.join(", "),
       term: (term as any) || mockCourse.term,
       sections: sections.length > 0 ? sections : mockCourse.sections,
       objectives: objectives ? objectives.split("\n").filter(Boolean) : mockCourse.objectives,
@@ -370,23 +370,89 @@ const TeacherOnboarding = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Branch</Label>
-                  <Input placeholder="e.g. Computer Science & Engineering" value={branch} onChange={(e) => setBranch(e.target.value)} />
+                  <Label>Branch(es)</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between font-normal h-auto min-h-[40px]">
+                        {selectedBranches.length > 0
+                          ? <span className="truncate">{selectedBranches.length} selected</span>
+                          : <span className="text-muted-foreground">Select branches</span>}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-2 max-h-60 overflow-y-auto" align="start">
+                      {allBranches.map((b) => (
+                        <label key={b.id} className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent cursor-pointer">
+                          <Checkbox
+                            checked={selectedBranches.includes(b.name)}
+                            onCheckedChange={(checked) => {
+                              setSelectedBranches((prev) =>
+                                checked ? [...prev, b.name] : prev.filter((x) => x !== b.name)
+                              );
+                            }}
+                          />
+                          {b.name}
+                        </label>
+                      ))}
+                      {allBranches.length === 0 && (
+                        <p className="text-sm text-muted-foreground p-2">No branches found</p>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                  {selectedBranches.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {selectedBranches.map((b) => (
+                        <Badge key={b} variant="secondary" className="gap-1">
+                          {b}
+                          <button onClick={() => setSelectedBranches((prev) => prev.filter((x) => x !== b))} className="ml-0.5 hover:text-destructive">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Graduation Year</Label>
-                <Select value={studentYear} onValueChange={setStudentYear}>
-                  <SelectTrigger><SelectValue placeholder="Select graduation year" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2027">2027</SelectItem>
-                    <SelectItem value="2028">2028</SelectItem>
-                    <SelectItem value="2029">2029</SelectItem>
-                    <SelectItem value="2030">2030</SelectItem>
-                    <SelectItem value="2031">2031</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Graduation Year(s)</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between font-normal h-auto min-h-[40px]">
+                      {selectedYears.length > 0
+                        ? <span className="truncate">{selectedYears.join(", ")}</span>
+                        : <span className="text-muted-foreground">Select graduation years</span>}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-2" align="start">
+                    {availableYears.map((y) => (
+                      <label key={y} className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent cursor-pointer">
+                        <Checkbox
+                          checked={selectedYears.includes(y)}
+                          onCheckedChange={(checked) => {
+                            setSelectedYears((prev) =>
+                              checked ? [...prev, y] : prev.filter((x) => x !== y)
+                            );
+                          }}
+                        />
+                        {y}
+                      </label>
+                    ))}
+                  </PopoverContent>
+                </Popover>
+                {selectedYears.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {selectedYears.map((y) => (
+                      <Badge key={y} variant="secondary" className="gap-1">
+                        {y}
+                        <button onClick={() => setSelectedYears((prev) => prev.filter((x) => x !== y))} className="ml-0.5 hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
