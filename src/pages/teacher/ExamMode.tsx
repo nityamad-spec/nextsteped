@@ -58,6 +58,10 @@ const ExamMode = () => {
       setQuizQuestionTypes(taSettings.quizQuestionMix || "mixed");
       setQuizDifficulty(taSettings.quizDifficulty || "Medium");
       setQuizTimeLimit(taSettings.quizTimeLimit || 10);
+      setExamApproved(taSettings.examApproved || false);
+      setQuizApproved(taSettings.quizApproved || false);
+      setExamManualQuestions(taSettings.examManualQuestions || false);
+      setExamManualCount(taSettings.examManualCount ?? estimate.total);
     }
   }, [loading, taSettings]);
 
@@ -96,6 +100,10 @@ const ExamMode = () => {
         quizQuestionMix: quizQuestionTypes,
         quizDifficulty,
         quizTimeLimit,
+        examApproved,
+        quizApproved,
+        examManualQuestions,
+        examManualCount,
       });
       navigate("/teacher/setup/publish");
     } catch {
