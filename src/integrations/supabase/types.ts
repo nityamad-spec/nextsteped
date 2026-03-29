@@ -346,13 +346,13 @@ export type Database = {
       }
       courses: {
         Row: {
-          branch: string | null
+          branch: string[] | null
           course_code: string | null
           created_at: string
           end_date: string | null
           enrollment_code: string
           enrollment_open: boolean
-          graduation_year: string | null
+          graduation_year: string[] | null
           id: string
           materials_uploaded: boolean
           name: string
@@ -367,13 +367,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          branch?: string | null
+          branch?: string[] | null
           course_code?: string | null
           created_at?: string
           end_date?: string | null
           enrollment_code?: string
           enrollment_open?: boolean
-          graduation_year?: string | null
+          graduation_year?: string[] | null
           id?: string
           materials_uploaded?: boolean
           name: string
@@ -388,13 +388,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          branch?: string | null
+          branch?: string[] | null
           course_code?: string | null
           created_at?: string
           end_date?: string | null
           enrollment_code?: string
           enrollment_open?: boolean
-          graduation_year?: string | null
+          graduation_year?: string[] | null
           id?: string
           materials_uploaded?: boolean
           name?: string
