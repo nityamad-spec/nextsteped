@@ -124,6 +124,8 @@ const StudentOnboarding = () => {
         degree_id: degreeId,
         branch_id: branchId,
         learner_level: "Beginner",
+        roll_number: rollNumber,
+        email: user.email || "",
       });
       if (error) throw error;
 
