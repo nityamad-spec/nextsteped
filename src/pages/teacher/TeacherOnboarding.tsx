@@ -12,7 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, ArrowLeft, User, Plus, X } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ArrowRight, ArrowLeft, User, Plus, X, ChevronsUpDown } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import { toast } from "sonner";
 
@@ -29,9 +31,12 @@ const TeacherOnboarding = () => {
   const [sections, setSections] = useState<string[]>([]);
   const [sectionInput, setSectionInput] = useState("");
   const [term, setTerm] = useState("");
-  const [branch, setBranch] = useState("");
-  const [studentYear, setStudentYear] = useState("");
+  const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
+  const [selectedYears, setSelectedYears] = useState<string[]>([]);
   const [objectives, setObjectives] = useState("");
+  const [allBranches, setAllBranches] = useState<{ id: string; name: string }[]>([]);
+
+  const availableYears = ["2027", "2028", "2029", "2030", "2031"];
 
   useEffect(() => {
     if (!user) return;
