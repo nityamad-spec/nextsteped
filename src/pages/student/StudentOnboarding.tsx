@@ -15,7 +15,7 @@ import { toast } from "sonner";
 interface University { id: string; name: string }
 interface Degree { id: string; name: string }
 interface Branch { id: string; name: string; degree_id: string }
-interface ResolvedCourse { id: string; name: string; course_code: string | null; sections: string[] | null }
+interface ResolvedCourse { id: string; name: string; course_code: string | null; sections: string[] | null; branch: string[] | null; graduation_year: string[] | null }
 
 const StudentOnboarding = () => {
   const { setStudentProfile, setStudentOnboarded, setCurrentCourse } = useApp();
@@ -66,7 +66,7 @@ const StudentOnboarding = () => {
       try {
         const { data, error } = await supabase
           .from("courses")
-          .select("id, name, course_code, sections")
+          .select("id, name, course_code, sections, branch, graduation_year")
           .eq("enrollment_code", code)
           .eq("published", true)
           .limit(1)
