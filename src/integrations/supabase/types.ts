@@ -619,11 +619,13 @@ export type Database = {
           created_at: string
           degree_id: string | null
           department: string | null
+          email: string | null
           graduation_year: string | null
           id: string
           learner_level: string | null
           name: string
           role: string
+          roll_number: string | null
           university_id: string | null
           updated_at: string
         }
@@ -632,11 +634,13 @@ export type Database = {
           created_at?: string
           degree_id?: string | null
           department?: string | null
+          email?: string | null
           graduation_year?: string | null
           id: string
           learner_level?: string | null
           name: string
           role: string
+          roll_number?: string | null
           university_id?: string | null
           updated_at?: string
         }
@@ -645,11 +649,13 @@ export type Database = {
           created_at?: string
           degree_id?: string | null
           department?: string | null
+          email?: string | null
           graduation_year?: string | null
           id?: string
           learner_level?: string | null
           name?: string
           role?: string
+          roll_number?: string | null
           university_id?: string | null
           updated_at?: string
         }
