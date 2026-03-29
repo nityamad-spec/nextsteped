@@ -82,6 +82,10 @@ export interface TASettings {
   quizQuestionMix?: string;
   quizDifficulty?: string;
   quizTimeLimit?: number;
+  examApproved?: boolean;
+  quizApproved?: boolean;
+  examManualQuestions?: boolean;
+  examManualCount?: number | null;
 }
 
 export interface DashboardMetrics {

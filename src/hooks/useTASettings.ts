@@ -19,6 +19,10 @@ interface DBTASettings {
   quiz_question_mix: string | null;
   quiz_difficulty: string | null;
   quiz_time_limit: number | null;
+  exam_approved: boolean;
+  quiz_approved: boolean;
+  exam_manual_questions: boolean;
+  exam_manual_count: number | null;
 }
 
 function dbToAppSettings(row: DBTASettings): TASettings {
@@ -38,6 +42,10 @@ function dbToAppSettings(row: DBTASettings): TASettings {
     quizTimeLimit: row.quiz_time_limit || 10,
     studySystemPrompt: defaultTASettings.studySystemPrompt,
     examSystemPrompt: defaultTASettings.examSystemPrompt,
+    examApproved: row.exam_approved,
+    quizApproved: row.quiz_approved,
+    examManualQuestions: row.exam_manual_questions,
+    examManualCount: row.exam_manual_count,
   };
 }
 
@@ -93,6 +101,10 @@ export function useTASettings(courseId: string | null) {
         quiz_question_mix: settings.quizQuestionMix || "mixed",
         quiz_difficulty: settings.quizDifficulty || "Medium",
         quiz_time_limit: settings.quizTimeLimit || 10,
+        exam_approved: settings.examApproved || false,
+        quiz_approved: settings.quizApproved || false,
+        exam_manual_questions: settings.examManualQuestions || false,
+        exam_manual_count: settings.examManualCount ?? null,
         updated_at: new Date().toISOString(),
       };
 
