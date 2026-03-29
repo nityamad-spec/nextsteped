@@ -14,8 +14,8 @@ const StudentProgress = () => {
 
   const learningJourney = [
     { month: "Aug 2025", level: "Beginner", active: true },
-    { month: "Sep 2025", level: "Intermediate", active: false },
-    { month: "Oct 2025", level: "Advanced", active: false },
+    { month: "Sep 2025", level: "Progressing", active: false },
+    { month: "Oct 2025", level: "Proficient", active: false },
     { month: "Nov 2025", level: "Expert", active: false },
   ];
 

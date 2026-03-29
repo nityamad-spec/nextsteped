@@ -172,7 +172,7 @@ const DiagnosticQuiz = () => {
       }).length;
       const total = questions.length;
       const ratio = correct / total;
-      const level = ratio >= 0.85 ? "Expert" : ratio >= 0.6 ? "Advanced" : ratio >= 0.35 ? "Intermediate" : "Beginner";
+      const level = ratio >= 0.85 ? "Expert" : ratio >= 0.6 ? "Proficient" : ratio >= 0.35 ? "Progressing" : "Beginner";
 
       if (studentProfile) {
         setStudentProfile({ ...studentProfile, learnerLevel: level });

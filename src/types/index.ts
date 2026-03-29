@@ -9,7 +9,7 @@ export interface TeacherProfile {
 export interface StudentProfile {
   name: string;
   courseCode: string;
-  learnerLevel: "Beginner" | "Intermediate" | "Advanced" | "Expert";
+  learnerLevel: "Beginner" | "Progressing" | "Proficient" | "Expert";
   topicBaseline: Record<string, number>;
 }
 
