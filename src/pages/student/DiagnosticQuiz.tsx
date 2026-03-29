@@ -151,9 +151,11 @@ const DiagnosticQuiz = () => {
         };
       });
 
-      // Fisher-Yates shuffle for randomized question order
+      // Seeded Fisher-Yates shuffle — same student+course always gets same order
+      const seed = hashString(user.id + courseId);
+      const prng = mulberry32(seed);
       for (let i = mapped.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = Math.floor(prng() * (i + 1));
         [mapped[i], mapped[j]] = [mapped[j], mapped[i]];
       }
       setQuestions(mapped);
