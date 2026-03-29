@@ -1,37 +1,46 @@
 
 
-## Plan: Generate Diagnostic Report PDF
+## Plan: Standardize Mastery Levels to Expert / Proficient / Progressing / Beginner
 
-### What
-Generate a professionally formatted PDF report of the diagnostic test results for students enrolled today (March 28, 2026), including charts, tables, and analysis.
+### Problem
+Two different naming schemes exist:
+- Diagnostic quiz uses: Expert, Advanced, Intermediate, Beginner
+- Dashboard/insights use: Expert, Proficient, Developing, Beginner
+- Target: **Expert, Proficient, Progressing, Beginner** everywhere
 
-### Approach
-Run a Python script using `reportlab` to create the PDF at `/mnt/documents/diagnostic_report_2026-03-28.pdf`. The script uses the data already queried from the database.
+### Changes
 
-### PDF Contents (3 pages)
+**1. `src/types/index.ts`**
+- Change `learnerLevel` type from `"Beginner" | "Intermediate" | "Advanced" | "Expert"` → `"Beginner" | "Progressing" | "Proficient" | "Expert"`
 
-**Page 1:**
-- Title: "Diagnostic Test Report — Intro to Python"
-- Summary stats bar (156 enrolled, 155 completed, 99.4% rate, 15 questions)
-- Pie chart showing learner level distribution (Expert 60%, Advanced 26.5%, Intermediate 10.3%, Beginner 3.2%)
-- Level breakdown table with count, avg score, avg %, and score range
-- Bar chart showing score distribution
-- Key insights (4 bullet points)
+**2. `src/pages/student/DiagnosticQuiz.tsx`**
+- Update level assignment: `"Advanced"` → `"Proficient"`, `"Intermediate"` → `"Progressing"`
 
-**Page 2:**
-- Beginner students table (5 students with name, score, percentage, avg confidence) — red header
-- Intermediate students table (16 students) — amber header
-- Confidence analysis (overconfidence alert for Nagarjuna, low-confidence notes)
-- Recommendations (4 actionable items)
-- Footer with generation date
+**3. `src/pages/student/Progress.tsx`**
+- Update learning journey labels: `"Intermediate"` → `"Progressing"`, `"Advanced"` → `"Proficient"`
 
-### Technical Details
-- Library: `reportlab` (already available)
-- Color scheme: matches the app's purple primary with green/blue/amber/red for mastery levels
-- Output: `/mnt/documents/diagnostic_report_2026-03-28.pdf`
-- QA: convert pages to images with `pdftoppm` and visually inspect before delivering
+**4. `src/pages/teacher/CourseDashboard.tsx`**
+- Rename all `Developing` → `Progressing` in `masteryColors`, `masteryBarColors`, `topicInsights` keys, and `weeklyData` keys
 
-### Files
-- `/tmp/gen_report.py` — generation script (ephemeral)
-- `/mnt/documents/diagnostic_report_2026-03-28.pdf` — final output
+**5. `src/pages/teacher/StudentInsights.tsx`**
+- Rename `Developing` → `Progressing` in `levelColors` and all references
+
+**6. CSS + Tailwind rename**
+- `src/index.css`: Rename `--mastery-developing` → `--mastery-progressing` (both light/dark themes)
+- `tailwind.config.ts`: Rename `mastery-developing` → `mastery-progressing`
+- Update all class references from `mastery-developing` → `mastery-progressing` in CourseDashboard, StudentInsights
+
+**7. Database migration**
+- Update existing `diagnostic_results.learner_level` values: `'Advanced'` → `'Proficient'`, `'Intermediate'` → `'Progressing'`
+- Update existing `profiles.learner_level` values similarly
+
+### Files Modified
+- `src/types/index.ts`
+- `src/pages/student/DiagnosticQuiz.tsx`
+- `src/pages/student/Progress.tsx`
+- `src/pages/teacher/CourseDashboard.tsx`
+- `src/pages/teacher/StudentInsights.tsx`
+- `src/index.css`
+- `tailwind.config.ts`
+- 1 database migration (update existing level strings)
 
