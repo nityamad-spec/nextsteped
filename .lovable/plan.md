@@ -1,46 +1,19 @@
 
 
-## Plan: Standardize Mastery Levels to Expert / Proficient / Progressing / Beginner
+## Plan: Randomize Diagnostic Question Sequence
 
 ### Problem
-Two different naming schemes exist:
-- Diagnostic quiz uses: Expert, Advanced, Intermediate, Beginner
-- Dashboard/insights use: Expert, Proficient, Developing, Beginner
-- Target: **Expert, Proficient, Progressing, Beginner** everywhere
+Currently, all students see diagnostic questions in the same fixed order (sorted by `item_code`). This makes it easier to share answers.
+
+### Approach
+Shuffle the questions on the client side after fetching them from the database, using a Fisher-Yates shuffle. The shuffled order is set once when the quiz initializes and preserved throughout the session (so navigating back/forward keeps the same order).
 
 ### Changes
 
-**1. `src/types/index.ts`**
-- Change `learnerLevel` type from `"Beginner" | "Intermediate" | "Advanced" | "Expert"` → `"Beginner" | "Progressing" | "Proficient" | "Expert"`
+**`src/pages/student/DiagnosticQuiz.tsx`**
+- After fetching and filtering questions (the `in_test` query), shuffle the array using Fisher-Yates before storing in state
+- Shuffle only runs once during initialization (not on re-renders or auth refreshes), respecting the existing initialization guard
 
-**2. `src/pages/student/DiagnosticQuiz.tsx`**
-- Update level assignment: `"Advanced"` → `"Proficient"`, `"Intermediate"` → `"Progressing"`
-
-**3. `src/pages/student/Progress.tsx`**
-- Update learning journey labels: `"Intermediate"` → `"Progressing"`, `"Advanced"` → `"Proficient"`
-
-**4. `src/pages/teacher/CourseDashboard.tsx`**
-- Rename all `Developing` → `Progressing` in `masteryColors`, `masteryBarColors`, `topicInsights` keys, and `weeklyData` keys
-
-**5. `src/pages/teacher/StudentInsights.tsx`**
-- Rename `Developing` → `Progressing` in `levelColors` and all references
-
-**6. CSS + Tailwind rename**
-- `src/index.css`: Rename `--mastery-developing` → `--mastery-progressing` (both light/dark themes)
-- `tailwind.config.ts`: Rename `mastery-developing` → `mastery-progressing`
-- Update all class references from `mastery-developing` → `mastery-progressing` in CourseDashboard, StudentInsights
-
-**7. Database migration**
-- Update existing `diagnostic_results.learner_level` values: `'Advanced'` → `'Proficient'`, `'Intermediate'` → `'Progressing'`
-- Update existing `profiles.learner_level` values similarly
-
-### Files Modified
-- `src/types/index.ts`
-- `src/pages/student/DiagnosticQuiz.tsx`
-- `src/pages/student/Progress.tsx`
-- `src/pages/teacher/CourseDashboard.tsx`
-- `src/pages/teacher/StudentInsights.tsx`
-- `src/index.css`
-- `tailwind.config.ts`
-- 1 database migration (update existing level strings)
+### No database or migration changes needed
+Question order is purely a presentation concern.
 
