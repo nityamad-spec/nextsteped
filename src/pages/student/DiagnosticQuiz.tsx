@@ -59,7 +59,7 @@ const DiagnosticQuiz = () => {
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [textAnswer, setTextAnswer] = useState("");
-  const [confidence, setConfidence] = useState<number>(50);
+  const [confidence, setConfidence] = useState<number | null>(null);
   const [answers, setAnswers] = useState<number[]>([]);
   const [textAnswers, setTextAnswers] = useState<string[]>([]);
   const [confidences, setConfidences] = useState<number[]>([]);
@@ -167,14 +167,15 @@ const DiagnosticQuiz = () => {
   const question = questions[currentQ];
   const isShortAnswer = question?.format === "short_answer";
   const hasAnswer = isShortAnswer ? textAnswer.trim().length > 0 : selected !== null;
+  const canProceed = hasAnswer && confidence !== null;
 
   const handleAnswer = async () => {
-    if (!hasAnswer) return;
+    if (!canProceed) return;
     const elapsed = Date.now() - questionStartTime;
     const answerValue = isShortAnswer ? -1 : selected!;
     const newAnswers = [...answers, answerValue];
     const newTextAnswers = [...textAnswers, isShortAnswer ? textAnswer.trim() : ""];
-    const newConfidences = [...confidences, confidence];
+    const newConfidences = [...confidences, confidence!];
     const newQuestionTimes = [...questionTimes, elapsed];
     const newQuestionIds = [...questionIds, question.id];
     setAnswers(newAnswers);
@@ -184,7 +185,7 @@ const DiagnosticQuiz = () => {
     setQuestionIds(newQuestionIds);
     setSelected(null);
     setTextAnswer("");
-    setConfidence(50);
+    setConfidence(null);
 
     if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
