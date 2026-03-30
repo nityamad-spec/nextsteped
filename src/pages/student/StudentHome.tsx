@@ -59,7 +59,10 @@ const StudentHome = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [expandedDays, setExpandedDays] = useState<number[]>([1]);
-  const [workshopPlan, setWorkshopPlan] = useState<WorkshopDay[]>(sharedWorkshopPlan);
+  const [workshopPlan, setWorkshopPlan] = useState<WorkshopDay[]>(
+    // Default: all days locked until teacher publishes a plan
+    sharedWorkshopPlan.map(d => ({ ...d, locked: true }))
+  );
   const [planLoading, setPlanLoading] = useState(true);
   const courseName = currentCourse?.name || "Intro to Python";
   const displayName = profileData?.name || studentProfile?.name || "Student";
