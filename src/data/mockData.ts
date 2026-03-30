@@ -161,6 +161,8 @@ export const defaultTASettings: TASettings = {
   quizEnabled: false,
   examManualQuestions: false,
   examManualCount: null,
+  quizDay1Enabled: false,
+  quizDay2Enabled: false,
 };
 
 export const availableDepartments = [

@@ -579,21 +579,30 @@ const AIChat = () => {
         {/* Exam/Quiz start buttons */}
         {mode === "exam" && !assessmentActive && activeChat && (
           <div className="flex flex-col items-center gap-3 border-b bg-muted/20 px-5 py-3">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap justify-center">
               <Button onClick={handleStartExam} className="gap-2" disabled={!taSettings.examEnabled}>
                 <Clock className="h-4 w-4" /> Start Exam
               </Button>
-              <Button onClick={() => handleStartQuiz()} variant="secondary" className="gap-2" disabled={!taSettings.quizEnabled}>
-                <MessageSquare className="h-4 w-4" /> Start Daily Quiz
+              <Button
+                onClick={() => handleStartQuiz(1)}
+                variant="secondary"
+                className="gap-2"
+                disabled={!taSettings.quizDay1Enabled}
+              >
+                <MessageSquare className="h-4 w-4" /> Day 1 Quiz
+              </Button>
+              <Button
+                onClick={() => handleStartQuiz(2)}
+                variant="secondary"
+                className="gap-2"
+                disabled={!taSettings.quizDay2Enabled}
+              >
+                <MessageSquare className="h-4 w-4" /> Day 2 Quiz
               </Button>
             </div>
-            {(!taSettings.examEnabled || !taSettings.quizEnabled) && (
+            {(!taSettings.examEnabled && !taSettings.quizDay1Enabled && !taSettings.quizDay2Enabled) && (
               <p className="text-xs text-muted-foreground">
-                {!taSettings.examEnabled && !taSettings.quizEnabled
-                  ? "Your professor has not enabled exams or quizzes yet."
-                  : !taSettings.examEnabled
-                  ? "Your professor has not enabled the exam yet."
-                  : "Your professor has not enabled daily quizzes yet."}
+                Your professor has not enabled any assessments yet.
               </p>
             )}
           </div>
