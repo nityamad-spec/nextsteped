@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.seed-questions]
 verify_jwt = false
+
+[functions.classify-question]
+verify_jwt = false

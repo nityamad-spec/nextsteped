@@ -42,6 +42,9 @@ const AIChat = () => {
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Course context for relevance classification
+  const [courseContext, setCourseContext] = useState<{ courseName: string; objectives: string[]; concepts: string[] } | null>(null);
+
   // Assessment state
   const [assessmentActive, setAssessmentActive] = useState(false);
   const [assessmentType, setAssessmentType] = useState<"quiz" | "exam">("quiz");
@@ -60,6 +63,25 @@ const AIChat = () => {
     updateLastMessage,
     updateSessionTitle,
   } = useChatSessions(mode);
+
+  // Fetch course context for relevance classification
+  useEffect(() => {
+    if (!enrolledCourseId) return;
+    const fetchContext = async () => {
+      const [courseRes, conceptsRes] = await Promise.all([
+        supabase.from("courses").select("name, objectives").eq("id", enrolledCourseId).maybeSingle(),
+        supabase.from("concepts").select("concept_code").eq("course_id", enrolledCourseId),
+      ]);
+      if (courseRes.data) {
+        setCourseContext({
+          courseName: courseRes.data.name,
+          objectives: (courseRes.data.objectives as string[]) || [],
+          concepts: (conceptsRes.data || []).map((c: any) => c.concept_code),
+        });
+      }
+    };
+    fetchContext();
+  }, [enrolledCourseId]);
 
   // Auto-start quiz/exam if coming from home page with mode=quiz or mode=exam
   useEffect(() => {
@@ -259,6 +281,39 @@ const AIChat = () => {
       .slice(-20)
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
+    // Classify relevance for study mode
+    let relevanceContext: { relevant: boolean; courseName: string; concepts: string[] } | undefined;
+    if (mode === "learning" && courseContext) {
+      try {
+        const classifyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/classify-question`;
+        const classifyResp = await fetch(classifyUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            message: userContent,
+            courseName: courseContext.courseName,
+            objectives: courseContext.objectives,
+            concepts: courseContext.concepts,
+          }),
+        });
+        if (classifyResp.ok) {
+          const classifyData = await classifyResp.json();
+          if (classifyData.relevant === false) {
+            relevanceContext = {
+              relevant: false,
+              courseName: courseContext.courseName,
+              concepts: courseContext.concepts,
+            };
+          }
+        }
+      } catch (e) {
+        console.error("Classification failed, proceeding normally:", e);
+      }
+    }
+
     const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
     const assistantMsgId = `streaming-${Date.now()}`;
 
@@ -274,6 +329,7 @@ const AIChat = () => {
           mode,
           studySystemPrompt: taSettings.studySystemPrompt,
           examSystemPrompt: taSettings.examSystemPrompt,
+          ...(relevanceContext ? { relevanceContext } : {}),
         }),
       });
 
