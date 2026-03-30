@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Question } from "@/data/questionBank";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -52,7 +53,12 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const handleFinish = useCallback(() => {
     let correct = 0;
     questions.forEach(q => {
-      if (answers[q.id] === q.correctAnswer) correct++;
+      const userAnswer = answers[q.id];
+      if (q.type === "short_answer") {
+        if (userAnswer?.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()) correct++;
+      } else {
+        if (userAnswer === q.correctAnswer) correct++;
+      }
     });
     const res: AssessmentResults = {
       totalQuestions: questions.length,
@@ -157,7 +163,9 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             <h3 className="text-sm font-semibold">Question Review</h3>
             {questions.map((q, i) => {
               const userAnswer = answers[q.id];
-              const isCorrect = userAnswer === q.correctAnswer;
+              const isCorrect = q.type === "short_answer"
+                ? userAnswer?.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()
+                : userAnswer === q.correctAnswer;
               return (
                 <Card key={q.id} className={`border ${isCorrect ? "border-primary/30" : "border-destructive/30"}`}>
                   <CardContent className="p-4 space-y-2">
@@ -259,6 +267,31 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                     </Label>
                   ))}
                 </RadioGroup>
+              )}
+
+              {currentQ.type === "true_false" && (
+                <div className="flex gap-3">
+                  {["True", "False"].map((opt) => (
+                    <Button
+                      key={opt}
+                      type="button"
+                      variant={answers[currentQ.id] === opt ? "default" : "outline"}
+                      className="flex-1 h-12 text-base"
+                      onClick={() => handleAnswer(currentQ.id, opt)}
+                    >
+                      {opt}
+                    </Button>
+                  ))}
+                </div>
+              )}
+
+              {currentQ.type === "short_answer" && (
+                <Textarea
+                  placeholder="Type your answer here…"
+                  value={answers[currentQ.id] || ""}
+                  onChange={(e) => handleAnswer(currentQ.id, e.target.value)}
+                  className="min-h-[120px]"
+                />
               )}
             </CardContent>
           </Card>
