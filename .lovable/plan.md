@@ -1,59 +1,42 @@
 
 
-## Plan: Dynamic Quiz Days (Beyond Day 1 & Day 2)
+## Plan: Add Diagnostic Test Analytics to Assessment Analytics
 
 ### Problem
-Quiz days are currently hardcoded to Day 1 and Day 2 — in the database columns (`quiz_day1_enabled`, `quiz_day2_enabled`), the types, the teacher UI toggles, and the student quiz buttons. Adding more days requires schema changes each time.
+The `/teacher/assessment-analytics` page currently only shows results from exams and daily quizzes (from `assessment_results` table). Diagnostic test results (stored in `diagnostic_results`) are excluded, so teachers have no visibility into how students performed on the initial diagnostic.
 
 ### Approach
-Replace the two boolean columns with a single JSONB column `quiz_days_enabled` (e.g. `[1, 2, 5]`) that stores which day numbers are enabled. The teacher UI dynamically discovers which days exist from the questions tagged with `quiz_day`, and renders a toggle for each. The student UI renders a button per enabled day.
+Add "Diagnostic" as a new mode option in the existing filter dropdown. When selected, fetch and display data from `diagnostic_results` instead of `assessment_results`, normalizing it into the same display format (summary cards, score distribution, topic performance, recent submissions).
 
 ### Changes
 
-**1. Database migration**
-```sql
-ALTER TABLE course_ta_settings
-  ADD COLUMN quiz_days_enabled jsonb NOT NULL DEFAULT '[]'::jsonb;
-```
-Keep the old `quiz_day1_enabled` / `quiz_day2_enabled` columns for now (no data loss), but stop using them in code.
+**1. `src/pages/teacher/AssessmentAnalytics.tsx`**
 
-**2. `src/types/index.ts`**
-- Remove `quizDay1Enabled` and `quizDay2Enabled`
-- Add `quizDaysEnabled: number[]`
-- Change `quizDay?: 1 | 2` references to `quizDay?: number`
+*Data fetching:*
+- Add a second `useEffect` that fetches from `diagnostic_results` (joined via `enrollments` to scope to the current course) when `modeFilter === "diagnostic"` or `"all"`
+- Normalize diagnostic rows into the same `AssessmentResult` shape: map `score`/`total_questions`/`answers`/`created_at`, set `mode = "diagnostic"`, `time_spent` derived from `question_times` JSONB if available
 
-**3. `src/hooks/useTASettings.ts`**
-- Map `quiz_days_enabled` JSONB to/from `quizDaysEnabled: number[]`
-- Keep backward compat: on load, if `quiz_days_enabled` is empty but old boolean columns are true, seed the array accordingly
-- On save, write the array to `quiz_days_enabled` and set `quiz_enabled = array.length > 0`
+*Filter dropdown:*
+- Add `<SelectItem value="diagnostic">Diagnostic Tests</SelectItem>` to the mode selector
 
-**4. `src/pages/teacher/Assessments.tsx`**
+*Summary cards:*
+- Include diagnostic count in the breakdown line (e.g., "5 exams · 3 quizzes · 12 diagnostics")
 
-*Question form dialog:*
-- Replace the Day 1 / Day 2 button pair with a number input (or incrementing selector) so teachers can assign any day number
-- Change `formQuizDay` type from `1 | 2` to `number`
+*Topic performance:*
+- Diagnostic `answers` JSONB already stores per-question data with topic info — aggregate the same way
 
-*Daily Quiz Settings card — enable/disable toggles:*
-- Derive the list of existing days from questions: `const uniqueDays = [...new Set(quizQuestions.map(q => q.quizDay).filter(Boolean))].sort()`
-- Render a toggle row for each day dynamically (same UI pattern as current Day 1/Day 2, but in a loop)
-- On toggle change, add/remove the day number from `taSettings.quizDaysEnabled` array
+*Recent submissions table:*
+- Show "Diagnostic" badge for diagnostic rows
+- Include learner level from `diagnostic_results.learner_level` as an extra badge
 
-*Filter bar:*
-- Replace hardcoded `[1, 2]` day filter buttons with the dynamic `uniqueDays` list
+*Score distribution:*
+- Works unchanged since it's computed from the normalized results array
 
-**5. `src/pages/student/AIChat.tsx`**
-- Replace the two hardcoded Day 1 / Day 2 buttons with a dynamic loop over `taSettings.quizDaysEnabled`
-- Each button: `Day {n} Quiz`, disabled if `n` is not in `quizDaysEnabled`
-- Update the auto-start `useEffect` to check `taSettings.quizDaysEnabled.includes(urlDay)`
-
-**6. `src/data/questionBank.ts`** (static fallback)
-- No structural changes needed — the `day` field already supports any number
+**2. RLS consideration**
+- `diagnostic_results` currently only has student-facing RLS (students can view/insert own). Teachers need a SELECT policy scoped to their course's enrolled students.
+- Add migration: `CREATE POLICY "Teachers can view diagnostic results for their courses" ON diagnostic_results FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM enrollments WHERE enrollments.student_id = diagnostic_results.student_id AND is_course_member(enrollments.course_id, auth.uid())));`
 
 ### Files Modified
-- Database migration (new `quiz_days_enabled` JSONB column)
-- `src/types/index.ts` — dynamic day types
-- `src/hooks/useTASettings.ts` — JSONB array mapping
-- `src/pages/teacher/Assessments.tsx` — dynamic day selector, toggles, filters
-- `src/pages/student/AIChat.tsx` — dynamic quiz day buttons
-- `src/data/mockData.ts` — update default settings
+- Database migration — RLS policy for teacher access to `diagnostic_results`
+- `src/pages/teacher/AssessmentAnalytics.tsx` — fetch diagnostic data, add filter option, normalize and display
 
