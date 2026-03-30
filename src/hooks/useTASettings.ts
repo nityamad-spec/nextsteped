@@ -101,9 +101,9 @@ export function useTASettings(courseId: string | null) {
         quiz_question_mix: settings.quizQuestionMix || "mixed",
         quiz_difficulty: settings.quizDifficulty || "Medium",
         quiz_time_limit: settings.quizTimeLimit || 10,
-        exam_approved: settings.examApproved || false,
-        quiz_approved: settings.quizApproved || false,
-        exam_manual_questions: settings.examManualQuestions || false,
+        exam_approved: settings.examApproved ?? false,
+        quiz_approved: settings.quizApproved ?? false,
+        exam_manual_questions: settings.examManualQuestions ?? false,
         exam_manual_count: settings.examManualCount ?? null,
         updated_at: new Date().toISOString(),
       };
