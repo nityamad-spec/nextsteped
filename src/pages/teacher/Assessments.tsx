@@ -121,8 +121,8 @@ const Assessments = () => {
   const examQuestions = questions.filter(q => q.mode === "exam");
   const quizQuestions = questions.filter(q => q.mode === "daily_quiz");
   const studyQuestions = questions.filter(q => q.mode === "learning");
-  const day1Questions = quizQuestions.filter(q => q.quizDay === 1);
-  const day2Questions = quizQuestions.filter(q => q.quizDay === 2);
+  const uniqueQuizDays = [...new Set(quizQuestions.map(q => q.quizDay).filter((d): d is number => d != null))].sort((a, b) => a - b);
+  const questionsByDay = (day: number) => quizQuestions.filter(q => q.quizDay === day);
 
   const clearFilters = () => { setFilterDifficulties([]); setFilterTypes([]); setFilterDays([]); };
 
@@ -336,7 +336,7 @@ const Assessments = () => {
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">Quiz Day</Label>
           <div className="flex flex-wrap gap-2">
-            {[1, 2].map((day) => (
+            {uniqueQuizDays.map((day) => (
               <button key={day} onClick={() => toggleFilterDay(day)}
                 className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${filterDays.includes(day) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"}`}>
                 Day {day}
@@ -550,19 +550,21 @@ const Assessments = () => {
               <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
                 <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                 <div className="text-xs text-muted-foreground space-y-1">
-                  <p><strong className="text-foreground">Standardized daily quizzes:</strong> All students receive the <strong>same</strong> set of questions for each day. Tag each question as <strong>Day 1</strong> or <strong>Day 2</strong>.</p>
-                  <p>These questions are exclusive to daily quizzes and will never appear in exam or study mode.</p>
+                   <p><strong className="text-foreground">Standardized daily quizzes:</strong> All students receive the <strong>same</strong> set of questions for each day. Assign any day number to each question.</p>
+                   <p>These questions are exclusive to daily quizzes and will never appear in exam or study mode.</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg border p-3 text-center">
-                  <p className="text-lg font-bold text-primary">{day1Questions.length}</p>
-                  <p className="text-xs text-muted-foreground">Day 1 Questions</p>
-                </div>
-                <div className="rounded-lg border p-3 text-center">
-                  <p className="text-lg font-bold text-primary">{day2Questions.length}</p>
-                  <p className="text-xs text-muted-foreground">Day 2 Questions</p>
-                </div>
+              <div className="flex flex-wrap gap-3">
+                {uniqueQuizDays.length === 0 ? (
+                  <div className="rounded-lg border border-dashed p-3 text-center w-full">
+                    <p className="text-xs text-muted-foreground">No quiz days yet. Add questions with a day assignment below.</p>
+                  </div>
+                ) : uniqueQuizDays.map((day) => (
+                  <div key={day} className="rounded-lg border p-3 text-center min-w-[100px]">
+                    <p className="text-lg font-bold text-primary">{questionsByDay(day).length}</p>
+                    <p className="text-xs text-muted-foreground">Day {day} Questions</p>
+                  </div>
+                ))}
               </div>
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Questions Per Quiz</Label>
@@ -601,50 +603,38 @@ const Assessments = () => {
                 {!taSettings.quizApproved && (
                   <p className="text-xs text-muted-foreground">Approve quiz rules in setup first to enable toggles.</p>
                 )}
-                <div className={`flex items-center justify-between rounded-lg border p-4 ${taSettings.quizDay1Enabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-primary" />
-                    <div>
-                      <p className="text-sm font-medium">Day 1 Quiz</p>
-                      <p className="text-xs text-muted-foreground">{day1Questions.length} question{day1Questions.length !== 1 ? "s" : ""} tagged</p>
+                {uniqueQuizDays.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Add quiz questions with day assignments to see toggles here.</p>
+                ) : uniqueQuizDays.map((day) => {
+                  const enabled = (taSettings.quizDaysEnabled || []).includes(day);
+                  return (
+                    <div key={day} className={`flex items-center justify-between rounded-lg border p-4 ${enabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
+                      <div className="flex items-center gap-3">
+                        <Calendar className="h-4 w-4 text-primary" />
+                        <div>
+                          <p className="text-sm font-medium">Day {day} Quiz</p>
+                          <p className="text-xs text-muted-foreground">{questionsByDay(day).length} question{questionsByDay(day).length !== 1 ? "s" : ""} tagged</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={enabled}
+                        disabled={!taSettings.quizApproved}
+                        onCheckedChange={async (checked) => {
+                          try {
+                            const current = taSettings.quizDaysEnabled || [];
+                            const updated = checked
+                              ? [...current, day].sort((a, b) => a - b)
+                              : current.filter(d => d !== day);
+                            await saveTASettings({ ...taSettings, quizDaysEnabled: updated, quizEnabled: updated.length > 0 });
+                            toast.success(`Day ${day} Quiz ${checked ? "enabled" : "disabled"} for students`);
+                          } catch {
+                            toast.error("Failed to update quiz availability");
+                          }
+                        }}
+                      />
                     </div>
-                  </div>
-                  <Switch
-                    checked={taSettings.quizDay1Enabled ?? false}
-                    disabled={!taSettings.quizApproved}
-                    onCheckedChange={async (checked) => {
-                      try {
-                        const quizEnabled = checked || (taSettings.quizDay2Enabled ?? false);
-                        await saveTASettings({ ...taSettings, quizDay1Enabled: checked, quizEnabled });
-                        toast.success(`Day 1 Quiz ${checked ? "enabled" : "disabled"} for students`);
-                      } catch {
-                        toast.error("Failed to update quiz availability");
-                      }
-                    }}
-                  />
-                </div>
-                <div className={`flex items-center justify-between rounded-lg border p-4 ${taSettings.quizDay2Enabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-primary" />
-                    <div>
-                      <p className="text-sm font-medium">Day 2 Quiz</p>
-                      <p className="text-xs text-muted-foreground">{day2Questions.length} question{day2Questions.length !== 1 ? "s" : ""} tagged</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={taSettings.quizDay2Enabled ?? false}
-                    disabled={!taSettings.quizApproved}
-                    onCheckedChange={async (checked) => {
-                      try {
-                        const quizEnabled = (taSettings.quizDay1Enabled ?? false) || checked;
-                        await saveTASettings({ ...taSettings, quizDay2Enabled: checked, quizEnabled });
-                        toast.success(`Day 2 Quiz ${checked ? "enabled" : "disabled"} for students`);
-                      } catch {
-                        toast.error("Failed to update quiz availability");
-                      }
-                    }}
-                  />
-                </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -655,7 +645,7 @@ const Assessments = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base"><ClipboardCheck className="h-5 w-5" /> Daily Quiz Questions</CardTitle>
-                  <CardDescription>Each question must be tagged as Day 1 or Day 2. These never appear in exam or study mode.</CardDescription>
+                  <CardDescription>Each question must be tagged with a day number. These never appear in exam or study mode.</CardDescription>
                 </div>
                 <Button size="sm" onClick={() => openAddDialog("daily_quiz")}><Plus className="mr-1 h-4 w-4" /> Add Question</Button>
               </div>
@@ -663,11 +653,13 @@ const Assessments = () => {
             <CardContent className="space-y-4">
               {renderFilterBar(true)}
               <p className="text-xs text-muted-foreground">
-                Showing <strong className="text-foreground">{filterQuestions(quizQuestions, true).length}</strong> of {quizQuestions.length} quiz questions
-                <span className="ml-2">·</span>
-                <span className="ml-2">{day1Questions.length} Day 1</span>
-                <span className="ml-2">·</span>
-                <span className="ml-2">{day2Questions.length} Day 2</span>
+                 Showing <strong className="text-foreground">{filterQuestions(quizQuestions, true).length}</strong> of {quizQuestions.length} quiz questions
+                 {uniqueQuizDays.map((day) => (
+                   <span key={day}>
+                     <span className="ml-2">·</span>
+                     <span className="ml-2">{questionsByDay(day).length} Day {day}</span>
+                   </span>
+                 ))}
               </p>
               <div className="space-y-3">
                 {filterQuestions(quizQuestions, true).length === 0 ? (
