@@ -1,35 +1,59 @@
 
 
-## Plan: Fix Exam Mode Settings Persistence
+## Plan: Decouple Exam/Quiz Enable from Settings Approval
 
-### Root Causes Identified
+### Current Problem
+Exam and quiz availability for students is tied to `examApproved` and `quizApproved` — flags that were designed to confirm settings during the setup wizard. This creates issues:
+- Teachers cannot disable exams/quizzes after publishing without un-approving their settings
+- There is no quick on/off toggle accessible from the post-setup dashboard
+- The "approval" concept conflates two concerns: "I've reviewed these settings" vs "students can access this right now"
 
-**1. `defaultTASettings` is missing many fields**
-The `defaultTASettings` object in `mockData.ts` is missing `examPresentation`, `customStudyPrompt`, `customExamPrompt`, `quizNumQuestions`, `quizQuestionMix`, `quizDifficulty`, `quizTimeLimit`, `examApproved`, `quizApproved`, `examManualQuestions`, `examManualCount`. When the ExamMode component initializes with `useState(taSettings)` before the DB fetch completes, these fields are `undefined`. Since the `useEffect` uses `taSettings.examApproved || false`, this works on load — but the initial render with defaults causes issues.
+### Proposed Approach: Separate Enable Flags
 
-**2. `examQuestionMix` default is a display string, not a valid value**
-The default `examQuestionMix` in `mockData.ts` is `"40% MCQ, 30% Short Answer, 30% Coding"` — a human-readable string that does NOT match any `<SelectItem>` value (e.g. `"mixed"`, `"mcq_short"`). This causes the Question Types Select to render empty, and the `questionEstimate` function to produce 0 questions (no matching case in the breakdown logic).
+Add two new boolean columns — `exam_enabled` and `quiz_enabled` — to `course_ta_settings`. These are independent from the approval flags:
 
-**3. `saveTASettings` uses `||` instead of `??` for boolean/numeric fields**
-In `useTASettings.ts`, lines like `exam_approved: settings.examApproved || false` are safe, but in `ExamMode.tsx` the `useEffect` uses `taSettings.examManualQuestions || false` which is fine for booleans. However, `taSettings.quizNumQuestions || 5` would replace `0` with `5` if a teacher ever sets 0 questions. More critically, `examManualCount` defaults depend on a stale `estimate.total` during the effect.
+- **`examApproved` / `quizApproved`** → "Teacher has reviewed and locked these settings" (setup wizard gate)
+- **`exam_enabled` / `quiz_enabled`** → "Students can currently access this assessment" (runtime toggle)
 
 ### Changes
 
-**1. `src/data/mockData.ts`** — Add all missing fields to `defaultTASettings`
-- Set `examQuestionMix` to `"mixed"` (valid Select value)
-- Add `examPresentation: "all_at_once"`, `customStudyPrompt: ""`, `customExamPrompt: ""`, `quizNumQuestions: 5`, `quizQuestionMix: "mixed"`, `quizDifficulty: "Medium"`, `quizTimeLimit: 10`, `examApproved: false`, `quizApproved: false`, `examManualQuestions: false`, `examManualCount: null`
+**1. Database migration** — Add `exam_enabled` and `quiz_enabled` columns
+- `exam_enabled BOOLEAN NOT NULL DEFAULT false`
+- `quiz_enabled BOOLEAN NOT NULL DEFAULT false`
+- Backfill: set them to match the current `exam_approved` / `quiz_approved` values so existing courses retain their current student-facing state
 
-**2. `src/pages/teacher/ExamMode.tsx`** — Fix state initialization and estimate reference
-- Move `examApproved`, `quizApproved`, `examManualQuestions`, `examManualCount` state declarations **above** the `useEffect` (currently they are declared after it, which works in JS but makes the code fragile)
-- In the `useEffect`, use `?? false` instead of `|| false` for booleans, and `?? 5` instead of `|| 5` for numbers to properly handle explicit `0` values
-- Remove the stale `estimate.total` reference in the useEffect — use `taSettings.examManualCount ?? null` instead
+**2. `src/types/index.ts`** — Add `examEnabled` and `quizEnabled` to the `TASettings` type
 
-**3. `src/hooks/useTASettings.ts`** — Use `??` for safety on boolean/numeric fields
-- Change `exam_approved: settings.examApproved || false` to `settings.examApproved ?? false`
-- Same for `quiz_approved`, `exam_manual_questions`
+**3. `src/hooks/useTASettings.ts`** — Map the new DB columns in `dbToAppSettings` and `saveTASettings`
+
+**4. `src/data/mockData.ts`** — Add `examEnabled: false` and `quizEnabled: false` to `defaultTASettings`
+
+**5. `src/pages/teacher/ExamMode.tsx`** — Add enable/disable toggles
+- Add a prominent Switch or toggle for "Enable Exam for Students" and "Enable Daily Quiz for Students" — separate from the approval buttons
+- Auto-enable when the teacher approves (first time), but allow independent toggling afterward
+- When disabled, show a clear indicator that students cannot access the assessment
+
+**6. `src/pages/teacher/CourseDashboard.tsx`** — Add quick-toggle cards
+- Add a small "Assessment Controls" section with two switches: "Exam Enabled" and "Daily Quiz Enabled"
+- Toggling saves directly to `course_ta_settings` without navigating to the Exam Mode page
+- This gives teachers a fast way to enable/disable from their main dashboard
+
+**7. `src/pages/student/StudentHome.tsx`** — Gate on `taSettings.examEnabled` / `quizEnabled` instead of `examApproved` / `quizApproved`
+
+**8. `src/pages/student/AIChat.tsx`** — Gate assessment auto-start on `examEnabled` / `quizEnabled` instead of approval flags
+
+### Summary
+- `approved` = teacher has finalized the configuration (setup wizard)
+- `enabled` = students can access right now (runtime toggle)
+- Teachers get a quick toggle on the Course Dashboard for day-to-day control
 
 ### Files Modified
-- `src/data/mockData.ts` — complete `defaultTASettings` with valid defaults
-- `src/pages/teacher/ExamMode.tsx` — fix state ordering and nullish coalescing
-- `src/hooks/useTASettings.ts` — use `??` for boolean/numeric fields in save
+- 1 new database migration
+- `src/types/index.ts`
+- `src/hooks/useTASettings.ts`
+- `src/data/mockData.ts`
+- `src/pages/teacher/ExamMode.tsx`
+- `src/pages/teacher/CourseDashboard.tsx`
+- `src/pages/student/StudentHome.tsx`
+- `src/pages/student/AIChat.tsx`
 
