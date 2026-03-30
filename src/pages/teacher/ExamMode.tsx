@@ -276,7 +276,7 @@ const ExamMode = () => {
                       </div>
                       <Switch checked={examEnabled} onCheckedChange={setExamEnabled} />
                     </div>
-                  )
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -349,7 +349,7 @@ const ExamMode = () => {
                       </div>
                       <Switch checked={quizEnabled} onCheckedChange={setQuizEnabled} />
                     </div>
-                  )
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
