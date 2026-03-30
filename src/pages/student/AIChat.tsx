@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import { getQuizQuestions, getExamQuestions, Question } from "@/data/questionBank";
 import { supabase } from "@/integrations/supabase/client";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const WELCOME_LEARNING = "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?";
 const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Choose **Start Exam** or **Start Daily Quiz** below to begin a timed assessment.\n\nQuestions are presented by the system — no AI generation involved. Good luck!";
@@ -378,7 +380,9 @@ const AIChat = () => {
       <div className={`max-w-[80%] rounded-xl px-4 py-3 text-sm ${
         msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
       }`}>
-        <div className="whitespace-pre-wrap">{msg.content}</div>
+        <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+        </div>
       </div>
     </div>
   );
