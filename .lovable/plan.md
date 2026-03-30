@@ -1,37 +1,28 @@
 
 
-## Plan: Teacher Assessment Analytics Dashboard
+## Plan: Enable/Disable Daily Quiz and Exam Mode
 
 ### Problem
-Assessment results are now persisted in `assessment_results`, but teachers have no way to view them. The existing `StudentInsights` page uses only mock data and is not even routed in the teacher layout.
+The `examApproved` and `quizApproved` flags already exist in `course_ta_settings` and are persisted, but they are never checked on the student side. Students can always start exams and quizzes regardless of the teacher's approval state.
 
 ### Approach
 
-**1. Create `src/pages/teacher/AssessmentAnalytics.tsx`** — New page with real data from `assessment_results`
+**1. `src/pages/student/AIChat.tsx`** — Gate assessment start buttons behind `taSettings`
+- Hide or disable the "Start Exam" button when `taSettings.examApproved` is `false`
+- Hide or disable the "Start Daily Quiz" button when `taSettings.quizApproved` is `false`
+- In the auto-start `useEffect` (lines 61-68), skip auto-starting if the corresponding flag is `false`
+- Show a small info message when disabled (e.g., "Your professor has not enabled this assessment yet")
 
-Fetches from Supabase using `course_id` filter. Displays:
-- **Summary cards**: Total attempts, average score %, completion count (exam vs quiz), average time spent
-- **Score distribution chart**: Bar chart showing how many students scored in each range (0-20%, 20-40%, etc.)
-- **Topic performance table**: Extracts topic data from the `answers` JSONB field, shows per-topic correct/incorrect rates
-- **Recent results list**: Table of recent assessment submissions with mode, score, time spent, date
-- Section filter dropdown (if course has multiple sections)
+**2. `src/pages/student/StudentHome.tsx`** — Gate quiz/exam cards in the lesson plan
+- Fetch `taSettings` using `useTASettings(enrolledCourseId)`
+- Hide/disable the "Daily Quiz — Day X" card when `quizApproved` is `false`
+- Hide/disable the "Final Exam" card when `examApproved` is `false`
+- Show a lock indicator with "Not yet available" text
 
-Data query pattern:
-```typescript
-const { data } = await supabase
-  .from("assessment_results")
-  .select("*")
-  .eq("course_id", courseId);
-```
-
-The `answers` JSONB contains per-question data including topic, so topic-level aggregation happens client-side.
-
-**2. `src/App.tsx`** — Add route `/teacher/assessment-analytics` under the teacher layout
-
-**3. `src/layouts/TeacherLayout.tsx`** — Add nav item "Assessment Analytics" with `BarChart3` icon, positioned after "Assessments"
+**3. `src/pages/teacher/ExamMode.tsx`** — No changes needed
+- The `examApproved` and `quizApproved` toggles already exist and persist correctly
 
 ### Files Modified
-- New: `src/pages/teacher/AssessmentAnalytics.tsx`
-- `src/App.tsx` — add route
-- `src/layouts/TeacherLayout.tsx` — add nav link
+- `src/pages/student/AIChat.tsx` — check `taSettings.examApproved` / `quizApproved` before allowing assessment start
+- `src/pages/student/StudentHome.tsx` — conditionally render quiz/exam entry points based on `taSettings`
 
