@@ -192,13 +192,28 @@ const DiagnosticQuiz = () => {
       setCurrentQ(currentQ + 1);
       setQuestionStartTime(Date.now());
     } else {
-      const correct = newAnswers.filter((a, i) => {
-        const q = questions[i];
-        if (q.format === "short_answer") {
-          return newTextAnswers[i].toLowerCase() === q.correctAnswer.trim().toLowerCase();
-        }
-        return a === q.correctIndex;
-      }).length;
+      // Build standardised answer objects
+      const standardisedAnswers = questions.map((q, i) => {
+        const isShort = q.format === "short_answer";
+        const selectedValue = isShort ? newTextAnswers[i] : answerLetters[newAnswers[i]] || String(newAnswers[i]);
+        const correctValue = q.correctAnswer;
+        const isCorrect = isShort
+          ? newTextAnswers[i].toLowerCase() === correctValue.trim().toLowerCase()
+          : newAnswers[i] === q.correctIndex;
+        return {
+          question_id: q.id,
+          question_text: q.question,
+          type: q.format,
+          topic: q.topic,
+          selected: selectedValue,
+          correct: correctValue,
+          is_correct: isCorrect,
+          time_ms: newQuestionTimes[i],
+          confidence: newConfidences[i],
+        };
+      });
+
+      const correct = standardisedAnswers.filter(a => a.is_correct).length;
       const total = questions.length;
       const ratio = correct / total;
       const level = ratio >= 0.85 ? "Expert" : ratio >= 0.6 ? "Proficient" : ratio >= 0.35 ? "Progressing" : "Beginner";
@@ -214,7 +229,7 @@ const DiagnosticQuiz = () => {
           score: correct,
           total_questions: total,
           learner_level: level,
-          answers: newAnswers as unknown as import("@/integrations/supabase/types").Json,
+          answers: standardisedAnswers as unknown as import("@/integrations/supabase/types").Json,
           confidences: newConfidences as unknown as import("@/integrations/supabase/types").Json,
           question_times: newQuestionTimes as unknown as import("@/integrations/supabase/types").Json,
           question_ids: newQuestionIds as unknown as import("@/integrations/supabase/types").Json,
