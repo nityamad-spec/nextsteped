@@ -12,6 +12,7 @@ import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Termi
 import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import { getQuizQuestions, getExamQuestions, Question } from "@/data/questionBank";
+import { supabase } from "@/integrations/supabase/client";
 
 const WELCOME_LEARNING = "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?";
 const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Choose **Start Exam** or **Start Daily Quiz** below to begin a timed assessment.\n\nQuestions are presented by the system — no AI generation involved. Good luck!";
@@ -146,19 +147,53 @@ const AIChat = () => {
     setShowHistory(false);
   };
 
-  const handleStartExam = () => {
-    const count = 15;
-    const questions = getExamQuestions(count);
+  const fetchDBQuestions = async (mode: string, quizDay?: number): Promise<Question[]> => {
+    if (!enrolledCourseId) return [];
+    let query = supabase
+      .from("assessment_questions")
+      .select("*")
+      .eq("course_id", enrolledCourseId)
+      .eq("mode", mode);
+    if (quizDay) query = query.eq("quiz_day", quizDay);
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) return [];
+    return data.map((row: any) => ({
+      id: row.id,
+      text: row.question_text,
+      type: row.question_type === "MCQ" ? "mcq" as const : "short_answer" as const,
+      options: row.options as string[] | undefined,
+      correctAnswer: row.answer,
+      topic: row.topic,
+      difficulty: row.difficulty as "Easy" | "Medium" | "Hard",
+      day: row.quiz_day || 0,
+    }));
+  };
+
+  const handleStartExam = async () => {
+    const count = taSettings.examManualCount || Math.max(5, Math.round((taSettings.examTimeLimit || 60) / 3));
+    let questions = await fetchDBQuestions("exam");
+    if (questions.length === 0) {
+      questions = getExamQuestions(count);
+    } else {
+      const shuffled = [...questions].sort(() => Math.random() - 0.5);
+      questions = shuffled.slice(0, Math.min(count, shuffled.length));
+    }
     setAssessmentQuestions(questions);
     setAssessmentType("exam");
     setAssessmentDay(3);
     setAssessmentActive(true);
   };
 
-  const handleStartQuiz = (day?: number) => {
+  const handleStartQuiz = async (day?: number) => {
     const count = taSettings.quizNumQuestions || 5;
     const quizDay = day || parseInt(searchParams.get("day") || "1") || 1;
-    const questions = getQuizQuestions(quizDay, count);
+    let questions = await fetchDBQuestions("daily_quiz", quizDay);
+    if (questions.length === 0) {
+      questions = getQuizQuestions(quizDay, count);
+    } else {
+      const shuffled = [...questions].sort(() => Math.random() - 0.5);
+      questions = shuffled.slice(0, Math.min(count, shuffled.length));
+    }
     setAssessmentQuestions(questions);
     setAssessmentType("quiz");
     setAssessmentDay(quizDay);

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useTASettings } from "@/hooks/useTASettings";
 import { toast } from "sonner";
-import { mockQuizQuestions } from "@/data/mockData";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Plus, ClipboardCheck, Pencil, Trash2, Filter, Shield, BookOpen, Clock, ClipboardList, Info, Calendar, AlertTriangle } from "lucide-react";
+import { Plus, ClipboardCheck, Pencil, Trash2, Filter, Shield, BookOpen, Clock, ClipboardList, Info, Calendar, AlertTriangle, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -25,29 +26,19 @@ interface EditableQuestion {
   topic: string;
   difficulty: "Easy" | "Medium" | "Hard";
   type: QuestionType;
-  mode: QuestionMode; // Single mode — no overlap
+  mode: QuestionMode;
   options?: string[];
   correctIndex?: number;
   explanation?: string;
   quizDay?: 1 | 2;
 }
 
-// Seed questions — split across modes with no overlap
-const seedQuestions: EditableQuestion[] = mockQuizQuestions.map((q, i) => {
-  const mode: QuestionMode = i % 3 === 0 ? "exam" : i % 3 === 1 ? "daily_quiz" : "learning";
-  return {
-    ...q,
-    answer: q.options?.[q.correctIndex] || "",
-    type: "MCQ" as QuestionType,
-    mode,
-    ...(mode === "daily_quiz" ? { quizDay: (i % 2 === 0 ? 1 : 2) as 1 | 2 } : {}),
-  };
-});
-
 const Assessments = () => {
   const courseId = localStorage.getItem("currentCourseId");
+  const { user } = useAuth();
   const { taSettings, loading: taLoading, saveTASettings } = useTASettings(courseId);
-  const [questions, setQuestions] = useState<EditableQuestion[]>(seedQuestions);
+  const [questions, setQuestions] = useState<EditableQuestion[]>([]);
+  const [questionsLoading, setQuestionsLoading] = useState(true);
   const [examPredefinedOnly, setExamPredefinedOnly] = useState(false);
 
   // Filters (per-section)
@@ -67,6 +58,7 @@ const Assessments = () => {
   const [formOptions, setFormOptions] = useState<string[]>(["", "", "", ""]);
   const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
   const [formQuizDay, setFormQuizDay] = useState<1 | 2>(1);
+  const [saving, setSaving] = useState(false);
 
   // Exam settings
   const [examTimeLimit, setExamTimeLimit] = useState(taSettings.examTimeLimit || 60);
@@ -79,6 +71,39 @@ const Assessments = () => {
   const [quizTimeLimit, setQuizTimeLimit] = useState(taSettings.quizTimeLimit || 10);
 
   const examEstimate = Math.max(5, Math.round(examTimeLimit / 3));
+
+  // Fetch questions from DB
+  useEffect(() => {
+    if (!courseId) { setQuestionsLoading(false); return; }
+    const fetchQuestions = async () => {
+      setQuestionsLoading(true);
+      const { data, error } = await supabase
+        .from("assessment_questions")
+        .select("*")
+        .eq("course_id", courseId);
+
+      if (error) {
+        console.error("Error fetching questions:", error);
+        toast.error("Failed to load questions");
+      } else if (data) {
+        setQuestions(data.map((row: any) => ({
+          id: row.id,
+          question: row.question_text,
+          answer: row.answer,
+          topic: row.topic,
+          difficulty: row.difficulty as "Easy" | "Medium" | "Hard",
+          type: row.question_type as QuestionType,
+          mode: row.mode as QuestionMode,
+          options: row.options as string[] | undefined,
+          correctIndex: row.correct_index ?? undefined,
+          explanation: row.explanation ?? undefined,
+          quizDay: row.quiz_day as 1 | 2 | undefined,
+        })));
+      }
+      setQuestionsLoading(false);
+    };
+    fetchQuestions();
+  }, [courseId]);
 
   // Derived counts
   const examQuestions = questions.filter(q => q.mode === "exam");
@@ -116,27 +141,88 @@ const Assessments = () => {
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
-    if (!formQuestion.trim() || !formTopic) return;
+  const handleSave = async () => {
+    if (!formQuestion.trim() || !formTopic || !courseId || !user) return;
+    setSaving(true);
     const isMCQ = formType === "MCQ";
-    const newQ: EditableQuestion = {
-      id: editingId || `q${Date.now()}`,
-      question: formQuestion,
-      answer: isMCQ ? formOptions[formCorrectIndex] || "" : formAnswer,
-      topic: formTopic, difficulty: formDifficulty, type: formType, mode: formMode,
-      ...(isMCQ ? { options: formOptions.filter(o => o.trim()), correctIndex: formCorrectIndex } : {}),
-      ...(formMode === "daily_quiz" ? { quizDay: formQuizDay } : {}),
+    const filteredOptions = isMCQ ? formOptions.filter(o => o.trim()) : null;
+    const answer = isMCQ ? (filteredOptions?.[formCorrectIndex] || "") : formAnswer;
+
+    const row = {
+      course_id: courseId,
+      teacher_id: user.id,
+      mode: formMode,
+      question_type: formType,
+      question_text: formQuestion,
+      answer,
+      topic: formTopic,
+      difficulty: formDifficulty,
+      options: filteredOptions,
+      correct_index: isMCQ ? formCorrectIndex : null,
+      explanation: null as string | null,
+      quiz_day: formMode === "daily_quiz" ? formQuizDay : null,
     };
-    if (editingId) {
-      setQuestions((prev) => prev.map((q) => q.id === editingId ? newQ : q));
-    } else {
-      setQuestions((prev) => [...prev, newQ]);
+
+    try {
+      if (editingId) {
+        const { error } = await supabase
+          .from("assessment_questions")
+          .update(row)
+          .eq("id", editingId);
+        if (error) throw error;
+        setQuestions(prev => prev.map(q => q.id === editingId ? {
+          id: editingId,
+          question: formQuestion,
+          answer,
+          topic: formTopic,
+          difficulty: formDifficulty,
+          type: formType,
+          mode: formMode,
+          ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
+          ...(formMode === "daily_quiz" ? { quizDay: formQuizDay } : {}),
+        } : q));
+        toast.success("Question updated");
+      } else {
+        const { data, error } = await supabase
+          .from("assessment_questions")
+          .insert(row)
+          .select("id")
+          .single();
+        if (error) throw error;
+        const newQ: EditableQuestion = {
+          id: data.id,
+          question: formQuestion,
+          answer,
+          topic: formTopic,
+          difficulty: formDifficulty,
+          type: formType,
+          mode: formMode,
+          ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
+          ...(formMode === "daily_quiz" ? { quizDay: formQuizDay } : {}),
+        };
+        setQuestions(prev => [...prev, newQ]);
+        toast.success("Question added");
+      }
+      setDialogOpen(false);
+    } catch (err: any) {
+      console.error("Save error:", err);
+      toast.error("Failed to save question");
+    } finally {
+      setSaving(false);
     }
-    setDialogOpen(false);
   };
 
-  const handleDelete = (id: string) => {
-    setQuestions((prev) => prev.filter((q) => q.id !== id));
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase
+      .from("assessment_questions")
+      .delete()
+      .eq("id", id);
+    if (error) {
+      toast.error("Failed to delete question");
+      return;
+    }
+    setQuestions(prev => prev.filter(q => q.id !== id));
+    toast.success("Question deleted");
   };
 
   const updateOption = (index: number, value: string) => {
@@ -272,6 +358,14 @@ const Assessments = () => {
     </div>
   );
 
+  if (questionsLoading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -393,7 +487,7 @@ const Assessments = () => {
               <div className="space-y-3">
                 {filterQuestions(examQuestions).length === 0 ? (
                   <div className="rounded-lg border-2 border-dashed p-8 text-center">
-                    <p className="text-sm text-muted-foreground">No exam questions match your filters.</p>
+                    <p className="text-sm text-muted-foreground">No exam questions yet. Add your first question above.</p>
                   </div>
                 ) : filterQuestions(examQuestions).map(renderQuestionCard)}
               </div>
@@ -484,7 +578,7 @@ const Assessments = () => {
               <div className="space-y-3">
                 {filterQuestions(quizQuestions, true).length === 0 ? (
                   <div className="rounded-lg border-2 border-dashed p-8 text-center">
-                    <p className="text-sm text-muted-foreground">No daily quiz questions match your filters.</p>
+                    <p className="text-sm text-muted-foreground">No daily quiz questions yet. Add your first question above.</p>
                   </div>
                 ) : filterQuestions(quizQuestions, true).map(renderQuestionCard)}
               </div>
@@ -532,7 +626,7 @@ const Assessments = () => {
               <div className="space-y-3">
                 {filterQuestions(studyQuestions).length === 0 ? (
                   <div className="rounded-lg border-2 border-dashed p-8 text-center">
-                    <p className="text-sm text-muted-foreground">No study questions match your filters.</p>
+                    <p className="text-sm text-muted-foreground">No study questions yet. Add your first question above.</p>
                   </div>
                 ) : filterQuestions(studyQuestions).map(renderQuestionCard)}
               </div>
@@ -644,7 +738,8 @@ const Assessments = () => {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!formQuestion.trim() || !formTopic || (formMode === "daily_quiz" && !formQuizDay)}>
+            <Button onClick={handleSave} disabled={saving || !formQuestion.trim() || !formTopic || (formMode === "daily_quiz" && !formQuizDay)}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {editingId ? "Save Changes" : "Add Question"}
             </Button>
           </DialogFooter>
