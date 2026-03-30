@@ -1,23 +1,30 @@
 
 
-## Plan: Preserve Newlines in Question Text
+## Plan: Pre-load Exam Settings from Database
 
 ### Problem
-The `Textarea` input correctly accepts newlines, but they are lost when displayed because the question text is rendered inside `<p>` tags which collapse whitespace. This affects both the teacher's question card list and the student's assessment view.
+Lines 64-71 in `Assessments.tsx` initialize local state (`examTimeLimit`, `quizNumQuestions`, etc.) from `taSettings` at render time. But `taSettings` starts as `defaultTASettings` and only updates after the async DB fetch completes. There is no `useEffect` to sync the local state when the real values arrive, so the form always shows defaults.
 
 ### Fix
-Add `whitespace-pre-wrap` to every element that renders question text, so `\n` characters display as line breaks.
+Add a `useEffect` that watches `taSettings` and `taLoading` — once loading completes, update all local settings state variables from the fetched `taSettings`.
 
 ### Changes
 
-**1. `src/pages/teacher/Assessments.tsx`** (line 296)
-- Change `<p className="text-sm font-medium">{q.question}</p>` to include `whitespace-pre-wrap`
-
-**2. `src/components/AssessmentView.tsx`** (line 187)
-- Add `whitespace-pre-wrap` to the question text display in the results review section
-- Check the main question rendering area and apply the same fix there
+**`src/pages/teacher/Assessments.tsx`**
+- Add a `useEffect` after the state declarations (after line 71):
+  ```ts
+  useEffect(() => {
+    if (!taLoading) {
+      setExamTimeLimit(taSettings.examTimeLimit || 60);
+      setExamManualQuestions(taSettings.examManualQuestions ?? false);
+      setExamManualCount(taSettings.examManualCount ?? 20);
+      setQuizNumQuestions(taSettings.quizNumQuestions || 5);
+      setQuizQuestionTypes(taSettings.quizQuestionMix || "mixed");
+      setQuizTimeLimit(taSettings.quizTimeLimit || 10);
+    }
+  }, [taSettings, taLoading]);
+  ```
 
 ### Files Modified
-- `src/pages/teacher/Assessments.tsx`
-- `src/components/AssessmentView.tsx`
+- `src/pages/teacher/Assessments.tsx` — add sync effect
 
