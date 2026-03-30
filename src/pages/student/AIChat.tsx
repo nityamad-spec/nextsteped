@@ -487,18 +487,18 @@ const AIChat = () => {
         {mode === "exam" && !assessmentActive && activeChat && (
           <div className="flex flex-col items-center gap-3 border-b bg-muted/20 px-5 py-3">
             <div className="flex items-center gap-3">
-              <Button onClick={handleStartExam} className="gap-2" disabled={!taSettings.examApproved}>
+              <Button onClick={handleStartExam} className="gap-2" disabled={!taSettings.examEnabled}>
                 <Clock className="h-4 w-4" /> Start Exam
               </Button>
-              <Button onClick={() => handleStartQuiz()} variant="secondary" className="gap-2" disabled={!taSettings.quizApproved}>
+              <Button onClick={() => handleStartQuiz()} variant="secondary" className="gap-2" disabled={!taSettings.quizEnabled}>
                 <MessageSquare className="h-4 w-4" /> Start Daily Quiz
               </Button>
             </div>
-            {(!taSettings.examApproved || !taSettings.quizApproved) && (
+            {(!taSettings.examEnabled || !taSettings.quizEnabled) && (
               <p className="text-xs text-muted-foreground">
-                {!taSettings.examApproved && !taSettings.quizApproved
+                {!taSettings.examEnabled && !taSettings.quizEnabled
                   ? "Your professor has not enabled exams or quizzes yet."
-                  : !taSettings.examApproved
+                  : !taSettings.examEnabled
                   ? "Your professor has not enabled the exam yet."
                   : "Your professor has not enabled daily quizzes yet."}
               </p>
