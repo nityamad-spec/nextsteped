@@ -184,7 +184,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                     <div className="flex items-start gap-2">
                       {a.is_correct ? <CheckCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" /> : <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">Q{i + 1}: {a.question_text}</p>
+                        <p className="text-sm font-medium whitespace-pre-wrap">Q{i + 1}: {a.question_text}</p>
                         <div className="mt-1 space-y-0.5">
                           <p className="text-xs">
                             <span className="text-muted-foreground">Your answer: </span>
@@ -257,7 +257,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
-              <p className="text-sm leading-relaxed">{currentQ.text}</p>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{currentQ.text}</p>
 
               {currentQ.type === "mcq" && currentQ.options && (
                 <RadioGroup
