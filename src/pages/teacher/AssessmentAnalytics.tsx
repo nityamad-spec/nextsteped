@@ -22,6 +22,7 @@ interface AssessmentResult {
   answers: any;
   time_spent: number;
   created_at: string;
+  learner_level?: string;
 }
 
 interface TopicPerformance {
@@ -34,10 +35,12 @@ interface TopicPerformance {
 
 const AssessmentAnalytics = () => {
   const { currentCourse } = useApp();
-  const [results, setResults] = useState<AssessmentResult[]>([]);
+  const [assessmentResults, setAssessmentResults] = useState<AssessmentResult[]>([]);
+  const [diagnosticResults, setDiagnosticResults] = useState<AssessmentResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [modeFilter, setModeFilter] = useState<string>("all");
 
+  // Fetch assessment_results
   useEffect(() => {
     if (!currentCourse?.id) return;
     setLoading(true);
@@ -47,35 +50,92 @@ const AssessmentAnalytics = () => {
       .eq("course_id", currentCourse.id)
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
-        if (!error && data) setResults(data as AssessmentResult[]);
+        if (!error && data) setAssessmentResults(data as AssessmentResult[]);
         setLoading(false);
       });
   }, [currentCourse?.id]);
 
-  const filtered = modeFilter === "all" ? results : results.filter(r => r.mode === modeFilter);
+  // Fetch diagnostic_results via enrollments scoped to this course
+  useEffect(() => {
+    if (!currentCourse?.id) return;
+    supabase
+      .from("diagnostic_results")
+      .select("*")
+      .eq("course_id", currentCourse.id)
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (!error && data) {
+          const normalized: AssessmentResult[] = (data as any[]).map((d) => {
+            // Derive time_spent from question_times array if available
+            let timeSpent = 0;
+            if (Array.isArray(d.question_times)) {
+              timeSpent = Math.round(
+                (d.question_times as number[]).reduce((s: number, t: number) => s + (t || 0), 0)
+              );
+            }
+            return {
+              id: d.id,
+              student_id: d.student_id,
+              course_id: d.course_id,
+              mode: "diagnostic",
+              quiz_day: null,
+              score: d.score,
+              total_questions: d.total_questions,
+              correct_answers: d.score, // diagnostic score = correct count
+              answers: d.answers,
+              time_spent: timeSpent,
+              created_at: d.created_at,
+              learner_level: d.learner_level,
+            };
+          });
+          setDiagnosticResults(normalized);
+        }
+      });
+  }, [currentCourse?.id]);
+
+  // Combine all results
+  const allResults = [...assessmentResults, ...diagnosticResults];
+
+  // Apply filter
+  const filtered =
+    modeFilter === "all"
+      ? allResults
+      : modeFilter === "diagnostic"
+        ? diagnosticResults
+        : assessmentResults.filter((r) => r.mode === modeFilter);
 
   // Summary stats
   const totalAttempts = filtered.length;
-  const avgScore = totalAttempts > 0 ? Math.round(filtered.reduce((s, r) => s + (r.total_questions > 0 ? (r.correct_answers / r.total_questions) * 100 : 0), 0) / totalAttempts) : 0;
-  const avgTime = totalAttempts > 0 ? Math.round(filtered.reduce((s, r) => s + r.time_spent, 0) / totalAttempts) : 0;
-  const examCount = results.filter(r => r.mode === "exam").length;
-  const quizCount = results.filter(r => r.mode === "daily_quiz").length;
+  const avgScore =
+    totalAttempts > 0
+      ? Math.round(
+          filtered.reduce(
+            (s, r) => s + (r.total_questions > 0 ? (r.correct_answers / r.total_questions) * 100 : 0),
+            0
+          ) / totalAttempts
+        )
+      : 0;
+  const avgTime =
+    totalAttempts > 0 ? Math.round(filtered.reduce((s, r) => s + r.time_spent, 0) / totalAttempts) : 0;
+  const examCount = allResults.filter((r) => r.mode === "exam").length;
+  const quizCount = allResults.filter((r) => r.mode === "daily_quiz").length;
+  const diagCount = diagnosticResults.length;
 
   // Score distribution
   const ranges = ["0-20%", "21-40%", "41-60%", "61-80%", "81-100%"];
   const distribution = ranges.map((label, i) => {
     const lo = i * 20;
     const hi = (i + 1) * 20;
-    const count = filtered.filter(r => {
+    const count = filtered.filter((r) => {
       const pct = r.total_questions > 0 ? (r.correct_answers / r.total_questions) * 100 : 0;
       return pct >= lo && (i === 4 ? pct <= hi : pct < hi);
     }).length;
     return { range: label, count };
   });
 
-  // Topic performance from answers JSONB (supports new standardised format + legacy fallback)
+  // Topic performance from answers JSONB
   const topicMap = new Map<string, { correct: number; total: number }>();
-  filtered.forEach(r => {
+  filtered.forEach((r) => {
     if (Array.isArray(r.answers)) {
       (r.answers as any[]).forEach((a: any) => {
         const topic = a?.topic || "Unknown";
@@ -85,7 +145,6 @@ const AssessmentAnalytics = () => {
         topicMap.set(topic, entry);
       });
     }
-    // Legacy flat-map format: skip topic aggregation (no topic info available)
   });
   const topicPerformance: TopicPerformance[] = Array.from(topicMap.entries())
     .map(([topic, { correct, total }]) => ({
@@ -117,13 +176,14 @@ const AssessmentAnalytics = () => {
           <p className="text-sm text-muted-foreground">{currentCourse.name}</p>
         </div>
         <Select value={modeFilter} onValueChange={setModeFilter}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Modes</SelectItem>
             <SelectItem value="exam">Exams</SelectItem>
             <SelectItem value="daily_quiz">Daily Quizzes</SelectItem>
+            <SelectItem value="diagnostic">Diagnostic Tests</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -135,7 +195,9 @@ const AssessmentAnalytics = () => {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <ClipboardCheck className="h-12 w-12 text-muted-foreground/40 mb-3" />
             <p className="text-muted-foreground">No assessment results yet.</p>
-            <p className="text-xs text-muted-foreground">Results will appear here once students complete exams or quizzes.</p>
+            <p className="text-xs text-muted-foreground">
+              Results will appear here once students complete exams, quizzes, or diagnostics.
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -149,7 +211,9 @@ const AssessmentAnalytics = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{totalAttempts}</div>
-                <p className="text-xs text-muted-foreground">{examCount} exams · {quizCount} quizzes</p>
+                <p className="text-xs text-muted-foreground">
+                  {examCount} exams · {quizCount} quizzes · {diagCount} diagnostics
+                </p>
               </CardContent>
             </Card>
             <Card>
@@ -167,7 +231,9 @@ const AssessmentAnalytics = () => {
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{Math.floor(avgTime / 60)}m {avgTime % 60}s</div>
+                <div className="text-2xl font-bold">
+                  {Math.floor(avgTime / 60)}m {avgTime % 60}s
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -177,7 +243,14 @@ const AssessmentAnalytics = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {Math.round((filtered.filter(r => r.total_questions > 0 && (r.correct_answers / r.total_questions) >= 0.5).length / totalAttempts) * 100)}%
+                  {Math.round(
+                    (filtered.filter(
+                      (r) => r.total_questions > 0 && r.correct_answers / r.total_questions >= 0.5
+                    ).length /
+                      totalAttempts) *
+                      100
+                  )}
+                  %
                 </div>
                 <p className="text-xs text-muted-foreground">≥ 50% correct</p>
               </CardContent>
@@ -220,14 +293,16 @@ const AssessmentAnalytics = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {topicPerformance.map(t => (
+                    {topicPerformance.map((t) => (
                       <TableRow key={t.topic}>
                         <TableCell className="font-medium">{t.topic}</TableCell>
                         <TableCell className="text-right">{t.correct}</TableCell>
                         <TableCell className="text-right">{t.incorrect}</TableCell>
                         <TableCell className="text-right">{t.total}</TableCell>
                         <TableCell className="text-right">
-                          <Badge variant={t.rate >= 70 ? "default" : t.rate >= 40 ? "secondary" : "destructive"}>
+                          <Badge
+                            variant={t.rate >= 70 ? "default" : t.rate >= 40 ? "secondary" : "destructive"}
+                          >
                             {t.rate}%
                           </Badge>
                         </TableCell>
@@ -256,19 +331,44 @@ const AssessmentAnalytics = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.slice(0, 20).map(r => (
-                    <TableRow key={r.id}>
-                      <TableCell className="text-sm">{format(new Date(r.created_at), "MMM d, yyyy HH:mm")}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{r.mode === "daily_quiz" ? `Quiz Day ${r.quiz_day}` : "Exam"}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {r.total_questions > 0 ? Math.round((r.correct_answers / r.total_questions) * 100) : 0}%
-                      </TableCell>
-                      <TableCell className="text-right">{r.correct_answers}/{r.total_questions}</TableCell>
-                      <TableCell className="text-right">{Math.floor(r.time_spent / 60)}m {r.time_spent % 60}s</TableCell>
-                    </TableRow>
-                  ))}
+                  {filtered
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .slice(0, 20)
+                    .map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="text-sm">
+                          {format(new Date(r.created_at), "MMM d, yyyy HH:mm")}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline">
+                              {r.mode === "daily_quiz"
+                                ? `Quiz Day ${r.quiz_day}`
+                                : r.mode === "diagnostic"
+                                  ? "Diagnostic"
+                                  : "Exam"}
+                            </Badge>
+                            {r.learner_level && (
+                              <Badge variant="secondary" className="text-[10px]">
+                                {r.learner_level}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {r.total_questions > 0
+                            ? Math.round((r.correct_answers / r.total_questions) * 100)
+                            : 0}
+                          %
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {r.correct_answers}/{r.total_questions}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {Math.floor(r.time_spent / 60)}m {r.time_spent % 60}s
+                        </TableCell>
+                      </TableRow>
+                    ))}
                 </TableBody>
               </Table>
             </CardContent>
