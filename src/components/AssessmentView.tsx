@@ -163,7 +163,9 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             <h3 className="text-sm font-semibold">Question Review</h3>
             {questions.map((q, i) => {
               const userAnswer = answers[q.id];
-              const isCorrect = userAnswer === q.correctAnswer;
+              const isCorrect = q.type === "short_answer"
+                ? userAnswer?.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()
+                : userAnswer === q.correctAnswer;
               return (
                 <Card key={q.id} className={`border ${isCorrect ? "border-primary/30" : "border-destructive/30"}`}>
                   <CardContent className="p-4 space-y-2">
