@@ -58,7 +58,7 @@ const getMasteryColor = (mastery: number) => {
 const StudentHome = () => {
   const { studentProfile, currentCourse } = useApp();
   const { profileData } = useStudentStatus();
-  const enrolledCourseId = localStorage.getItem("enrolledCourseId");
+  const enrolledCourseId = useEnrolledCourseId();
   const { taSettings } = useTASettings(enrolledCourseId);
   const { user } = useAuth();
   const navigate = useNavigate();
