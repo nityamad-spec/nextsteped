@@ -23,6 +23,7 @@ import PublishEnrollment from "./pages/teacher/PublishEnrollment";
 import CourseDashboard from "./pages/teacher/CourseDashboard";
 import StudentInsights from "./pages/teacher/StudentInsights";
 import Assessments from "./pages/teacher/Assessments";
+import AssessmentAnalytics from "./pages/teacher/AssessmentAnalytics";
 import TeachingPlan from "./pages/teacher/TeachingPlan";
 import SettingsIntegrity from "./pages/teacher/SettingsIntegrity";
 import Support from "./pages/teacher/Support";
@@ -159,6 +160,7 @@ const App = () => (
               <Route element={<ProtectedRoute><TeacherLayout /></ProtectedRoute>}>
                 <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
                 <Route path="/teacher/assessments" element={<Assessments />} />
+                <Route path="/teacher/assessment-analytics" element={<AssessmentAnalytics />} />
                 <Route path="/teacher/teaching-plan" element={<TeachingPlan />} />
                 <Route path="/teacher/settings" element={<SettingsIntegrity />} />
                 <Route path="/teacher/support" element={<Support />} />
