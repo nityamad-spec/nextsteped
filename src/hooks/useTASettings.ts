@@ -27,6 +27,7 @@ interface DBTASettings {
   exam_manual_count: number | null;
   quiz_day1_enabled: boolean;
   quiz_day2_enabled: boolean;
+  quiz_days_enabled: number[] | null;
 }
 
 function dbToAppSettings(row: DBTASettings): TASettings {
@@ -52,8 +53,15 @@ function dbToAppSettings(row: DBTASettings): TASettings {
     quizEnabled: row.quiz_enabled,
     examManualQuestions: row.exam_manual_questions,
     examManualCount: row.exam_manual_count,
-    quizDay1Enabled: row.quiz_day1_enabled,
-    quizDay2Enabled: row.quiz_day2_enabled,
+    quizDaysEnabled: (() => {
+      const arr = row.quiz_days_enabled;
+      if (Array.isArray(arr) && arr.length > 0) return arr;
+      // Backward compat: seed from old boolean columns
+      const days: number[] = [];
+      if (row.quiz_day1_enabled) days.push(1);
+      if (row.quiz_day2_enabled) days.push(2);
+      return days;
+    })(),
   };
 }
 
@@ -112,11 +120,12 @@ export function useTASettings(courseId: string | null) {
         exam_approved: settings.examApproved ?? false,
         quiz_approved: settings.quizApproved ?? false,
         exam_enabled: settings.examEnabled ?? false,
-        quiz_enabled: settings.quizEnabled ?? false,
+        quiz_enabled: (settings.quizDaysEnabled || []).length > 0,
         exam_manual_questions: settings.examManualQuestions ?? false,
         exam_manual_count: settings.examManualCount ?? null,
-        quiz_day1_enabled: settings.quizDay1Enabled ?? false,
-        quiz_day2_enabled: settings.quizDay2Enabled ?? false,
+        quiz_day1_enabled: (settings.quizDaysEnabled || []).includes(1),
+        quiz_day2_enabled: (settings.quizDaysEnabled || []).includes(2),
+        quiz_days_enabled: settings.quizDaysEnabled || [],
         updated_at: new Date().toISOString(),
       };
 
