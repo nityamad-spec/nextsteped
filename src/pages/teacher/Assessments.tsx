@@ -592,31 +592,59 @@ const Assessments = () => {
               </div>
               <Button onClick={handleSaveQuizSettings} className="w-full">Save Quiz Settings</Button>
 
-              {/* Enable/Disable Toggle */}
-              <div className={`flex items-center justify-between rounded-lg border p-4 mt-4 ${taSettings.quizEnabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
-                <div className="flex items-center gap-3">
+              {/* Per-Day Enable/Disable Toggles */}
+              <div className="space-y-3 mt-4">
+                <Label className="text-sm font-medium flex items-center gap-2">
                   <Power className="h-4 w-4 text-primary" />
-                  <div>
-                    <p className="text-sm font-medium">Available to Students</p>
-                    <p className="text-xs text-muted-foreground">
-                      {taSettings.quizApproved
-                        ? "Toggle to enable or disable student access to daily quizzes"
-                        : "Approve quiz rules in setup first"}
-                    </p>
+                  Available to Students
+                </Label>
+                {!taSettings.quizApproved && (
+                  <p className="text-xs text-muted-foreground">Approve quiz rules in setup first to enable toggles.</p>
+                )}
+                <div className={`flex items-center justify-between rounded-lg border p-4 ${taSettings.quizDay1Enabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    <div>
+                      <p className="text-sm font-medium">Day 1 Quiz</p>
+                      <p className="text-xs text-muted-foreground">{day1Questions.length} question{day1Questions.length !== 1 ? "s" : ""} tagged</p>
+                    </div>
                   </div>
+                  <Switch
+                    checked={taSettings.quizDay1Enabled ?? false}
+                    disabled={!taSettings.quizApproved}
+                    onCheckedChange={async (checked) => {
+                      try {
+                        const quizEnabled = checked || (taSettings.quizDay2Enabled ?? false);
+                        await saveTASettings({ ...taSettings, quizDay1Enabled: checked, quizEnabled });
+                        toast.success(`Day 1 Quiz ${checked ? "enabled" : "disabled"} for students`);
+                      } catch {
+                        toast.error("Failed to update quiz availability");
+                      }
+                    }}
+                  />
                 </div>
-                <Switch
-                  checked={taSettings.quizEnabled}
-                  disabled={!taSettings.quizApproved}
-                  onCheckedChange={async (checked) => {
-                    try {
-                      await saveTASettings({ ...taSettings, quizEnabled: checked });
-                      toast.success(`Daily Quiz ${checked ? "enabled" : "disabled"} for students`);
-                    } catch {
-                      toast.error("Failed to update quiz availability");
-                    }
-                  }}
-                />
+                <div className={`flex items-center justify-between rounded-lg border p-4 ${taSettings.quizDay2Enabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    <div>
+                      <p className="text-sm font-medium">Day 2 Quiz</p>
+                      <p className="text-xs text-muted-foreground">{day2Questions.length} question{day2Questions.length !== 1 ? "s" : ""} tagged</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={taSettings.quizDay2Enabled ?? false}
+                    disabled={!taSettings.quizApproved}
+                    onCheckedChange={async (checked) => {
+                      try {
+                        const quizEnabled = (taSettings.quizDay1Enabled ?? false) || checked;
+                        await saveTASettings({ ...taSettings, quizDay2Enabled: checked, quizEnabled });
+                        toast.success(`Day 2 Quiz ${checked ? "enabled" : "disabled"} for students`);
+                      } catch {
+                        toast.error("Failed to update quiz availability");
+                      }
+                    }}
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>

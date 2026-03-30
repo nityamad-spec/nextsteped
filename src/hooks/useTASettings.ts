@@ -25,6 +25,8 @@ interface DBTASettings {
   quiz_enabled: boolean;
   exam_manual_questions: boolean;
   exam_manual_count: number | null;
+  quiz_day1_enabled: boolean;
+  quiz_day2_enabled: boolean;
 }
 
 function dbToAppSettings(row: DBTASettings): TASettings {
@@ -50,6 +52,8 @@ function dbToAppSettings(row: DBTASettings): TASettings {
     quizEnabled: row.quiz_enabled,
     examManualQuestions: row.exam_manual_questions,
     examManualCount: row.exam_manual_count,
+    quizDay1Enabled: row.quiz_day1_enabled,
+    quizDay2Enabled: row.quiz_day2_enabled,
   };
 }
 
@@ -111,6 +115,8 @@ export function useTASettings(courseId: string | null) {
         quiz_enabled: settings.quizEnabled ?? false,
         exam_manual_questions: settings.examManualQuestions ?? false,
         exam_manual_count: settings.examManualCount ?? null,
+        quiz_day1_enabled: settings.quizDay1Enabled ?? false,
+        quiz_day2_enabled: settings.quizDay2Enabled ?? false,
         updated_at: new Date().toISOString(),
       };
 
