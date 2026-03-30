@@ -88,8 +88,7 @@ export interface TASettings {
   quizEnabled?: boolean;
   examManualQuestions?: boolean;
   examManualCount?: number | null;
-  quizDay1Enabled?: boolean;
-  quizDay2Enabled?: boolean;
+  quizDaysEnabled?: number[];
 }
 
 export interface DashboardMetrics {
