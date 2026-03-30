@@ -70,7 +70,7 @@ const AssessmentAnalytics = () => {
             let timeSpent = 0;
             if (Array.isArray(d.question_times)) {
               timeSpent = Math.round(
-                (d.question_times as number[]).reduce((s: number, t: number) => s + (t || 0), 0)
+                (d.question_times as number[]).reduce((s: number, t: number) => s + (t || 0), 0) / 1000
               );
             }
             return {
