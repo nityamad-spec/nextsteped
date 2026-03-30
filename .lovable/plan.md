@@ -1,49 +1,37 @@
 
 
-## Plan: Persist Student Assessment Results to Database
+## Plan: Teacher Assessment Analytics Dashboard
 
 ### Problem
-When students complete exams or quizzes, results are only logged as a chat message summary. No structured data is saved, so teachers cannot access scores, answers, or time-spent analytics.
+Assessment results are now persisted in `assessment_results`, but teachers have no way to view them. The existing `StudentInsights` page uses only mock data and is not even routed in the teacher layout.
 
 ### Approach
 
-**1. Database migration** — Create `assessment_results` table
+**1. Create `src/pages/teacher/AssessmentAnalytics.tsx`** — New page with real data from `assessment_results`
 
-```sql
-CREATE TABLE public.assessment_results (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_id uuid NOT NULL,
-  course_id uuid,
-  mode text NOT NULL,           -- 'exam' or 'daily_quiz'
-  quiz_day integer,
-  score integer NOT NULL,
-  total_questions integer NOT NULL,
-  correct_answers integer NOT NULL,
-  answers jsonb NOT NULL DEFAULT '{}',
-  time_spent integer NOT NULL,  -- seconds
-  created_at timestamptz NOT NULL DEFAULT now()
-);
+Fetches from Supabase using `course_id` filter. Displays:
+- **Summary cards**: Total attempts, average score %, completion count (exam vs quiz), average time spent
+- **Score distribution chart**: Bar chart showing how many students scored in each range (0-20%, 20-40%, etc.)
+- **Topic performance table**: Extracts topic data from the `answers` JSONB field, shows per-topic correct/incorrect rates
+- **Recent results list**: Table of recent assessment submissions with mode, score, time spent, date
+- Section filter dropdown (if course has multiple sections)
+
+Data query pattern:
+```typescript
+const { data } = await supabase
+  .from("assessment_results")
+  .select("*")
+  .eq("course_id", courseId);
 ```
 
-RLS:
-- Students can INSERT own results (`auth.uid() = student_id`)
-- Students can SELECT own results
-- Teachers can SELECT results for their courses (`is_course_member`)
+The `answers` JSONB contains per-question data including topic, so topic-level aggregation happens client-side.
 
-**2. `src/pages/student/AIChat.tsx`** — Save results on submit
+**2. `src/App.tsx`** — Add route `/teacher/assessment-analytics` under the teacher layout
 
-In `handleAssessmentSubmit`, after the existing chat message logic, insert a row into `assessment_results` with:
-- `student_id`: `user.id`
-- `course_id`: `enrolledCourseId`
-- `mode`: `assessmentType === "quiz" ? "daily_quiz" : "exam"`
-- `quiz_day`: `assessmentDay` (for quizzes)
-- `score`: `results.score`
-- `total_questions`: `results.totalQuestions`
-- `correct_answers`: `results.correctAnswers`
-- `answers`: `results.answers`
-- `time_spent`: `results.timeSpent`
+**3. `src/layouts/TeacherLayout.tsx`** — Add nav item "Assessment Analytics" with `BarChart3` icon, positioned after "Assessments"
 
 ### Files Modified
-- 1 database migration (new `assessment_results` table + RLS)
-- `src/pages/student/AIChat.tsx` — insert result row in `handleAssessmentSubmit`
+- New: `src/pages/teacher/AssessmentAnalytics.tsx`
+- `src/App.tsx` — add route
+- `src/layouts/TeacherLayout.tsx` — add nav link
 
