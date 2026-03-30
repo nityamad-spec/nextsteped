@@ -64,6 +64,25 @@ const AIChat = () => {
     updateSessionTitle,
   } = useChatSessions(mode);
 
+  // Fetch course context for relevance classification
+  useEffect(() => {
+    if (!enrolledCourseId) return;
+    const fetchContext = async () => {
+      const [courseRes, conceptsRes] = await Promise.all([
+        supabase.from("courses").select("name, objectives").eq("id", enrolledCourseId).maybeSingle(),
+        supabase.from("concepts").select("concept_code").eq("course_id", enrolledCourseId),
+      ]);
+      if (courseRes.data) {
+        setCourseContext({
+          courseName: courseRes.data.name,
+          objectives: (courseRes.data.objectives as string[]) || [],
+          concepts: (conceptsRes.data || []).map((c: any) => c.concept_code),
+        });
+      }
+    };
+    fetchContext();
+  }, [enrolledCourseId]);
+
   // Auto-start quiz/exam if coming from home page with mode=quiz or mode=exam
   useEffect(() => {
     const urlMode = searchParams.get("mode");
