@@ -70,6 +70,18 @@ const Assessments = () => {
   const [quizQuestionTypes, setQuizQuestionTypes] = useState(taSettings.quizQuestionMix || "mixed");
   const [quizTimeLimit, setQuizTimeLimit] = useState(taSettings.quizTimeLimit || 10);
 
+  // Sync local state when DB settings arrive
+  useEffect(() => {
+    if (!taLoading) {
+      setExamTimeLimit(taSettings.examTimeLimit || 60);
+      setExamManualQuestions(taSettings.examManualQuestions ?? false);
+      setExamManualCount(taSettings.examManualCount ?? 20);
+      setQuizNumQuestions(taSettings.quizNumQuestions || 5);
+      setQuizQuestionTypes(taSettings.quizQuestionMix || "mixed");
+      setQuizTimeLimit(taSettings.quizTimeLimit || 10);
+    }
+  }, [taSettings, taLoading]);
+
   const examEstimate = Math.max(5, Math.round(examTimeLimit / 3));
 
   // Fetch questions from DB
