@@ -1,13 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ShieldCheck } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
-import { workshopPlan as sharedWorkshopPlan } from "@/data/workshopPlan";
+import { workshopPlan as sharedWorkshopPlan, WorkshopDay } from "@/data/workshopPlan";
 import { useStudentStatus } from "@/hooks/useStudentStatus";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Check, ChevronDown, ChevronUp, BookOpen, Brain, ArrowRight, FlaskConical, LibraryBig, Newspaper, Download, ClipboardList, GraduationCap, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -30,7 +33,6 @@ const typeIcons: Record<string, typeof BookOpen> = {
   "case-study": LibraryBig, article: Newspaper, news: Newspaper, video: BookOpen,
 };
 
-const workshopPlan = sharedWorkshopPlan;
 const currentDay = 1;
 
 const conceptMasteryData = [
@@ -54,10 +56,56 @@ const getMasteryColor = (mastery: number) => {
 const StudentHome = () => {
   const { studentProfile, currentCourse } = useApp();
   const { profileData } = useStudentStatus();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [expandedDays, setExpandedDays] = useState<number[]>([1]);
+  const [workshopPlan, setWorkshopPlan] = useState<WorkshopDay[]>(sharedWorkshopPlan);
+  const [planLoading, setPlanLoading] = useState(true);
   const courseName = currentCourse?.name || "Intro to Python";
   const displayName = profileData?.name || studentProfile?.name || "Student";
+
+  // Fetch the teacher's published plan from storage
+  useEffect(() => {
+    const fetchPublishedPlan = async () => {
+      if (!user) { setPlanLoading(false); return; }
+      try {
+        // Get the student's enrolled course to find the teacher_id
+        const { data: enrollment } = await supabase
+          .from("enrollments")
+          .select("course_id")
+          .eq("student_id", user.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (!enrollment?.course_id) { setPlanLoading(false); return; }
+
+        const { data: course } = await supabase
+          .from("courses")
+          .select("teacher_id")
+          .eq("id", enrollment.course_id)
+          .maybeSingle();
+
+        if (!course?.teacher_id) { setPlanLoading(false); return; }
+
+        const { data: fileData, error } = await supabase.storage
+          .from("course-materials")
+          .download(`${course.teacher_id}/lesson-plan/published-plan.json`);
+
+        if (!error && fileData) {
+          const text = await fileData.text();
+          const parsed = JSON.parse(text) as WorkshopDay[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setWorkshopPlan(parsed);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch published plan:", err);
+      } finally {
+        setPlanLoading(false);
+      }
+    };
+    fetchPublishedPlan();
+  }, [user]);
 
   const toggleDay = (day: number) => {
     setExpandedDays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]);
@@ -112,6 +160,13 @@ const StudentHome = () => {
               <BookOpen className="h-4 w-4 text-primary" /> Workshop Lesson Plan
             </CardTitle>
           </CardHeader>
+          {planLoading ? (
+            <CardContent className="space-y-3">
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+            </CardContent>
+          ) : (
           <CardContent className="space-y-2">
             {workshopPlan.map((dp) => {
               const isExpanded = expandedDays.includes(dp.day);
@@ -219,6 +274,7 @@ const StudentHome = () => {
               );
             })}
           </CardContent>
+          )}
         </Card>
       </motion.div>
 
