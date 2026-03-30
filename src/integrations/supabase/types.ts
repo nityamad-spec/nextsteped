@@ -98,6 +98,63 @@ export type Database = {
           },
         ]
       }
+      assessment_results: {
+        Row: {
+          answers: Json
+          correct_answers: number
+          course_id: string | null
+          created_at: string
+          id: string
+          mode: string
+          quiz_day: number | null
+          score: number
+          student_id: string
+          time_spent: number
+          total_questions: number
+        }
+        Insert: {
+          answers?: Json
+          correct_answers: number
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          mode: string
+          quiz_day?: number | null
+          score: number
+          student_id: string
+          time_spent?: number
+          total_questions: number
+        }
+        Update: {
+          answers?: Json
+          correct_answers?: number
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          mode?: string
+          quiz_day?: number | null
+          score?: number
+          student_id?: string
+          time_spent?: number
+          total_questions?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_results_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_results_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branches: {
         Row: {
           created_at: string
