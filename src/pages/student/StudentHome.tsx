@@ -56,10 +56,56 @@ const getMasteryColor = (mastery: number) => {
 const StudentHome = () => {
   const { studentProfile, currentCourse } = useApp();
   const { profileData } = useStudentStatus();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [expandedDays, setExpandedDays] = useState<number[]>([1]);
+  const [workshopPlan, setWorkshopPlan] = useState<WorkshopDay[]>(sharedWorkshopPlan);
+  const [planLoading, setPlanLoading] = useState(true);
   const courseName = currentCourse?.name || "Intro to Python";
   const displayName = profileData?.name || studentProfile?.name || "Student";
+
+  // Fetch the teacher's published plan from storage
+  useEffect(() => {
+    const fetchPublishedPlan = async () => {
+      if (!user) { setPlanLoading(false); return; }
+      try {
+        // Get the student's enrolled course to find the teacher_id
+        const { data: enrollment } = await supabase
+          .from("enrollments")
+          .select("course_id")
+          .eq("student_id", user.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (!enrollment?.course_id) { setPlanLoading(false); return; }
+
+        const { data: course } = await supabase
+          .from("courses")
+          .select("teacher_id")
+          .eq("id", enrollment.course_id)
+          .maybeSingle();
+
+        if (!course?.teacher_id) { setPlanLoading(false); return; }
+
+        const { data: fileData, error } = await supabase.storage
+          .from("course-materials")
+          .download(`${course.teacher_id}/lesson-plan/published-plan.json`);
+
+        if (!error && fileData) {
+          const text = await fileData.text();
+          const parsed = JSON.parse(text) as WorkshopDay[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setWorkshopPlan(parsed);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch published plan:", err);
+      } finally {
+        setPlanLoading(false);
+      }
+    };
+    fetchPublishedPlan();
+  }, [user]);
 
   const toggleDay = (day: number) => {
     setExpandedDays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]);
