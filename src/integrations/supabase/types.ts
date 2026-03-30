@@ -379,6 +379,8 @@ export type Database = {
           knowledge_sources: string
           plagiarism_warnings: boolean
           quiz_approved: boolean
+          quiz_day1_enabled: boolean
+          quiz_day2_enabled: boolean
           quiz_difficulty: string | null
           quiz_enabled: boolean
           quiz_num_questions: number | null
@@ -404,6 +406,8 @@ export type Database = {
           knowledge_sources?: string
           plagiarism_warnings?: boolean
           quiz_approved?: boolean
+          quiz_day1_enabled?: boolean
+          quiz_day2_enabled?: boolean
           quiz_difficulty?: string | null
           quiz_enabled?: boolean
           quiz_num_questions?: number | null
@@ -429,6 +433,8 @@ export type Database = {
           knowledge_sources?: string
           plagiarism_warnings?: boolean
           quiz_approved?: boolean
+          quiz_day1_enabled?: boolean
+          quiz_day2_enabled?: boolean
           quiz_difficulty?: string | null
           quiz_enabled?: boolean
           quiz_num_questions?: number | null
