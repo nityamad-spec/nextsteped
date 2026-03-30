@@ -266,6 +266,31 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                   ))}
                 </RadioGroup>
               )}
+
+              {currentQ.type === "true_false" && (
+                <div className="flex gap-3">
+                  {["True", "False"].map((opt) => (
+                    <Button
+                      key={opt}
+                      type="button"
+                      variant={answers[currentQ.id] === opt ? "default" : "outline"}
+                      className="flex-1 h-12 text-base"
+                      onClick={() => handleAnswer(currentQ.id, opt)}
+                    >
+                      {opt}
+                    </Button>
+                  ))}
+                </div>
+              )}
+
+              {currentQ.type === "short_answer" && (
+                <Textarea
+                  placeholder="Type your answer here…"
+                  value={answers[currentQ.id] || ""}
+                  onChange={(e) => handleAnswer(currentQ.id, e.target.value)}
+                  className="min-h-[120px]"
+                />
+              )}
             </CardContent>
           </Card>
         </div>
