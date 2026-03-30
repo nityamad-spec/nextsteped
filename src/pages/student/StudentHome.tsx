@@ -160,6 +160,13 @@ const StudentHome = () => {
               <BookOpen className="h-4 w-4 text-primary" /> Workshop Lesson Plan
             </CardTitle>
           </CardHeader>
+          {planLoading ? (
+            <CardContent className="space-y-3">
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+            </CardContent>
+          ) : (
           <CardContent className="space-y-2">
             {workshopPlan.map((dp) => {
               const isExpanded = expandedDays.includes(dp.day);
