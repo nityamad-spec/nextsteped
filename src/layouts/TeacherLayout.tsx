@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { BookOpen, Users, ClipboardCheck, Settings, HelpCircle, LogOut, FileText } from "lucide-react";
+import { BookOpen, Users, ClipboardCheck, Settings, HelpCircle, LogOut, FileText, BarChart3 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
@@ -9,6 +9,7 @@ const teacherNav = [
   { title: "Course Dashboard", path: "/teacher/courses/dashboard", icon: BookOpen },
   { title: "Workshop Plan", path: "/teacher/teaching-plan", icon: FileText },
   { title: "Assessments", path: "/teacher/assessments", icon: ClipboardCheck },
+  { title: "Analytics", path: "/teacher/assessment-analytics", icon: BarChart3 },
   { title: "Settings / Integrity", path: "/teacher/settings", icon: Settings },
   { title: "Support", path: "/teacher/support", icon: HelpCircle },
 ];
