@@ -33,7 +33,6 @@ const typeIcons: Record<string, typeof BookOpen> = {
   "case-study": LibraryBig, article: Newspaper, news: Newspaper, video: BookOpen,
 };
 
-const workshopPlan = sharedWorkshopPlan;
 const currentDay = 1;
 
 const conceptMasteryData = [
