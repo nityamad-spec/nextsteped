@@ -274,6 +274,7 @@ const StudentHome = () => {
               );
             })}
           </CardContent>
+          )}
         </Card>
       </motion.div>
 
