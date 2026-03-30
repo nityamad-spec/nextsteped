@@ -30,7 +30,7 @@ interface EditableQuestion {
   options?: string[];
   correctIndex?: number;
   explanation?: string;
-  quizDay?: 1 | 2;
+  quizDay?: number;
 }
 
 const Assessments = () => {
@@ -57,7 +57,7 @@ const Assessments = () => {
   const [formMode, setFormMode] = useState<QuestionMode>("exam");
   const [formOptions, setFormOptions] = useState<string[]>(["", "", "", ""]);
   const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
-  const [formQuizDay, setFormQuizDay] = useState<1 | 2>(1);
+  const [formQuizDay, setFormQuizDay] = useState<number>(1);
   const [saving, setSaving] = useState(false);
 
   // Exam settings
@@ -109,7 +109,7 @@ const Assessments = () => {
           options: row.options as string[] | undefined,
           correctIndex: row.correct_index ?? undefined,
           explanation: row.explanation ?? undefined,
-          quizDay: row.quiz_day as 1 | 2 | undefined,
+          quizDay: row.quiz_day as number | undefined,
         })));
       }
       setQuestionsLoading(false);

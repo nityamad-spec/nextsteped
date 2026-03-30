@@ -88,8 +88,7 @@ const AIChat = () => {
     const urlMode = searchParams.get("mode");
     const urlDay = parseInt(searchParams.get("day") || "1") || 1;
     if (urlMode === "quiz") {
-      const dayEnabled = urlDay === 2 ? taSettings.quizDay2Enabled : taSettings.quizDay1Enabled;
-      if (dayEnabled) handleStartQuiz(urlDay);
+      if ((taSettings.quizDaysEnabled || []).includes(urlDay)) handleStartQuiz(urlDay);
     } else if (urlMode === "exam" && taSettings.examEnabled) {
       handleStartExam();
     }
@@ -585,24 +584,20 @@ const AIChat = () => {
               <Button onClick={handleStartExam} className="gap-2" disabled={!taSettings.examEnabled}>
                 <Clock className="h-4 w-4" /> Start Exam
               </Button>
-              <Button
-                onClick={() => handleStartQuiz(1)}
-                variant="secondary"
-                className="gap-2"
-                disabled={!taSettings.quizDay1Enabled}
-              >
-                <MessageSquare className="h-4 w-4" /> Day 1 Quiz
-              </Button>
-              <Button
-                onClick={() => handleStartQuiz(2)}
-                variant="secondary"
-                className="gap-2"
-                disabled={!taSettings.quizDay2Enabled}
-              >
-                <MessageSquare className="h-4 w-4" /> Day 2 Quiz
-              </Button>
+              {(taSettings.quizDaysEnabled || []).length > 0 ? (
+                (taSettings.quizDaysEnabled || []).sort((a, b) => a - b).map((day) => (
+                  <Button
+                    key={day}
+                    onClick={() => handleStartQuiz(day)}
+                    variant="secondary"
+                    className="gap-2"
+                  >
+                    <MessageSquare className="h-4 w-4" /> Day {day} Quiz
+                  </Button>
+                ))
+              ) : null}
             </div>
-            {(!taSettings.examEnabled && !taSettings.quizDay1Enabled && !taSettings.quizDay2Enabled) && (
+            {(!taSettings.examEnabled && (taSettings.quizDaysEnabled || []).length === 0) && (
               <p className="text-xs text-muted-foreground">
                 Your professor has not enabled any assessments yet.
               </p>
