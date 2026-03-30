@@ -281,6 +281,39 @@ const AIChat = () => {
       .slice(-20)
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
+    // Classify relevance for study mode
+    let relevanceContext: { relevant: boolean; courseName: string; concepts: string[] } | undefined;
+    if (mode === "learning" && courseContext) {
+      try {
+        const classifyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/classify-question`;
+        const classifyResp = await fetch(classifyUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            message: userContent,
+            courseName: courseContext.courseName,
+            objectives: courseContext.objectives,
+            concepts: courseContext.concepts,
+          }),
+        });
+        if (classifyResp.ok) {
+          const classifyData = await classifyResp.json();
+          if (classifyData.relevant === false) {
+            relevanceContext = {
+              relevant: false,
+              courseName: courseContext.courseName,
+              concepts: courseContext.concepts,
+            };
+          }
+        }
+      } catch (e) {
+        console.error("Classification failed, proceeding normally:", e);
+      }
+    }
+
     const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
     const assistantMsgId = `streaming-${Date.now()}`;
 
@@ -296,6 +329,7 @@ const AIChat = () => {
           mode,
           studySystemPrompt: taSettings.studySystemPrompt,
           examSystemPrompt: taSettings.examSystemPrompt,
+          ...(relevanceContext ? { relevanceContext } : {}),
         }),
       });
 
