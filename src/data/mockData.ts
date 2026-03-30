@@ -145,9 +145,20 @@ export const defaultTASettings: TASettings = {
   plagiarismWarnings: true,
   examTimeLimit: 60,
   examDifficulty: "Mixed",
-  examQuestionMix: "40% MCQ, 30% Short Answer, 30% Coding",
+  examQuestionMix: "mixed",
+  examPresentation: "all_at_once",
   studySystemPrompt: defaultStudyPrompt,
   examSystemPrompt: defaultExamPrompt,
+  customStudyPrompt: "",
+  customExamPrompt: "",
+  quizNumQuestions: 5,
+  quizQuestionMix: "mixed",
+  quizDifficulty: "Medium",
+  quizTimeLimit: 10,
+  examApproved: false,
+  quizApproved: false,
+  examManualQuestions: false,
+  examManualCount: null,
 };
 
 export const availableDepartments = [

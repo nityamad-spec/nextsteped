@@ -40,34 +40,39 @@ const ExamMode = () => {
   const { taSettings, loading, saveTASettings } = useTASettings(courseId);
   const navigate = useNavigate();
   const [settings, setSettings] = useState(taSettings);
-  const [examLength, setExamLength] = useState(taSettings.examTimeLimit || 60);
+  const [examLength, setExamLength] = useState(taSettings.examTimeLimit ?? 60);
   const [examQuestionTypes, setExamQuestionTypes] = useState(taSettings.examQuestionMix || "mixed");
   const [editingEstimate, setEditingEstimate] = useState(false);
 
-  const [quizNumQuestions, setQuizNumQuestions] = useState(taSettings.quizNumQuestions || 5);
+  const [quizNumQuestions, setQuizNumQuestions] = useState(taSettings.quizNumQuestions ?? 5);
   const [quizQuestionTypes, setQuizQuestionTypes] = useState(taSettings.quizQuestionMix || "mixed");
   const [quizDifficulty, setQuizDifficulty] = useState(taSettings.quizDifficulty || "Medium");
-  const [quizTimeLimit, setQuizTimeLimit] = useState(taSettings.quizTimeLimit || 10);
+  const [quizTimeLimit, setQuizTimeLimit] = useState(taSettings.quizTimeLimit ?? 10);
 
-  useEffect(() => {
-    if (!loading) {
-      setSettings(taSettings);
-      setExamLength(taSettings.examTimeLimit || 60);
-      setExamQuestionTypes(taSettings.examQuestionMix || "mixed");
-      setQuizNumQuestions(taSettings.quizNumQuestions || 5);
-      setQuizQuestionTypes(taSettings.quizQuestionMix || "mixed");
-      setQuizDifficulty(taSettings.quizDifficulty || "Medium");
-      setQuizTimeLimit(taSettings.quizTimeLimit || 10);
-      setExamApproved(taSettings.examApproved || false);
-      setQuizApproved(taSettings.quizApproved || false);
-      setExamManualQuestions(taSettings.examManualQuestions || false);
-      setExamManualCount(taSettings.examManualCount ?? estimate.total);
-    }
-  }, [loading, taSettings]);
+  const [examApproved, setExamApproved] = useState(taSettings.examApproved ?? false);
+  const [quizApproved, setQuizApproved] = useState(taSettings.quizApproved ?? false);
+  const [examManualQuestions, setExamManualQuestions] = useState(taSettings.examManualQuestions ?? false);
+  const [examManualCount, setExamManualCount] = useState(taSettings.examManualCount ?? 5);
 
   const estimate = useMemo(() => questionEstimate(examLength, examQuestionTypes, settings.examDifficulty), [examLength, examQuestionTypes, settings.examDifficulty]);
   const [customBreakdown, setCustomBreakdown] = useState<Record<string, number>>(estimate.breakdown);
   const [estimateApproved, setEstimateApproved] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setSettings(taSettings);
+      setExamLength(taSettings.examTimeLimit ?? 60);
+      setExamQuestionTypes(taSettings.examQuestionMix || "mixed");
+      setQuizNumQuestions(taSettings.quizNumQuestions ?? 5);
+      setQuizQuestionTypes(taSettings.quizQuestionMix || "mixed");
+      setQuizDifficulty(taSettings.quizDifficulty || "Medium");
+      setQuizTimeLimit(taSettings.quizTimeLimit ?? 10);
+      setExamApproved(taSettings.examApproved ?? false);
+      setQuizApproved(taSettings.quizApproved ?? false);
+      setExamManualQuestions(taSettings.examManualQuestions ?? false);
+      setExamManualCount(taSettings.examManualCount ?? estimate.total);
+    }
+  }, [loading, taSettings]);
 
   const update = (partial: Partial<typeof settings>) => {
     setSettings((s) => ({ ...s, ...partial }));
@@ -82,11 +87,6 @@ const ExamMode = () => {
 
   const handleApproveEstimate = () => { if (editingEstimate) setEditingEstimate(false); setEstimateApproved(true); };
   const handleEditEstimate = () => { setCustomBreakdown({ ...estimate.breakdown }); setEditingEstimate(true); setEstimateApproved(false); };
-
-  const [examApproved, setExamApproved] = useState(false);
-  const [quizApproved, setQuizApproved] = useState(false);
-  const [examManualQuestions, setExamManualQuestions] = useState(false);
-  const [examManualCount, setExamManualCount] = useState(estimate.total);
 
   const canContinue = examApproved && quizApproved;
 
