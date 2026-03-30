@@ -154,6 +154,50 @@ const CourseDashboard = () => {
         </Card>
       </div>
 
+      {/* Assessment Controls */}
+      <Card className="mb-6">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base"><Power className="h-4 w-4 text-primary" /> Assessment Controls</CardTitle>
+          <CardDescription>Quickly enable or disable assessments for students</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className={`flex items-center justify-between rounded-lg border p-4 ${taSettings.examEnabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
+              <div className="flex items-center gap-3">
+                <GraduationCap className="h-4 w-4 text-primary" />
+                <div>
+                  <p className="text-sm font-medium">Final Exam</p>
+                  <p className="text-xs text-muted-foreground">
+                    {taSettings.examApproved ? (taSettings.examEnabled ? "Available to students" : "Disabled for students") : "Not yet approved"}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={taSettings.examEnabled ?? false}
+                onCheckedChange={(v) => handleToggle("examEnabled", v)}
+                disabled={!taSettings.examApproved}
+              />
+            </div>
+            <div className={`flex items-center justify-between rounded-lg border p-4 ${taSettings.quizEnabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
+              <div className="flex items-center gap-3">
+                <ClipboardList className="h-4 w-4 text-primary" />
+                <div>
+                  <p className="text-sm font-medium">Daily Quiz</p>
+                  <p className="text-xs text-muted-foreground">
+                    {taSettings.quizApproved ? (taSettings.quizEnabled ? "Available to students" : "Disabled for students") : "Not yet approved"}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={taSettings.quizEnabled ?? false}
+                onCheckedChange={(v) => handleToggle("quizEnabled", v)}
+                disabled={!taSettings.quizApproved}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="space-y-6">
         {/* Mastery Distribution */}
         <Card>
