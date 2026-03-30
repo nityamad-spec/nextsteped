@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import { getQuizQuestions, getExamQuestions, Question } from "@/data/questionBank";
 import { supabase } from "@/integrations/supabase/client";
+import { seededShuffle } from "@/lib/seededShuffle";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -178,7 +179,8 @@ const AIChat = () => {
     if (questions.length === 0) {
       questions = getExamQuestions(count);
     } else {
-      const shuffled = [...questions].sort(() => Math.random() - 0.5);
+      const seed = (user?.id || "anon") + (enrolledCourseId || "");
+      const shuffled = seededShuffle(questions, seed);
       questions = shuffled.slice(0, Math.min(count, shuffled.length));
     }
     setAssessmentQuestions(questions);
@@ -194,7 +196,8 @@ const AIChat = () => {
     if (questions.length === 0) {
       questions = getQuizQuestions(quizDay, count);
     } else {
-      const shuffled = [...questions].sort(() => Math.random() - 0.5);
+      const seed = (user?.id || "anon") + (enrolledCourseId || "");
+      const shuffled = seededShuffle(questions, seed);
       questions = shuffled.slice(0, Math.min(count, shuffled.length));
     }
     setAssessmentQuestions(questions);

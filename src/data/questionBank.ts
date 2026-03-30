@@ -1,3 +1,5 @@
+import { seededShuffle } from "@/lib/seededShuffle";
+
 export interface Question {
   id: string;
   text: string;
@@ -52,13 +54,19 @@ export const questionBank: Question[] = [
   { id: "d3q15", text: "What does `json.loads()` do?", type: "mcq", options: ["Writes JSON to file", "Parses a JSON string into Python object", "Converts Python to JSON string", "Validates JSON schema"], correctAnswer: "Parses a JSON string into Python object", topic: "Modules", difficulty: "Medium", day: 3 },
 ];
 
-export const getQuizQuestions = (day: number, count: number): Question[] => {
+export const getQuizQuestions = (day: number, count: number, seed?: string): Question[] => {
   const dayQuestions = questionBank.filter(q => q.day === day);
+  if (seed) {
+    return seededShuffle(dayQuestions, seed).slice(0, Math.min(count, dayQuestions.length));
+  }
   const shuffled = [...dayQuestions].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, Math.min(count, shuffled.length));
 };
 
-export const getExamQuestions = (count: number): Question[] => {
+export const getExamQuestions = (count: number, seed?: string): Question[] => {
+  if (seed) {
+    return seededShuffle(questionBank, seed).slice(0, Math.min(count, questionBank.length));
+  }
   const shuffled = [...questionBank].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, Math.min(count, shuffled.length));
 };
