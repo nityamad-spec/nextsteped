@@ -12,6 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, ArrowLeft, Brain, Zap, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { seededShuffle } from "@/lib/seededShuffle";
 
 const confidenceLabels: Record<number, string> = {
   0: "Just Guessing",
