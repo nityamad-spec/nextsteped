@@ -1,29 +1,60 @@
 
 
-## Plan: Student View Should Read Teacher's Published Plan (Including Lock State)
+## Plan: Use Teacher-Created Database Questions for Exams & Quizzes
 
 ### Problem
-The student's `StudentHome` imports the workshop plan from the **static** `workshopPlan` data file. When the teacher locks/unlocks days on `/teacher/teaching-plan` and saves, that data goes to Supabase storage (`{teacherId}/lesson-plan/published-plan.json`), but the student never reads it. So lock changes are invisible to students.
+The teacher's Assessments page manages questions **only in local component state** (seeded from mock data). Questions are never saved to the database. The student exam/quiz system pulls from a **static `questionBank.ts`** file. Teacher-configured custom questions are completely disconnected from what students actually see.
 
 ### Approach
 
-**`src/pages/student/StudentHome.tsx`**
-1. On mount, resolve the student's enrolled course → get the course's `teacher_id`
-2. Download the teacher's published plan from storage: `{teacherId}/lesson-plan/published-plan.json`
-3. If found, use it as the workshop plan (with lock states from the teacher)
-4. If not found, fall back to the static `workshopPlan` default
-5. Show a loading skeleton while fetching
+**1. Database migration** — Create an `assessment_questions` table
 
-This mirrors the same load pattern already used in `TeachingPlan.tsx`. The storage bucket `course-materials` already has appropriate access — we may need to add a SELECT storage policy for authenticated users to read the teacher's plan file path, or use a signed URL approach.
+```sql
+CREATE TABLE public.assessment_questions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id uuid NOT NULL,
+  teacher_id uuid NOT NULL,
+  mode text NOT NULL,              -- 'exam' or 'daily_quiz'
+  question_type text NOT NULL DEFAULT 'MCQ',  -- 'MCQ', 'Short Answer', 'Code Practice'
+  question_text text NOT NULL,
+  answer text NOT NULL,
+  topic text NOT NULL,
+  difficulty text NOT NULL DEFAULT 'Medium',
+  options jsonb,                   -- MCQ options array
+  correct_index integer,           -- for MCQ
+  explanation text,
+  quiz_day integer,                -- 1 or 2, for daily_quiz mode only
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 
-### Storage Access
-The `course-materials` bucket is private. Students currently can't read from it. We'll need to either:
-- Add a storage policy allowing authenticated users to read from `*/lesson-plan/*` paths, OR
-- Create a small edge function that returns the plan JSON for enrolled students
+ALTER TABLE public.assessment_questions ENABLE ROW LEVEL SECURITY;
+-- Teachers manage own questions
+-- Students can SELECT for enrolled courses
+```
 
-The simplest approach: add a storage SELECT policy scoped to the `lesson-plan` folder so enrolled students can download the published plan.
+**2. `src/pages/teacher/Assessments.tsx`** — Persist questions to database
+- On mount, fetch questions from `assessment_questions` where `course_id` matches
+- `handleSave` → upsert to `assessment_questions` table instead of local state only
+- Delete → delete from DB
+- Remove seed/mock data dependency
+
+**3. `src/pages/student/AIChat.tsx`** — Fetch questions from database
+- Replace `getQuizQuestions(day, count)` with a Supabase query: `SELECT * FROM assessment_questions WHERE course_id = ? AND mode = 'daily_quiz' AND quiz_day = ?`, then shuffle and slice to `count`
+- Replace `getExamQuestions(count)` with: `SELECT * FROM assessment_questions WHERE course_id = ? AND mode = 'exam'`, then shuffle and slice
+- Use `taSettings.examTimeLimit` for exam time (currently hardcoded)
+- Use `taSettings.examManualCount` or a default for exam question count (currently hardcoded to 15)
+- Map DB rows to the `Question` interface expected by `AssessmentView`
+
+**4. `src/components/AssessmentView.tsx`** — No structural changes needed
+- The existing `Question` interface already supports `mcq` type with `options`, `correctAnswer`, `topic`, `difficulty` — the DB fetch layer just maps to this shape
+
+**5. `src/data/questionBank.ts`** — Keep as fallback
+- If no DB questions exist for a course, fall back to static bank (graceful degradation)
+- Eventually can be removed once all courses have teacher-created questions
 
 ### Files Modified
-- `src/pages/student/StudentHome.tsx` — fetch published plan from storage instead of static import
-- Storage policy (via migration or Supabase config) — allow students to read lesson plan files
+- 1 database migration (new `assessment_questions` table + RLS)
+- `src/pages/teacher/Assessments.tsx` — CRUD against database
+- `src/pages/student/AIChat.tsx` — fetch from DB, respect TA settings for exam count/time
+- `src/data/questionBank.ts` — retained as fallback only
 
