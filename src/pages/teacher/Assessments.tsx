@@ -293,7 +293,7 @@ const Assessments = () => {
           </button>
         </div>
       </div>
-      <p className="text-sm font-medium">{q.question}</p>
+      <p className="text-sm font-medium whitespace-pre-wrap">{q.question}</p>
       {q.type === "MCQ" && q.options && (
         <div className="mt-2 space-y-1">
           {q.options.map((opt, i) => (
