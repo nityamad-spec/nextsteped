@@ -23,7 +23,7 @@ const AIChat = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const enrolledCourseId = localStorage.getItem("enrolledCourseId");
+  const enrolledCourseId = useEnrolledCourseId();
   const { taSettings } = useTASettings(enrolledCourseId);
   const initialMode = (searchParams.get("mode") === "exam" || searchParams.get("mode") === "quiz") ? "exam" : "learning";
 
