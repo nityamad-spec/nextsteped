@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, mode, studySystemPrompt, examSystemPrompt } = await req.json();
+    const { messages, mode, studySystemPrompt, examSystemPrompt, relevanceContext } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -36,9 +36,17 @@ Never give direct exam answers. Always explain the "why" behind concepts.`;
 - Encouraging critical thinking rather than memorization
 Keep responses focused and exam-relevant. Use markdown formatting.`;
 
-    const systemPrompt = mode === "exam"
+    let systemPrompt = mode === "exam"
       ? (examSystemPrompt || defaultExam)
       : (studySystemPrompt || defaultStudy);
+
+    // If the question was classified as off-topic, prepend a relating instruction
+    if (relevanceContext && relevanceContext.relevant === false && relevanceContext.courseName) {
+      const conceptsList = relevanceContext.concepts?.length
+        ? ` Key course concepts include: ${relevanceContext.concepts.join(", ")}.`
+        : "";
+      systemPrompt = `${systemPrompt}\n\nIMPORTANT: The student's question is not directly about ${relevanceContext.courseName}.${conceptsList} Before answering, briefly and naturally connect their question to a real-world application of the course material. Then answer helpfully through that lens. Do not refuse to answer — always be helpful, but draw the connection first.`;
+    }
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
