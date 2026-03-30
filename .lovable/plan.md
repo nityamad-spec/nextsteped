@@ -1,35 +1,29 @@
 
 
-## Plan: Persist Exam Mode Data Across Page Loads
+## Plan: Student View Should Read Teacher's Published Plan (Including Lock State)
 
 ### Problem
-When the teacher navigates away from `/teacher/setup/exam-mode` and returns, the core settings (time limit, difficulty, question mix) reload from the database, but the **approval states** (`examApproved`, `quizApproved`) and **manual question count** settings (`examManualQuestions`, `examManualCount`) reset — blocking the Continue button and losing configuration choices.
+The student's `StudentHome` imports the workshop plan from the **static** `workshopPlan` data file. When the teacher locks/unlocks days on `/teacher/teaching-plan` and saves, that data goes to Supabase storage (`{teacherId}/lesson-plan/published-plan.json`), but the student never reads it. So lock changes are invisible to students.
 
 ### Approach
 
-**1. Database migration** — Add columns to `course_ta_settings`:
-```sql
-ALTER TABLE public.course_ta_settings
-  ADD COLUMN exam_approved boolean NOT NULL DEFAULT false,
-  ADD COLUMN quiz_approved boolean NOT NULL DEFAULT false,
-  ADD COLUMN exam_manual_questions boolean NOT NULL DEFAULT false,
-  ADD COLUMN exam_manual_count integer DEFAULT NULL;
-```
+**`src/pages/student/StudentHome.tsx`**
+1. On mount, resolve the student's enrolled course → get the course's `teacher_id`
+2. Download the teacher's published plan from storage: `{teacherId}/lesson-plan/published-plan.json`
+3. If found, use it as the workshop plan (with lock states from the teacher)
+4. If not found, fall back to the static `workshopPlan` default
+5. Show a loading skeleton while fetching
 
-**2. `src/hooks/useTASettings.ts`**
-- Add the four new fields to `DBTASettings` interface and `dbToAppSettings` mapping
-- Include them in the `saveTASettings` upsert payload
+This mirrors the same load pattern already used in `TeachingPlan.tsx`. The storage bucket `course-materials` already has appropriate access — we may need to add a SELECT storage policy for authenticated users to read the teacher's plan file path, or use a signed URL approach.
 
-**3. `src/types/index.ts`**
-- Add `examApproved`, `quizApproved`, `examManualQuestions`, `examManualCount` to the `TASettings` type
+### Storage Access
+The `course-materials` bucket is private. Students currently can't read from it. We'll need to either:
+- Add a storage policy allowing authenticated users to read from `*/lesson-plan/*` paths, OR
+- Create a small edge function that returns the plan JSON for enrolled students
 
-**4. `src/pages/teacher/ExamMode.tsx`**
-- Initialize `examApproved`, `quizApproved`, `examManualQuestions`, `examManualCount` from `taSettings` in the `useEffect` (instead of hardcoded `false`)
-- Include all four fields in the `handleSave` payload
+The simplest approach: add a storage SELECT policy scoped to the `lesson-plan` folder so enrolled students can download the published plan.
 
 ### Files Modified
-- 1 database migration
-- `src/hooks/useTASettings.ts`
-- `src/types/index.ts`
-- `src/pages/teacher/ExamMode.tsx`
+- `src/pages/student/StudentHome.tsx` — fetch published plan from storage instead of static import
+- Storage policy (via migration or Supabase config) — allow students to read lesson plan files
 
