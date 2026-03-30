@@ -1,42 +1,59 @@
 
 
-## Plan: Per-Day Quiz Enable/Disable Toggles
+## Plan: Dynamic Quiz Days (Beyond Day 1 & Day 2)
 
 ### Problem
-Currently there is a single `quizEnabled` toggle that enables or disables all daily quizzes at once. Teachers want to independently control Day 1 and Day 2 quizzes (e.g., enable Day 1 but keep Day 2 disabled until ready).
+Quiz days are currently hardcoded to Day 1 and Day 2 — in the database columns (`quiz_day1_enabled`, `quiz_day2_enabled`), the types, the teacher UI toggles, and the student quiz buttons. Adding more days requires schema changes each time.
 
 ### Approach
-Add two new boolean columns (`quiz_day1_enabled`, `quiz_day2_enabled`) to `course_ta_settings`. The existing `quizEnabled` toggle becomes a master toggle, while individual day toggles provide granular control. On the student side, check the per-day flag before allowing a quiz start.
+Replace the two boolean columns with a single JSONB column `quiz_days_enabled` (e.g. `[1, 2, 5]`) that stores which day numbers are enabled. The teacher UI dynamically discovers which days exist from the questions tagged with `quiz_day`, and renders a toggle for each. The student UI renders a button per enabled day.
 
 ### Changes
 
-**1. Database migration — add per-day columns**
+**1. Database migration**
 ```sql
 ALTER TABLE course_ta_settings
-  ADD COLUMN quiz_day1_enabled boolean NOT NULL DEFAULT false,
-  ADD COLUMN quiz_day2_enabled boolean NOT NULL DEFAULT false;
+  ADD COLUMN quiz_days_enabled jsonb NOT NULL DEFAULT '[]'::jsonb;
 ```
+Keep the old `quiz_day1_enabled` / `quiz_day2_enabled` columns for now (no data loss), but stop using them in code.
 
-**2. `src/hooks/useTASettings.ts`**
-- Add `quizDay1Enabled` and `quizDay2Enabled` to the settings type and default values
-- Map to/from the new DB columns in load/save
+**2. `src/types/index.ts`**
+- Remove `quizDay1Enabled` and `quizDay2Enabled`
+- Add `quizDaysEnabled: number[]`
+- Change `quizDay?: 1 | 2` references to `quizDay?: number`
 
-**3. `src/pages/teacher/Assessments.tsx`** — Daily Quiz Settings card
-- Replace the single "Available to Students" toggle with two separate toggles:
-  - **Day 1 Quiz** — controls `quiz_day1_enabled`
-  - **Day 2 Quiz** — controls `quiz_day2_enabled`
-- Each toggle shows the question count for that day and is independently switchable
-- Both are disabled if `quizApproved` is false (same guard as before)
-- The master `quizEnabled` field is auto-set to `true` if either day is enabled, `false` if both are off
+**3. `src/hooks/useTASettings.ts`**
+- Map `quiz_days_enabled` JSONB to/from `quizDaysEnabled: number[]`
+- Keep backward compat: on load, if `quiz_days_enabled` is empty but old boolean columns are true, seed the array accordingly
+- On save, write the array to `quiz_days_enabled` and set `quiz_enabled = array.length > 0`
 
-**4. `src/pages/student/AIChat.tsx`**
-- When starting a daily quiz, check the per-day flag (`taSettings.quizDay1Enabled` / `quizDay2Enabled`) instead of just `quizEnabled`
-- Update the disabled state on the quiz start button and messaging to reflect which days are available
-- If a student tries to start a disabled day, show a toast explaining it's not available yet
+**4. `src/pages/teacher/Assessments.tsx`**
+
+*Question form dialog:*
+- Replace the Day 1 / Day 2 button pair with a number input (or incrementing selector) so teachers can assign any day number
+- Change `formQuizDay` type from `1 | 2` to `number`
+
+*Daily Quiz Settings card — enable/disable toggles:*
+- Derive the list of existing days from questions: `const uniqueDays = [...new Set(quizQuestions.map(q => q.quizDay).filter(Boolean))].sort()`
+- Render a toggle row for each day dynamically (same UI pattern as current Day 1/Day 2, but in a loop)
+- On toggle change, add/remove the day number from `taSettings.quizDaysEnabled` array
+
+*Filter bar:*
+- Replace hardcoded `[1, 2]` day filter buttons with the dynamic `uniqueDays` list
+
+**5. `src/pages/student/AIChat.tsx`**
+- Replace the two hardcoded Day 1 / Day 2 buttons with a dynamic loop over `taSettings.quizDaysEnabled`
+- Each button: `Day {n} Quiz`, disabled if `n` is not in `quizDaysEnabled`
+- Update the auto-start `useEffect` to check `taSettings.quizDaysEnabled.includes(urlDay)`
+
+**6. `src/data/questionBank.ts`** (static fallback)
+- No structural changes needed — the `day` field already supports any number
 
 ### Files Modified
-- Database migration (new columns)
-- `src/hooks/useTASettings.ts` — new fields
-- `src/pages/teacher/Assessments.tsx` — per-day toggles
-- `src/pages/student/AIChat.tsx` — per-day access checks
+- Database migration (new `quiz_days_enabled` JSONB column)
+- `src/types/index.ts` — dynamic day types
+- `src/hooks/useTASettings.ts` — JSONB array mapping
+- `src/pages/teacher/Assessments.tsx` — dynamic day selector, toggles, filters
+- `src/pages/student/AIChat.tsx` — dynamic quiz day buttons
+- `src/data/mockData.ts` — update default settings
 
