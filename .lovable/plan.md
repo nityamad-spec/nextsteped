@@ -1,28 +1,32 @@
 
 
-## Plan: Enable/Disable Daily Quiz and Exam Mode
+## Plan: Add Short Answer Support to AssessmentView
 
 ### Problem
-The `examApproved` and `quizApproved` flags already exist in `course_ta_settings` and are persisted, but they are never checked on the student side. Students can always start exams and quizzes regardless of the teacher's approval state.
+`AssessmentView` only renders MCQ radio buttons. When a question has `type: "short_answer"`, the student sees the question text but **no input field** — they cannot answer it. Additionally, scoring uses strict equality which fails for minor variations in text answers.
 
-### Approach
+### Changes
 
-**1. `src/pages/student/AIChat.tsx`** — Gate assessment start buttons behind `taSettings`
-- Hide or disable the "Start Exam" button when `taSettings.examApproved` is `false`
-- Hide or disable the "Start Daily Quiz" button when `taSettings.quizApproved` is `false`
-- In the auto-start `useEffect` (lines 61-68), skip auto-starting if the corresponding flag is `false`
-- Show a small info message when disabled (e.g., "Your professor has not enabled this assessment yet")
+**1. `src/components/AssessmentView.tsx`** — Add text input for short answer questions
+- After the MCQ `RadioGroup` block (line ~262), add a conditional block for `short_answer` type:
+  - Render a `Textarea` input bound to `answers[currentQ.id]`
+  - On change, call `handleAnswer(currentQ.id, value)`
+- Update `handleFinish` scoring: for short answer questions, use **case-insensitive, trimmed** comparison (matching the diagnostic quiz approach)
+- In the review screen, show the student's typed answer vs the correct answer
 
-**2. `src/pages/student/StudentHome.tsx`** — Gate quiz/exam cards in the lesson plan
-- Fetch `taSettings` using `useTASettings(enrolledCourseId)`
-- Hide/disable the "Daily Quiz — Day X" card when `quizApproved` is `false`
-- Hide/disable the "Final Exam" card when `examApproved` is `false`
-- Show a lock indicator with "Not yet available" text
+**2. `src/components/AssessmentView.tsx`** — Add true/false support (optional, since `assessment_questions` supports it)
+- If `type === "true_false"`, render two styled buttons for True/False (reuse the radio pattern with fixed options)
 
-**3. `src/pages/teacher/ExamMode.tsx`** — No changes needed
-- The `examApproved` and `quizApproved` toggles already exist and persist correctly
+### Scoring Logic
+```
+// Short answer: case-insensitive, trimmed match
+if (q.type === "short_answer") {
+  isCorrect = userAnswer?.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+} else {
+  isCorrect = userAnswer === q.correctAnswer;
+}
+```
 
 ### Files Modified
-- `src/pages/student/AIChat.tsx` — check `taSettings.examApproved` / `quizApproved` before allowing assessment start
-- `src/pages/student/StudentHome.tsx` — conditionally render quiz/exam entry points based on `taSettings`
+- `src/components/AssessmentView.tsx` — add textarea input for short answer, update scoring logic
 
