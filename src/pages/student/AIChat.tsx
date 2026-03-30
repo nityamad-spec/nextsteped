@@ -213,6 +213,24 @@ const AIChat = () => {
         : `✅ **Exam Complete!** Score: ${results.score}% (${results.correctAnswers}/${results.totalQuestions})`;
       await addMessage(activeChat.id, "assistant", summary);
     }
+
+    // Persist structured results to database
+    if (user) {
+      const { error } = await supabase.from("assessment_results").insert({
+        student_id: user.id,
+        course_id: enrolledCourseId || undefined,
+        mode: assessmentType === "quiz" ? "daily_quiz" : "exam",
+        quiz_day: assessmentType === "quiz" ? assessmentDay : null,
+        score: results.score,
+        total_questions: results.totalQuestions,
+        correct_answers: results.correctAnswers,
+        answers: results.answers ?? [],
+        time_spent: results.timeSpent ?? 0,
+      });
+      if (error) {
+        console.error("Failed to save assessment results:", error);
+      }
+    }
   };
 
   const sendMessage = useCallback(async () => {
