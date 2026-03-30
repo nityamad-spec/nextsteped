@@ -1,3 +1,5 @@
+import { seededShuffle } from "@/lib/seededShuffle";
+
 export interface Question {
   id: string;
   text: string;
@@ -55,7 +57,6 @@ export const questionBank: Question[] = [
 export const getQuizQuestions = (day: number, count: number, seed?: string): Question[] => {
   const dayQuestions = questionBank.filter(q => q.day === day);
   if (seed) {
-    const { seededShuffle } = require("@/lib/seededShuffle");
     return seededShuffle(dayQuestions, seed).slice(0, Math.min(count, dayQuestions.length));
   }
   const shuffled = [...dayQuestions].sort(() => Math.random() - 0.5);
@@ -64,7 +65,6 @@ export const getQuizQuestions = (day: number, count: number, seed?: string): Que
 
 export const getExamQuestions = (count: number, seed?: string): Question[] => {
   if (seed) {
-    const { seededShuffle } = require("@/lib/seededShuffle");
     return seededShuffle(questionBank, seed).slice(0, Math.min(count, questionBank.length));
   }
   const shuffled = [...questionBank].sort(() => Math.random() - 0.5);
