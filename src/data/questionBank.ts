@@ -1,7 +1,7 @@
 export interface Question {
   id: string;
   text: string;
-  type: "mcq" | "short_answer";
+  type: "mcq" | "short_answer" | "true_false";
   options?: string[];
   correctAnswer: string;
   topic: string;
