@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { mockDashboard, mockTopics } from "@/data/mockData";
 import { useApp } from "@/contexts/AppContext";
+import { useTASettings } from "@/hooks/useTASettings";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, MessageSquare, AlertTriangle, TrendingUp, BarChart3, ArrowUp, ArrowDown, Minus, Shield, ChevronDown } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Users, MessageSquare, AlertTriangle, TrendingUp, BarChart3, ArrowUp, ArrowDown, Minus, Shield, ChevronDown, Power, ClipboardList, GraduationCap } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import CourseCollaborators from "@/components/CourseCollaborators";
+import { toast } from "sonner";
 
 const masteryColors: Record<string, string> = {
   Beginner: "bg-mastery-beginner/20 text-mastery-beginner",
@@ -58,8 +61,19 @@ const CourseDashboard = () => {
   const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
   const { currentCourse } = useApp();
+  const courseId = localStorage.getItem("currentCourseId");
+  const { taSettings, saveTASettings } = useTASettings(courseId);
   const courseSections = currentCourse?.sections || [];
   const [selectedSection, setSelectedSection] = useState<string>("all");
+
+  const handleToggle = async (field: "examEnabled" | "quizEnabled", value: boolean) => {
+    try {
+      await saveTASettings({ ...taSettings, [field]: value });
+      toast.success(`${field === "examEnabled" ? "Exam" : "Daily Quiz"} ${value ? "enabled" : "disabled"} for students`);
+    } catch {
+      toast.error("Failed to update setting");
+    }
+  };
 
   return (
     <div className="p-6">
@@ -139,6 +153,50 @@ const CourseDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Assessment Controls */}
+      <Card className="mb-6">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base"><Power className="h-4 w-4 text-primary" /> Assessment Controls</CardTitle>
+          <CardDescription>Quickly enable or disable assessments for students</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className={`flex items-center justify-between rounded-lg border p-4 ${taSettings.examEnabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
+              <div className="flex items-center gap-3">
+                <GraduationCap className="h-4 w-4 text-primary" />
+                <div>
+                  <p className="text-sm font-medium">Final Exam</p>
+                  <p className="text-xs text-muted-foreground">
+                    {taSettings.examApproved ? (taSettings.examEnabled ? "Available to students" : "Disabled for students") : "Not yet approved"}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={taSettings.examEnabled ?? false}
+                onCheckedChange={(v) => handleToggle("examEnabled", v)}
+                disabled={!taSettings.examApproved}
+              />
+            </div>
+            <div className={`flex items-center justify-between rounded-lg border p-4 ${taSettings.quizEnabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
+              <div className="flex items-center gap-3">
+                <ClipboardList className="h-4 w-4 text-primary" />
+                <div>
+                  <p className="text-sm font-medium">Daily Quiz</p>
+                  <p className="text-xs text-muted-foreground">
+                    {taSettings.quizApproved ? (taSettings.quizEnabled ? "Available to students" : "Disabled for students") : "Not yet approved"}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={taSettings.quizEnabled ?? false}
+                onCheckedChange={(v) => handleToggle("quizEnabled", v)}
+                disabled={!taSettings.quizApproved}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="space-y-6">
         {/* Mastery Distribution */}

@@ -157,6 +157,8 @@ export const defaultTASettings: TASettings = {
   quizTimeLimit: 10,
   examApproved: false,
   quizApproved: false,
+  examEnabled: false,
+  quizEnabled: false,
   examManualQuestions: false,
   examManualCount: null,
 };

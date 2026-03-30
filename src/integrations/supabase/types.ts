@@ -368,6 +368,7 @@ export type Database = {
           custom_study_prompt: string | null
           exam_approved: boolean
           exam_difficulty: string
+          exam_enabled: boolean
           exam_manual_count: number | null
           exam_manual_questions: boolean
           exam_presentation: string | null
@@ -379,6 +380,7 @@ export type Database = {
           plagiarism_warnings: boolean
           quiz_approved: boolean
           quiz_difficulty: string | null
+          quiz_enabled: boolean
           quiz_num_questions: number | null
           quiz_question_mix: string | null
           quiz_time_limit: number | null
@@ -391,6 +393,7 @@ export type Database = {
           custom_study_prompt?: string | null
           exam_approved?: boolean
           exam_difficulty?: string
+          exam_enabled?: boolean
           exam_manual_count?: number | null
           exam_manual_questions?: boolean
           exam_presentation?: string | null
@@ -402,6 +405,7 @@ export type Database = {
           plagiarism_warnings?: boolean
           quiz_approved?: boolean
           quiz_difficulty?: string | null
+          quiz_enabled?: boolean
           quiz_num_questions?: number | null
           quiz_question_mix?: string | null
           quiz_time_limit?: number | null
@@ -414,6 +418,7 @@ export type Database = {
           custom_study_prompt?: string | null
           exam_approved?: boolean
           exam_difficulty?: string
+          exam_enabled?: boolean
           exam_manual_count?: number | null
           exam_manual_questions?: boolean
           exam_presentation?: string | null
@@ -425,6 +430,7 @@ export type Database = {
           plagiarism_warnings?: boolean
           quiz_approved?: boolean
           quiz_difficulty?: string | null
+          quiz_enabled?: boolean
           quiz_num_questions?: number | null
           quiz_question_mix?: string | null
           quiz_time_limit?: number | null
