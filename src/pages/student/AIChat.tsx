@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTASettings } from "@/hooks/useTASettings";
+import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { ChatMessage } from "@/types";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,7 +23,7 @@ const AIChat = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const enrolledCourseId = localStorage.getItem("enrolledCourseId");
+  const enrolledCourseId = useEnrolledCourseId();
   const { taSettings } = useTASettings(enrolledCourseId);
   const initialMode = (searchParams.get("mode") === "exam" || searchParams.get("mode") === "quiz") ? "exam" : "learning";
 

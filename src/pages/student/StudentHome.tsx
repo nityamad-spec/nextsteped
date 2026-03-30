@@ -6,6 +6,7 @@ import { useApp } from "@/contexts/AppContext";
 import { workshopPlan as sharedWorkshopPlan, WorkshopDay } from "@/data/workshopPlan";
 import { useStudentStatus } from "@/hooks/useStudentStatus";
 import { useTASettings } from "@/hooks/useTASettings";
+import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,7 +58,7 @@ const getMasteryColor = (mastery: number) => {
 const StudentHome = () => {
   const { studentProfile, currentCourse } = useApp();
   const { profileData } = useStudentStatus();
-  const enrolledCourseId = localStorage.getItem("enrolledCourseId");
+  const enrolledCourseId = useEnrolledCourseId();
   const { taSettings } = useTASettings(enrolledCourseId);
   const { user } = useAuth();
   const navigate = useNavigate();

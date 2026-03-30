@@ -180,6 +180,7 @@ const StudentOnboarding = () => {
         materialsUploaded: false,
         published: true,
       });
+      localStorage.setItem("enrolledCourseId", resolvedCourse.id);
       setStudentOnboarded(true);
       navigate("/student/diagnostic");
     } catch (err: any) {
