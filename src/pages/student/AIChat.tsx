@@ -86,8 +86,10 @@ const AIChat = () => {
   // Auto-start quiz/exam if coming from home page with mode=quiz or mode=exam
   useEffect(() => {
     const urlMode = searchParams.get("mode");
-    if (urlMode === "quiz" && taSettings.quizEnabled) {
-      handleStartQuiz();
+    const urlDay = parseInt(searchParams.get("day") || "1") || 1;
+    if (urlMode === "quiz") {
+      const dayEnabled = urlDay === 2 ? taSettings.quizDay2Enabled : taSettings.quizDay1Enabled;
+      if (dayEnabled) handleStartQuiz(urlDay);
     } else if (urlMode === "exam" && taSettings.examEnabled) {
       handleStartExam();
     }
