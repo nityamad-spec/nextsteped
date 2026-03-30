@@ -1,0 +1,1 @@
+ALTER TABLE course_ta_settings ADD COLUMN quiz_days_enabled jsonb NOT NULL DEFAULT '[]'::jsonb;
