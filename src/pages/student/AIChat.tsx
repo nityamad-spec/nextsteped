@@ -60,9 +60,9 @@ const AIChat = () => {
   // Auto-start quiz/exam if coming from home page with mode=quiz or mode=exam
   useEffect(() => {
     const urlMode = searchParams.get("mode");
-    if (urlMode === "quiz") {
+    if (urlMode === "quiz" && taSettings.quizApproved) {
       handleStartQuiz();
-    } else if (urlMode === "exam") {
+    } else if (urlMode === "exam" && taSettings.examApproved) {
       handleStartExam();
     }
   }, []);
@@ -485,13 +485,24 @@ const AIChat = () => {
 
         {/* Exam/Quiz start buttons */}
         {mode === "exam" && !assessmentActive && activeChat && (
-          <div className="flex items-center justify-center gap-3 border-b bg-muted/20 px-5 py-3">
-            <Button onClick={handleStartExam} className="gap-2">
-              <Clock className="h-4 w-4" /> Start Exam
-            </Button>
-            <Button onClick={() => handleStartQuiz()} variant="secondary" className="gap-2">
-              <MessageSquare className="h-4 w-4" /> Start Daily Quiz
-            </Button>
+          <div className="flex flex-col items-center gap-3 border-b bg-muted/20 px-5 py-3">
+            <div className="flex items-center gap-3">
+              <Button onClick={handleStartExam} className="gap-2" disabled={!taSettings.examApproved}>
+                <Clock className="h-4 w-4" /> Start Exam
+              </Button>
+              <Button onClick={() => handleStartQuiz()} variant="secondary" className="gap-2" disabled={!taSettings.quizApproved}>
+                <MessageSquare className="h-4 w-4" /> Start Daily Quiz
+              </Button>
+            </div>
+            {(!taSettings.examApproved || !taSettings.quizApproved) && (
+              <p className="text-xs text-muted-foreground">
+                {!taSettings.examApproved && !taSettings.quizApproved
+                  ? "Your professor has not enabled exams or quizzes yet."
+                  : !taSettings.examApproved
+                  ? "Your professor has not enabled the exam yet."
+                  : "Your professor has not enabled daily quizzes yet."}
+              </p>
+            )}
           </div>
         )}
 
