@@ -53,7 +53,12 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const handleFinish = useCallback(() => {
     let correct = 0;
     questions.forEach(q => {
-      if (answers[q.id] === q.correctAnswer) correct++;
+      const userAnswer = answers[q.id];
+      if (q.type === "short_answer") {
+        if (userAnswer?.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()) correct++;
+      } else {
+        if (userAnswer === q.correctAnswer) correct++;
+      }
     });
     const res: AssessmentResults = {
       totalQuestions: questions.length,
