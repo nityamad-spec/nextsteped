@@ -244,7 +244,7 @@ const StudentHome = () => {
 
                           {/* Daily Quiz for Day 1 & 2, Final Exam for Day 3 */}
                           {dp.day < workshopPlan.length ? (
-                            taSettings.quizApproved ? (
+                            taSettings.quizEnabled ? (
                               <div
                                 className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 mt-3 cursor-pointer hover:bg-primary/10 transition-colors"
                                 onClick={() => navigate(`/student/chat?mode=quiz&day=${dp.day}`)}
@@ -267,7 +267,7 @@ const StudentHome = () => {
                               </div>
                             )
                           ) : (
-                            taSettings.examApproved ? (
+                            taSettings.examEnabled ? (
                               <div
                                 className="flex items-center gap-3 rounded-lg border border-accent/30 bg-accent/5 p-3 mt-3 cursor-pointer hover:bg-accent/10 transition-colors"
                                 onClick={() => navigate("/student/chat?mode=exam")}

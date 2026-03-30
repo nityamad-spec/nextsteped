@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowRight, ArrowLeft, BookOpen, Calculator, Check, Pencil, Clock, ClipboardList, Info } from "lucide-react";
+import { ArrowRight, ArrowLeft, BookOpen, Calculator, Check, Pencil, Clock, ClipboardList, Info, Power } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 
 const questionEstimate = (length: number, mix: string, difficulty: string) => {
@@ -51,6 +52,8 @@ const ExamMode = () => {
 
   const [examApproved, setExamApproved] = useState(taSettings.examApproved ?? false);
   const [quizApproved, setQuizApproved] = useState(taSettings.quizApproved ?? false);
+  const [examEnabled, setExamEnabled] = useState(taSettings.examEnabled ?? false);
+  const [quizEnabled, setQuizEnabled] = useState(taSettings.quizEnabled ?? false);
   const [examManualQuestions, setExamManualQuestions] = useState(taSettings.examManualQuestions ?? false);
   const [examManualCount, setExamManualCount] = useState(taSettings.examManualCount ?? 5);
 
@@ -69,6 +72,8 @@ const ExamMode = () => {
       setQuizTimeLimit(taSettings.quizTimeLimit ?? 10);
       setExamApproved(taSettings.examApproved ?? false);
       setQuizApproved(taSettings.quizApproved ?? false);
+      setExamEnabled(taSettings.examEnabled ?? false);
+      setQuizEnabled(taSettings.quizEnabled ?? false);
       setExamManualQuestions(taSettings.examManualQuestions ?? false);
       setExamManualCount(taSettings.examManualCount ?? estimate.total);
     }
@@ -102,6 +107,8 @@ const ExamMode = () => {
         quizTimeLimit,
         examApproved,
         quizApproved,
+        examEnabled,
+        quizEnabled,
         examManualQuestions,
         examManualCount,
       });
@@ -249,10 +256,27 @@ const ExamMode = () => {
                       <p className="text-sm font-medium">Approve Exam Rules</p>
                       <p className="text-xs text-muted-foreground">You must approve exam settings before publishing</p>
                     </div>
-                    <Button variant={examApproved ? "outline" : "default"} size="sm" onClick={() => setExamApproved(!examApproved)}>
+                    <Button variant={examApproved ? "outline" : "default"} size="sm" onClick={() => {
+                      const next = !examApproved;
+                      setExamApproved(next);
+                      if (next && !examEnabled) setExamEnabled(true);
+                    }}>
                       {examApproved ? <><Check className="mr-1 h-4 w-4" /> Approved</> : "Approve"}
                     </Button>
                   </div>
+
+                  {examApproved && (
+                    <div className={`flex items-center justify-between rounded-lg border p-4 ${examEnabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
+                      <div className="flex items-center gap-3">
+                        <Power className="h-4 w-4 text-primary" />
+                        <div>
+                          <p className="text-sm font-medium">Exam Available to Students</p>
+                          <p className="text-xs text-muted-foreground">Toggle to enable/disable student access independently</p>
+                        </div>
+                      </div>
+                      <Switch checked={examEnabled} onCheckedChange={setExamEnabled} />
+                    </div>
+                  )
                 </CardContent>
               </Card>
             </TabsContent>
@@ -305,10 +329,27 @@ const ExamMode = () => {
                       <p className="text-sm font-medium">Approve Daily Quiz Rules</p>
                       <p className="text-xs text-muted-foreground">You must approve quiz settings before publishing</p>
                     </div>
-                    <Button variant={quizApproved ? "outline" : "default"} size="sm" onClick={() => setQuizApproved(!quizApproved)}>
+                    <Button variant={quizApproved ? "outline" : "default"} size="sm" onClick={() => {
+                      const next = !quizApproved;
+                      setQuizApproved(next);
+                      if (next && !quizEnabled) setQuizEnabled(true);
+                    }}>
                       {quizApproved ? <><Check className="mr-1 h-4 w-4" /> Approved</> : "Approve"}
                     </Button>
                   </div>
+
+                  {quizApproved && (
+                    <div className={`flex items-center justify-between rounded-lg border p-4 ${quizEnabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
+                      <div className="flex items-center gap-3">
+                        <Power className="h-4 w-4 text-primary" />
+                        <div>
+                          <p className="text-sm font-medium">Daily Quiz Available to Students</p>
+                          <p className="text-xs text-muted-foreground">Toggle to enable/disable student access independently</p>
+                        </div>
+                      </div>
+                      <Switch checked={quizEnabled} onCheckedChange={setQuizEnabled} />
+                    </div>
+                  )
                 </CardContent>
               </Card>
             </TabsContent>

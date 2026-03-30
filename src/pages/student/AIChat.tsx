@@ -60,9 +60,9 @@ const AIChat = () => {
   // Auto-start quiz/exam if coming from home page with mode=quiz or mode=exam
   useEffect(() => {
     const urlMode = searchParams.get("mode");
-    if (urlMode === "quiz" && taSettings.quizApproved) {
+    if (urlMode === "quiz" && taSettings.quizEnabled) {
       handleStartQuiz();
-    } else if (urlMode === "exam" && taSettings.examApproved) {
+    } else if (urlMode === "exam" && taSettings.examEnabled) {
       handleStartExam();
     }
   }, []);

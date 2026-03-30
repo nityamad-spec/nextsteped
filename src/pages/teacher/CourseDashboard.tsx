@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { mockDashboard, mockTopics } from "@/data/mockData";
 import { useApp } from "@/contexts/AppContext";
+import { useTASettings } from "@/hooks/useTASettings";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, MessageSquare, AlertTriangle, TrendingUp, BarChart3, ArrowUp, ArrowDown, Minus, Shield, ChevronDown } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Users, MessageSquare, AlertTriangle, TrendingUp, BarChart3, ArrowUp, ArrowDown, Minus, Shield, ChevronDown, Power, ClipboardList, GraduationCap } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import CourseCollaborators from "@/components/CourseCollaborators";
+import { toast } from "sonner";
 
 const masteryColors: Record<string, string> = {
   Beginner: "bg-mastery-beginner/20 text-mastery-beginner",
@@ -58,8 +61,19 @@ const CourseDashboard = () => {
   const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
   const { currentCourse } = useApp();
+  const courseId = localStorage.getItem("currentCourseId");
+  const { taSettings, saveTASettings } = useTASettings(courseId);
   const courseSections = currentCourse?.sections || [];
   const [selectedSection, setSelectedSection] = useState<string>("all");
+
+  const handleToggle = async (field: "examEnabled" | "quizEnabled", value: boolean) => {
+    try {
+      await saveTASettings({ ...taSettings, [field]: value });
+      toast.success(`${field === "examEnabled" ? "Exam" : "Daily Quiz"} ${value ? "enabled" : "disabled"} for students`);
+    } catch {
+      toast.error("Failed to update setting");
+    }
+  };
 
   return (
     <div className="p-6">
