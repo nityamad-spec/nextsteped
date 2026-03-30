@@ -18,11 +18,21 @@ interface AssessmentViewProps {
   onSubmit: (results: AssessmentResults) => void;
 }
 
+export interface StandardisedAnswer {
+  question_id: string;
+  question_text: string;
+  type: string;
+  topic: string;
+  selected: string;
+  correct: string;
+  is_correct: boolean;
+}
+
 export interface AssessmentResults {
   totalQuestions: number;
   correctAnswers: number;
   score: number;
-  answers: Record<string, string>;
+  answers: StandardisedAnswer[];
   timeSpent: number;
 }
 
@@ -51,20 +61,27 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   };
 
   const handleFinish = useCallback(() => {
-    let correct = 0;
-    questions.forEach(q => {
-      const userAnswer = answers[q.id];
-      if (q.type === "short_answer") {
-        if (userAnswer?.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()) correct++;
-      } else {
-        if (userAnswer === q.correctAnswer) correct++;
-      }
+    const standardised: StandardisedAnswer[] = questions.map(q => {
+      const userAnswer = answers[q.id] || "";
+      const isCorrect = q.type === "short_answer"
+        ? userAnswer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()
+        : userAnswer === q.correctAnswer;
+      return {
+        question_id: q.id,
+        question_text: q.text,
+        type: q.type || "mcq",
+        topic: q.topic,
+        selected: userAnswer,
+        correct: q.correctAnswer,
+        is_correct: isCorrect,
+      };
     });
+    const correct = standardised.filter(a => a.is_correct).length;
     const res: AssessmentResults = {
       totalQuestions: questions.length,
       correctAnswers: correct,
       score: Math.round((correct / questions.length) * 100),
-      answers,
+      answers: standardised,
       timeSpent: timeLimitMinutes * 60 - timeLeft,
     };
     setResults(res);
@@ -161,39 +178,33 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
           {/* Question review */}
           <div className="space-y-3">
             <h3 className="text-sm font-semibold">Question Review</h3>
-            {questions.map((q, i) => {
-              const userAnswer = answers[q.id];
-              const isCorrect = q.type === "short_answer"
-                ? userAnswer?.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()
-                : userAnswer === q.correctAnswer;
-              return (
-                <Card key={q.id} className={`border ${isCorrect ? "border-primary/30" : "border-destructive/30"}`}>
+            {results.answers.map((a, i) => (
+                <Card key={a.question_id} className={`border ${a.is_correct ? "border-primary/30" : "border-destructive/30"}`}>
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-start gap-2">
-                      {isCorrect ? <CheckCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" /> : <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />}
+                      {a.is_correct ? <CheckCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" /> : <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">Q{i + 1}: {q.text}</p>
+                        <p className="text-sm font-medium">Q{i + 1}: {a.question_text}</p>
                         <div className="mt-1 space-y-0.5">
                           <p className="text-xs">
                             <span className="text-muted-foreground">Your answer: </span>
-                            <span className={isCorrect ? "text-primary font-medium" : "text-destructive font-medium"}>
-                              {userAnswer || "Not answered"}
+                            <span className={a.is_correct ? "text-primary font-medium" : "text-destructive font-medium"}>
+                              {a.selected || "Not answered"}
                             </span>
                           </p>
-                          {!isCorrect && (
+                          {!a.is_correct && (
                             <p className="text-xs">
                               <span className="text-muted-foreground">Correct answer: </span>
-                              <span className="text-primary font-medium">{q.correctAnswer}</span>
+                              <span className="text-primary font-medium">{a.correct}</span>
                             </p>
                           )}
                         </div>
                       </div>
-                      <Badge variant="outline" className="text-[10px] shrink-0">{q.topic}</Badge>
+                      <Badge variant="outline" className="text-[10px] shrink-0">{a.topic}</Badge>
                     </div>
                   </CardContent>
                 </Card>
-              );
-            })}
+              ))}
           </div>
 
           <div className="text-center pt-2">

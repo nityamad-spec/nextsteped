@@ -224,7 +224,7 @@ const AIChat = () => {
         score: results.score,
         total_questions: results.totalQuestions,
         correct_answers: results.correctAnswers,
-        answers: results.answers ?? [],
+        answers: (results.answers ?? []) as unknown as import("@/integrations/supabase/types").Json,
         time_spent: results.timeSpent ?? 0,
       });
       if (error) {

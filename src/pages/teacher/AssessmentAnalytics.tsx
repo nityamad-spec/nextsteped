@@ -73,17 +73,19 @@ const AssessmentAnalytics = () => {
     return { range: label, count };
   });
 
-  // Topic performance from answers JSONB
+  // Topic performance from answers JSONB (supports new standardised format + legacy fallback)
   const topicMap = new Map<string, { correct: number; total: number }>();
   filtered.forEach(r => {
-    if (!Array.isArray(r.answers)) return;
-    (r.answers as any[]).forEach((a: any) => {
-      const topic = a?.topic || "Unknown";
-      const entry = topicMap.get(topic) || { correct: 0, total: 0 };
-      entry.total++;
-      if (a?.is_correct || a?.isCorrect) entry.correct++;
-      topicMap.set(topic, entry);
-    });
+    if (Array.isArray(r.answers)) {
+      (r.answers as any[]).forEach((a: any) => {
+        const topic = a?.topic || "Unknown";
+        const entry = topicMap.get(topic) || { correct: 0, total: 0 };
+        entry.total++;
+        if (a?.is_correct || a?.isCorrect) entry.correct++;
+        topicMap.set(topic, entry);
+      });
+    }
+    // Legacy flat-map format: skip topic aggregation (no topic info available)
   });
   const topicPerformance: TopicPerformance[] = Array.from(topicMap.entries())
     .map(([topic, { correct, total }]) => ({
