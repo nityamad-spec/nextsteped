@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Plus, ClipboardCheck, Pencil, Trash2, Filter, Shield, BookOpen, Clock, ClipboardList, Info, Calendar, AlertTriangle, Loader2 } from "lucide-react";
+import { Plus, ClipboardCheck, Pencil, Trash2, Filter, Shield, BookOpen, Clock, ClipboardList, Info, Calendar, AlertTriangle, Loader2, Power } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -465,6 +465,33 @@ const Assessments = () => {
                 </Select>
               </div>
               <Button onClick={handleSaveExamSettings} className="w-full">Save Exam Settings</Button>
+
+              {/* Enable/Disable Toggle */}
+              <div className={`flex items-center justify-between rounded-lg border p-4 mt-4 ${taSettings.examEnabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
+                <div className="flex items-center gap-3">
+                  <Power className="h-4 w-4 text-primary" />
+                  <div>
+                    <p className="text-sm font-medium">Available to Students</p>
+                    <p className="text-xs text-muted-foreground">
+                      {taSettings.examApproved
+                        ? "Toggle to enable or disable student access to the exam"
+                        : "Approve exam rules in setup first"}
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={taSettings.examEnabled}
+                  disabled={!taSettings.examApproved}
+                  onCheckedChange={async (checked) => {
+                    try {
+                      await saveTASettings({ ...taSettings, examEnabled: checked });
+                      toast.success(`Exam ${checked ? "enabled" : "disabled"} for students`);
+                    } catch {
+                      toast.error("Failed to update exam availability");
+                    }
+                  }}
+                />
+              </div>
             </CardContent>
           </Card>
 
@@ -552,6 +579,33 @@ const Assessments = () => {
                 </Select>
               </div>
               <Button onClick={handleSaveQuizSettings} className="w-full">Save Quiz Settings</Button>
+
+              {/* Enable/Disable Toggle */}
+              <div className={`flex items-center justify-between rounded-lg border p-4 mt-4 ${taSettings.quizEnabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
+                <div className="flex items-center gap-3">
+                  <Power className="h-4 w-4 text-primary" />
+                  <div>
+                    <p className="text-sm font-medium">Available to Students</p>
+                    <p className="text-xs text-muted-foreground">
+                      {taSettings.quizApproved
+                        ? "Toggle to enable or disable student access to daily quizzes"
+                        : "Approve quiz rules in setup first"}
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={taSettings.quizEnabled}
+                  disabled={!taSettings.quizApproved}
+                  onCheckedChange={async (checked) => {
+                    try {
+                      await saveTASettings({ ...taSettings, quizEnabled: checked });
+                      toast.success(`Daily Quiz ${checked ? "enabled" : "disabled"} for students`);
+                    } catch {
+                      toast.error("Failed to update quiz availability");
+                    }
+                  }}
+                />
+              </div>
             </CardContent>
           </Card>
 

@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowRight, ArrowLeft, BookOpen, Calculator, Check, Pencil, Clock, ClipboardList, Info, Power } from "lucide-react";
+import { ArrowRight, ArrowLeft, BookOpen, Calculator, Check, Pencil, Clock, ClipboardList, Info } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 
 const questionEstimate = (length: number, mix: string, difficulty: string) => {
@@ -265,18 +265,6 @@ const ExamMode = () => {
                     </Button>
                   </div>
 
-                  {examApproved && (
-                    <div className={`flex items-center justify-between rounded-lg border p-4 ${examEnabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
-                      <div className="flex items-center gap-3">
-                        <Power className="h-4 w-4 text-primary" />
-                        <div>
-                          <p className="text-sm font-medium">Exam Available to Students</p>
-                          <p className="text-xs text-muted-foreground">Toggle to enable/disable student access independently</p>
-                        </div>
-                      </div>
-                      <Switch checked={examEnabled} onCheckedChange={setExamEnabled} />
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -338,18 +326,6 @@ const ExamMode = () => {
                     </Button>
                   </div>
 
-                  {quizApproved && (
-                    <div className={`flex items-center justify-between rounded-lg border p-4 ${quizEnabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
-                      <div className="flex items-center gap-3">
-                        <Power className="h-4 w-4 text-primary" />
-                        <div>
-                          <p className="text-sm font-medium">Daily Quiz Available to Students</p>
-                          <p className="text-xs text-muted-foreground">Toggle to enable/disable student access independently</p>
-                        </div>
-                      </div>
-                      <Switch checked={quizEnabled} onCheckedChange={setQuizEnabled} />
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             </TabsContent>
