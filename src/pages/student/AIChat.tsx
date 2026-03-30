@@ -42,6 +42,9 @@ const AIChat = () => {
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Course context for relevance classification
+  const [courseContext, setCourseContext] = useState<{ courseName: string; objectives: string[]; concepts: string[] } | null>(null);
+
   // Assessment state
   const [assessmentActive, setAssessmentActive] = useState(false);
   const [assessmentType, setAssessmentType] = useState<"quiz" | "exam">("quiz");
