@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, AlertTriangle, ShieldCheck, Loader2 } from "lucide-react";
+import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User } from "lucide-react";
 import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import { getQuizQuestions, getExamQuestions, Question } from "@/data/questionBank";
@@ -375,17 +375,46 @@ const AIChat = () => {
     setAssessmentActive(false);
   };
 
-  const renderMessage = (msg: ChatMessage) => (
-    <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[80%] rounded-xl px-4 py-3 text-sm ${
-        msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
-      }`}>
-        <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+  const formatTimestamp = (ts?: number) => {
+    if (!ts) return "";
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const userInitial = user?.user_metadata?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || "U";
+
+  const renderMessage = (msg: ChatMessage) => {
+    const isUser = msg.role === "user";
+    return (
+      <div key={msg.id} className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
+        {/* Avatar */}
+        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
+          isUser
+            ? "bg-primary text-primary-foreground"
+            : "bg-primary/10 text-primary"
+        }`}>
+          {isUser ? userInitial : <Sparkles className="w-4 h-4" />}
+        </div>
+        {/* Bubble */}
+        <div className={`max-w-[80%] rounded-xl px-4 py-3 text-sm ${
+          isUser
+            ? "bg-primary text-primary-foreground shadow-sm"
+            : "bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm"
+        }`}>
+          <div className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
+            isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
+          }`}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+          </div>
+          {msg.timestamp && (
+            <div className={`text-[10px] mt-1.5 ${isUser ? "text-primary-foreground/60 text-right" : "text-muted-foreground text-right"}`}>
+              {formatTimestamp(msg.timestamp)}
+            </div>
+          )}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // If assessment is active, show full-screen assessment view
   if (assessmentActive && assessmentQuestions.length > 0) {
@@ -522,10 +551,17 @@ const AIChat = () => {
               {activeChat.messages.map(renderMessage)}
               {streamingMessage && renderMessage(streamingMessage)}
               {isStreaming && !streamingMessage && (
-                <div className="flex justify-start">
-                  <div className="max-w-[80%] rounded-xl px-4 py-3 text-sm bg-muted flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-muted-foreground">Thinking...</span>
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div className="bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+                    <span className="flex gap-1">
+                      <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
+                      <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
+                      <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:300ms]" />
+                    </span>
+                    <span className="text-muted-foreground ml-1">Thinking...</span>
                   </div>
                 </div>
               )}
