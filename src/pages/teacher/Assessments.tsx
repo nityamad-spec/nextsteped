@@ -814,11 +814,14 @@ const Assessments = () => {
                   <Calendar className="h-4 w-4 text-primary" />
                   Quiz Day Assignment <span className="text-destructive">*</span>
                 </Label>
-                <p className="text-xs text-muted-foreground">Assign this question to the correct day.</p>
-                <div className="flex items-center gap-3 pt-1">
-                  <Button type="button" variant={formQuizDay === 1 ? "default" : "outline"} size="sm" className="h-8" onClick={() => setFormQuizDay(1)}>Day 1</Button>
-                  <Button type="button" variant={formQuizDay === 2 ? "default" : "outline"} size="sm" className="h-8" onClick={() => setFormQuizDay(2)}>Day 2</Button>
-                </div>
+                <p className="text-xs text-muted-foreground">Assign this question to a day number (e.g. 1, 2, 3…).</p>
+                <Input
+                  type="number"
+                  min={1}
+                  value={formQuizDay}
+                  onChange={(e) => setFormQuizDay(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-24"
+                />
               </div>
             )}
           </div>
