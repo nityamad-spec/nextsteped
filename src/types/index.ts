@@ -84,6 +84,8 @@ export interface TASettings {
   quizTimeLimit?: number;
   examApproved?: boolean;
   quizApproved?: boolean;
+  examEnabled?: boolean;
+  quizEnabled?: boolean;
   examManualQuestions?: boolean;
   examManualCount?: number | null;
 }
