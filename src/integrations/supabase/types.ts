@@ -32,6 +32,72 @@ export type Database = {
         }
         Relationships: []
       }
+      assessment_questions: {
+        Row: {
+          answer: string
+          correct_index: number | null
+          course_id: string
+          created_at: string
+          difficulty: string
+          explanation: string | null
+          id: string
+          mode: string
+          options: Json | null
+          question_text: string
+          question_type: string
+          quiz_day: number | null
+          teacher_id: string
+          topic: string
+        }
+        Insert: {
+          answer: string
+          correct_index?: number | null
+          course_id: string
+          created_at?: string
+          difficulty?: string
+          explanation?: string | null
+          id?: string
+          mode: string
+          options?: Json | null
+          question_text: string
+          question_type?: string
+          quiz_day?: number | null
+          teacher_id: string
+          topic: string
+        }
+        Update: {
+          answer?: string
+          correct_index?: number | null
+          course_id?: string
+          created_at?: string
+          difficulty?: string
+          explanation?: string | null
+          id?: string
+          mode?: string
+          options?: Json | null
+          question_text?: string
+          question_type?: string
+          quiz_day?: number | null
+          teacher_id?: string
+          topic?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_questions_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_questions_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branches: {
         Row: {
           created_at: string
