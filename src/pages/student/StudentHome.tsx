@@ -1,13 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ShieldCheck } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
-import { workshopPlan as sharedWorkshopPlan } from "@/data/workshopPlan";
+import { workshopPlan as sharedWorkshopPlan, WorkshopDay } from "@/data/workshopPlan";
 import { useStudentStatus } from "@/hooks/useStudentStatus";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Check, ChevronDown, ChevronUp, BookOpen, Brain, ArrowRight, FlaskConical, LibraryBig, Newspaper, Download, ClipboardList, GraduationCap, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
