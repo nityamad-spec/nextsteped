@@ -1,39 +1,55 @@
 
 
-## Plan: Render Markdown in Chat Messages
+## Plan: Richer Chat Message UI for Study Mode
 
-### Problem
-Line 381 in `AIChat.tsx` renders message content as plain text (`{msg.content}`), so markdown formatting (headers, bold, lists, code blocks) from the AI appears as raw syntax.
+### Current State
+Messages are plain rounded boxes — blue for user, gray (`bg-muted`) for assistant. No avatars, timestamps, or visual hierarchy beyond color.
 
-### Approach
-Use `react-markdown` with `remark-gfm` for GitHub-flavored markdown support, and style code blocks with proper formatting. The project already uses Tailwind's `prose` classes via `@tailwindcss/typography` (or we add them).
+### Changes — `src/pages/student/AIChat.tsx`
 
-### Changes
+**1. Add avatars to messages**
+- User messages: colored circle with user initial (from auth context)
+- Assistant messages: bot icon (Sparkles or Bot from lucide-react) in a branded circle
 
-**1. Install dependencies**
-- `react-markdown` — renders markdown to React components
-- `remark-gfm` — tables, strikethrough, task lists
-- `rehype-highlight` or inline styling for code blocks (optional, can use Tailwind prose)
+**2. Improved color scheme**
+- User bubble: keep `bg-primary text-primary-foreground` but add subtle shadow
+- Assistant bubble: white/card background with a left accent border in primary color (`border-l-4 border-primary/30 bg-card shadow-sm`)
+- This gives visual distinction without the flat gray look
 
-**2. `src/pages/student/AIChat.tsx`**
-- Import `ReactMarkdown` and `remarkGfm`
-- Replace the plain text render in `renderMessage` (line 381):
-  ```tsx
-  // Before
-  <div className="whitespace-pre-wrap">{msg.content}</div>
+**3. Add timestamps**
+- Small muted timestamp below each bubble showing relative time (e.g. "2 min ago" or HH:MM)
 
-  // After
-  <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-  </div>
-  ```
-- Apply the same rendering to the `streamingMessage` display (around line 500+)
+**4. Typing indicator upgrade**
+- Animated bouncing dots instead of just a spinner with "Thinking..."
 
-**3. `tailwind.config.ts`** (if needed)
-- Add `@tailwindcss/typography` plugin for `prose` classes (check if already present)
+**5. Message layout structure**
+```text
+┌─────────────────────────────────────────┐
+│  [Bot Avatar]  ┌─────────────────────┐  │
+│                │ border-l-4 primary  │  │
+│                │ Markdown content    │  │
+│                │ 2:34 PM             │  │
+│                └─────────────────────┘  │
+│                                         │
+│                ┌─────────────────────┐  │
+│                │  bg-primary bubble  │  │  [User Avatar]
+│                │  User text          │  │
+│                │  2:35 PM            │  │
+│                └─────────────────────┘  │
+└─────────────────────────────────────────┘
+```
+
+### Implementation Details
+
+Update `renderMessage` function to:
+- Wrap in a flex row with avatar + bubble
+- Assistant: `<div className="flex items-start gap-3">` with avatar on left
+- User: `<div className="flex items-start gap-3 flex-row-reverse">` with avatar on right
+- Add timestamp `<span>` below the bubble content
+- Apply richer styling: `bg-card shadow-sm border border-border/50 border-l-4 border-l-primary/40` for assistant, `bg-primary shadow-sm` for user
+
+Also update the streaming/loading indicator to match the new layout with avatar.
 
 ### Files Modified
-- `package.json` — add `react-markdown`, `remark-gfm`
-- `src/pages/student/AIChat.tsx` — use ReactMarkdown in message rendering
-- `tailwind.config.ts` — add typography plugin if missing
+- `src/pages/student/AIChat.tsx` — enhanced `renderMessage`, updated loading indicator
 
