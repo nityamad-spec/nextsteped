@@ -1,70 +1,42 @@
 
 
-## Plan: Course Relevance Classification Layer for Study Mode
+## Plan: Per-Day Quiz Enable/Disable Toggles
 
-### How It Works
+### Problem
+Currently there is a single `quizEnabled` toggle that enables or disables all daily quizzes at once. Teachers want to independently control Day 1 and Day 2 quizzes (e.g., enable Day 1 but keep Day 2 disabled until ready).
 
-When a student sends a message in study mode, the system first makes a quick backend call to determine if the question is relevant to the course syllabus and concepts. Based on the result:
-
-- **Relevant** → Normal chat call proceeds as-is
-- **Not relevant** → A modified prompt is sent to the chat function, instructing the AI to acknowledge the off-topic nature, draw a practical real-world connection to the course, and then answer through that lens
-
-### Architecture
-
-```text
-Student sends message
-        │
-        ▼
-┌──────────────────────┐
-│ classify-question    │  ← New edge function (non-streaming, fast)
-│ Input: user message  │
-│ + course name        │
-│ + objectives         │
-│ + concept list       │
-│ Output: { relevant } │
-└──────────────────────┘
-        │
-   ┌────┴────┐
-   │relevant │ not relevant
-   ▼         ▼
-Normal    Chat call with
-chat      wrapper prompt:
-call      "The student asked
-          something off-topic.
-          Relate it to [course]
-          in a practical way,
-          then answer."
-```
+### Approach
+Add two new boolean columns (`quiz_day1_enabled`, `quiz_day2_enabled`) to `course_ta_settings`. The existing `quizEnabled` toggle becomes a master toggle, while individual day toggles provide granular control. On the student side, check the per-day flag before allowing a quiz start.
 
 ### Changes
 
-**1. New edge function — `supabase/functions/classify-question/index.ts`**
-- Accepts: `{ message, courseName, objectives, concepts }`
-- Builds a classification prompt: "Given this course context, is the following question relevant? Reply with JSON `{relevant: true/false}`"
-- Uses `google/gemini-2.5-flash-lite` (cheapest, fast) with tool-calling to extract structured `{ relevant: boolean }`
-- Non-streaming, returns JSON response
+**1. Database migration — add per-day columns**
+```sql
+ALTER TABLE course_ta_settings
+  ADD COLUMN quiz_day1_enabled boolean NOT NULL DEFAULT false,
+  ADD COLUMN quiz_day2_enabled boolean NOT NULL DEFAULT false;
+```
 
-**2. Update `src/pages/student/AIChat.tsx`**
-- On component mount (when `enrolledCourseId` is available), fetch course name, objectives, and concepts from the database and store in state
-- In `sendMessage` (study mode only):
-  - Call `classify-question` with the user's message + course context
-  - If `relevant: false`, prepend a wrapper system message to the chat call:
-    *"The student's question is not directly about [course]. Before answering, briefly and naturally connect their question to a real-world application of [course concepts]. Then answer helpfully through that lens."*
-  - If `relevant: true`, proceed with the normal chat call unchanged
-- Show a subtle indicator when the AI is relating an off-topic question (optional small badge on the response)
+**2. `src/hooks/useTASettings.ts`**
+- Add `quizDay1Enabled` and `quizDay2Enabled` to the settings type and default values
+- Map to/from the new DB columns in load/save
 
-**3. Update `supabase/functions/chat/index.ts`**
-- Accept an optional `relevanceContext` field in the request body
-- When present and `relevant === false`, prepend the "relate to course" instruction to the system prompt dynamically
-- This keeps the routing logic clean — classification on a separate function, prompt modification in the chat function
+**3. `src/pages/teacher/Assessments.tsx`** — Daily Quiz Settings card
+- Replace the single "Available to Students" toggle with two separate toggles:
+  - **Day 1 Quiz** — controls `quiz_day1_enabled`
+  - **Day 2 Quiz** — controls `quiz_day2_enabled`
+- Each toggle shows the question count for that day and is independently switchable
+- Both are disabled if `quizApproved` is false (same guard as before)
+- The master `quizEnabled` field is auto-set to `true` if either day is enabled, `false` if both are off
 
-### Performance Considerations
-- Classification call uses the cheapest/fastest model and a minimal prompt (~100 tokens)
-- Adds ~0.5-1s latency only for study mode messages
-- Course context is fetched once on mount and cached in component state
+**4. `src/pages/student/AIChat.tsx`**
+- When starting a daily quiz, check the per-day flag (`taSettings.quizDay1Enabled` / `quizDay2Enabled`) instead of just `quizEnabled`
+- Update the disabled state on the quiz start button and messaging to reflect which days are available
+- If a student tries to start a disabled day, show a toast explaining it's not available yet
 
 ### Files Modified
-- `supabase/functions/classify-question/index.ts` — new edge function
-- `src/pages/student/AIChat.tsx` — fetch course context, call classifier before chat
-- `supabase/functions/chat/index.ts` — handle relevance context in prompt
+- Database migration (new columns)
+- `src/hooks/useTASettings.ts` — new fields
+- `src/pages/teacher/Assessments.tsx` — per-day toggles
+- `src/pages/student/AIChat.tsx` — per-day access checks
 
