@@ -109,15 +109,22 @@ const Auth = () => {
     }
   };
 
+  const startCooldown = () => {
+    setIsCooldown(true);
+    setTimeout(() => setIsCooldown(false), 3000);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
 
-    if (isLogin) {
-      const { error } = await signIn(email, password);
-      if (error) {
-        toast.error(error);
-        setLoading(false);
+    const now = Date.now();
+    if (now - lastSubmitTime.current < 3000) {
+      toast.warning("Please wait a moment before trying again");
+      return;
+    }
+    lastSubmitTime.current = now;
+    startCooldown();
+    setLoading(true);
         return;
       }
 
