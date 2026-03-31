@@ -41,6 +41,7 @@ const Auth = () => {
   const [name, setName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isCooldown, setIsCooldown] = useState(false);
+  const [cooldownLeft, setCooldownLeft] = useState(0);
   const lastSubmitTime = useRef<number>(0);
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
@@ -111,7 +112,17 @@ const Auth = () => {
 
   const startCooldown = () => {
     setIsCooldown(true);
-    setTimeout(() => setIsCooldown(false), 3000);
+    setCooldownLeft(3);
+    const interval = setInterval(() => {
+      setCooldownLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setIsCooldown(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -367,7 +378,7 @@ const Auth = () => {
                   teacherSignupsLoading
                 }
               >
-                {loading ? "Please wait..." : isLogin ? "Sign In" : "Sign Up"}
+                {loading ? "Please wait..." : isCooldown ? `Wait ${cooldownLeft}s…` : isLogin ? "Sign In" : "Sign Up"}
               </Button>
             </form>
 
