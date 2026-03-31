@@ -72,7 +72,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null };
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, role?: string) => {
+    // Student sign-ins go through edge function to bypass per-IP rate limits
+    if (role === "student") {
+      const { data, error: fnError } = await supabase.functions.invoke("student-signin", {
+        body: { email, password },
+      });
+      if (fnError) {
+        return { error: fnError.message || "Sign in failed" };
+      }
+      if (data?.error) {
+        return { error: data.error };
+      }
+      if (data?.access_token && data?.refresh_token) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+        });
+        if (sessionError) {
+          return { error: sessionError.message };
+        }
+      }
+      return { error: null };
+    }
+
+    // Non-student roles use standard auth
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error?.message ?? null };
   };

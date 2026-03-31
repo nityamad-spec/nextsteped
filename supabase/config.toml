@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.student-signup]
 verify_jwt = false
+
+[functions.student-signin]
+verify_jwt = false
