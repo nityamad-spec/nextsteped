@@ -112,7 +112,17 @@ const Auth = () => {
 
   const startCooldown = () => {
     setIsCooldown(true);
-    setTimeout(() => setIsCooldown(false), 3000);
+    setCooldownLeft(3);
+    const interval = setInterval(() => {
+      setCooldownLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setIsCooldown(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
