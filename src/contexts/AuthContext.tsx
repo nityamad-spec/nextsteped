@@ -7,7 +7,7 @@ interface AuthState {
   session: Session | null;
   loading: boolean;
   signUp: (email: string, password: string, name: string, role: string, enrollment_code?: string) => Promise<{ error: string | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string, role?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 

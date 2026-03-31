@@ -139,7 +139,7 @@ const Auth = () => {
 
     if (isLogin) {
       const { error } = await withRetry(
-        () => signIn(email, password),
+        () => signIn(email, password, role),
         (r) => r.error
       );
       if (error) {
