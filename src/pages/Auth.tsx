@@ -219,7 +219,9 @@ const Auth = () => {
             toast.error(error);
           }
         } else {
-          toast.success("Check your email to verify your account");
+          toast.success("Account created successfully! Redirecting...");
+          navigate("/student");
+          return;
         }
       }
     }

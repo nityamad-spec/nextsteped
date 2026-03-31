@@ -90,15 +90,15 @@ Deno.serve(async (req) => {
     }
 
     // --- Create user via admin API (bypasses IP rate limits) ---
+    // --- Create user with auto-confirm (enrollment code already proves legitimacy) ---
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
       email,
       password,
-      email_confirm: false,
+      email_confirm: true,
       user_metadata: { name, role: "student", enrollment_code },
     });
 
     if (createError) {
-      // Handle duplicate email
       if (createError.message?.toLowerCase().includes("already been registered") ||
           createError.message?.toLowerCase().includes("already exists")) {
         return new Response(
@@ -109,8 +109,32 @@ Deno.serve(async (req) => {
       throw createError;
     }
 
+    // --- Sign in immediately to return session tokens ---
+    const tokenRes = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: serviceRoleKey,
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const tokenData = await tokenRes.json();
+
+    if (!tokenRes.ok) {
+      // Account created but sign-in failed — user can still sign in manually
+      return new Response(
+        JSON.stringify({ message: "Account created successfully. Please sign in.", user_id: newUser.user.id }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
-      JSON.stringify({ message: "Account created. Check your email to verify your account.", user_id: newUser.user.id }),
+      JSON.stringify({
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        user: tokenData.user,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {

@@ -91,9 +91,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { error: data?.error || data?.message || data?.msg || "Signup failed" };
         }
 
-        const sessionError = await applySessionFromFunctionResponse(data);
-        if (sessionError) {
-          return { error: sessionError };
+        // If tokens returned, hydrate session immediately (auto-confirmed account)
+        if (data?.access_token) {
+          const sessionError = await applySessionFromFunctionResponse(data);
+          if (sessionError) {
+            return { error: sessionError };
+          }
         }
 
         return { error: null };
