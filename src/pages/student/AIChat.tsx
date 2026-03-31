@@ -39,8 +39,10 @@ const AIChat = () => {
   const [showLeaveWarning, setShowLeaveWarning] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isCooldown, setIsCooldown] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastSendTime = useRef<number>(0);
 
   // Course context for relevance classification
   const [courseContext, setCourseContext] = useState<{ courseName: string; objectives: string[]; concepts: string[] } | null>(null);
