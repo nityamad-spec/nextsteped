@@ -833,6 +833,24 @@ export type Database = {
           },
         ]
       }
+      signup_attempts: {
+        Row: {
+          attempted_at: string
+          email: string
+          id: string
+        }
+        Insert: {
+          attempted_at?: string
+          email: string
+          id?: string
+        }
+        Update: {
+          attempted_at?: string
+          email?: string
+          id?: string
+        }
+        Relationships: []
+      }
       student_feedback: {
         Row: {
           additional_comments: string | null
