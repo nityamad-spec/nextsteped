@@ -37,16 +37,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string, name: string, role: string, enrollment_code?: string) => {
     // Student signups go through edge function to bypass per-IP rate limits
     if (role === "student") {
-      const { data, error: fnError } = await supabase.functions.invoke("student-signup", {
-        body: { email, password, name, enrollment_code },
-      });
-      if (fnError) {
-        return { error: fnError.message || "Signup failed" };
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/student-signup`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({ email, password, name, enrollment_code }),
+          }
+        );
+        const data = await response.json();
+        if (!response.ok) {
+          return { error: data?.error || "Signup failed" };
+        }
+        return { error: null };
+      } catch (err: any) {
+        return { error: err.message || "Signup failed" };
       }
-      if (data?.error) {
-        return { error: data.error };
-      }
-      return { error: null };
     }
 
     // Non-student roles use standard auth signup
