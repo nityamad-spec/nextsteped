@@ -68,12 +68,38 @@ Deno.serve(async (req) => {
     const tokenData = await tokenRes.json();
 
     if (!tokenRes.ok) {
-      // Record failed attempt
-      await adminClient
-        .from("signin_attempts")
-        .insert({ email: email.toLowerCase(), success: false });
-
       const msg = tokenData?.error_description || tokenData?.msg || "Invalid login credentials";
+
+      // Self-healing: auto-confirm unverified students and retry
+      if (msg === "Email not confirmed") {
+        try {
+          const { data: listData } = await adminClient.auth.admin.listUsers();
+          const user = listData?.users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+          if (user) {
+            await adminClient.auth.admin.updateUserById(user.id, { email_confirm: true });
+            // Retry sign-in
+            const retryRes = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", apikey: serviceRoleKey },
+              body: JSON.stringify({ email, password }),
+            });
+            const retryData = await retryRes.json();
+            if (retryRes.ok) {
+              await adminClient.from("signin_attempts").insert({ email: email.toLowerCase(), success: true });
+              return new Response(
+                JSON.stringify({ access_token: retryData.access_token, refresh_token: retryData.refresh_token, user: retryData.user }),
+                { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+          }
+        } catch (confirmErr) {
+          console.error("Auto-confirm retry failed:", confirmErr);
+        }
+      }
+
+      // Record failed attempt
+      await adminClient.from("signin_attempts").insert({ email: email.toLowerCase(), success: false });
+
       return new Response(
         JSON.stringify({ error: msg }),
         { status: tokenRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
