@@ -125,6 +125,15 @@ const Auth = () => {
     lastSubmitTime.current = now;
     startCooldown();
     setLoading(true);
+
+    if (isLogin) {
+      const { error } = await withRetry(
+        () => signIn(email, password),
+        (r) => r.error
+      );
+      if (error) {
+        toast.error(error);
+        setLoading(false);
         return;
       }
 
@@ -165,12 +174,18 @@ const Auth = () => {
 
       if (role === "teacher") {
         // Teacher signup: submit application instead of creating account
-        const { error: appError } = await supabase
-          .from("teacher_applications")
-          .insert({ email, name });
+        const { error: appError } = await withRetry(
+          async () => {
+            const res = await supabase
+              .from("teacher_applications")
+              .insert({ email, name });
+            return { error: res.error?.message ?? null };
+          },
+          (r) => r.error
+        );
 
         if (appError) {
-          toast.error(appError.message || "Failed to submit application");
+          toast.error(appError || "Failed to submit application");
         } else {
           toast.success("Your application has been submitted! An admin will review it shortly.");
         }
@@ -182,7 +197,10 @@ const Auth = () => {
           return;
         }
 
-        const { error } = await signUp(email, password, name, role, enrollmentCode.trim());
+        const { error } = await withRetry(
+          () => signUp(email, password, name, role, enrollmentCode.trim()),
+          (r) => r.error
+        );
         if (error) {
           if (error === "SIGNUPS_DISABLED") {
             toast.error("All signups are currently disabled by the system administrator.");
