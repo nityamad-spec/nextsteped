@@ -18,6 +18,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const parseFunctionResponse = async (response: Response) => {
+    const rawBody = await response.text();
+
+    if (!rawBody) {
+      return {};
+    }
+
+    try {
+      return JSON.parse(rawBody);
+    } catch {
+      return { error: rawBody };
+    }
+  };
+
+  const applySessionFromFunctionResponse = async (payload: any) => {
+    const sessionPayload = payload?.session ?? payload;
+    const access_token = sessionPayload?.access_token;
+    const refresh_token = sessionPayload?.refresh_token;
+
+    if (!access_token || !refresh_token) {
+      return null;
+    }
+
+    const { data, error } = await supabase.auth.setSession({
+      access_token,
+      refresh_token,
+    });
+
+    if (error) {
+      return error.message;
+    }
+
+    setSession(data.session);
+    setUser(data.user);
+    return null;
+  };
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
@@ -49,10 +86,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             body: JSON.stringify({ email, password, name, enrollment_code }),
           }
         );
-        const data = await response.json();
+        const data = await parseFunctionResponse(response);
         if (!response.ok) {
-          return { error: data?.error || "Signup failed" };
+          return { error: data?.error || data?.message || data?.msg || "Signup failed" };
         }
+
+        const sessionError = await applySessionFromFunctionResponse(data);
+        if (sessionError) {
+          return { error: sessionError };
+        }
+
         return { error: null };
       } catch (err: any) {
         return { error: err.message || "Signup failed" };
@@ -97,19 +140,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             body: JSON.stringify({ email, password }),
           }
         );
-        const data = await response.json();
+        const data = await parseFunctionResponse(response);
         if (!response.ok) {
-          return { error: data?.error || "Sign in failed" };
+          return { error: data?.error || data?.message || data?.msg || "Sign in failed" };
         }
-        if (data?.access_token && data?.refresh_token) {
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: data.access_token,
-            refresh_token: data.refresh_token,
-          });
-          if (sessionError) {
-            return { error: sessionError.message };
-          }
+
+        const sessionError = await applySessionFromFunctionResponse(data);
+        if (sessionError) {
+          return { error: sessionError };
         }
+
         return { error: null };
       } catch (err: any) {
         return { error: err.message || "Sign in failed" };
@@ -123,6 +163,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setSession(null);
+    setUser(null);
   };
 
   return (
