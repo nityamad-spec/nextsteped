@@ -78,11 +78,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error: fnError } = await supabase.functions.invoke("student-signin", {
         body: { email, password },
       });
-      if (fnError) {
-        return { error: fnError.message || "Sign in failed" };
-      }
-      if (data?.error) {
-        return { error: data.error };
+      // When edge function returns non-2xx, data may contain the error JSON
+      const errorMsg = data?.error || (fnError && !data ? fnError.message : null);
+      if (errorMsg) {
+        return { error: errorMsg };
       }
       if (data?.access_token && data?.refresh_token) {
         const { error: sessionError } = await supabase.auth.setSession({
