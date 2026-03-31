@@ -75,24 +75,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string, role?: string) => {
     // Student sign-ins go through edge function to bypass per-IP rate limits
     if (role === "student") {
-      const { data, error: fnError } = await supabase.functions.invoke("student-signin", {
-        body: { email, password },
-      });
-      // When edge function returns non-2xx, data may contain the error JSON
-      const errorMsg = data?.error || (fnError && !data ? fnError.message : null);
-      if (errorMsg) {
-        return { error: errorMsg };
-      }
-      if (data?.access_token && data?.refresh_token) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-        });
-        if (sessionError) {
-          return { error: sessionError.message };
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/student-signin`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({ email, password }),
+          }
+        );
+        const data = await response.json();
+        if (!response.ok) {
+          return { error: data?.error || "Sign in failed" };
         }
+        if (data?.access_token && data?.refresh_token) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: data.access_token,
+            refresh_token: data.refresh_token,
+          });
+          if (sessionError) {
+            return { error: sessionError.message };
+          }
+        }
+        return { error: null };
+      } catch (err: any) {
+        return { error: err.message || "Sign in failed" };
       }
-      return { error: null };
     }
 
     // Non-student roles use standard auth
