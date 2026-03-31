@@ -41,6 +41,7 @@ const Auth = () => {
   const [name, setName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isCooldown, setIsCooldown] = useState(false);
+  const [cooldownLeft, setCooldownLeft] = useState(0);
   const lastSubmitTime = useRef<number>(0);
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
