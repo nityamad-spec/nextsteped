@@ -264,13 +264,38 @@ const AIChat = () => {
     }
   };
 
+  const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 3): Promise<Response> => {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const resp = await fetch(url, options);
+      if (resp.status === 429 && attempt < maxRetries - 1) {
+        const delay = Math.pow(2, attempt + 1) * 1000; // 2s, 4s, 8s
+        toast.info("Rate limited, retrying…", { duration: delay });
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      return resp;
+    }
+    // Should not reach here, but just in case
+    return fetch(url, options);
+  };
+
   const sendMessage = useCallback(async () => {
-    if (!input.trim() || !activeChat || isStreaming) return;
+    if (!input.trim() || !activeChat || isStreaming || isCooldown) return;
     if (assessmentActive) return;
+
+    // Rate limiting: enforce 3-second minimum gap
+    const now = Date.now();
+    if (now - lastSendTime.current < 3000) {
+      toast.warning("Please wait a moment before sending another message");
+      return;
+    }
+    lastSendTime.current = now;
 
     const userContent = input;
     setInput("");
     setIsStreaming(true);
+    setIsCooldown(true);
+    setTimeout(() => setIsCooldown(false), 3000);
 
     await addMessage(activeChat.id, "user", userContent);
 
@@ -289,7 +314,7 @@ const AIChat = () => {
     if (mode === "learning" && courseContext) {
       try {
         const classifyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/classify-question`;
-        const classifyResp = await fetch(classifyUrl, {
+        const classifyResp = await fetchWithRetry(classifyUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -301,7 +326,7 @@ const AIChat = () => {
             objectives: courseContext.objectives,
             concepts: courseContext.concepts,
           }),
-        });
+        }, 2); // Only 2 retries for classification — skip on failure
         if (classifyResp.ok) {
           const classifyData = await classifyResp.json();
           if (classifyData.relevant === false) {
@@ -321,7 +346,7 @@ const AIChat = () => {
     const assistantMsgId = `streaming-${Date.now()}`;
 
     try {
-      const resp = await fetch(CHAT_URL, {
+      const resp = await fetchWithRetry(CHAT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -415,7 +440,7 @@ const AIChat = () => {
       setIsStreaming(false);
       setStreamingMessage(null);
     }
-  }, [input, activeChat, isStreaming, mode, assessmentActive, addMessage, updateSessionTitle]);
+  }, [input, activeChat, isStreaming, isCooldown, mode, assessmentActive, addMessage, updateSessionTitle]);
 
   const handleCodeSubmit = () => {
     if (!codeInput.trim()) return;
