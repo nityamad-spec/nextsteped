@@ -378,7 +378,7 @@ const Auth = () => {
                   teacherSignupsLoading
                 }
               >
-                {loading ? "Please wait..." : isLogin ? "Sign In" : "Sign Up"}
+                {loading ? "Please wait..." : isCooldown ? `Wait ${cooldownLeft}s…` : isLogin ? "Sign In" : "Sign Up"}
               </Button>
             </form>
 
