@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,28 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Eye, EyeOff, LogIn, UserPlus, CheckCircle2, Loader2 } from "lucide-react";
 
+const isRateLimitError = (msg: string) =>
+  /rate.?limit|too many requests|429/i.test(msg);
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  isRetryable: (result: T) => string | null,
+  maxRetries = 3
+): Promise<T> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const result = await fn();
+    const errMsg = isRetryable(result);
+    if (errMsg && isRateLimitError(errMsg) && attempt < maxRetries - 1) {
+      const delay = Math.pow(2, attempt + 1) * 1000;
+      toast.info(`Rate limited, retrying in ${delay / 1000}s…`);
+      await new Promise((r) => setTimeout(r, delay));
+      continue;
+    }
+    return result;
+  }
+  throw new Error("Unreachable");
+}
+
 interface ResolvedCourse { id: string; name: string; course_code: string | null }
 
 const Auth = () => {
@@ -18,6 +40,8 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isCooldown, setIsCooldown] = useState(false);
+  const lastSubmitTime = useRef<number>(0);
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
@@ -55,13 +79,19 @@ const Auth = () => {
     setCodeError("");
     setResolvedCourse(null);
     try {
-      const { data, error } = await supabase
-        .from("courses")
-        .select("id, name, course_code, enrollment_open")
-        .eq("enrollment_code", code)
-        .eq("published", true)
-        .limit(1)
-        .maybeSingle();
+      const { data, error } = await withRetry(
+        async () => {
+          const res = await supabase
+            .from("courses")
+            .select("id, name, course_code, enrollment_open")
+            .eq("enrollment_code", code)
+            .eq("published", true)
+            .limit(1)
+            .maybeSingle();
+          return res;
+        },
+        (r) => r.error?.message ?? null
+      );
       if (error) throw error;
       if (data) {
         if (!data.enrollment_open) {
@@ -79,12 +109,28 @@ const Auth = () => {
     }
   };
 
+  const startCooldown = () => {
+    setIsCooldown(true);
+    setTimeout(() => setIsCooldown(false), 3000);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const now = Date.now();
+    if (now - lastSubmitTime.current < 3000) {
+      toast.warning("Please wait a moment before trying again");
+      return;
+    }
+    lastSubmitTime.current = now;
+    startCooldown();
     setLoading(true);
 
     if (isLogin) {
-      const { error } = await signIn(email, password);
+      const { error } = await withRetry(
+        () => signIn(email, password),
+        (r) => r.error
+      );
       if (error) {
         toast.error(error);
         setLoading(false);
@@ -128,12 +174,18 @@ const Auth = () => {
 
       if (role === "teacher") {
         // Teacher signup: submit application instead of creating account
-        const { error: appError } = await supabase
-          .from("teacher_applications")
-          .insert({ email, name });
+        const { error: appError } = await withRetry(
+          async () => {
+            const res = await supabase
+              .from("teacher_applications")
+              .insert({ email, name });
+            return { error: res.error?.message ?? null };
+          },
+          (r) => r.error
+        );
 
         if (appError) {
-          toast.error(appError.message || "Failed to submit application");
+          toast.error(appError || "Failed to submit application");
         } else {
           toast.success("Your application has been submitted! An admin will review it shortly.");
         }
@@ -145,7 +197,10 @@ const Auth = () => {
           return;
         }
 
-        const { error } = await signUp(email, password, name, role, enrollmentCode.trim());
+        const { error } = await withRetry(
+          () => signUp(email, password, name, role, enrollmentCode.trim()),
+          (r) => r.error
+        );
         if (error) {
           if (error === "SIGNUPS_DISABLED") {
             toast.error("All signups are currently disabled by the system administrator.");
@@ -306,6 +361,7 @@ const Auth = () => {
                 className="w-full"
                 disabled={
                   loading ||
+                  isCooldown ||
                   (showEnrollmentField && !resolvedCourse) ||
                   (!isLogin && role === "teacher" && !teacherSignupsEnabled) ||
                   teacherSignupsLoading
