@@ -833,6 +833,27 @@ export type Database = {
           },
         ]
       }
+      signin_attempts: {
+        Row: {
+          attempted_at: string
+          email: string
+          id: string
+          success: boolean
+        }
+        Insert: {
+          attempted_at?: string
+          email: string
+          id?: string
+          success?: boolean
+        }
+        Update: {
+          attempted_at?: string
+          email?: string
+          id?: string
+          success?: boolean
+        }
+        Relationships: []
+      }
       signup_attempts: {
         Row: {
           attempted_at: string
