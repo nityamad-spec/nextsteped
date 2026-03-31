@@ -1,27 +1,23 @@
 
 
-## Plan: Client-Side Rate Limiting & Retry with Backoff for AI Chat
+## Plan: Rate Limiting & Retry with Backoff for Auth Page
 
 ### Problem
-Students can spam messages rapidly, and 429 (rate limit) errors from the AI gateway are shown as errors with no automatic recovery.
+The signup and login forms hit Supabase Auth endpoints that can return rate limit errors, but there's no client-side throttling or retry logic — the raw error message is shown directly.
 
 ### Changes
 
-**1. `src/pages/student/AIChat.tsx` — Rate limiting**
-- Track `lastSendTime` via `useRef<number>(0)`
-- At the top of `sendMessage`, enforce a 3-second minimum gap between sends — if too soon, show a toast ("Please wait a moment") and return early
-- This prevents rapid-fire requests from doubling up classify + chat calls
+**`src/pages/Auth.tsx`**
 
-**2. `src/pages/student/AIChat.tsx` — Retry with exponential backoff on 429**
-- Wrap the `fetch(CHAT_URL, ...)` call in a retry loop (max 3 attempts)
-- On 429 response: wait 2s → 4s → 8s (exponential), then retry
-- Show a subtle toast on retry ("Rate limited, retrying…") so the student knows what's happening
-- On final failure after retries, show the existing error toast
-- Apply the same retry logic to the `classify-question` fetch (simpler: just skip classification on 429 and proceed with the chat call)
+1. **Rate limiting** — Add a `lastSubmitTime` ref and enforce a 3-second cooldown between form submissions. Show a warning toast if the user clicks too fast. Disable the submit button during cooldown via a brief `isCooldown` state.
 
-**3. Disable input during cooldown**
-- While the 3-second cooldown is active after a send, keep the send button disabled (reuse `isStreaming` or add a brief `isCooldown` state)
+2. **Retry with exponential backoff** — Wrap `signIn`, `signUp`, and the teacher application insert in a retry helper:
+   - On error messages containing "rate limit" or "too many requests" (case-insensitive): wait 2s → 4s → 8s, retry up to 3 times
+   - Show "Rate limited, retrying…" toast on each retry attempt
+   - On final failure, show the error as today
+
+3. **Enrollment code verification** — Apply the same retry logic to the `verifyEnrollmentCode` Supabase query
 
 ### Files Modified
-- `src/pages/student/AIChat.tsx` — add rate limiting ref, retry wrapper, cooldown state
+- `src/pages/Auth.tsx` — cooldown ref/state, retry wrapper, apply to all auth operations
 
