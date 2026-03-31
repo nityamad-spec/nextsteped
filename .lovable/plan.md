@@ -1,42 +1,27 @@
 
 
-## Plan: Add Diagnostic Test Analytics to Assessment Analytics
+## Plan: Client-Side Rate Limiting & Retry with Backoff for AI Chat
 
 ### Problem
-The `/teacher/assessment-analytics` page currently only shows results from exams and daily quizzes (from `assessment_results` table). Diagnostic test results (stored in `diagnostic_results`) are excluded, so teachers have no visibility into how students performed on the initial diagnostic.
-
-### Approach
-Add "Diagnostic" as a new mode option in the existing filter dropdown. When selected, fetch and display data from `diagnostic_results` instead of `assessment_results`, normalizing it into the same display format (summary cards, score distribution, topic performance, recent submissions).
+Students can spam messages rapidly, and 429 (rate limit) errors from the AI gateway are shown as errors with no automatic recovery.
 
 ### Changes
 
-**1. `src/pages/teacher/AssessmentAnalytics.tsx`**
+**1. `src/pages/student/AIChat.tsx` — Rate limiting**
+- Track `lastSendTime` via `useRef<number>(0)`
+- At the top of `sendMessage`, enforce a 3-second minimum gap between sends — if too soon, show a toast ("Please wait a moment") and return early
+- This prevents rapid-fire requests from doubling up classify + chat calls
 
-*Data fetching:*
-- Add a second `useEffect` that fetches from `diagnostic_results` (joined via `enrollments` to scope to the current course) when `modeFilter === "diagnostic"` or `"all"`
-- Normalize diagnostic rows into the same `AssessmentResult` shape: map `score`/`total_questions`/`answers`/`created_at`, set `mode = "diagnostic"`, `time_spent` derived from `question_times` JSONB if available
+**2. `src/pages/student/AIChat.tsx` — Retry with exponential backoff on 429**
+- Wrap the `fetch(CHAT_URL, ...)` call in a retry loop (max 3 attempts)
+- On 429 response: wait 2s → 4s → 8s (exponential), then retry
+- Show a subtle toast on retry ("Rate limited, retrying…") so the student knows what's happening
+- On final failure after retries, show the existing error toast
+- Apply the same retry logic to the `classify-question` fetch (simpler: just skip classification on 429 and proceed with the chat call)
 
-*Filter dropdown:*
-- Add `<SelectItem value="diagnostic">Diagnostic Tests</SelectItem>` to the mode selector
-
-*Summary cards:*
-- Include diagnostic count in the breakdown line (e.g., "5 exams · 3 quizzes · 12 diagnostics")
-
-*Topic performance:*
-- Diagnostic `answers` JSONB already stores per-question data with topic info — aggregate the same way
-
-*Recent submissions table:*
-- Show "Diagnostic" badge for diagnostic rows
-- Include learner level from `diagnostic_results.learner_level` as an extra badge
-
-*Score distribution:*
-- Works unchanged since it's computed from the normalized results array
-
-**2. RLS consideration**
-- `diagnostic_results` currently only has student-facing RLS (students can view/insert own). Teachers need a SELECT policy scoped to their course's enrolled students.
-- Add migration: `CREATE POLICY "Teachers can view diagnostic results for their courses" ON diagnostic_results FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM enrollments WHERE enrollments.student_id = diagnostic_results.student_id AND is_course_member(enrollments.course_id, auth.uid())));`
+**3. Disable input during cooldown**
+- While the 3-second cooldown is active after a send, keep the send button disabled (reuse `isStreaming` or add a brief `isCooldown` state)
 
 ### Files Modified
-- Database migration — RLS policy for teacher access to `diagnostic_results`
-- `src/pages/teacher/AssessmentAnalytics.tsx` — fetch diagnostic data, add filter option, normalize and display
+- `src/pages/student/AIChat.tsx` — add rate limiting ref, retry wrapper, cooldown state
 
