@@ -35,6 +35,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string, name: string, role: string, enrollment_code?: string) => {
+    // Student signups go through edge function to bypass per-IP rate limits
+    if (role === "student") {
+      const { data, error: fnError } = await supabase.functions.invoke("student-signup", {
+        body: { email, password, name, enrollment_code },
+      });
+      if (fnError) {
+        return { error: fnError.message || "Signup failed" };
+      }
+      if (data?.error) {
+        return { error: data.error };
+      }
+      return { error: null };
+    }
+
+    // Non-student roles use standard auth signup
     const metadata: Record<string, string> = { name, role };
     if (enrollment_code) metadata.enrollment_code = enrollment_code;
     const { data, error } = await supabase.auth.signUp({
@@ -51,7 +66,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return { error: error.message };
     }
-    // Supabase returns a user with empty identities if the email already exists
     if (data.user && data.user.identities && data.user.identities.length === 0) {
       return { error: "An account with this email already exists. Please sign in instead." };
     }

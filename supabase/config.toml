@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.classify-question]
 verify_jwt = false
+
+[functions.student-signup]
+verify_jwt = false
