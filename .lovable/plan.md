@@ -1,43 +1,42 @@
 
 
-## Plan: Fix "Edge Function returned a non-2xx status code" on Student Signup
+## Root Cause Analysis: Missing Verification Emails
 
-### Problem
-The student signup uses `supabase.functions.invoke("student-signup", ...)` which throws a generic "Edge Function returned a non-2xx status code" error whenever the edge function returns a non-2xx status (400 for validation errors, 429 for rate limits, etc.). The actual error message from the function body is lost -- exactly the same issue we already fixed for student sign-in.
+### The Problem
 
-### Root Cause
-`supabase.functions.invoke()` does not parse the response body on non-2xx responses. It just throws with a generic message. The edge function correctly returns specific errors (e.g., "Invalid enrollment code", "Too many signup attempts", "Account already exists") but the client never reads them.
+The `student-signup` edge function creates users with `email_confirm: false` (line 96), which tells Supabase's GoTrue to send a confirmation email. While the edge function successfully bypasses the **signup API** per-IP rate limit using the service role key, the **email delivery** itself is still subject to Supabase's internal email sending rate limits (~3-4 emails per hour per recipient, ~30 emails per hour globally on small instances). With an entire class signing up simultaneously from a shared network, these email rate limits are quickly exhausted, silently suppressing confirmation emails for later signups.
 
-### Fix
-Replace `supabase.functions.invoke` with a direct `fetch` call in the `signUp` method for students, mirroring the pattern already used in `signIn`.
+The auth logs confirm this: many users are successfully created (status 200 on `/admin/users`) but then immediately fail sign-in with "Email not confirmed" -- meaning the account exists but the confirmation email was never delivered or was throttled.
 
-### Changes: `src/contexts/AuthContext.tsx`
+### Recommended Fix
 
-Replace lines 39-50 (the student signup branch) with:
+Since students already prove legitimacy via an **enrollment code** tied to a published course, email verification adds friction without meaningful security benefit. The fix is to **auto-confirm student accounts** at creation time and **return a session immediately**, eliminating the email verification step entirely.
 
-```typescript
-try {
-  const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/student-signup`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      },
-      body: JSON.stringify({ email, password, name, enrollment_code }),
-    }
-  );
-  const data = await response.json();
-  if (!response.ok) {
-    return { error: data?.error || "Signup failed" };
-  }
-  return { error: null };
-} catch (err: any) {
-  return { error: err.message || "Signup failed" };
-}
-```
+### Changes
 
-### Files Modified
-- `src/contexts/AuthContext.tsx` -- switch student signup from `supabase.functions.invoke` to direct `fetch`
+**1. `supabase/functions/student-signup/index.ts`**
+
+- Change `email_confirm: false` to `email_confirm: true` on line 96
+- After successful user creation, sign them in immediately using the GoTrue `/token?grant_type=password` endpoint (same pattern as `student-signin`)
+- Return the `access_token` and `refresh_token` in the response so the client can establish a session
+
+**2. `src/contexts/AuthContext.tsx`**
+
+- In the student signup branch, after a successful response, call `applySessionFromFunctionResponse(data)` to hydrate the session (the helper already exists)
+- Remove or update the "Check your email to verify" success message since verification is no longer needed
+
+**3. `src/pages/Auth.tsx`** (if applicable)
+
+- Update any post-signup toast/message that tells students to check their email
+
+### Why This Is Safe
+
+- Enrollment codes already gate access -- only students with a valid code from their instructor can create accounts
+- The code validates the course exists, is published, and has enrollment open
+- Per-email rate limiting on `signup_attempts` still prevents abuse
+- This matches common patterns where invitation/enrollment-based signups skip email verification
+
+### Alternative (if email verification is still desired)
+
+If you want to keep email verification, the alternative is to set up custom SMTP via Lovable's email domain system so emails are sent through your own domain rather than Supabase's shared infrastructure, avoiding the built-in rate limits. This requires DNS configuration and is more complex.
 
