@@ -79,13 +79,18 @@ const Auth = () => {
     setCodeError("");
     setResolvedCourse(null);
     try {
-      const { data, error } = await supabase
-        .from("courses")
-        .select("id, name, course_code, enrollment_open")
-        .eq("enrollment_code", code)
-        .eq("published", true)
-        .limit(1)
-        .maybeSingle();
+      const result = await withRetry(
+        () =>
+          supabase
+            .from("courses")
+            .select("id, name, course_code, enrollment_open")
+            .eq("enrollment_code", code)
+            .eq("published", true)
+            .limit(1)
+            .maybeSingle(),
+        (r) => r.error?.message ?? null
+      );
+      const { data, error } = result;
       if (error) throw error;
       if (data) {
         if (!data.enrollment_open) {
