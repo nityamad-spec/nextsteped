@@ -361,6 +361,7 @@ const Auth = () => {
                 className="w-full"
                 disabled={
                   loading ||
+                  isCooldown ||
                   (showEnrollmentField && !resolvedCourse) ||
                   (!isLogin && role === "teacher" && !teacherSignupsEnabled) ||
                   teacherSignupsLoading
