@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,28 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Eye, EyeOff, LogIn, UserPlus, CheckCircle2, Loader2 } from "lucide-react";
+
+const isRateLimitError = (msg: string) =>
+  /rate.?limit|too many requests|429/i.test(msg);
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  isRetryable: (result: T) => string | null,
+  maxRetries = 3
+): Promise<T> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const result = await fn();
+    const errMsg = isRetryable(result);
+    if (errMsg && isRateLimitError(errMsg) && attempt < maxRetries - 1) {
+      const delay = Math.pow(2, attempt + 1) * 1000;
+      toast.info(`Rate limited, retrying in ${delay / 1000}s…`);
+      await new Promise((r) => setTimeout(r, delay));
+      continue;
+    }
+    return result;
+  }
+  throw new Error("Unreachable");
+}
 
 interface ResolvedCourse { id: string; name: string; course_code: string | null }
 
