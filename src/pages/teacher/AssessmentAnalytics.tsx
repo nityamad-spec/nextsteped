@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,8 +7,10 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardCheck, Clock, Users, TrendingUp } from "lucide-react";
+import { ClipboardCheck, Clock, Users, TrendingUp, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { format } from "date-fns";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface AssessmentResult {
   id: string;
@@ -33,12 +35,41 @@ interface TopicPerformance {
   rate: number;
 }
 
+type SortDir = "asc" | "desc";
+interface SortState {
+  column: string;
+  direction: SortDir;
+}
+
+const toggleSort = (prev: SortState | null, col: string): SortState => {
+  if (prev?.column === col) {
+    return { column: col, direction: prev.direction === "asc" ? "desc" : "asc" };
+  }
+  return { column: col, direction: "asc" };
+};
+
+const SortIcon = ({ active, direction }: { active: boolean; direction?: SortDir }) => {
+  if (!active) return <ArrowUpDown className="ml-1 h-3 w-3 inline opacity-40" />;
+  return direction === "asc" ? (
+    <ArrowUp className="ml-1 h-3 w-3 inline" />
+  ) : (
+    <ArrowDown className="ml-1 h-3 w-3 inline" />
+  );
+};
+
 const AssessmentAnalytics = () => {
   const { currentCourse } = useApp();
   const [assessmentResults, setAssessmentResults] = useState<AssessmentResult[]>([]);
   const [diagnosticResults, setDiagnosticResults] = useState<AssessmentResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [modeFilter, setModeFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [branchFilter, setBranchFilter] = useState<string>("all");
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
+  const [studentBranches, setStudentBranches] = useState<Map<string, string>>(new Map());
+  const [topicSort, setTopicSort] = useState<SortState | null>(null);
+  const [recentSort, setRecentSort] = useState<SortState | null>(null);
 
   // Fetch assessment_results
   useEffect(() => {
@@ -55,7 +86,7 @@ const AssessmentAnalytics = () => {
       });
   }, [currentCourse?.id]);
 
-  // Fetch diagnostic_results via enrollments scoped to this course
+  // Fetch diagnostic_results
   useEffect(() => {
     if (!currentCourse?.id) return;
     supabase
@@ -66,7 +97,6 @@ const AssessmentAnalytics = () => {
       .then(({ data, error }) => {
         if (!error && data) {
           const normalized: AssessmentResult[] = (data as any[]).map((d) => {
-            // Derive time_spent from question_times array if available
             let timeSpent = 0;
             if (Array.isArray(d.question_times)) {
               timeSpent = Math.round(
@@ -81,7 +111,7 @@ const AssessmentAnalytics = () => {
               quiz_day: null,
               score: d.score,
               total_questions: d.total_questions,
-              correct_answers: d.score, // diagnostic score = correct count
+              correct_answers: d.score,
               answers: d.answers,
               time_spent: timeSpent,
               created_at: d.created_at,
@@ -93,16 +123,55 @@ const AssessmentAnalytics = () => {
       });
   }, [currentCourse?.id]);
 
-  // Combine all results
+  // Fetch branches + student-branch mapping
+  useEffect(() => {
+    if (!currentCourse?.id) return;
+    supabase
+      .from("branches")
+      .select("id, name")
+      .then(({ data }) => {
+        if (data) setBranches(data);
+      });
+
+    supabase
+      .from("enrollments")
+      .select("student_id, profiles(branch_id)")
+      .eq("course_id", currentCourse.id)
+      .then(({ data }) => {
+        if (data) {
+          const map = new Map<string, string>();
+          (data as any[]).forEach((e) => {
+            const branchId = e.profiles?.branch_id;
+            if (branchId) map.set(e.student_id, branchId);
+          });
+          setStudentBranches(map);
+        }
+      });
+  }, [currentCourse?.id]);
+
+  // Combine & filter
   const allResults = [...assessmentResults, ...diagnosticResults];
 
-  // Apply filter
-  const filtered =
-    modeFilter === "all"
-      ? allResults
-      : modeFilter === "diagnostic"
-        ? diagnosticResults
-        : assessmentResults.filter((r) => r.mode === modeFilter);
+  const filtered = useMemo(() => {
+    let results =
+      modeFilter === "all"
+        ? allResults
+        : modeFilter === "diagnostic"
+          ? diagnosticResults
+          : assessmentResults.filter((r) => r.mode === modeFilter);
+
+    if (dateFrom) {
+      results = results.filter((r) => r.created_at >= dateFrom);
+    }
+    if (dateTo) {
+      const endOfDay = dateTo + "T23:59:59.999Z";
+      results = results.filter((r) => r.created_at <= endOfDay);
+    }
+    if (branchFilter !== "all") {
+      results = results.filter((r) => studentBranches.get(r.student_id) === branchFilter);
+    }
+    return results;
+  }, [allResults, modeFilter, dateFrom, dateTo, branchFilter, studentBranches, assessmentResults, diagnosticResults]);
 
   // Summary stats
   const totalAttempts = filtered.length;
@@ -133,7 +202,7 @@ const AssessmentAnalytics = () => {
     return { range: label, count };
   });
 
-  // Topic performance from answers JSONB
+  // Topic performance
   const topicMap = new Map<string, { correct: number; total: number }>();
   filtered.forEach((r) => {
     if (Array.isArray(r.answers)) {
@@ -146,15 +215,58 @@ const AssessmentAnalytics = () => {
       });
     }
   });
-  const topicPerformance: TopicPerformance[] = Array.from(topicMap.entries())
-    .map(([topic, { correct, total }]) => ({
-      topic,
-      correct,
-      incorrect: total - correct,
-      total,
-      rate: total > 0 ? Math.round((correct / total) * 100) : 0,
-    }))
-    .sort((a, b) => b.total - a.total);
+
+  const topicPerformance: TopicPerformance[] = useMemo(() => {
+    const items = Array.from(topicMap.entries())
+      .map(([topic, { correct, total }]) => ({
+        topic,
+        correct,
+        incorrect: total - correct,
+        total,
+        rate: total > 0 ? Math.round((correct / total) * 100) : 0,
+      }));
+
+    if (topicSort) {
+      const dir = topicSort.direction === "asc" ? 1 : -1;
+      items.sort((a, b) => {
+        const aVal = a[topicSort.column as keyof TopicPerformance];
+        const bVal = b[topicSort.column as keyof TopicPerformance];
+        if (typeof aVal === "string") return aVal.localeCompare(bVal as string) * dir;
+        return ((aVal as number) - (bVal as number)) * dir;
+      });
+    } else {
+      items.sort((a, b) => b.total - a.total);
+    }
+    return items;
+  }, [topicMap, topicSort]);
+
+  // Recent submissions sorted
+  const recentSubmissions = useMemo(() => {
+    const items = [...filtered];
+    if (recentSort) {
+      const dir = recentSort.direction === "asc" ? 1 : -1;
+      items.sort((a, b) => {
+        switch (recentSort.column) {
+          case "date":
+            return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
+          case "score": {
+            const aP = a.total_questions > 0 ? a.correct_answers / a.total_questions : 0;
+            const bP = b.total_questions > 0 ? b.correct_answers / b.total_questions : 0;
+            return (aP - bP) * dir;
+          }
+          case "correct":
+            return (a.correct_answers - b.correct_answers) * dir;
+          case "time":
+            return (a.time_spent - b.time_spent) * dir;
+          default:
+            return 0;
+        }
+      });
+    } else {
+      items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
+    return items.slice(0, 20);
+  }, [filtered, recentSort]);
 
   const chartConfig = {
     count: { label: "Students", color: "hsl(var(--primary))" },
@@ -170,22 +282,63 @@ const AssessmentAnalytics = () => {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Assessment Analytics</h1>
-          <p className="text-sm text-muted-foreground">{currentCourse.name}</p>
+      <div>
+        <h1 className="text-2xl font-bold">Assessment Analytics</h1>
+        <p className="text-sm text-muted-foreground">{currentCourse.name}</p>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Mode</Label>
+          <Select value={modeFilter} onValueChange={setModeFilter}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Modes</SelectItem>
+              <SelectItem value="exam">Exams</SelectItem>
+              <SelectItem value="daily_quiz">Daily Quizzes</SelectItem>
+              <SelectItem value="diagnostic">Diagnostic Tests</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={modeFilter} onValueChange={setModeFilter}>
-          <SelectTrigger className="w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Modes</SelectItem>
-            <SelectItem value="exam">Exams</SelectItem>
-            <SelectItem value="daily_quiz">Daily Quizzes</SelectItem>
-            <SelectItem value="diagnostic">Diagnostic Tests</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">From</Label>
+          <Input
+            type="date"
+            className="w-40"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">To</Label>
+          <Input
+            type="date"
+            className="w-40"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+          />
+        </div>
+        {branches.length > 0 && (
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Branch</Label>
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Branches</SelectItem>
+                {branches.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -285,11 +438,25 @@ const AssessmentAnalytics = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Topic</TableHead>
-                      <TableHead className="text-right">Correct</TableHead>
-                      <TableHead className="text-right">Incorrect</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead className="text-right">Accuracy</TableHead>
+                      {[
+                        { key: "topic", label: "Topic", align: "" },
+                        { key: "correct", label: "Correct", align: "text-right" },
+                        { key: "incorrect", label: "Incorrect", align: "text-right" },
+                        { key: "total", label: "Total", align: "text-right" },
+                        { key: "rate", label: "Accuracy", align: "text-right" },
+                      ].map((col) => (
+                        <TableHead
+                          key={col.key}
+                          className={`${col.align} cursor-pointer select-none`}
+                          onClick={() => setTopicSort((prev) => toggleSort(prev, col.key))}
+                        >
+                          {col.label}
+                          <SortIcon
+                            active={topicSort?.column === col.key}
+                            direction={topicSort?.direction}
+                          />
+                        </TableHead>
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -323,52 +490,65 @@ const AssessmentAnalytics = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Mode</TableHead>
-                    <TableHead className="text-right">Score</TableHead>
-                    <TableHead className="text-right">Correct</TableHead>
-                    <TableHead className="text-right">Time</TableHead>
+                    {[
+                      { key: "date", label: "Date", align: "" },
+                      { key: "mode", label: "Mode", align: "", sortable: false },
+                      { key: "score", label: "Score", align: "text-right" },
+                      { key: "correct", label: "Correct", align: "text-right" },
+                      { key: "time", label: "Time", align: "text-right" },
+                    ].map((col) => (
+                      <TableHead
+                        key={col.key}
+                        className={`${col.align} ${col.sortable !== false ? "cursor-pointer select-none" : ""}`}
+                        onClick={col.sortable !== false ? () => setRecentSort((prev) => toggleSort(prev, col.key)) : undefined}
+                      >
+                        {col.label}
+                        {col.sortable !== false && (
+                          <SortIcon
+                            active={recentSort?.column === col.key}
+                            direction={recentSort?.direction}
+                          />
+                        )}
+                      </TableHead>
+                    ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered
-                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                    .slice(0, 20)
-                    .map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell className="text-sm">
-                          {format(new Date(r.created_at), "MMM d, yyyy HH:mm")}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            <Badge variant="outline">
-                              {r.mode === "daily_quiz"
-                                ? `Quiz Day ${r.quiz_day}`
-                                : r.mode === "diagnostic"
-                                  ? "Diagnostic"
-                                  : "Exam"}
+                  {recentSubmissions.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="text-sm">
+                        {format(new Date(r.created_at), "MMM d, yyyy HH:mm")}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="outline">
+                            {r.mode === "daily_quiz"
+                              ? `Quiz Day ${r.quiz_day}`
+                              : r.mode === "diagnostic"
+                                ? "Diagnostic"
+                                : "Exam"}
+                          </Badge>
+                          {r.learner_level && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              {r.learner_level}
                             </Badge>
-                            {r.learner_level && (
-                              <Badge variant="secondary" className="text-[10px]">
-                                {r.learner_level}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {r.total_questions > 0
-                            ? Math.round((r.correct_answers / r.total_questions) * 100)
-                            : 0}
-                          %
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {r.correct_answers}/{r.total_questions}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {Math.floor(r.time_spent / 60)}m {r.time_spent % 60}s
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {r.total_questions > 0
+                          ? Math.round((r.correct_answers / r.total_questions) * 100)
+                          : 0}
+                        %
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {r.correct_answers}/{r.total_questions}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {Math.floor(r.time_spent / 60)}m {r.time_spent % 60}s
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </CardContent>
