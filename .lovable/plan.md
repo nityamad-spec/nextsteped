@@ -1,73 +1,47 @@
 
 
-## Fix: Student Sign-In Hangs on "Please wait..."
+## Fix: Add Timeout Fallback for Initial Auth Loading
 
-### Root Cause
+### Problem
 
-After the edge function returns tokens successfully, `Auth.tsx` lines 152-162 make **two additional sequential network calls** before navigating:
-
-1. `supabase.auth.getUser()` — round-trip to Supabase auth server
-2. `supabase.from("profiles").select("role")` — database query with RLS
-
-These are redundant for student sign-in because:
-- The user object is already available from `setSession()` (set in AuthContext)
-- The role is already known — it's `"student"` (passed as the `role` parameter)
-
-If either of these calls is slow (cold connection, RLS overhead), the button stays stuck on "Please wait..." indefinitely.
+When the Supabase connection is cold (sandbox wake-up, slow network), `supabase.auth.getSession()` can take 10+ seconds. During this time, `loading` stays `true` and the entire app shows a blank "Loading..." screen — blocking both authenticated and unauthenticated users.
 
 ### Solution
 
-After a successful student sign-in via the edge function, skip the redundant `getUser()` and `profiles` queries. Navigate immediately since the role is already known.
+Add a timeout in `AuthContext` that caps the loading state at 3 seconds. If `getSession()` hasn't responded by then, set `loading = false` with `user = null`, allowing the app to render (unauthenticated users see the auth page immediately). When the session eventually resolves, `onAuthStateChange` will update the state and redirect logged-in users automatically.
 
 ### Changes
 
-**`src/pages/Auth.tsx` — lines 140-178**
-
-After the `signIn()` call succeeds for students, navigate directly to `/student` without the extra queries. Keep the profile-role-check logic only for non-student (teacher/admin) sign-ins where the role needs verification.
+**`src/contexts/AuthContext.tsx`** — Add a 3-second safety timeout:
 
 ```typescript
-if (isLogin) {
-  const { error } = await withRetry(
-    () => signIn(email, password, role),
-    (r) => r.error
-  );
-  if (error) {
-    toast.error(error);
+useEffect(() => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    setSession(session);
+    setUser(session?.user ?? null);
     setLoading(false);
-    return;
-  }
+  });
 
-  // Students signed in via edge function — role is known, skip extra queries
-  if (role === "student") {
-    toast.success("Welcome back!");
-    navigate("/student");
-    return;
-  }
-
-  // Non-student: verify profile role as before
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) { setLoading(false); return; }
-
-  const { data: profile } = await supabase
-    .from("profiles").select("role").eq("id", user.id).maybeSingle();
-
-  const userRole = profile?.role || user.user_metadata?.role || role;
-
-  if (profile && profile.role !== role && role !== "admin") {
-    toast.error(`This account is registered as a ${profile.role}...`);
-    await supabase.auth.signOut();
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    setSession(session);
+    setUser(session?.user ?? null);
     setLoading(false);
-    return;
-  }
+  });
 
-  toast.success("Welcome back!");
-  if (userRole === "admin") navigate("/admin/dashboard");
-  else navigate(userRole === "teacher" ? "/teacher" : "/student");
-}
+  // Safety timeout — stop blocking the UI after 3 seconds
+  const timeout = setTimeout(() => {
+    setLoading(false);
+  }, 3000);
+
+  return () => {
+    subscription.unsubscribe();
+    clearTimeout(timeout);
+  };
+}, []);
 ```
 
-This eliminates 2 network round-trips for student sign-in, making navigation near-instant after the edge function returns.
+This ensures the app never hangs on "Loading..." for more than 3 seconds. If the user is actually logged in, `onAuthStateChange` will fire once the connection completes and seamlessly update the UI.
 
 ### Files Modified
-- `src/pages/Auth.tsx` — skip redundant getUser + profile queries for student login
+- `src/contexts/AuthContext.tsx` — add 3-second loading timeout
 
