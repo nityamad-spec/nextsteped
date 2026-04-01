@@ -73,50 +73,50 @@ const StudentHome = () => {
   const courseName = currentCourse?.name || "Intro to Python";
   const displayName = profileData?.name || studentProfile?.name || "Student";
 
-  // Fetch the teacher's published plan from storage
+  // Fetch the teacher's published plan from storage (optimized: reuse enrolledCourseId, cache in localStorage)
   useEffect(() => {
-    const fetchPublishedPlan = async () => {
-      if (!user) { setPlanLoading(false); return; }
+    let dead = false;
+    (async () => {
+      if (!user) return void setPlanLoading(false);
+
+      // Try cache first for instant render
+      const cacheKey = `published-plan-${enrolledCourseId || user.id}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const p = JSON.parse(cached) as WorkshopDay[];
+          if (Array.isArray(p) && p.length > 0) setWorkshopPlan(p);
+        } catch {}
+      }
+
       try {
         let teacherId: string | null = null;
-
-        // Student path: look up enrollment
-        const { data: enrollment } = await supabase
-          .from("enrollments")
-          .select("course_id")
-          .eq("student_id", user.id)
-          .limit(1)
-          .maybeSingle();
-
-        if (enrollment?.course_id) {
+        if (enrolledCourseId) {
+          // Skip enrollment query — we already have courseId
           const { data: course } = await supabase
-            .from("courses")
-            .select("teacher_id")
-            .eq("id", enrollment.course_id)
-            .maybeSingle();
+            .from("courses").select("teacher_id")
+            .eq("id", enrolledCourseId).maybeSingle();
           teacherId = course?.teacher_id ?? null;
         } else {
-          // Teacher fallback: check if this user owns a course
+          // Teacher fallback
           const { data: course } = await supabase
-            .from("courses")
-            .select("teacher_id")
-            .eq("teacher_id", user.id)
-            .limit(1)
-            .maybeSingle();
+            .from("courses").select("teacher_id")
+            .eq("teacher_id", user.id).limit(1).maybeSingle();
           teacherId = course?.teacher_id ?? null;
         }
 
-        if (!teacherId) { setPlanLoading(false); return; }
+        if (!teacherId) return void setPlanLoading(false);
 
         const { data: fileData, error } = await supabase.storage
           .from("course-materials")
           .download(`${teacherId}/lesson-plan/published-plan.json`);
 
-        if (!error && fileData) {
+        if (!dead && !error && fileData) {
           const text = await fileData.text();
           const parsed = JSON.parse(text) as WorkshopDay[];
           if (Array.isArray(parsed) && parsed.length > 0) {
             setWorkshopPlan(parsed);
+            localStorage.setItem(cacheKey, text);
           }
         }
       } catch (err) {
@@ -124,9 +124,9 @@ const StudentHome = () => {
       } finally {
         setPlanLoading(false);
       }
-    };
-    fetchPublishedPlan();
-  }, [user]);
+    })();
+    return () => { dead = true; };
+  }, [user, enrolledCourseId]);
 
   const toggleDay = (day: number) => {
     setExpandedDays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]);
