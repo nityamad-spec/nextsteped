@@ -55,7 +55,7 @@ const typeLabels: Record<string, string> = {
 
 const typeIcons: Record<string, string> = {
   textbook: "📖", exercise: "🏋️", lab: "🧪", tool: "🔧",
-  "case-study": "📋", article: "📰", news: "📰", video: "🎬",
+  "case-study": "📋", article: "📰", news: "📰", video: "🎬", quiz: "📝",
 };
 
 const typeColors: Record<string, string> = {
