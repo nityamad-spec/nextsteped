@@ -90,7 +90,7 @@ const AIChat = () => {
     const urlMode = searchParams.get("mode");
     const urlDay = parseInt(searchParams.get("day") || "1") || 1;
     if (urlMode === "quiz") {
-      if ((taSettings.quizDaysEnabled || []).includes(urlDay)) handleStartQuiz(urlDay);
+      handleStartQuiz(urlDay);
     } else if (urlMode === "exam" && taSettings.examEnabled) {
       handleStartExam();
     }
