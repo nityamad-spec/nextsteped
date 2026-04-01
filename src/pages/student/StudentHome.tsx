@@ -78,7 +78,9 @@ const StudentHome = () => {
     const fetchPublishedPlan = async () => {
       if (!user) { setPlanLoading(false); return; }
       try {
-        // Get the student's enrolled course to find the teacher_id
+        let teacherId: string | null = null;
+
+        // Student path: look up enrollment
         const { data: enrollment } = await supabase
           .from("enrollments")
           .select("course_id")
@@ -86,19 +88,29 @@ const StudentHome = () => {
           .limit(1)
           .maybeSingle();
 
-        if (!enrollment?.course_id) { setPlanLoading(false); return; }
+        if (enrollment?.course_id) {
+          const { data: course } = await supabase
+            .from("courses")
+            .select("teacher_id")
+            .eq("id", enrollment.course_id)
+            .maybeSingle();
+          teacherId = course?.teacher_id ?? null;
+        } else {
+          // Teacher fallback: check if this user owns a course
+          const { data: course } = await supabase
+            .from("courses")
+            .select("teacher_id")
+            .eq("teacher_id", user.id)
+            .limit(1)
+            .maybeSingle();
+          teacherId = course?.teacher_id ?? null;
+        }
 
-        const { data: course } = await supabase
-          .from("courses")
-          .select("teacher_id")
-          .eq("id", enrollment.course_id)
-          .maybeSingle();
-
-        if (!course?.teacher_id) { setPlanLoading(false); return; }
+        if (!teacherId) { setPlanLoading(false); return; }
 
         const { data: fileData, error } = await supabase.storage
           .from("course-materials")
-          .download(`${course.teacher_id}/lesson-plan/published-plan.json`);
+          .download(`${teacherId}/lesson-plan/published-plan.json`);
 
         if (!error && fileData) {
           const text = await fileData.text();
