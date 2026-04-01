@@ -73,40 +73,27 @@ Deno.serve(async (req) => {
       // Self-healing: auto-confirm unverified students and retry
       if (msg === "Email not confirmed") {
         try {
-          // Use listUsers with filter instead of fetching all users
-          const { data: listData, error: listError } = await adminClient.auth.admin.listUsers({
-            page: 1,
-            perPage: 1,
-          });
-          // Find user by direct approach - get all matching via filter workaround
-          const allUsersRes = await fetch(`${supabaseUrl}/auth/v1/admin/users?page=1&per_page=1`, {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${serviceRoleKey}`,
-              apikey: serviceRoleKey,
-            },
-          });
-          // Alternative: search by email using GoTrue admin endpoint
-          const getUserRes = await fetch(`${supabaseUrl}/auth/v1/admin/users?page=1&per_page=50`, {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${serviceRoleKey}`,
-              apikey: serviceRoleKey,
-            },
-          });
-          let userId: string | null = null;
-          if (getUserRes.ok) {
-            const usersData = await getUserRes.json();
-            const users = usersData?.users || usersData;
-            if (Array.isArray(users)) {
-              const found = users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
-              if (found) userId = found.id;
+          // Look up user by email via GoTrue admin API
+          const lookupRes = await fetch(
+            `${supabaseUrl}/auth/v1/admin/users?page=1&per_page=1`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${serviceRoleKey}`,
+                apikey: serviceRoleKey,
+              },
             }
-          }
-          if (userId) {
-            await adminClient.auth.admin.updateUserById(userId, { email_confirm: true });
+          );
+
+          // Fallback: use admin client to find and confirm the user
+          const { data: { users }, error: listErr } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+          console.log("listUsers count:", users?.length, "error:", listErr?.message);
+          const foundUser = users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+          console.log("Found user:", foundUser?.id, foundUser?.email, "confirmed:", foundUser?.email_confirmed_at);
+
+          if (foundUser) {
+            const { error: updateErr } = await adminClient.auth.admin.updateUserById(foundUser.id, { email_confirm: true });
+            console.log("Update confirm result:", updateErr?.message ?? "success");
             // Retry sign-in
             const retryRes = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
               method: "POST",
