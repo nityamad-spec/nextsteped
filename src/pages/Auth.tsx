@@ -148,7 +148,14 @@ const Auth = () => {
         return;
       }
 
-      // Check the user's profile role
+      // Students signed in via edge function — role is known, skip extra queries
+      if (role === "student") {
+        toast.success("Welcome back!");
+        navigate("/student");
+        return;
+      }
+
+      // Non-student: verify profile role as before
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setLoading(false);
