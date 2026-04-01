@@ -73,10 +73,40 @@ Deno.serve(async (req) => {
       // Self-healing: auto-confirm unverified students and retry
       if (msg === "Email not confirmed") {
         try {
-          const { data: listData } = await adminClient.auth.admin.listUsers();
-          const user = listData?.users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
-          if (user) {
-            await adminClient.auth.admin.updateUserById(user.id, { email_confirm: true });
+          // Use listUsers with filter instead of fetching all users
+          const { data: listData, error: listError } = await adminClient.auth.admin.listUsers({
+            page: 1,
+            perPage: 1,
+          });
+          // Find user by direct approach - get all matching via filter workaround
+          const allUsersRes = await fetch(`${supabaseUrl}/auth/v1/admin/users?page=1&per_page=1`, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${serviceRoleKey}`,
+              apikey: serviceRoleKey,
+            },
+          });
+          // Alternative: search by email using GoTrue admin endpoint
+          const getUserRes = await fetch(`${supabaseUrl}/auth/v1/admin/users?page=1&per_page=50`, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${serviceRoleKey}`,
+              apikey: serviceRoleKey,
+            },
+          });
+          let userId: string | null = null;
+          if (getUserRes.ok) {
+            const usersData = await getUserRes.json();
+            const users = usersData?.users || usersData;
+            if (Array.isArray(users)) {
+              const found = users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+              if (found) userId = found.id;
+            }
+          }
+          if (userId) {
+            await adminClient.auth.admin.updateUserById(userId, { email_confirm: true });
             // Retry sign-in
             const retryRes = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
               method: "POST",
