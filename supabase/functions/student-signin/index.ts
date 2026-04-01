@@ -73,27 +73,14 @@ Deno.serve(async (req) => {
       // Self-healing: auto-confirm unverified students and retry
       if (msg === "Email not confirmed") {
         try {
-          // Look up user by email via GoTrue admin API
-          const lookupRes = await fetch(
-            `${supabaseUrl}/auth/v1/admin/users?page=1&per_page=1`,
-            {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${serviceRoleKey}`,
-                apikey: serviceRoleKey,
-              },
-            }
-          );
-
-          // Fallback: use admin client to find and confirm the user
           const { data: { users }, error: listErr } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
-          console.log("listUsers count:", users?.length, "error:", listErr?.message);
+          console.log("Self-heal: listUsers count:", users?.length, "error:", listErr?.message);
           const foundUser = users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
-          console.log("Found user:", foundUser?.id, foundUser?.email, "confirmed:", foundUser?.email_confirmed_at);
+          console.log("Self-heal: found user:", foundUser?.id, "confirmed:", foundUser?.email_confirmed_at);
 
           if (foundUser) {
             const { error: updateErr } = await adminClient.auth.admin.updateUserById(foundUser.id, { email_confirm: true });
-            console.log("Update confirm result:", updateErr?.message ?? "success");
+            console.log("Self-heal: confirm result:", updateErr?.message ?? "success");
             // Retry sign-in
             const retryRes = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
               method: "POST",
