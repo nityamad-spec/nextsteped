@@ -50,7 +50,7 @@ type DayPlan = {
 const typeLabels: Record<string, string> = {
   textbook: "Textbook / Reading", exercise: "Interactive Exercise", lab: "Lab / Hands-on",
   tool: "Tool / Software", "case-study": "Case Study", article: "Article / Industry",
-  news: "News / Current Events", video: "Video",
+  news: "News / Current Events", video: "Video", quiz: "Daily Quiz",
 };
 
 const typeIcons: Record<string, string> = {
