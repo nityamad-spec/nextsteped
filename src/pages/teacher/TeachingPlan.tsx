@@ -30,7 +30,7 @@ type Resource = {
   id: string;
   title: string;
   action: string;
-  type: "textbook" | "lab" | "case-study" | "exercise" | "article" | "news" | "tool" | "video";
+  type: "textbook" | "lab" | "case-study" | "exercise" | "article" | "news" | "tool" | "video" | "quiz";
   source?: string;
   accepted?: boolean | null;
   provenance?: "uploads" | "web" | "instructor";
