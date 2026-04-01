@@ -68,7 +68,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    // Safety timeout — stop blocking the UI after 3 seconds
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 3000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const signUp = async (email: string, password: string, name: string, role: string, enrollment_code?: string) => {
