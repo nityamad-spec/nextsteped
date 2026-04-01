@@ -20,7 +20,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 const typeLabels: Record<string, string> = {
   textbook: "Textbook", exercise: "Interactive Exercise", lab: "Interactive Exercise",
   tool: "Interactive Exercise", "case-study": "Case Study", article: "Article & Industry Context",
-  news: "Article & Industry Context", video: "Video",
+  news: "Article & Industry Context", video: "Video", quiz: "Daily Quiz",
 };
 
 const typeColors: Record<string, string> = {
@@ -28,6 +28,7 @@ const typeColors: Record<string, string> = {
   lab: "bg-primary/10 text-primary", tool: "bg-primary/10 text-primary",
   "case-study": "bg-accent/20 text-accent-foreground", article: "bg-muted text-muted-foreground",
   news: "bg-muted text-muted-foreground", video: "bg-destructive/10 text-destructive",
+  quiz: "bg-primary/10 text-primary",
 };
 
 const typeIcons: Record<string, typeof BookOpen> = {
