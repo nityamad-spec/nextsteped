@@ -1,32 +1,34 @@
 
 
-## Plan: Add "Daily Quiz" as a Resource Type in Teaching Plan
+## Root Cause: Silent Upload Failure in `savePlan`
 
-### Overview
-Add a new "Daily Quiz" resource type to the teacher's "Add Resource" options in the Teaching Plan. When published and viewed by students, clicking this resource redirects them to the daily quiz section in the TA chat.
+### Problem
+The `savePlan` function (line 146-162 in `TeachingPlan.tsx`) does not check the `error` returned by the Supabase storage `.upload()` call. The Supabase JS client returns `{ data, error }` — it does **not throw** on failure. So even if the upload fails (e.g., due to a storage policy issue or network error), the code falls through to the success toast: "Plan saved". The user sees success, but nothing was actually written.
 
-### Changes
+### Current Code (broken)
+```ts
+await supabase.storage
+  .from("course-materials")
+  .upload(`${user.id}/lesson-plan/published-plan.json`, file, { upsert: true });
+// ← error is never checked
+setHasChanges(false);
+toast({ title: "Plan saved" });  // always fires
+```
 
-**1. Update resource types — `src/pages/teacher/TeachingPlan.tsx`**
-- Add `"quiz"` to the `Resource` type union
-- Add a new entry in `resourceTypeOptions`: `{ value: "quiz", label: "Daily Quiz" }`
-- Add entries in `typeLabels`, `typeIcons`, and `typeColors` for the `quiz` type
-- When adding a quiz resource, auto-populate the title ("Daily Quiz — Day X") and action ("Test your understanding of today's concepts") based on the day number
+### Fix — `src/pages/teacher/TeachingPlan.tsx`
+Destructure the upload response and throw on error so the catch block handles it:
 
-**2. Update shared type — `src/data/workshopPlan.ts`**
-- Add `"quiz"` to the `WorkshopResource["type"]` union
+```ts
+const { error } = await supabase.storage
+  .from("course-materials")
+  .upload(`${user.id}/lesson-plan/published-plan.json`, file, { upsert: true });
+if (error) throw error;
+setHasChanges(false);
+toast({ title: "Plan saved", description: "Your lesson plan has been saved successfully." });
+```
 
-**3. Update student view — `src/pages/student/StudentHome.tsx`**
-- Add `quiz` to the `typeLabels`, `typeColors`, and `typeIcons` maps
-- When rendering a resource with `type === "quiz"`, make it clickable and navigate to `/student/chat?mode=quiz&day={dp.day}` (same as the existing daily quiz card)
-- Style it distinctly (primary border/background) to match the existing daily quiz card appearance
-
-### Behavior
-- Teacher side: In the "Add Resource" dropdown for any day, "Daily Quiz" appears as an option. Adding it creates a pre-filled resource card. The teacher can edit the title/description if needed.
-- Student side: The quiz resource renders as a clickable card that navigates to the daily quiz in the TA chat for that day. It respects the existing `taSettings.quizEnabled` gating — if quizzes are disabled, it shows a locked state instead.
+This is a one-line change: capture the `{ error }` and add an `if (error) throw error` check before showing success. The existing `catch` block already handles the error display.
 
 ### Files Modified
-- `src/data/workshopPlan.ts` — add `"quiz"` to type union
-- `src/pages/teacher/TeachingPlan.tsx` — add quiz to type maps and resource options, auto-fill defaults
-- `src/pages/student/StudentHome.tsx` — add quiz type rendering with navigation
+- `src/pages/teacher/TeachingPlan.tsx` — fix `savePlan` to check upload error response
 
