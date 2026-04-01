@@ -223,6 +223,34 @@ const StudentHome = () => {
                             dp.resources.map((r) => {
                               const Icon = typeIcons[r.type] || BookOpen;
                               const isDownloadable = r.type === "textbook" || r.type === "article";
+                              const isQuiz = r.type === "quiz";
+
+                              if (isQuiz) {
+                                return taSettings.quizEnabled ? (
+                                  <div
+                                    key={r.id}
+                                    className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 cursor-pointer hover:bg-primary/10 transition-colors"
+                                    onClick={() => navigate(`/student/chat?mode=quiz&day=${dp.day}`)}
+                                  >
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                      <ClipboardList className="h-4 w-4" />
+                                    </div>
+                                    <div className="flex-1">
+                                      <p className="text-sm font-medium">{r.title}</p>
+                                      <p className="text-xs text-muted-foreground">{r.action}</p>
+                                    </div>
+                                    <ArrowRight className="h-4 w-4 text-primary" />
+                                  </div>
+                                ) : (
+                                  <div key={r.id} className="flex items-center gap-3 rounded-lg border border-dashed p-3">
+                                    <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
+                                    <p className="text-xs text-muted-foreground">
+                                      <strong className="text-foreground">{r.title}</strong> — Not yet available. Your professor has not enabled quizzes.
+                                    </p>
+                                  </div>
+                                );
+                              }
+
                               return (
                                 <div key={r.id} className="flex items-start gap-3 rounded-lg border p-3">
                                   <div className="pt-0.5"><Icon className="h-4 w-4 text-muted-foreground" /></div>
