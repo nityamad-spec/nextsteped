@@ -1,72 +1,33 @@
 
 
-## Root Cause: Teacher Account Has No Enrollment Record
+## Fix: Daily Quiz Not Starting from Student Home Link
 
 ### Problem
-The `/student/home` page fetches the published lesson plan by first querying the `enrollments` table for the logged-in user's `student_id`. The current session is logged in as a **teacher** (confirmed by JWT in network trace: `akash.sinha@l4g.in`, role `teacher`). Teachers have no enrollment record, so the query at line 82-87 returns `null`, causing an early return at line 89. The plan state stays at its initial value: **all days locked**.
+When a student clicks "Daily Quiz" on `/student/home`, they navigate to `/student/chat?mode=quiz&day=1`. However, the auto-start logic on line 93 of `AIChat.tsx` checks `taSettings.quizDaysEnabled.includes(day)` before starting the quiz. If `quizDaysEnabled` is empty or doesn't include the day, the quiz silently fails to start, and the student lands on the chat page showing the "Start Exam" button instead.
 
-The network trace confirms the published JSON file has `locked: false` for Day 1 — the data in storage is correct. The issue is purely that a teacher account cannot reach the download step because it fails the enrollment lookup.
+### Solution
+Remove the `quizDaysEnabled` gate from the URL-triggered auto-start. If the student was sent here from the teaching plan with `mode=quiz`, the teacher has already unlocked that day — the quiz should start regardless. The `quizDaysEnabled` check should only gate the buttons shown inside the chat UI, not the URL-based entry point.
 
-### Who Is Affected
-- **Teachers viewing `/student/home`** — always see all days locked (no enrollment record)
-- **Actual students** — should work correctly since they have enrollment records. If students also report this, it would indicate a separate issue (e.g., enrollment missing)
+### Changes
 
-### Fix — `src/pages/student/StudentHome.tsx`
-Update the `fetchPublishedPlan` function to support both student and teacher users:
+**`src/pages/student/AIChat.tsx` (line 92-93)**
 
-1. First try the student path: look up enrollment by `student_id`
-2. If no enrollment found, try the teacher path: look up course by `teacher_id` (or via `course_teachers`)
-3. Use whichever `teacher_id` is resolved to download the published plan
-
-```text
-Current flow:
-  user → enrollments(student_id) → course → teacher_id → download
-
-Updated flow:
-  user → enrollments(student_id) → course → teacher_id → download
-       ↘ (fallback) courses(teacher_id) → use user.id → download
-```
-
-### Implementation Detail
-In the `fetchPublishedPlan` function, after the enrollment query returns null, add a fallback:
-
-```ts
-let teacherId: string | null = null;
-
-// Student path
-const { data: enrollment } = await supabase
-  .from("enrollments")
-  .select("course_id")
-  .eq("student_id", user.id)
-  .limit(1)
-  .maybeSingle();
-
-if (enrollment?.course_id) {
-  const { data: course } = await supabase
-    .from("courses")
-    .select("teacher_id")
-    .eq("id", enrollment.course_id)
-    .maybeSingle();
-  teacherId = course?.teacher_id ?? null;
-} else {
-  // Teacher fallback: check if this user owns or collaborates on a course
-  const { data: course } = await supabase
-    .from("courses")
-    .select("teacher_id")
-    .eq("teacher_id", user.id)
-    .limit(1)
-    .maybeSingle();
-  teacherId = course?.teacher_id ?? null;
+Before:
+```typescript
+if (urlMode === "quiz") {
+  if ((taSettings.quizDaysEnabled || []).includes(urlDay)) handleStartQuiz(urlDay);
 }
-
-if (!teacherId) { setPlanLoading(false); return; }
-
-// Download using resolved teacherId
-const { data: fileData, error } = await supabase.storage
-  .from("course-materials")
-  .download(`${teacherId}/lesson-plan/published-plan.json`);
 ```
+
+After:
+```typescript
+if (urlMode === "quiz") {
+  handleStartQuiz(urlDay);
+}
+```
+
+This ensures clicking "Daily Quiz" from student home always opens the quiz intro screen ("Daily Quiz — Day 1" with "Start Quiz" button) shown in the screenshot, rather than falling through to the exam prep view.
 
 ### Files Modified
-- `src/pages/student/StudentHome.tsx` — add teacher fallback in `fetchPublishedPlan`
+- `src/pages/student/AIChat.tsx` — remove `quizDaysEnabled` gate from URL-triggered quiz start
 
