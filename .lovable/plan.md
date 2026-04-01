@@ -1,50 +1,37 @@
 
 
-## Plan: Add Date, Branch Filters and Column Sorting to Assessment Analytics
+## Root Cause: RLS Blocks Admin Writes to `course_ta_settings`
 
-### Overview
-Enhance the `/teacher/assessment-analytics` page with additional filters (date range, student branch) and sortable table columns. All filters apply globally to summary cards, charts, and tables.
+### Problem
+The console logs confirm repeated `42501` errors: "new row violates row-level security policy for table course_ta_settings". This happens when saving exam settings from `/teacher/setup/exam-mode`.
 
-### Changes — Single file: `src/pages/teacher/AssessmentAnalytics.tsx`
+The `ExamMode` page uses `useTASettings(courseId)` → `saveTASettings()` which calls `supabase.from("course_ta_settings").upsert(...)`. 
 
-**1. New State Variables**
-- `dateFrom` / `dateTo` (string or null) for date range filtering
-- `branchFilter` (string, default "all") for branch filtering
-- `sortColumn` / `sortDirection` for both the Topic Performance and Recent Submissions tables
-- `branches` list fetched from the `branches` table
-- `studentBranches` map: student_id → branch_id, fetched by joining `enrollments` + `profiles` for the current course
+### Why It Fails
+The `course_ta_settings` table has two write policies:
+1. **"Teachers can manage own course TA settings"** — requires `courses.teacher_id = auth.uid()`
+2. **"Collaborators can edit TA settings"** — requires `is_course_member(course_id, auth.uid())`
 
-**2. Fetch Branch Data**
-- Query `branches` table for the dropdown options
-- Query enrolled student profiles: `profiles.id, profiles.branch_id` for students enrolled in the current course (via `enrollments`)
-- Build a `Map<student_id, branch_id>` to tag each result with a branch
+The `is_course_member()` function only checks `courses.teacher_id` and `course_teachers.teacher_id`. **Admin users are not covered.** If the logged-in user is an admin who didn't create the course, both policies fail → RLS blocks the upsert.
 
-**3. Filter Bar UI**
-- Reorganize the header area into a row of filters:
-  - Mode filter (existing Select)
-  - Date From / Date To (two `<input type="date" />` fields)
-  - Branch filter (Select dropdown populated from `branches` table)
-- Wrap in a responsive flex/grid layout
+### Fix
+Add an RLS policy allowing admins to manage `course_ta_settings`:
 
-**4. Apply Filters**
-- After the existing mode filter, additionally filter by:
-  - `created_at >= dateFrom` (if set)
-  - `created_at <= dateTo + end of day` (if set)
-  - `studentBranches.get(r.student_id) === branchFilter` (if not "all")
-- All downstream computations (summary cards, distribution chart, topic table, recent submissions) already use the `filtered` array, so they update automatically
+```sql
+CREATE POLICY "Admins can manage course TA settings"
+  ON public.course_ta_settings
+  FOR ALL
+  TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
+  ));
+```
 
-**5. Sortable Table Columns**
-- Add click handlers to `TableHead` cells in both Topic Performance and Recent Submissions tables
-- Clicking a column header toggles ascending/descending sort
-- Visual indicator (arrow icon) on the active sort column
-- Topic Performance: sortable by Topic, Correct, Incorrect, Total, Accuracy
-- Recent Submissions: sortable by Date, Score, Correct, Time
-
-### Technical Details
-- Date inputs use native HTML `<input type="date" />` (already available, no new dependencies)
-- Branch lookup uses two queries: `supabase.from("branches").select("id, name")` and `supabase.from("enrollments").select("student_id, profiles(branch_id)").eq("course_id", ...)` — the profiles join works via `student_id` referencing `profiles.id`
-- Sort state: `{ column: string; direction: 'asc' | 'desc' }` with a toggle helper
-- Sort icons: `ArrowUpDown`, `ArrowUp`, `ArrowDown` from lucide-react
-
-### No database changes required. Single file modification only.
+### Files Modified
+- **Database migration only** — one new RLS policy on `course_ta_settings`. No code changes needed.
 
