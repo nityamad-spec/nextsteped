@@ -1,34 +1,72 @@
 
 
-## Root Cause: Silent Upload Failure in `savePlan`
+## Root Cause: Teacher Account Has No Enrollment Record
 
 ### Problem
-The `savePlan` function (line 146-162 in `TeachingPlan.tsx`) does not check the `error` returned by the Supabase storage `.upload()` call. The Supabase JS client returns `{ data, error }` — it does **not throw** on failure. So even if the upload fails (e.g., due to a storage policy issue or network error), the code falls through to the success toast: "Plan saved". The user sees success, but nothing was actually written.
+The `/student/home` page fetches the published lesson plan by first querying the `enrollments` table for the logged-in user's `student_id`. The current session is logged in as a **teacher** (confirmed by JWT in network trace: `akash.sinha@l4g.in`, role `teacher`). Teachers have no enrollment record, so the query at line 82-87 returns `null`, causing an early return at line 89. The plan state stays at its initial value: **all days locked**.
 
-### Current Code (broken)
-```ts
-await supabase.storage
-  .from("course-materials")
-  .upload(`${user.id}/lesson-plan/published-plan.json`, file, { upsert: true });
-// ← error is never checked
-setHasChanges(false);
-toast({ title: "Plan saved" });  // always fires
+The network trace confirms the published JSON file has `locked: false` for Day 1 — the data in storage is correct. The issue is purely that a teacher account cannot reach the download step because it fails the enrollment lookup.
+
+### Who Is Affected
+- **Teachers viewing `/student/home`** — always see all days locked (no enrollment record)
+- **Actual students** — should work correctly since they have enrollment records. If students also report this, it would indicate a separate issue (e.g., enrollment missing)
+
+### Fix — `src/pages/student/StudentHome.tsx`
+Update the `fetchPublishedPlan` function to support both student and teacher users:
+
+1. First try the student path: look up enrollment by `student_id`
+2. If no enrollment found, try the teacher path: look up course by `teacher_id` (or via `course_teachers`)
+3. Use whichever `teacher_id` is resolved to download the published plan
+
+```text
+Current flow:
+  user → enrollments(student_id) → course → teacher_id → download
+
+Updated flow:
+  user → enrollments(student_id) → course → teacher_id → download
+       ↘ (fallback) courses(teacher_id) → use user.id → download
 ```
 
-### Fix — `src/pages/teacher/TeachingPlan.tsx`
-Destructure the upload response and throw on error so the catch block handles it:
+### Implementation Detail
+In the `fetchPublishedPlan` function, after the enrollment query returns null, add a fallback:
 
 ```ts
-const { error } = await supabase.storage
-  .from("course-materials")
-  .upload(`${user.id}/lesson-plan/published-plan.json`, file, { upsert: true });
-if (error) throw error;
-setHasChanges(false);
-toast({ title: "Plan saved", description: "Your lesson plan has been saved successfully." });
-```
+let teacherId: string | null = null;
 
-This is a one-line change: capture the `{ error }` and add an `if (error) throw error` check before showing success. The existing `catch` block already handles the error display.
+// Student path
+const { data: enrollment } = await supabase
+  .from("enrollments")
+  .select("course_id")
+  .eq("student_id", user.id)
+  .limit(1)
+  .maybeSingle();
+
+if (enrollment?.course_id) {
+  const { data: course } = await supabase
+    .from("courses")
+    .select("teacher_id")
+    .eq("id", enrollment.course_id)
+    .maybeSingle();
+  teacherId = course?.teacher_id ?? null;
+} else {
+  // Teacher fallback: check if this user owns or collaborates on a course
+  const { data: course } = await supabase
+    .from("courses")
+    .select("teacher_id")
+    .eq("teacher_id", user.id)
+    .limit(1)
+    .maybeSingle();
+  teacherId = course?.teacher_id ?? null;
+}
+
+if (!teacherId) { setPlanLoading(false); return; }
+
+// Download using resolved teacherId
+const { data: fileData, error } = await supabase.storage
+  .from("course-materials")
+  .download(`${teacherId}/lesson-plan/published-plan.json`);
+```
 
 ### Files Modified
-- `src/pages/teacher/TeachingPlan.tsx` — fix `savePlan` to check upload error response
+- `src/pages/student/StudentHome.tsx` — add teacher fallback in `fetchPublishedPlan`
 
