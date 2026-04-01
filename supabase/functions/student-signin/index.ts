@@ -73,10 +73,14 @@ Deno.serve(async (req) => {
       // Self-healing: auto-confirm unverified students and retry
       if (msg === "Email not confirmed") {
         try {
-          const { data: listData } = await adminClient.auth.admin.listUsers();
-          const user = listData?.users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
-          if (user) {
-            await adminClient.auth.admin.updateUserById(user.id, { email_confirm: true });
+          const { data: { users }, error: listErr } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+          console.log("Self-heal: listUsers count:", users?.length, "error:", listErr?.message);
+          const foundUser = users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+          console.log("Self-heal: found user:", foundUser?.id, "confirmed:", foundUser?.email_confirmed_at);
+
+          if (foundUser) {
+            const { error: updateErr } = await adminClient.auth.admin.updateUserById(foundUser.id, { email_confirm: true });
+            console.log("Self-heal: confirm result:", updateErr?.message ?? "success");
             // Retry sign-in
             const retryRes = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
               method: "POST",
