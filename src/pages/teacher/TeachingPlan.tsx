@@ -30,7 +30,7 @@ type Resource = {
   id: string;
   title: string;
   action: string;
-  type: "textbook" | "lab" | "case-study" | "exercise" | "article" | "news" | "tool" | "video";
+  type: "textbook" | "lab" | "case-study" | "exercise" | "article" | "news" | "tool" | "video" | "quiz";
   source?: string;
   accepted?: boolean | null;
   provenance?: "uploads" | "web" | "instructor";
@@ -50,12 +50,12 @@ type DayPlan = {
 const typeLabels: Record<string, string> = {
   textbook: "Textbook / Reading", exercise: "Interactive Exercise", lab: "Lab / Hands-on",
   tool: "Tool / Software", "case-study": "Case Study", article: "Article / Industry",
-  news: "News / Current Events", video: "Video",
+  news: "News / Current Events", video: "Video", quiz: "Daily Quiz",
 };
 
 const typeIcons: Record<string, string> = {
   textbook: "📖", exercise: "🏋️", lab: "🧪", tool: "🔧",
-  "case-study": "📋", article: "📰", news: "📰", video: "🎬",
+  "case-study": "📋", article: "📰", news: "📰", video: "🎬", quiz: "📝",
 };
 
 const typeColors: Record<string, string> = {
@@ -67,6 +67,7 @@ const typeColors: Record<string, string> = {
   article: "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-950/30 dark:text-slate-300 dark:border-slate-800",
   news: "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-950/30 dark:text-slate-300 dark:border-slate-800",
   video: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800",
+  quiz: "bg-primary/10 text-primary border-primary/20",
 };
 
 const provenanceLabels: Record<string, { label: string; className: string }> = {
@@ -83,6 +84,7 @@ const resourceTypeOptions: { value: Resource["type"]; label: string }[] = [
   { value: "article", label: "Article / Industry Context" },
   { value: "video", label: "Video" },
   { value: "tool", label: "Tool / Software" },
+  { value: "quiz", label: "Daily Quiz" },
 ];
 
 const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -222,9 +224,21 @@ const TeachingPlan = () => {
   };
 
   const handleAddResource = (dayId: string) => {
-    const newResource: Resource = { id: makeId(), title: "", action: "", type: newResourceType, accepted: true, provenance: "instructor" };
+    const day = days.find(d => d.id === dayId);
+    const dayNumber = day?.day || 1;
+    const isQuiz = newResourceType === "quiz";
+    const newResource: Resource = {
+      id: makeId(),
+      title: isQuiz ? `Daily Quiz — Day ${dayNumber}` : "",
+      action: isQuiz ? "Test your understanding of today's concepts" : "",
+      type: newResourceType,
+      accepted: true,
+      provenance: "instructor",
+    };
     setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: [...d.resources, newResource] } : d));
-    setEditingResourceId(newResource.id); setEditResourceTitle(""); setEditResourceAction(""); setEditResourceType(newResourceType);
+    if (!isQuiz) {
+      setEditingResourceId(newResource.id); setEditResourceTitle(""); setEditResourceAction(""); setEditResourceType(newResourceType);
+    }
     setAddingResourceDayId(null); markChanged();
   };
 
