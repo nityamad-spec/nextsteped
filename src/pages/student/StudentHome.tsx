@@ -34,7 +34,7 @@ const typeColors: Record<string, string> = {
 const typeIcons: Record<string, typeof BookOpen> = {
   textbook: BookOpen, exercise: FlaskConical, lab: FlaskConical, tool: FlaskConical,
   "case-study": LibraryBig, article: Newspaper, news: Newspaper, video: BookOpen,
-  quiz: ClipboardList,
+  quiz: ClipboardList, exam: GraduationCap,
 };
 
 const currentDay = 1;
