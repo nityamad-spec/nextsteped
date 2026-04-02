@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,7 @@ interface Concept {
 const ConceptManagement = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const courseId = localStorage.getItem("currentCourseId") || "";
+  const courseId = useTeacherCourseId() || "";
 
   const [concepts, setConcepts] = useState<Concept[]>([]);
   const [loading, setLoading] = useState(true);

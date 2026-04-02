@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,7 @@ export default function CourseCollaborators() {
   const [removeTarget, setRemoveTarget] = useState<Collaborator | null>(null);
   const [removing, setRemoving] = useState(false);
 
-  const courseId = localStorage.getItem("currentCourseId");
+  const courseId = useTeacherCourseId();
 
   const fetchCollaborators = async () => {
     if (!courseId || !user) return;

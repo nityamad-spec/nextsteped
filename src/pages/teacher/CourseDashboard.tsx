@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { mockDashboard, mockTopics } from "@/data/mockData";
 import { useApp } from "@/contexts/AppContext";
+import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { useTASettings } from "@/hooks/useTASettings";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -61,7 +62,7 @@ const CourseDashboard = () => {
   const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
   const { currentCourse } = useApp();
-  const courseId = localStorage.getItem("currentCourseId");
+  const courseId = useTeacherCourseId();
   const { taSettings, saveTASettings } = useTASettings(courseId);
   const courseSections = currentCourse?.sections || [];
   const [selectedSection, setSelectedSection] = useState<string>("all");

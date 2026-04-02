@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, Reorder } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -92,7 +93,7 @@ const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 const TeachingPlan = () => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const courseId = localStorage.getItem("currentCourseId");
+  const courseId = useTeacherCourseId();
 
   const [days, setDays] = useState<DayPlan[]>([]);
   const [loading, setLoading] = useState(true);

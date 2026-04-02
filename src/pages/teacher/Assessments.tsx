@@ -3,7 +3,7 @@ import { useTASettings } from "@/hooks/useTASettings";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useApp } from "@/contexts/AppContext";
+import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ import { Plus, ClipboardCheck, Pencil, Trash2, Filter, Shield, BookOpen, Clock, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Course } from "@/types";
+
 
 type QuestionType = "MCQ" | "Short Answer" | "Code Practice";
 type QuestionMode = "learning" | "exam" | "daily_quiz";
@@ -36,22 +36,8 @@ interface EditableQuestion {
 }
 
 const Assessments = () => {
-  const { currentCourse, setCurrentCourse } = useApp();
   const { user } = useAuth();
-  const courseId = currentCourse?.id || localStorage.getItem("currentCourseId");
-
-  // Auto-recover course if context is empty
-  useEffect(() => {
-    if (currentCourse || !user) return;
-    (async () => {
-      let { data } = await supabase.from("courses").select("id, name, course_code").eq("teacher_id", user.id).limit(1).maybeSingle();
-      if (!data) {
-        const { data: m } = await supabase.from("course_teachers").select("course_id").eq("teacher_id", user.id).limit(1).maybeSingle();
-        if (m?.course_id) ({ data } = await supabase.from("courses").select("id, name, course_code").eq("id", m.course_id).maybeSingle());
-      }
-      if (data) setCurrentCourse({ id: data.id, name: data.name } as Course);
-    })();
-  }, [currentCourse, user, setCurrentCourse]);
+  const courseId = useTeacherCourseId();
 
   const { taSettings, loading: taLoading, saveTASettings } = useTASettings(courseId);
   const [questions, setQuestions] = useState<EditableQuestion[]>([]);

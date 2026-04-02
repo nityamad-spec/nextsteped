@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTASettings } from "@/hooks/useTASettings";
+import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { defaultStudyPrompt, defaultExamPrompt } from "@/data/mockData";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,7 +12,7 @@ import { ArrowRight, ArrowLeft, MessageSquare, BookOpen, Brain, Info } from "luc
 import SetupProgressBar from "@/components/SetupProgressBar";
 
 const AITASettings = () => {
-  const courseId = localStorage.getItem("currentCourseId");
+  const courseId = useTeacherCourseId();
   const { taSettings, loading, saveTASettings } = useTASettings(courseId);
   const navigate = useNavigate();
   const [customStudyPrompt, setCustomStudyPrompt] = useState("");
