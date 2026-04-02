@@ -231,16 +231,18 @@ const TeachingPlan = () => {
     const day = days.find(d => d.id === dayId);
     const dayNumber = day?.day || 1;
     const isQuiz = newResourceType === "quiz";
+    const isExam = newResourceType === "exam";
+    const isAutoFill = isQuiz || isExam;
     const newResource: Resource = {
       id: makeId(),
-      title: isQuiz ? `Daily Quiz — Day ${dayNumber}` : "",
-      action: isQuiz ? "Test your understanding of today's concepts" : "",
+      title: isQuiz ? `Daily Quiz — Day ${dayNumber}` : isExam ? "Final Exam Simulation" : "",
+      action: isQuiz ? "Test your understanding of today's concepts" : isExam ? "Take the full course exam" : "",
       type: newResourceType,
       accepted: true,
       provenance: "instructor",
     };
     setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: [...d.resources, newResource] } : d));
-    if (!isQuiz) {
+    if (!isAutoFill) {
       setEditingResourceId(newResource.id); setEditResourceTitle(""); setEditResourceAction(""); setEditResourceType(newResourceType);
     }
     setAddingResourceDayId(null); markChanged();
