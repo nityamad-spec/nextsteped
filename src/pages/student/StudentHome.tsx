@@ -28,7 +28,7 @@ const typeColors: Record<string, string> = {
   lab: "bg-primary/10 text-primary", tool: "bg-primary/10 text-primary",
   "case-study": "bg-accent/20 text-accent-foreground", article: "bg-muted text-muted-foreground",
   news: "bg-muted text-muted-foreground", video: "bg-destructive/10 text-destructive",
-  quiz: "bg-primary/10 text-primary",
+  quiz: "bg-primary/10 text-primary", exam: "bg-destructive/10 text-destructive",
 };
 
 const typeIcons: Record<string, typeof BookOpen> = {
