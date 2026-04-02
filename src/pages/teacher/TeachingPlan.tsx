@@ -125,7 +125,7 @@ const TeachingPlan = () => {
       try {
         const { data } = await supabase.storage
           .from("course-materials")
-          .download(`${user.id}/lesson-plan/published-plan.json`);
+          .download(`${user.id}/lesson-plan/published-plan.json?t=${Date.now()}`);
         if (data) {
           const parsed = JSON.parse(await data.text());
           if (Array.isArray(parsed) && parsed.length > 0) {
