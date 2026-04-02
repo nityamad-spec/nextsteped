@@ -31,7 +31,7 @@ type Resource = {
   id: string;
   title: string;
   action: string;
-  type: "textbook" | "lab" | "case-study" | "exercise" | "article" | "news" | "tool" | "video" | "quiz";
+  type: "textbook" | "lab" | "case-study" | "exercise" | "article" | "news" | "tool" | "video" | "quiz" | "exam";
   source?: string;
   accepted?: boolean | null;
   provenance?: "uploads" | "web" | "instructor";
