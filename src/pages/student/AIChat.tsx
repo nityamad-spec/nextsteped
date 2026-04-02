@@ -45,7 +45,7 @@ const AIChat = () => {
   const lastSendTime = useRef<number>(0);
 
   // Course context for relevance classification
-  const [courseContext, setCourseContext] = useState<{ courseName: string; objectives: string[]; concepts: string[] } | null>(null);
+  const [courseContext, setCourseContext] = useState<{ courseName: string; objectives: string[]; concepts: string[]; teacherId: string } | null>(null);
 
   // Assessment state
   const [assessmentActive, setAssessmentActive] = useState(false);
@@ -66,12 +66,12 @@ const AIChat = () => {
     updateSessionTitle,
   } = useChatSessions(mode);
 
-  // Fetch course context for relevance classification
+  // Fetch course context for relevance classification + RAG metadata
   useEffect(() => {
     if (!enrolledCourseId) return;
     const fetchContext = async () => {
       const [courseRes, conceptsRes] = await Promise.all([
-        supabase.from("courses").select("name, objectives").eq("id", enrolledCourseId).maybeSingle(),
+        supabase.from("courses").select("name, objectives, teacher_id").eq("id", enrolledCourseId).maybeSingle(),
         supabase.from("concepts").select("concept_code").eq("course_id", enrolledCourseId),
       ]);
       if (courseRes.data) {
@@ -79,6 +79,7 @@ const AIChat = () => {
           courseName: courseRes.data.name,
           objectives: (courseRes.data.objectives as string[]) || [],
           concepts: (conceptsRes.data || []).map((c: any) => c.concept_code),
+          teacherId: courseRes.data.teacher_id,
         });
       }
     };
@@ -358,6 +359,9 @@ const AIChat = () => {
           studySystemPrompt: taSettings.studySystemPrompt,
           examSystemPrompt: taSettings.examSystemPrompt,
           ...(relevanceContext ? { relevanceContext } : {}),
+          courseId: enrolledCourseId || undefined,
+          teacherId: courseContext?.teacherId || undefined,
+          studentId: user?.id || undefined,
         }),
       });
 
