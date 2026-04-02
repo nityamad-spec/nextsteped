@@ -154,7 +154,7 @@ const TeachingPlan = () => {
       const file = new File([blob], "published-plan.json", { type: "application/json" });
       const { error } = await supabase.storage
         .from("course-materials")
-        .upload(`${user.id}/lesson-plan/published-plan.json`, file, { upsert: true });
+        .upload(`${user.id}/lesson-plan/published-plan.json`, file, { upsert: true, cacheControl: "0" });
       if (error) throw error;
       setHasChanges(false);
       toast({ title: "Plan saved", description: "Your lesson plan has been saved successfully." });
