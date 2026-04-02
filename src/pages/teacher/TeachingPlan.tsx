@@ -69,6 +69,7 @@ const typeColors: Record<string, string> = {
   news: "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-950/30 dark:text-slate-300 dark:border-slate-800",
   video: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800",
   quiz: "bg-primary/10 text-primary border-primary/20",
+  exam: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800",
 };
 
 const provenanceLabels: Record<string, { label: string; className: string }> = {
