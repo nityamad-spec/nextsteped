@@ -11,7 +11,7 @@ import { ArrowRight, ArrowLeft, MessageSquare, BookOpen, Brain, Info } from "luc
 import SetupProgressBar from "@/components/SetupProgressBar";
 
 const AITASettings = () => {
-  const courseId = localStorage.getItem("currentCourseId");
+  const courseId = useTeacherCourseId();
   const { taSettings, loading, saveTASettings } = useTASettings(courseId);
   const navigate = useNavigate();
   const [customStudyPrompt, setCustomStudyPrompt] = useState("");

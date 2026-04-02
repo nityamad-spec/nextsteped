@@ -37,7 +37,7 @@ const questionEstimate = (length: number, mix: string, difficulty: string) => {
 };
 
 const ExamMode = () => {
-  const courseId = localStorage.getItem("currentCourseId");
+  const courseId = useTeacherCourseId();
   const { taSettings, loading, saveTASettings } = useTASettings(courseId);
   const navigate = useNavigate();
   const [settings, setSettings] = useState(taSettings);

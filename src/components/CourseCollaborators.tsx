@@ -29,7 +29,7 @@ export default function CourseCollaborators() {
   const [removeTarget, setRemoveTarget] = useState<Collaborator | null>(null);
   const [removing, setRemoving] = useState(false);
 
-  const courseId = localStorage.getItem("currentCourseId");
+  const courseId = useTeacherCourseId();
 
   const fetchCollaborators = async () => {
     if (!courseId || !user) return;

@@ -197,7 +197,7 @@ const DiagnosticQuestionsSetup = () => {
   const [approveAllConfirm, setApproveAllConfirm] = useState(false);
   const [metadataOpen, setMetadataOpen] = useState(false);
 
-  const courseId = localStorage.getItem("currentCourseId");
+  const courseId = useTeacherCourseId();
 
   // Fetch questions from DB on mount
   useEffect(() => {

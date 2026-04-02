@@ -61,7 +61,7 @@ const CourseDashboard = () => {
   const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
   const { currentCourse } = useApp();
-  const courseId = localStorage.getItem("currentCourseId");
+  const courseId = useTeacherCourseId();
   const { taSettings, saveTASettings } = useTASettings(courseId);
   const courseSections = currentCourse?.sections || [];
   const [selectedSection, setSelectedSection] = useState<string>("all");

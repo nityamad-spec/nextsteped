@@ -36,22 +36,8 @@ interface EditableQuestion {
 }
 
 const Assessments = () => {
-  const { currentCourse, setCurrentCourse } = useApp();
   const { user } = useAuth();
-  const courseId = currentCourse?.id || localStorage.getItem("currentCourseId");
-
-  // Auto-recover course if context is empty
-  useEffect(() => {
-    if (currentCourse || !user) return;
-    (async () => {
-      let { data } = await supabase.from("courses").select("id, name, course_code").eq("teacher_id", user.id).limit(1).maybeSingle();
-      if (!data) {
-        const { data: m } = await supabase.from("course_teachers").select("course_id").eq("teacher_id", user.id).limit(1).maybeSingle();
-        if (m?.course_id) ({ data } = await supabase.from("courses").select("id, name, course_code").eq("id", m.course_id).maybeSingle());
-      }
-      if (data) setCurrentCourse({ id: data.id, name: data.name } as Course);
-    })();
-  }, [currentCourse, user, setCurrentCourse]);
+  const courseId = useTeacherCourseId();
 
   const { taSettings, loading: taLoading, saveTASettings } = useTASettings(courseId);
   const [questions, setQuestions] = useState<EditableQuestion[]>([]);

@@ -26,7 +26,7 @@ const SettingsIntegrity = () => {
 
   useEffect(() => {
     const fetchCode = async () => {
-      const courseId = currentCourse?.id || localStorage.getItem("currentCourseId");
+      const courseId = currentCourse?.id;
       if (courseId) {
         const { data } = await supabase
           .from("courses")

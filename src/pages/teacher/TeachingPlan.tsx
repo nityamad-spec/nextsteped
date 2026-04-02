@@ -92,7 +92,7 @@ const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 const TeachingPlan = () => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const courseId = localStorage.getItem("currentCourseId");
+  const courseId = useTeacherCourseId();
 
   const [days, setDays] = useState<DayPlan[]>([]);
   const [loading, setLoading] = useState(true);
