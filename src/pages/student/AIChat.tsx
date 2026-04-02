@@ -359,6 +359,9 @@ const AIChat = () => {
           studySystemPrompt: taSettings.studySystemPrompt,
           examSystemPrompt: taSettings.examSystemPrompt,
           ...(relevanceContext ? { relevanceContext } : {}),
+          courseId: enrolledCourseId || undefined,
+          teacherId: courseContext?.teacherId || undefined,
+          studentId: user?.id || undefined,
         }),
       });
 
