@@ -1,67 +1,36 @@
 
 
-## Fix: Auto-Load Teacher's Course on Assessment Analytics
+## Fix: Daily Quiz Questions Not Displaying on Assessments Page
 
-### Problem
-When `currentCourse` is `null` in the app context (e.g., after localStorage clears or direct navigation), the Assessment Analytics page shows "No course selected" instead of loading the teacher's course.
+### Root Cause
+
+`Assessments.tsx` reads the course ID from `localStorage.getItem("currentCourseId")` (line 37), but when the course is loaded via the auto-recovery logic in `AppContext` (persisted under key `ns_current_course`), the `currentCourseId` localStorage key is never set. This means `courseId` is `null`, so the query `supabase.from("assessment_questions").eq("course_id", null)` returns zero rows — even though 10 questions exist for Day 1.
+
+The database confirms 10 daily quiz questions exist for course `cc551ce8-...` with `quiz_day = 1`.
 
 ### Solution
-Add an auto-recovery effect in `AssessmentAnalytics.tsx` that fetches the teacher's course from the database when `currentCourse` is null, and sets it in the app context. This mirrors the pattern used in `TeacherOnboarding.tsx`.
+
+Replace the raw `localStorage.getItem("currentCourseId")` with `useApp().currentCourse?.id`, falling back to localStorage for backward compatibility. Add the same auto-recovery `useEffect` pattern used in other pages.
 
 ### Changes
 
-**`src/pages/teacher/AssessmentAnalytics.tsx`**
+**`src/pages/teacher/Assessments.tsx`**
 
-Add a `useEffect` at the top of the component that runs when `currentCourse` is null:
+1. Import `useApp` from `@/contexts/AppContext`
+2. Replace line 37:
+   ```typescript
+   // Before
+   const courseId = localStorage.getItem("currentCourseId");
+   
+   // After
+   const { currentCourse, setCurrentCourse } = useApp();
+   const courseId = currentCourse?.id || localStorage.getItem("currentCourseId");
+   ```
+3. Add auto-recovery `useEffect` (same pattern as AssessmentAnalytics) — if `currentCourse` is null, fetch the teacher's course from DB and set it in context + localStorage
+4. Add `courseId` as a dependency check so the question fetch re-runs once the course is recovered
 
-1. Import `useAuth` and `setCurrentCourse` from contexts
-2. Query `courses` table for the teacher's course (`teacher_id = user.id`), falling back to `course_teachers` membership
-3. Call `setCurrentCourse()` with the fetched course data
-
-```typescript
-const { currentCourse, setCurrentCourse } = useApp();
-const { user } = useAuth();
-
-useEffect(() => {
-  if (currentCourse || !user) return;
-  
-  const recover = async () => {
-    // Try owned course first
-    let { data } = await supabase
-      .from("courses")
-      .select("id, name, course_code")
-      .eq("teacher_id", user.id)
-      .limit(1)
-      .maybeSingle();
-    
-    // Fallback: collaborator membership
-    if (!data) {
-      const { data: membership } = await supabase
-        .from("course_teachers")
-        .select("course_id")
-        .eq("teacher_id", user.id)
-        .limit(1)
-        .maybeSingle();
-      if (membership?.course_id) {
-        const res = await supabase
-          .from("courses")
-          .select("id, name, course_code")
-          .eq("id", membership.course_id)
-          .maybeSingle();
-        data = res.data;
-      }
-    }
-    
-    if (data) {
-      setCurrentCourse({ id: data.id, name: data.name } as Course);
-    }
-  };
-  recover();
-}, [currentCourse, user]);
-```
-
-This ensures the PWIM course (or whichever course the teacher owns) loads automatically instead of showing "No course selected."
+This single change ensures the 10 Day 1 questions are loaded and displayed correctly.
 
 ### Files Modified
-- `src/pages/teacher/AssessmentAnalytics.tsx` — add course auto-recovery when `currentCourse` is null
+- `src/pages/teacher/Assessments.tsx` — use `currentCourse?.id` from AppContext with localStorage fallback and auto-recovery
 
