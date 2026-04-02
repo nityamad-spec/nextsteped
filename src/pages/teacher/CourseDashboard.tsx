@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { mockDashboard, mockTopics } from "@/data/mockData";
 import { useApp } from "@/contexts/AppContext";
+import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { useTASettings } from "@/hooks/useTASettings";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

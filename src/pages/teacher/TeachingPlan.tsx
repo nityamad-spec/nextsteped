@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, Reorder } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
