@@ -24,6 +24,7 @@ import SetupProgressBar from "@/components/SetupProgressBar";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 
 type QuestionType = "mcq" | "true_false" | "short_answer" | "code";
 
