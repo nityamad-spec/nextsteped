@@ -60,7 +60,8 @@ const SortIcon = ({ active, direction }: { active: boolean; direction?: SortDir 
 };
 
 const AssessmentAnalytics = () => {
-  const { currentCourse } = useApp();
+  const { currentCourse, setCurrentCourse } = useApp();
+  const { user } = useAuth();
   const [assessmentResults, setAssessmentResults] = useState<AssessmentResult[]>([]);
   const [diagnosticResults, setDiagnosticResults] = useState<AssessmentResult[]>([]);
   const [loading, setLoading] = useState(true);
