@@ -236,6 +236,33 @@ const StudentHome = () => {
                               const Icon = typeIcons[r.type] || BookOpen;
                               const isDownloadable = r.type === "textbook" || r.type === "article";
                               const isQuiz = r.type === "quiz";
+                              const isExam = r.type === "exam";
+
+                              if (isExam) {
+                                return taSettings.examEnabled ? (
+                                  <div
+                                    key={r.id}
+                                    className="flex items-center gap-3 rounded-lg border border-accent/30 bg-accent/5 p-3 cursor-pointer hover:bg-accent/10 transition-colors"
+                                    onClick={() => navigate("/student/chat?mode=exam")}
+                                  >
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent-foreground">
+                                      <GraduationCap className="h-4 w-4" />
+                                    </div>
+                                    <div className="flex-1">
+                                      <p className="text-sm font-medium">{r.title}</p>
+                                      <p className="text-xs text-muted-foreground">{r.action}</p>
+                                    </div>
+                                    <ArrowRight className="h-4 w-4 text-accent-foreground" />
+                                  </div>
+                                ) : (
+                                  <div key={r.id} className="flex items-center gap-3 rounded-lg border border-dashed p-3">
+                                    <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
+                                    <p className="text-xs text-muted-foreground">
+                                      <strong className="text-foreground">{r.title}</strong> — Not yet available. Your professor has not enabled the exam.
+                                    </p>
+                                  </div>
+                                );
+                              }
 
                               if (isQuiz) {
                                 return taSettings.quizEnabled ? (
