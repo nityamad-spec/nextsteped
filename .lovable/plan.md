@@ -1,36 +1,73 @@
+## Fix: Replace Raw localStorage Course ID Reads with AppContext
 
+### Problem
 
-## Fix: Daily Quiz Questions Not Displaying on Assessments Page
+9 teacher-side files read `localStorage.getItem("currentCourseId")` directly instead of using `currentCourse?.id` from `AppContext`. When localStorage is stale, cleared, or out of sync with the DB, these pages silently operate with a `null` course ID — causing empty data, failed queries, and "no data" states despite data existing in the database.
 
-### Root Cause
+This is the same root cause already fixed in `Assessments.tsx` and `AssessmentAnalytics.tsx`.
 
-`Assessments.tsx` reads the course ID from `localStorage.getItem("currentCourseId")` (line 37), but when the course is loaded via the auto-recovery logic in `AppContext` (persisted under key `ns_current_course`), the `currentCourseId` localStorage key is never set. This means `courseId` is `null`, so the query `supabase.from("assessment_questions").eq("course_id", null)` returns zero rows — even though 10 questions exist for Day 1.
+### Affected Files
 
-The database confirms 10 daily quiz questions exist for course `cc551ce8-...` with `quiz_day = 1`.
+| File | Current pattern |
+|---|---|
+| `CourseDashboard.tsx` | `localStorage.getItem("currentCourseId")` on line 64 |
+| `TeachingPlan.tsx` | `localStorage.getItem("currentCourseId")` on line 95 |
+| `AITASettings.tsx` | `localStorage.getItem("currentCourseId")` on line 14 |
+| `ExamMode.tsx` | `localStorage.getItem("currentCourseId")` on line 40 |
+| `ConceptManagement.tsx` | `localStorage.getItem("currentCourseId")` on line 25 |
+| `DiagnosticQuestionsSetup.tsx` | `localStorage.getItem("currentCourseId")` on line 200 |
+| `CourseCollaborators.tsx` | `localStorage.getItem("currentCourseId")` on line 32 |
+| `SettingsIntegrity.tsx` | Already has fallback but missing auto-recovery |
+| `PublishEnrollment.tsx` | Already has fallback but missing auto-recovery |
+
+`MaterialQualityCheck.tsx` and `CourseCreation.tsx` use `location.state?.courseId` as primary (setup flow), so localStorage fallback is acceptable there.
 
 ### Solution
 
-Replace the raw `localStorage.getItem("currentCourseId")` with `useApp().currentCourse?.id`, falling back to localStorage for backward compatibility. Add the same auto-recovery `useEffect` pattern used in other pages.
+**1. Create a shared hook: `src/hooks/useTeacherCourseId.ts`**
 
-### Changes
+Extract the auto-recovery pattern (currently duplicated in Assessments and AssessmentAnalytics) into a single reusable hook:
 
-**`src/pages/teacher/Assessments.tsx`**
+```typescript
+export function useTeacherCourseId(): string | null {
+  const { currentCourse, setCurrentCourse } = useApp();
+  const { user } = useAuth();
 
-1. Import `useApp` from `@/contexts/AppContext`
-2. Replace line 37:
-   ```typescript
-   // Before
-   const courseId = localStorage.getItem("currentCourseId");
-   
-   // After
-   const { currentCourse, setCurrentCourse } = useApp();
-   const courseId = currentCourse?.id || localStorage.getItem("currentCourseId");
-   ```
-3. Add auto-recovery `useEffect` (same pattern as AssessmentAnalytics) — if `currentCourse` is null, fetch the teacher's course from DB and set it in context + localStorage
-4. Add `courseId` as a dependency check so the question fetch re-runs once the course is recovered
+  useEffect(() => {
+    if (currentCourse || !user) return;
+    // Fetch from courses table (owner) then course_teachers (collaborator)
+    // Call setCurrentCourse on success
+  }, [currentCourse, user]);
 
-This single change ensures the 10 Day 1 questions are loaded and displayed correctly.
+  return currentCourse?.id || localStorage.getItem("currentCourseId");
+}
+```
+
+**2. Replace raw localStorage reads in all 9 files**
+
+Each file changes from:
+```typescript
+const courseId = localStorage.getItem("currentCourseId");
+```
+To:
+```typescript
+const courseId = useTeacherCourseId();
+```
+
+**3. Also sync `currentCourseId` localStorage key when AppContext sets `currentCourse`**
+
+In `TeacherOnboarding.tsx`, the `localStorage.setItem("currentCourseId", ...)` call already exists. Add the same sync in the auto-recovery hook so that once recovered, the localStorage key stays consistent for any remaining direct reads.
 
 ### Files Modified
-- `src/pages/teacher/Assessments.tsx` — use `currentCourse?.id` from AppContext with localStorage fallback and auto-recovery
-
+- `src/hooks/useTeacherCourseId.ts` — new shared hook (extract from Assessments/AssessmentAnalytics)
+- `src/pages/teacher/CourseDashboard.tsx` — use hook
+- `src/pages/teacher/TeachingPlan.tsx` — use hook
+- `src/pages/teacher/AITASettings.tsx` — use hook
+- `src/pages/teacher/ExamMode.tsx` — use hook
+- `src/pages/teacher/ConceptManagement.tsx` — use hook
+- `src/pages/teacher/DiagnosticQuestionsSetup.tsx` — use hook
+- `src/components/CourseCollaborators.tsx` — use hook
+- `src/pages/teacher/SettingsIntegrity.tsx` — use hook
+- `src/pages/teacher/PublishEnrollment.tsx` — use hook
+- `src/pages/teacher/AssessmentAnalytics.tsx` — replace inline recovery with hook
+- `src/pages/teacher/Assessments.tsx` — replace inline recovery with hook
