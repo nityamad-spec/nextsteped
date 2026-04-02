@@ -1,3 +1,5 @@
+
+
 ## Fix: Replace Raw localStorage Course ID Reads with AppContext
 
 ### Problem
@@ -36,7 +38,7 @@ export function useTeacherCourseId(): string | null {
   useEffect(() => {
     if (currentCourse || !user) return;
     // Fetch from courses table (owner) then course_teachers (collaborator)
-    // Call setCurrentCourse on success
+    // Call setCurrentCourse + sync localStorage on success
   }, [currentCourse, user]);
 
   return currentCourse?.id || localStorage.getItem("currentCourseId");
@@ -54,12 +56,12 @@ To:
 const courseId = useTeacherCourseId();
 ```
 
-**3. Also sync `currentCourseId` localStorage key when AppContext sets `currentCourse`**
+**3. Sync localStorage when course is recovered**
 
-In `TeacherOnboarding.tsx`, the `localStorage.setItem("currentCourseId", ...)` call already exists. Add the same sync in the auto-recovery hook so that once recovered, the localStorage key stays consistent for any remaining direct reads.
+The hook also writes `localStorage.setItem("currentCourseId", ...)` on recovery, keeping backward compatibility for any remaining direct reads.
 
 ### Files Modified
-- `src/hooks/useTeacherCourseId.ts` — new shared hook (extract from Assessments/AssessmentAnalytics)
+- `src/hooks/useTeacherCourseId.ts` — new shared hook
 - `src/pages/teacher/CourseDashboard.tsx` — use hook
 - `src/pages/teacher/TeachingPlan.tsx` — use hook
 - `src/pages/teacher/AITASettings.tsx` — use hook
@@ -71,3 +73,4 @@ In `TeacherOnboarding.tsx`, the `localStorage.setItem("currentCourseId", ...)` c
 - `src/pages/teacher/PublishEnrollment.tsx` — use hook
 - `src/pages/teacher/AssessmentAnalytics.tsx` — replace inline recovery with hook
 - `src/pages/teacher/Assessments.tsx` — replace inline recovery with hook
+
