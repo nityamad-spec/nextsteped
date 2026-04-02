@@ -109,7 +109,7 @@ const StudentHome = () => {
 
         const { data: fileData, error } = await supabase.storage
           .from("course-materials")
-          .download(`${teacherId}/lesson-plan/published-plan.json`);
+          .download(`${teacherId}/lesson-plan/published-plan.json?t=${Date.now()}`);
 
         if (!dead && !error && fileData) {
           const text = await fileData.text();

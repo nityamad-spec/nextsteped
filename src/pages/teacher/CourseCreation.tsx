@@ -398,7 +398,7 @@ const CourseCreation = () => {
         const file = new File([blob], "published-plan.json", { type: "application/json" });
         await supabase.storage
           .from("course-materials")
-          .upload(`${user.id}/lesson-plan/published-plan.json`, file, { upsert: true });
+          .upload(`${user.id}/lesson-plan/published-plan.json`, file, { upsert: true, cacheControl: "0" });
       } catch (err) {
         console.error("Failed to save plan to storage:", err);
       }
