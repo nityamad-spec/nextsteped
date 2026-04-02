@@ -87,6 +87,7 @@ const resourceTypeOptions: { value: Resource["type"]; label: string }[] = [
   { value: "video", label: "Video" },
   { value: "tool", label: "Tool / Software" },
   { value: "quiz", label: "Daily Quiz" },
+  { value: "exam", label: "Exam" },
 ];
 
 const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
