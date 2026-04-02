@@ -1,47 +1,67 @@
 
 
-## Fix: Add Timeout Fallback for Initial Auth Loading
+## Fix: Auto-Load Teacher's Course on Assessment Analytics
 
 ### Problem
-
-When the Supabase connection is cold (sandbox wake-up, slow network), `supabase.auth.getSession()` can take 10+ seconds. During this time, `loading` stays `true` and the entire app shows a blank "Loading..." screen — blocking both authenticated and unauthenticated users.
+When `currentCourse` is `null` in the app context (e.g., after localStorage clears or direct navigation), the Assessment Analytics page shows "No course selected" instead of loading the teacher's course.
 
 ### Solution
-
-Add a timeout in `AuthContext` that caps the loading state at 3 seconds. If `getSession()` hasn't responded by then, set `loading = false` with `user = null`, allowing the app to render (unauthenticated users see the auth page immediately). When the session eventually resolves, `onAuthStateChange` will update the state and redirect logged-in users automatically.
+Add an auto-recovery effect in `AssessmentAnalytics.tsx` that fetches the teacher's course from the database when `currentCourse` is null, and sets it in the app context. This mirrors the pattern used in `TeacherOnboarding.tsx`.
 
 ### Changes
 
-**`src/contexts/AuthContext.tsx`** — Add a 3-second safety timeout:
+**`src/pages/teacher/AssessmentAnalytics.tsx`**
+
+Add a `useEffect` at the top of the component that runs when `currentCourse` is null:
+
+1. Import `useAuth` and `setCurrentCourse` from contexts
+2. Query `courses` table for the teacher's course (`teacher_id = user.id`), falling back to `course_teachers` membership
+3. Call `setCurrentCourse()` with the fetched course data
 
 ```typescript
+const { currentCourse, setCurrentCourse } = useApp();
+const { user } = useAuth();
+
 useEffect(() => {
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-    setSession(session);
-    setUser(session?.user ?? null);
-    setLoading(false);
-  });
-
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    setSession(session);
-    setUser(session?.user ?? null);
-    setLoading(false);
-  });
-
-  // Safety timeout — stop blocking the UI after 3 seconds
-  const timeout = setTimeout(() => {
-    setLoading(false);
-  }, 3000);
-
-  return () => {
-    subscription.unsubscribe();
-    clearTimeout(timeout);
+  if (currentCourse || !user) return;
+  
+  const recover = async () => {
+    // Try owned course first
+    let { data } = await supabase
+      .from("courses")
+      .select("id, name, course_code")
+      .eq("teacher_id", user.id)
+      .limit(1)
+      .maybeSingle();
+    
+    // Fallback: collaborator membership
+    if (!data) {
+      const { data: membership } = await supabase
+        .from("course_teachers")
+        .select("course_id")
+        .eq("teacher_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      if (membership?.course_id) {
+        const res = await supabase
+          .from("courses")
+          .select("id, name, course_code")
+          .eq("id", membership.course_id)
+          .maybeSingle();
+        data = res.data;
+      }
+    }
+    
+    if (data) {
+      setCurrentCourse({ id: data.id, name: data.name } as Course);
+    }
   };
-}, []);
+  recover();
+}, [currentCourse, user]);
 ```
 
-This ensures the app never hangs on "Loading..." for more than 3 seconds. If the user is actually logged in, `onAuthStateChange` will fire once the connection completes and seamlessly update the UI.
+This ensures the PWIM course (or whichever course the teacher owns) loads automatically instead of showing "No course selected."
 
 ### Files Modified
-- `src/contexts/AuthContext.tsx` — add 3-second loading timeout
+- `src/pages/teacher/AssessmentAnalytics.tsx` — add course auto-recovery when `currentCourse` is null
 
