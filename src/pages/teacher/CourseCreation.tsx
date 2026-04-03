@@ -369,6 +369,7 @@ const CourseCreation = () => {
           type: r.type || "exercise",
           accepted: true,
           provenance: r.provenance || "instructor",
+          isNew: true,
         }));
         setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: [...d.resources, ...newResources] } : d));
         toast({
