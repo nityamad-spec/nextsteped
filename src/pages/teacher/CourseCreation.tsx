@@ -38,6 +38,7 @@ type Resource = {
   source?: string;
   accepted: boolean | null;
   provenance?: "uploads" | "web" | "instructor";
+  isNew?: boolean;
 };
 
 type DayPlan = {
