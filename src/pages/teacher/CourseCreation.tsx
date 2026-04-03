@@ -524,7 +524,7 @@ const CourseCreation = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <BookOpen className="h-5 w-5 text-primary" /> Upload Course Materials
-                <span className="text-[10px] font-normal text-muted-foreground">(Student-Facing · Optional)</span>
+                <span className="text-[10px] font-normal text-muted-foreground">(Optional)</span>
               </CardTitle>
               <CardDescription>
                 These materials will be used to understand the curriculum and power the AI Teaching Assistant for students. They include slides, textbooks, readings, and other resources you want students to access.
