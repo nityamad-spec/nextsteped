@@ -1,90 +1,69 @@
 
 
-## RAG-Enhanced TA Chat — Implementation Plan
+## Multi-Feature Update Plan
 
-### Overview
+### 1. Upload Tags Cleanup
+**File:** `src/pages/teacher/CourseCreation.tsx`
+- Line 492: Change `(Internal)` to `(Optional)`
+- Line 527: Change `(Student-Facing · Optional)` to `(Optional)`
 
-Upgrade the `chat` edge function to retrieve and inject relevant course context before each AI call. Four retrieval layers, all executed server-side in the edge function.
+### 2. Forgot Password Feature
+**Files:** New `src/pages/ResetPassword.tsx`, modified `src/pages/Auth.tsx`, `src/App.tsx`
+- Add "Forgot password?" link below the password field on the Auth page
+- On click, show an inline form that calls `supabase.auth.resetPasswordForEmail(email, { redirectTo: origin + '/reset-password' })`
+- Create a `/reset-password` page that detects `type=recovery` in the URL hash and lets users set a new password via `supabase.auth.updateUser({ password })`
+- Register the `/reset-password` route in App.tsx
 
-### Current State
+### 3. Student/Professor Role Switcher on Auth Page
+**File:** `src/pages/Auth.tsx`
+- Add a toggle or link near the top of the auth card (below the role label) that says "Sign in as Professor instead" / "Sign in as Student instead"
+- Clicking it navigates to `/auth?role=teacher` or `/auth?role=student` (updates the URL param), which already drives the `role` variable
 
-- The chat edge function receives `messages`, `mode`, system prompts, and `relevanceContext`
-- No course-specific content is injected — the AI answers from general knowledge only
-- Course materials (syllabus, lecture notes) exist in the `course-materials` storage bucket
-- Concepts, assessment questions, and diagnostic results exist in the DB
+### 4. Teaching Plan UI Overhaul (both `TeachingPlan.tsx` and `CourseCreation.tsx` plan phase)
 
-### Architecture
+**4a. Remove summary cards from the top**
+- Delete the 3-card grid (Total Weightage, Total Days, Locked Days) from both files
+- Keep the weightage editable per-day inside the expanded day card
 
-```text
-Student sends message
-       │
-       ▼
-  chat edge function
-       │
-       ├─ 1. Fetch approved syllabus JSON from storage
-       ├─ 2. Query concepts table for course concept codes + weights
-       ├─ 3. Query assessment_questions for topic-matched practice Qs
-       ├─ 4. Query diagnostic_results + assessment_results for student mastery
-       │
-       ▼
-  Build enriched system prompt with retrieved context
-       │
-       ▼
-  Call AI gateway with augmented prompt
-```
+**4b. Remove separate Resources section — integrate into lesson flow**
+- Eliminate the standalone "Resources & Materials" section with its own heading
+- Instead, render resources inline within the lesson description as part of the lesson flow
+- Each resource appears as a compact inline card at the relevant point in the lesson (after description text)
+- Resources show: icon, title, description in a clean single-color subtle card style
 
-### Layer Details
+**4c. Simplify visual styling**
+- Remove the per-resource-type color coding (`typeColors` map) — use a single consistent neutral card style for all resources
+- Reduce font size variations — use consistent `text-sm` throughout
+- Remove provenance badges (From uploads, From web, etc.)
 
-**1. Syllabus & Lecture Notes RAG**
-- The client sends `courseId` and `teacherId` (the course owner) to the chat function
-- Edge function downloads `{teacherId}/syllabus/approved-syllabus.json` from storage using service role
-- Extracts relevant sections (week titles, topics, learning outcomes) and injects as context
-- Truncated to ~2000 tokens to stay within budget
+**4d. Make AI Suggest button bigger and more prominent**
+- Change from `size="sm"` outline button to a larger `size="lg"` primary-styled button
+- Place it prominently at the top of the expanded day content, full-width or near-full-width
 
-**2. Concept-Aware Context Injection**
-- Query `concepts` table filtered by `course_id`
-- Inject concept codes and weights into the system prompt so the AI understands the course taxonomy
-- Example: "Course concepts (by importance): PWIM/Python_Environment (0.15), PWIM/Data_Types (0.20)..."
+**4e. Lock/Unlock UX — make student visibility clear**
+- When locked (hidden from students): show a red/muted badge "Hidden from students" with EyeOff icon
+- When unlocked (visible to students): show a green badge "Visible to students" with Eye icon
+- Replace the Lock/Unlock icons with Eye/EyeOff for clearer semantics
 
-**3. Assessment Question Bank RAG**
-- Extract the topic from the student's latest message (reuse the classify-question pattern or keyword match against concept codes)
-- Query `assessment_questions` where `topic` matches and `mode = 'quiz'`, limit 3
-- Inject as "Reference questions the professor uses for this topic" so the AI can calibrate depth and style
+**4f. Highlight AI-suggested additions vs existing content**
+- Track which resources were added by the latest AI suggestion using a `isNew` flag on the Resource type
+- New AI-added resources get a subtle left-border highlight (e.g., `border-l-4 border-primary`) and a small "AI suggested" badge
+- Clear the `isNew` flag on save
 
-**4. Student Progress-Aware Responses**
-- Query `diagnostic_results` for the student's learner level and per-concept scores
-- Query `assessment_results` for recent quiz/exam performance
-- Inject a summary: "Student level: Intermediate. Weak areas: OOP Basics (38%), Error Handling (30%). Strong: Variables (85%)"
-- The AI adapts explanation depth accordingly
-
-### Changes
-
-**`supabase/functions/chat/index.ts`**
-- Accept new fields: `courseId`, `teacherId`, `studentId`
-- Create a Supabase admin client using `SUPABASE_SERVICE_ROLE_KEY`
-- Add retrieval functions for each of the 4 layers
-- Build a `courseContext` string and prepend it to the system prompt
-- Add a `ragEnabled` flag (default true) so it can be toggled
-
-**`src/pages/student/AIChat.tsx`**
-- Pass `courseId` (from `enrolledCourseId`), `teacherId` (from course record), and `studentId` (from `user.id`) in the chat function call body
-
-**New DB query** (no migration needed — all tables exist):
-- `concepts` — SELECT by course_id
-- `assessment_questions` — SELECT by course_id + topic match
-- `diagnostic_results` — SELECT by student_id + course_id
-- `assessment_results` — SELECT by student_id + course_id
-
-### Context Budget
-
-To avoid exceeding model context limits, each layer is capped:
-- Syllabus: ~2000 chars (key topics and outcomes only)
-- Concepts: ~500 chars (codes + weights)
-- Practice questions: ~1000 chars (3 sample questions, truncated)
-- Student progress: ~300 chars (summary stats)
-- Total additional context: ~3800 chars (~950 tokens)
+**4g. Fix text display — no "**" in rendered content**
+- Update `renderDescription` to strip all `**` markdown and render proper HTML headings, collapsible sections, and bulleted lists
+- Use Collapsible/Accordion for section headers instead of raw markdown parsing
 
 ### Files Modified
-- `supabase/functions/chat/index.ts` — add 4 retrieval layers and context injection
-- `src/pages/student/AIChat.tsx` — pass courseId, teacherId, studentId to chat function
+- `src/pages/Auth.tsx` — forgot password link, role switcher
+- `src/pages/ResetPassword.tsx` — new file for password reset
+- `src/App.tsx` — add /reset-password route
+- `src/pages/teacher/CourseCreation.tsx` — tag cleanup, plan phase UI overhaul
+- `src/pages/teacher/TeachingPlan.tsx` — same UI overhaul as CourseCreation plan phase
+
+### Technical Notes
+- The `Resource` type gets an optional `isNew?: boolean` field for AI suggestion tracking
+- The `renderDescription` function is rewritten to parse markdown-like content into proper React elements using Collapsible components
+- Lock/unlock toast messages updated to reference "student visibility" instead of "chatbot"
+- No database changes needed
 
