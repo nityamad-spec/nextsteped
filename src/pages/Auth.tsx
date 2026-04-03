@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Eye, EyeOff, LogIn, UserPlus, CheckCircle2, Loader2 } from "lucide-react";
+import { Eye, EyeOff, LogIn, UserPlus, CheckCircle2, Loader2, ArrowLeftRight } from "lucide-react";
 
 const isRateLimitError = (msg: string) =>
   /rate.?limit|too many requests|429/i.test(msg);
@@ -48,6 +48,9 @@ const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const role = searchParams.get("role") || "student";
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   // Enrollment code state (student signup only)
   const [enrollmentCode, setEnrollmentCode] = useState("");
@@ -253,6 +256,15 @@ const Auth = () => {
             {isLogin ? "Sign in to continue" : "Create your account"}
             {" "}as {role === "teacher" ? "Professor" : role === "admin" ? "Admin" : "Student"}
           </p>
+          {role !== "admin" && (
+            <button
+              onClick={() => navigate(`/auth?role=${role === "teacher" ? "student" : "teacher"}`)}
+              className="mt-2 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+            >
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+              {role === "teacher" ? "Switch to Student" : "Switch to Professor"}
+            </button>
+          )}
         </div>
 
         <Card>
@@ -312,6 +324,25 @@ const Auth = () => {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {isLogin && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!email) { toast.error("Enter your email first"); return; }
+                      setForgotLoading(true);
+                      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                        redirectTo: `${window.location.origin}/reset-password`,
+                      });
+                      setForgotLoading(false);
+                      if (error) toast.error(error.message);
+                      else toast.success("Password reset link sent! Check your email.");
+                    }}
+                    className="text-xs text-primary hover:underline"
+                    disabled={forgotLoading}
+                  >
+                    {forgotLoading ? "Sending…" : "Forgot password?"}
+                  </button>
+                )}
               </div>
 
               {showEnrollmentField && (

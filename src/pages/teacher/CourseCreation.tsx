@@ -19,8 +19,9 @@ import {
   Check, X, ArrowRight, ArrowLeft, Sparkles, Loader2,
   ChevronDown, ChevronUp, Download, Pencil, GripVertical,
   BookOpen, Plus, Trash2, FileText, FileDown,
-  Lock, Unlock, ClipboardList,
+  Eye, EyeOff, ClipboardList,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import FileUploadZone from "@/components/FileUploadZone";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,6 +38,7 @@ type Resource = {
   source?: string;
   accepted: boolean | null;
   provenance?: "uploads" | "web" | "instructor";
+  isNew?: boolean;
 };
 
 type DayPlan = {
@@ -248,10 +250,10 @@ const CourseCreation = () => {
     setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, locked: !d.locked } : d));
     const day = days.find(d => d.id === dayId);
     toast({
-      title: day?.locked ? "Day unlocked" : "Day locked",
+      title: day?.locked ? "Now visible to students" : "Hidden from students",
       description: day?.locked
-        ? `Day ${day.day} content is now available to the chatbot`
-        : `Day ${day?.day} content is now restricted from the chatbot`,
+        ? `Day ${day.day} content is now visible to students`
+        : `Day ${day?.day} content is now hidden from students`,
     });
     setPublished(false);
   };
@@ -367,6 +369,7 @@ const CourseCreation = () => {
           type: r.type || "exercise",
           accepted: true,
           provenance: r.provenance || "instructor",
+          isNew: true,
         }));
         setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: [...d.resources, ...newResources] } : d));
         toast({
@@ -390,10 +393,15 @@ const CourseCreation = () => {
     setShowPublishModal(false);
     setPublishChecklist({ days: false, resources: false });
 
-    // Save plan to storage for TeachingPlan to load later
+    // Clear isNew flags and save plan to storage
     if (user) {
       try {
-        const planJson = JSON.stringify(days, null, 2);
+        const cleanDays = days.map(d => ({
+          ...d,
+          resources: d.resources.map(r => { const { isNew, ...rest } = r; return rest; }),
+        }));
+        setDays(cleanDays);
+        const planJson = JSON.stringify(cleanDays, null, 2);
         const blob = new Blob([planJson], { type: "application/json" });
         const file = new File([blob], "published-plan.json", { type: "application/json" });
         await supabase.storage
@@ -424,38 +432,43 @@ const CourseCreation = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Render markdown-like description with sections
   const renderDescription = (desc: string) => {
     if (!desc) return null;
-    const sections = desc.split(/\n(?=\*\*[^*]+:\*\*)/);
+    const cleaned = desc.replace(/\*\*/g, "");
+    const sections = cleaned.split(/\n(?=[A-Z][^:\n]+:)/);
     return (
       <div className="space-y-3">
         {sections.map((section, i) => {
-          const headingMatch = section.match(/^\*\*([^*]+):\*\*/);
+          const headingMatch = section.match(/^([A-Z][^:\n]+):\s*/);
           if (headingMatch) {
             const heading = headingMatch[1];
-            const body = section.replace(/^\*\*[^*]+:\*\*\s*/, "").trim();
+            const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
             const lines = body.split("\n").filter(l => l.trim());
-            const isList = lines.every(l => l.trim().startsWith("-") || l.trim().startsWith("•"));
+            const isList = lines.every(l => /^[-•]/.test(l.trim()));
             return (
-              <div key={i} className="space-y-1">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-primary">{heading}</h4>
-                {isList ? (
-                  <ul className="space-y-0.5 pl-1">
-                    {lines.map((line, j) => (
-                      <li key={j} className="text-sm text-foreground/80 flex items-start gap-2">
-                        <span className="text-primary mt-1.5 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
-                        <span>{line.replace(/^[-•]\s*/, "")}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-foreground/80 leading-relaxed">{body}</p>
-                )}
-              </div>
+              <Collapsible key={i} defaultOpen>
+                <CollapsibleTrigger className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors w-full text-left">
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                  {heading}
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pl-5 pt-1.5">
+                  {isList ? (
+                    <ul className="space-y-1">
+                      {lines.map((line, j) => (
+                        <li key={j} className="text-sm text-muted-foreground flex items-start gap-2">
+                          <span className="mt-2 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
+                          <span>{line.replace(/^[-•]\s*/, "")}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
             );
           }
-          return <p key={i} className="text-sm text-foreground/80 leading-relaxed">{section.replace(/\*\*/g, "")}</p>;
+          return <p key={i} className="text-sm text-muted-foreground leading-relaxed">{section}</p>;
         })}
       </div>
     );
@@ -489,7 +502,7 @@ const CourseCreation = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <ClipboardList className="h-5 w-5 text-primary" /> Upload Lesson Plans
-                <span className="text-[10px] font-normal text-muted-foreground">(Internal)</span>
+                <span className="text-[10px] font-normal text-muted-foreground">(Optional)</span>
               </CardTitle>
               <CardDescription>
                 These files help us understand the structure of your course's topics over the semester and each class or weekly topic covered, guiding your instruction plan. They are internal and not shared with students.
@@ -524,7 +537,7 @@ const CourseCreation = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <BookOpen className="h-5 w-5 text-primary" /> Upload Course Materials
-                <span className="text-[10px] font-normal text-muted-foreground">(Student-Facing · Optional)</span>
+                <span className="text-[10px] font-normal text-muted-foreground">(Optional)</span>
               </CardTitle>
               <CardDescription>
                 These materials will be used to understand the curriculum and power the AI Teaching Assistant for students. They include slides, textbooks, readings, and other resources you want students to access.
@@ -636,39 +649,6 @@ const CourseCreation = () => {
           </div>
         )}
 
-        {/* Summary cards */}
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${totalWeightage === 100 ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"}`}>
-            <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${totalWeightage === 100 ? "bg-primary/10" : "bg-destructive/10"}`}>
-              <span className={`text-sm font-bold ${totalWeightage === 100 ? "text-primary" : "text-destructive"}`}>{totalWeightage}%</span>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total Weightage</p>
-              <p className={`text-sm font-semibold ${totalWeightage === 100 ? "text-primary" : "text-destructive"}`}>
-                {totalWeightage === 100 ? "Balanced" : `${100 - totalWeightage}% remaining`}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-xl border px-4 py-3 bg-muted/20">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/50">
-              <span className="text-sm font-bold text-foreground">{days.length}</span>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total Days</p>
-              <p className="text-sm font-semibold text-foreground">{days.reduce((s, d) => s + d.resources.length, 0)} resources</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-xl border px-4 py-3 bg-muted/20">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/50">
-              <Lock className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Locked Days</p>
-              <p className="text-sm font-semibold text-foreground">{lockedDaysCount} of {days.length} locked</p>
-            </div>
-          </div>
-        </div>
-
         {/* Export bar */}
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Daily Breakdown</h2>
@@ -702,17 +682,17 @@ const CourseCreation = () => {
                         className="flex flex-1 items-center justify-between px-3 py-3.5 text-left hover:bg-muted/20 transition-colors rounded"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className={`flex h-8 w-8 items-center justify-center rounded-lg shrink-0 ${dp.locked ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-                            <span className="text-xs font-bold">{dp.day}</span>
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0 bg-muted text-muted-foreground">
+                            <span className="text-sm font-bold">{dp.day}</span>
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-semibold truncate">{dp.topic}</p>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-xs text-muted-foreground">{dp.dates}</span>
-                              <span className="text-xs text-muted-foreground">·</span>
-                              <span className="text-xs text-muted-foreground">{dp.weightage}% weightage</span>
-                              <span className="text-xs text-muted-foreground">·</span>
-                              <span className="text-xs text-muted-foreground">{dp.resources.length} resources</span>
+                              <span className="text-sm text-muted-foreground">{dp.dates}</span>
+                              <span className="text-sm text-muted-foreground">·</span>
+                              <span className="text-sm text-muted-foreground">{dp.weightage}%</span>
+                              <span className="text-sm text-muted-foreground">·</span>
+                              <span className="text-sm text-muted-foreground">{dp.resources.length} resources</span>
                             </div>
                           </div>
                         </div>
@@ -720,11 +700,18 @@ const CourseCreation = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className={`h-7 px-2 text-xs ${dp.locked ? "text-primary" : "text-muted-foreground"}`}
                             onClick={(e) => { e.stopPropagation(); toggleLock(dp.id); }}
+                            className="h-7 px-2 text-sm"
                           >
-                            {dp.locked ? <Lock className="h-3.5 w-3.5 mr-1" /> : <Unlock className="h-3.5 w-3.5 mr-1" />}
-                            {dp.locked ? "Locked" : "Unlocked"}
+                            {dp.locked ? (
+                              <Badge variant="outline" className="text-sm gap-1 border-destructive/30 text-destructive bg-destructive/5">
+                                <EyeOff className="h-3 w-3" /> Hidden from students
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-sm gap-1 border-green-500/30 text-green-600 bg-green-50 dark:bg-green-950/20 dark:text-green-400">
+                                <Eye className="h-3 w-3" /> Visible to students
+                              </Badge>
+                            )}
                           </Button>
                           {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                         </div>
@@ -735,209 +722,196 @@ const CourseCreation = () => {
                     {isExpanded && (
                       <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} className="border-t">
                         <div className="px-5 py-5 space-y-5">
-                          {/* Editable header fields */}
-                          {isEditing ? (
-                            <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-dashed">
-                              <div className="space-y-1.5">
-                                <Label className="text-xs font-medium">Topic</Label>
-                                <Input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} className="h-9 text-sm" />
-                              </div>
-                              <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                  <Label className="text-xs font-medium">Date / Label</Label>
-                                  <Input value={editDates} onChange={(e) => setEditDates(e.target.value)} className="h-9 text-sm" />
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-xs font-medium">Weightage (%)</Label>
-                                  <Input type="number" min={0} max={100} value={dp.weightage} onChange={(e) => updateWeightage(dp.id, parseInt(e.target.value) || 0)} className="h-9 text-sm" />
-                                </div>
-                              </div>
-                              <div className="flex gap-2 pt-1">
-                                <Button size="sm" onClick={saveEditDay} className="h-8">Save Changes</Button>
-                                <Button size="sm" variant="ghost" onClick={() => setEditingDayId(null)} className="h-8">Cancel</Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex gap-2">
-                              <Button size="sm" variant="outline" onClick={() => startEditDay(dp)} className="h-8 text-xs">
-                                <Pencil className="h-3 w-3 mr-1.5" /> Edit Day Info
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={() => deleteDay(dp.id)} className="h-8 text-xs text-destructive hover:text-destructive">
-                                <Trash2 className="h-3 w-3 mr-1.5" /> Remove Day
-                              </Button>
-                            </div>
-                          )}
+                            {/* AI Suggest Button — prominent */}
+                            <Button
+                              size="lg"
+                              onClick={() => handleAiSuggest(dp.id)}
+                              disabled={isSuggesting}
+                              className="w-full gap-2"
+                            >
+                              {isSuggesting ? (
+                                <><Loader2 className="h-4 w-4 animate-spin" /> Generating AI suggestions…</>
+                              ) : (
+                                <><Sparkles className="h-4 w-4" /> AI Suggest Lesson Content & Resources</>
+                              )}
+                            </Button>
 
-                          {/* Lesson Description */}
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
+                            {/* Editable header fields */}
+                            {isEditing ? (
+                              <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-dashed">
+                                <div className="space-y-1.5">
+                                  <Label className="text-sm font-medium">Topic</Label>
+                                  <Input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} className="h-9 text-sm" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-sm font-medium">Date / Label</Label>
+                                    <Input value={editDates} onChange={(e) => setEditDates(e.target.value)} className="h-9 text-sm" />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-sm font-medium">Weightage (%)</Label>
+                                    <Input type="number" min={0} max={100} value={dp.weightage} onChange={(e) => updateWeightage(dp.id, parseInt(e.target.value) || 0)} className="h-9 text-sm" />
+                                  </div>
+                                </div>
+                                <div className="flex gap-2 pt-1">
+                                  <Button size="sm" onClick={saveEditDay} className="h-8">Save Changes</Button>
+                                  <Button size="sm" variant="ghost" onClick={() => setEditingDayId(null)} className="h-8">Cancel</Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex gap-2">
+                                <Button size="sm" variant="outline" onClick={() => startEditDay(dp)} className="h-8 text-sm">
+                                  <Pencil className="h-3 w-3 mr-1.5" /> Edit Day Info
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => deleteDay(dp.id)} className="h-8 text-sm text-destructive hover:text-destructive">
+                                  <Trash2 className="h-3 w-3 mr-1.5" /> Remove Day
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Lesson Content + Integrated Resources */}
+                            <div className="space-y-3">
                               <div className="flex items-center gap-2">
                                 <div className="h-5 w-1 rounded-full bg-primary" />
-                                <Label className="text-sm font-semibold">Lesson Description</Label>
+                                <Label className="text-sm font-semibold">Lesson Content</Label>
                               </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleAiSuggest(dp.id)}
-                                disabled={isSuggesting}
-                                className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50"
-                              >
-                                {isSuggesting ? (
-                                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
-                                ) : (
-                                  <><Sparkles className="h-3.5 w-3.5" /> AI Suggest</>
-                                )}
-                              </Button>
-                            </div>
 
-                            {isSuggesting ? (
-                              <div className="rounded-lg border border-primary/20 bg-primary/5 p-6 flex flex-col items-center gap-3">
-                                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                                <p className="text-sm text-primary font-medium">AI is generating lesson description & resources…</p>
-                                <p className="text-xs text-muted-foreground">This may take 10–20 seconds</p>
-                              </div>
-                            ) : dp.description ? (
-                              <div className="rounded-lg border bg-muted/10 p-4">
-                                {renderDescription(dp.description)}
-                                <div className="mt-3 pt-3 border-t">
-                                  <details className="group">
-                                    <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground flex items-center gap-1">
-                                      <Pencil className="h-3 w-3" /> Edit raw text
-                                    </summary>
+                              {isSuggesting ? (
+                                <div className="rounded-lg border border-primary/20 bg-primary/5 p-6 flex flex-col items-center gap-3">
+                                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                  <p className="text-sm text-primary font-medium">AI is generating lesson description & resources…</p>
+                                  <p className="text-sm text-muted-foreground">This may take 10–20 seconds</p>
+                                </div>
+                              ) : (
+                                <>
+                                  {dp.description ? (
+                                    <div className="rounded-lg border bg-muted/10 p-4">
+                                      {renderDescription(dp.description)}
+                                      <div className="mt-3 pt-3 border-t">
+                                        <details className="group">
+                                          <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground flex items-center gap-1">
+                                            <Pencil className="h-3 w-3" /> Edit raw text
+                                          </summary>
+                                          <Textarea
+                                            value={dp.description}
+                                            onChange={(e) => updateDescription(dp.id, e.target.value)}
+                                            className="mt-2 min-h-[160px] text-sm leading-relaxed resize-y font-mono"
+                                          />
+                                        </details>
+                                      </div>
+                                    </div>
+                                  ) : (
                                     <Textarea
                                       value={dp.description}
                                       onChange={(e) => updateDescription(dp.id, e.target.value)}
-                                      className="mt-2 min-h-[160px] text-sm leading-relaxed resize-y font-mono text-xs"
+                                      placeholder="Describe what this day covers — or click AI Suggest above to auto-generate."
+                                      className="min-h-[120px] text-sm leading-relaxed resize-y"
                                     />
-                                  </details>
-                                </div>
-                              </div>
-                            ) : (
-                              <Textarea
-                                value={dp.description}
-                                onChange={(e) => updateDescription(dp.id, e.target.value)}
-                                placeholder="Describe what this day covers — learning outcomes, activities, timing, and teaching approach. Or click AI Suggest to auto-generate."
-                                className="min-h-[120px] text-sm leading-relaxed resize-y"
-                              />
-                            )}
-                          </div>
+                                  )}
 
-                          {/* Resources */}
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                              <div className="h-5 w-1 rounded-full bg-secondary" />
-                              <Label className="text-sm font-semibold">Resources & Materials</Label>
-                              <Badge variant="outline" className="text-[10px] ml-auto">{dp.resources.length} items</Badge>
-                            </div>
-
-                            {dp.resources.length === 0 && (
-                              <div className="rounded-lg border border-dashed p-6 text-center">
-                                <BookOpen className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-                                <p className="text-sm text-muted-foreground">No resources added yet</p>
-                                <p className="text-xs text-muted-foreground mt-1">Add resources manually or use AI Suggest to generate them</p>
-                              </div>
-                            )}
-
-                            <div className="space-y-2">
-                              {dp.resources.map((r) => {
-                                const isEditingThis = editingResourceId === r.id;
-                                const prov = r.provenance ? provenanceLabels[r.provenance] : null;
-                                return (
-                                  <div key={r.id} className={`rounded-lg px-4 py-3 border transition-colors ${typeColors[r.type] || "bg-muted/30 border-border"}`}>
-                                    {isEditingThis ? (
-                                      <div className="space-y-3">
-                                        <div className="space-y-1.5">
-                                          <Label className="text-[11px] font-medium">Type</Label>
-                                          <Select value={editResourceType} onValueChange={(v) => setEditResourceType(v as Resource["type"])}>
-                                            <SelectTrigger className="h-8 text-xs bg-background">
-                                              <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              {resourceTypeOptions.map(opt => (
-                                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                          <Label className="text-[11px] font-medium">Title</Label>
-                                          <Input value={editResourceTitle} onChange={(e) => setEditResourceTitle(e.target.value)} className="h-8 text-xs bg-background" />
-                                        </div>
-                                        <div className="space-y-1.5">
-                                          <Label className="text-[11px] font-medium">Description</Label>
-                                          <Input value={editResourceAction} onChange={(e) => setEditResourceAction(e.target.value)} className="h-8 text-xs bg-background" />
-                                        </div>
-                                        <div className="flex gap-2">
-                                          <Button size="sm" onClick={() => saveEditResource(dp.id)} className="h-7 text-xs px-3">Save</Button>
-                                          <Button size="sm" variant="ghost" onClick={() => setEditingResourceId(null)} className="h-7 text-xs px-3">Cancel</Button>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-start justify-between gap-3">
-                                        <div className="flex items-start gap-3 min-w-0">
-                                          <span className="text-lg shrink-0 mt-0.5">{typeIcons[r.type] || "📄"}</span>
-                                          <div className="min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                              <span className="text-sm font-medium">{r.title || "Untitled"}</span>
-                                              {prov && (
-                                                <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 ${prov.className}`}>
-                                                  {prov.label}
-                                                </Badge>
-                                              )}
-                                            </div>
-                                            <p className="text-xs mt-0.5 opacity-80">{r.action}</p>
+                                  {/* Integrated Resources */}
+                                  {dp.resources.length > 0 && (
+                                    <div className="space-y-2 mt-4">
+                                      {dp.resources.map((r) => {
+                                        const isEditingThis = editingResourceId === r.id;
+                                        return (
+                                          <div key={r.id} className={`rounded-lg px-4 py-3 border transition-colors bg-muted/30 border-border ${r.isNew ? "border-l-4 border-l-primary bg-primary/5" : ""}`}>
+                                            {isEditingThis ? (
+                                              <div className="space-y-3">
+                                                <div className="space-y-1.5">
+                                                  <Label className="text-sm">Type</Label>
+                                                  <Select value={editResourceType} onValueChange={(v) => setEditResourceType(v as Resource["type"])}>
+                                                    <SelectTrigger className="h-8 text-sm bg-background"><SelectValue /></SelectTrigger>
+                                                    <SelectContent>
+                                                      {resourceTypeOptions.map(opt => (
+                                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                  <Label className="text-sm">Title</Label>
+                                                  <Input value={editResourceTitle} onChange={(e) => setEditResourceTitle(e.target.value)} className="h-8 text-sm bg-background" />
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                  <Label className="text-sm">Description</Label>
+                                                  <Input value={editResourceAction} onChange={(e) => setEditResourceAction(e.target.value)} className="h-8 text-sm bg-background" />
+                                                </div>
+                                                <div className="flex gap-2">
+                                                  <Button size="sm" onClick={() => saveEditResource(dp.id)} className="h-7 text-sm px-3">Save</Button>
+                                                  <Button size="sm" variant="ghost" onClick={() => setEditingResourceId(null)} className="h-7 text-sm px-3">Cancel</Button>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <div className="flex items-start justify-between gap-3">
+                                                <div className="flex items-start gap-3 min-w-0">
+                                                  <span className="text-base shrink-0 mt-0.5">{typeIcons[r.type] || "📄"}</span>
+                                                  <div className="min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                      <span className="text-sm font-medium">{r.title || "Untitled"}</span>
+                                                      {r.isNew && <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20">AI Suggested</Badge>}
+                                                    </div>
+                                                    <p className="text-sm text-muted-foreground mt-0.5">{r.action}</p>
+                                                  </div>
+                                                </div>
+                                                <div className="flex gap-1 shrink-0">
+                                                  <Button variant="ghost" size="sm" onClick={() => startEditResource(r)} className="h-7 px-2 text-sm hover:bg-background/50">
+                                                    <Pencil className="h-3 w-3" />
+                                                  </Button>
+                                                  <Button variant="ghost" size="sm" onClick={() => removeResource(dp.id, r.id)} className="h-7 px-2 text-sm text-destructive hover:text-destructive hover:bg-background/50">
+                                                    <Trash2 className="h-3 w-3" />
+                                                  </Button>
+                                                </div>
+                                              </div>
+                                            )}
                                           </div>
-                                        </div>
-                                        <div className="flex gap-1 shrink-0">
-                                          <Button variant="ghost" size="sm" onClick={() => startEditResource(r)} className="h-7 px-2 text-xs hover:bg-background/50">
-                                            <Pencil className="h-3 w-3" />
-                                          </Button>
-                                          <Button variant="ghost" size="sm" onClick={() => removeResource(dp.id, r.id)} className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-background/50">
-                                            <Trash2 className="h-3 w-3" />
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
 
-                            {/* Single Add Resource button with type picker */}
-                            {addingResourceDayId === dp.id ? (
-                              <div className="rounded-lg border border-dashed p-3 bg-muted/10 space-y-3">
-                                <div className="space-y-1.5">
-                                  <Label className="text-xs font-medium">Resource Type</Label>
-                                  <Select value={newResourceType} onValueChange={(v) => setNewResourceType(v as Resource["type"])}>
-                                    <SelectTrigger className="h-9 text-sm">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {resourceTypeOptions.map(opt => (
-                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="flex gap-2">
-                                  <Button size="sm" onClick={() => handleAddResource(dp.id)} className="h-8">
-                                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Resource
-                                  </Button>
-                                  <Button size="sm" variant="ghost" onClick={() => setAddingResourceDayId(null)} className="h-8">Cancel</Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => { setAddingResourceDayId(dp.id); setNewResourceType("exercise"); }}
-                                className="h-8 text-xs border-dashed w-full"
-                              >
-                                <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Resource
-                              </Button>
-                            )}
+                                  {dp.resources.length === 0 && (
+                                    <div className="rounded-lg border border-dashed p-6 text-center">
+                                      <BookOpen className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                                      <p className="text-sm text-muted-foreground">No resources added yet</p>
+                                      <p className="text-sm text-muted-foreground mt-1">Add resources manually or use AI Suggest</p>
+                                    </div>
+                                  )}
+
+                                  {/* Add resource */}
+                                  {addingResourceDayId === dp.id ? (
+                                    <div className="rounded-lg border border-dashed p-3 bg-muted/10 space-y-3">
+                                      <div className="space-y-1.5">
+                                        <Label className="text-sm font-medium">Resource Type</Label>
+                                        <Select value={newResourceType} onValueChange={(v) => setNewResourceType(v as Resource["type"])}>
+                                          <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                          <SelectContent>
+                                            {resourceTypeOptions.map(opt => (
+                                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <Button size="sm" onClick={() => handleAddResource(dp.id)} className="h-8">
+                                          <Plus className="h-3.5 w-3.5 mr-1" /> Add Resource
+                                        </Button>
+                                        <Button size="sm" variant="ghost" onClick={() => setAddingResourceDayId(null)} className="h-8">Cancel</Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <Button
+                                      variant="outline" size="sm"
+                                      onClick={() => { setAddingResourceDayId(dp.id); setNewResourceType("exercise"); }}
+                                      className="h-8 text-sm border-dashed w-full"
+                                    >
+                                      <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Resource
+                                    </Button>
+                                  )}
+                                </>
+                              )}
+                            </div>
                           </div>
-                        </div>
                       </motion.div>
                     )}
                   </Card>

@@ -37,6 +37,7 @@ import ComingSoon from "./components/ComingSoon";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -144,6 +145,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/auth" element={<AuthRedirect />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
               {/* Teacher setup routes */}
               <Route path="/teacher" element={<ProtectedRoute><TeacherRedirect /></ProtectedRoute>} />
