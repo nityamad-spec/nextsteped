@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Eye, EyeOff, LogIn, UserPlus, CheckCircle2, Loader2 } from "lucide-react";
+import { Eye, EyeOff, LogIn, UserPlus, CheckCircle2, Loader2, ArrowLeftRight } from "lucide-react";
 
 const isRateLimitError = (msg: string) =>
   /rate.?limit|too many requests|429/i.test(msg);
