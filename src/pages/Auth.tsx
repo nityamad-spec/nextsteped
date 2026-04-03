@@ -256,6 +256,15 @@ const Auth = () => {
             {isLogin ? "Sign in to continue" : "Create your account"}
             {" "}as {role === "teacher" ? "Professor" : role === "admin" ? "Admin" : "Student"}
           </p>
+          {role !== "admin" && (
+            <button
+              onClick={() => navigate(`/auth?role=${role === "teacher" ? "student" : "teacher"}`)}
+              className="mt-2 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+            >
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+              {role === "teacher" ? "Switch to Student" : "Switch to Professor"}
+            </button>
+          )}
         </div>
 
         <Card>
