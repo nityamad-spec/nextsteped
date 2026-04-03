@@ -19,8 +19,9 @@ import {
   Check, X, ArrowRight, ArrowLeft, Sparkles, Loader2,
   ChevronDown, ChevronUp, Download, Pencil, GripVertical,
   BookOpen, Plus, Trash2, FileText, FileDown,
-  Lock, Unlock, ClipboardList,
+  Eye, EyeOff, ClipboardList,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import FileUploadZone from "@/components/FileUploadZone";
 import { useAuth } from "@/contexts/AuthContext";
