@@ -644,39 +644,6 @@ const CourseCreation = () => {
           </div>
         )}
 
-        {/* Summary cards */}
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${totalWeightage === 100 ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"}`}>
-            <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${totalWeightage === 100 ? "bg-primary/10" : "bg-destructive/10"}`}>
-              <span className={`text-sm font-bold ${totalWeightage === 100 ? "text-primary" : "text-destructive"}`}>{totalWeightage}%</span>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total Weightage</p>
-              <p className={`text-sm font-semibold ${totalWeightage === 100 ? "text-primary" : "text-destructive"}`}>
-                {totalWeightage === 100 ? "Balanced" : `${100 - totalWeightage}% remaining`}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-xl border px-4 py-3 bg-muted/20">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/50">
-              <span className="text-sm font-bold text-foreground">{days.length}</span>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total Days</p>
-              <p className="text-sm font-semibold text-foreground">{days.reduce((s, d) => s + d.resources.length, 0)} resources</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-xl border px-4 py-3 bg-muted/20">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/50">
-              <Lock className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Locked Days</p>
-              <p className="text-sm font-semibold text-foreground">{lockedDaysCount} of {days.length} locked</p>
-            </div>
-          </div>
-        </div>
-
         {/* Export bar */}
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Daily Breakdown</h2>
