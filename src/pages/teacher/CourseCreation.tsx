@@ -677,17 +677,17 @@ const CourseCreation = () => {
                         className="flex flex-1 items-center justify-between px-3 py-3.5 text-left hover:bg-muted/20 transition-colors rounded"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className={`flex h-8 w-8 items-center justify-center rounded-lg shrink-0 ${dp.locked ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-                            <span className="text-xs font-bold">{dp.day}</span>
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0 bg-muted text-muted-foreground">
+                            <span className="text-sm font-bold">{dp.day}</span>
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-semibold truncate">{dp.topic}</p>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-xs text-muted-foreground">{dp.dates}</span>
-                              <span className="text-xs text-muted-foreground">·</span>
-                              <span className="text-xs text-muted-foreground">{dp.weightage}% weightage</span>
-                              <span className="text-xs text-muted-foreground">·</span>
-                              <span className="text-xs text-muted-foreground">{dp.resources.length} resources</span>
+                              <span className="text-sm text-muted-foreground">{dp.dates}</span>
+                              <span className="text-sm text-muted-foreground">·</span>
+                              <span className="text-sm text-muted-foreground">{dp.weightage}%</span>
+                              <span className="text-sm text-muted-foreground">·</span>
+                              <span className="text-sm text-muted-foreground">{dp.resources.length} resources</span>
                             </div>
                           </div>
                         </div>
@@ -695,11 +695,18 @@ const CourseCreation = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className={`h-7 px-2 text-xs ${dp.locked ? "text-primary" : "text-muted-foreground"}`}
                             onClick={(e) => { e.stopPropagation(); toggleLock(dp.id); }}
+                            className="h-7 px-2 text-sm"
                           >
-                            {dp.locked ? <Lock className="h-3.5 w-3.5 mr-1" /> : <Unlock className="h-3.5 w-3.5 mr-1" />}
-                            {dp.locked ? "Locked" : "Unlocked"}
+                            {dp.locked ? (
+                              <Badge variant="outline" className="text-sm gap-1 border-destructive/30 text-destructive bg-destructive/5">
+                                <EyeOff className="h-3 w-3" /> Hidden from students
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-sm gap-1 border-green-500/30 text-green-600 bg-green-50 dark:bg-green-950/20 dark:text-green-400">
+                                <Eye className="h-3 w-3" /> Visible to students
+                              </Badge>
+                            )}
                           </Button>
                           {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                         </div>
