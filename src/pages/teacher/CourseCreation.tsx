@@ -250,10 +250,10 @@ const CourseCreation = () => {
     setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, locked: !d.locked } : d));
     const day = days.find(d => d.id === dayId);
     toast({
-      title: day?.locked ? "Day unlocked" : "Day locked",
+      title: day?.locked ? "Now visible to students" : "Hidden from students",
       description: day?.locked
-        ? `Day ${day.day} content is now available to the chatbot`
-        : `Day ${day?.day} content is now restricted from the chatbot`,
+        ? `Day ${day.day} content is now visible to students`
+        : `Day ${day?.day} content is now hidden from students`,
     });
     setPublished(false);
   };
