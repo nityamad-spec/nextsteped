@@ -489,7 +489,7 @@ const CourseCreation = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <ClipboardList className="h-5 w-5 text-primary" /> Upload Lesson Plans
-                <span className="text-[10px] font-normal text-muted-foreground">(Internal)</span>
+                <span className="text-[10px] font-normal text-muted-foreground">(Optional)</span>
               </CardTitle>
               <CardDescription>
                 These files help us understand the structure of your course's topics over the semester and each class or weekly topic covered, guiding your instruction plan. They are internal and not shared with students.
