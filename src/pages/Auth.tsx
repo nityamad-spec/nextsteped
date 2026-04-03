@@ -48,6 +48,9 @@ const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const role = searchParams.get("role") || "student";
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   // Enrollment code state (student signup only)
   const [enrollmentCode, setEnrollmentCode] = useState("");
