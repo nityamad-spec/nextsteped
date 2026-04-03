@@ -393,10 +393,15 @@ const CourseCreation = () => {
     setShowPublishModal(false);
     setPublishChecklist({ days: false, resources: false });
 
-    // Save plan to storage for TeachingPlan to load later
+    // Clear isNew flags and save plan to storage
     if (user) {
       try {
-        const planJson = JSON.stringify(days, null, 2);
+        const cleanDays = days.map(d => ({
+          ...d,
+          resources: d.resources.map(r => { const { isNew, ...rest } = r; return rest; }),
+        }));
+        setDays(cleanDays);
+        const planJson = JSON.stringify(cleanDays, null, 2);
         const blob = new Blob([planJson], { type: "application/json" });
         const file = new File([blob], "published-plan.json", { type: "application/json" });
         await supabase.storage
