@@ -427,38 +427,43 @@ const CourseCreation = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Render markdown-like description with sections
   const renderDescription = (desc: string) => {
     if (!desc) return null;
-    const sections = desc.split(/\n(?=\*\*[^*]+:\*\*)/);
+    const cleaned = desc.replace(/\*\*/g, "");
+    const sections = cleaned.split(/\n(?=[A-Z][^:\n]+:)/);
     return (
       <div className="space-y-3">
         {sections.map((section, i) => {
-          const headingMatch = section.match(/^\*\*([^*]+):\*\*/);
+          const headingMatch = section.match(/^([A-Z][^:\n]+):\s*/);
           if (headingMatch) {
             const heading = headingMatch[1];
-            const body = section.replace(/^\*\*[^*]+:\*\*\s*/, "").trim();
+            const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
             const lines = body.split("\n").filter(l => l.trim());
-            const isList = lines.every(l => l.trim().startsWith("-") || l.trim().startsWith("•"));
+            const isList = lines.every(l => /^[-•]/.test(l.trim()));
             return (
-              <div key={i} className="space-y-1">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-primary">{heading}</h4>
-                {isList ? (
-                  <ul className="space-y-0.5 pl-1">
-                    {lines.map((line, j) => (
-                      <li key={j} className="text-sm text-foreground/80 flex items-start gap-2">
-                        <span className="text-primary mt-1.5 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
-                        <span>{line.replace(/^[-•]\s*/, "")}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-foreground/80 leading-relaxed">{body}</p>
-                )}
-              </div>
+              <Collapsible key={i} defaultOpen>
+                <CollapsibleTrigger className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors w-full text-left">
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                  {heading}
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pl-5 pt-1.5">
+                  {isList ? (
+                    <ul className="space-y-1">
+                      {lines.map((line, j) => (
+                        <li key={j} className="text-sm text-muted-foreground flex items-start gap-2">
+                          <span className="mt-2 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
+                          <span>{line.replace(/^[-•]\s*/, "")}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
             );
           }
-          return <p key={i} className="text-sm text-foreground/80 leading-relaxed">{section.replace(/\*\*/g, "")}</p>;
+          return <p key={i} className="text-sm text-muted-foreground leading-relaxed">{section}</p>;
         })}
       </div>
     );
