@@ -324,6 +324,25 @@ const Auth = () => {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {isLogin && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!email) { toast.error("Enter your email first"); return; }
+                      setForgotLoading(true);
+                      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                        redirectTo: `${window.location.origin}/reset-password`,
+                      });
+                      setForgotLoading(false);
+                      if (error) toast.error(error.message);
+                      else toast.success("Password reset link sent! Check your email.");
+                    }}
+                    className="text-xs text-primary hover:underline"
+                    disabled={forgotLoading}
+                  >
+                    {forgotLoading ? "Sending…" : "Forgot password?"}
+                  </button>
+                )}
               </div>
 
               {showEnrollmentField && (

@@ -145,6 +145,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/auth" element={<AuthRedirect />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
               {/* Teacher setup routes */}
               <Route path="/teacher" element={<ProtectedRoute><TeacherRedirect /></ProtectedRoute>} />
