@@ -37,6 +37,9 @@ import ComingSoon from "./components/ComingSoon";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminCourses from "./pages/admin/AdminCourses";
+import AdminStudents from "./pages/admin/AdminStudents";
+import AdminTeachers from "./pages/admin/AdminTeachers";
 import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
@@ -183,6 +186,9 @@ const App = () => (
               <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="courses" element={<AdminCourses />} />
+                <Route path="students" element={<AdminStudents />} />
+                <Route path="teachers" element={<AdminTeachers />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
