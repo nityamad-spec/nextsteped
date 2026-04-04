@@ -37,6 +37,9 @@ import ComingSoon from "./components/ComingSoon";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminCourses from "./pages/admin/AdminCourses";
+import AdminStudents from "./pages/admin/AdminStudents";
+import AdminTeachers from "./pages/admin/AdminTeachers";
 import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
