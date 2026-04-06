@@ -53,6 +53,10 @@ const AIChat = () => {
   const [assessmentQuestions, setAssessmentQuestions] = useState<Question[]>([]);
   const [assessmentDay, setAssessmentDay] = useState(1);
 
+  // Weekly quiz popup state
+  const [showWeeklyQuizPrompt, setShowWeeklyQuizPrompt] = useState(false);
+  const [currentWeek, setCurrentWeek] = useState<number | null>(null);
+
   const {
     sessions: chats,
     activeSession: activeChat,
