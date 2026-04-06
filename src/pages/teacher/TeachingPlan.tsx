@@ -461,7 +461,7 @@ const TeachingPlan = () => {
             <TabsTrigger value="plan">Weekly Plan</TabsTrigger>
             <TabsTrigger value="materials">Uploaded Materials</TabsTrigger>
           </TabsList>
-          <h2 className="text-sm font-medium text-muted-foreground">{days.length} day{days.length !== 1 ? "s" : ""}</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">{days.length} week{days.length !== 1 ? "s" : ""}</h2>
         </div>
 
         <TabsContent value="materials" className="space-y-4">
