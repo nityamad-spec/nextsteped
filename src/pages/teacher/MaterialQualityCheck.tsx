@@ -441,10 +441,27 @@ const MaterialQualityCheck = () => {
             </Card>
           )}
 
-          <div className="flex justify-center gap-3">
+          <div className="flex justify-center gap-3 flex-wrap">
             <Button variant="outline" onClick={() => navigate("/teacher/onboarding")}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
             </Button>
+            {previewJson && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const blob = new Blob([JSON.stringify(previewJson, null, 2)], { type: "application/json" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `syllabus-${previewJson.courseCode || "export"}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast({ title: "Syllabus downloaded" });
+                }}
+              >
+                <FileText className="mr-2 h-4 w-4" /> Download Syllabus
+              </Button>
+            )}
             <Button
               onClick={runPipeline}
               disabled={syllabusFiles.length === 0}

@@ -7,17 +7,19 @@ import SetupProgressBar from "@/components/SetupProgressBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, ArrowRight, Plus, Pencil, Trash2, Save, X, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Pencil, Trash2, Save, X, Loader2, Sparkles, RefreshCw, Check, Info } from "lucide-react";
 
 interface Concept {
   id: string;
   concept_code: string;
   weight: number;
   course_id: string;
+  approved?: boolean;
 }
 
 const ConceptManagement = () => {
@@ -28,10 +30,11 @@ const ConceptManagement = () => {
   const [concepts, setConcepts] = useState<Concept[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   // New concept form
   const [newConceptId, setNewConceptId] = useState("");
-  const [newWeight, setNewWeight] = useState("0.0");
+  const [newWeight, setNewWeight] = useState("0");
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Edit state
@@ -54,27 +57,106 @@ const ConceptManagement = () => {
     if (error) {
       toast({ title: "Error loading concepts", description: error.message, variant: "destructive" });
     } else {
-      setConcepts(data || []);
+      // All existing DB concepts start as approved
+      setConcepts((data || []).map(c => ({ ...c, approved: true })));
     }
     setLoading(false);
   };
 
+  const handleAutoGenerate = async () => {
+    if (!user || !courseId) return;
+    setGenerating(true);
+    try {
+      // Fetch course materials content for AI analysis
+      const { data: files } = await supabase
+        .from("course_material_files")
+        .select("file_name, storage_path, folder_type")
+        .eq("course_id", courseId);
+
+      if (!files || files.length === 0) {
+        toast({ title: "No materials found", description: "Please upload course materials first.", variant: "destructive" });
+        setGenerating(false);
+        return;
+      }
+
+      // Download material contents for analysis
+      let materialText = "";
+      for (const file of files.slice(0, 5)) {
+        try {
+          const { data: blob } = await supabase.storage
+            .from("course-materials")
+            .download(file.storage_path);
+          if (blob) {
+            const text = await blob.text();
+            materialText += `\n--- ${file.file_name} (${file.folder_type}) ---\n${text.slice(0, 5000)}\n`;
+          }
+        } catch { /* skip unreadable files */ }
+      }
+
+      if (!materialText.trim()) {
+        toast({ title: "Could not read materials", description: "Try re-uploading your course materials.", variant: "destructive" });
+        setGenerating(false);
+        return;
+      }
+
+      // Call AI to generate concepts
+      const { data: aiResult, error: aiError } = await supabase.functions.invoke("seed-concepts", {
+        body: {
+          materialContent: materialText,
+          courseId,
+          autoGenerate: true,
+        },
+      });
+
+      if (aiError) throw new Error(aiError.message);
+      if (aiResult?.error) throw new Error(aiResult.error);
+
+      // Refresh concepts from DB — mark them as unapproved for review
+      const { data: newConcepts } = await supabase
+        .from("concepts")
+        .select("*")
+        .eq("course_id", courseId)
+        .order("concept_code");
+
+      if (newConcepts) {
+        setConcepts(newConcepts.map(c => ({ ...c, approved: false })));
+      }
+
+      toast({ title: "Concepts generated", description: `AI generated ${newConcepts?.length || 0} concepts. Please review and approve each one.` });
+    } catch (err: any) {
+      toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const totalWeight = concepts.reduce((sum, c) => sum + Number(c.weight), 0);
+  const totalWeightPct = Math.round(totalWeight * 100);
+  const allApproved = concepts.length > 0 && concepts.every(c => c.approved);
+
+  const toggleApprove = (id: string) => {
+    setConcepts(prev => prev.map(c => c.id === id ? { ...c, approved: !c.approved } : c));
+  };
+
+  const approveAll = () => {
+    setConcepts(prev => prev.map(c => ({ ...c, approved: true })));
+    toast({ title: "All concepts approved" });
+  };
 
   const handleAdd = async () => {
     if (!newConceptId.trim()) {
       toast({ title: "Concept ID is required", variant: "destructive" });
       return;
     }
-    const weight = parseFloat(newWeight) || 0;
-    if (weight < 0 || weight > 1) {
-      toast({ title: "Weight must be between 0 and 1", variant: "destructive" });
+    const weightPct = parseFloat(newWeight) || 0;
+    if (weightPct < 0 || weightPct > 100) {
+      toast({ title: "Weight must be between 0 and 100%", variant: "destructive" });
       return;
     }
     setSaving(true);
     const { error } = await supabase.from("concepts").insert({
       concept_code: newConceptId.trim(),
-      weight,
+      weight: weightPct / 100,
       course_id: courseId,
     });
     if (error) {
@@ -82,7 +164,7 @@ const ConceptManagement = () => {
     } else {
       toast({ title: "Concept added" });
       setNewConceptId("");
-      setNewWeight("0.0");
+      setNewWeight("0");
       setShowAddForm(false);
       await fetchConcepts();
     }
@@ -92,20 +174,20 @@ const ConceptManagement = () => {
   const handleEdit = (c: Concept) => {
     setEditingId(c.id);
     setEditConceptId(c.concept_code);
-    setEditWeight(String(c.weight));
+    setEditWeight(String(Math.round(c.weight * 100)));
   };
 
   const handleSaveEdit = async () => {
     if (!editingId) return;
-    const weight = parseFloat(editWeight) || 0;
-    if (weight < 0 || weight > 1) {
-      toast({ title: "Weight must be between 0 and 1", variant: "destructive" });
+    const weightPct = parseFloat(editWeight) || 0;
+    if (weightPct < 0 || weightPct > 100) {
+      toast({ title: "Weight must be between 0 and 100%", variant: "destructive" });
       return;
     }
     setSaving(true);
     const { error } = await supabase
       .from("concepts")
-      .update({ concept_code: editConceptId.trim(), weight })
+      .update({ concept_code: editConceptId.trim(), weight: weightPct / 100 })
       .eq("id", editingId);
     if (error) {
       toast({ title: "Error updating concept", description: error.message, variant: "destructive" });
@@ -154,159 +236,226 @@ const ConceptManagement = () => {
             Course <span className="text-primary">Concepts</span>
           </h1>
           <p className="mt-2 text-muted-foreground">
-            Define the concepts for your course. Each concept can be linked to diagnostic questions.
+            AI auto-fills concepts from your uploaded materials. Review, adjust weights, and approve each concept before continuing.
           </p>
         </div>
 
+        {/* Info banner */}
+        <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+          <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+          <div className="text-xs text-muted-foreground">
+            <p className="font-medium text-foreground mb-1">How it works</p>
+            <p>Concepts are auto-generated from your uploaded course materials. Each concept has a weight (0–100%) representing its importance in the course. You must approve every concept before proceeding to the diagnostic setup.</p>
+          </div>
+        </div>
+
+        {/* Auto-generate button */}
+        {concepts.length === 0 && !loading && (
+          <Card>
+            <CardContent className="py-8 text-center space-y-4">
+              <Sparkles className="h-10 w-10 text-primary mx-auto" />
+              <div>
+                <h3 className="font-semibold text-lg">Auto-Generate Concepts</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  AI will analyze your uploaded materials and suggest concepts with weights based on course content and best practices.
+                </p>
+              </div>
+              <Button size="lg" onClick={handleAutoGenerate} disabled={generating}>
+                {generating ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating concepts…</>
+                ) : (
+                  <><Sparkles className="mr-2 h-4 w-4" /> Generate Concepts from Materials</>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Weight summary */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Weight</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <Progress value={Math.min(totalWeight * 100, 100)} className="flex-1" />
-              <span className={`text-sm font-semibold ${Math.abs(totalWeight - 1) < 0.01 ? "text-green-600" : "text-muted-foreground"}`}>
-                {totalWeight.toFixed(2)} / 1.00
-              </span>
-            </div>
-            {totalWeight > 1.01 && (
-              <p className="mt-1 text-xs text-destructive">Total weight exceeds 1.0</p>
-            )}
-          </CardContent>
-        </Card>
+        {concepts.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center justify-between">
+                <span>Total Weight</span>
+                <span className="text-xs text-muted-foreground">
+                  {allApproved ? (
+                    <span className="text-primary flex items-center gap-1"><Check className="h-3 w-3" /> All approved</span>
+                  ) : (
+                    `${concepts.filter(c => c.approved).length} of ${concepts.length} approved`
+                  )}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <Progress value={Math.min(totalWeightPct, 100)} className="flex-1" />
+                <span className={`text-sm font-semibold ${Math.abs(totalWeightPct - 100) <= 1 ? "text-green-600" : "text-muted-foreground"}`}>
+                  {totalWeightPct}% / 100%
+                </span>
+              </div>
+              {totalWeightPct > 101 && (
+                <p className="mt-1 text-xs text-destructive">Total weight exceeds 100%</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Concepts table */}
-        <Card>
-          <CardContent className="pt-6">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : concepts.length === 0 && !showAddForm ? (
-              <div className="py-8 text-center text-muted-foreground">
-                <p>No concepts defined yet.</p>
-                <Button className="mt-4" onClick={() => setShowAddForm(true)}>
-                  <Plus className="mr-2 h-4 w-4" /> Add First Concept
-                </Button>
-              </div>
-            ) : (
-              <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Concept ID</TableHead>
-                      <TableHead className="w-[120px]">Weight</TableHead>
-                      <TableHead className="w-[100px] text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {concepts.map((c) => (
-                      <TableRow key={c.id}>
-                        {editingId === c.id ? (
-                          <>
-                            <TableCell>
-                              <Input
-                                value={editConceptId}
-                                onChange={(e) => setEditConceptId(e.target.value)}
-                                placeholder="e.g. PWIM/Python_Environment"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                max="1"
-                                value={editWeight}
-                                onChange={(e) => setEditWeight(e.target.value)}
-                              />
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-1">
-                                <Button size="icon" variant="ghost" onClick={handleSaveEdit} disabled={saving}>
-                                  <Save className="h-4 w-4" />
-                                </Button>
-                                <Button size="icon" variant="ghost" onClick={() => setEditingId(null)}>
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </>
-                        ) : (
-                          <>
-                            <TableCell className="font-mono text-sm">{c.concept_code}</TableCell>
-                            <TableCell>{Number(c.weight).toFixed(2)}</TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-1">
-                                <Button size="icon" variant="ghost" onClick={() => handleEdit(c)}>
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button size="icon" variant="ghost" onClick={() => handleDelete(c.id)}>
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </>
-                        )}
+        {(concepts.length > 0 || showAddForm) && (
+          <Card>
+            <CardContent className="pt-6">
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[50px]">Approve</TableHead>
+                        <TableHead>Concept</TableHead>
+                        <TableHead className="w-[120px]">Weight (%)</TableHead>
+                        <TableHead className="w-[100px] text-right">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {concepts.map((c) => (
+                        <TableRow key={c.id} className={c.approved ? "bg-primary/5" : ""}>
+                          {editingId === c.id ? (
+                            <>
+                              <TableCell>
+                                <Checkbox checked={c.approved} onCheckedChange={() => toggleApprove(c.id)} />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  value={editConceptId}
+                                  onChange={(e) => setEditConceptId(e.target.value)}
+                                  placeholder="e.g. Python_Environment"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  step="1"
+                                  min="0"
+                                  max="100"
+                                  value={editWeight}
+                                  onChange={(e) => setEditWeight(e.target.value)}
+                                />
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-1">
+                                  <Button size="icon" variant="ghost" onClick={handleSaveEdit} disabled={saving}>
+                                    <Save className="h-4 w-4" />
+                                  </Button>
+                                  <Button size="icon" variant="ghost" onClick={() => setEditingId(null)}>
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </>
+                          ) : (
+                            <>
+                              <TableCell>
+                                <Checkbox checked={c.approved} onCheckedChange={() => toggleApprove(c.id)} />
+                              </TableCell>
+                              <TableCell className="font-mono text-sm">{c.concept_code}</TableCell>
+                              <TableCell>{Math.round(Number(c.weight) * 100)}%</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-1">
+                                  <Button size="icon" variant="ghost" onClick={() => handleEdit(c)}>
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button size="icon" variant="ghost" onClick={() => handleDelete(c.id)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
 
-                {!showAddForm && (
-                  <Button variant="outline" className="mt-4" onClick={() => setShowAddForm(true)}>
-                    <Plus className="mr-2 h-4 w-4" /> Add Concept
-                  </Button>
-                )}
-              </>
-            )}
-
-            {/* Add form */}
-            {showAddForm && (
-              <div className="mt-4 rounded-md border p-4 space-y-3">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Concept ID</Label>
-                    <Input
-                      value={newConceptId}
-                      onChange={(e) => setNewConceptId(e.target.value)}
-                      placeholder="e.g. PWIM/Python_Environment"
-                    />
+                  <div className="mt-4 flex gap-2">
+                    {!showAddForm && (
+                      <Button variant="outline" onClick={() => setShowAddForm(true)}>
+                        <Plus className="mr-2 h-4 w-4" /> Add Concept
+                      </Button>
+                    )}
+                    <Button variant="outline" onClick={handleAutoGenerate} disabled={generating}>
+                      {generating ? (
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Regenerating…</>
+                      ) : (
+                        <><RefreshCw className="mr-2 h-4 w-4" /> Regenerate</>
+                      )}
+                    </Button>
+                    {!allApproved && concepts.length > 0 && (
+                      <Button variant="outline" onClick={approveAll}>
+                        <Check className="mr-2 h-4 w-4" /> Approve All
+                      </Button>
+                    )}
                   </div>
-                  <div>
-                    <Label>Weight (0–1)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="1"
-                      value={newWeight}
-                      onChange={(e) => setNewWeight(e.target.value)}
-                    />
+                </>
+              )}
+
+              {/* Add form */}
+              {showAddForm && (
+                <div className="mt-4 rounded-md border p-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Concept Name</Label>
+                      <Input
+                        value={newConceptId}
+                        onChange={(e) => setNewConceptId(e.target.value)}
+                        placeholder="e.g. Data_Structures"
+                      />
+                    </div>
+                    <div>
+                      <Label>Weight (0–100%)</Label>
+                      <Input
+                        type="number"
+                        step="1"
+                        min="0"
+                        max="100"
+                        value={newWeight}
+                        onChange={(e) => setNewWeight(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={handleAdd} disabled={saving}>
+                      {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                      Add
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowAddForm(false)}>Cancel</Button>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button onClick={handleAdd} disabled={saving}>
-                    {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                    Add
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowAddForm(false)}>Cancel</Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Navigation */}
         <div className="flex justify-between pt-4">
           <Button variant="outline" onClick={() => navigate("/teacher/setup/lesson-plan")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Lesson Plan
           </Button>
-          <Button onClick={() => navigate("/teacher/setup/diagnostic")}>
-            Continue to Diagnostic Questions <ArrowRight className="ml-2 h-4 w-4" />
+          <Button
+            onClick={() => navigate("/teacher/setup/diagnostic")}
+            disabled={!allApproved || concepts.length === 0}
+          >
+            Continue to Diagnostic Setup <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
+
+        {!allApproved && concepts.length > 0 && (
+          <p className="text-center text-sm text-muted-foreground">
+            You must approve all concepts before continuing.
+          </p>
+        )}
       </div>
     </div>
   );
