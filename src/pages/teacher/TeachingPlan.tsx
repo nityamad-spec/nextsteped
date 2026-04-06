@@ -172,8 +172,8 @@ const TeachingPlan = () => {
     toast({
       title: day?.locked ? "Now visible to students" : "Hidden from students",
       description: day?.locked
-        ? `Day ${day.day} content is now visible to students`
-        : `Day ${day?.day} content is now hidden from students`,
+        ? `Week ${day.day} content is now visible to students`
+        : `Week ${day?.day} content is now hidden from students`,
     });
     markChanged();
   };
