@@ -652,26 +652,30 @@ const AIChat = () => {
           </div>
         )}
 
-        {/* Weekly quiz prompt - shown in study mode */}
-        {mode === "learning" && !assessmentActive && activeChat && activeChat.messages.length <= 2 && (
-          <div className="flex items-center justify-between border-b bg-primary/5 px-5 py-3">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-primary" />
-              <p className="text-sm">
-                <span className="font-medium">Weekly Quiz available</span>
-                <span className="text-muted-foreground"> — test your understanding of this week's concepts</span>
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => handleStartQuiz()}>
+        {/* Weekly Quiz Popup Dialog */}
+        <Dialog open={showWeeklyQuizPrompt} onOpenChange={setShowWeeklyQuizPrompt}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-primary" />
+                Weekly Quiz Available
+              </DialogTitle>
+              <DialogDescription>
+                {currentWeek
+                  ? `Week ${currentWeek - 1} is complete! Take a short quiz to test your understanding of recent concepts — it helps us personalize your learning.`
+                  : "A weekly quiz is available to test your understanding of recent concepts."}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex gap-2 sm:justify-between">
+              <Button variant="outline" onClick={() => setShowWeeklyQuizPrompt(false)}>
+                Skip & Continue to Chat
+              </Button>
+              <Button onClick={() => { setShowWeeklyQuizPrompt(false); handleStartQuiz(currentWeek ? currentWeek - 1 : 1); }}>
                 Take Quiz
               </Button>
-              <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => {}}>
-                Skip
-              </button>
-            </div>
-          </div>
-        )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Messages */}
         <div className="flex-1 overflow-auto p-4 space-y-4">
