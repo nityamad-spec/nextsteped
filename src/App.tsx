@@ -41,6 +41,7 @@ import AdminCourses from "./pages/admin/AdminCourses";
 import AdminStudents from "./pages/admin/AdminStudents";
 import AdminTeachers from "./pages/admin/AdminTeachers";
 import ResetPassword from "./pages/ResetPassword";
+import ContentLibrary from "./pages/teacher/ContentLibrary";
 
 const queryClient = new QueryClient();
 
