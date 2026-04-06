@@ -301,7 +301,7 @@ const TeachingPlan = () => {
     let content = "AI WORKSHOP LESSON PLAN\n";
     content += `${days.length} Days\n\n`;
     days.forEach((d) => {
-      content += `Day ${d.day} (${d.dates}): ${d.topic} [${d.weightage}%]\n`;
+      content += `Day ${d.day} (${d.dates}): ${d.topic}\n`;
       if (d.description) content += `\nDescription:\n${d.description}\n`;
       content += "\nResources:\n";
       d.resources.forEach((r) => { content += `  - ${r.title}\n    ${r.action}\n`; });
