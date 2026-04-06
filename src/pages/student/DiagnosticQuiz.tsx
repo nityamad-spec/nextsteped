@@ -274,13 +274,6 @@ const DiagnosticQuiz = () => {
   }
 
   if (phase === "result") {
-    const finalScore = answers.filter((a, i) => {
-      const q = questions[i];
-      if (q.format === "short_answer") {
-        return textAnswers[i]?.toLowerCase() === q.correctAnswer.trim().toLowerCase();
-      }
-      return a === q.correctIndex;
-    }).length;
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg">
@@ -293,10 +286,6 @@ const DiagnosticQuiz = () => {
               <p className="mt-2 text-muted-foreground">
                 You've completed the diagnostic quiz. Now it's time to dive in — start learning, practice with the Teaching Assistant, and watch your understanding grow.
               </p>
-              <div className="mt-4 flex items-center justify-center gap-3">
-                <Badge className="text-base px-4 py-1">{studentProfile?.learnerLevel}</Badge>
-                <span className="text-sm text-muted-foreground">({finalScore} / {questions.length} correct)</span>
-              </div>
               <Button onClick={() => { setDiagnosticComplete(true); navigate("/student/home"); }} className="mt-6 w-full">
                 Go to Home <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
