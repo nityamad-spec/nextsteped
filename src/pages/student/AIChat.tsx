@@ -90,11 +90,35 @@ const AIChat = () => {
     fetchContext();
   }, [enrolledCourseId]);
 
+  // Determine current week and show weekly quiz popup on chat open
+  useEffect(() => {
+    if (!enrolledCourseId || assessmentActive) return;
+    const determineWeek = async () => {
+      const { data: course } = await supabase
+        .from("courses")
+        .select("start_date")
+        .eq("id", enrolledCourseId)
+        .maybeSingle();
+      if (course?.start_date) {
+        const start = new Date(course.start_date);
+        const now = new Date();
+        const diffMs = now.getTime() - start.getTime();
+        const weekNum = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1;
+        if (weekNum >= 2) {
+          setCurrentWeek(weekNum);
+          setShowWeeklyQuizPrompt(true);
+        }
+      }
+    };
+    determineWeek();
+  }, [enrolledCourseId]);
+
   // Auto-start quiz/exam if coming from home page with mode=quiz or mode=exam
   useEffect(() => {
     const urlMode = searchParams.get("mode");
     const urlDay = parseInt(searchParams.get("day") || "1") || 1;
     if (urlMode === "quiz") {
+      setShowWeeklyQuizPrompt(false);
       handleStartQuiz(urlDay);
     } else if (urlMode === "exam" && taSettings.examEnabled) {
       handleStartExam();
