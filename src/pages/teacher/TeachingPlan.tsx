@@ -212,8 +212,8 @@ const TeachingPlan = () => {
     const isAutoFill = isQuiz || isExam;
     const newResource: Resource = {
       id: makeId(),
-      title: isQuiz ? `Daily Quiz — Day ${dayNumber}` : isExam ? "Final Exam Simulation" : "",
-      action: isQuiz ? "Test your understanding of today's concepts" : isExam ? "Take the full course exam" : "",
+      title: isQuiz ? `Weekly Quiz — Week ${dayNumber}` : isExam ? "Final Exam Simulation" : "",
+      action: isQuiz ? "Test your understanding of this week's concepts" : isExam ? "Take the full course exam" : "",
       type: newResourceType,
       accepted: true,
       provenance: "instructor",
