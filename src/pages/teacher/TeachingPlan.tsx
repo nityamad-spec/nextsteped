@@ -63,7 +63,7 @@ const resourceTypeOptions: { value: Resource["type"]; label: string }[] = [
   { value: "article", label: "Article / Industry Context" },
   { value: "video", label: "Video" },
   { value: "tool", label: "Tool / Software" },
-  { value: "quiz", label: "Daily Quiz" },
+  { value: "quiz", label: "Weekly Quiz" },
   { value: "exam", label: "Exam" },
 ];
 
@@ -172,8 +172,8 @@ const TeachingPlan = () => {
     toast({
       title: day?.locked ? "Now visible to students" : "Hidden from students",
       description: day?.locked
-        ? `Day ${day.day} content is now visible to students`
-        : `Day ${day?.day} content is now hidden from students`,
+        ? `Week ${day.day} content is now visible to students`
+        : `Week ${day?.day} content is now hidden from students`,
     });
     markChanged();
   };
@@ -184,7 +184,7 @@ const TeachingPlan = () => {
 
   const addDay = () => {
     const newDay: DayPlan = {
-      id: `d_new_${Date.now()}`, day: days.length + 1, dates: `Day ${days.length + 1}`,
+      id: `d_new_${Date.now()}`, day: days.length + 1, dates: `Week ${days.length + 1}`,
       topic: "New Topic", description: "", resources: [], weightage: 0, locked: true,
     };
     setDays((prev) => [...prev, newDay]);
@@ -212,8 +212,8 @@ const TeachingPlan = () => {
     const isAutoFill = isQuiz || isExam;
     const newResource: Resource = {
       id: makeId(),
-      title: isQuiz ? `Daily Quiz — Day ${dayNumber}` : isExam ? "Final Exam Simulation" : "",
-      action: isQuiz ? "Test your understanding of today's concepts" : isExam ? "Take the full course exam" : "",
+      title: isQuiz ? `Weekly Quiz — Week ${dayNumber}` : isExam ? "Final Exam Simulation" : "",
+      action: isQuiz ? "Test your understanding of this week's concepts" : isExam ? "Take the full course exam" : "",
       type: newResourceType,
       accepted: true,
       provenance: "instructor",
@@ -298,10 +298,10 @@ const TeachingPlan = () => {
   };
 
   const handleExport = (format: "pdf" | "word") => {
-    let content = "AI WORKSHOP LESSON PLAN\n";
-    content += `${days.length} Days\n\n`;
+    let content = "LESSON PLAN\n";
+    content += `${days.length} Weeks\n\n`;
     days.forEach((d) => {
-      content += `Day ${d.day} (${d.dates}): ${d.topic}\n`;
+      content += `Week ${d.day} (${d.dates}): ${d.topic}\n`;
       if (d.description) content += `\nDescription:\n${d.description}\n`;
       content += "\nResources:\n";
       d.resources.forEach((r) => { content += `  - ${r.title}\n    ${r.action}\n`; });
@@ -310,7 +310,7 @@ const TeachingPlan = () => {
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = format === "pdf" ? "workshop-plan.pdf" : "workshop-plan.doc"; a.click();
+    a.href = url; a.download = format === "pdf" ? "lesson-plan.pdf" : "lesson-plan.doc"; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -431,8 +431,8 @@ const TeachingPlan = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-heading text-3xl font-bold">AI Workshop Lesson Plan</h1>
-          <p className="text-muted-foreground text-sm">Edit topics, descriptions, resources, and control student visibility</p>
+          <h1 className="font-heading text-3xl font-bold">Lesson Plan</h1>
+          <p className="text-muted-foreground text-sm">Edit weekly topics, learning outcomes, resources, and control student visibility</p>
         </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
@@ -458,10 +458,10 @@ const TeachingPlan = () => {
       <Tabs defaultValue="plan" className="space-y-4">
         <div className="flex items-center justify-between">
           <TabsList>
-            <TabsTrigger value="plan">Day Plan</TabsTrigger>
+            <TabsTrigger value="plan">Weekly Plan</TabsTrigger>
             <TabsTrigger value="materials">Uploaded Materials</TabsTrigger>
           </TabsList>
-          <h2 className="text-sm font-medium text-muted-foreground">{days.length} day{days.length !== 1 ? "s" : ""}</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">{days.length} week{days.length !== 1 ? "s" : ""}</h2>
         </div>
 
         <TabsContent value="materials" className="space-y-4">
@@ -559,10 +559,10 @@ const TeachingPlan = () => {
                             ) : (
                               <div className="flex gap-2">
                                 <Button size="sm" variant="outline" onClick={() => startEditDay(dp)} className="h-8 text-sm">
-                                  <Pencil className="h-3 w-3 mr-1.5" /> Edit Day Info
+                                  <Pencil className="h-3 w-3 mr-1.5" /> Edit Week Info
                                 </Button>
                                 <Button size="sm" variant="ghost" onClick={() => deleteDay(dp.id)} className="h-8 text-sm text-destructive hover:text-destructive">
-                                  <Trash2 className="h-3 w-3 mr-1.5" /> Remove Day
+                                  <Trash2 className="h-3 w-3 mr-1.5" /> Remove Week
                                 </Button>
                               </div>
                             )}
@@ -602,7 +602,7 @@ const TeachingPlan = () => {
                                     <Textarea
                                       value={dp.description || ""}
                                       onChange={(e) => updateDescription(dp.id, e.target.value)}
-                                      placeholder="Describe what this day covers — or click AI Suggest above to auto-generate."
+                                      placeholder="Describe what this week covers — or click AI Suggest above to auto-generate."
                                       className="min-h-[120px] text-sm leading-relaxed resize-y"
                                     />
                                   )}
@@ -666,7 +666,7 @@ const TeachingPlan = () => {
           </Reorder.Group>
 
           <Button variant="outline" onClick={addDay} className="w-full border-dashed h-11">
-            <Plus className="mr-2 h-4 w-4" /> Add Day
+            <Plus className="mr-2 h-4 w-4" /> Add Week
           </Button>
         </TabsContent>
       </Tabs>

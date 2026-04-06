@@ -77,8 +77,10 @@ const Feedback = () => {
   const { user } = useAuth();
   const [answers, setAnswers] = useState<Record<string, number | string | null>>({});
   const [additionalComments, setAdditionalComments] = useState("");
+  const [openFeedback, setOpenFeedback] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [openFeedbackSubmitting, setOpenFeedbackSubmitting] = useState(false);
 
   const setAnswer = (key: string, value: number | string) =>
     setAnswers((prev) => ({ ...prev, [key]: value }));
@@ -90,6 +92,22 @@ const Feedback = () => {
     answers.guided != null &&
     answers.comparison != null &&
     answers.usefulness != null;
+
+  const handleOpenFeedbackSubmit = async () => {
+    if (!user || !openFeedback.trim()) return;
+    setOpenFeedbackSubmitting(true);
+    const { error } = await supabase.from("student_feedback").insert({
+      student_id: user.id,
+      additional_comments: openFeedback.trim(),
+    });
+    setOpenFeedbackSubmitting(false);
+    if (error) {
+      toast.error("Failed to submit feedback. Please try again.");
+    } else {
+      toast.success("Feedback submitted — thank you!");
+      setOpenFeedback("");
+    }
+  };
 
   if (submitted) {
     return (
@@ -114,6 +132,38 @@ const Feedback = () => {
         <p className="text-muted-foreground">Share your experience with NextStep</p>
       </div>
 
+      {/* Open-ended feedback — always available */}
+      <Card className="max-w-2xl mb-6">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Send className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Share Feedback Anytime</CardTitle>
+              <CardDescription>Have a thought, suggestion, or issue? Let us know.</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            placeholder="Type your feedback here..."
+            value={openFeedback}
+            onChange={(e) => setOpenFeedback(e.target.value)}
+            rows={3}
+          />
+          <Button
+            size="sm"
+            onClick={handleOpenFeedbackSubmit}
+            disabled={!openFeedback.trim() || openFeedbackSubmitting}
+          >
+            {openFeedbackSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+            Submit Feedback
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Full survey */}
       <Card className="max-w-2xl">
         <CardHeader>
           <div className="flex items-center gap-3">
@@ -121,7 +171,7 @@ const Feedback = () => {
               <MessageSquareHeart className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle>Quick Feedback</CardTitle>
+              <CardTitle>Quick Feedback Survey</CardTitle>
               <CardDescription>Rate your experience — it only takes a minute</CardDescription>
             </div>
           </div>
@@ -159,7 +209,6 @@ const Feedback = () => {
               highLabel="5 — Significantly better"
             />
           </div>
-
 
           {/* Q5 */}
           <div className="space-y-3">
@@ -245,7 +294,7 @@ const Feedback = () => {
             className="w-full gap-2"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {submitting ? "Submitting..." : "Submit Feedback"}
+            {submitting ? "Submitting..." : "Submit Survey"}
           </Button>
         </CardContent>
       </Card>

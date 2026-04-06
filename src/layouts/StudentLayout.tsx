@@ -96,7 +96,6 @@ const StudentLayout = () => {
           <div className="border-t p-4">
             <p className="text-xs text-muted-foreground">Logged in as</p>
             <p className="text-sm font-medium">{studentProfile.name}</p>
-            <Badge variant="outline" className="mt-1 text-xs">{studentProfile.learnerLevel}</Badge>
           </div>
         )}
 

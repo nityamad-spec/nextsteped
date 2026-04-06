@@ -7,7 +7,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 const teacherNav = [
   { title: "Course Dashboard", path: "/teacher/courses/dashboard", icon: BookOpen },
-  { title: "Workshop Plan", path: "/teacher/teaching-plan", icon: FileText },
+  { title: "Lesson Plan", path: "/teacher/teaching-plan", icon: FileText },
   { title: "Assessments", path: "/teacher/assessments", icon: ClipboardCheck },
   { title: "Content Library", path: "/teacher/content-library", icon: Library },
   { title: "Analytics", path: "/teacher/assessment-analytics", icon: BarChart3 },
