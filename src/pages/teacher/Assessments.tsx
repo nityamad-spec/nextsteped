@@ -385,23 +385,14 @@ const Assessments = () => {
     <div className="p-6 space-y-6">
       <div>
         <h1 className="font-heading text-3xl font-bold">Assessments</h1>
-        <p className="text-muted-foreground">Manage questions separately for each mode — no overlap between Exam, Daily Quiz, and Study</p>
+        <p className="text-muted-foreground">Manage exam questions and view diagnostic analytics</p>
       </div>
 
-      {/* No-overlap callout */}
-      <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-        <AlertTriangle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-        <div className="text-xs text-muted-foreground space-y-1">
-          <p><strong className="text-foreground">No question overlap:</strong> Each question belongs to exactly <strong>one</strong> mode. Exam questions will never appear in Daily Quizzes or Study Mode, and vice versa. This ensures fair, non-repetitive assessments across all modes.</p>
-        </div>
-      </div>
-
-      {/* Main tabs: Exam / Daily Quiz / Study — each with settings + questions */}
+      {/* Main tabs: Exam / Diagnostic — each with settings + questions */}
       <Tabs defaultValue="exam" className="space-y-4" onValueChange={() => clearFilters()}>
         <TabsList>
           <TabsTrigger value="exam" className="gap-2"><Shield className="h-4 w-4" /> Exam Mode</TabsTrigger>
-          <TabsTrigger value="quiz" className="gap-2"><ClipboardList className="h-4 w-4" /> Daily Quiz</TabsTrigger>
-          <TabsTrigger value="study" className="gap-2"><BookOpen className="h-4 w-4" /> Study Mode</TabsTrigger>
+          <TabsTrigger value="diagnostic" className="gap-2"><BookOpen className="h-4 w-4" /> Diagnostic</TabsTrigger>
         </TabsList>
 
         {/* ─── EXAM TAB ─── */}

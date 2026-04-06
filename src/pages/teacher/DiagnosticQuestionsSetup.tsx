@@ -405,7 +405,7 @@ const DiagnosticQuestionsSetup = () => {
   };
 
   const handleContinue = () => {
-    navigate("/teacher/setup/settings");
+    navigate("/teacher/setup/exam-mode");
   };
 
   if (loading) {
