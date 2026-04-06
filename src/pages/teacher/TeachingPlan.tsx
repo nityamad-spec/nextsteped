@@ -298,10 +298,10 @@ const TeachingPlan = () => {
   };
 
   const handleExport = (format: "pdf" | "word") => {
-    let content = "AI WORKSHOP LESSON PLAN\n";
-    content += `${days.length} Days\n\n`;
+    let content = "LESSON PLAN\n";
+    content += `${days.length} Weeks\n\n`;
     days.forEach((d) => {
-      content += `Day ${d.day} (${d.dates}): ${d.topic}\n`;
+      content += `Week ${d.day} (${d.dates}): ${d.topic}\n`;
       if (d.description) content += `\nDescription:\n${d.description}\n`;
       content += "\nResources:\n";
       d.resources.forEach((r) => { content += `  - ${r.title}\n    ${r.action}\n`; });
@@ -310,7 +310,7 @@ const TeachingPlan = () => {
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = format === "pdf" ? "workshop-plan.pdf" : "workshop-plan.doc"; a.click();
+    a.href = url; a.download = format === "pdf" ? "lesson-plan.pdf" : "lesson-plan.doc"; a.click();
     URL.revokeObjectURL(url);
   };
 
