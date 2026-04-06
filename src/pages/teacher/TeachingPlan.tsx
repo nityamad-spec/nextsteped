@@ -602,7 +602,7 @@ const TeachingPlan = () => {
                                     <Textarea
                                       value={dp.description || ""}
                                       onChange={(e) => updateDescription(dp.id, e.target.value)}
-                                      placeholder="Describe what this day covers — or click AI Suggest above to auto-generate."
+                                      placeholder="Describe what this week covers — or click AI Suggest above to auto-generate."
                                       className="min-h-[120px] text-sm leading-relaxed resize-y"
                                     />
                                   )}
