@@ -13,10 +13,10 @@ const StudentProgress = () => {
   const weaknesses = [...mockTopics].sort((a, b) => (a.mastery || 0) - (b.mastery || 0)).slice(0, 3);
 
   const learningJourney = [
-    { month: "Aug 2025", level: "Beginner", active: true },
-    { month: "Sep 2025", level: "Progressing", active: false },
-    { month: "Oct 2025", level: "Proficient", active: false },
-    { month: "Nov 2025", level: "Expert", active: false },
+    { month: "Aug 2025", level: "Week 1-4", active: true },
+    { month: "Sep 2025", level: "Week 5-8", active: false },
+    { month: "Oct 2025", level: "Week 9-12", active: false },
+    { month: "Nov 2025", level: "Week 13-16", active: false },
   ];
 
   return (
@@ -111,7 +111,7 @@ const StudentProgress = () => {
               </CardContent>
             </Card>
             <p className="sm:col-span-2 text-xs text-muted-foreground">
-              These will keep updating as you learn and use the AI chatbot.
+              These will keep updating as you learn and use the chatbot.
             </p>
           </div>
 
