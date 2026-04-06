@@ -167,6 +167,7 @@ const App = () => (
                 <Route path="/teacher/assessments" element={<Assessments />} />
                 <Route path="/teacher/assessment-analytics" element={<AssessmentAnalytics />} />
                 <Route path="/teacher/teaching-plan" element={<TeachingPlan />} />
+                <Route path="/teacher/content-library" element={<ContentLibrary />} />
                 <Route path="/teacher/settings" element={<SettingsIntegrity />} />
                 <Route path="/teacher/support" element={<Support />} />
               </Route>
