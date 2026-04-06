@@ -615,24 +615,33 @@ const AIChat = () => {
               <Button onClick={handleStartExam} className="gap-2" disabled={!taSettings.examEnabled}>
                 <Clock className="h-4 w-4" /> Start Exam
               </Button>
-              {(taSettings.quizDaysEnabled || []).length > 0 ? (
-                (taSettings.quizDaysEnabled || []).sort((a, b) => a - b).map((day) => (
-                  <Button
-                    key={day}
-                    onClick={() => handleStartQuiz(day)}
-                    variant="secondary"
-                    className="gap-2"
-                  >
-                    <MessageSquare className="h-4 w-4" /> Day {day} Quiz
-                  </Button>
-                ))
-              ) : null}
             </div>
-            {(!taSettings.examEnabled && (taSettings.quizDaysEnabled || []).length === 0) && (
+            {!taSettings.examEnabled && (
               <p className="text-xs text-muted-foreground">
-                Your professor has not enabled any assessments yet.
+                Your professor has not enabled the exam yet.
               </p>
             )}
+          </div>
+        )}
+
+        {/* Weekly quiz prompt - shown in study mode */}
+        {mode === "learning" && !assessmentActive && activeChat && activeChat.messages.length <= 2 && (
+          <div className="flex items-center justify-between border-b bg-primary/5 px-5 py-3">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-primary" />
+              <p className="text-sm">
+                <span className="font-medium">Weekly Quiz available</span>
+                <span className="text-muted-foreground"> — test your understanding of this week's concepts</span>
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => handleStartQuiz()}>
+                Take Quiz
+              </Button>
+              <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => {}}>
+                Skip
+              </button>
+            </div>
           </div>
         )}
 
