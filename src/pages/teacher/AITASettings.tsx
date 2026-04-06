@@ -2,13 +2,13 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTASettings } from "@/hooks/useTASettings";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
-import { defaultStudyPrompt, defaultExamPrompt } from "@/data/mockData";
+import { defaultStudyPrompt } from "@/data/mockData";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, ArrowLeft, MessageSquare, BookOpen, Brain, Info } from "lucide-react";
+import { ArrowRight, ArrowLeft, BookOpen, Info } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 
 const AITASettings = () => {
@@ -16,12 +16,10 @@ const AITASettings = () => {
   const { taSettings, loading, saveTASettings } = useTASettings(courseId);
   const navigate = useNavigate();
   const [customStudyPrompt, setCustomStudyPrompt] = useState("");
-  const [customExamPrompt, setCustomExamPrompt] = useState("");
 
   useEffect(() => {
     if (!loading) {
       setCustomStudyPrompt(taSettings.customStudyPrompt || "");
-      setCustomExamPrompt(taSettings.customExamPrompt || "");
     }
   }, [loading, taSettings]);
 
@@ -30,7 +28,6 @@ const AITASettings = () => {
       await saveTASettings({
         ...taSettings,
         customStudyPrompt,
-        customExamPrompt,
       });
       navigate("/teacher/setup/exam-mode");
     } catch {
@@ -43,8 +40,8 @@ const AITASettings = () => {
       <div className="mx-auto w-full max-w-3xl">
         <SetupProgressBar currentStep={6} />
         <div className="mb-8 text-center">
-          <h1 className="font-heading text-3xl font-bold">AI Teaching Assistant <span className="text-primary">Settings</span></h1>
-          <p className="text-muted-foreground">Configure the AI instructions that guide how the Teaching Assistant interacts with your students</p>
+          <h1 className="font-heading text-3xl font-bold">AI Study Assistant <span className="text-primary">Settings</span></h1>
+          <p className="text-muted-foreground">Configure the AI instructions that guide how the Teaching Assistant interacts with your students in Study Mode</p>
         </div>
 
         <div className="space-y-6">
@@ -54,7 +51,7 @@ const AITASettings = () => {
             <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">About Custom Instructions</p>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Each mode has built-in system instructions (shown below in gray). You can add <strong>custom instructions</strong> to tailor the AI's behavior to your specific course. Consider adding:
+                Study Mode has built-in system instructions (shown below in gray). You can add <strong>custom instructions</strong> to tailor the AI's behavior to your specific course. Consider adding:
               </p>
               <ul className="text-xs text-muted-foreground space-y-0.5 mt-1 ml-3 list-disc">
                 <li>How deep the AI should go when explaining concepts (brief overview vs. detailed breakdown)</li>
@@ -98,42 +95,6 @@ const AITASettings = () => {
                   placeholder="Add course-specific instructions for Study Mode here...&#10;&#10;Example: 'When explaining data structures, always relate them to real-world analogies. Encourage students to think about time complexity before writing code. Reference the textbook chapters when applicable.'"
                 />
                 <p className="text-[11px] text-muted-foreground">These will be combined with the system defaults above to guide the AI.</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Exam Prep Mode Instructions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Brain className="h-4 w-4 text-primary" /> Exam Prep Mode Instructions
-              </CardTitle>
-              <CardDescription>Controls how the AI behaves during exam preparation and practice questions</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">System Default Instructions</Label>
-                <div className="rounded-lg border bg-muted/40 p-4">
-                  <Textarea
-                    value={defaultExamPrompt}
-                    disabled
-                    rows={6}
-                    className="font-mono text-xs bg-transparent border-none p-0 opacity-60 cursor-not-allowed resize-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                  />
-                </div>
-                <p className="text-[11px] text-muted-foreground italic">These default instructions cannot be changed — they ensure fair and consistent exam preparation.</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-medium uppercase tracking-wider">Your Custom Instructions</Label>
-                <Textarea
-                  value={customExamPrompt}
-                  onChange={(e) => setCustomExamPrompt(e.target.value)}
-                  rows={5}
-                  className="text-sm leading-relaxed"
-                  placeholder="Add course-specific instructions for Exam Prep Mode here...&#10;&#10;Example: 'Focus exam questions on Modules 1-3 for midterm prep. Include at least one question about error handling in every practice set. Use Python 3.11 syntax in all code examples.'"
-                />
-                <p className="text-[11px] text-muted-foreground">These will be combined with the system defaults above to guide the AI during exam preparation.</p>
               </div>
             </CardContent>
           </Card>
