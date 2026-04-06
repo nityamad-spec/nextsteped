@@ -497,8 +497,6 @@ const TeachingPlan = () => {
                               <div className="flex items-center gap-2 mt-0.5">
                                 <span className="text-sm text-muted-foreground">{dp.dates}</span>
                                 <span className="text-sm text-muted-foreground">·</span>
-                                <span className="text-sm text-muted-foreground">{dp.weightage}%</span>
-                                <span className="text-sm text-muted-foreground">·</span>
                                 <span className="text-sm text-muted-foreground">{dp.resources.length} resources</span>
                               </div>
                             </div>
