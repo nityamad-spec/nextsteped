@@ -559,10 +559,10 @@ const TeachingPlan = () => {
                             ) : (
                               <div className="flex gap-2">
                                 <Button size="sm" variant="outline" onClick={() => startEditDay(dp)} className="h-8 text-sm">
-                                  <Pencil className="h-3 w-3 mr-1.5" /> Edit Day Info
+                                  <Pencil className="h-3 w-3 mr-1.5" /> Edit Week Info
                                 </Button>
                                 <Button size="sm" variant="ghost" onClick={() => deleteDay(dp.id)} className="h-8 text-sm text-destructive hover:text-destructive">
-                                  <Trash2 className="h-3 w-3 mr-1.5" /> Remove Day
+                                  <Trash2 className="h-3 w-3 mr-1.5" /> Remove Week
                                 </Button>
                               </div>
                             )}
