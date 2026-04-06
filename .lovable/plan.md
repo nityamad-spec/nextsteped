@@ -1,69 +1,119 @@
 
 
-## Multi-Feature Update Plan
+## Professor View Revamp Plan
 
-### 1. Upload Tags Cleanup
-**File:** `src/pages/teacher/CourseCreation.tsx`
-- Line 492: Change `(Internal)` to `(Optional)`
-- Line 527: Change `(Student-Facing · Optional)` to `(Optional)`
+This is a large overhaul touching the setup flow, dashboard, assessments, and adding a content library. Here's the breakdown:
 
-### 2. Forgot Password Feature
-**Files:** New `src/pages/ResetPassword.tsx`, modified `src/pages/Auth.tsx`, `src/App.tsx`
-- Add "Forgot password?" link below the password field on the Auth page
-- On click, show an inline form that calls `supabase.auth.resetPasswordForEmail(email, { redirectTo: origin + '/reset-password' })`
-- Create a `/reset-password` page that detects `type=recovery` in the URL hash and lets users set a new password via `supabase.auth.updateUser({ password })`
-- Register the `/reset-password` route in App.tsx
+### Setup Flow Changes (8 steps → 6 steps)
 
-### 3. Student/Professor Role Switcher on Auth Page
-**File:** `src/pages/Auth.tsx`
-- Add a toggle or link near the top of the auth card (below the role label) that says "Sign in as Professor instead" / "Sign in as Student instead"
-- Clicking it navigates to `/auth?role=teacher` or `/auth?role=student` (updates the URL param), which already drives the `role` variable
+Current: Profile → Syllabus Review → Lesson Plan → Concepts → Diagnostic → TA Settings → Exam Mode → Publish
 
-### 4. Teaching Plan UI Overhaul (both `TeachingPlan.tsx` and `CourseCreation.tsx` plan phase)
+New: Profile → Syllabus Review → Lesson Plan → Concepts (auto-filled) → Diagnostic (AI-generated) → Exam Mode (Study instructions merged) → Publish
 
-**4a. Remove summary cards from the top**
-- Delete the 3-card grid (Total Weightage, Total Days, Locked Days) from both files
-- Keep the weightage editable per-day inside the expanded day card
+**Files:** `SetupProgressBar.tsx` (update steps array from 8 to 7), routing in `App.tsx`
 
-**4b. Remove separate Resources section — integrate into lesson flow**
-- Eliminate the standalone "Resources & Materials" section with its own heading
-- Instead, render resources inline within the lesson description as part of the lesson flow
-- Each resource appears as a compact inline card at the relevant point in the lesson (after description text)
-- Resources show: icon, title, description in a clean single-color subtle card style
+---
 
-**4c. Simplify visual styling**
-- Remove the per-resource-type color coding (`typeColors` map) — use a single consistent neutral card style for all resources
-- Reduce font size variations — use consistent `text-sm` throughout
-- Remove provenance badges (From uploads, From web, etc.)
+### 1. Syllabus Export (#3)
+**File:** `MaterialQualityCheck.tsx`
+- Add a "Download Updated Syllabus" button that fetches the uploaded syllabus from Supabase Storage and triggers a browser download
 
-**4d. Make AI Suggest button bigger and more prominent**
-- Change from `size="sm"` outline button to a larger `size="lg"` primary-styled button
-- Place it prominently at the top of the expanded day content, full-width or near-full-width
+### 2. Lesson Plan — Remove Weightage Per Week (#5)
+**File:** `TeachingPlan.tsx`, `CourseCreation.tsx`
+- Remove the weightage slider/input from each day card
+- Remove the `weightage` field from the `DayPlan` type display (keep in data for backward compat)
 
-**4e. Lock/Unlock UX — make student visibility clear**
-- When locked (hidden from students): show a red/muted badge "Hidden from students" with EyeOff icon
-- When unlocked (visible to students): show a green badge "Visible to students" with Eye icon
-- Replace the Lock/Unlock icons with Eye/EyeOff for clearer semantics
+### 3. Concept Management — Auto-fill from Materials (#6, #7)
+**File:** `ConceptManagement.tsx`
+- On page load, call AI (edge function or inline) to analyze uploaded materials and generate concept list with 0-100% weightages
+- Display as a table where each row has an "Approve" checkbox
+- Professor must approve every line item before the "Continue" button enables
+- Change weight display/input from 0-1 decimal to 0-100% scale
+- Add "Regenerate" button to re-run AI if professor wants different suggestions
 
-**4f. Highlight AI-suggested additions vs existing content**
-- Track which resources were added by the latest AI suggestion using a `isNew` flag on the Resource type
-- New AI-added resources get a subtle left-border highlight (e.g., `border-l-4 border-primary`) and a small "AI suggested" badge
-- Clear the `isNew` flag on save
+**New edge function:** `seed-concepts` update or new `auto-concepts` function that reads uploaded materials from storage and returns concept + weight suggestions
 
-**4g. Fix text display — no "**" in rendered content**
-- Update `renderDescription` to strip all `**` markdown and render proper HTML headings, collapsible sections, and bulleted lists
-- Use Collapsible/Accordion for section headers instead of raw markdown parsing
+### 4. Diagnostic Section — AI Auto-generation with Branching (#8)
+**File:** `DiagnosticQuestionsSetup.tsx`
+- Restructure the UI to show:
+  - **5 Anchor Questions** section (common to all students)
+  - **3 Branches** (Easy/Medium/Hard), each with 5 questions
+- AI auto-generates all 20 questions from course materials on page load
+- Professor can filter by branch/difficulty, edit any question, remove, or add custom ones
+- Each question needs individual approval before continuing
+- Call existing `seed-questions` edge function or create new one for branched generation
 
-### Files Modified
-- `src/pages/Auth.tsx` — forgot password link, role switcher
-- `src/pages/ResetPassword.tsx` — new file for password reset
-- `src/App.tsx` — add /reset-password route
-- `src/pages/teacher/CourseCreation.tsx` — tag cleanup, plan phase UI overhaul
-- `src/pages/teacher/TeachingPlan.tsx` — same UI overhaul as CourseCreation plan phase
+### 5. Remove Exam Prep TA Instructions, Keep Study Mode (#9)
+**File:** `AITASettings.tsx`
+- Remove the entire "Exam Prep Mode Instructions" card
+- Keep only Study Mode custom instructions
+- Update page title to "AI Study Assistant Settings"
+- Update navigation: this step now goes directly to Exam Mode
+
+### 6. Remove All Daily Quiz References (#10)
+**Files affected (multiple):**
+- `ExamMode.tsx` — Remove the "Daily Quiz Rules" tab entirely, remove `quizApproved` from `canContinue`
+- `CourseDashboard.tsx` — Remove Daily Quiz toggle from Assessment Controls
+- `Assessments.tsx` — Remove the "Daily Quiz" tab
+- `StudentHome.tsx` — Remove quiz links/references
+- `AIChat.tsx` — Remove quiz mode references
+- `TeacherLayout.tsx` — No change needed
+- `SetupProgressBar.tsx` — Already handled by step reduction
+
+### 7. Exam Mode Rules Updates (#11)
+**File:** `ExamMode.tsx`
+- Remove "Question Presentation" dropdown (default to all-at-once)
+- Add a prominent info banner: "These rules are recommendations. Students can adjust settings if they choose."
+- Remove daily quiz tab (covered in #6)
+
+### 8. Course Dashboard Revamp (#12)
+**File:** `CourseDashboard.tsx` — Major rewrite
+- **Add course progress bar** at the top (e.g., Week 2 of 3)
+- **Remove Assessment Controls** card entirely
+- **Replace Mastery Distribution** with new Concept Mastery Map:
+  - Three categories: "Touched" (asked about ≥1 time), "Deeply Explored" (multiple sessions/follow-ups), "Not Explored"
+  - Aggregate anonymous view of all students
+  - Within Touched/Deeply Explored, show sub-insights if students took weekly quiz
+- **Add AI-generated insights section**: suggestions on how to enhance learning, deep-dive recommendations
+- Keep existing: stats row, weekly engagement, mastery timeline, collaborators
+
+### 9. Assessments Page — Exam & Diagnostic Only (#13)
+**File:** `Assessments.tsx`
+- Remove Study/Daily Quiz tabs, keep only **Exam** and **Diagnostic** tabs
+- In Diagnostic tab, add analytics view (score distribution, difficulty breakdown charts — pull from `diagnostic_results`)
+- Keep existing exam question CRUD
+
+### 10. Content Library (#14)
+**New file:** `ContentLibrary.tsx` — rewrite from static mock to functional page
+- Pull all files from `course_material_files` table for the current course
+- Group by folder_type (syllabus, lesson-plans, materials)
+- Allow uploading new files using `FileUploadZone` component
+- Allow downloading files from Supabase Storage
+- Allow deleting files
+- Show file metadata (name, size, upload date, type)
+
+**File:** `TeacherLayout.tsx` — Add "Content Library" nav item
+**File:** `App.tsx` — Add route `/teacher/content-library`
+
+---
 
 ### Technical Notes
-- The `Resource` type gets an optional `isNew?: boolean` field for AI suggestion tracking
-- The `renderDescription` function is rewritten to parse markdown-like content into proper React elements using Collapsible components
-- Lock/unlock toast messages updated to reference "student visibility" instead of "chatbot"
-- No database changes needed
+- Concept auto-fill needs an edge function that reads from `course-materials` storage bucket and uses AI to extract concepts + weights
+- Diagnostic AI generation reuses/extends the existing `seed-questions` edge function with branching logic
+- Daily quiz removal touches ~6 files but is mostly deletion
+- Dashboard concept mastery map will initially use mock data since chat interaction tracking would need new DB columns (can be wired later)
+- Weight scale change (0-1 → 0-100%) is a display-only change; DB stores as decimal, multiply by 100 for display
+
+### Execution Order
+1. Setup flow restructuring (steps, progress bar, routing)
+2. Remove daily quiz references across all files
+3. TA Settings simplification
+4. Exam Mode cleanup
+5. Lesson Plan weightage removal
+6. Concept Management auto-fill + 0-100% scale
+7. Diagnostic Questions AI branching UI
+8. Course Dashboard revamp
+9. Assessments page restructuring
+10. Content Library (new page)
+11. Syllabus export button
 
