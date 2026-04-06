@@ -547,15 +547,9 @@ const TeachingPlan = () => {
                                   <Label className="text-sm font-medium">Topic</Label>
                                   <Input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} className="h-9 text-sm" />
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div className="space-y-1.5">
-                                    <Label className="text-sm font-medium">Date / Label</Label>
-                                    <Input value={editDates} onChange={(e) => setEditDates(e.target.value)} className="h-9 text-sm" />
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <Label className="text-sm font-medium">Weightage (%)</Label>
-                                    <Input type="number" min={0} max={100} value={dp.weightage} onChange={(e) => updateWeightage(dp.id, parseInt(e.target.value) || 0)} className="h-9 text-sm" />
-                                  </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-sm font-medium">Date / Label</Label>
+                                  <Input value={editDates} onChange={(e) => setEditDates(e.target.value)} className="h-9 text-sm" />
                                 </div>
                                 <div className="flex gap-2 pt-1">
                                   <Button size="sm" onClick={saveEditDay} className="h-8">Save Changes</Button>
