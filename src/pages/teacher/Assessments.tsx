@@ -396,12 +396,11 @@ const Assessments = () => {
         </div>
       </div>
 
-      {/* Main tabs: Exam / Daily Quiz / Study — each with settings + questions */}
+      {/* Main tabs: Exam / Diagnostic — each with settings + questions */}
       <Tabs defaultValue="exam" className="space-y-4" onValueChange={() => clearFilters()}>
         <TabsList>
           <TabsTrigger value="exam" className="gap-2"><Shield className="h-4 w-4" /> Exam Mode</TabsTrigger>
-          <TabsTrigger value="quiz" className="gap-2"><ClipboardList className="h-4 w-4" /> Daily Quiz</TabsTrigger>
-          <TabsTrigger value="study" className="gap-2"><BookOpen className="h-4 w-4" /> Study Mode</TabsTrigger>
+          <TabsTrigger value="diagnostic" className="gap-2"><BookOpen className="h-4 w-4" /> Diagnostic</TabsTrigger>
         </TabsList>
 
         {/* ─── EXAM TAB ─── */}
