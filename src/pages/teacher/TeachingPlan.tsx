@@ -63,7 +63,7 @@ const resourceTypeOptions: { value: Resource["type"]; label: string }[] = [
   { value: "article", label: "Article / Industry Context" },
   { value: "video", label: "Video" },
   { value: "tool", label: "Tool / Software" },
-  { value: "quiz", label: "Daily Quiz" },
+  { value: "quiz", label: "Weekly Quiz" },
   { value: "exam", label: "Exam" },
 ];
 
