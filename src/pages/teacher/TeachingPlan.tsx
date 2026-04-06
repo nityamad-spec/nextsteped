@@ -184,7 +184,7 @@ const TeachingPlan = () => {
 
   const addDay = () => {
     const newDay: DayPlan = {
-      id: `d_new_${Date.now()}`, day: days.length + 1, dates: `Day ${days.length + 1}`,
+      id: `d_new_${Date.now()}`, day: days.length + 1, dates: `Week ${days.length + 1}`,
       topic: "New Topic", description: "", resources: [], weightage: 0, locked: true,
     };
     setDays((prev) => [...prev, newDay]);
