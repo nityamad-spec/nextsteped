@@ -3,41 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ShieldCheck } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
-import { workshopPlan as sharedWorkshopPlan, WorkshopDay } from "@/data/workshopPlan";
 import { useStudentStatus } from "@/hooks/useStudentStatus";
 import { useTASettings } from "@/hooks/useTASettings";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Check, ChevronDown, ChevronUp, BookOpen, Brain, ArrowRight, FlaskConical, LibraryBig, Newspaper, Download, ClipboardList, GraduationCap, Lock } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Brain, BookOpen } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
-const typeLabels: Record<string, string> = {
-  textbook: "Textbook", exercise: "Interactive Exercise", lab: "Interactive Exercise",
-  tool: "Interactive Exercise", "case-study": "Case Study", article: "Article & Industry Context",
-  news: "Article & Industry Context", video: "Video", quiz: "Daily Quiz", exam: "Exam",
-};
-
-const typeColors: Record<string, string> = {
-  textbook: "bg-secondary text-secondary-foreground", exercise: "bg-primary/10 text-primary",
-  lab: "bg-primary/10 text-primary", tool: "bg-primary/10 text-primary",
-  "case-study": "bg-accent/20 text-accent-foreground", article: "bg-muted text-muted-foreground",
-  news: "bg-muted text-muted-foreground", video: "bg-destructive/10 text-destructive",
-  quiz: "bg-primary/10 text-primary", exam: "bg-destructive/10 text-destructive",
-};
-
-const typeIcons: Record<string, typeof BookOpen> = {
-  textbook: BookOpen, exercise: FlaskConical, lab: FlaskConical, tool: FlaskConical,
-  "case-study": LibraryBig, article: Newspaper, news: Newspaper, video: BookOpen,
-  quiz: ClipboardList, exam: GraduationCap,
-};
-
-const currentDay = 1;
 
 const conceptMasteryData = [
   { name: "Variables & Types", mastery: 85 },
@@ -64,73 +38,13 @@ const StudentHome = () => {
   const { taSettings } = useTASettings(enrolledCourseId);
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [expandedDays, setExpandedDays] = useState<number[]>([1]);
-  const [workshopPlan, setWorkshopPlan] = useState<WorkshopDay[]>(
-    // Default: all days locked until teacher publishes a plan
-    sharedWorkshopPlan.map(d => ({ ...d, locked: true }))
-  );
-  const [planLoading, setPlanLoading] = useState(true);
   const courseName = currentCourse?.name || "Intro to Python";
   const displayName = profileData?.name || studentProfile?.name || "Student";
 
-  // Fetch the teacher's published plan from storage (optimized: reuse enrolledCourseId, cache in localStorage)
-  useEffect(() => {
-    let dead = false;
-    (async () => {
-      if (!user) return void setPlanLoading(false);
-
-      // Try cache first for instant render
-      const cacheKey = `published-plan-${enrolledCourseId || user.id}`;
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        try {
-          const p = JSON.parse(cached) as WorkshopDay[];
-          if (Array.isArray(p) && p.length > 0) setWorkshopPlan(p);
-        } catch {}
-      }
-
-      try {
-        let teacherId: string | null = null;
-        if (enrolledCourseId) {
-          // Skip enrollment query — we already have courseId
-          const { data: course } = await supabase
-            .from("courses").select("teacher_id")
-            .eq("id", enrolledCourseId).maybeSingle();
-          teacherId = course?.teacher_id ?? null;
-        } else {
-          // Teacher fallback
-          const { data: course } = await supabase
-            .from("courses").select("teacher_id")
-            .eq("teacher_id", user.id).limit(1).maybeSingle();
-          teacherId = course?.teacher_id ?? null;
-        }
-
-        if (!teacherId) return void setPlanLoading(false);
-
-        const { data: fileData, error } = await supabase.storage
-          .from("course-materials")
-          .download(`${teacherId}/lesson-plan/published-plan.json?t=${Date.now()}`);
-
-        if (!dead && !error && fileData) {
-          const text = await fileData.text();
-          const parsed = JSON.parse(text) as WorkshopDay[];
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setWorkshopPlan(parsed);
-            localStorage.setItem(cacheKey, text);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch published plan:", err);
-      } finally {
-        setPlanLoading(false);
-      }
-    })();
-    return () => { dead = true; };
-  }, [user, enrolledCourseId]);
-
-  const toggleDay = (day: number) => {
-    setExpandedDays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]);
-  };
+  // Semester progress (mock)
+  const totalWeeks = 16;
+  const currentWeek = 6;
+  const progressPct = Math.round((currentWeek / totalWeeks) * 100);
 
   return (
     <div className="p-6">
@@ -156,201 +70,25 @@ const StudentHome = () => {
         </div>
       </motion.div>
 
-      {/* Workshop Progress */}
+      {/* Course Progress */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-6">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-primary" />
-                <p className="text-sm font-medium">Workshop Progress</p>
+                <p className="text-sm font-medium">Course Progress</p>
               </div>
-              <span className="text-sm text-muted-foreground">Day {currentDay} of {workshopPlan.length}</span>
+              <span className="text-sm text-muted-foreground">Week {currentWeek} of {totalWeeks}</span>
             </div>
-            <Progress value={(currentDay / workshopPlan.length) * 100} className="h-2 mb-1" />
-            <p className="text-xs text-muted-foreground">Currently covering: {workshopPlan[currentDay - 1].topic}</p>
+            <Progress value={progressPct} className="h-2 mb-1" />
+            <p className="text-xs text-muted-foreground">Semester in progress — check your lesson plan in the Content Library</p>
           </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Workshop Lesson Plan */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <BookOpen className="h-4 w-4 text-primary" /> Workshop Lesson Plan
-            </CardTitle>
-          </CardHeader>
-          {planLoading ? (
-            <CardContent className="space-y-3">
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
-            </CardContent>
-          ) : (
-          <CardContent className="space-y-2">
-            {workshopPlan.map((dp) => {
-              const isExpanded = expandedDays.includes(dp.day);
-              const isCurrent = dp.day === currentDay;
-              const isPast = dp.day < currentDay;
-              const isLocked = dp.locked;
-              const isDayUnlocked = !isLocked;
-
-              return (
-                <Card key={dp.day} className={isCurrent ? "border-primary/30" : isLocked ? "opacity-70" : ""}>
-                  <div
-                    className={`flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors ${isCurrent ? "bg-primary/5" : ""}`}
-                    onClick={() => toggleDay(dp.day)}
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <Badge variant={isCurrent ? "default" : "outline"} className="shrink-0 text-xs w-16 justify-center">
-                        Day {dp.day}
-                      </Badge>
-                      <span className={`text-sm truncate ${isCurrent ? "font-medium" : isPast ? "text-muted-foreground" : ""}`}>
-                        {dp.topic}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 ml-2 shrink-0">
-                      {isLocked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
-                      {isCurrent && !isLocked && <Badge variant="secondary" className="text-[10px]">Current</Badge>}
-                      {isPast && !isLocked && <Check className="h-3.5 w-3.5 text-primary" />}
-                      {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                    </div>
-                  </div>
-
-                  {isExpanded && (
-                    <CardContent className="pt-0 pb-4 space-y-2">
-                      {isLocked ? (
-                        <div className="flex items-center gap-3 rounded-lg border border-dashed p-4 text-center">
-                          <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <p className="text-xs text-muted-foreground">
-                            This day is <strong className="text-foreground">locked</strong> by your professor. Content and assessments will become available once unlocked.
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          {dp.resources.length === 0 ? (
-                            <p className="text-xs text-muted-foreground py-2">No resources for this day yet.</p>
-                          ) : (
-                            dp.resources.map((r) => {
-                              const Icon = typeIcons[r.type] || BookOpen;
-                              const isDownloadable = r.type === "textbook" || r.type === "article";
-                              const isQuiz = r.type === "quiz";
-                              const isExam = r.type === "exam";
-
-                              if (isExam) {
-                                return taSettings.examEnabled ? (
-                                  <div
-                                    key={r.id}
-                                    className="flex items-center gap-3 rounded-lg border border-accent/30 bg-accent/5 p-3 cursor-pointer hover:bg-accent/10 transition-colors"
-                                    onClick={() => navigate("/student/chat?mode=exam")}
-                                  >
-                                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent-foreground">
-                                      <GraduationCap className="h-4 w-4" />
-                                    </div>
-                                    <div className="flex-1">
-                                      <p className="text-sm font-medium">{r.title}</p>
-                                      <p className="text-xs text-muted-foreground">{r.action}</p>
-                                    </div>
-                                    <ArrowRight className="h-4 w-4 text-accent-foreground" />
-                                  </div>
-                                ) : (
-                                  <div key={r.id} className="flex items-center gap-3 rounded-lg border border-dashed p-3">
-                                    <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-                                    <p className="text-xs text-muted-foreground">
-                                      <strong className="text-foreground">{r.title}</strong> — Not yet available. Your professor has not enabled the exam.
-                                    </p>
-                                  </div>
-                                );
-                              }
-
-                              if (isQuiz) {
-                                return taSettings.quizEnabled ? (
-                                  <div
-                                    key={r.id}
-                                    className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 cursor-pointer hover:bg-primary/10 transition-colors"
-                                    onClick={() => navigate(`/student/chat?mode=quiz&day=${dp.day}`)}
-                                  >
-                                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                      <ClipboardList className="h-4 w-4" />
-                                    </div>
-                                    <div className="flex-1">
-                                      <p className="text-sm font-medium">{r.title}</p>
-                                      <p className="text-xs text-muted-foreground">{r.action}</p>
-                                    </div>
-                                    <ArrowRight className="h-4 w-4 text-primary" />
-                                  </div>
-                                ) : (
-                                  <div key={r.id} className="flex items-center gap-3 rounded-lg border border-dashed p-3">
-                                    <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-                                    <p className="text-xs text-muted-foreground">
-                                      <strong className="text-foreground">{r.title}</strong> — Not yet available. Your professor has not enabled quizzes.
-                                    </p>
-                                  </div>
-                                );
-                              }
-
-                              return (
-                                <div key={r.id} className="flex items-start gap-3 rounded-lg border p-3">
-                                  <div className="pt-0.5"><Icon className="h-4 w-4 text-muted-foreground" /></div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm font-medium">{r.title}</span>
-                                      <Badge variant="outline" className={`text-[10px] ${typeColors[r.type] || ""}`}>
-                                        {typeLabels[r.type] || r.type}
-                                      </Badge>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground mt-0.5">{r.action}</p>
-                                  </div>
-                                  {isDownloadable && (
-                                    <Button variant="ghost" size="sm" className="h-8 shrink-0" title="Download">
-                                      <Download className="h-3.5 w-3.5" />
-                                    </Button>
-                                  )}
-                                </div>
-                              );
-                            })
-                          )}
-
-                          {/* Final Exam for last day, nothing for other days */}
-                          {dp.day === workshopPlan.length && (
-                            taSettings.examEnabled ? (
-                              <div
-                                className="flex items-center gap-3 rounded-lg border border-accent/30 bg-accent/5 p-3 mt-3 cursor-pointer hover:bg-accent/10 transition-colors"
-                                onClick={() => navigate("/student/chat?mode=exam")}
-                              >
-                                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent-foreground">
-                                  <GraduationCap className="h-4 w-4" />
-                                </div>
-                                <div className="flex-1">
-                                  <p className="text-sm font-medium">Final Exam Simulation</p>
-                                  <p className="text-xs text-muted-foreground">Take the full exam covering all workshop topics</p>
-                                </div>
-                                <ArrowRight className="h-4 w-4 text-accent-foreground" />
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-3 rounded-lg border border-dashed p-3 mt-3">
-                                <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-                                <p className="text-xs text-muted-foreground">
-                                  <strong className="text-foreground">Final Exam</strong> — Not yet available. Your professor has not enabled the exam.
-                                </p>
-                              </div>
-                            )
-                          )}
-                        </>
-                      )}
-                    </CardContent>
-                  )}
-                </Card>
-              );
-            })}
-          </CardContent>
-          )}
         </Card>
       </motion.div>
 
       {/* Concept Mastery Heat Map */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-6">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
