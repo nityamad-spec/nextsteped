@@ -431,8 +431,8 @@ const TeachingPlan = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-heading text-3xl font-bold">AI Workshop Lesson Plan</h1>
-          <p className="text-muted-foreground text-sm">Edit topics, descriptions, resources, and control student visibility</p>
+          <h1 className="font-heading text-3xl font-bold">Lesson Plan</h1>
+          <p className="text-muted-foreground text-sm">Edit weekly topics, learning outcomes, resources, and control student visibility</p>
         </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
