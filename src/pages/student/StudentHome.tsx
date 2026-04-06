@@ -312,31 +312,8 @@ const StudentHome = () => {
                             })
                           )}
 
-                          {/* Daily Quiz for Day 1 & 2, Final Exam for Day 3 */}
-                          {dp.day < workshopPlan.length ? (
-                            taSettings.quizEnabled ? (
-                              <div
-                                className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 mt-3 cursor-pointer hover:bg-primary/10 transition-colors"
-                                onClick={() => navigate(`/student/chat?mode=quiz&day=${dp.day}`)}
-                              >
-                                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                  <ClipboardList className="h-4 w-4" />
-                                </div>
-                                <div className="flex-1">
-                                  <p className="text-sm font-medium">Daily Quiz — Day {dp.day}</p>
-                                  <p className="text-xs text-muted-foreground">Test your understanding of today's concepts</p>
-                                </div>
-                                <ArrowRight className="h-4 w-4 text-primary" />
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-3 rounded-lg border border-dashed p-3 mt-3">
-                                <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-                                <p className="text-xs text-muted-foreground">
-                                  <strong className="text-foreground">Daily Quiz</strong> — Not yet available. Your professor has not enabled quizzes.
-                                </p>
-                              </div>
-                            )
-                          ) : (
+                          {/* Final Exam for last day, nothing for other days */}
+                          {dp.day === workshopPlan.length && (
                             taSettings.examEnabled ? (
                               <div
                                 className="flex items-center gap-3 rounded-lg border border-accent/30 bg-accent/5 p-3 mt-3 cursor-pointer hover:bg-accent/10 transition-colors"
