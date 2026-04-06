@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  ArrowRight, ArrowLeft, Brain, Info, Loader2, BookOpen, Pencil, Trash2, Check,
+  ArrowRight, ArrowLeft, Brain, Info, Loader2, BookOpen, Trash2,
 } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import { useToast } from "@/hooks/use-toast";
@@ -22,7 +22,6 @@ interface DiagnosticQuestion {
   answer: string;
   options: any;
   topic: string | null;
-  concept_code?: string;
 }
 
 const difficultyLabel = (est: number) => {
@@ -77,11 +76,8 @@ const DiagnosticQuestionsSetup = () => {
     toast({ title: "Question removed" });
   };
 
-  // Group questions by difficulty tier
-  const anchorQuestions = questions.filter(q => q.difficulty_estimate >= 0.3 && q.difficulty_estimate <= 0.6).slice(0, 5);
-  const easyQuestions = questions.filter(q => q.difficulty_estimate < 0.3);
-  const mediumQuestions = questions.filter(q => q.difficulty_estimate >= 0.3 && q.difficulty_estimate <= 0.6).slice(5);
-  const hardQuestions = questions.filter(q => q.difficulty_estimate > 0.6);
+  const standardQuestions = questions.slice(0, 5);
+  const adaptiveQuestions = questions.slice(5, 10);
 
   const handleContinue = () => {
     navigate("/teacher/setup/exam-mode");
@@ -98,10 +94,11 @@ const DiagnosticQuestionsSetup = () => {
     );
   }
 
-  const renderQuestionCard = (q: DiagnosticQuestion) => (
+  const renderQuestionCard = (q: DiagnosticQuestion, index: number) => (
     <div key={q.id} className="rounded-lg border p-3 space-y-1.5">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-medium text-muted-foreground">Q{index + 1}</span>
           <Badge variant="outline" className={`text-[10px] ${difficultyColor(q.difficulty_estimate)}`}>
             {difficultyLabel(q.difficulty_estimate)}
           </Badge>
@@ -123,27 +120,6 @@ const DiagnosticQuestionsSetup = () => {
               {String.fromCharCode(65 + i)}. {opt}
             </p>
           ))}
-        </div>
-      )}
-    </div>
-  );
-
-  const renderTierSection = (title: string, description: string, qs: DiagnosticQuestion[]) => (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium">{title}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-        <Badge variant="outline" className="font-mono">{qs.length} questions</Badge>
-      </div>
-      {qs.length > 0 ? (
-        <div className="space-y-2">
-          {qs.map(renderQuestionCard)}
-        </div>
-      ) : (
-        <div className="rounded-lg border border-dashed p-4 text-center">
-          <p className="text-xs text-muted-foreground">No questions in this tier yet</p>
         </div>
       )}
     </div>
@@ -176,8 +152,7 @@ const DiagnosticQuestionsSetup = () => {
               <p className="text-sm font-medium">How it works:</p>
               <ul className="text-sm text-muted-foreground space-y-1.5 ml-4 list-disc">
                 <li><strong>5 Standard Questions</strong> — Common to all students, covering core concepts at a medium difficulty level</li>
-                <li><strong>3 Adaptive Tiers</strong> — Based on performance on the standard questions, students are routed to Easy, Medium, or Hard follow-up questions</li>
-                <li>Each tier contains additional questions to further assess the student's level</li>
+                <li><strong>5 Adaptive Questions</strong> — Based on performance on the standard questions, students are routed to an Easy, Medium, or Hard tier of follow-up questions</li>
                 <li>Questions are <strong>randomized</strong> for each student to prevent cheating</li>
               </ul>
             </div>
@@ -193,7 +168,7 @@ const DiagnosticQuestionsSetup = () => {
           </div>
         </div>
 
-        {/* Question Bank Summary */}
+        {/* Question Bank */}
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -205,47 +180,60 @@ const DiagnosticQuestionsSetup = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Stats */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="rounded-lg border bg-muted/20 p-3 text-center">
                 <p className="text-lg font-bold text-primary">{questions.length}</p>
                 <p className="text-xs text-muted-foreground">Total</p>
               </div>
               <div className="rounded-lg border bg-muted/20 p-3 text-center">
-                <p className="text-lg font-bold text-primary">{anchorQuestions.length}</p>
+                <p className="text-lg font-bold text-primary">{standardQuestions.length}</p>
                 <p className="text-xs text-muted-foreground">Standard</p>
               </div>
               <div className="rounded-lg border bg-muted/20 p-3 text-center">
-                <p className="text-lg font-bold text-primary">3</p>
-                <p className="text-xs text-muted-foreground">Tiers (E/M/H)</p>
-              </div>
-              <div className="rounded-lg border bg-muted/20 p-3 text-center">
-                <p className="text-lg font-bold text-primary">{conceptCount}</p>
-                <p className="text-xs text-muted-foreground">Concepts</p>
+                <p className="text-lg font-bold text-primary">{adaptiveQuestions.length}</p>
+                <p className="text-xs text-muted-foreground">Adaptive</p>
               </div>
             </div>
 
-            {/* Tier sections */}
-            <div className="space-y-6">
-              {renderTierSection(
-                "Standard Questions",
-                "Common to all students — medium difficulty, covering core concepts",
-                anchorQuestions
+            {/* Standard Questions */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Standard Questions</p>
+                  <p className="text-xs text-muted-foreground">Common to all students — covering core concepts</p>
+                </div>
+                <Badge variant="outline" className="font-mono">{standardQuestions.length} questions</Badge>
+              </div>
+              {standardQuestions.length > 0 ? (
+                <div className="space-y-2">
+                  {standardQuestions.map((q, i) => renderQuestionCard(q, i))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed p-4 text-center">
+                  <p className="text-xs text-muted-foreground">No standard questions yet</p>
+                </div>
               )}
-              <div className="border-t" />
-              {renderTierSection(
-                "Easy Tier",
-                "For students who struggle with standard questions",
-                easyQuestions
-              )}
-              {renderTierSection(
-                "Medium Tier",
-                "For students who perform moderately on standard questions",
-                mediumQuestions
-              )}
-              {renderTierSection(
-                "Hard Tier",
-                "For students who excel at standard questions",
-                hardQuestions
+            </div>
+
+            <div className="border-t" />
+
+            {/* Adaptive Questions */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Adaptive Tier Questions</p>
+                  <p className="text-xs text-muted-foreground">Students receive Easy, Medium, or Hard questions based on standard performance</p>
+                </div>
+                <Badge variant="outline" className="font-mono">{adaptiveQuestions.length} questions</Badge>
+              </div>
+              {adaptiveQuestions.length > 0 ? (
+                <div className="space-y-2">
+                  {adaptiveQuestions.map((q, i) => renderQuestionCard(q, i + 5))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed p-4 text-center">
+                  <p className="text-xs text-muted-foreground">No adaptive questions yet</p>
+                </div>
               )}
             </div>
           </CardContent>
