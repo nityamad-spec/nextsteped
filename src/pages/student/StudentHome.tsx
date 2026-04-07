@@ -354,11 +354,11 @@ const StudentHome = () => {
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="h-3 w-3 rounded bg-primary" />
-                <span className="text-[10px] text-muted-foreground">Quiz mastery</span>
+                <span className="text-[10px] text-muted-foreground">Mastery (deeply explored)</span>
               </div>
             </div>
             <p className="text-xs text-muted-foreground text-center mt-2">
-              Take weekly quizzes for more detailed mastery insights
+              The more you engage with the Teaching Assistant, the more accurate your exploration and mastery insights become
             </p>
           </CardContent>
         </Card>
