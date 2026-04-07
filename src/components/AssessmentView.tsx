@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, Clock, ArrowRight, ArrowLeft, Trophy, ClipboardList, GraduationCap, ShieldCheck } from "lucide-react";
+import { CheckCircle, XCircle, Clock, ArrowRight, ArrowLeft, Trophy, ClipboardList, GraduationCap, ShieldCheck, Loader2, BookOpen, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface AssessmentViewProps {
   type: "quiz" | "exam";
@@ -16,6 +18,7 @@ interface AssessmentViewProps {
   day?: number;
   onEnd: () => void;
   onSubmit: (results: AssessmentResults) => void;
+  onStudyTopics?: (topics: string[]) => void;
 }
 
 export interface StandardisedAnswer {
@@ -26,6 +29,7 @@ export interface StandardisedAnswer {
   selected: string;
   correct: string;
   is_correct: boolean;
+  explanation?: string;
 }
 
 export interface AssessmentResults {
@@ -38,12 +42,15 @@ export interface AssessmentResults {
 
 type Phase = "intro" | "active" | "review";
 
-const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit }: AssessmentViewProps) => {
+const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics }: AssessmentViewProps) => {
   const [phase, setPhase] = useState<Phase>("intro");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(timeLimitMinutes * 60);
   const [results, setResults] = useState<AssessmentResults | null>(null);
+  const [explanations, setExplanations] = useState<Record<number, string>>({});
+  const [loadingExplanations, setLoadingExplanations] = useState(false);
+  const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
 
   // Timer
   useEffect(() => {
@@ -87,7 +94,55 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     setResults(res);
     setPhase("review");
     onSubmit(res);
+
+    // Auto-expand wrong answers
+    const wrongIndices = new Set<number>();
+    standardised.forEach((a, i) => { if (!a.is_correct) wrongIndices.add(i); });
+    setExpandedQuestions(wrongIndices);
+
+    // Fetch AI explanations
+    fetchExplanations(standardised);
   }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit]);
+
+  const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
+    setLoadingExplanations(true);
+    try {
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/explain-answers`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ answers: answersData }),
+        }
+      );
+      if (resp.ok) {
+        const data = await resp.json();
+        if (Array.isArray(data.explanations)) {
+          const map: Record<number, string> = {};
+          data.explanations.forEach((e: { index: number; explanation: string }) => {
+            map[e.index] = e.explanation;
+          });
+          setExplanations(map);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch explanations:", e);
+    } finally {
+      setLoadingExplanations(false);
+    }
+  };
+
+  const toggleQuestion = (index: number) => {
+    setExpandedQuestions(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
@@ -144,16 +199,20 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   // Review screen
   if (phase === "review" && results) {
     const passed = results.score >= 60;
+    const wrongAnswers = results.answers.filter(a => !a.is_correct);
+    const weakTopics = [...new Set(wrongAnswers.map(a => a.topic))];
+
     return (
       <div className="flex-1 overflow-auto p-6">
         <div className="mx-auto max-w-2xl space-y-6">
+          {/* Score card */}
           <Card>
             <CardHeader className="text-center">
               <div className={`mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full ${passed ? "bg-primary/10" : "bg-destructive/10"}`}>
                 <Trophy className={`h-7 w-7 ${passed ? "text-primary" : "text-destructive"}`} />
               </div>
               <CardTitle className="text-xl">
-                {isQuiz ? "Daily Quiz Complete!" : "Exam Complete!"}
+                {isQuiz ? "Daily Quiz Complete!" : "Exam Practice Complete!"}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -175,40 +234,146 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             </CardContent>
           </Card>
 
-          {/* Question review */}
+          {/* Weak topics + study recommendation */}
+          {weakTopics.length > 0 && (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-start gap-3">
+                  <Lightbulb className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Topics to strengthen</p>
+                    <p className="text-xs text-muted-foreground">
+                      Based on your results, we recommend reviewing these topics in Study mode for a deeper understanding:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {weakTopics.map(topic => (
+                        <Badge key={topic} variant="secondary" className="text-xs">
+                          {topic}
+                        </Badge>
+                      ))}
+                    </div>
+                    {onStudyTopics && (
+                      <Button
+                        size="sm"
+                        className="mt-2 gap-2"
+                        onClick={() => onStudyTopics(weakTopics)}
+                      >
+                        <BookOpen className="h-4 w-4" />
+                        Practice These Topics in Study Mode
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {results.score === 100 && (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="p-5">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">Perfect score! 🎉</p>
+                    <p className="text-xs text-muted-foreground">
+                      Great job! You've demonstrated strong understanding across all topics. Keep it up!
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Loading explanations indicator */}
+          {loadingExplanations && (
+            <div className="flex items-center justify-center gap-2 py-3">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Generating detailed explanations…</p>
+            </div>
+          )}
+
+          {/* Question review with explanations */}
           <div className="space-y-3">
             <h3 className="text-sm font-semibold">Question Review</h3>
-            {results.answers.map((a, i) => (
+            {results.answers.map((a, i) => {
+              const isExpanded = expandedQuestions.has(i);
+              const explanation = explanations[i];
+
+              return (
                 <Card key={a.question_id} className={`border ${a.is_correct ? "border-primary/30" : "border-destructive/30"}`}>
                   <CardContent className="p-4 space-y-2">
-                    <div className="flex items-start gap-2">
-                      {a.is_correct ? <CheckCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" /> : <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium whitespace-pre-wrap">Q{i + 1}: {a.question_text}</p>
-                        <div className="mt-1 space-y-0.5">
-                          <p className="text-xs">
-                            <span className="text-muted-foreground">Your answer: </span>
-                            <span className={a.is_correct ? "text-primary font-medium" : "text-destructive font-medium"}>
-                              {a.selected || "Not answered"}
-                            </span>
-                          </p>
-                          {!a.is_correct && (
+                    <button
+                      onClick={() => toggleQuestion(i)}
+                      className="w-full text-left"
+                    >
+                      <div className="flex items-start gap-2">
+                        {a.is_correct
+                          ? <CheckCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                          : <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                        }
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium whitespace-pre-wrap">Q{i + 1}: {a.question_text}</p>
+                          <div className="mt-1 space-y-0.5">
                             <p className="text-xs">
-                              <span className="text-muted-foreground">Correct answer: </span>
-                              <span className="text-primary font-medium">{a.correct}</span>
+                              <span className="text-muted-foreground">Your answer: </span>
+                              <span className={a.is_correct ? "text-primary font-medium" : "text-destructive font-medium"}>
+                                {a.selected || "Not answered"}
+                              </span>
                             </p>
-                          )}
+                            {!a.is_correct && (
+                              <p className="text-xs">
+                                <span className="text-muted-foreground">Correct answer: </span>
+                                <span className="text-primary font-medium">{a.correct}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="outline" className="text-[10px]">{a.topic}</Badge>
+                          {isExpanded
+                            ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                            : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          }
                         </div>
                       </div>
-                      <Badge variant="outline" className="text-[10px] shrink-0">{a.topic}</Badge>
-                    </div>
+                    </button>
+
+                    {/* Expanded explanation */}
+                    {isExpanded && (
+                      <div className="mt-3 rounded-lg border bg-muted/30 p-3">
+                        {explanation ? (
+                          <div className="prose prose-sm max-w-none dark:prose-invert [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                            <div className="flex items-start gap-2 mb-2">
+                              <Lightbulb className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                              <span className="text-xs font-semibold text-primary">Explanation</span>
+                            </div>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{explanation}</ReactMarkdown>
+                          </div>
+                        ) : loadingExplanations ? (
+                          <div className="flex items-center gap-2 py-2">
+                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">Loading explanation…</span>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic">Explanation not available.</p>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
-              ))}
+              );
+            })}
           </div>
 
-          <div className="text-center pt-2">
-            <Button onClick={onEnd}>Back to {isQuiz ? "Home" : "Home"}</Button>
+          {/* Bottom actions */}
+          <div className="flex items-center justify-center gap-3 pt-2 flex-wrap">
+            <Button variant="outline" onClick={onEnd}>Back to Home</Button>
+            {weakTopics.length > 0 && onStudyTopics && (
+              <Button onClick={() => onStudyTopics(weakTopics)} className="gap-2">
+                <BookOpen className="h-4 w-4" />
+                Study Weak Topics
+              </Button>
+            )}
           </div>
         </div>
       </div>
