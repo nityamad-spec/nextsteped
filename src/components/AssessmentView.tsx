@@ -70,9 +70,16 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const handleFinish = useCallback(() => {
     const standardised: StandardisedAnswer[] = questions.map(q => {
       const userAnswer = answers[q.id] || "";
-      const isCorrect = q.type === "short_answer"
-        ? userAnswer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()
-        : userAnswer === q.correctAnswer;
+      let isCorrect = false;
+      if (q.type === "short_answer") {
+        isCorrect = userAnswer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+      } else if (q.type === "problem_solving") {
+        // Normalize whitespace for code comparison
+        const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+        isCorrect = normalize(userAnswer) === normalize(q.correctAnswer);
+      } else {
+        isCorrect = userAnswer === q.correctAnswer;
+      }
       return {
         question_id: q.id,
         question_text: q.text,
@@ -468,6 +475,20 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                   onChange={(e) => handleAnswer(currentQ.id, e.target.value)}
                   className="min-h-[120px]"
                 />
+              )}
+
+              {currentQ.type === "problem_solving" && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-[10px]">Code / Problem Solving</Badge>
+                  </div>
+                  <Textarea
+                    placeholder="Write your code or solution here…"
+                    value={answers[currentQ.id] || ""}
+                    onChange={(e) => handleAnswer(currentQ.id, e.target.value)}
+                    className="min-h-[160px] font-mono text-sm"
+                  />
+                </div>
               )}
             </CardContent>
           </Card>
