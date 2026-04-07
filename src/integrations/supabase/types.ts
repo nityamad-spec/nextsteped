@@ -1002,6 +1002,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_course_member: {
         Args: { _course_id: string; _user_id: string }
         Returns: boolean

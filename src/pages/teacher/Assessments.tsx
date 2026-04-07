@@ -422,7 +422,7 @@ const Assessments = () => {
 
                 <div className="rounded-lg border p-4 space-y-2">
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted font-bold text-sm">6-10</div>
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted font-bold text-sm">5</div>
                     <p className="text-sm font-semibold">Adaptive Questions</p>
                   </div>
                   <p className="text-xs text-muted-foreground">Adapt based on standard question performance. Students are routed to Easy, Medium, or Hard tier.</p>
