@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import FileUploadZone from "@/components/FileUploadZone";
 import { toast } from "sonner";
-import { workshopPlan as defaultPlan, WorkshopDay } from "@/data/workshopPlan";
+import { workshopPlan as defaultPlan, WorkshopDay, groupResourcesByConcept } from "@/data/workshopPlan";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface StoredFile {
