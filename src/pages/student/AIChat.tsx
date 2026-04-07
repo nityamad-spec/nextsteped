@@ -53,6 +53,7 @@ const AIChat = () => {
   const [assessmentType, setAssessmentType] = useState<"quiz" | "exam">("quiz");
   const [assessmentQuestions, setAssessmentQuestions] = useState<Question[]>([]);
   const [assessmentDay, setAssessmentDay] = useState(1);
+  const [customExamTimeLimit, setCustomExamTimeLimit] = useState<number | null>(null);
 
   // Weekly quiz popup state
   const [showWeeklyQuizPrompt, setShowWeeklyQuizPrompt] = useState(false);
