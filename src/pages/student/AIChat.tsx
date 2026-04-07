@@ -724,7 +724,8 @@ const AIChat = () => {
                   </p>
                 </button>
               ))
-            )}
+            );
+            })()}
           </div>
         </div>
       )}
