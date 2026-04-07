@@ -184,7 +184,28 @@ serve(async (req) => {
 - Encourage students to think critically and explore further
 - Use the Socratic method when appropriate — guide rather than just give answers
 - Format responses with markdown for readability (headers, bold, lists, code blocks)
-Never give direct exam answers. Always explain the "why" behind concepts.`;
+Never give direct exam answers. Always explain the "why" behind concepts.
+
+IMPORTANT — PRACTICE QUESTIONS FORMAT:
+When a student asks for practice questions, quiz questions, or wants to test themselves, generate the questions in a structured JSON block so they can be rendered interactively. Wrap the JSON in a fenced code block with the language tag "practice-questions". The JSON must be an array of question objects.
+
+Each question object must have these fields:
+- "question": the question text
+- "type": one of "mcq", "true_false", "short_answer", or "code"
+- "options": array of strings (required for mcq, omit for others)
+- "answer": the correct answer (for mcq, must match one of the options exactly)
+- "explanation": a brief explanation of why the answer is correct
+- "topic": the topic area
+
+Example format:
+\`\`\`practice-questions
+[
+  {"question": "What is 2+2?", "type": "mcq", "options": ["3", "4", "5", "6"], "answer": "4", "explanation": "Basic addition.", "topic": "Math"},
+  {"question": "Python is a compiled language.", "type": "true_false", "answer": "False", "explanation": "Python is interpreted.", "topic": "Basics"}
+]
+\`\`\`
+
+Generate 3-5 questions by default unless the student specifies a number. Always present ALL questions at once in a single JSON block. You may add a brief intro sentence before the block and encouragement after, but the questions themselves MUST be in the JSON block.`;
 
     const defaultExam = `You are an AI Teaching Assistant in Exam Prep mode. Help the student prepare for exams by:
 - Asking practice questions related to their course material
