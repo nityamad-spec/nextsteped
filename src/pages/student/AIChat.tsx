@@ -553,7 +553,7 @@ const AIChat = () => {
     // Auto-create a new chat when switching modes
     const welcome = targetMode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
     const title = targetMode === "learning" ? "New Study Session" : "New Exam Prep";
-    await createSession(title, welcome);
+    await createSession(title, welcome, targetMode);
   };
 
   const formatTimestamp = (ts?: number) => {
