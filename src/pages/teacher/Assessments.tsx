@@ -333,25 +333,6 @@ const Assessments = () => {
                 </Select>
               </div>
               <Button onClick={handleSaveExamSettings} className="w-full">Save Exam Settings</Button>
-              <div className={`flex items-center justify-between rounded-lg border p-4 mt-4 ${taSettings.examEnabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
-                <div className="flex items-center gap-3">
-                  <Power className="h-4 w-4 text-primary" />
-                  <div>
-                    <p className="text-sm font-medium">Available to Students</p>
-                    <p className="text-xs text-muted-foreground">
-                      {taSettings.examApproved ? "Toggle to enable or disable student access to the exam" : "Approve exam rules in setup first"}
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={taSettings.examEnabled}
-                  disabled={!taSettings.examApproved}
-                  onCheckedChange={async checked => {
-                    try { await saveTASettings({ ...taSettings, examEnabled: checked }); toast.success(`Exam ${checked ? "enabled" : "disabled"} for students`); }
-                    catch { toast.error("Failed to update exam availability"); }
-                  }}
-                />
-              </div>
             </CardContent>
           </Card>
 
