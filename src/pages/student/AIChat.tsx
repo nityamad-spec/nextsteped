@@ -92,7 +92,7 @@ const AIChat = () => {
 
   // Determine current week and show weekly quiz popup on chat open
   useEffect(() => {
-    if (!enrolledCourseId || assessmentActive) return;
+    if (!enrolledCourseId || assessmentActive || mode !== "learning") return;
     const determineWeek = async () => {
       const { data: course } = await supabase
         .from("courses")
@@ -111,7 +111,7 @@ const AIChat = () => {
       }
     };
     determineWeek();
-  }, [enrolledCourseId]);
+  }, [enrolledCourseId, mode]);
 
   // Auto-start quiz/exam if coming from home page with mode=quiz or mode=exam
   useEffect(() => {
