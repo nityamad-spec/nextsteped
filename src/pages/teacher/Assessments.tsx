@@ -395,7 +395,6 @@ const Assessments = () => {
 
         {/* ─── DIAGNOSTIC TAB ─── */}
         <TabsContent value="diagnostic" className="space-y-4">
-          {/* Structure explanation */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -404,101 +403,57 @@ const Assessments = () => {
               <CardDescription>How the adaptive diagnostic assessment works</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-lg bg-muted/30 border p-4 space-y-3">
-              <div className="space-y-4">
-                  <div className="rounded-lg border p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold text-sm">1-5</div>
-                      <div>
-                        <p className="text-sm font-semibold">Standard Questions</p>
-                        <p className="text-xs text-muted-foreground">Questions 1–5 are the same for all students at medium difficulty</p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground pl-10">These establish a baseline understanding of core concepts. Every student sees the same set.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-lg border p-4 space-y-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted font-bold text-sm">1-5</div>
+                    <p className="text-sm font-semibold">Standard Questions</p>
                   </div>
-                  <div className="rounded-lg border p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold text-sm">6-10</div>
-                      <div>
-                        <p className="text-sm font-semibold">Adaptive Questions</p>
-                        <p className="text-xs text-muted-foreground">Questions 6–10 adapt based on performance on the first 5</p>
-                      </div>
+                  <p className="text-xs text-muted-foreground">Same for all students at medium difficulty. Establishes a baseline understanding of core concepts.</p>
+                  <div className="rounded-lg border bg-muted/30 p-3 mt-2">
+                    <p className="text-xs text-muted-foreground italic">"What is the output of: print(type(3.14))?"</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <Badge variant="outline" className="text-[10px]">MCQ</Badge>
+                      <Badge variant="outline" className="text-[10px]">Medium</Badge>
+                      <span className="text-[10px] text-muted-foreground">Data Types</span>
                     </div>
-                    <p className="text-xs text-muted-foreground pl-10">Students are routed to Easy, Medium, or Hard tier questions based on their standard question performance. This personalizes the assessment to accurately gauge each student's level.</p>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">All questions are randomized per student using a seeded shuffle algorithm.</p>
+
+                <div className="rounded-lg border p-4 space-y-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted font-bold text-sm">6-10</div>
+                    <p className="text-sm font-semibold">Adaptive Questions</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Adapt based on standard question performance. Students are routed to Easy, Medium, or Hard tier.</p>
+                  <div className="rounded-lg border bg-muted/30 p-3 mt-2">
+                    <p className="text-xs text-muted-foreground italic">"Write a function that returns the sum of all even numbers in a list."</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <Badge variant="outline" className="text-[10px]">Short Answer</Badge>
+                      <Badge variant="outline" className="text-[10px]">Varies</Badge>
+                      <span className="text-[10px] text-muted-foreground">Functions</span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between rounded-lg border bg-primary/5 border-primary/20 p-4">
+              <p className="text-xs text-muted-foreground">All questions are randomized per student using a seeded shuffle algorithm.</p>
+
+              <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-4">
                 <div>
                   <p className="text-sm font-medium">{diagnosticCount} questions in the question bank</p>
                   <p className="text-xs text-muted-foreground">AI-generated and randomized per student. Edit from the setup flow.</p>
                 </div>
               </div>
 
-              {/* Sample questions - illustrative */}
-              <div className="space-y-3">
-                <p className="text-sm font-medium">Sample Questions <span className="text-xs text-muted-foreground font-normal">(illustrative, not exhaustive)</span></p>
-
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Standard Level</p>
-                  <div className="rounded-lg border p-3">
-                    <p className="text-sm text-muted-foreground italic">"What is the output of: print(type(3.14))?"</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-[10px]">MCQ</Badge>
-                      <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600">Medium</Badge>
-                      <span className="text-[10px] text-muted-foreground">Data Types</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Easy Tier</p>
-                  <div className="rounded-lg border p-3">
-                    <p className="text-sm text-muted-foreground italic">"Which keyword is used to define a function in Python?"</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-[10px]">MCQ</Badge>
-                      <Badge variant="secondary" className="text-[10px]">Easy</Badge>
-                      <span className="text-[10px] text-muted-foreground">Functions</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Medium Tier</p>
-                  <div className="rounded-lg border p-3">
-                    <p className="text-sm text-muted-foreground italic">"Write a function that returns the sum of all even numbers in a list."</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-[10px]">Short Answer</Badge>
-                      <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600">Medium</Badge>
-                      <span className="text-[10px] text-muted-foreground">Functions, Lists</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Hard Tier</p>
-                  <div className="rounded-lg border p-3">
-                    <p className="text-sm text-muted-foreground italic">"Implement a class that represents a stack with push, pop, and peek methods."</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-[10px]">Code Practice</Badge>
-                      <Badge variant="destructive" className="text-[10px]">Hard</Badge>
-                      <span className="text-[10px] text-muted-foreground">OOP, Data Structures</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Concept coverage */}
               <div className="rounded-lg border p-4 space-y-2">
-                <p className="text-sm font-medium">Concept Coverage <span className="text-xs text-muted-foreground font-normal">(illustrative)</span></p>
+                <p className="text-sm font-medium">Concept Coverage</p>
                 <div className="flex flex-wrap gap-2">
                   {["Variables & Types", "Control Flow", "Functions", "Lists & Dicts", "File Handling", "OOP Basics", "Error Handling"].map(concept => (
                     <Badge key={concept} variant="outline" className="text-xs">{concept}</Badge>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">Questions are distributed across all major course concepts to ensure comprehensive assessment.</p>
+                <p className="text-xs text-muted-foreground">Questions are distributed across all major course concepts.</p>
               </div>
             </CardContent>
           </Card>
