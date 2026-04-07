@@ -317,42 +317,89 @@ const TeachingPlan = () => {
 
   const renderDescription = (desc: string) => {
     if (!desc) return null;
-    // Strip all ** markdown
     const cleaned = desc.replace(/\*\*/g, "");
     const sections = cleaned.split(/\n(?=[A-Z][^:\n]+:)/);
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         {sections.map((section, i) => {
           const headingMatch = section.match(/^([A-Z][^:\n]+):\s*/);
-          if (headingMatch) {
-            const heading = headingMatch[1];
-            const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
+          if (!headingMatch) {
+            return <p key={i} className="text-sm text-muted-foreground leading-relaxed">{section}</p>;
+          }
+          const heading = headingMatch[1];
+          const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
+
+          // Parse "Concepts & Topics" with nested concept groups
+          if (heading === "Concepts & Topics" || heading === "Concepts and Topics") {
+            const conceptBlocks: { name: string; items: string[] }[] = [];
             const lines = body.split("\n").filter(l => l.trim());
-            const isList = lines.every(l => /^[-•]/.test(l.trim()));
+            let current: { name: string; items: string[] } | null = null;
+            for (const line of lines) {
+              const conceptMatch = line.match(/^Concept:\s*(.+)/i);
+              if (conceptMatch) {
+                current = { name: conceptMatch[1].trim(), items: [] };
+                conceptBlocks.push(current);
+              } else if (current && /^[-•]/.test(line.trim())) {
+                current.items.push(line.replace(/^[-•]\s*/, "").trim());
+              } else if (current) {
+                current.items.push(line.trim());
+              }
+            }
             return (
-              <Collapsible key={i} defaultOpen>
-                <CollapsibleTrigger className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors w-full text-left">
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                  {heading}
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pl-5 pt-1.5">
-                  {isList ? (
-                    <ul className="space-y-1">
-                      {lines.map((line, j) => (
-                        <li key={j} className="text-sm text-muted-foreground flex items-start gap-2">
-                          <span className="mt-2 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
-                          <span>{line.replace(/^[-•]\s*/, "")}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
-                  )}
-                </CollapsibleContent>
-              </Collapsible>
+              <div key={i} className="space-y-3">
+                <p className="text-sm font-semibold text-foreground">Concepts & Topics</p>
+                {conceptBlocks.map((block, ci) => (
+                  <div key={ci}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="h-4 w-1 rounded-full bg-primary/60" />
+                      <p className="text-sm font-semibold text-foreground">{block.name}</p>
+                    </div>
+                    <div className="space-y-1 pl-3 border-l-2 border-muted ml-0.5">
+                      {block.items.map((item, j) => {
+                        const typeMatch = item.match(/^\[([^\]]+)\]\s*/);
+                        const typeLabel = typeMatch ? typeMatch[1] : null;
+                        const itemText = typeMatch ? item.replace(/^\[[^\]]+\]\s*/, "") : item;
+                        return (
+                          <div key={j} className="flex items-start gap-2 rounded-md bg-muted/20 p-2">
+                            {typeLabel && (
+                              <Badge variant="outline" className="text-[10px] shrink-0 mt-0.5">{typeLabel}</Badge>
+                            )}
+                            <span className="text-sm text-muted-foreground">{itemText}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             );
           }
-          return <p key={i} className="text-sm text-muted-foreground leading-relaxed">{section}</p>;
+
+          // Standard sections
+          const lines = body.split("\n").filter(l => l.trim());
+          const isList = lines.every(l => /^[-•]/.test(l.trim()));
+          return (
+            <Collapsible key={i} defaultOpen>
+              <CollapsibleTrigger className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors w-full text-left">
+                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                {heading}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pl-5 pt-1.5">
+                {isList ? (
+                  <ul className="space-y-1">
+                    {lines.map((line, j) => (
+                      <li key={j} className="text-sm text-muted-foreground flex items-start gap-2">
+                        <span className="mt-2 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
+                        <span>{line.replace(/^[-•]\s*/, "")}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+          );
         })}
       </div>
     );
