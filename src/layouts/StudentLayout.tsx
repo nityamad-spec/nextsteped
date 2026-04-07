@@ -38,7 +38,7 @@ const StudentLayout = () => {
           <Outlet />
         </main>
         <nav className="flex border-t bg-card">
-          {studentNav.filter(item => item.enabled).map((item) => (
+          {studentNav.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
