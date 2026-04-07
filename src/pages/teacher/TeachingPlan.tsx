@@ -37,6 +37,7 @@ type Resource = {
   accepted?: boolean | null;
   provenance?: "uploads" | "web" | "instructor";
   isNew?: boolean;
+  concept?: string;
 };
 
 type DayPlan = {
@@ -608,11 +609,29 @@ const TeachingPlan = () => {
                                   )}
 
                                   {/* Integrated Resources */}
-                                  {dp.resources.length > 0 && (
-                                    <div className="space-y-2 mt-4">
-                                      {dp.resources.map((r) => renderResourceCard(r, dp))}
-                                    </div>
-                                  )}
+                                  {(() => {
+                                    const conceptGroups = new Map<string, typeof dp.resources>();
+                                    for (const r of dp.resources) {
+                                      const key = r.concept || "General";
+                                      if (!conceptGroups.has(key)) conceptGroups.set(key, []);
+                                      conceptGroups.get(key)!.push(r);
+                                    }
+                                    return (
+                                      <div className="space-y-4 mt-4">
+                                        {Array.from(conceptGroups.entries()).map(([concept, activities]) => (
+                                          <div key={concept}>
+                                            <div className="flex items-center gap-2 mb-2">
+                                              <div className="h-4 w-1 rounded-full bg-primary/60" />
+                                              <p className="text-sm font-semibold text-foreground">{concept}</p>
+                                            </div>
+                                            <div className="space-y-2 pl-3 border-l-2 border-muted ml-0.5">
+                                              {activities.map((r) => renderResourceCard(r, dp))}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  })()}
 
                                   {dp.resources.length === 0 && (
                                     <div className="rounded-lg border border-dashed p-6 text-center">

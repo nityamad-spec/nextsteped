@@ -253,26 +253,41 @@ const StudentHome = () => {
                           </div>
                         )}
 
-                        {/* Concepts & Activities */}
-                        {dp.resources && dp.resources.length > 0 && (
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Concepts & Activities</p>
-                            <div className="space-y-2">
-                              {dp.resources.map((r: any, i: number) => (
-                                <div key={r.id || i} className="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
-                                  <div className="flex h-7 w-7 items-center justify-center rounded bg-primary/10 text-primary shrink-0">
-                                    <BookOpen className="h-3.5 w-3.5" />
+                        {/* Concepts → Activities (hierarchical) */}
+                        {dp.resources && dp.resources.length > 0 && (() => {
+                          const conceptGroups = new Map<string, any[]>();
+                          for (const r of dp.resources) {
+                            const key = r.concept || "General";
+                            if (!conceptGroups.has(key)) conceptGroups.set(key, []);
+                            conceptGroups.get(key)!.push(r);
+                          }
+                          return (
+                            <div className="space-y-3">
+                              {Array.from(conceptGroups.entries()).map(([concept, activities]) => (
+                                <div key={concept}>
+                                  <div className="flex items-center gap-2 mb-1.5">
+                                    <div className="h-4 w-1 rounded-full bg-primary/60" />
+                                    <p className="text-sm font-semibold text-foreground">{concept}</p>
                                   </div>
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium">{r.title}</p>
-                                    <p className="text-xs text-muted-foreground">{r.action}</p>
+                                  <div className="space-y-1.5 pl-3 border-l-2 border-muted ml-0.5">
+                                    {activities.map((r: any, i: number) => (
+                                      <div key={r.id || i} className="flex items-start gap-3 rounded-lg bg-muted/20 p-2.5">
+                                        <div className="flex h-6 w-6 items-center justify-center rounded bg-primary/10 text-primary shrink-0">
+                                          <BookOpen className="h-3 w-3" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <p className="text-sm font-medium">{r.title}</p>
+                                          <p className="text-xs text-muted-foreground">{r.action}</p>
+                                        </div>
+                                        <Badge variant="outline" className="text-[10px] shrink-0">{r.type}</Badge>
+                                      </div>
+                                    ))}
                                   </div>
-                                  <Badge variant="outline" className="text-[10px] shrink-0 ml-auto">{r.type}</Badge>
                                 </div>
                               ))}
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         {/* Weekly Quiz option */}
                         <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between">
