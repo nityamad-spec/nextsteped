@@ -25,20 +25,33 @@ serve(async (req) => {
 1. A structured lesson description with these clearly labeled sections (use exactly these headings):
    **Overview:** A 2-3 sentence overview of the week's focus and goals.
    **Learning Outcomes:** 3-5 specific, measurable learning outcomes as bullet points.
-   **Concepts & Topics:** List each concept/topic covered this week in sequential order. Under each concept, embed the specific lectures, exercises, activities, readings, case studies, coding time, etc. that relate to that concept. Format like:
+   **Concepts & Topics:** List each concept/topic covered this week in sequential order. For EACH concept, include:
+   - A one-sentence description explaining what the concept is and why it matters (so the professor immediately understands the scope)
+   - Specific activities/resources embedded under it
+   
+   Format like:
    
    Concept: [Concept Name]
+   [One-sentence description of what this concept covers and its real-world relevance]
    - [type] [Resource/Activity Title]: [Brief description of what students do]
    - [type] [Resource/Activity Title]: [Brief description]
    
    Concept: [Next Concept Name]
+   [One-sentence description]
    - [type] [Resource/Activity Title]: [Brief description]
    
    Valid types in brackets: [Reading], [Lecture], [Exercise], [Lab], [Case Study], [Article], [Video], [Tool], [Discussion], [Coding]
    
-   **Additional Tips:** 2-4 practical tips for teaching, assessing, or engaging students during this week.
+   **Additional Tips:** 2-4 practical, specific tips for teaching, assessing, or engaging students during this week.
 
-2. A JSON array of the resources/activities you embedded in the Concepts & Topics section, plus any additional suggestions. Each resource should include a "concept" field indicating which concept it belongs to.
+2. A JSON array of the resources/activities you embedded in the Concepts & Topics section, plus any additional suggestions. Each resource should include a "concept" field indicating which concept it belongs to, and a "conceptDescription" field with the one-sentence description.
+
+CRITICAL DESIGN PRINCIPLES:
+- Every concept MUST include at least one real-world, industry-aligned example, case study, or exercise. Think: how is this concept used in actual software development jobs, data science, automation, startups, etc.?
+- When suggesting NEW concepts not in the original plan, always include a clear one-sentence description so the professor understands what it is and why it belongs in the curriculum.
+- Be intentional and focused: suggest only concepts/topics that genuinely add value. Quality over quantity — do NOT overwhelm with dozens of additions. 2-4 new concept suggestions per week is the sweet spot.
+- Reorganize concepts in a logical, sequential teaching order (prerequisites first, building complexity).
+- Make exercises concrete and actionable (e.g., "Build a tip calculator using variables and input()" not "Practice using variables").
 
 Format your response EXACTLY like this (the JSON block must be valid):
 
@@ -53,13 +66,15 @@ Format your response EXACTLY like this (the JSON block must be valid):
 **Concepts & Topics:**
 
 Concept: [First Concept]
+[One-sentence description of this concept's scope and real-world relevance]
 - [Reading] Intro to Python Slides: Cover variables, data types, operators
-- [Exercise] Variables Practice: Students practice declaring and using variables
+- [Exercise] Build a Unit Converter: Students create a program that converts temperatures using variables and arithmetic
 ...
 
 Concept: [Second Concept]
-- [Lecture] Control Flow Overview: If/else statements and loops
-- [Coding] Loop Challenge: Write programs using for and while loops
+[One-sentence description]
+- [Lecture] Control Flow Overview: If/else with real debugging scenarios from Stack Overflow
+- [Coding] Sales Data Analyzer: Write a program that processes a list of transactions using loops
 ...
 
 **Additional Tips:**
@@ -68,7 +83,7 @@ Concept: [Second Concept]
 ...
 
 ---RESOURCES_JSON---
-[{"title":"Resource Title","action":"Description","type":"exercise","provenance":"instructor","concept":"Concept Name"},...]
+[{"title":"Resource Title","action":"Description","type":"exercise","provenance":"instructor","concept":"Concept Name","conceptDescription":"One-sentence description of the concept"},...]
 
 Valid types: textbook, lab, case-study, exercise, article, video, tool, news
 Valid provenance values: instructor, web`;
@@ -89,10 +104,11 @@ ${existingResourcesSummary}
 
 CRITICAL INSTRUCTIONS:
 1. Do NOT simply rephrase or reword existing content. Add SUBSTANTIALLY NEW concepts, activities, and resources that are missing but important for this topic.
-2. If there are concepts or sub-topics NOT currently mentioned but critical for teaching "${dayTopic}" effectively, ADD them as new concepts in your response. Reorganize the chronological order accordingly.
-3. For each concept, propose specific, actionable activities — not generic descriptions. Include concrete exercise ideas, discussion prompts, real-world examples, and assessment strategies.
+2. If there are concepts or sub-topics NOT currently mentioned but critical for teaching "${dayTopic}" effectively, ADD them as new concepts with a brief description explaining what they are and why they matter for real-world applications. Reorganize the chronological order accordingly.
+3. For EVERY concept (existing and new), include at least one real-world, industry-aligned exercise or example. Think practical: what would a junior developer, data analyst, or automation engineer actually do with this concept? Reference real tools (GitHub, VS Code, Jupyter, pandas, etc.) and real scenarios (parsing log files, building a web scraper, automating reports).
 4. List concepts in chronological teaching order and embed all activities/resources directly under their relevant concept. Focus on making the lesson flow intuitive and sequential.
-5. The Additional Tips section should include practical, specific teaching strategies — not generic advice.`;
+5. The Additional Tips section should include practical, specific teaching strategies — not generic advice.
+6. Be intentional: suggest 2-4 genuinely valuable new concepts/topics per week maximum. Do not overwhelm with too many additions — focus on what will meaningfully improve the curriculum.`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
