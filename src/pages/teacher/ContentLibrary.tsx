@@ -234,46 +234,57 @@ const ContentLibrary = () => {
                 {/* Concepts → Activities (hierarchical) */}
                 {conceptGroups.size > 0 && (
                   <div className="space-y-3">
-                    {Array.from(conceptGroups.entries()).map(([concept, activities]) => (
-                      <div key={concept}>
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <div className="h-4 w-1 rounded-full bg-primary/60" />
-                          <p className="text-sm font-semibold text-foreground">{concept}</p>
-                        </div>
-                        <div className="space-y-1.5 pl-3 border-l-2 border-muted ml-0.5">
-                          {activities.map((r: any, i: number) => (
-                            <div key={r.id || i} className="flex items-start gap-3 rounded-lg bg-muted/20 p-2.5">
-                              <div className="flex h-6 w-6 items-center justify-center rounded bg-primary/10 text-primary shrink-0">
-                                <BookOpen className="h-3 w-3" />
+                    {Array.from(conceptGroups.entries()).map(([concept, activities]) => {
+                      const inClass = activities.filter((r: any) => !["textbook", "article", "case-study", "news"].includes(r.type));
+                      const preClass = activities.filter((r: any) => ["textbook", "article", "case-study", "news"].includes(r.type));
+                      return (
+                        <div key={concept} className="rounded-lg border bg-card/50 overflow-hidden">
+                          <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/30 border-b">
+                            <div className="h-5 w-1 rounded-full bg-primary" />
+                            <p className="text-sm font-semibold text-foreground">{concept}</p>
+                          </div>
+                          <div className="px-4 py-3 space-y-3">
+                            {inClass.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">In Class</p>
+                                <div className="space-y-1.5">
+                                  {inClass.map((r: any, i: number) => (
+                                    <div key={r.id || i} className="flex items-start gap-2.5 rounded-md px-3 py-2">
+                                      <span className="text-sm shrink-0 mt-0.5">
+                                        {r.type === "exercise" ? "🏋️" : r.type === "lab" ? "🧪" : r.type === "video" ? "🎬" : r.type === "tool" ? "🔧" : "📄"}
+                                      </span>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-medium">{r.title}</p>
+                                        <p className="text-xs text-muted-foreground">{r.action}</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-medium">{r.title}</p>
-                                <p className="text-xs text-muted-foreground">{r.action}</p>
+                            )}
+                            {preClass.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Readings & Preparation</p>
+                                <div className="space-y-1.5">
+                                  {preClass.map((r: any, i: number) => (
+                                    <div key={r.id || i} className="flex items-start gap-2.5 rounded-md px-3 py-2">
+                                      <span className="text-sm shrink-0 mt-0.5">
+                                        {r.type === "textbook" ? "📖" : r.type === "article" ? "📰" : r.type === "case-study" ? "📋" : "📰"}
+                                      </span>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-medium">{r.title}</p>
+                                        <p className="text-xs text-muted-foreground">{r.action}</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                              <Badge variant="outline" className="text-[10px] shrink-0">{r.type}</Badge>
-                            </div>
-                          ))}
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                )}
-
-                {/* Teaching Strategies */}
-                {strategies && (
-                  <Collapsible>
-                    <CollapsibleTrigger className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-primary transition-colors">
-                      <ChevronDown className="h-3 w-3" />
-                      Teaching Strategies
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-1.5 pl-4">
-                      <ul className="space-y-1">
-                        {parseList(strategies).map((item, i) => (
-                          <li key={i} className="text-xs text-muted-foreground">• {item}</li>
-                        ))}
-                      </ul>
-                    </CollapsibleContent>
-                  </Collapsible>
                 )}
           </CardContent>
         )}
