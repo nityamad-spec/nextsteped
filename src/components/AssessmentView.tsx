@@ -469,6 +469,20 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                   className="min-h-[120px]"
                 />
               )}
+
+              {currentQ.type === "problem_solving" && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-[10px]">Code / Problem Solving</Badge>
+                  </div>
+                  <Textarea
+                    placeholder="Write your code or solution here…"
+                    value={answers[currentQ.id] || ""}
+                    onChange={(e) => handleAnswer(currentQ.id, e.target.value)}
+                    className="min-h-[160px] font-mono text-sm"
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
