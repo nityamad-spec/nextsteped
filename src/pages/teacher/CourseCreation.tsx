@@ -617,7 +617,7 @@ const CourseCreation = () => {
     );
   };
 
-  const renderInlineResource = (r: Resource, dp: DayPlan) => {
+  const renderInlineResource = (r: Resource, dp: DayPlan, concepts?: string[]) => {
     const isEditingThis = editingResourceId === r.id;
     if (isEditingThis) {
       return (
@@ -650,6 +650,7 @@ const CourseCreation = () => {
         </div>
       );
     }
+    const isInClass = inClassTypes.has(r.type);
     return (
       <div key={r.id} className={`flex items-start gap-2.5 rounded-md px-3 py-2 group hover:bg-muted/30 transition-colors ${r.isNew ? "bg-primary/5 border-l-2 border-l-primary" : ""}`}>
         <span className="text-sm shrink-0 mt-0.5">{typeIcons[r.type] || "📄"}</span>
@@ -661,6 +662,25 @@ const CourseCreation = () => {
           <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{r.action}</p>
         </div>
         <div className="flex gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button variant="ghost" size="sm" onClick={() => toggleResourceCategory(dp.id, r.id)} className="h-6 px-1.5" title={isInClass ? "Move to Readings" : "Move to In Class"}>
+            <ArrowLeftRight className="h-3 w-3" />
+          </Button>
+          {concepts && concepts.length > 1 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-6 px-1.5" title="Move to concept">
+                  <GripVertical className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[160px]">
+                {concepts.filter(c => c !== r.concept).map(c => (
+                  <DropdownMenuItem key={c} onClick={() => moveResourceToConcept(dp.id, r.id, c)} className="text-xs">
+                    Move to {c}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <Button variant="ghost" size="sm" onClick={() => startEditResource(r)} className="h-6 w-6 p-0">
             <Pencil className="h-3 w-3" />
           </Button>
