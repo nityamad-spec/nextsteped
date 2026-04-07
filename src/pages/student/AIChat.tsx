@@ -537,6 +537,8 @@ const AIChat = () => {
 
   const renderMessage = (msg: ChatMessage) => {
     const isUser = msg.role === "user";
+    const displayContent = !isUser ? normalizeExamWelcomeMessage(msg.content) : msg.content;
+
     return (
       <div key={msg.id} className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
         {/* Avatar */}
@@ -556,7 +558,7 @@ const AIChat = () => {
           <div className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
             isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
           }`}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
           </div>
           {msg.timestamp && (
             <div className={`text-[10px] mt-1.5 ${isUser ? "text-primary-foreground/60 text-right" : "text-muted-foreground text-right"}`}>
