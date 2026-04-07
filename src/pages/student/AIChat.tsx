@@ -551,10 +551,11 @@ const AIChat = () => {
     setMode(targetMode);
     setShowHistory(false);
     setAssessmentActive(false);
-    // Auto-create a new chat when switching modes
-    const welcome = targetMode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
-    const title = targetMode === "learning" ? "New Study Session" : "New Exam Prep";
-    await createSession(title, welcome, targetMode);
+    // Only auto-create a new chat for study mode; exam mode doesn't need empty chats
+    if (targetMode === "learning") {
+      const welcome = WELCOME_LEARNING;
+      await createSession("New Study Session", welcome, targetMode);
+    }
   };
 
   const formatTimestamp = (ts?: number) => {
