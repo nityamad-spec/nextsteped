@@ -101,7 +101,7 @@ const ExamMode = () => {
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto w-full max-w-3xl">
-        <SetupProgressBar currentStep={6} />
+        <SetupProgressBar currentStep={7} />
         <div className="mb-8 text-center">
           <h1 className="font-heading text-3xl font-bold">Exam <span className="text-primary">Mode</span></h1>
           <p className="text-muted-foreground">Configure exam simulation rules for your students</p>
@@ -239,7 +239,7 @@ const ExamMode = () => {
           </Card>
 
           <div className="flex justify-between items-center">
-            <Button variant="ghost" onClick={() => navigate("/teacher/setup/diagnostic")}>
+            <Button variant="ghost" onClick={() => navigate("/teacher/setup/ai-settings")}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
             <div className="flex flex-col items-end gap-1">
