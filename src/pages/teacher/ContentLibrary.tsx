@@ -179,20 +179,15 @@ const ContentLibrary = () => {
 
   const renderLessonPlanWeek = (dp: any) => {
     const isExpanded = expandedWeeks.includes(dp.day);
-    // Parse description for structured display
     const desc = dp.description || "";
-    const overviewMatch = desc.match(/Overview:\s*([\s\S]*?)(?=Learning Outcomes:|Concepts:|$)/i);
     const outcomesMatch = desc.match(/Learning Outcomes:\s*([\s\S]*?)(?=Concepts:|Teaching Strategies:|$)/i);
-    const conceptsMatch = desc.match(/Concepts:\s*([\s\S]*?)(?=Teaching Strategies:|$)/i);
     const strategiesMatch = desc.match(/Teaching Strategies:\s*([\s\S]*?)$/i);
-
-    const overview = overviewMatch?.[1]?.trim().replace(/\*\*/g, "") || "";
     const outcomes = outcomesMatch?.[1]?.trim().replace(/\*\*/g, "") || "";
-    const concepts = conceptsMatch?.[1]?.trim().replace(/\*\*/g, "") || "";
     const strategies = strategiesMatch?.[1]?.trim().replace(/\*\*/g, "") || "";
-
     const parseList = (text: string) =>
       text.split("\n").map(l => l.replace(/^[-•]\s*/, "").trim()).filter(Boolean);
+
+    const conceptGroups = dp.resources ? groupResourcesByConcept(dp.resources) : new Map();
 
     return (
       <Card key={dp.id || dp.day} className={isExpanded ? "border-primary/20" : ""}>
@@ -221,14 +216,6 @@ const ContentLibrary = () => {
               </div>
             ) : (
               <>
-                {/* Overview */}
-                {(overview || dp.topic) && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Overview</p>
-                    <p className="text-sm text-muted-foreground">{overview || `Covers ${dp.topic}`}</p>
-                  </div>
-                )}
-
                 {/* Learning Outcomes */}
                 {outcomes && (
                   <div>
@@ -244,24 +231,31 @@ const ContentLibrary = () => {
                   </div>
                 )}
 
-                {/* Concepts & Activities */}
-                {dp.resources && dp.resources.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Concepts & Activities</p>
-                    <div className="space-y-2">
-                      {dp.resources.map((r: any, i: number) => (
-                        <div key={r.id || i} className="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
-                          <div className="flex h-7 w-7 items-center justify-center rounded bg-primary/10 text-primary shrink-0">
-                            <BookOpen className="h-3.5 w-3.5" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium">{r.title}</p>
-                            <p className="text-xs text-muted-foreground">{r.action}</p>
-                          </div>
-                          <Badge variant="outline" className="text-[10px] shrink-0 ml-auto">{r.type}</Badge>
+                {/* Concepts → Activities (hierarchical) */}
+                {conceptGroups.size > 0 && (
+                  <div className="space-y-3">
+                    {Array.from(conceptGroups.entries()).map(([concept, activities]) => (
+                      <div key={concept}>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div className="h-4 w-1 rounded-full bg-primary/60" />
+                          <p className="text-sm font-semibold text-foreground">{concept}</p>
                         </div>
-                      ))}
-                    </div>
+                        <div className="space-y-1.5 pl-3 border-l-2 border-muted ml-0.5">
+                          {activities.map((r: any, i: number) => (
+                            <div key={r.id || i} className="flex items-start gap-3 rounded-lg bg-muted/20 p-2.5">
+                              <div className="flex h-6 w-6 items-center justify-center rounded bg-primary/10 text-primary shrink-0">
+                                <BookOpen className="h-3 w-3" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium">{r.title}</p>
+                                <p className="text-xs text-muted-foreground">{r.action}</p>
+                              </div>
+                              <Badge variant="outline" className="text-[10px] shrink-0">{r.type}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
 
