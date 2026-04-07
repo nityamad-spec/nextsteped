@@ -384,40 +384,45 @@ const TeachingPlan = () => {
       if (!conceptOrder.includes(key)) conceptOrder.push(key);
     }
 
+    const topTextHeadings = /^(overview|learning outcomes)$/i;
+    const bottomTextHeadings = /^(additional tips|tips|teaching tips|strategies|teaching strategies|engagement.*)$/i;
+
+    const renderTextSection = (section: string, i: number) => {
+      const headingMatch = section.match(/^([A-Z][^:\n]+):\s*/);
+      if (!headingMatch) return null;
+      const heading = headingMatch[1];
+      const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
+      const lines = body.split("\n").filter(l => l.trim());
+      const isList = lines.every(l => /^[-•]/.test(l.trim()));
+
+      return (
+        <div key={`${heading}-${i}`}>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{heading}</p>
+          {isList ? (
+            <ul className="space-y-1 pl-1">
+              {lines.map((line, j) => (
+                <li key={j} className="text-sm text-foreground/80 flex items-start gap-2">
+                  <span className="mt-2 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
+                  <span>{line.replace(/^[-•]\s*/, "")}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-foreground/80 leading-relaxed">{body}</p>
+          )}
+        </div>
+      );
+    };
+
     return (
       <div className="space-y-5">
-        {sections.map((section, i) => {
-          const headingMatch = section.match(/^([A-Z][^:\n]+):\s*/);
-          if (!headingMatch) return null;
-          const heading = headingMatch[1];
-          const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
-
-          if (heading === "Concepts & Topics" || heading === "Concepts and Topics") return null;
-          if (/timeline|teaching strategies|engagement/i.test(heading)) return null;
-          // Allow: Overview, Learning Outcomes, Additional Tips
-          if (!/^(overview|learning outcomes|additional tips|tips|teaching tips|strategies)$/i.test(heading)) return null;
-
-          const lines = body.split("\n").filter(l => l.trim());
-          const isList = lines.every(l => /^[-•]/.test(l.trim()));
-
-          return (
-            <div key={i}>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{heading}</p>
-              {isList ? (
-                <ul className="space-y-1 pl-1">
-                  {lines.map((line, j) => (
-                    <li key={j} className="text-sm text-foreground/80 flex items-start gap-2">
-                      <span className="mt-2 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
-                      <span>{line.replace(/^[-•]\s*/, "")}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-foreground/80 leading-relaxed">{body}</p>
-              )}
-            </div>
-          );
-        })}
+        {sections
+          .filter((section) => {
+            const heading = section.match(/^([A-Z][^:\n]+):\s*/)?.[1];
+            if (!heading || heading === "Concepts & Topics" || heading === "Concepts and Topics") return false;
+            return topTextHeadings.test(heading);
+          })
+          .map(renderTextSection)}
 
         {conceptOrder.length > 0 && (
           <div className="space-y-3">
@@ -515,6 +520,14 @@ const TeachingPlan = () => {
             })}
           </div>
         )}
+
+        {sections
+          .filter((section) => {
+            const heading = section.match(/^([A-Z][^:\n]+):\s*/)?.[1];
+            if (!heading || heading === "Concepts & Topics" || heading === "Concepts and Topics") return false;
+            return bottomTextHeadings.test(heading);
+          })
+          .map(renderTextSection)}
       </div>
     );
   };
