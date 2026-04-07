@@ -181,6 +181,36 @@ const CourseCreation = () => {
   const [suggestingDayId, setSuggestingDayId] = useState<string | null>(null);
   const [addingResourceDayId, setAddingResourceDayId] = useState<string | null>(null);
   const [newResourceType, setNewResourceType] = useState<Resource["type"]>("exercise");
+  const [editingConceptName, setEditingConceptName] = useState<string | null>(null);
+  const [editConceptValue, setEditConceptValue] = useState("");
+
+  const renameConcept = (dayId: string, oldName: string, newName: string) => {
+    if (!newName.trim() || newName === oldName) { setEditingConceptName(null); return; }
+    setDays(prev => prev.map(d => d.id === dayId ? {
+      ...d,
+      resources: d.resources.map(r => r.concept === oldName ? { ...r, concept: newName.trim() } : r),
+      description: d.description?.replace(new RegExp(`Concept:\\s*${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'), `Concept: ${newName.trim()}`),
+    } : d));
+    setEditingConceptName(null); setPublished(false);
+  };
+
+  const moveResourceToConcept = (dayId: string, resourceId: string, newConcept: string) => {
+    setDays(prev => prev.map(d => d.id === dayId ? {
+      ...d, resources: d.resources.map(r => r.id === resourceId ? { ...r, concept: newConcept } : r),
+    } : d));
+    setPublished(false);
+  };
+
+  const toggleResourceCategory = (dayId: string, resourceId: string) => {
+    const inClassTypes = new Set(["exercise", "lab", "tool", "video"]);
+    setDays(prev => prev.map(d => d.id === dayId ? {
+      ...d, resources: d.resources.map(r => {
+        if (r.id !== resourceId) return r;
+        return { ...r, type: inClassTypes.has(r.type) ? "textbook" as const : "exercise" as const };
+      }),
+    } : d));
+    setPublished(false);
+  };
 
   const totalWeightage = days.reduce((sum, d) => sum + (d.weightage || 0), 0);
 
