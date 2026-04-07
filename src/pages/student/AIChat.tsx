@@ -122,7 +122,7 @@ const AIChat = () => {
     if (urlMode === "quiz") {
       setShowWeeklyQuizPrompt(false);
       handleStartQuiz(urlDay);
-    } else if (urlMode === "exam" && taSettings.examEnabled) {
+    } else if (urlMode === "exam") {
       handleStartExam();
     }
   }, []);

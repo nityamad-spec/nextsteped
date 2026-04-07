@@ -91,18 +91,12 @@ const ExamPrepPanel = ({ taSettings, onStart }: ExamPrepPanelProps) => {
           <Button
             onClick={() => onStart({ timeLimit, questionCount, difficulty, questionMix })}
             className="gap-2"
-            disabled={!taSettings.examEnabled}
           >
             <Clock className="h-4 w-4" /> Start Exam Practice
           </Button>
         </div>
       </div>
 
-      {!taSettings.examEnabled && (
-        <p className="text-xs text-muted-foreground text-center">
-          Your professor has not enabled the exam yet.
-        </p>
-      )}
 
       {/* Expandable settings */}
       {showSettings && (
