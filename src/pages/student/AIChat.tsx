@@ -558,7 +558,7 @@ const AIChat = () => {
   // If assessment is active, show full-screen assessment view
   if (assessmentActive && assessmentQuestions.length > 0) {
     const timeLimit = assessmentType === "exam"
-      ? (taSettings.examTimeLimit || 60)
+      ? (customExamTimeLimit || taSettings.examTimeLimit || 60)
       : (taSettings.quizTimeLimit || 10);
 
     return (
