@@ -1,16 +1,14 @@
 import { Outlet, useNavigate } from "react-router-dom";
-import { Home, MessageSquare, TrendingUp, LogOut, MessageSquareHeart } from "lucide-react";
+import { Home, MessageSquare, LogOut, MessageSquareHeart } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Badge } from "@/components/ui/badge";
 
 const studentNav = [
-  { title: "Home", path: "/student/home", icon: Home, enabled: true },
-  { title: "Teaching Assistant Chat", path: "/student/chat", icon: MessageSquare, enabled: true },
-  { title: "Feedback", path: "/student/feedback", icon: MessageSquareHeart, enabled: true },
-  { title: "Progress", path: "/student/progress", icon: TrendingUp, enabled: false, badge: "Soon" },
+  { title: "Home", path: "/student/home", icon: Home },
+  { title: "Teaching Assistant Chat", path: "/student/chat", icon: MessageSquare },
+  { title: "Feedback", path: "/student/feedback", icon: MessageSquareHeart },
 ];
 
 const StudentLayout = () => {
@@ -40,7 +38,7 @@ const StudentLayout = () => {
           <Outlet />
         </main>
         <nav className="flex border-t bg-card">
-          {studentNav.filter(item => item.enabled).map((item) => (
+          {studentNav.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -68,27 +66,16 @@ const StudentLayout = () => {
 
         <nav className="flex-1 space-y-1 p-3">
           {studentNav.map((item) => (
-            item.enabled ? (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={false}
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
-                activeClassName="bg-sidebar-accent text-primary font-medium"
-              >
-                <item.icon className="h-4 w-4" />
-                {item.title}
-              </NavLink>
-            ) : (
-              <div
-                key={item.path}
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground/40 cursor-not-allowed"
-              >
-                <item.icon className="h-4 w-4" />
-                {item.title}
-                <Badge variant="secondary" className="ml-auto text-[10px]">{item.badge}</Badge>
-              </div>
-            )
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={false}
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+              activeClassName="bg-sidebar-accent text-primary font-medium"
+            >
+              <item.icon className="h-4 w-4" />
+              {item.title}
+            </NavLink>
           ))}
         </nav>
 
