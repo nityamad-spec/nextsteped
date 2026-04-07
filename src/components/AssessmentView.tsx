@@ -108,7 +108,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
               {isQuiz ? <ClipboardList className="h-7 w-7 text-primary" /> : <GraduationCap className="h-7 w-7 text-primary" />}
             </div>
             <CardTitle className="text-xl">
-              {isQuiz ? `Daily Quiz — Day ${day || 1}` : "Final Exam Simulation"}
+              {isQuiz ? `Daily Quiz — Day ${day || 1}` : "Exam Practice Simulation"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-center">
