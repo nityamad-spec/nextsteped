@@ -262,12 +262,17 @@ const AIChat = () => {
   };
 
   const handleStartExamWithSettings = async (custom: ExamCustomSettings) => {
+    // Create a properly named exam session
+    const examDate = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const examNumber = chats.filter(c => c.title.startsWith("Exam Practice")).length + 1;
+    const sessionTitle = `Exam Practice ${examNumber} — ${examDate}`;
+    await createSession(sessionTitle, WELCOME_EXAM, "exam");
+
     const count = custom.questionCount;
     let questions = await fetchDBQuestions("exam");
     if (questions.length === 0) {
       questions = getExamQuestions(count, undefined, custom.questionMix);
     } else {
-      // Filter DB questions by type if mix is specified
       const mixToTypes: Record<string, string[]> = {
         mixed: ["mcq", "short_answer", "problem_solving"],
         mcq_only: ["mcq"],
