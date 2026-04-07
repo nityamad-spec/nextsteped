@@ -758,9 +758,26 @@ const AIChat = () => {
               onStart={(customSettings) => {
                 handleStartExamWithSettings(customSettings);
               }}
+              onShowDashboard={() => setShowPerformanceDashboard(true)}
             />
           </div>
         )}
+
+        {/* Performance Dashboard Dialog */}
+        <Dialog open={showPerformanceDashboard} onOpenChange={setShowPerformanceDashboard}>
+          <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Practice Exam Performance Dashboard
+              </DialogTitle>
+              <DialogDescription>
+                Review your exam history, scores, and topics to focus on
+              </DialogDescription>
+            </DialogHeader>
+            <ExamHistory courseId={enrolledCourseId} />
+          </DialogContent>
+        </Dialog>
 
         {/* Weekly Quiz Popup Dialog */}
         <Dialog open={showWeeklyQuizPrompt} onOpenChange={setShowWeeklyQuizPrompt}>
