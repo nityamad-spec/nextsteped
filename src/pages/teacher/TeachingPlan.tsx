@@ -18,7 +18,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  ChevronDown, ChevronUp, Pencil, Trash2, Plus, FileText, FileDown,
+  ChevronDown, ChevronUp, Pencil, Trash2, Plus, FileText, FileDown, X,
   Check, BookOpen, Download, Eye, EyeOff, Sparkles, Loader2, GripVertical, ArrowLeftRight,
 } from "lucide-react";
 import {
