@@ -539,7 +539,7 @@ const CourseCreation = () => {
                 <span className="text-[10px] font-normal text-muted-foreground">(Optional)</span>
               </CardTitle>
               <CardDescription>
-                These materials will be used to understand the curriculum and power the AI Teaching Assistant for students. They include slides, textbooks, readings, and other resources you want students to access.
+                These are student-facing materials that are used in class sessions. These materials will be used to understand the curriculum and power the AI Teaching Assistant for students.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
