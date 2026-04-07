@@ -405,21 +405,29 @@ const Assessments = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-lg bg-muted/30 border p-4 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="rounded-lg border p-4 text-center">
-                    <p className="text-2xl font-bold text-primary">5</p>
-                    <p className="text-sm font-medium">Standard Questions</p>
-                    <p className="text-xs text-muted-foreground">Common to all students, medium difficulty</p>
+              <div className="space-y-4">
+                  <div className="rounded-lg border p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold text-sm">1-5</div>
+                      <div>
+                        <p className="text-sm font-semibold">Standard Questions</p>
+                        <p className="text-xs text-muted-foreground">Questions 1–5 are the same for all students at medium difficulty</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-10">These establish a baseline understanding of core concepts. Every student sees the same set.</p>
                   </div>
-                  <div className="rounded-lg border p-4 text-center">
-                    <p className="text-2xl font-bold text-primary">3</p>
-                    <p className="text-sm font-medium">Adaptive Tiers</p>
-                    <p className="text-xs text-muted-foreground">Easy, Medium, Hard follow-ups</p>
+                  <div className="rounded-lg border p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold text-sm">6-10</div>
+                      <div>
+                        <p className="text-sm font-semibold">Adaptive Questions</p>
+                        <p className="text-xs text-muted-foreground">Questions 6–10 adapt based on performance on the first 5</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-10">Students are routed to Easy, Medium, or Hard tier questions based on their standard question performance. This personalizes the assessment to accurately gauge each student's level.</p>
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Students first answer 5 standard questions. Based on performance, they're routed to one of 3 difficulty tiers for follow-up questions. All questions are randomized per student.
-                </p>
+                <p className="text-xs text-muted-foreground mt-2">All questions are randomized per student using a seeded shuffle algorithm.</p>
               </div>
 
               <div className="flex items-center justify-between rounded-lg border bg-primary/5 border-primary/20 p-4">

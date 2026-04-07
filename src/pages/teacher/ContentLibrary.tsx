@@ -275,8 +275,6 @@ const ContentLibrary = () => {
                     </CollapsibleContent>
                   </Collapsible>
                 )}
-              </>
-            )}
           </CardContent>
         )}
       </Card>

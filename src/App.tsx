@@ -166,7 +166,7 @@ const App = () => (
               <Route element={<ProtectedRoute><TeacherLayout /></ProtectedRoute>}>
                 <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
                 <Route path="/teacher/assessments" element={<Assessments />} />
-                <Route path="/teacher/assessment-analytics" element={<AssessmentAnalytics />} />
+                
                 <Route path="/teacher/teaching-plan" element={<TeachingPlan />} />
                 <Route path="/teacher/content-library" element={<ContentLibrary />} />
                 <Route path="/teacher/settings" element={<SettingsIntegrity />} />

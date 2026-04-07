@@ -80,7 +80,7 @@ const DiagnosticQuestionsSetup = () => {
   const adaptiveQuestions = questions.slice(5, 10);
 
   const handleContinue = () => {
-    navigate("/teacher/setup/exam-mode");
+    navigate("/teacher/setup/ai-settings");
   };
 
   if (loading) {

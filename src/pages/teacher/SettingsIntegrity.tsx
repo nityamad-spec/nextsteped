@@ -67,7 +67,7 @@ const SettingsIntegrity = () => {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="font-heading text-3xl font-bold">Settings</h1>
-          <p className="text-muted-foreground">Manage course schedule and student enrollment</p>
+          <p className="text-muted-foreground">Manage course schedule, enrollment, and preferences</p>
         </div>
         <Button onClick={handleSave}>
           <Save className="mr-2 h-4 w-4" /> {saved ? "Saved!" : "Save Changes"}
