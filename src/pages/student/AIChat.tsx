@@ -558,9 +558,35 @@ const AIChat = () => {
 
   const userInitial = user?.user_metadata?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || "U";
 
+  const parsePracticeQuestions = (content: string): { parts: { type: "text" | "practice"; content: string; questions?: PracticeQuestion[] }[] } => {
+    const regex = /```practice-questions\s*\n([\s\S]*?)```/g;
+    const parts: { type: "text" | "practice"; content: string; questions?: PracticeQuestion[] }[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push({ type: "text", content: content.slice(lastIndex, match.index) });
+      }
+      try {
+        const questions = JSON.parse(match[1]) as PracticeQuestion[];
+        parts.push({ type: "practice", content: "", questions });
+      } catch {
+        parts.push({ type: "text", content: match[0] });
+      }
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < content.length) {
+      parts.push({ type: "text", content: content.slice(lastIndex) });
+    }
+    return { parts };
+  };
+
   const renderMessage = (msg: ChatMessage) => {
     const isUser = msg.role === "user";
     const displayContent = !isUser ? normalizeExamWelcomeMessage(msg.content) : msg.content;
+    const hasPracticeQuestions = !isUser && displayContent.includes("```practice-questions");
+    const parsed = hasPracticeQuestions ? parsePracticeQuestions(displayContent) : null;
 
     return (
       <div key={msg.id} className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
@@ -573,16 +599,32 @@ const AIChat = () => {
           {isUser ? userInitial : <Sparkles className="w-4 h-4" />}
         </div>
         {/* Bubble */}
-        <div className={`max-w-[80%] rounded-xl px-4 py-3 text-sm ${
+        <div className={`max-w-[85%] rounded-xl px-4 py-3 text-sm ${
           isUser
             ? "bg-primary text-primary-foreground shadow-sm"
             : "bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm"
         }`}>
-          <div className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
-            isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
-          }`}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
-          </div>
+          {parsed ? (
+            <div className="space-y-3">
+              {parsed.parts.map((part, pi) =>
+                part.type === "practice" && part.questions ? (
+                  <PracticeQuestions key={pi} questions={part.questions} />
+                ) : part.content.trim() ? (
+                  <div key={pi} className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
+                    isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
+                  }`}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{part.content.trim()}</ReactMarkdown>
+                  </div>
+                ) : null
+              )}
+            </div>
+          ) : (
+            <div className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
+              isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
+            }`}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
+            </div>
+          )}
           {msg.timestamp && (
             <div className={`text-[10px] mt-1.5 ${isUser ? "text-primary-foreground/60 text-right" : "text-muted-foreground text-right"}`}>
               {formatTimestamp(msg.timestamp)}
