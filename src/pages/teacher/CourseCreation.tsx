@@ -19,7 +19,7 @@ import {
   Check, X, ArrowRight, ArrowLeft, Sparkles, Loader2,
   ChevronDown, ChevronUp, Download, Pencil, GripVertical,
   BookOpen, Plus, Trash2, FileText, FileDown,
-  Eye, EyeOff, ClipboardList,
+  Eye, EyeOff, ClipboardList, ArrowLeftRight,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import SetupProgressBar from "@/components/SetupProgressBar";

@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import {
   ChevronDown, ChevronUp, Pencil, Trash2, Plus, FileText, FileDown,
-  Check, BookOpen, Download, Eye, EyeOff, Sparkles, Loader2, GripVertical,
+  Check, BookOpen, Download, Eye, EyeOff, Sparkles, Loader2, GripVertical, ArrowLeftRight,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
