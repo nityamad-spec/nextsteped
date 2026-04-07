@@ -45,6 +45,7 @@ const DiagnosticQuestionsSetup = () => {
   const [questions, setQuestions] = useState<DiagnosticQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [conceptCount, setConceptCount] = useState(0);
+  const [adaptiveFilter, setAdaptiveFilter] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -78,6 +79,13 @@ const DiagnosticQuestionsSetup = () => {
 
   const standardQuestions = questions.slice(0, 5);
   const adaptiveQuestions = questions.slice(5, 10);
+
+  const filteredAdaptive = adaptiveFilter
+    ? adaptiveQuestions.filter(q => difficultyLabel(q.difficulty_estimate) === adaptiveFilter)
+    : adaptiveQuestions;
+
+  // Concept coverage from questions
+  const allTopics = [...new Set(questions.map(q => q.topic).filter(Boolean))] as string[];
 
   const handleContinue = () => {
     navigate("/teacher/setup/ai-settings");
@@ -163,8 +171,8 @@ const DiagnosticQuestionsSetup = () => {
         <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
           <Info className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
           <div className="text-xs text-muted-foreground">
-            <p className="font-medium text-foreground mb-1">Why can't I choose specific questions?</p>
-            <p>To maintain academic integrity, diagnostic questions are AI-generated and randomized for each student. Students receive different question sets, making it impossible to share answers. You can review the questions below and remove any that don't fit.</p>
+            <p className="font-medium text-foreground mb-1">This is a template — not an exhaustive list</p>
+            <p>The question bank below is an example set for your review. Questions are AI-generated and randomized for each student, so students will receive different combinations. You can review, remove, or use these as a reference for the types of questions that will appear.</p>
           </div>
         </div>
 
@@ -175,7 +183,7 @@ const DiagnosticQuestionsSetup = () => {
               <BookOpen className="h-5 w-5 text-primary" /> Question Bank
             </CardTitle>
             <CardDescription>
-              {questions.length} questions auto-generated across {conceptCount} concepts. Review and remove any that don't fit.
+              {questions.length} sample questions across {conceptCount} concepts — review and remove any that don't fit.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -226,15 +234,52 @@ const DiagnosticQuestionsSetup = () => {
                 </div>
                 <Badge variant="outline" className="font-mono">{adaptiveQuestions.length} questions</Badge>
               </div>
-              {adaptiveQuestions.length > 0 ? (
+              {/* Tier filters */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Filter by tier:</span>
+                {["Easy", "Medium", "Hard"].map(tier => (
+                  <button
+                    key={tier}
+                    onClick={() => setAdaptiveFilter(adaptiveFilter === tier ? null : tier)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                      adaptiveFilter === tier
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background border-border hover:bg-muted"
+                    }`}
+                  >
+                    {tier}
+                  </button>
+                ))}
+                {adaptiveFilter && (
+                  <button onClick={() => setAdaptiveFilter(null)} className="text-xs text-muted-foreground hover:text-foreground ml-1">Clear</button>
+                )}
+              </div>
+              {filteredAdaptive.length > 0 ? (
                 <div className="space-y-2">
-                  {adaptiveQuestions.map((q, i) => renderQuestionCard(q, i + 5))}
+                  {filteredAdaptive.map((q, i) => renderQuestionCard(q, i + 5))}
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed p-4 text-center">
-                  <p className="text-xs text-muted-foreground">No adaptive questions yet</p>
+                  <p className="text-xs text-muted-foreground">
+                    {adaptiveFilter ? `No ${adaptiveFilter} tier questions` : "No adaptive questions yet"}
+                  </p>
                 </div>
               )}
+            </div>
+
+            <div className="border-t" />
+
+            {/* Concept Coverage */}
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Concept Coverage</p>
+              <div className="flex flex-wrap gap-2">
+                {allTopics.length > 0 ? allTopics.map(topic => (
+                  <Badge key={topic} variant="outline" className="text-xs">{topic}</Badge>
+                )) : (
+                  <p className="text-xs text-muted-foreground">No concepts detected yet</p>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">Questions are distributed across all major course concepts.</p>
             </div>
           </CardContent>
         </Card>
@@ -245,7 +290,7 @@ const DiagnosticQuestionsSetup = () => {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Concepts
           </Button>
           <Button onClick={handleContinue}>
-            Continue to Exam Mode <ArrowRight className="ml-2 h-4 w-4" />
+            Continue to AI Settings <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </div>

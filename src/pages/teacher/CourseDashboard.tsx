@@ -9,16 +9,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Users, MessageSquare, Shield, BarChart3, Sparkles, Lightbulb } from "lucide-react";
 import CourseCollaborators from "@/components/CourseCollaborators";
 
-/* ── Concept Mastery Map categories ── */
+/* ── Concept Exploration Map categories ── */
 const conceptMasteryMock = [
-  { concept: "Variables & Types", touched: 32, deeplyExplored: 18, notExplored: 5 },
-  { concept: "Control Flow", touched: 28, deeplyExplored: 22, notExplored: 5 },
-  { concept: "Functions", touched: 20, deeplyExplored: 10, notExplored: 25 },
-  { concept: "Lists & Dicts", touched: 15, deeplyExplored: 5, notExplored: 35 },
-  { concept: "File Handling", touched: 8, deeplyExplored: 2, notExplored: 45 },
-  { concept: "OOP Basics", touched: 5, deeplyExplored: 1, notExplored: 49 },
-  { concept: "Error Handling", touched: 12, deeplyExplored: 4, notExplored: 39 },
-  { concept: "Modules", touched: 10, deeplyExplored: 3, notExplored: 42 },
+  { concept: "Variables & Types", touched: 32, deeplyExplored: 18, notExplored: 5, masteryPct: 72 },
+  { concept: "Control Flow", touched: 28, deeplyExplored: 22, notExplored: 5, masteryPct: 64 },
+  { concept: "Functions", touched: 20, deeplyExplored: 10, notExplored: 25, masteryPct: 45 },
+  { concept: "Lists & Dicts", touched: 15, deeplyExplored: 5, notExplored: 35, masteryPct: 38 },
+  { concept: "File Handling", touched: 8, deeplyExplored: 2, notExplored: 45, masteryPct: 50 },
+  { concept: "OOP Basics", touched: 5, deeplyExplored: 1, notExplored: 49, masteryPct: 100 },
+  { concept: "Error Handling", touched: 12, deeplyExplored: 4, notExplored: 39, masteryPct: 57 },
+  { concept: "Modules", touched: 10, deeplyExplored: 3, notExplored: 42, masteryPct: 67 },
 ];
 
 const insightsMock = [
@@ -107,7 +107,7 @@ const CourseDashboard = () => {
         {/* Concept Mastery Map */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Concept Mastery Map</CardTitle>
+            <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Concept Exploration Map</CardTitle>
             <CardDescription>Aggregate anonymous view — based on chat interactions</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -145,6 +145,29 @@ const CourseDashboard = () => {
                     <div className="bg-primary transition-all" style={{ width: `${deepPct}%` }} />
                     <div className="bg-primary/40 transition-all" style={{ width: `${touchedPct}%` }} />
                   </div>
+                  {/* Mastery understanding for deeply explored students */}
+                  {c.deeplyExplored > 0 && (
+                    <div className="flex items-center gap-2 ml-1">
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-1.5 w-16 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              c.masteryPct >= 70 ? "bg-emerald-500" : c.masteryPct >= 50 ? "bg-amber-500" : "bg-destructive"
+                            }`}
+                            style={{ width: `${c.masteryPct}%` }}
+                          />
+                        </div>
+                        <span className={`text-[10px] font-semibold ${
+                          c.masteryPct >= 70 ? "text-emerald-600" : c.masteryPct >= 50 ? "text-amber-600" : "text-destructive"
+                        }`}>
+                          {c.masteryPct}% mastery
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        among {c.deeplyExplored} who deeply explored
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })}

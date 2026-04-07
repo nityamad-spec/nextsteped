@@ -282,18 +282,6 @@ const Assessments = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div>
-                  <p className="text-sm font-medium">Use predefined questions only</p>
-                  <p className="text-xs text-muted-foreground">Only show your custom exam questions — no auto-generated questions.</p>
-                </div>
-                <Switch checked={examPredefinedOnly} onCheckedChange={setExamPredefinedOnly} />
-              </div>
-              {examPredefinedOnly && (
-                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                  <p className="text-xs text-muted-foreground"><strong className="text-foreground">{examQuestions.length}</strong> exam-only questions will be used.</p>
-                </div>
-              )}
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Exam Time Limit (minutes)</Label>
                 <div className="flex items-center gap-4">
@@ -345,25 +333,6 @@ const Assessments = () => {
                 </Select>
               </div>
               <Button onClick={handleSaveExamSettings} className="w-full">Save Exam Settings</Button>
-              <div className={`flex items-center justify-between rounded-lg border p-4 mt-4 ${taSettings.examEnabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
-                <div className="flex items-center gap-3">
-                  <Power className="h-4 w-4 text-primary" />
-                  <div>
-                    <p className="text-sm font-medium">Available to Students</p>
-                    <p className="text-xs text-muted-foreground">
-                      {taSettings.examApproved ? "Toggle to enable or disable student access to the exam" : "Approve exam rules in setup first"}
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={taSettings.examEnabled}
-                  disabled={!taSettings.examApproved}
-                  onCheckedChange={async checked => {
-                    try { await saveTASettings({ ...taSettings, examEnabled: checked }); toast.success(`Exam ${checked ? "enabled" : "disabled"} for students`); }
-                    catch { toast.error("Failed to update exam availability"); }
-                  }}
-                />
-              </div>
             </CardContent>
           </Card>
 
@@ -372,7 +341,7 @@ const Assessments = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base"><ClipboardCheck className="h-5 w-5" /> Exam Questions</CardTitle>
-                  <CardDescription>These questions are exclusive to exam mode.</CardDescription>
+                  <CardDescription>Add any custom questions you want visible to students during the exam. These are exclusive to exam mode.</CardDescription>
                 </div>
                 <Button size="sm" onClick={() => openAddDialog("exam")}><Plus className="mr-1 h-4 w-4" /> Add Question</Button>
               </div>
