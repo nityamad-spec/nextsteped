@@ -702,10 +702,15 @@ const AIChat = () => {
             <Plus className="mr-1 h-4 w-4" /> New Chat
           </Button>
           <div className="space-y-1 mt-3">
-            {chats.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No {mode === "learning" ? "study" : "exam prep"} chats yet</p>
+            {(() => {
+              // For exam mode, only show sessions where an exam was actually taken (more than just welcome message)
+              const displayChats = mode === "exam" 
+                ? chats.filter(c => c.messages.length > 1)
+                : chats;
+              return displayChats.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No {mode === "learning" ? "study" : "exam prep"} history yet</p>
             ) : (
-              chats.map((chat) => (
+              displayChats.map((chat) => (
                 <button
                   key={chat.id}
                   onClick={() => { setActiveChatId(chat.id); setShowHistory(false); setAssessmentActive(false); }}
