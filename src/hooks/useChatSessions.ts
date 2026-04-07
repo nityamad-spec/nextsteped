@@ -77,12 +77,13 @@ export function useChatSessions(mode: "learning" | "exam") {
 
   // Create a new session in DB
   const createSession = useCallback(
-    async (title: string, welcomeContent: string): Promise<string | null> => {
+    async (title: string, welcomeContent: string, modeOverride?: "learning" | "exam"): Promise<string | null> => {
       if (!user) return null;
+      const sessionMode = modeOverride || mode;
       try {
         const { data: session, error: sessErr } = await supabase
           .from("chat_sessions")
-          .insert({ user_id: user.id, mode, title })
+          .insert({ user_id: user.id, mode: sessionMode, title })
           .select()
           .single();
 
