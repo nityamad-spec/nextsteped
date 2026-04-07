@@ -752,18 +752,6 @@ const AIChat = () => {
                 handleStartExamWithSettings(customSettings);
               }}
             />
-            <div className="px-5 pb-4">
-              <details className="group">
-                <summary className="flex items-center gap-2 cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground transition-colors py-2">
-                  <History className="h-4 w-4" />
-                  Past Exam Attempts
-                  <ChevronDown className="h-3 w-3 group-open:rotate-180 transition-transform" />
-                </summary>
-                <div className="pt-2">
-                  <ExamHistory courseId={enrolledCourseId} />
-                </div>
-              </details>
-            </div>
           </div>
         )}
 
