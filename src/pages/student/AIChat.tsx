@@ -22,6 +22,19 @@ import remarkGfm from "remark-gfm";
 const WELCOME_LEARNING = "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?";
 const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Configure your practice settings and click **Start Exam** to begin a timed simulation. Good luck!";
 
+const normalizeExamWelcomeMessage = (content: string) => {
+  if (!content.includes("**Exam Prep Mode Active**")) return content;
+
+  return content
+    .replace(
+      /Choose \*\*Start Exam\*\* or \*\*Start Daily Quiz\*\* below to begin a timed assessment\./g,
+      "Configure your practice settings and click **Start Exam** to begin a timed simulation."
+    )
+    .replace(/Questions are presented by the system — no AI generation involved\.\s*/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+};
+
 const AIChat = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -524,6 +537,8 @@ const AIChat = () => {
 
   const renderMessage = (msg: ChatMessage) => {
     const isUser = msg.role === "user";
+    const displayContent = !isUser ? normalizeExamWelcomeMessage(msg.content) : msg.content;
+
     return (
       <div key={msg.id} className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
         {/* Avatar */}
@@ -543,7 +558,7 @@ const AIChat = () => {
           <div className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
             isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
           }`}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
           </div>
           {msg.timestamp && (
             <div className={`text-[10px] mt-1.5 ${isUser ? "text-primary-foreground/60 text-right" : "text-muted-foreground text-right"}`}>
