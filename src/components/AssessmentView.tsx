@@ -116,7 +116,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
               <p><strong className="text-foreground">{questions.length}</strong> questions</p>
               <p><strong className="text-foreground">{timeLimitMinutes} minutes</strong> time limit</p>
               {isQuiz && <p>Covers Day {day} topics</p>}
-              {!isQuiz && <p>Covers all workshop topics</p>}
+              {!isQuiz && <p>Covers all course topics</p>}
             </div>
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
               <p className="text-xs text-muted-foreground">
