@@ -53,6 +53,16 @@ type DayPlan = {
   locked: boolean;
 };
 
+type LessonPlanDraft = {
+  phase?: "upload" | "generating" | "plan";
+  days?: DayPlan[];
+  expandedDays?: string[];
+  genStep?: number;
+  genElapsed?: number;
+  published?: boolean;
+  publishTimestamp?: string | null;
+};
+
 const typeLabels: Record<string, string> = {
   textbook: "Textbook / Reading",
   exercise: "Interactive Exercise",
@@ -151,6 +161,9 @@ const CourseCreation = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const courseId = (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
+  const draftLocalKey = `lessonPlanDraft:${courseId || user?.id || "default"}`;
+  const legacyDraftLocalKey = "lessonPlanDraft";
+  const draftStoragePath = user ? `${user.id}/lesson-plan/draft-plan.json` : null;
 
   const [phase, setPhaseRaw] = useState<"upload" | "generating" | "plan">(() => {
     const saved = localStorage.getItem("lessonPlanPhase");
@@ -209,6 +222,113 @@ const CourseCreation = () => {
   const [newResourceType, setNewResourceType] = useState<Resource["type"]>("exercise");
   const [editingConceptName, setEditingConceptName] = useState<string | null>(null);
   const [editConceptValue, setEditConceptValue] = useState("");
+  const [restoringDraft, setRestoringDraft] = useState(true);
+
+  const applyDraft = useCallback((draft: LessonPlanDraft) => {
+    const hasDraftDays = Array.isArray(draft.days) && draft.days.length > 0;
+
+    if (hasDraftDays) {
+      setDaysRaw(draft.days as DayPlan[]);
+    }
+    if (Array.isArray(draft.expandedDays)) {
+      setExpandedDays(draft.expandedDays);
+    }
+    if (typeof draft.genStep === "number") {
+      setGenStep(draft.genStep);
+    }
+    if (typeof draft.genElapsed === "number") {
+      setGenElapsed(draft.genElapsed);
+    }
+    if (typeof draft.published === "boolean") {
+      setPublished(draft.published);
+    }
+    if (draft.publishTimestamp !== undefined) {
+      setPublishTimestamp(draft.publishTimestamp ?? null);
+    }
+
+    const nextPhase = hasDraftDays
+      ? "plan"
+      : draft.phase === "generating" || draft.phase === "plan"
+        ? draft.phase
+        : "upload";
+
+    localStorage.setItem("lessonPlanPhase", nextPhase);
+    setPhaseRaw(nextPhase);
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setRestoringDraft(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const restoreDraft = async () => {
+      try {
+        const localDraft = localStorage.getItem(draftLocalKey) || localStorage.getItem(legacyDraftLocalKey);
+        if (localDraft) {
+          applyDraft(JSON.parse(localDraft));
+          return;
+        }
+
+        if (draftStoragePath) {
+          const { data, error } = await supabase.storage.from("course-materials").download(draftStoragePath);
+          if (!error && data) {
+            applyDraft(JSON.parse(await data.text()));
+          }
+        }
+      } catch (error) {
+        console.error("Failed to restore lesson plan draft:", error);
+      } finally {
+        if (!cancelled) {
+          setRestoringDraft(false);
+        }
+      }
+    };
+
+    restoreDraft();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyDraft, draftLocalKey, draftStoragePath, user]);
+
+  useEffect(() => {
+    if (!user || restoringDraft) return;
+
+    const draft: LessonPlanDraft = {
+      phase,
+      days,
+      expandedDays,
+      genStep,
+      genElapsed,
+      published,
+      publishTimestamp,
+    };
+
+    const serializedDraft = JSON.stringify(draft);
+    localStorage.setItem(draftLocalKey, serializedDraft);
+    localStorage.setItem(legacyDraftLocalKey, serializedDraft);
+
+    if (!draftStoragePath) return;
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const blob = new Blob([JSON.stringify(draft, null, 2)], { type: "application/json" });
+        const file = new File([blob], "draft-plan.json", { type: "application/json" });
+        const { error } = await supabase.storage
+          .from("course-materials")
+          .upload(draftStoragePath, file, { upsert: true, cacheControl: "0" });
+
+        if (error) throw error;
+      } catch (error) {
+        console.error("Failed to persist lesson plan draft:", error);
+      }
+    }, 400);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [days, draftLocalKey, draftStoragePath, expandedDays, genElapsed, genStep, phase, publishTimestamp, published, restoringDraft, user]);
 
   const renameConcept = (dayId: string, oldName: string, newName: string) => {
     if (!newName.trim() || newName === oldName) { setEditingConceptName(null); return; }
@@ -530,41 +650,44 @@ const CourseCreation = () => {
       if (!conceptOrder.includes(key)) conceptOrder.push(key);
     }
 
-    // Only render Overview, Learning Outcomes, and Additional Tips as text sections
-    const allowedTextHeadings = /^(overview|learning outcomes|additional tips|tips|teaching tips|strategies)$/i;
+    const topTextHeadings = /^(overview|learning outcomes)$/i;
+    const bottomTextHeadings = /^(additional tips|tips|teaching tips|strategies|teaching strategies|engagement.*)$/i;
+
+    const renderTextSection = (section: string, i: number) => {
+      const headingMatch = section.match(/^([A-Z][^:\n]+):\s*/);
+      if (!headingMatch) return null;
+      const heading = headingMatch[1];
+      const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
+      const lines = body.split("\n").filter(l => l.trim());
+      const isList = lines.every(l => /^[-•]/.test(l.trim()));
+
+      return (
+        <div key={`${heading}-${i}`}>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{heading}</p>
+          {isList ? (
+            <ul className="space-y-1 pl-1">
+              {lines.map((line, j) => (
+                <li key={j} className="text-sm text-foreground/80 flex items-start gap-2">
+                  <span className="mt-2 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
+                  <span>{line.replace(/^[-•]\s*/, "")}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-foreground/80 leading-relaxed">{body}</p>
+          )}
+        </div>
+      );
+    };
 
     return (
       <div className="space-y-5">
-        {sections.map((section, i) => {
-          const headingMatch = section.match(/^([A-Z][^:\n]+):\s*/);
-          if (!headingMatch) return null;
-          const heading = headingMatch[1];
-          const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
-
-          // Only show Overview and Learning Outcomes as text
-          if (!allowedTextHeadings.test(heading)) return null;
-
-          const lines = body.split("\n").filter(l => l.trim());
-          const isList = lines.every(l => /^[-•]/.test(l.trim()));
-
-          return (
-            <div key={i}>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{heading}</p>
-              {isList ? (
-                <ul className="space-y-1 pl-1">
-                  {lines.map((line, j) => (
-                    <li key={j} className="text-sm text-foreground/80 flex items-start gap-2">
-                      <span className="mt-2 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
-                      <span>{line.replace(/^[-•]\s*/, "")}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-foreground/80 leading-relaxed">{body}</p>
-              )}
-            </div>
-          );
-        })}
+        {sections
+          .filter((section) => {
+            const heading = section.match(/^([A-Z][^:\n]+):\s*/)?.[1];
+            return !!heading && topTextHeadings.test(heading);
+          })
+          .map(renderTextSection)}
 
         {/* Concepts & Topics — only as structured widget cards */}
         {conceptOrder.length > 0 && (
@@ -639,6 +762,13 @@ const CourseCreation = () => {
             })}
           </div>
         )}
+
+        {sections
+          .filter((section) => {
+            const heading = section.match(/^([A-Z][^:\n]+):\s*/)?.[1];
+            return !!heading && bottomTextHeadings.test(heading);
+          })
+          .map(renderTextSection)}
       </div>
     );
   };
@@ -725,6 +855,16 @@ const CourseCreation = () => {
   ];
 
   const lockedDaysCount = days.filter(d => d.locked).length;
+
+  if (restoringDraft) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" /> Restoring your lesson plan draft…
+        </div>
+      </div>
+    );
+  }
 
   // ─── UPLOAD PHASE ───
   if (phase === "upload") {
