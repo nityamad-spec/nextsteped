@@ -330,95 +330,136 @@ const TeachingPlan = () => {
       conceptResources.get(key)!.push(r);
     }
 
+    // Extract concept order and text activities
+    const conceptOrder: string[] = [];
+    const conceptTextActivities = new Map<string, string[]>();
+    for (const section of sections) {
+      const hm = section.match(/^(Concepts & Topics|Concepts and Topics):\s*/i);
+      if (!hm) continue;
+      const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
+      const lines = body.split("\n");
+      let current = "";
+      for (const line of lines) {
+        const cm = line.match(/^Concept:\s*(.+)/i);
+        if (cm) {
+          current = cm[1].trim();
+          conceptOrder.push(current);
+          conceptTextActivities.set(current, []);
+        } else if (current && line.trim().startsWith("-")) {
+          conceptTextActivities.get(current)!.push(line.trim().replace(/^-\s*/, ""));
+        }
+      }
+    }
+    for (const key of conceptResources.keys()) {
+      if (!conceptOrder.includes(key)) conceptOrder.push(key);
+    }
+
     return (
-      <div className="space-y-4">
+      <div className="space-y-5">
         {sections.map((section, i) => {
           const headingMatch = section.match(/^([A-Z][^:\n]+):\s*/);
-          if (!headingMatch) {
-            return <p key={i} className="text-sm text-muted-foreground leading-relaxed">{section}</p>;
-          }
+          if (!headingMatch) return null;
           const heading = headingMatch[1];
           const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
 
-          if (heading === "Concepts & Topics" || heading === "Concepts and Topics") {
-            const lines = body.split("\n").filter(l => l.trim());
-            const conceptOrder: string[] = [];
-            for (const line of lines) {
-              const conceptMatch = line.match(/^Concept:\s*(.+)/i);
-              if (conceptMatch) conceptOrder.push(conceptMatch[1].trim());
-            }
-            for (const key of conceptResources.keys()) {
-              if (!conceptOrder.includes(key)) conceptOrder.push(key);
-            }
-
-            return (
-              <div key={i} className="space-y-4">
-                <p className="text-sm font-semibold text-foreground">Concepts & Topics</p>
-                {conceptOrder.map((conceptName, ci) => {
-                  const resources = conceptResources.get(conceptName) || [];
-                  const inClass = resources.filter(r => !preClassTypes.has(r.type));
-                  const preClass = resources.filter(r => preClassTypes.has(r.type));
-
-                  return (
-                    <div key={ci} className="rounded-lg border bg-card/50 overflow-hidden">
-                      <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/30 border-b">
-                        <div className="h-5 w-1 rounded-full bg-primary" />
-                        <p className="text-sm font-semibold text-foreground">{conceptName}</p>
-                        <span className="text-xs text-muted-foreground ml-auto">{resources.length} resource{resources.length !== 1 ? "s" : ""}</span>
-                      </div>
-                      <div className="px-4 py-3 space-y-3">
-                        {inClass.length > 0 && (
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">In Class</p>
-                            <div className="space-y-1.5">
-                              {inClass.map(r => renderInlineResource(r, dp))}
-                            </div>
-                          </div>
-                        )}
-                        {preClass.length > 0 && (
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Readings & Preparation</p>
-                            <div className="space-y-1.5">
-                              {preClass.map(r => renderInlineResource(r, dp))}
-                            </div>
-                          </div>
-                        )}
-                        {resources.length === 0 && (
-                          <p className="text-xs text-muted-foreground italic">No resources mapped to this concept yet</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          }
+          if (heading === "Concepts & Topics" || heading === "Concepts and Topics") return null;
+          if (/timeline|teaching strategies|engagement/i.test(heading)) return null;
 
           const lines = body.split("\n").filter(l => l.trim());
           const isList = lines.every(l => /^[-•]/.test(l.trim()));
+
           return (
-            <Collapsible key={i} defaultOpen>
-              <CollapsibleTrigger className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors w-full text-left">
-                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                {heading}
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pl-5 pt-1.5">
-                {isList ? (
-                  <ul className="space-y-1">
-                    {lines.map((line, j) => (
-                      <li key={j} className="text-sm text-muted-foreground flex items-start gap-2">
-                        <span className="mt-2 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
-                        <span>{line.replace(/^[-•]\s*/, "")}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
-                )}
-              </CollapsibleContent>
-            </Collapsible>
+            <div key={i}>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{heading}</p>
+              {isList ? (
+                <ul className="space-y-1 pl-1">
+                  {lines.map((line, j) => (
+                    <li key={j} className="text-sm text-foreground/80 flex items-start gap-2">
+                      <span className="mt-2 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
+                      <span>{line.replace(/^[-•]\s*/, "")}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-foreground/80 leading-relaxed">{body}</p>
+              )}
+            </div>
           );
         })}
+
+        {conceptOrder.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Concepts & Topics</p>
+            {conceptOrder.map((conceptName, ci) => {
+              const resources = conceptResources.get(conceptName) || [];
+              const textActivities = conceptTextActivities.get(conceptName) || [];
+              const inClass = resources.filter(r => !preClassTypes.has(r.type));
+              const preClass = resources.filter(r => preClassTypes.has(r.type));
+
+              return (
+                <div key={ci} className="rounded-lg border overflow-hidden">
+                  <div className="flex items-center gap-2.5 px-4 py-3 bg-muted/40 border-b">
+                    <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
+                      <span className="text-xs font-bold text-primary">{ci + 1}</span>
+                    </div>
+                    <p className="text-sm font-semibold text-foreground">{conceptName}</p>
+                  </div>
+
+                  <div className="px-4 py-3 space-y-4">
+                    {textActivities.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">What's Covered</p>
+                        <ul className="space-y-1 pl-1">
+                          {textActivities.map((act, ai) => {
+                            const typeMatch = act.match(/^\[([^\]]+)\]\s*/);
+                            const typeBadge = typeMatch ? typeMatch[1] : null;
+                            const text = typeMatch ? act.replace(/^\[[^\]]+\]\s*/, "") : act;
+                            return (
+                              <li key={ai} className="text-sm text-foreground/80 flex items-start gap-2">
+                                {typeBadge ? (
+                                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 mt-0.5 shrink-0 font-medium">{typeBadge}</Badge>
+                                ) : (
+                                  <span className="mt-2 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
+                                )}
+                                <span>{text}</span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+
+                    {inClass.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/70 mb-1.5 flex items-center gap-1.5">
+                          <BookOpen className="h-3 w-3" /> In Class
+                        </p>
+                        <div className="space-y-1">
+                          {inClass.map(r => renderInlineResource(r, dp))}
+                        </div>
+                      </div>
+                    )}
+
+                    {preClass.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/70 mb-1.5 flex items-center gap-1.5">
+                          <FileText className="h-3 w-3" /> Readings & Preparation
+                        </p>
+                        <div className="space-y-1">
+                          {preClass.map(r => renderInlineResource(r, dp))}
+                        </div>
+                      </div>
+                    )}
+
+                    {resources.length === 0 && textActivities.length === 0 && (
+                      <p className="text-xs text-muted-foreground italic">No resources mapped yet — use AI Suggest or add manually</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
