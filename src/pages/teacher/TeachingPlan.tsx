@@ -644,7 +644,7 @@ const TeachingPlan = () => {
                                 <>
                                   {dp.description ? (
                                     <div className="rounded-lg border bg-muted/10 p-4">
-                                      {renderDescription(dp.description)}
+                                      {renderDescription(dp.description, dp)}
                                       <div className="mt-3 pt-3 border-t">
                                         <details className="group">
                                           <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground flex items-center gap-1">
