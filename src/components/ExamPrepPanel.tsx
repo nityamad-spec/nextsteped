@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Settings2, Info, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, Settings2, Info, ChevronDown, ChevronUp, BarChart3 } from "lucide-react";
 
 export interface ExamCustomSettings {
   timeLimit: number;
@@ -17,9 +17,10 @@ export interface ExamCustomSettings {
 interface ExamPrepPanelProps {
   taSettings: TASettings;
   onStart: (settings: ExamCustomSettings) => void;
+  onShowDashboard?: () => void;
 }
 
-const ExamPrepPanel = ({ taSettings, onStart }: ExamPrepPanelProps) => {
+const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard }: ExamPrepPanelProps) => {
   const profTime = taSettings.examTimeLimit || 60;
   const profCount = taSettings.examManualQuestions
     ? (taSettings.examManualCount || 20)
@@ -94,6 +95,11 @@ const ExamPrepPanel = ({ taSettings, onStart }: ExamPrepPanelProps) => {
           >
             <Clock className="h-4 w-4" /> Start Exam Practice
           </Button>
+          {onShowDashboard && (
+            <Button variant="outline" onClick={onShowDashboard} className="gap-2">
+              <BarChart3 className="h-4 w-4" /> Performance
+            </Button>
+          )}
         </div>
       </div>
 

@@ -165,15 +165,7 @@ const ExamHistory = ({ courseId }: ExamHistoryProps) => {
   const latestScore = attempts[0].score;
 
   return (
-    <div className="space-y-5">
-      {/* Dashboard Header */}
-      <div>
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <BarChart3 className="h-4 w-4 text-primary" />
-          Practice Exam Performance Dashboard
-        </h3>
-        <p className="text-xs text-muted-foreground mt-0.5">Track your progress and identify areas to improve</p>
-      </div>
+    <div className="space-y-4">
 
       {/* Summary stats */}
       <div className="grid grid-cols-4 gap-2">

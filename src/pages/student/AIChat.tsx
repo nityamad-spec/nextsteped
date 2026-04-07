@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User } from "lucide-react";
+import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import ExamHistory from "@/components/ExamHistory";
@@ -49,6 +49,7 @@ const AIChat = () => {
   const [mode, setMode] = useState<"learning" | "exam">(initialMode);
   const [input, setInput] = useState("");
   const [showHistory, setShowHistory] = useState(false);
+  const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
   const [showCodeTerminal, setShowCodeTerminal] = useState(false);
   const [codeInput, setCodeInput] = useState("");
   const [codeResult, setCodeResult] = useState<string | null>(null);
@@ -261,12 +262,17 @@ const AIChat = () => {
   };
 
   const handleStartExamWithSettings = async (custom: ExamCustomSettings) => {
+    // Create a properly named exam session
+    const examDate = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const examNumber = chats.filter(c => c.title.startsWith("Exam Practice")).length + 1;
+    const sessionTitle = `Exam Practice ${examNumber} — ${examDate}`;
+    await createSession(sessionTitle, WELCOME_EXAM, "exam");
+
     const count = custom.questionCount;
     let questions = await fetchDBQuestions("exam");
     if (questions.length === 0) {
       questions = getExamQuestions(count, undefined, custom.questionMix);
     } else {
-      // Filter DB questions by type if mix is specified
       const mixToTypes: Record<string, string[]> = {
         mixed: ["mcq", "short_answer", "problem_solving"],
         mcq_only: ["mcq"],
@@ -550,10 +556,11 @@ const AIChat = () => {
     setMode(targetMode);
     setShowHistory(false);
     setAssessmentActive(false);
-    // Auto-create a new chat when switching modes
-    const welcome = targetMode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
-    const title = targetMode === "learning" ? "New Study Session" : "New Exam Prep";
-    await createSession(title, welcome, targetMode);
+    // Only auto-create a new chat for study mode; exam mode doesn't need empty chats
+    if (targetMode === "learning") {
+      const welcome = WELCOME_LEARNING;
+      await createSession("New Study Session", welcome, targetMode);
+    }
   };
 
   const formatTimestamp = (ts?: number) => {
@@ -691,14 +698,21 @@ const AIChat = () => {
             </h3>
             <button onClick={() => setShowHistory(false)}><ChevronLeft className="h-4 w-4" /></button>
           </div>
-          <Button variant="outline" size="sm" className="w-full" onClick={createNewChat}>
-            <Plus className="mr-1 h-4 w-4" /> New Chat
-          </Button>
+          {mode === "learning" && (
+            <Button variant="outline" size="sm" className="w-full" onClick={createNewChat}>
+              <Plus className="mr-1 h-4 w-4" /> New Chat
+            </Button>
+          )}
           <div className="space-y-1 mt-3">
-            {chats.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No {mode === "learning" ? "study" : "exam prep"} chats yet</p>
+            {(() => {
+              // For exam mode, only show sessions where an exam was actually taken (more than just welcome message)
+              const displayChats = mode === "exam" 
+                ? chats.filter(c => c.messages.length > 1)
+                : chats;
+              return displayChats.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No {mode === "learning" ? "study" : "exam prep"} history yet</p>
             ) : (
-              chats.map((chat) => (
+              displayChats.map((chat) => (
                 <button
                   key={chat.id}
                   onClick={() => { setActiveChatId(chat.id); setShowHistory(false); setAssessmentActive(false); }}
@@ -712,7 +726,8 @@ const AIChat = () => {
                   </p>
                 </button>
               ))
-            )}
+            );
+            })()}
           </div>
         </div>
       )}
@@ -736,11 +751,13 @@ const AIChat = () => {
               </TabsList>
             </Tabs>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-9 text-sm" onClick={createNewChat}>
-              <Plus className="mr-2 h-4 w-4" /> New Chat
-            </Button>
-          </div>
+          {mode === "learning" && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-9 text-sm" onClick={createNewChat}>
+                <Plus className="mr-2 h-4 w-4" /> New Chat
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Exam practice settings + start + history */}
@@ -751,9 +768,26 @@ const AIChat = () => {
               onStart={(customSettings) => {
                 handleStartExamWithSettings(customSettings);
               }}
+              onShowDashboard={() => setShowPerformanceDashboard(true)}
             />
           </div>
         )}
+
+        {/* Performance Dashboard Dialog */}
+        <Dialog open={showPerformanceDashboard} onOpenChange={setShowPerformanceDashboard}>
+          <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Practice Exam Performance Dashboard
+              </DialogTitle>
+              <DialogDescription>
+                Review your exam history, scores, and topics to focus on
+              </DialogDescription>
+            </DialogHeader>
+            <ExamHistory courseId={enrolledCourseId} />
+          </DialogContent>
+        </Dialog>
 
         {/* Weekly Quiz Popup Dialog */}
         <Dialog open={showWeeklyQuizPrompt} onOpenChange={setShowWeeklyQuizPrompt}>
@@ -803,12 +837,6 @@ const AIChat = () => {
                     </span>
                     <span className="text-muted-foreground ml-1">Thinking...</span>
                   </div>
-                </div>
-              )}
-              {/* Performance Dashboard inline in exam mode */}
-              {mode === "exam" && !assessmentActive && (
-                <div className="mt-4 pb-2">
-                  <ExamHistory courseId={enrolledCourseId} />
                 </div>
               )}
               <div ref={messagesEndRef} />
