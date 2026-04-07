@@ -298,6 +298,17 @@ const AIChat = () => {
     navigate("/student/home");
   };
 
+  const handleStudyWeakTopics = async (topics: string[]) => {
+    setAssessmentActive(false);
+    setMode("learning");
+    const topicsList = topics.join(", ");
+    const welcome = `I noticed you need more practice with **${topicsList}**. Let's work through these concepts together! Which topic would you like to start with?`;
+    const title = `Study: ${topicsList.slice(0, 40)}`;
+    await createSession(title, welcome);
+    // Pre-send a study prompt
+    setInput(`Help me understand these topics better: ${topicsList}. Start with the one I'm weakest on and explain it with examples.`);
+  };
+
   const handleAssessmentSubmit = async (results: AssessmentResults) => {
     // Log results to chat session for record
     if (activeChat) {
