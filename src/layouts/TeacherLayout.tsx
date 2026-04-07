@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { BookOpen, Users, ClipboardCheck, Settings, HelpCircle, LogOut, FileText, BarChart3, Library } from "lucide-react";
+import { BookOpen, Users, ClipboardCheck, Settings, HelpCircle, LogOut, FileText, Library } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";

@@ -23,7 +23,7 @@ import PublishEnrollment from "./pages/teacher/PublishEnrollment";
 import CourseDashboard from "./pages/teacher/CourseDashboard";
 import StudentInsights from "./pages/teacher/StudentInsights";
 import Assessments from "./pages/teacher/Assessments";
-import AssessmentAnalytics from "./pages/teacher/AssessmentAnalytics";
+
 import TeachingPlan from "./pages/teacher/TeachingPlan";
 import SettingsIntegrity from "./pages/teacher/SettingsIntegrity";
 import Support from "./pages/teacher/Support";
