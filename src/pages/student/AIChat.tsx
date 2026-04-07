@@ -262,13 +262,24 @@ const AIChat = () => {
     const count = custom.questionCount;
     let questions = await fetchDBQuestions("exam");
     if (questions.length === 0) {
-      questions = getExamQuestions(count);
+      questions = getExamQuestions(count, undefined, custom.questionMix);
     } else {
+      // Filter DB questions by type if mix is specified
+      const mixToTypes: Record<string, string[]> = {
+        mixed: ["mcq", "short_answer", "problem_solving"],
+        mcq_only: ["mcq"],
+        short_answer: ["short_answer"],
+        problem_solving: ["problem_solving"],
+        mcq_short: ["mcq", "short_answer"],
+        mcq_problem: ["mcq", "problem_solving"],
+      };
+      const allowed = mixToTypes[custom.questionMix] || mixToTypes.mixed;
+      const filtered = questions.filter(q => allowed.includes(q.type));
+      const pool = filtered.length > 0 ? filtered : questions;
       const seed = (user?.id || "anon") + (enrolledCourseId || "");
-      const shuffled = seededShuffle(questions, seed);
+      const shuffled = seededShuffle(pool, seed);
       questions = shuffled.slice(0, Math.min(count, shuffled.length));
     }
-    // Store custom time limit for the assessment view
     setCustomExamTimeLimit(custom.timeLimit);
     setAssessmentQuestions(questions);
     setAssessmentType("exam");
