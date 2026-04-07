@@ -459,28 +459,23 @@ const CourseCreation = () => {
 
     // Extract concept order from the "Concepts & Topics" section text
     const conceptOrder: string[] = [];
-    const conceptTextActivities = new Map<string, string[]>();
     for (const section of sections) {
       const hm = section.match(/^(Concepts & Topics|Concepts and Topics):\s*/i);
       if (!hm) continue;
       const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
       const lines = body.split("\n");
-      let current = "";
       for (const line of lines) {
         const cm = line.match(/^Concept:\s*(.+)/i);
-        if (cm) {
-          current = cm[1].trim();
-          conceptOrder.push(current);
-          conceptTextActivities.set(current, []);
-        } else if (current && line.trim().startsWith("-")) {
-          conceptTextActivities.get(current)!.push(line.trim().replace(/^-\s*/, ""));
-        }
+        if (cm) conceptOrder.push(cm[1].trim());
       }
     }
     // Add resource-only concepts not in text
     for (const key of conceptResources.keys()) {
       if (!conceptOrder.includes(key)) conceptOrder.push(key);
     }
+
+    // Only render Overview and Learning Outcomes as text sections
+    const allowedTextHeadings = /^(overview|learning outcomes)$/i;
 
     return (
       <div className="space-y-5">
@@ -490,11 +485,8 @@ const CourseCreation = () => {
           const heading = headingMatch[1];
           const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
 
-          // Skip "Concepts & Topics" text — we render it structured below
-          if (heading === "Concepts & Topics" || heading === "Concepts and Topics") return null;
-
-          // Skip headings we don't want
-          if (/timeline|teaching strategies|engagement/i.test(heading)) return null;
+          // Only show Overview and Learning Outcomes as text
+          if (!allowedTextHeadings.test(heading)) return null;
 
           const lines = body.split("\n").filter(l => l.trim());
           const isList = lines.every(l => /^[-•]/.test(l.trim()));
@@ -518,19 +510,17 @@ const CourseCreation = () => {
           );
         })}
 
-        {/* Concepts & Topics — structured rendering */}
+        {/* Concepts & Topics — only as structured widget cards */}
         {conceptOrder.length > 0 && (
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Concepts & Topics</p>
             {conceptOrder.map((conceptName, ci) => {
               const resources = conceptResources.get(conceptName) || [];
-              const textActivities = conceptTextActivities.get(conceptName) || [];
               const inClass = resources.filter(r => !preClassTypes.has(r.type));
               const preClass = resources.filter(r => preClassTypes.has(r.type));
 
               return (
                 <div key={ci} className="rounded-lg border overflow-hidden">
-                  {/* Concept heading */}
                   <div className="flex items-center gap-2.5 px-4 py-3 bg-muted/40 border-b">
                     <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
                       <span className="text-xs font-bold text-primary">{ci + 1}</span>
@@ -539,31 +529,6 @@ const CourseCreation = () => {
                   </div>
 
                   <div className="px-4 py-3 space-y-4">
-                    {/* What's covered — from AI text activities */}
-                    {textActivities.length > 0 && (
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">What's Covered</p>
-                        <ul className="space-y-1 pl-1">
-                          {textActivities.map((act, ai) => {
-                            const typeMatch = act.match(/^\[([^\]]+)\]\s*/);
-                            const typeBadge = typeMatch ? typeMatch[1] : null;
-                            const text = typeMatch ? act.replace(/^\[[^\]]+\]\s*/, "") : act;
-                            return (
-                              <li key={ai} className="text-sm text-foreground/80 flex items-start gap-2">
-                                {typeBadge ? (
-                                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 mt-0.5 shrink-0 font-medium">{typeBadge}</Badge>
-                                ) : (
-                                  <span className="mt-2 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
-                                )}
-                                <span>{text}</span>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* In Class resources */}
                     {inClass.length > 0 && (
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/70 mb-1.5 flex items-center gap-1.5">
@@ -575,7 +540,6 @@ const CourseCreation = () => {
                       </div>
                     )}
 
-                    {/* Readings & Preparation */}
                     {preClass.length > 0 && (
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/70 mb-1.5 flex items-center gap-1.5">
@@ -587,7 +551,7 @@ const CourseCreation = () => {
                       </div>
                     )}
 
-                    {resources.length === 0 && textActivities.length === 0 && (
+                    {resources.length === 0 && (
                       <p className="text-xs text-muted-foreground italic">No resources mapped yet — use AI Suggest or add manually</p>
                     )}
                   </div>
