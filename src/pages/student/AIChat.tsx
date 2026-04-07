@@ -49,6 +49,7 @@ const AIChat = () => {
   const [mode, setMode] = useState<"learning" | "exam">(initialMode);
   const [input, setInput] = useState("");
   const [showHistory, setShowHistory] = useState(false);
+  const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
   const [showCodeTerminal, setShowCodeTerminal] = useState(false);
   const [codeInput, setCodeInput] = useState("");
   const [codeResult, setCodeResult] = useState<string | null>(null);
