@@ -209,13 +209,13 @@ const ContentLibrary = () => {
 
         {isExpanded && (
           <CardContent className="pt-0 pb-4 space-y-4">
-            {dp.locked ? (
-              <div className="flex items-center gap-3 rounded-lg border border-dashed p-4">
-                <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-                <p className="text-xs text-muted-foreground">This week's content is locked and not visible to students.</p>
+            {dp.locked && (
+              <div className="flex items-center gap-2 rounded-lg border border-dashed bg-muted/20 px-3 py-2">
+                <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <p className="text-xs text-muted-foreground">This week is locked for students — content shown here for your reference.</p>
               </div>
-            ) : (
-              <>
+            )}
+
                 {/* Learning Outcomes */}
                 {outcomes && (
                   <div>
@@ -275,8 +275,6 @@ const ContentLibrary = () => {
                     </CollapsibleContent>
                   </Collapsible>
                 )}
-              </>
-            )}
           </CardContent>
         )}
       </Card>
