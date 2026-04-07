@@ -33,21 +33,19 @@ type MasteryStatus = "deeply_explored" | "touched" | "not_explored";
 
 const getMasteryColor = (status: MasteryStatus, quizScore: number | null) => {
   if (status === "not_explored") return "bg-background border text-muted-foreground";
-  if (status === "deeply_explored" && quizScore !== null) {
-    // Mastery quantified only for deeply explored topics
-    if (quizScore >= 80) return "bg-primary text-primary-foreground";
-    if (quizScore >= 60) return "bg-primary/60 text-foreground";
-    if (quizScore >= 40) return "bg-primary/30 text-foreground";
-    return "bg-destructive/20 text-destructive-foreground";
+  if (status === "deeply_explored") {
+    if (quizScore !== null && quizScore >= 80) return "bg-primary text-primary-foreground";
+    if (quizScore !== null && quizScore >= 60) return "bg-primary/60 text-foreground";
+    if (quizScore !== null && quizScore >= 40) return "bg-primary/30 text-foreground";
+    if (quizScore !== null) return "bg-destructive/20 text-destructive-foreground";
+    return "bg-primary/40 text-foreground";
   }
-  if (status === "deeply_explored") return "bg-primary/40 text-foreground";
   return "bg-primary/20 text-foreground";
 };
 
 const getMasteryLabel = (status: MasteryStatus, quizScore: number | null) => {
   if (status === "not_explored") return "Not explored";
-  if (status === "deeply_explored" && quizScore !== null) return `${quizScore}% mastery`;
-  if (status === "deeply_explored") return "Deeply explored";
+  if (status === "deeply_explored") return quizScore !== null ? `${quizScore}% mastery` : "Deeply explored";
   return "Touched";
 };
 
