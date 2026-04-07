@@ -111,7 +111,7 @@ const AIChat = () => {
       }
     };
     determineWeek();
-  }, [enrolledCourseId]);
+  }, [enrolledCourseId, mode]);
 
   // Auto-start quiz/exam if coming from home page with mode=quiz or mode=exam
   useEffect(() => {
