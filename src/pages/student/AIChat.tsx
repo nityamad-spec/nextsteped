@@ -585,6 +585,7 @@ const AIChat = () => {
           day={assessmentDay}
           onEnd={handleAssessmentEnd}
           onSubmit={handleAssessmentSubmit}
+          onStudyTopics={handleStudyWeakTopics}
         />
 
         <Dialog open={showLeaveWarning} onOpenChange={setShowLeaveWarning}>
