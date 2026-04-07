@@ -9,9 +9,10 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User } from "lucide-react";
+import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User } from "lucide-react";
 import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
+import ExamHistory from "@/components/ExamHistory";
 import ExamPrepPanel, { ExamCustomSettings } from "@/components/ExamPrepPanel";
 import { getQuizQuestions, getExamQuestions, Question } from "@/data/questionBank";
 import { supabase } from "@/integrations/supabase/client";
@@ -737,14 +738,28 @@ const AIChat = () => {
           </div>
         </div>
 
-        {/* Exam practice settings + start */}
+        {/* Exam practice settings + start + history */}
         {mode === "exam" && !assessmentActive && activeChat && (
-          <ExamPrepPanel
-            taSettings={taSettings}
-            onStart={(customSettings) => {
-              handleStartExamWithSettings(customSettings);
-            }}
-          />
+          <div className="border-b">
+            <ExamPrepPanel
+              taSettings={taSettings}
+              onStart={(customSettings) => {
+                handleStartExamWithSettings(customSettings);
+              }}
+            />
+            <div className="px-5 pb-4">
+              <details className="group">
+                <summary className="flex items-center gap-2 cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground transition-colors py-2">
+                  <History className="h-4 w-4" />
+                  Past Exam Attempts
+                  <ChevronDown className="h-3 w-3 group-open:rotate-180 transition-transform" />
+                </summary>
+                <div className="pt-2">
+                  <ExamHistory courseId={enrolledCourseId} />
+                </div>
+              </details>
+            </div>
+          </div>
         )}
 
         {/* Weekly Quiz Popup Dialog */}
