@@ -97,11 +97,6 @@ const ExamPrepPanel = ({ taSettings, onStart }: ExamPrepPanelProps) => {
         </div>
       </div>
 
-      {!taSettings.examEnabled && (
-        <p className="text-xs text-muted-foreground text-center">
-          Your professor has not enabled the exam yet.
-        </p>
-      )}
 
       {/* Expandable settings */}
       {showSettings && (
