@@ -690,8 +690,6 @@ const CourseCreation = () => {
                               <span className="text-sm text-muted-foreground">{dp.dates}</span>
                               <span className="text-sm text-muted-foreground">·</span>
                               <span className="text-sm text-muted-foreground">{dp.weightage}%</span>
-                              <span className="text-sm text-muted-foreground">·</span>
-                              <span className="text-sm text-muted-foreground">{dp.resources.length} resources</span>
                             </div>
                           </div>
                         </div>
