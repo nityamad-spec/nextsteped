@@ -698,9 +698,11 @@ const AIChat = () => {
             </h3>
             <button onClick={() => setShowHistory(false)}><ChevronLeft className="h-4 w-4" /></button>
           </div>
-          <Button variant="outline" size="sm" className="w-full" onClick={createNewChat}>
-            <Plus className="mr-1 h-4 w-4" /> New Chat
-          </Button>
+          {mode === "learning" && (
+            <Button variant="outline" size="sm" className="w-full" onClick={createNewChat}>
+              <Plus className="mr-1 h-4 w-4" /> New Chat
+            </Button>
+          )}
           <div className="space-y-1 mt-3">
             {(() => {
               // For exam mode, only show sessions where an exam was actually taken (more than just welcome message)
