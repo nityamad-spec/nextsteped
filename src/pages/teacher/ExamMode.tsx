@@ -239,7 +239,7 @@ const ExamMode = () => {
           </Card>
 
           <div className="flex justify-between items-center">
-            <Button variant="ghost" onClick={() => navigate("/teacher/setup/diagnostic")}>
+            <Button variant="ghost" onClick={() => navigate("/teacher/setup/ai-settings")}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
             <div className="flex flex-col items-end gap-1">

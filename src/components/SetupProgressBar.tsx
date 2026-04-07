@@ -6,6 +6,7 @@ const steps = [
   { label: "Lesson Plan", path: "/teacher/setup/lesson-plan" },
   { label: "Concepts", path: "/teacher/setup/concepts" },
   { label: "Diagnostic Qs", path: "/teacher/setup/diagnostic" },
+  { label: "AI Assistant", path: "/teacher/setup/ai-settings" },
   { label: "Exam Mode", path: "/teacher/setup/exam-mode" },
   { label: "Publish", path: "/teacher/setup/publish" },
 ];

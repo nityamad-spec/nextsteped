@@ -52,14 +52,12 @@ const AITASettings = () => {
             <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">About Custom Instructions</p>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Study Mode has built-in system instructions (shown below in gray). You can add <strong>custom instructions</strong> to tailor the AI's behavior to your specific course. Consider adding:
+                Add any <strong>course-specific or professor-specific context</strong> the AI should know when helping your students. For example:
               </p>
               <ul className="text-xs text-muted-foreground space-y-0.5 mt-1 ml-3 list-disc">
-                <li>How deep the AI should go when explaining concepts (brief overview vs. detailed breakdown)</li>
-                <li>Specific ways to reference examples, frameworks, or terminology from your course</li>
-                <li>Tone and language preferences (formal, conversational, encouraging)</li>
-                <li>Topics to emphasize or de-emphasize based on your syllabus</li>
-                <li>Course-specific context the AI should be aware of (e.g., prerequisites, student background)</li>
+                <li>Textbook or reference materials students should be directed to</li>
+                <li>Prerequisites or background knowledge students are expected to have</li>
+                <li>Topics that are out of scope for this course</li>
               </ul>
             </div>
           </div>
