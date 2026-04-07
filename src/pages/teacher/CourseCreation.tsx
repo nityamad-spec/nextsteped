@@ -39,6 +39,7 @@ type Resource = {
   accepted: boolean | null;
   provenance?: "uploads" | "web" | "instructor";
   isNew?: boolean;
+  concept?: string;
 };
 
 type DayPlan = {
@@ -113,33 +114,33 @@ const resourceTypeOptions: { value: Resource["type"]; label: string }[] = [
 
 const initialPlan: DayPlan[] = [
   {
-    id: "d1", day: 1, dates: "Day 1", topic: "Python Fundamentals: Variables, Data Types & Control Flow",
-    description: "**Overview:**\nIntroduce students to Python basics including variables, data types, operators, and control flow. Start with IDE setup and progress to interactive coding exercises.\n\n**Learning Outcomes:**\n- Understand Python variables and data types\n- Write basic control flow statements\n- Set up a Python development environment",
+    id: "d1", day: 1, dates: "Week 1", topic: "Python Fundamentals: Variables, Data Types & Control Flow",
+    description: "Overview:\nIntroduce students to Python basics including variables, data types, operators, and control flow. Start with IDE setup and progress to interactive coding exercises.\n\nLearning Outcomes:\n- Understand Python variables and data types\n- Write basic control flow statements\n- Set up a Python development environment\n\nConcepts & Topics:\n\nConcept: Environment Setup\n- [Tool] Python Setup Guide: Help students install Python and set up their IDE\n\nConcept: Variables & Data Types\n- [Lecture] Intro to Python Slides: Cover variables, data types, operators, and basic I/O\n- [Exercise] Variables Practice: Practice declaring and using variables in live coding session\n\nConcept: Control Flow\n- [Coding] Control Flow Exercise: Write if/else statements and simple loops",
     weightage: 30, locked: false,
     resources: [
-      { id: "r1", title: "Intro to Python Slides", action: "Cover variables, data types, operators, and basic I/O", type: "textbook", accepted: true, provenance: "uploads" },
-      { id: "r2", title: "Python Setup Guide", action: "Help students install Python and set up their IDE", type: "textbook", accepted: true, provenance: "uploads" },
-      { id: "r4", title: "Interactive Coding Exercise", action: "Practice variables and data types in live coding session", type: "exercise", accepted: true, provenance: "uploads" },
+      { id: "r1", title: "Intro to Python Slides", action: "Cover variables, data types, operators, and basic I/O", type: "textbook", accepted: true, provenance: "uploads", concept: "Variables & Data Types" },
+      { id: "r2", title: "Python Setup Guide", action: "Help students install Python and set up their IDE", type: "tool", accepted: true, provenance: "uploads", concept: "Environment Setup" },
+      { id: "r4", title: "Interactive Coding Exercise", action: "Practice variables and data types in live coding session", type: "exercise", accepted: true, provenance: "uploads", concept: "Variables & Data Types" },
     ],
   },
   {
-    id: "d2", day: 2, dates: "Day 2", topic: "Functions, Lists & Dictionaries",
-    description: "**Overview:**\nDeep dive into function definitions, parameters, return values, and Python's core data structures.\n\n**Learning Outcomes:**\n- Define and call functions with parameters\n- Work with lists and dictionaries\n- Apply list comprehensions",
+    id: "d2", day: 2, dates: "Week 2", topic: "Functions, Lists & Dictionaries",
+    description: "Overview:\nDeep dive into function definitions, parameters, return values, and Python's core data structures.\n\nLearning Outcomes:\n- Define and call functions with parameters\n- Work with lists and dictionaries\n- Apply list comprehensions\n\nConcepts & Topics:\n\nConcept: Functions\n- [Lecture] Functions & Data Structures Slides: Cover function definitions, parameters, return values\n- [Lab] Calculator Lab: Build a calculator using functions\n\nConcept: Lists & Dictionaries\n- [Exercise] List Comprehension Exercise: Hands-on practice with list comprehensions and dictionary operations",
     weightage: 40, locked: true,
     resources: [
-      { id: "r3", title: "Functions & Data Structures Slides", action: "Cover function definitions, parameters, return values, lists, and dictionaries", type: "textbook", accepted: true, provenance: "uploads" },
-      { id: "r6", title: "Calculator Lab", action: "Build a calculator using functions", type: "lab", accepted: true, provenance: "uploads" },
-      { id: "r11", title: "List Comprehension Exercise", action: "Hands-on practice with list comprehensions and dictionary operations", type: "lab", accepted: true, provenance: "uploads" },
+      { id: "r3", title: "Functions & Data Structures Slides", action: "Cover function definitions, parameters, return values, lists, and dictionaries", type: "textbook", accepted: true, provenance: "uploads", concept: "Functions" },
+      { id: "r6", title: "Calculator Lab", action: "Build a calculator using functions", type: "lab", accepted: true, provenance: "uploads", concept: "Functions" },
+      { id: "r11", title: "List Comprehension Exercise", action: "Hands-on practice with list comprehensions and dictionary operations", type: "lab", accepted: true, provenance: "uploads", concept: "Lists & Dictionaries" },
     ],
   },
   {
-    id: "d3", day: 3, dates: "Day 3", topic: "File Handling, OOP Basics & Review",
-    description: "**Overview:**\nCover object-oriented programming fundamentals and file I/O operations. Conclude with a comprehensive workshop review.\n\n**Learning Outcomes:**\n- Understand classes and objects\n- Read and write files in Python\n- Synthesize all workshop concepts",
+    id: "d3", day: 3, dates: "Week 3", topic: "File Handling, OOP Basics & Review",
+    description: "Overview:\nCover object-oriented programming fundamentals and file I/O operations. Conclude with a comprehensive workshop review.\n\nLearning Outcomes:\n- Understand classes and objects\n- Read and write files in Python\n- Synthesize all workshop concepts\n\nConcepts & Topics:\n\nConcept: Object-Oriented Programming\n- [Lecture] OOP & File Handling Slides: Cover classes, objects, file reading/writing\n\nConcept: File I/O\n- [Exercise] File Organizer Project: Build a simple file organizer script\n\nConcept: Course Review\n- [Reading] Workshop Review Sheet: Comprehensive review covering all workshop topics",
     weightage: 30, locked: true,
     resources: [
-      { id: "r18", title: "OOP & File Handling Slides", action: "Cover classes, objects, file reading/writing", type: "textbook", accepted: true, provenance: "uploads" },
-      { id: "r21", title: "File Organizer Project", action: "Build a simple file organizer script", type: "exercise", accepted: true, provenance: "uploads" },
-      { id: "r16", title: "Workshop Review Sheet", action: "Comprehensive review covering all workshop topics", type: "textbook", accepted: true, provenance: "uploads" },
+      { id: "r18", title: "OOP & File Handling Slides", action: "Cover classes, objects, file reading/writing", type: "textbook", accepted: true, provenance: "uploads", concept: "Object-Oriented Programming" },
+      { id: "r21", title: "File Organizer Project", action: "Build a simple file organizer script", type: "exercise", accepted: true, provenance: "uploads", concept: "File I/O" },
+      { id: "r16", title: "Workshop Review Sheet", action: "Comprehensive review covering all workshop topics", type: "textbook", accepted: true, provenance: "uploads", concept: "Course Review" },
     ],
   },
 ];
@@ -437,38 +438,86 @@ const CourseCreation = () => {
     const cleaned = desc.replace(/\*\*/g, "");
     const sections = cleaned.split(/\n(?=[A-Z][^:\n]+:)/);
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         {sections.map((section, i) => {
           const headingMatch = section.match(/^([A-Z][^:\n]+):\s*/);
-          if (headingMatch) {
-            const heading = headingMatch[1];
-            const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
+          if (!headingMatch) {
+            return <p key={i} className="text-sm text-muted-foreground leading-relaxed">{section}</p>;
+          }
+          const heading = headingMatch[1];
+          const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
+
+          // Parse "Concepts & Topics" with nested concept groups
+          if (heading === "Concepts & Topics" || heading === "Concepts and Topics") {
+            const conceptBlocks: { name: string; items: string[] }[] = [];
             const lines = body.split("\n").filter(l => l.trim());
-            const isList = lines.every(l => /^[-•]/.test(l.trim()));
+            let current: { name: string; items: string[] } | null = null;
+            for (const line of lines) {
+              const conceptMatch = line.match(/^Concept:\s*(.+)/i);
+              if (conceptMatch) {
+                current = { name: conceptMatch[1].trim(), items: [] };
+                conceptBlocks.push(current);
+              } else if (current && /^[-•]/.test(line.trim())) {
+                current.items.push(line.replace(/^[-•]\s*/, "").trim());
+              } else if (current) {
+                current.items.push(line.trim());
+              }
+            }
             return (
-              <Collapsible key={i} defaultOpen>
-                <CollapsibleTrigger className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors w-full text-left">
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                  {heading}
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pl-5 pt-1.5">
-                  {isList ? (
-                    <ul className="space-y-1">
-                      {lines.map((line, j) => (
-                        <li key={j} className="text-sm text-muted-foreground flex items-start gap-2">
-                          <span className="mt-2 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
-                          <span>{line.replace(/^[-•]\s*/, "")}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
-                  )}
-                </CollapsibleContent>
-              </Collapsible>
+              <div key={i} className="space-y-3">
+                <p className="text-sm font-semibold text-foreground">Concepts & Topics</p>
+                {conceptBlocks.map((block, ci) => (
+                  <div key={ci}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="h-4 w-1 rounded-full bg-primary/60" />
+                      <p className="text-sm font-semibold text-foreground">{block.name}</p>
+                    </div>
+                    <div className="space-y-1 pl-3 border-l-2 border-muted ml-0.5">
+                      {block.items.map((item, j) => {
+                        const typeMatch = item.match(/^\[([^\]]+)\]\s*/);
+                        const typeLabel = typeMatch ? typeMatch[1] : null;
+                        const itemText = typeMatch ? item.replace(/^\[[^\]]+\]\s*/, "") : item;
+                        return (
+                          <div key={j} className="flex items-start gap-2 rounded-md bg-muted/20 p-2">
+                            {typeLabel && (
+                              <Badge variant="outline" className="text-[10px] shrink-0 mt-0.5">{typeLabel}</Badge>
+                            )}
+                            <span className="text-sm text-muted-foreground">{itemText}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             );
           }
-          return <p key={i} className="text-sm text-muted-foreground leading-relaxed">{section}</p>;
+
+          // Standard sections
+          const lines = body.split("\n").filter(l => l.trim());
+          const isList = lines.every(l => /^[-•]/.test(l.trim()));
+          return (
+            <Collapsible key={i} defaultOpen>
+              <CollapsibleTrigger className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors w-full text-left">
+                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                {heading}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pl-5 pt-1.5">
+                {isList ? (
+                  <ul className="space-y-1">
+                    {lines.map((line, j) => (
+                      <li key={j} className="text-sm text-muted-foreground flex items-start gap-2">
+                        <span className="mt-2 shrink-0 h-1 w-1 rounded-full bg-primary inline-block" />
+                        <span>{line.replace(/^[-•]\s*/, "")}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+          );
         })}
       </div>
     );
@@ -502,10 +551,9 @@ const CourseCreation = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <ClipboardList className="h-5 w-5 text-primary" /> Upload Lesson Plans
-                <span className="text-[10px] font-normal text-muted-foreground">(Optional)</span>
               </CardTitle>
               <CardDescription>
-                These files help us understand the structure of your course's topics over the semester and each class or weekly topic covered, guiding your instruction plan. They are internal and not shared with students.
+                These files help us understand the structure of your course's topics over the semester and each class or weekly topic covered, guiding your instruction plan.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -540,7 +588,7 @@ const CourseCreation = () => {
                 <span className="text-[10px] font-normal text-muted-foreground">(Optional)</span>
               </CardTitle>
               <CardDescription>
-                These materials will be used to understand the curriculum and power the AI Teaching Assistant for students. They include slides, textbooks, readings, and other resources you want students to access.
+                These are student-facing materials that are used in class sessions. These materials will be used to understand the curriculum and power the AI Teaching Assistant for students.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -691,8 +739,6 @@ const CourseCreation = () => {
                               <span className="text-sm text-muted-foreground">{dp.dates}</span>
                               <span className="text-sm text-muted-foreground">·</span>
                               <span className="text-sm text-muted-foreground">{dp.weightage}%</span>
-                              <span className="text-sm text-muted-foreground">·</span>
-                              <span className="text-sm text-muted-foreground">{dp.resources.length} resources</span>
                             </div>
                           </div>
                         </div>

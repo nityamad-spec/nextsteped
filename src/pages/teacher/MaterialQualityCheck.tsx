@@ -28,6 +28,7 @@ import {
   Plus,
   Save,
   X,
+  Download,
 } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import FileUploadZone from "@/components/FileUploadZone";
@@ -712,8 +713,21 @@ const MaterialQualityCheck = () => {
                   <CheckCircle2 className="h-8 w-8 text-primary" />
                   <div className="flex-1">
                     <p className="font-medium">Syllabus approved and saved</p>
-                    <p className="text-sm text-muted-foreground">Continue to the next step.</p>
+                    <p className="text-sm text-muted-foreground">Continue to the next step or download the approved syllabus.</p>
                   </div>
+                  <Button variant="outline" size="sm" onClick={async () => {
+                    if (!user) return;
+                    const { data, error } = await supabase.storage.from("course-materials").download(`${user.id}/syllabus/approved-syllabus.json`);
+                    if (error || !data) { toast({ title: "Download failed", variant: "destructive" }); return; }
+                    const text = await data.text();
+                    const blob = new Blob([text], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url; a.download = "approved-syllabus.json"; a.click();
+                    URL.revokeObjectURL(url);
+                  }}>
+                    <Download className="mr-2 h-4 w-4" /> Download Syllabus
+                  </Button>
                 </CardContent>
               </Card>
             )}
