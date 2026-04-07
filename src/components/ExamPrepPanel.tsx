@@ -29,7 +29,7 @@ const ExamPrepPanel = ({ taSettings, onStart }: ExamPrepPanelProps) => {
 
   const [timeLimit, setTimeLimit] = useState(profTime);
   const [questionCount, setQuestionCount] = useState(profCount);
-  const [difficulty, setDifficulty] = useState(profDifficulty);
+  const [difficulty, setDifficulty] = useState<string>(profDifficulty);
   const [questionMix, setQuestionMix] = useState(profMix);
   const [showSettings, setShowSettings] = useState(false);
 
