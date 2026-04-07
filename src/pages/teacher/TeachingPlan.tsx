@@ -364,6 +364,8 @@ const TeachingPlan = () => {
 
           if (heading === "Concepts & Topics" || heading === "Concepts and Topics") return null;
           if (/timeline|teaching strategies|engagement/i.test(heading)) return null;
+          // Allow: Overview, Learning Outcomes, Additional Tips
+          if (!/^(overview|learning outcomes|additional tips|tips|teaching tips|strategies)$/i.test(heading)) return null;
 
           const lines = body.split("\n").filter(l => l.trim());
           const isList = lines.every(l => /^[-•]/.test(l.trim()));

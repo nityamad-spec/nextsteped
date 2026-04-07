@@ -474,8 +474,8 @@ const CourseCreation = () => {
       if (!conceptOrder.includes(key)) conceptOrder.push(key);
     }
 
-    // Only render Overview and Learning Outcomes as text sections
-    const allowedTextHeadings = /^(overview|learning outcomes)$/i;
+    // Only render Overview, Learning Outcomes, and Additional Tips as text sections
+    const allowedTextHeadings = /^(overview|learning outcomes|additional tips|tips|teaching tips|strategies)$/i;
 
     return (
       <div className="space-y-5">
