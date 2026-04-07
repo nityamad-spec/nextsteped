@@ -375,7 +375,15 @@ const TeachingPlan = () => {
           current = cm[1].trim();
           conceptOrder.push(current);
           conceptTextActivities.set(current, []);
-        } else if (current && line.trim().startsWith("-")) {
+        } else if (current && line.trim() && !line.trim().startsWith("-")) {
+          // This is the concept description line (not a bullet activity)
+          const existing = conceptTextActivities.get(current)!;
+          if (existing.length === 0 && !line.trim().startsWith("[")) {
+            // Store description as a special marker
+            conceptTextActivities.get(current)!.push(`__DESC__${line.trim()}`);
+          }
+        }
+        if (current && line.trim().startsWith("-")) {
           conceptTextActivities.get(current)!.push(line.trim().replace(/^-\s*/, ""));
         }
       }
@@ -466,11 +474,17 @@ const TeachingPlan = () => {
                   </div>
 
                   <div className="px-4 py-3 space-y-4">
-                    {textActivities.length > 0 && (
+                    {textActivities.filter(a => a.startsWith("__DESC__")).length > 0 && (
+                      <p className="text-sm text-muted-foreground italic">
+                        {textActivities.find(a => a.startsWith("__DESC__"))?.replace("__DESC__", "")}
+                      </p>
+                    )}
+
+                    {textActivities.filter(a => !a.startsWith("__DESC__")).length > 0 && (
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">What's Covered</p>
                         <ul className="space-y-1 pl-1">
-                          {textActivities.map((act, ai) => {
+                          {textActivities.filter(a => !a.startsWith("__DESC__")).map((act, ai) => {
                             const typeMatch = act.match(/^\[([^\]]+)\]\s*/);
                             const typeBadge = typeMatch ? typeMatch[1] : null;
                             const text = typeMatch ? act.replace(/^\[[^\]]+\]\s*/, "") : act;
