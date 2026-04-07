@@ -540,15 +540,20 @@ const AIChat = () => {
     );
   };
 
-  const handleModeSwitch = (newMode: string) => {
+  const handleModeSwitch = async (newMode: string) => {
     if (assessmentActive && newMode !== mode) {
       setPendingNavigation(null);
       setShowLeaveWarning(true);
       return;
     }
-    setMode(newMode as "learning" | "exam");
+    const targetMode = newMode as "learning" | "exam";
+    setMode(targetMode);
     setShowHistory(false);
     setAssessmentActive(false);
+    // Auto-create a new chat when switching modes
+    const welcome = targetMode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
+    const title = targetMode === "learning" ? "New Study Session" : "New Exam Prep";
+    await createSession(title, welcome);
   };
 
   const formatTimestamp = (ts?: number) => {
