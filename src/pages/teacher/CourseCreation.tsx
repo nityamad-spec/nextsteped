@@ -152,7 +152,14 @@ const CourseCreation = () => {
   const { toast } = useToast();
   const courseId = (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
 
-  const [phase, setPhase] = useState<"upload" | "generating" | "plan">("upload");
+  const [phase, setPhaseRaw] = useState<"upload" | "generating" | "plan">(() => {
+    const saved = localStorage.getItem("lessonPlanPhase");
+    return saved === "plan" ? "plan" : "upload";
+  });
+  const setPhase = (p: "upload" | "generating" | "plan") => {
+    localStorage.setItem("lessonPlanPhase", p);
+    setPhaseRaw(p);
+  };
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
   const [materialsFiles, setMaterialsFiles] = useState<UploadedFile[]>([]);
   const [genStep, setGenStep] = useState(0);
