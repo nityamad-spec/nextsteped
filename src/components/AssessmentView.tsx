@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, Clock, ArrowRight, ArrowLeft, Trophy, ClipboardList, GraduationCap, ShieldCheck, Loader2, BookOpen, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Trophy, ClipboardList, GraduationCap, ShieldCheck, Loader2, BookOpen, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -44,7 +44,6 @@ type Phase = "intro" | "active" | "review";
 
 const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics }: AssessmentViewProps) => {
   const [phase, setPhase] = useState<Phase>("intro");
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(timeLimitMinutes * 60);
   const [results, setResults] = useState<AssessmentResults | null>(null);
@@ -74,7 +73,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       if (q.type === "short_answer") {
         isCorrect = userAnswer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
       } else if (q.type === "problem_solving") {
-        // Normalize whitespace for code comparison
         const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
         isCorrect = normalize(userAnswer) === normalize(q.correctAnswer);
       } else {
@@ -102,12 +100,10 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     setPhase("review");
     onSubmit(res);
 
-    // Auto-expand wrong answers
     const wrongIndices = new Set<number>();
     standardised.forEach((a, i) => { if (!a.is_correct) wrongIndices.add(i); });
     setExpandedQuestions(wrongIndices);
 
-    // Fetch AI explanations
     fetchExplanations(standardised);
   }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit]);
 
@@ -159,6 +155,85 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
 
   const isQuiz = type === "quiz";
   const answeredCount = Object.keys(answers).length;
+
+  // Render a single question card (reused in active phase)
+  const renderQuestionCard = (q: Question, index: number) => (
+    <Card key={q.id} className={`${answers[q.id] ? "border-primary/30" : ""}`}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-muted-foreground">Q{index + 1}</span>
+            <Badge variant="outline" className="text-xs">{q.topic}</Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs">{q.difficulty}</Badge>
+            {answers[q.id] && <CheckCircle className="h-4 w-4 text-primary" />}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm leading-relaxed whitespace-pre-wrap">{q.text}</p>
+
+        {q.type === "mcq" && q.options && (
+          <RadioGroup
+            value={answers[q.id] || ""}
+            onValueChange={(v) => handleAnswer(q.id, v)}
+            className="space-y-2"
+          >
+            {q.options.map((opt, i) => (
+              <Label
+                key={i}
+                htmlFor={`q${index}-opt-${i}`}
+                className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors hover:bg-muted/50 ${
+                  answers[q.id] === opt ? "border-primary bg-primary/5" : ""
+                }`}
+              >
+                <RadioGroupItem value={opt} id={`q${index}-opt-${i}`} />
+                <span className="text-sm">{opt}</span>
+              </Label>
+            ))}
+          </RadioGroup>
+        )}
+
+        {q.type === "true_false" && (
+          <div className="flex gap-3">
+            {["True", "False"].map((opt) => (
+              <Button
+                key={opt}
+                type="button"
+                variant={answers[q.id] === opt ? "default" : "outline"}
+                className="flex-1 h-12 text-base"
+                onClick={() => handleAnswer(q.id, opt)}
+              >
+                {opt}
+              </Button>
+            ))}
+          </div>
+        )}
+
+        {q.type === "short_answer" && (
+          <Textarea
+            placeholder="Type your answer here…"
+            value={answers[q.id] || ""}
+            onChange={(e) => handleAnswer(q.id, e.target.value)}
+            className="min-h-[100px]"
+          />
+        )}
+
+        {q.type === "problem_solving" && (
+          <div className="space-y-2">
+            <Badge variant="secondary" className="text-[10px]">Code / Problem Solving</Badge>
+            <Textarea
+              placeholder="Write your code or solution here…"
+              value={answers[q.id] || ""}
+              onChange={(e) => handleAnswer(q.id, e.target.value)}
+              className="min-h-[140px] font-mono text-sm"
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   // Intro screen
   if (phase === "intro") {
@@ -212,7 +287,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     return (
       <div className="flex-1 overflow-auto p-6">
         <div className="mx-auto max-w-2xl space-y-6">
-          {/* Score card */}
           <Card>
             <CardHeader className="text-center">
               <div className={`mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full ${passed ? "bg-primary/10" : "bg-destructive/10"}`}>
@@ -241,7 +315,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             </CardContent>
           </Card>
 
-          {/* Weak topics + study recommendation */}
           {weakTopics.length > 0 && (
             <Card className="border-primary/30 bg-primary/5">
               <CardContent className="p-5 space-y-3">
@@ -291,7 +364,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             </Card>
           )}
 
-          {/* Loading explanations indicator */}
           {loadingExplanations && (
             <div className="flex items-center justify-center gap-2 py-3">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -299,7 +371,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             </div>
           )}
 
-          {/* Question review with explanations */}
           <div className="space-y-3">
             <h3 className="text-sm font-semibold">Question Review</h3>
             {results.answers.map((a, i) => {
@@ -309,10 +380,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
               return (
                 <Card key={a.question_id} className={`border ${a.is_correct ? "border-primary/30" : "border-destructive/30"}`}>
                   <CardContent className="p-4 space-y-2">
-                    <button
-                      onClick={() => toggleQuestion(i)}
-                      className="w-full text-left"
-                    >
+                    <button onClick={() => toggleQuestion(i)} className="w-full text-left">
                       <div className="flex items-start gap-2">
                         {a.is_correct
                           ? <CheckCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
@@ -345,7 +413,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                       </div>
                     </button>
 
-                    {/* Expanded explanation */}
                     {isExpanded && (
                       <div className="mt-3 rounded-lg border bg-muted/30 p-3">
                         {explanation ? (
@@ -372,7 +439,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             })}
           </div>
 
-          {/* Bottom actions */}
           <div className="flex items-center justify-center gap-3 pt-2 flex-wrap">
             <Button variant="outline" onClick={onEnd}>Back to Home</Button>
             {weakTopics.length > 0 && onStudyTopics && (
@@ -387,154 +453,50 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     );
   }
 
-  // Active assessment
-  const currentQ = questions[currentIndex];
-
+  // Active assessment — ALL QUESTIONS AT ONCE
   return (
     <div className="flex flex-1 flex-col">
-      {/* Timer + progress bar */}
-      <div className="flex items-center justify-between border-b px-5 py-3 bg-muted/20">
-        <div className="flex items-center gap-3">
-          <Badge variant={isQuiz ? "default" : "secondary"}>
-            {isQuiz ? `Daily Quiz — Day ${day}` : "Exam Simulation"}
-          </Badge>
-          <span className="text-sm text-muted-foreground">
-            Q {currentIndex + 1} of {questions.length}
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">{answeredCount}/{questions.length} answered</span>
-          <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-mono font-bold ${timeLeft < 60 ? "bg-destructive/10 text-destructive" : "bg-muted"}`}>
-            <Clock className="h-3.5 w-3.5" />
-            {formatTime(timeLeft)}
+      {/* Sticky header with timer + progress */}
+      <div className="sticky top-0 z-10 bg-background border-b">
+        <div className="flex items-center justify-between px-5 py-3">
+          <div className="flex items-center gap-3">
+            <Badge variant={isQuiz ? "default" : "secondary"}>
+              {isQuiz ? `Daily Quiz — Day ${day}` : "Exam Simulation"}
+            </Badge>
+            <span className="text-sm text-muted-foreground">
+              {answeredCount}/{questions.length} answered
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-mono font-bold ${timeLeft < 60 ? "bg-destructive/10 text-destructive" : "bg-muted"}`}>
+              <Clock className="h-3.5 w-3.5" />
+              {formatTime(timeLeft)}
+            </div>
           </div>
         </div>
+        <div className="px-5 pb-2">
+          <Progress value={(answeredCount / questions.length) * 100} className="h-1.5" />
+        </div>
       </div>
 
-      <div className="px-5 py-2">
-        <Progress value={((currentIndex + 1) / questions.length) * 100} className="h-1.5" />
-      </div>
-
-      {/* Question */}
+      {/* All questions scrollable */}
       <div className="flex-1 overflow-auto p-6">
-        <div className="mx-auto max-w-2xl">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <Badge variant="outline" className="text-xs">{currentQ.topic}</Badge>
-                <Badge variant="outline" className="text-xs">{currentQ.difficulty}</Badge>
-              </div>
-              <CardTitle className="text-lg mt-3">
-                Question {currentIndex + 1}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">{currentQ.text}</p>
+        <div className="mx-auto max-w-2xl space-y-6">
+          {questions.map((q, i) => renderQuestionCard(q, i))}
 
-              {currentQ.type === "mcq" && currentQ.options && (
-                <RadioGroup
-                  value={answers[currentQ.id] || ""}
-                  onValueChange={(v) => handleAnswer(currentQ.id, v)}
-                  className="space-y-2"
-                >
-                  {currentQ.options.map((opt, i) => (
-                    <Label
-                      key={i}
-                      htmlFor={`opt-${i}`}
-                      className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors hover:bg-muted/50 ${
-                        answers[currentQ.id] === opt ? "border-primary bg-primary/5" : ""
-                      }`}
-                    >
-                      <RadioGroupItem value={opt} id={`opt-${i}`} />
-                      <span className="text-sm">{opt}</span>
-                    </Label>
-                  ))}
-                </RadioGroup>
-              )}
-
-              {currentQ.type === "true_false" && (
-                <div className="flex gap-3">
-                  {["True", "False"].map((opt) => (
-                    <Button
-                      key={opt}
-                      type="button"
-                      variant={answers[currentQ.id] === opt ? "default" : "outline"}
-                      className="flex-1 h-12 text-base"
-                      onClick={() => handleAnswer(currentQ.id, opt)}
-                    >
-                      {opt}
-                    </Button>
-                  ))}
-                </div>
-              )}
-
-              {currentQ.type === "short_answer" && (
-                <Textarea
-                  placeholder="Type your answer here…"
-                  value={answers[currentQ.id] || ""}
-                  onChange={(e) => handleAnswer(currentQ.id, e.target.value)}
-                  className="min-h-[120px]"
-                />
-              )}
-
-              {currentQ.type === "problem_solving" && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="text-[10px]">Code / Problem Solving</Badge>
-                  </div>
-                  <Textarea
-                    placeholder="Write your code or solution here…"
-                    value={answers[currentQ.id] || ""}
-                    onChange={(e) => handleAnswer(currentQ.id, e.target.value)}
-                    className="min-h-[160px] font-mono text-sm"
-                  />
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Submit button at bottom */}
+          <div className="flex justify-center pt-4 pb-8">
+            <Button
+              onClick={handleFinish}
+              size="lg"
+              className="gap-2 px-8"
+              disabled={answeredCount === 0}
+            >
+              <CheckCircle className="h-5 w-5" />
+              Submit {isQuiz ? "Quiz" : "Exam"} ({answeredCount}/{questions.length} answered)
+            </Button>
+          </div>
         </div>
-      </div>
-
-      {/* Navigation */}
-      <div className="flex items-center justify-between border-t px-5 py-3">
-        <Button
-          variant="outline"
-          onClick={() => setCurrentIndex(prev => prev - 1)}
-          disabled={currentIndex === 0}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" /> Previous
-        </Button>
-
-        {/* Question dots */}
-        <div className="flex items-center gap-1 overflow-hidden max-w-[300px]">
-          {questions.map((q, i) => (
-            <button
-              key={q.id}
-              onClick={() => setCurrentIndex(i)}
-              className={`h-2.5 w-2.5 rounded-full transition-colors ${
-                i === currentIndex
-                  ? "bg-primary scale-125"
-                  : answers[q.id]
-                  ? "bg-primary/40"
-                  : "bg-muted-foreground/20"
-              }`}
-            />
-          ))}
-        </div>
-
-        {currentIndex < questions.length - 1 ? (
-          <Button onClick={() => setCurrentIndex(prev => prev + 1)}>
-            Next <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        ) : (
-          <Button
-            onClick={handleFinish}
-            variant="default"
-            className="gap-2"
-          >
-            <CheckCircle className="h-4 w-4" /> Submit {isQuiz ? "Quiz" : "Exam"}
-          </Button>
-        )}
       </div>
     </div>
   );
