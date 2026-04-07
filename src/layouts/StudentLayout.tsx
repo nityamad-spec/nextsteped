@@ -1,16 +1,14 @@
 import { Outlet, useNavigate } from "react-router-dom";
-import { Home, MessageSquare, TrendingUp, LogOut, MessageSquareHeart } from "lucide-react";
+import { Home, MessageSquare, LogOut, MessageSquareHeart } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Badge } from "@/components/ui/badge";
 
 const studentNav = [
-  { title: "Home", path: "/student/home", icon: Home, enabled: true },
-  { title: "Teaching Assistant Chat", path: "/student/chat", icon: MessageSquare, enabled: true },
-  { title: "Feedback", path: "/student/feedback", icon: MessageSquareHeart, enabled: true },
-  { title: "Progress", path: "/student/progress", icon: TrendingUp, enabled: false, badge: "Soon" },
+  { title: "Home", path: "/student/home", icon: Home },
+  { title: "Teaching Assistant Chat", path: "/student/chat", icon: MessageSquare },
+  { title: "Feedback", path: "/student/feedback", icon: MessageSquareHeart },
 ];
 
 const StudentLayout = () => {
