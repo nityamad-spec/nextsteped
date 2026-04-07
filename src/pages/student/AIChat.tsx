@@ -244,6 +244,24 @@ const AIChat = () => {
     setAssessmentActive(true);
   };
 
+  const handleStartExamWithSettings = async (custom: ExamCustomSettings) => {
+    const count = custom.questionCount;
+    let questions = await fetchDBQuestions("exam");
+    if (questions.length === 0) {
+      questions = getExamQuestions(count);
+    } else {
+      const seed = (user?.id || "anon") + (enrolledCourseId || "");
+      const shuffled = seededShuffle(questions, seed);
+      questions = shuffled.slice(0, Math.min(count, shuffled.length));
+    }
+    // Store custom time limit for the assessment view
+    setCustomExamTimeLimit(custom.timeLimit);
+    setAssessmentQuestions(questions);
+    setAssessmentType("exam");
+    setAssessmentDay(3);
+    setAssessmentActive(true);
+  };
+
   const handleStartQuiz = async (day?: number) => {
     const count = taSettings.quizNumQuestions || 5;
     const quizDay = day || parseInt(searchParams.get("day") || "1") || 1;
