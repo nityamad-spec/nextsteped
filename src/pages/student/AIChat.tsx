@@ -805,6 +805,12 @@ const AIChat = () => {
                   </div>
                 </div>
               )}
+              {/* Performance Dashboard inline in exam mode */}
+              {mode === "exam" && !assessmentActive && (
+                <div className="mt-4 pb-2">
+                  <ExamHistory courseId={enrolledCourseId} />
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </>
           ) : (
