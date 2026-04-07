@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User } from "lucide-react";
 import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
+import ExamPrepPanel, { ExamCustomSettings } from "@/components/ExamPrepPanel";
 import { getQuizQuestions, getExamQuestions, Question } from "@/data/questionBank";
 import { supabase } from "@/integrations/supabase/client";
 import { seededShuffle } from "@/lib/seededShuffle";
@@ -19,7 +20,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 const WELCOME_LEARNING = "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?";
-const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Choose **Start Exam** or **Start Daily Quiz** below to begin a timed assessment.\n\nQuestions are presented by the system — no AI generation involved. Good luck!";
+const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Configure your practice settings and click **Start Exam** to begin a timed simulation. Good luck!";
 
 const AIChat = () => {
   const [searchParams] = useSearchParams();
@@ -52,6 +53,7 @@ const AIChat = () => {
   const [assessmentType, setAssessmentType] = useState<"quiz" | "exam">("quiz");
   const [assessmentQuestions, setAssessmentQuestions] = useState<Question[]>([]);
   const [assessmentDay, setAssessmentDay] = useState(1);
+  const [customExamTimeLimit, setCustomExamTimeLimit] = useState<number | null>(null);
 
   // Weekly quiz popup state
   const [showWeeklyQuizPrompt, setShowWeeklyQuizPrompt] = useState(false);
@@ -237,6 +239,24 @@ const AIChat = () => {
       const shuffled = seededShuffle(questions, seed);
       questions = shuffled.slice(0, Math.min(count, shuffled.length));
     }
+    setAssessmentQuestions(questions);
+    setAssessmentType("exam");
+    setAssessmentDay(3);
+    setAssessmentActive(true);
+  };
+
+  const handleStartExamWithSettings = async (custom: ExamCustomSettings) => {
+    const count = custom.questionCount;
+    let questions = await fetchDBQuestions("exam");
+    if (questions.length === 0) {
+      questions = getExamQuestions(count);
+    } else {
+      const seed = (user?.id || "anon") + (enrolledCourseId || "");
+      const shuffled = seededShuffle(questions, seed);
+      questions = shuffled.slice(0, Math.min(count, shuffled.length));
+    }
+    // Store custom time limit for the assessment view
+    setCustomExamTimeLimit(custom.timeLimit);
     setAssessmentQuestions(questions);
     setAssessmentType("exam");
     setAssessmentDay(3);
@@ -538,7 +558,7 @@ const AIChat = () => {
   // If assessment is active, show full-screen assessment view
   if (assessmentActive && assessmentQuestions.length > 0) {
     const timeLimit = assessmentType === "exam"
-      ? (taSettings.examTimeLimit || 60)
+      ? (customExamTimeLimit || taSettings.examTimeLimit || 60)
       : (taSettings.quizTimeLimit || 10);
 
     return (
@@ -636,20 +656,14 @@ const AIChat = () => {
           </div>
         </div>
 
-        {/* Exam/Quiz start buttons */}
+        {/* Exam practice settings + start */}
         {mode === "exam" && !assessmentActive && activeChat && (
-          <div className="flex flex-col items-center gap-3 border-b bg-muted/20 px-5 py-3">
-            <div className="flex items-center gap-3 flex-wrap justify-center">
-              <Button onClick={handleStartExam} className="gap-2" disabled={!taSettings.examEnabled}>
-                <Clock className="h-4 w-4" /> Start Exam
-              </Button>
-            </div>
-            {!taSettings.examEnabled && (
-              <p className="text-xs text-muted-foreground">
-                Your professor has not enabled the exam yet.
-              </p>
-            )}
-          </div>
+          <ExamPrepPanel
+            taSettings={taSettings}
+            onStart={(customSettings) => {
+              handleStartExamWithSettings(customSettings);
+            }}
+          />
         )}
 
         {/* Weekly Quiz Popup Dialog */}
