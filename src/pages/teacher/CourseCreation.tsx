@@ -555,7 +555,30 @@ const CourseCreation = () => {
                     <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
                       <span className="text-xs font-bold text-primary">{ci + 1}</span>
                     </div>
-                    <p className="text-sm font-semibold text-foreground">{conceptName}</p>
+                    {editingConceptName === `${dp.id}::${conceptName}` ? (
+                      <div className="flex items-center gap-1.5 flex-1">
+                        <Input
+                          value={editConceptValue}
+                          onChange={(e) => setEditConceptValue(e.target.value)}
+                          className="h-7 text-sm font-semibold flex-1"
+                          autoFocus
+                          onKeyDown={(e) => { if (e.key === "Enter") renameConcept(dp.id, conceptName, editConceptValue); if (e.key === "Escape") setEditingConceptName(null); }}
+                        />
+                        <Button size="sm" variant="ghost" onClick={() => renameConcept(dp.id, conceptName, editConceptValue)} className="h-6 w-6 p-0"><Check className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingConceptName(null)} className="h-6 w-6 p-0"><X className="h-3 w-3" /></Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 flex-1 group/concept">
+                        <p className="text-sm font-semibold text-foreground">{conceptName}</p>
+                        <Button
+                          size="sm" variant="ghost"
+                          onClick={() => { setEditingConceptName(`${dp.id}::${conceptName}`); setEditConceptValue(conceptName); }}
+                          className="h-5 w-5 p-0 opacity-0 group-hover/concept:opacity-100 transition-opacity"
+                        >
+                          <Pencil className="h-2.5 w-2.5" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="px-4 py-3 space-y-4">
@@ -565,7 +588,7 @@ const CourseCreation = () => {
                           <BookOpen className="h-3 w-3" /> In Class
                         </p>
                         <div className="space-y-1">
-                          {inClass.map(r => renderInlineResource(r, dp))}
+                          {inClass.map(r => renderInlineResource(r, dp, conceptOrder))}
                         </div>
                       </div>
                     )}
@@ -576,7 +599,7 @@ const CourseCreation = () => {
                           <FileText className="h-3 w-3" /> Readings & Preparation
                         </p>
                         <div className="space-y-1">
-                          {preClass.map(r => renderInlineResource(r, dp))}
+                          {preClass.map(r => renderInlineResource(r, dp, conceptOrder))}
                         </div>
                       </div>
                     )}
