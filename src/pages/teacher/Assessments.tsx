@@ -282,18 +282,6 @@ const Assessments = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div>
-                  <p className="text-sm font-medium">Use predefined questions only</p>
-                  <p className="text-xs text-muted-foreground">Only show your custom exam questions — no auto-generated questions.</p>
-                </div>
-                <Switch checked={examPredefinedOnly} onCheckedChange={setExamPredefinedOnly} />
-              </div>
-              {examPredefinedOnly && (
-                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                  <p className="text-xs text-muted-foreground"><strong className="text-foreground">{examQuestions.length}</strong> exam-only questions will be used.</p>
-                </div>
-              )}
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Exam Time Limit (minutes)</Label>
                 <div className="flex items-center gap-4">
