@@ -95,6 +95,11 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard }: ExamPrepPanelPr
           >
             <Clock className="h-4 w-4" /> Start Exam Practice
           </Button>
+          {onShowDashboard && (
+            <Button variant="outline" onClick={onShowDashboard} className="gap-2">
+              <BarChart3 className="h-4 w-4" /> Performance
+            </Button>
+          )}
         </div>
       </div>
 
