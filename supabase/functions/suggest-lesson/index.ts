@@ -20,17 +20,25 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = `You are an expert curriculum designer and pedagogy specialist. You will generate TWO things for a single day of a university-level course:
+    const systemPrompt = `You are an expert curriculum designer and pedagogy specialist. You will generate TWO things for a single week of a university-level course:
 
 1. A structured lesson description with these clearly labeled sections (use exactly these headings):
-   **Overview:** A 2-3 sentence overview of the day's focus.
+   **Overview:** A 2-3 sentence overview of the week's focus and goals.
    **Learning Outcomes:** 3-5 specific, measurable learning outcomes as bullet points.
-   **Timeline:** A suggested timeline with activities and approximate durations.
-   **Teaching Strategies:** Best practices for delivering this content.
-   **Engagement Tips:** Discussion prompts and active learning techniques.
-   **Assessment:** Formative checks and quick exercises.
+   **Concepts & Topics:** List each concept/topic covered this week in sequential order. Under each concept, embed the specific lectures, exercises, activities, readings, case studies, coding time, etc. that relate to that concept. Format like:
+   
+   Concept: [Concept Name]
+   - [type] [Resource/Activity Title]: [Brief description of what students do]
+   - [type] [Resource/Activity Title]: [Brief description]
+   
+   Concept: [Next Concept Name]
+   - [type] [Resource/Activity Title]: [Brief description]
+   
+   Valid types in brackets: [Reading], [Lecture], [Exercise], [Lab], [Case Study], [Article], [Video], [Tool], [Discussion], [Coding]
+   
+   **Additional Tips:** 2-4 practical tips for teaching, assessing, or engaging students during this week.
 
-2. A JSON array of suggested additional resources/materials (beyond what the professor already has). These should be creative, practical additions like soft skill activities, group exercises, industry connections, etc.
+2. A JSON array of the resources/activities you embedded in the Concepts & Topics section, plus any additional suggestions. Each resource should include a "concept" field indicating which concept it belongs to.
 
 Format your response EXACTLY like this (the JSON block must be valid):
 
@@ -42,42 +50,44 @@ Format your response EXACTLY like this (the JSON block must be valid):
 - [outcome 2]
 ...
 
-**Timeline:**
-- [time] — [activity]
+**Concepts & Topics:**
+
+Concept: [First Concept]
+- [Reading] Intro to Python Slides: Cover variables, data types, operators
+- [Exercise] Variables Practice: Students practice declaring and using variables
 ...
 
-**Teaching Strategies:**
-[strategies text]
+Concept: [Second Concept]
+- [Lecture] Control Flow Overview: If/else statements and loops
+- [Coding] Loop Challenge: Write programs using for and while loops
+...
 
-**Engagement Tips:**
+**Additional Tips:**
 - [tip 1]
-...
-
-**Assessment:**
-- [assessment 1]
+- [tip 2]
 ...
 
 ---RESOURCES_JSON---
-[{"title":"Resource Title","action":"Description of what this resource does","type":"exercise","provenance":"instructor"},...]
+[{"title":"Resource Title","action":"Description","type":"exercise","provenance":"instructor","concept":"Concept Name"},...]
 
 Valid types: textbook, lab, case-study, exercise, article, video, tool, news
 Valid provenance values: instructor, web`;
 
     const existingResourcesSummary = existingResources?.length > 0
-      ? `\nExisting resources (do NOT duplicate these, suggest NEW ones):\n${existingResources.map((r: any) => `- ${r.title}: ${r.action}`).join("\n")}`
+      ? `\nExisting resources (incorporate these into the appropriate concepts, and suggest NEW additional ones):\n${existingResources.map((r: any) => `- ${r.title}: ${r.action}`).join("\n")}`
       : "";
 
     const userPrompt = `Course context:
-- Total days in the course: ${totalDays}
+- Total weeks in the course: ${totalDays}
 - Course objectives: ${courseObjectives?.join(", ") || "Not specified"}
 
-Generate a detailed lesson description AND 2-4 additional resource suggestions for:
-- Day ${dayNumber} of ${totalDays}
+Generate a detailed lesson description AND resource suggestions for:
+- Week ${dayNumber} of ${totalDays}
 - Topic: ${dayTopic}
 ${existingDescription ? `\nExisting description (improve upon this):\n${existingDescription}` : ""}
 ${existingResourcesSummary}
 
-Provide comprehensive, ready-to-use content. Focus suggested resources on things like soft skill development, group activities, peer learning, industry connections, and creative exercises that complement the existing materials.`;
+Important: In the Concepts & Topics section, list concepts in chronological teaching order and embed all activities/resources directly under their relevant concept. Focus on making the lesson flow intuitive and sequential.`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -118,7 +128,6 @@ Provide comprehensive, ready-to-use content. Focus suggested resources on things
     const data = await response.json();
     const fullContent = data.choices?.[0]?.message?.content || "";
 
-    // Parse out the description and resources
     let suggestion = fullContent;
     let suggestedResources: any[] = [];
 
@@ -128,7 +137,6 @@ Provide comprehensive, ready-to-use content. Focus suggested resources on things
       suggestion = fullContent.substring(0, splitIndex).trim();
       const jsonPart = fullContent.substring(splitIndex + jsonSplitter.length).trim();
       try {
-        // Extract JSON array from the text (handle markdown code blocks)
         const jsonMatch = jsonPart.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           suggestedResources = JSON.parse(jsonMatch[0]);
