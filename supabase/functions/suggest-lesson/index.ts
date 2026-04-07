@@ -84,10 +84,15 @@ Valid provenance values: instructor, web`;
 Generate a detailed lesson description AND resource suggestions for:
 - Week ${dayNumber} of ${totalDays}
 - Topic: ${dayTopic}
-${existingDescription ? `\nExisting description (improve upon this):\n${existingDescription}` : ""}
+${existingDescription ? `\nExisting description (improve and SIGNIFICANTLY EXPAND upon this — don't just rephrase the same content, add genuinely new pedagogical insights, activities, and depth):\n${existingDescription}` : ""}
 ${existingResourcesSummary}
 
-Important: In the Concepts & Topics section, list concepts in chronological teaching order and embed all activities/resources directly under their relevant concept. Focus on making the lesson flow intuitive and sequential.`;
+CRITICAL INSTRUCTIONS:
+1. Do NOT simply rephrase or reword existing content. Add SUBSTANTIALLY NEW concepts, activities, and resources that are missing but important for this topic.
+2. If there are concepts or sub-topics NOT currently mentioned but critical for teaching "${dayTopic}" effectively, ADD them as new concepts in your response. Reorganize the chronological order accordingly.
+3. For each concept, propose specific, actionable activities — not generic descriptions. Include concrete exercise ideas, discussion prompts, real-world examples, and assessment strategies.
+4. List concepts in chronological teaching order and embed all activities/resources directly under their relevant concept. Focus on making the lesson flow intuitive and sequential.
+5. The Additional Tips section should include practical, specific teaching strategies — not generic advice.`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",

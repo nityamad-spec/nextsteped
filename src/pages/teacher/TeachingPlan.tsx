@@ -18,8 +18,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  ChevronDown, ChevronUp, Pencil, Trash2, Plus, FileText, FileDown,
-  Check, BookOpen, Download, Eye, EyeOff, Sparkles, Loader2, GripVertical,
+  ChevronDown, ChevronUp, Pencil, Trash2, Plus, FileText, FileDown, X,
+  Check, BookOpen, Download, Eye, EyeOff, Sparkles, Loader2, GripVertical, ArrowLeftRight,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -92,6 +92,36 @@ const TeachingPlan = () => {
   const [suggestingDayId, setSuggestingDayId] = useState<string | null>(null);
   const [addingResourceDayId, setAddingResourceDayId] = useState<string | null>(null);
   const [newResourceType, setNewResourceType] = useState<Resource["type"]>("exercise");
+  const [editingConceptName, setEditingConceptName] = useState<string | null>(null);
+  const [editConceptValue, setEditConceptValue] = useState("");
+
+  const renameConcept = (dayId: string, oldName: string, newName: string) => {
+    if (!newName.trim() || newName === oldName) { setEditingConceptName(null); return; }
+    setDays(prev => prev.map(d => d.id === dayId ? {
+      ...d,
+      resources: d.resources.map(r => r.concept === oldName ? { ...r, concept: newName.trim() } : r),
+      description: d.description?.replace(new RegExp(`Concept:\\s*${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'), `Concept: ${newName.trim()}`),
+    } : d));
+    setEditingConceptName(null); markChanged();
+  };
+
+  const moveResourceToConcept = (dayId: string, resourceId: string, newConcept: string) => {
+    setDays(prev => prev.map(d => d.id === dayId ? {
+      ...d, resources: d.resources.map(r => r.id === resourceId ? { ...r, concept: newConcept } : r),
+    } : d));
+    markChanged();
+  };
+
+  const toggleResourceCategory = (dayId: string, resourceId: string) => {
+    const inClassSet = new Set(["exercise", "lab", "tool", "video", "quiz", "exam"]);
+    setDays(prev => prev.map(d => d.id === dayId ? {
+      ...d, resources: d.resources.map(r => {
+        if (r.id !== resourceId) return r;
+        return { ...r, type: inClassSet.has(r.type) ? "textbook" as const : "exercise" as const };
+      }),
+    } : d));
+    markChanged();
+  };
   const [saving, setSaving] = useState(false);
 
   const markChanged = () => setHasChanges(true);
@@ -364,6 +394,8 @@ const TeachingPlan = () => {
 
           if (heading === "Concepts & Topics" || heading === "Concepts and Topics") return null;
           if (/timeline|teaching strategies|engagement/i.test(heading)) return null;
+          // Allow: Overview, Learning Outcomes, Additional Tips
+          if (!/^(overview|learning outcomes|additional tips|tips|teaching tips|strategies)$/i.test(heading)) return null;
 
           const lines = body.split("\n").filter(l => l.trim());
           const isList = lines.every(l => /^[-•]/.test(l.trim()));
@@ -402,7 +434,30 @@ const TeachingPlan = () => {
                     <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
                       <span className="text-xs font-bold text-primary">{ci + 1}</span>
                     </div>
-                    <p className="text-sm font-semibold text-foreground">{conceptName}</p>
+                    {editingConceptName === `${dp.id}::${conceptName}` ? (
+                      <div className="flex items-center gap-1.5 flex-1">
+                        <Input
+                          value={editConceptValue}
+                          onChange={(e) => setEditConceptValue(e.target.value)}
+                          className="h-7 text-sm font-semibold flex-1"
+                          autoFocus
+                          onKeyDown={(e) => { if (e.key === "Enter") renameConcept(dp.id, conceptName, editConceptValue); if (e.key === "Escape") setEditingConceptName(null); }}
+                        />
+                        <Button size="sm" variant="ghost" onClick={() => renameConcept(dp.id, conceptName, editConceptValue)} className="h-6 w-6 p-0"><Check className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingConceptName(null)} className="h-6 w-6 p-0"><X className="h-3 w-3" /></Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 flex-1 group/concept">
+                        <p className="text-sm font-semibold text-foreground">{conceptName}</p>
+                        <Button
+                          size="sm" variant="ghost"
+                          onClick={() => { setEditingConceptName(`${dp.id}::${conceptName}`); setEditConceptValue(conceptName); }}
+                          className="h-5 w-5 p-0 opacity-0 group-hover/concept:opacity-100 transition-opacity"
+                        >
+                          <Pencil className="h-2.5 w-2.5" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="px-4 py-3 space-y-4">
@@ -435,7 +490,7 @@ const TeachingPlan = () => {
                           <BookOpen className="h-3 w-3" /> In Class
                         </p>
                         <div className="space-y-1">
-                          {inClass.map(r => renderInlineResource(r, dp))}
+                          {inClass.map(r => renderInlineResource(r, dp, conceptOrder))}
                         </div>
                       </div>
                     )}
@@ -446,7 +501,7 @@ const TeachingPlan = () => {
                           <FileText className="h-3 w-3" /> Readings & Preparation
                         </p>
                         <div className="space-y-1">
-                          {preClass.map(r => renderInlineResource(r, dp))}
+                          {preClass.map(r => renderInlineResource(r, dp, conceptOrder))}
                         </div>
                       </div>
                     )}
@@ -464,7 +519,7 @@ const TeachingPlan = () => {
     );
   };
 
-  const renderInlineResource = (r: Resource, dp: DayPlan) => {
+  const renderInlineResource = (r: Resource, dp: DayPlan, concepts?: string[]) => {
     const isEditingThis = editingResourceId === r.id;
     if (isEditingThis) {
       return (
@@ -497,6 +552,7 @@ const TeachingPlan = () => {
         </div>
       );
     }
+    const isInClass = inClassTypes.has(r.type);
     return (
       <div key={r.id} className={`flex items-start gap-2.5 rounded-md px-3 py-2 group hover:bg-muted/30 transition-colors ${r.isNew ? "bg-primary/5 border-l-2 border-l-primary" : ""}`}>
         <span className="text-sm shrink-0 mt-0.5">{typeIcons[r.type] || "📄"}</span>
@@ -508,6 +564,25 @@ const TeachingPlan = () => {
           <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{r.action}</p>
         </div>
         <div className="flex gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button variant="ghost" size="sm" onClick={() => toggleResourceCategory(dp.id, r.id)} className="h-6 px-1.5" title={isInClass ? "Move to Readings" : "Move to In Class"}>
+            <ArrowLeftRight className="h-3 w-3" />
+          </Button>
+          {concepts && concepts.length > 1 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-6 px-1.5" title="Move to concept">
+                  <GripVertical className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[160px]">
+                {concepts.filter(c => c !== r.concept).map(c => (
+                  <DropdownMenuItem key={c} onClick={() => moveResourceToConcept(dp.id, r.id, c)} className="text-xs">
+                    Move to {c}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <Button variant="ghost" size="sm" onClick={() => startEditResource(r)} className="h-6 w-6 p-0">
             <Pencil className="h-3 w-3" />
           </Button>
