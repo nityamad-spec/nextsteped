@@ -540,15 +540,20 @@ const AIChat = () => {
     );
   };
 
-  const handleModeSwitch = (newMode: string) => {
+  const handleModeSwitch = async (newMode: string) => {
     if (assessmentActive && newMode !== mode) {
       setPendingNavigation(null);
       setShowLeaveWarning(true);
       return;
     }
-    setMode(newMode as "learning" | "exam");
+    const targetMode = newMode as "learning" | "exam";
+    setMode(targetMode);
     setShowHistory(false);
     setAssessmentActive(false);
+    // Auto-create a new chat when switching modes
+    const welcome = targetMode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
+    const title = targetMode === "learning" ? "New Study Session" : "New Exam Prep";
+    await createSession(title, welcome);
   };
 
   const formatTimestamp = (ts?: number) => {
@@ -747,18 +752,6 @@ const AIChat = () => {
                 handleStartExamWithSettings(customSettings);
               }}
             />
-            <div className="px-5 pb-4">
-              <details className="group">
-                <summary className="flex items-center gap-2 cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground transition-colors py-2">
-                  <History className="h-4 w-4" />
-                  Past Exam Attempts
-                  <ChevronDown className="h-3 w-3 group-open:rotate-180 transition-transform" />
-                </summary>
-                <div className="pt-2">
-                  <ExamHistory courseId={enrolledCourseId} />
-                </div>
-              </details>
-            </div>
           </div>
         )}
 
@@ -810,6 +803,12 @@ const AIChat = () => {
                     </span>
                     <span className="text-muted-foreground ml-1">Thinking...</span>
                   </div>
+                </div>
+              )}
+              {/* Performance Dashboard inline in exam mode */}
+              {mode === "exam" && !assessmentActive && (
+                <div className="mt-4 pb-2">
+                  <ExamHistory courseId={enrolledCourseId} />
                 </div>
               )}
               <div ref={messagesEndRef} />
