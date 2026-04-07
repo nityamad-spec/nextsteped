@@ -933,68 +933,7 @@ const CourseCreation = () => {
                                     />
                                   )}
 
-                                  {/* Integrated Resources */}
-                                  {dp.resources.length > 0 && (
-                                    <div className="space-y-2 mt-4">
-                                      {dp.resources.map((r) => {
-                                        const isEditingThis = editingResourceId === r.id;
-                                        return (
-                                          <div key={r.id} className={`rounded-lg px-4 py-3 border transition-colors bg-muted/30 border-border ${r.isNew ? "border-l-4 border-l-primary bg-primary/5" : ""}`}>
-                                            {isEditingThis ? (
-                                              <div className="space-y-3">
-                                                <div className="space-y-1.5">
-                                                  <Label className="text-sm">Type</Label>
-                                                  <Select value={editResourceType} onValueChange={(v) => setEditResourceType(v as Resource["type"])}>
-                                                    <SelectTrigger className="h-8 text-sm bg-background"><SelectValue /></SelectTrigger>
-                                                    <SelectContent>
-                                                      {resourceTypeOptions.map(opt => (
-                                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                                      ))}
-                                                    </SelectContent>
-                                                  </Select>
-                                                </div>
-                                                <div className="space-y-1.5">
-                                                  <Label className="text-sm">Title</Label>
-                                                  <Input value={editResourceTitle} onChange={(e) => setEditResourceTitle(e.target.value)} className="h-8 text-sm bg-background" />
-                                                </div>
-                                                <div className="space-y-1.5">
-                                                  <Label className="text-sm">Description</Label>
-                                                  <Input value={editResourceAction} onChange={(e) => setEditResourceAction(e.target.value)} className="h-8 text-sm bg-background" />
-                                                </div>
-                                                <div className="flex gap-2">
-                                                  <Button size="sm" onClick={() => saveEditResource(dp.id)} className="h-7 text-sm px-3">Save</Button>
-                                                  <Button size="sm" variant="ghost" onClick={() => setEditingResourceId(null)} className="h-7 text-sm px-3">Cancel</Button>
-                                                </div>
-                                              </div>
-                                            ) : (
-                                              <div className="flex items-start justify-between gap-3">
-                                                <div className="flex items-start gap-3 min-w-0">
-                                                  <span className="text-base shrink-0 mt-0.5">{typeIcons[r.type] || "📄"}</span>
-                                                  <div className="min-w-0">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                      <span className="text-sm font-medium">{r.title || "Untitled"}</span>
-                                                      {r.isNew && <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20">AI Suggested</Badge>}
-                                                    </div>
-                                                    <p className="text-sm text-muted-foreground mt-0.5">{r.action}</p>
-                                                  </div>
-                                                </div>
-                                                <div className="flex gap-1 shrink-0">
-                                                  <Button variant="ghost" size="sm" onClick={() => startEditResource(r)} className="h-7 px-2 text-sm hover:bg-background/50">
-                                                    <Pencil className="h-3 w-3" />
-                                                  </Button>
-                                                  <Button variant="ghost" size="sm" onClick={() => removeResource(dp.id, r.id)} className="h-7 px-2 text-sm text-destructive hover:text-destructive hover:bg-background/50">
-                                                    <Trash2 className="h-3 w-3" />
-                                                  </Button>
-                                                </div>
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-
-                                  {dp.resources.length === 0 && (
+                                  {dp.resources.length === 0 && !dp.description && (
                                     <div className="rounded-lg border border-dashed p-6 text-center">
                                       <BookOpen className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
                                       <p className="text-sm text-muted-foreground">No resources added yet</p>
