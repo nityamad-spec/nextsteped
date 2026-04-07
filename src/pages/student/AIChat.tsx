@@ -749,11 +749,13 @@ const AIChat = () => {
               </TabsList>
             </Tabs>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-9 text-sm" onClick={createNewChat}>
-              <Plus className="mr-2 h-4 w-4" /> New Chat
-            </Button>
-          </div>
+          {mode === "learning" && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-9 text-sm" onClick={createNewChat}>
+                <Plus className="mr-2 h-4 w-4" /> New Chat
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Exam practice settings + start + history */}
