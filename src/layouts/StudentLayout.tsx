@@ -66,27 +66,16 @@ const StudentLayout = () => {
 
         <nav className="flex-1 space-y-1 p-3">
           {studentNav.map((item) => (
-            item.enabled ? (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={false}
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
-                activeClassName="bg-sidebar-accent text-primary font-medium"
-              >
-                <item.icon className="h-4 w-4" />
-                {item.title}
-              </NavLink>
-            ) : (
-              <div
-                key={item.path}
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground/40 cursor-not-allowed"
-              >
-                <item.icon className="h-4 w-4" />
-                {item.title}
-                <Badge variant="secondary" className="ml-auto text-[10px]">{item.badge}</Badge>
-              </div>
-            )
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={false}
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+              activeClassName="bg-sidebar-accent text-primary font-medium"
+            >
+              <item.icon className="h-4 w-4" />
+              {item.title}
+            </NavLink>
           ))}
         </nav>
 
