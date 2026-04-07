@@ -277,7 +277,7 @@ const TeachingPlan = () => {
         const newResources: Resource[] = data.suggestedResources.map((r: any) => ({
           id: makeId(), title: r.title || "Untitled Resource", action: r.action || "",
           type: r.type || "exercise", accepted: true, provenance: r.provenance || "instructor",
-          isNew: true,
+          isNew: true, concept: r.concept || "General",
         }));
         setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, resources: [...d.resources, ...newResources] } : d));
         toast({ title: "AI suggestion applied", description: `Updated description and added ${newResources.length} resource(s) to Day ${day.day}.` });
