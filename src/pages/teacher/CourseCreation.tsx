@@ -154,7 +154,8 @@ const CourseCreation = () => {
 
   const [phase, setPhaseRaw] = useState<"upload" | "generating" | "plan">(() => {
     const saved = localStorage.getItem("lessonPlanPhase");
-    return saved === "plan" ? "plan" : "upload";
+    if (saved === "plan" || saved === "generating") return "plan";
+    return "upload";
   });
   const setPhase = (p: "upload" | "generating" | "plan") => {
     localStorage.setItem("lessonPlanPhase", p);
@@ -164,8 +165,33 @@ const CourseCreation = () => {
   const [materialsFiles, setMaterialsFiles] = useState<UploadedFile[]>([]);
   const [genStep, setGenStep] = useState(0);
   const [genElapsed, setGenElapsed] = useState(0);
-  const [days, setDays] = useState<DayPlan[]>(initialPlan);
-  const [expandedDays, setExpandedDays] = useState<string[]>(initialPlan.map((d) => d.id));
+  const [days, setDaysRaw] = useState<DayPlan[]>(() => {
+    try {
+      const saved = localStorage.getItem("lessonPlanDays");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return initialPlan;
+  });
+  const setDays: React.Dispatch<React.SetStateAction<DayPlan[]>> = (action) => {
+    setDaysRaw(prev => {
+      const next = typeof action === "function" ? action(prev) : action;
+      localStorage.setItem("lessonPlanDays", JSON.stringify(next));
+      return next;
+    });
+  };
+  const [expandedDays, setExpandedDays] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("lessonPlanDays");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed.map((d: any) => d.id);
+      }
+    } catch {}
+    return initialPlan.map((d) => d.id);
+  });
   const [editingDayId, setEditingDayId] = useState<string | null>(null);
   const [editTopic, setEditTopic] = useState("");
   const [editDates, setEditDates] = useState("");
