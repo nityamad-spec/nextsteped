@@ -21,33 +21,32 @@ import { workshopPlan as defaultPlan } from "@/data/workshopPlan";
 const conceptMasteryData = [
   { name: "Variables & Types", status: "deeply_explored" as const, quizScore: 85 },
   { name: "Control Flow", status: "touched" as const, quizScore: null },
-  { name: "Functions", status: "touched" as const, quizScore: 62 },
+  { name: "Functions", status: "deeply_explored" as const, quizScore: 62 },
   { name: "Lists & Dicts", status: "not_explored" as const, quizScore: null },
   { name: "File Handling", status: "not_explored" as const, quizScore: null },
   { name: "OOP Basics", status: "not_explored" as const, quizScore: null },
   { name: "Error Handling", status: "not_explored" as const, quizScore: null },
-  { name: "Modules", status: "touched" as const, quizScore: 55 },
+  { name: "Modules", status: "touched" as const, quizScore: null },
 ];
 
 type MasteryStatus = "deeply_explored" | "touched" | "not_explored";
 
 const getMasteryColor = (status: MasteryStatus, quizScore: number | null) => {
   if (status === "not_explored") return "bg-background border text-muted-foreground";
-  if (quizScore !== null) {
-    // Tiered mastery colors based on quiz performance
+  if (status === "deeply_explored" && quizScore !== null) {
+    // Mastery quantified only for deeply explored topics
     if (quizScore >= 80) return "bg-primary text-primary-foreground";
     if (quizScore >= 60) return "bg-primary/60 text-foreground";
     if (quizScore >= 40) return "bg-primary/30 text-foreground";
     return "bg-destructive/20 text-destructive-foreground";
   }
-  // No quiz data — just chat-based categories
   if (status === "deeply_explored") return "bg-primary/40 text-foreground";
   return "bg-primary/20 text-foreground";
 };
 
 const getMasteryLabel = (status: MasteryStatus, quizScore: number | null) => {
   if (status === "not_explored") return "Not explored";
-  if (quizScore !== null) return `${quizScore}% mastery`;
+  if (status === "deeply_explored" && quizScore !== null) return `${quizScore}% mastery`;
   if (status === "deeply_explored") return "Deeply explored";
   return "Touched";
 };
@@ -317,9 +316,9 @@ const StudentHome = () => {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Brain className="h-4 w-4 text-primary" /> Concept Mastery
+              <Brain className="h-4 w-4 text-primary" /> Concept Exploration & Mastery Map
             </CardTitle>
-            <CardDescription>Based on your chat interactions and quiz performance</CardDescription>
+            <CardDescription>Based on your interactions with the Teaching Assistant across study, exam, and diagnostic sessions</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -329,7 +328,7 @@ const StudentHome = () => {
                     <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${getMasteryColor(concept.status, concept.quizScore)}`}>
                       <p className="text-xs font-medium truncate">{concept.name}</p>
                       <p className="text-lg font-bold mt-1">
-                        {concept.status === "not_explored" ? "—" : concept.quizScore !== null ? `${concept.quizScore}%` : "•"}
+                        {concept.status === "not_explored" ? "—" : concept.status === "deeply_explored" && concept.quizScore !== null ? `${concept.quizScore}%` : "•"}
                       </p>
                     </div>
                   </TooltipTrigger>
@@ -354,11 +353,11 @@ const StudentHome = () => {
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="h-3 w-3 rounded bg-primary" />
-                <span className="text-[10px] text-muted-foreground">Quiz mastery</span>
+                <span className="text-[10px] text-muted-foreground">Mastery (deeply explored)</span>
               </div>
             </div>
             <p className="text-xs text-muted-foreground text-center mt-2">
-              Take weekly quizzes for more detailed mastery insights
+              The more you engage with the Teaching Assistant, the more accurate your exploration and mastery insights become
             </p>
           </CardContent>
         </Card>
