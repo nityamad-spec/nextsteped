@@ -347,11 +347,7 @@ const StudentHome = () => {
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="h-3 w-3 rounded bg-primary/40" />
-                <span className="text-[10px] text-muted-foreground">Deeply explored</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-primary" />
-                <span className="text-[10px] text-muted-foreground">Mastery (deeply explored)</span>
+                <span className="text-[10px] text-muted-foreground">Deeply explored (% mastery shown)</span>
               </div>
             </div>
             <p className="text-xs text-muted-foreground text-center mt-2">
