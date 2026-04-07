@@ -17,9 +17,10 @@ export interface ExamCustomSettings {
 interface ExamPrepPanelProps {
   taSettings: TASettings;
   onStart: (settings: ExamCustomSettings) => void;
+  onShowDashboard?: () => void;
 }
 
-const ExamPrepPanel = ({ taSettings, onStart }: ExamPrepPanelProps) => {
+const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard }: ExamPrepPanelProps) => {
   const profTime = taSettings.examTimeLimit || 60;
   const profCount = taSettings.examManualQuestions
     ? (taSettings.examManualCount || 20)
