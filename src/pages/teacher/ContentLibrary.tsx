@@ -303,15 +303,15 @@ const ContentLibrary = () => {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="font-heading text-3xl font-bold">Content Library</h1>
-        <p className="text-muted-foreground">All your course materials in one place — upload, download, and manage files</p>
+        <h1 className="font-heading text-3xl font-bold">Lesson Plan & Resources</h1>
+        <p className="text-muted-foreground">Your living lesson plan and all course materials in one place</p>
       </div>
 
-      <Tabs defaultValue="syllabus" className="space-y-6">
+      <Tabs defaultValue="lesson-plan" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="syllabus" className="gap-2"><FileText className="h-4 w-4" /> Syllabus</TabsTrigger>
-          <TabsTrigger value="materials" className="gap-2"><Presentation className="h-4 w-4" /> Teaching Materials</TabsTrigger>
           <TabsTrigger value="lesson-plan" className="gap-2"><BookOpen className="h-4 w-4" /> Lesson Plan</TabsTrigger>
+          <TabsTrigger value="materials" className="gap-2"><Presentation className="h-4 w-4" /> Teaching Materials</TabsTrigger>
+          <TabsTrigger value="syllabus" className="gap-2"><FileText className="h-4 w-4" /> Syllabus</TabsTrigger>
         </TabsList>
 
         {/* Syllabus Tab */}

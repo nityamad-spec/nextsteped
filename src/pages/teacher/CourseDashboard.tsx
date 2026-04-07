@@ -107,7 +107,7 @@ const CourseDashboard = () => {
         {/* Concept Mastery Map */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Concept Mastery Map</CardTitle>
+            <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Concept Exploration Map</CardTitle>
             <CardDescription>Aggregate anonymous view — based on chat interactions</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -145,6 +145,29 @@ const CourseDashboard = () => {
                     <div className="bg-primary transition-all" style={{ width: `${deepPct}%` }} />
                     <div className="bg-primary/40 transition-all" style={{ width: `${touchedPct}%` }} />
                   </div>
+                  {/* Mastery understanding for deeply explored students */}
+                  {c.deeplyExplored > 0 && (
+                    <div className="flex items-center gap-2 ml-1">
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-1.5 w-16 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              c.masteryPct >= 70 ? "bg-emerald-500" : c.masteryPct >= 50 ? "bg-amber-500" : "bg-destructive"
+                            }`}
+                            style={{ width: `${c.masteryPct}%` }}
+                          />
+                        </div>
+                        <span className={`text-[10px] font-semibold ${
+                          c.masteryPct >= 70 ? "text-emerald-600" : c.masteryPct >= 50 ? "text-amber-600" : "text-destructive"
+                        }`}>
+                          {c.masteryPct}% mastery
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        among {c.deeplyExplored} who deeply explored
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -341,7 +341,7 @@ const Assessments = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base"><ClipboardCheck className="h-5 w-5" /> Exam Questions</CardTitle>
-                  <CardDescription>These questions are exclusive to exam mode.</CardDescription>
+                  <CardDescription>Add any custom questions you want visible to students during the exam. These are exclusive to exam mode.</CardDescription>
                 </div>
                 <Button size="sm" onClick={() => openAddDialog("exam")}><Plus className="mr-1 h-4 w-4" /> Add Question</Button>
               </div>
