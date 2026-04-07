@@ -315,10 +315,21 @@ const TeachingPlan = () => {
     URL.revokeObjectURL(url);
   };
 
-  const renderDescription = (desc: string) => {
+  const inClassTypes = new Set(["exercise", "lab", "tool", "video", "quiz", "exam"]);
+  const preClassTypes = new Set(["textbook", "article", "case-study", "news"]);
+
+  const renderDescription = (desc: string, dp: DayPlan) => {
     if (!desc) return null;
     const cleaned = desc.replace(/\*\*/g, "");
     const sections = cleaned.split(/\n(?=[A-Z][^:\n]+:)/);
+
+    const conceptResources = new Map<string, Resource[]>();
+    for (const r of dp.resources) {
+      const key = r.concept || "General";
+      if (!conceptResources.has(key)) conceptResources.set(key, []);
+      conceptResources.get(key)!.push(r);
+    }
+
     return (
       <div className="space-y-4">
         {sections.map((section, i) => {
@@ -329,53 +340,60 @@ const TeachingPlan = () => {
           const heading = headingMatch[1];
           const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
 
-          // Parse "Concepts & Topics" with nested concept groups
           if (heading === "Concepts & Topics" || heading === "Concepts and Topics") {
-            const conceptBlocks: { name: string; items: string[] }[] = [];
             const lines = body.split("\n").filter(l => l.trim());
-            let current: { name: string; items: string[] } | null = null;
+            const conceptOrder: string[] = [];
             for (const line of lines) {
               const conceptMatch = line.match(/^Concept:\s*(.+)/i);
-              if (conceptMatch) {
-                current = { name: conceptMatch[1].trim(), items: [] };
-                conceptBlocks.push(current);
-              } else if (current && /^[-•]/.test(line.trim())) {
-                current.items.push(line.replace(/^[-•]\s*/, "").trim());
-              } else if (current) {
-                current.items.push(line.trim());
-              }
+              if (conceptMatch) conceptOrder.push(conceptMatch[1].trim());
             }
+            for (const key of conceptResources.keys()) {
+              if (!conceptOrder.includes(key)) conceptOrder.push(key);
+            }
+
             return (
-              <div key={i} className="space-y-3">
+              <div key={i} className="space-y-4">
                 <p className="text-sm font-semibold text-foreground">Concepts & Topics</p>
-                {conceptBlocks.map((block, ci) => (
-                  <div key={ci}>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <div className="h-4 w-1 rounded-full bg-primary/60" />
-                      <p className="text-sm font-semibold text-foreground">{block.name}</p>
-                    </div>
-                    <div className="space-y-1 pl-3 border-l-2 border-muted ml-0.5">
-                      {block.items.map((item, j) => {
-                        const typeMatch = item.match(/^\[([^\]]+)\]\s*/);
-                        const typeLabel = typeMatch ? typeMatch[1] : null;
-                        const itemText = typeMatch ? item.replace(/^\[[^\]]+\]\s*/, "") : item;
-                        return (
-                          <div key={j} className="flex items-start gap-2 rounded-md bg-muted/20 p-2">
-                            {typeLabel && (
-                              <Badge variant="outline" className="text-[10px] shrink-0 mt-0.5">{typeLabel}</Badge>
-                            )}
-                            <span className="text-sm text-muted-foreground">{itemText}</span>
+                {conceptOrder.map((conceptName, ci) => {
+                  const resources = conceptResources.get(conceptName) || [];
+                  const inClass = resources.filter(r => !preClassTypes.has(r.type));
+                  const preClass = resources.filter(r => preClassTypes.has(r.type));
+
+                  return (
+                    <div key={ci} className="rounded-lg border bg-card/50 overflow-hidden">
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/30 border-b">
+                        <div className="h-5 w-1 rounded-full bg-primary" />
+                        <p className="text-sm font-semibold text-foreground">{conceptName}</p>
+                        <span className="text-xs text-muted-foreground ml-auto">{resources.length} resource{resources.length !== 1 ? "s" : ""}</span>
+                      </div>
+                      <div className="px-4 py-3 space-y-3">
+                        {inClass.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">In Class</p>
+                            <div className="space-y-1.5">
+                              {inClass.map(r => renderInlineResource(r, dp))}
+                            </div>
                           </div>
-                        );
-                      })}
+                        )}
+                        {preClass.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Readings & Preparation</p>
+                            <div className="space-y-1.5">
+                              {preClass.map(r => renderInlineResource(r, dp))}
+                            </div>
+                          </div>
+                        )}
+                        {resources.length === 0 && (
+                          <p className="text-xs text-muted-foreground italic">No resources mapped to this concept yet</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             );
           }
 
-          // Standard sections
           const lines = body.split("\n").filter(l => l.trim());
           const isList = lines.every(l => /^[-•]/.test(l.trim()));
           return (
@@ -405,19 +423,16 @@ const TeachingPlan = () => {
     );
   };
 
-  const renderResourceCard = (r: Resource, dp: DayPlan) => {
+  const renderInlineResource = (r: Resource, dp: DayPlan) => {
     const isEditingThis = editingResourceId === r.id;
-    return (
-      <div
-        key={r.id}
-        className={`rounded-lg px-4 py-3 border transition-colors bg-muted/30 border-border ${r.isNew ? "border-l-4 border-l-primary bg-primary/5" : ""}`}
-      >
-        {isEditingThis ? (
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm">Type</Label>
+    if (isEditingThis) {
+      return (
+        <div key={r.id} className="rounded-md border bg-background p-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Type</Label>
               <Select value={editResourceType} onValueChange={(v) => setEditResourceType(v as Resource["type"])}>
-                <SelectTrigger className="h-8 text-sm bg-background"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {resourceTypeOptions.map(opt => (
                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
@@ -425,41 +440,40 @@ const TeachingPlan = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Title</Label>
-              <Input value={editResourceTitle} onChange={(e) => setEditResourceTitle(e.target.value)} className="h-8 text-sm bg-background" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Description</Label>
-              <Input value={editResourceAction} onChange={(e) => setEditResourceAction(e.target.value)} className="h-8 text-sm bg-background" />
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={() => saveEditResource(dp.id)} className="h-7 text-sm px-3">Save</Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditingResourceId(null)} className="h-7 text-sm px-3">Cancel</Button>
+            <div className="space-y-1">
+              <Label className="text-xs">Title</Label>
+              <Input value={editResourceTitle} onChange={(e) => setEditResourceTitle(e.target.value)} className="h-7 text-xs" />
             </div>
           </div>
-        ) : (
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3 min-w-0">
-              <span className="text-base shrink-0 mt-0.5">{typeIcons[r.type] || "📄"}</span>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium">{r.title || "Untitled"}</span>
-                  {r.isNew && <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20">AI Suggested</Badge>}
-                </div>
-                <p className="text-sm text-muted-foreground mt-0.5">{r.action}</p>
-              </div>
-            </div>
-            <div className="flex gap-1 shrink-0">
-              <Button variant="ghost" size="sm" onClick={() => startEditResource(r)} className="h-7 px-2 text-sm hover:bg-background/50">
-                <Pencil className="h-3 w-3" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => removeResource(dp.id, r.id)} className="h-7 px-2 text-sm text-destructive hover:text-destructive hover:bg-background/50">
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Description</Label>
+            <Input value={editResourceAction} onChange={(e) => setEditResourceAction(e.target.value)} className="h-7 text-xs" />
           </div>
-        )}
+          <div className="flex gap-1.5">
+            <Button size="sm" onClick={() => saveEditResource(dp.id)} className="h-6 text-xs px-2">Save</Button>
+            <Button size="sm" variant="ghost" onClick={() => setEditingResourceId(null)} className="h-6 text-xs px-2">Cancel</Button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div key={r.id} className={`flex items-start gap-2.5 rounded-md px-3 py-2 group hover:bg-muted/30 transition-colors ${r.isNew ? "bg-primary/5 border-l-2 border-l-primary" : ""}`}>
+        <span className="text-sm shrink-0 mt-0.5">{typeIcons[r.type] || "📄"}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-sm font-medium">{r.title || "Untitled"}</span>
+            {r.isNew && <Badge className="text-[9px] bg-primary/10 text-primary border-primary/20 px-1 py-0">AI</Badge>}
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{r.action}</p>
+        </div>
+        <div className="flex gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button variant="ghost" size="sm" onClick={() => startEditResource(r)} className="h-6 w-6 p-0">
+            <Pencil className="h-3 w-3" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => removeResource(dp.id, r.id)} className="h-6 w-6 p-0 text-destructive hover:text-destructive">
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
       </div>
     );
   };
