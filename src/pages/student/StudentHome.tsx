@@ -310,7 +310,7 @@ const StudentHome = () => {
             <CardTitle className="flex items-center gap-2 text-base">
               <Brain className="h-4 w-4 text-primary" /> Concept Exploration & Mastery Map
             </CardTitle>
-            <CardDescription>Based on your interactions with the Teaching Assistant across study, exam, and diagnostic sessions</CardDescription>
+            <CardDescription>Based on your interactions with the Teaching Assistant across diagnostic test, study mode, and practice exam sessions</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
