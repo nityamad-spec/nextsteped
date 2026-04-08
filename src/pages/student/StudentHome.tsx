@@ -317,10 +317,10 @@ const StudentHome = () => {
               {conceptMasteryData.map((concept) => (
                 <Tooltip key={concept.name}>
                   <TooltipTrigger asChild>
-                    <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${getMasteryColor(concept.status, concept.quizScore)}`}>
+                    <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${getMasteryColor(concept.status)}`}>
                       <p className="text-xs font-medium truncate">{concept.name}</p>
                       <p className="text-lg font-bold mt-1">
-                        {concept.status === "not_explored" ? "—" : concept.status === "deeply_explored" && concept.quizScore !== null ? `${concept.quizScore}%` : "•"}
+                        {concept.status === "deeply_explored" && concept.quizScore !== null ? `${concept.quizScore}%` : "—"}
                       </p>
                     </div>
                   </TooltipTrigger>
