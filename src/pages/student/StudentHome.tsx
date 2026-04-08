@@ -31,15 +31,9 @@ const conceptMasteryData = [
 
 type MasteryStatus = "deeply_explored" | "touched" | "not_explored";
 
-const getMasteryColor = (status: MasteryStatus, quizScore: number | null) => {
+const getMasteryColor = (status: MasteryStatus) => {
   if (status === "not_explored") return "bg-background border text-muted-foreground";
-  if (status === "deeply_explored") {
-    if (quizScore !== null && quizScore >= 80) return "bg-primary text-primary-foreground";
-    if (quizScore !== null && quizScore >= 60) return "bg-primary/60 text-foreground";
-    if (quizScore !== null && quizScore >= 40) return "bg-primary/30 text-foreground";
-    if (quizScore !== null) return "bg-destructive/20 text-destructive-foreground";
-    return "bg-primary/40 text-foreground";
-  }
+  if (status === "deeply_explored") return "bg-primary text-primary-foreground";
   return "bg-primary/20 text-foreground";
 };
 
