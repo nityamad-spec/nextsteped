@@ -34,9 +34,6 @@ const ContentLibrary = () => {
   const [files, setFiles] = useState<StoredFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingFolder, setUploadingFolder] = useState<string | null>(null);
-  const [lessonPlan, setLessonPlan] = useState<WorkshopDay[]>([]);
-  const [planLoading, setPlanLoading] = useState(true);
-  const [expandedWeeks, setExpandedWeeks] = useState<number[]>([1]);
 
   const fetchFiles = async () => {
     if (!user) return;
