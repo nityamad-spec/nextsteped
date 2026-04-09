@@ -636,14 +636,16 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className={embedded ? "space-y-6" : "p-6 max-w-5xl mx-auto space-y-6"}>
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-heading text-3xl font-bold">Lesson Plan</h1>
-          <p className="text-muted-foreground text-sm">Edit weekly topics, learning outcomes, resources, and control student visibility</p>
-        </div>
-        <div className="flex items-center gap-2">
+        {!embedded && (
+          <div>
+            <h1 className="font-heading text-3xl font-bold">Lesson Plan</h1>
+            <p className="text-muted-foreground text-sm">Edit weekly topics, learning outcomes, resources, and control student visibility</p>
+          </div>
+        )}
+        <div className={`flex items-center gap-2 ${embedded ? "w-full justify-end" : ""}`}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm"><Download className="mr-1.5 h-3.5 w-3.5" /> Export</Button>
@@ -664,20 +666,22 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
         </div>
       </div>
 
-      {/* Guidance Banner */}
-      <Card className="border-primary/20 bg-primary/5">
-        <div className="flex items-start gap-3 p-4">
-          <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Your lesson plan is a living document</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              You don't need to finalize everything now. Use <strong>AI Suggest</strong> to auto-generate learning outcomes, activities, and resources for each week based on your syllabus. 
-              You can edit topics, reorder weeks, control student visibility, and add resources at any time — even after setup is complete. 
-              Once published, students will see the latest version on their home page. You can continue editing and re-publishing from the <strong>Lesson Plan & Resources</strong> section in your main navigation.
-            </p>
+      {/* Guidance Banner — only during setup */}
+      {!embedded && (
+        <Card className="border-primary/20 bg-primary/5">
+          <div className="flex items-start gap-3 p-4">
+            <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Your lesson plan is a living document</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                You don't need to finalize everything now. Use <strong>AI Suggest</strong> to auto-generate learning outcomes, activities, and resources for each week based on your syllabus. 
+                You can edit topics, reorder weeks, control student visibility, and add resources at any time — even after setup is complete. 
+                Once published, students will see the latest version on their home page. You can continue editing and re-publishing from the <strong>Lesson Plan & Resources</strong> section in your main navigation.
+              </p>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       <Tabs defaultValue="plan" className="space-y-4">
         <div className="flex items-center justify-between">
