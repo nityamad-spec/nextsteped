@@ -185,6 +185,7 @@ const Assessments = () => {
   const typeBadgeColor = (type: QuestionType) => {
     switch (type) {
       case "MCQ": return "bg-primary/10 text-primary";
+      case "True/False": return "bg-blue-500/10 text-blue-600";
       case "Short Answer": return "bg-warning/10 text-warning";
       case "Code Practice": return "bg-accent/10 text-accent";
     }
