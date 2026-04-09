@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-type QuestionType = "MCQ" | "Short Answer" | "Code Practice";
+type QuestionType = "MCQ" | "True/False" | "Short Answer" | "Code Practice";
 type QuestionMode = "learning" | "exam" | "daily_quiz";
 
 interface EditableQuestion {
