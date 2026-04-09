@@ -509,11 +509,14 @@ export type Database = {
           objectives: string[] | null
           published: boolean
           sections: string[] | null
+          session_length_minutes: number | null
+          sessions_per_week: number | null
           start_date: string | null
           syllabus_json_path: string | null
           syllabus_uploaded: boolean
           teacher_id: string
           term: string
+          total_weeks: number | null
           updated_at: string
         }
         Insert: {
@@ -530,11 +533,14 @@ export type Database = {
           objectives?: string[] | null
           published?: boolean
           sections?: string[] | null
+          session_length_minutes?: number | null
+          sessions_per_week?: number | null
           start_date?: string | null
           syllabus_json_path?: string | null
           syllabus_uploaded?: boolean
           teacher_id: string
           term: string
+          total_weeks?: number | null
           updated_at?: string
         }
         Update: {
@@ -551,11 +557,14 @@ export type Database = {
           objectives?: string[] | null
           published?: boolean
           sections?: string[] | null
+          session_length_minutes?: number | null
+          sessions_per_week?: number | null
           start_date?: string | null
           syllabus_json_path?: string | null
           syllabus_uploaded?: boolean
           teacher_id?: string
           term?: string
+          total_weeks?: number | null
           updated_at?: string
         }
         Relationships: [

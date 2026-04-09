@@ -34,6 +34,9 @@ const TeacherOnboarding = () => {
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
   const [selectedYears, setSelectedYears] = useState<string[]>([]);
   const [objectives, setObjectives] = useState("");
+  const [totalWeeks, setTotalWeeks] = useState("16");
+  const [sessionsPerWeek, setSessionsPerWeek] = useState("2");
+  const [sessionLength, setSessionLength] = useState("60");
   const [allBranches, setAllBranches] = useState<{ id: string; name: string }[]>([]);
 
   const availableYears = ["2027", "2028", "2029", "2030", "2031"];
@@ -103,6 +106,9 @@ const TeacherOnboarding = () => {
         if (courseRes.data.graduation_year && Array.isArray(courseRes.data.graduation_year)) {
           setSelectedYears(courseRes.data.graduation_year);
         }
+        if (courseRes.data.total_weeks) setTotalWeeks(String(courseRes.data.total_weeks));
+        if (courseRes.data.sessions_per_week) setSessionsPerWeek(String(courseRes.data.sessions_per_week));
+        if (courseRes.data.session_length_minutes) setSessionLength(String(courseRes.data.session_length_minutes));
       }
 
       setLoading(false);
@@ -174,6 +180,9 @@ const TeacherOnboarding = () => {
       sections,
       objectives: objectives.split("\n").filter(Boolean),
       graduation_year: selectedYears,
+      total_weeks: parseInt(totalWeeks) || 16,
+      sessions_per_week: parseInt(sessionsPerWeek) || 2,
+      session_length_minutes: parseInt(sessionLength) || 60,
     };
 
     const { data: existingCourse } = await supabase
@@ -453,6 +462,25 @@ const TeacherOnboarding = () => {
                     ))}
                   </div>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Course Schedule</Label>
+                <p className="text-[11px] text-muted-foreground">This helps us generate a lesson plan that fits your course structure.</p>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Weeks of Class</Label>
+                    <Input type="number" min="1" max="52" value={totalWeeks} onChange={(e) => setTotalWeeks(e.target.value)} placeholder="16" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Sessions per Week</Label>
+                    <Input type="number" min="1" max="7" value={sessionsPerWeek} onChange={(e) => setSessionsPerWeek(e.target.value)} placeholder="2" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Session Length (min)</Label>
+                    <Input type="number" min="15" max="300" step="15" value={sessionLength} onChange={(e) => setSessionLength(e.target.value)} placeholder="60" />
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">

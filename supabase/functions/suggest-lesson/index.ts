@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { dayNumber, dayTopic, existingDescription, courseObjectives, totalDays, existingResources } =
+    const { dayNumber, dayTopic, existingDescription, courseObjectives, totalDays, existingResources, sessionsPerWeek, sessionLengthMinutes } =
       await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -92,8 +92,12 @@ Valid provenance values: instructor, web`;
       ? `\nExisting resources (incorporate these into the appropriate concepts, and suggest NEW additional ones):\n${existingResources.map((r: any) => `- ${r.title}: ${r.action}`).join("\n")}`
       : "";
 
+    const scheduleContext = sessionsPerWeek && sessionLengthMinutes
+      ? `\n- Sessions per week: ${sessionsPerWeek}\n- Session length: ${sessionLengthMinutes} minutes\n- Total contact time this week: ${sessionsPerWeek * sessionLengthMinutes} minutes`
+      : "";
+
     const userPrompt = `Course context:
-- Total weeks in the course: ${totalDays}
+- Total weeks in the course: ${totalDays}${scheduleContext}
 - Course objectives: ${courseObjectives?.join(", ") || "Not specified"}
 
 Generate a detailed lesson description AND resource suggestions for:

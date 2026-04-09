@@ -517,10 +517,12 @@ const CourseCreation = () => {
       if (courseId) {
         const { data: course } = await supabase
           .from("courses")
-          .select("objectives")
+          .select("objectives, sessions_per_week, session_length_minutes")
           .eq("id", courseId)
           .single();
         if (course?.objectives) objectives = course.objectives;
+        var sessionsPerWeek = course?.sessions_per_week;
+        var sessionLengthMinutes = course?.session_length_minutes;
       }
 
       const { data, error } = await supabase.functions.invoke("suggest-lesson", {
@@ -531,6 +533,8 @@ const CourseCreation = () => {
           courseObjectives: objectives,
           totalDays: days.length,
           existingResources: day.resources.map(r => ({ title: r.title, action: r.action })),
+          sessionsPerWeek,
+          sessionLengthMinutes,
         },
       });
 
