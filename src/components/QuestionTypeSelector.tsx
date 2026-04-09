@@ -15,7 +15,7 @@ interface QuestionTypeSelectorProps {
 
 /** Normalise legacy presets into explicit key arrays */
 const parseValue = (v: string): string[] => {
-  if (!v || v === "mixed") return ALL_TYPES.map(t => t.key);
+  if (!v || v === "mixed") return [];
   // Legacy single-type presets
   const legacy: Record<string, string[]> = {
     mcq_only: ["mcq"],
