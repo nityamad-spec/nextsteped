@@ -3,7 +3,6 @@ import { TASettings } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Settings2, Info, ChevronDown, ChevronUp, BarChart3 } from "lucide-react";
 
@@ -25,31 +24,16 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard }: ExamPrepPanelPr
   const profCount = taSettings.examManualQuestions
     ? (taSettings.examManualCount || 20)
     : Math.max(5, Math.round(profTime / 3));
-  const profDifficulty = taSettings.examDifficulty || "Mixed";
-  const profMix = taSettings.examQuestionMix || "mixed";
 
   const [timeLimit, setTimeLimit] = useState(profTime);
   const [questionCount, setQuestionCount] = useState(profCount);
-  const [difficulty, setDifficulty] = useState<string>(profDifficulty);
-  const [questionMix, setQuestionMix] = useState(profMix);
   const [showSettings, setShowSettings] = useState(false);
 
-  const isDefault = timeLimit === profTime && questionCount === profCount && difficulty === profDifficulty && questionMix === profMix;
+  const isDefault = timeLimit === profTime && questionCount === profCount;
 
   const resetToRecommended = () => {
     setTimeLimit(profTime);
     setQuestionCount(profCount);
-    setDifficulty(profDifficulty);
-    setQuestionMix(profMix);
-  };
-
-  const mixLabels: Record<string, string> = {
-    mixed: "Mixed (MCQ + Short Answer + Problem Solving)",
-    mcq_only: "Multiple Choice Only",
-    short_answer: "Short Answer Only",
-    problem_solving: "Problem Solving Only",
-    mcq_short: "MCQ + Short Answer",
-    mcq_problem: "MCQ + Problem Solving",
   };
 
   return (
@@ -71,9 +55,6 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard }: ExamPrepPanelPr
           <Badge variant="outline" className="text-xs">
             {questionCount} questions
           </Badge>
-          <Badge variant="outline" className="text-xs">
-            {difficulty}
-          </Badge>
           {!isDefault && (
             <Badge variant="secondary" className="text-xs">Customized</Badge>
           )}
@@ -90,7 +71,7 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard }: ExamPrepPanelPr
             {showSettings ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </Button>
           <Button
-            onClick={() => onStart({ timeLimit, questionCount, difficulty, questionMix })}
+            onClick={() => onStart({ timeLimit, questionCount, difficulty: "Mixed", questionMix: "mixed" })}
             className="gap-2"
           >
             <Clock className="h-4 w-4" /> Start Exam Practice
@@ -141,45 +122,6 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard }: ExamPrepPanelPr
                 <Slider value={[questionCount]} onValueChange={(v) => setQuestionCount(v[0])} min={5} max={100} step={1} className="flex-1" />
                 <span className="w-16 text-right text-sm font-bold">{questionCount}</span>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">
-                Difficulty
-                {difficulty !== profDifficulty && (
-                  <span className="ml-1 text-primary">(recommended: {profDifficulty})</span>
-                )}
-              </Label>
-              <Select value={difficulty} onValueChange={setDifficulty}>
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Easy">Easy</SelectItem>
-                  <SelectItem value="Medium">Medium</SelectItem>
-                  <SelectItem value="Hard">Hard</SelectItem>
-                  <SelectItem value="Mixed">Mixed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">
-                Question Types
-                {questionMix !== profMix && (
-                  <span className="ml-1 text-primary">(recommended: {mixLabels[profMix] || profMix})</span>
-                )}
-              </Label>
-              <Select value={questionMix} onValueChange={setQuestionMix}>
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(mixLabels).map(([val, label]) => (
-                    <SelectItem key={val} value={val}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </div>
         </div>

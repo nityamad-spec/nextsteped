@@ -323,8 +323,9 @@ const AIChat = () => {
       questions = fallback.length > 0 ? fallback : getExamQuestions(count, undefined, custom.questionMix);
     } else {
       const mixToTypes: Record<string, string[]> = {
-        mixed: ["mcq", "short_answer", "problem_solving"],
+        mixed: ["mcq", "short_answer", "problem_solving", "true_false"],
         mcq_only: ["mcq"],
+        true_false_only: ["true_false"],
         short_answer: ["short_answer"],
         problem_solving: ["problem_solving"],
         mcq_short: ["mcq", "short_answer"],

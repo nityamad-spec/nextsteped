@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-type QuestionType = "MCQ" | "Short Answer" | "Code Practice";
+type QuestionType = "MCQ" | "True/False" | "Short Answer" | "Code Practice";
 type QuestionMode = "learning" | "exam" | "daily_quiz";
 
 interface EditableQuestion {
@@ -123,12 +123,14 @@ const Assessments = () => {
     if (!formQuestion.trim() || !formTopic || !courseId || !user) return;
     setSaving(true);
     const isMCQ = formType === "MCQ";
+    const isTF = formType === "True/False";
     const filteredOptions = isMCQ ? formOptions.filter(o => o.trim()) : null;
     const answer = isMCQ ? (filteredOptions?.[formCorrectIndex] || "") : formAnswer;
     const row = {
       course_id: courseId, teacher_id: user.id, mode: formMode, question_type: formType,
-      question_text: formQuestion, answer, topic: formTopic, difficulty: formDifficulty,
-      options: filteredOptions, correct_index: isMCQ ? formCorrectIndex : null,
+      question_text: formQuestion, answer, topic: formTopic, difficulty: "Medium" as const,
+      options: isMCQ ? filteredOptions : isTF ? ["True", "False"] : null,
+      correct_index: isMCQ ? formCorrectIndex : isTF ? (formAnswer === "True" ? 0 : 1) : null,
       explanation: null as string | null, quiz_day: null as number | null,
     };
     try {
@@ -176,7 +178,6 @@ const Assessments = () => {
 
   const filterQuestions = (list: EditableQuestion[]) => {
     return list.filter(q => {
-      if (filterDifficulties.length > 0 && !filterDifficulties.includes(q.difficulty)) return false;
       if (filterTypes.length > 0 && !filterTypes.includes(q.type)) return false;
       return true;
     });
@@ -185,6 +186,7 @@ const Assessments = () => {
   const typeBadgeColor = (type: QuestionType) => {
     switch (type) {
       case "MCQ": return "bg-primary/10 text-primary";
+      case "True/False": return "bg-blue-500/10 text-blue-600";
       case "Short Answer": return "bg-warning/10 text-warning";
       case "Code Practice": return "bg-accent/10 text-accent";
     }
@@ -194,7 +196,6 @@ const Assessments = () => {
     <div key={q.id} className="rounded-lg border p-4">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant={q.difficulty === "Easy" ? "secondary" : q.difficulty === "Hard" ? "destructive" : "outline"} className="text-xs">{q.difficulty}</Badge>
           <Badge variant="outline" className={`text-[10px] ${typeBadgeColor(q.type)}`}>{q.type}</Badge>
           <span className="text-xs text-muted-foreground">{q.topic}</span>
         </div>
@@ -213,7 +214,12 @@ const Assessments = () => {
           ))}
         </div>
       )}
-      {q.type !== "MCQ" && q.answer && (
+      {q.type === "True/False" && q.answer && (
+        <div className="mt-2">
+          <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Answer:</span> {q.answer}</p>
+        </div>
+      )}
+      {(q.type === "Short Answer" || q.type === "Code Practice") && q.answer && (
         <div className="mt-2">
           <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Answer:</span> {q.answer}</p>
         </div>
@@ -226,25 +232,14 @@ const Assessments = () => {
       <div className="flex items-center gap-2 mb-2">
         <Filter className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm font-medium">Filters</span>
-        {(filterDifficulties.length > 0 || filterTypes.length > 0) && (
+        {filterTypes.length > 0 && (
           <Button variant="ghost" size="sm" className="h-6 text-[10px] ml-auto" onClick={clearFilters}>Clear all</Button>
         )}
       </div>
       <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground">Difficulty</Label>
-        <div className="flex flex-wrap gap-2">
-          {["Easy", "Medium", "Hard"].map(diff => (
-            <button key={diff} onClick={() => toggleFilterDifficulty(diff)}
-              className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${filterDifficulties.includes(diff) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"}`}>
-              {diff}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="space-y-2">
         <Label className="text-xs text-muted-foreground">Type</Label>
         <div className="flex flex-wrap gap-2">
-          {(["MCQ", "Short Answer", "Code Practice"] as QuestionType[]).map(type => (
+          {(["MCQ", "True/False", "Short Answer", "Code Practice"] as QuestionType[]).map(type => (
             <button key={type} onClick={() => toggleFilterType(type)}
               className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${filterTypes.includes(type) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"}`}>
               {type}
@@ -313,22 +308,11 @@ const Assessments = () => {
                 <Select value={taSettings.examQuestionMix} onValueChange={v => saveTASettings({ ...taSettings, examQuestionMix: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="mixed">Mixed (MCQ + Short Answer + Problem Solving)</SelectItem>
+                    <SelectItem value="mixed">Mixed (MCQ + True/False + Short Answer + Problem Solving)</SelectItem>
                     <SelectItem value="mcq_only">Multiple Choice Only</SelectItem>
+                    <SelectItem value="true_false_only">True/False Only</SelectItem>
                     <SelectItem value="short_answer">Short Answer Only</SelectItem>
                     <SelectItem value="problem_solving">Problem Solving Only</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-3">
-                <Label className="text-sm font-medium">Exam Difficulty</Label>
-                <Select value={taSettings.examDifficulty} onValueChange={(v: any) => saveTASettings({ ...taSettings, examDifficulty: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Easy">Easy</SelectItem>
-                    <SelectItem value="Medium">Medium</SelectItem>
-                    <SelectItem value="Hard">Hard</SelectItem>
-                    <SelectItem value="Mixed">Mixed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -440,22 +424,9 @@ const Assessments = () => {
               <Label>Question</Label>
               <Textarea value={formQuestion} onChange={e => setFormQuestion(e.target.value)} placeholder="Enter question text..." rows={3} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Topic</Label>
-                <Input value={formTopic} onChange={e => setFormTopic(e.target.value)} placeholder="e.g. Functions" />
-              </div>
-              <div className="space-y-2">
-                <Label>Difficulty</Label>
-                <Select value={formDifficulty} onValueChange={v => setFormDifficulty(v as any)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Easy">Easy</SelectItem>
-                    <SelectItem value="Medium">Medium</SelectItem>
-                    <SelectItem value="Hard">Hard</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label>Topic</Label>
+              <Input value={formTopic} onChange={e => setFormTopic(e.target.value)} placeholder="e.g. Functions" />
             </div>
             <div className="space-y-2">
               <Label>Question Type</Label>
@@ -463,6 +434,7 @@ const Assessments = () => {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="MCQ">Multiple Choice</SelectItem>
+                  <SelectItem value="True/False">True / False</SelectItem>
                   <SelectItem value="Short Answer">Short Answer</SelectItem>
                   <SelectItem value="Code Practice">Code Practice</SelectItem>
                 </SelectContent>
@@ -481,6 +453,17 @@ const Assessments = () => {
                     <Input value={opt} onChange={e => updateOption(i, e.target.value)} placeholder={`Option ${String.fromCharCode(65 + i)}`} className="h-8 text-sm" />
                   </div>
                 ))}
+              </div>
+            ) : formType === "True/False" ? (
+              <div className="space-y-2">
+                <Label>Correct Answer</Label>
+                <Select value={formAnswer} onValueChange={v => setFormAnswer(v)}>
+                  <SelectTrigger><SelectValue placeholder="Select correct answer" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="True">True</SelectItem>
+                    <SelectItem value="False">False</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             ) : (
               <div className="space-y-2">

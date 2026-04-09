@@ -12,16 +12,16 @@ import { Slider } from "@/components/ui/slider";
 import { ArrowRight, ArrowLeft, BookOpen, Calculator, Check, Pencil, Clock, Info, AlertTriangle } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 
-const questionEstimate = (length: number, mix: string, difficulty: string) => {
-  const base = Math.round(length / 3);
-  const diffMod = difficulty === "Easy" ? 1.3 : difficulty === "Hard" ? 0.7 : 1;
-  const total = Math.max(5, Math.round(base * diffMod));
+const questionEstimate = (length: number, mix: string) => {
+  const total = Math.max(5, Math.round(length / 3));
 
   let breakdown: Record<string, number> = {};
   if (mix === "mixed") {
-    breakdown = { MCQ: Math.round(total * 0.4), "Short Answer": Math.round(total * 0.3), "Problem Solving": total - Math.round(total * 0.4) - Math.round(total * 0.3) };
+    breakdown = { MCQ: Math.round(total * 0.3), "True/False": Math.round(total * 0.2), "Short Answer": Math.round(total * 0.25), "Problem Solving": total - Math.round(total * 0.3) - Math.round(total * 0.2) - Math.round(total * 0.25) };
   } else if (mix === "mcq_only") {
     breakdown = { MCQ: total };
+  } else if (mix === "true_false_only") {
+    breakdown = { "True/False": total };
   } else if (mix === "short_answer") {
     breakdown = { "Short Answer": total };
   } else if (mix === "problem_solving") {
@@ -48,7 +48,7 @@ const ExamMode = () => {
   const [examManualQuestions, setExamManualQuestions] = useState(taSettings.examManualQuestions ?? false);
   const [examManualCount, setExamManualCount] = useState(taSettings.examManualCount ?? 5);
 
-  const estimate = useMemo(() => questionEstimate(examLength, examQuestionTypes, settings.examDifficulty), [examLength, examQuestionTypes, settings.examDifficulty]);
+  const estimate = useMemo(() => questionEstimate(examLength, examQuestionTypes), [examLength, examQuestionTypes]);
   const [customBreakdown, setCustomBreakdown] = useState<Record<string, number>>(estimate.breakdown);
   const [estimateApproved, setEstimateApproved] = useState(false);
 
@@ -135,25 +135,13 @@ const ExamMode = () => {
                 <Select value={examQuestionTypes} onValueChange={handleExamTypeChange}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="mixed">Mixed (MCQ + Short Answer + Problem Solving)</SelectItem>
+                    <SelectItem value="mixed">Mixed (MCQ + True/False + Short Answer + Problem Solving)</SelectItem>
                     <SelectItem value="mcq_only">Multiple Choice Only</SelectItem>
+                    <SelectItem value="true_false_only">True/False Only</SelectItem>
                     <SelectItem value="short_answer">Short Answer Only</SelectItem>
                     <SelectItem value="problem_solving">Problem Solving Only</SelectItem>
                     <SelectItem value="mcq_short">MCQ + Short Answer</SelectItem>
                     <SelectItem value="mcq_problem">MCQ + Problem Solving</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-3">
-                <Label className="text-sm font-medium">Exam Difficulty</Label>
-                <Select value={settings.examDifficulty} onValueChange={(v: any) => update({ examDifficulty: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Easy">Easy</SelectItem>
-                    <SelectItem value="Medium">Medium</SelectItem>
-                    <SelectItem value="Hard">Hard</SelectItem>
-                    <SelectItem value="Mixed">Mixed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -192,7 +180,7 @@ const ExamMode = () => {
                 ) : (
                   <>
                     <p className="text-xs text-muted-foreground">
-                      Based on {examLength} min, {settings.examDifficulty} difficulty — estimated <span className="font-bold text-foreground">{activeTotal} questions</span>
+                      Based on {examLength} min — estimated <span className="font-bold text-foreground">{activeTotal} questions</span>
                     </p>
                     <div className="space-y-2">
                       {Object.entries(activeBreakdown).map(([type, count]) => (
