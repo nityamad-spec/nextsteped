@@ -70,7 +70,11 @@ const resourceTypeOptions: { value: Resource["type"]; label: string }[] = [
 
 const makeId = () => `r_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-const TeachingPlan = () => {
+interface TeachingPlanProps {
+  embedded?: boolean;
+}
+
+const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const courseId = useTeacherCourseId();
