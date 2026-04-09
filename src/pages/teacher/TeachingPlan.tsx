@@ -307,8 +307,10 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
       let objectives: string[] = [];
       if (courseId) {
         const { data: course } = await supabase
-          .from("courses").select("objectives").eq("id", courseId).single();
+          .from("courses").select("objectives, sessions_per_week, session_length_minutes").eq("id", courseId).single();
         if (course?.objectives) objectives = course.objectives;
+        var sessionsPerWeek = course?.sessions_per_week;
+        var sessionLengthMinutes = course?.session_length_minutes;
       }
       const { data, error } = await supabase.functions.invoke("suggest-lesson", {
         body: {
@@ -316,6 +318,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
           existingDescription: day.description || "",
           courseObjectives: objectives, totalDays: days.length,
           existingResources: day.resources.map(r => ({ title: r.title, action: r.action })),
+          sessionsPerWeek, sessionLengthMinutes,
         },
       });
       if (error) throw error;
