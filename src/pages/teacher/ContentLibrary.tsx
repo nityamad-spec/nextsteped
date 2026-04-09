@@ -87,9 +87,6 @@ const ContentLibrary = () => {
     toast.success("Syllabus downloaded");
   };
 
-  const toggleWeek = (week: number) => {
-    setExpandedWeeks(prev => prev.includes(week) ? prev.filter(w => w !== week) : [...prev, week]);
-  };
 
   const renderFileList = (folderType: string, label: string, Icon: typeof FileText) => {
     const folderFiles = files.filter(f => f.folder_type === folderType);
