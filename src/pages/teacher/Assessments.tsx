@@ -123,12 +123,14 @@ const Assessments = () => {
     if (!formQuestion.trim() || !formTopic || !courseId || !user) return;
     setSaving(true);
     const isMCQ = formType === "MCQ";
+    const isTF = formType === "True/False";
     const filteredOptions = isMCQ ? formOptions.filter(o => o.trim()) : null;
     const answer = isMCQ ? (filteredOptions?.[formCorrectIndex] || "") : formAnswer;
     const row = {
       course_id: courseId, teacher_id: user.id, mode: formMode, question_type: formType,
-      question_text: formQuestion, answer, topic: formTopic, difficulty: formDifficulty,
-      options: filteredOptions, correct_index: isMCQ ? formCorrectIndex : null,
+      question_text: formQuestion, answer, topic: formTopic, difficulty: "Medium" as const,
+      options: isMCQ ? filteredOptions : isTF ? ["True", "False"] : null,
+      correct_index: isMCQ ? formCorrectIndex : isTF ? (formAnswer === "True" ? 0 : 1) : null,
       explanation: null as string | null, quiz_day: null as number | null,
     };
     try {
