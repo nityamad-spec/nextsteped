@@ -3,14 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { FileText, Download, Upload, Trash2, Loader2, BookOpen, Presentation, FolderOpen, ChevronDown, ChevronUp, Lock, Check } from "lucide-react";
+import { FileText, Download, Upload, Trash2, Loader2, BookOpen, Presentation, FolderOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import FileUploadZone from "@/components/FileUploadZone";
 import { toast } from "sonner";
-import { workshopPlan as defaultPlan, WorkshopDay, groupResourcesByConcept } from "@/data/workshopPlan";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import TeachingPlan from "@/pages/teacher/TeachingPlan";
 
 interface StoredFile {
   id: string;
@@ -35,9 +34,6 @@ const ContentLibrary = () => {
   const [files, setFiles] = useState<StoredFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingFolder, setUploadingFolder] = useState<string | null>(null);
-  const [lessonPlan, setLessonPlan] = useState<WorkshopDay[]>([]);
-  const [planLoading, setPlanLoading] = useState(true);
-  const [expandedWeeks, setExpandedWeeks] = useState<number[]>([1]);
 
   const fetchFiles = async () => {
     if (!user) return;
@@ -54,28 +50,9 @@ const ContentLibrary = () => {
     setLoading(false);
   };
 
-  const fetchLessonPlan = async () => {
-    if (!user) { setPlanLoading(false); return; }
-    try {
-      const { data, error } = await supabase.storage
-        .from("course-materials")
-        .download(`${user.id}/lesson-plan/published-plan.json?t=${Date.now()}`);
-      if (!error && data) {
-        const parsed = JSON.parse(await data.text());
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setLessonPlan(parsed);
-          setPlanLoading(false);
-          return;
-        }
-      }
-    } catch {}
-    setLessonPlan(defaultPlan.map(d => ({ ...d, description: "" })));
-    setPlanLoading(false);
-  };
 
   useEffect(() => {
     fetchFiles();
-    fetchLessonPlan();
   }, [user, courseId]);
 
   const handleDownload = async (file: StoredFile) => {
@@ -110,9 +87,6 @@ const ContentLibrary = () => {
     toast.success("Syllabus downloaded");
   };
 
-  const toggleWeek = (week: number) => {
-    setExpandedWeeks(prev => prev.includes(week) ? prev.filter(w => w !== week) : [...prev, week]);
-  };
 
   const renderFileList = (folderType: string, label: string, Icon: typeof FileText) => {
     const folderFiles = files.filter(f => f.folder_type === folderType);
@@ -177,120 +151,6 @@ const ContentLibrary = () => {
     );
   };
 
-  const renderLessonPlanWeek = (dp: any) => {
-    const isExpanded = expandedWeeks.includes(dp.day);
-    const desc = dp.description || "";
-    const outcomesMatch = desc.match(/Learning Outcomes:\s*([\s\S]*?)(?=Concepts:|Teaching Strategies:|$)/i);
-    const strategiesMatch = desc.match(/Teaching Strategies:\s*([\s\S]*?)$/i);
-    const outcomes = outcomesMatch?.[1]?.trim().replace(/\*\*/g, "") || "";
-    const strategies = strategiesMatch?.[1]?.trim().replace(/\*\*/g, "") || "";
-    const parseList = (text: string) =>
-      text.split("\n").map(l => l.replace(/^[-•]\s*/, "").trim()).filter(Boolean);
-
-    const conceptGroups = dp.resources ? groupResourcesByConcept(dp.resources) : new Map();
-
-    return (
-      <Card key={dp.id || dp.day} className={isExpanded ? "border-primary/20" : ""}>
-        <div
-          className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
-          onClick={() => toggleWeek(dp.day)}
-        >
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <Badge variant="outline" className="shrink-0 text-xs w-20 justify-center">
-              Week {dp.day}
-            </Badge>
-            <span className="text-sm font-medium truncate">{dp.topic}</span>
-          </div>
-          <div className="flex items-center gap-1.5 ml-2 shrink-0">
-            {dp.locked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
-            {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-          </div>
-        </div>
-
-        {isExpanded && (
-          <CardContent className="pt-0 pb-4 space-y-4">
-            {dp.locked && (
-              <div className="flex items-center gap-2 rounded-lg border border-dashed bg-muted/20 px-3 py-2">
-                <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <p className="text-xs text-muted-foreground">This week is locked for students — content shown here for your reference.</p>
-              </div>
-            )}
-
-                {/* Learning Outcomes */}
-                {outcomes && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Learning Outcomes</p>
-                    <ul className="space-y-1">
-                      {parseList(outcomes).map((item, i) => (
-                        <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                          <Check className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Concepts → Activities (hierarchical) */}
-                {conceptGroups.size > 0 && (
-                  <div className="space-y-3">
-                    {Array.from(conceptGroups.entries()).map(([concept, activities]) => {
-                      const inClass = activities.filter((r: any) => !["textbook", "article", "case-study", "news"].includes(r.type));
-                      const preClass = activities.filter((r: any) => ["textbook", "article", "case-study", "news"].includes(r.type));
-                      return (
-                        <div key={concept} className="rounded-lg border bg-card/50 overflow-hidden">
-                          <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/30 border-b">
-                            <div className="h-5 w-1 rounded-full bg-primary" />
-                            <p className="text-sm font-semibold text-foreground">{concept}</p>
-                          </div>
-                          <div className="px-4 py-3 space-y-3">
-                            {inClass.length > 0 && (
-                              <div>
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">In Class</p>
-                                <div className="space-y-1.5">
-                                  {inClass.map((r: any, i: number) => (
-                                    <div key={r.id || i} className="flex items-start gap-2.5 rounded-md px-3 py-2">
-                                      <span className="text-sm shrink-0 mt-0.5">
-                                        {r.type === "exercise" ? "🏋️" : r.type === "lab" ? "🧪" : r.type === "video" ? "🎬" : r.type === "tool" ? "🔧" : "📄"}
-                                      </span>
-                                      <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-medium">{r.title}</p>
-                                        <p className="text-xs text-muted-foreground">{r.action}</p>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {preClass.length > 0 && (
-                              <div>
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Readings & Preparation</p>
-                                <div className="space-y-1.5">
-                                  {preClass.map((r: any, i: number) => (
-                                    <div key={r.id || i} className="flex items-start gap-2.5 rounded-md px-3 py-2">
-                                      <span className="text-sm shrink-0 mt-0.5">
-                                        {r.type === "textbook" ? "📖" : r.type === "article" ? "📰" : r.type === "case-study" ? "📋" : "📰"}
-                                      </span>
-                                      <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-medium">{r.title}</p>
-                                        <p className="text-xs text-muted-foreground">{r.action}</p>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-          </CardContent>
-        )}
-      </Card>
-    );
-  };
 
   if (loading) {
     return (
@@ -355,26 +215,8 @@ const ContentLibrary = () => {
         </TabsContent>
 
         {/* Lesson Plan Tab */}
-        <TabsContent value="lesson-plan" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <BookOpen className="h-5 w-5 text-primary" /> Weekly Lesson Plan
-              </CardTitle>
-              <CardDescription>
-                Structured weekly plan with overview, learning outcomes, and activities
-              </CardDescription>
-            </CardHeader>
-          </Card>
-          {planLoading ? (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {lessonPlan.map(renderLessonPlanWeek)}
-            </div>
-          )}
+        <TabsContent value="lesson-plan">
+          <TeachingPlan embedded />
         </TabsContent>
       </Tabs>
     </div>
