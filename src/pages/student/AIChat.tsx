@@ -223,6 +223,47 @@ const AIChat = () => {
     setShowHistory(false);
   };
 
+  /** Fetch visible lesson plan topics based on course progress + professor visibility settings */
+  const fetchVisibleTopics = async (): Promise<string[]> => {
+    if (!enrolledCourseId || !courseContext?.teacherId) return [];
+    try {
+      const [planRes, courseRes] = await Promise.all([
+        supabase.storage.from("course-materials").download(`${courseContext.teacherId}/lesson-plan/published-plan.json?t=${Date.now()}`),
+        supabase.from("courses").select("start_date").eq("id", enrolledCourseId).maybeSingle(),
+      ]);
+      if (!planRes.data) return [];
+      const plan = JSON.parse(await planRes.data.text());
+      if (!Array.isArray(plan)) return [];
+
+      // Compute current week from course start_date
+      const startDate = courseRes.data?.start_date;
+      const courseCurrentWeek = startDate
+        ? Math.max(1, Math.floor((Date.now() - new Date(startDate).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1)
+        : 999;
+
+      // A week is visible if unlocked by professor OR auto-revealed by date
+      const visibleDays = plan.filter((d: any) => !d.locked || d.day <= courseCurrentWeek);
+      const topics = new Set<string>();
+      for (const day of visibleDays) {
+        if (day.topic) topics.add(day.topic);
+        for (const r of (day.resources || [])) {
+          if (r.concept) topics.add(r.concept);
+        }
+      }
+      return Array.from(topics);
+    } catch {
+      return [];
+    }
+  };
+
+  /** Filter questions to only visible lesson plan topics */
+  const filterByVisibleTopics = (questions: Question[], visibleTopics: string[]): Question[] => {
+    if (visibleTopics.length === 0) return questions; // No topic data → don't filter
+    const topicSet = new Set(visibleTopics.map(t => t.toLowerCase()));
+    const filtered = questions.filter(q => topicSet.has((q.topic || "").toLowerCase()));
+    return filtered.length > 0 ? filtered : questions; // Fallback to all if no matches
+  };
+
   const fetchDBQuestions = async (mode: string, quizDay?: number): Promise<Question[]> => {
     if (!enrolledCourseId) return [];
     let query = supabase
@@ -247,9 +288,13 @@ const AIChat = () => {
 
   const handleStartExam = async () => {
     const count = taSettings.examManualCount || Math.max(5, Math.round((taSettings.examTimeLimit || 60) / 3));
+    const visibleTopics = await fetchVisibleTopics();
     let questions = await fetchDBQuestions("exam");
+    questions = filterByVisibleTopics(questions, visibleTopics);
     if (questions.length === 0) {
-      questions = getExamQuestions(count);
+      let fallback = getExamQuestions(count);
+      fallback = filterByVisibleTopics(fallback, visibleTopics);
+      questions = fallback.length > 0 ? fallback : getExamQuestions(count);
     } else {
       const seed = (user?.id || "anon") + (enrolledCourseId || "");
       const shuffled = seededShuffle(questions, seed);
@@ -268,10 +313,14 @@ const AIChat = () => {
     const sessionTitle = `Exam Practice ${examNumber} — ${examDate}`;
     await createSession(sessionTitle, WELCOME_EXAM, "exam");
 
+    const visibleTopics = await fetchVisibleTopics();
     const count = custom.questionCount;
     let questions = await fetchDBQuestions("exam");
+    questions = filterByVisibleTopics(questions, visibleTopics);
     if (questions.length === 0) {
-      questions = getExamQuestions(count, undefined, custom.questionMix);
+      let fallback = getExamQuestions(count, undefined, custom.questionMix);
+      fallback = filterByVisibleTopics(fallback, visibleTopics);
+      questions = fallback.length > 0 ? fallback : getExamQuestions(count, undefined, custom.questionMix);
     } else {
       const mixToTypes: Record<string, string[]> = {
         mixed: ["mcq", "short_answer", "problem_solving"],

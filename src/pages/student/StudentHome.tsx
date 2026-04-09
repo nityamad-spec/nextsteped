@@ -53,9 +53,12 @@ const StudentHome = () => {
   const courseName = currentCourse?.name || "Intro to Python";
   const displayName = profileData?.name || studentProfile?.name || "Student";
 
-  // Semester progress (mock)
+  // Semester progress — compute from course start_date
+  const [courseStartDate, setCourseStartDate] = useState<string | null>(null);
   const totalWeeks = 16;
-  const currentWeek = 6;
+  const currentWeek = courseStartDate
+    ? Math.max(1, Math.min(totalWeeks, Math.floor((Date.now() - new Date(courseStartDate).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1))
+    : 6;
   const progressPct = Math.round((currentWeek / totalWeeks) * 100);
 
   // Lesson plan
@@ -63,17 +66,33 @@ const StudentHome = () => {
   const [planLoading, setPlanLoading] = useState(true);
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
 
+  /** Determine visibility: a week is visible if professor unlocked it OR if course date has passed that week */
+  const isWeekVisible = (day: any, courseCurrentWeek: number) => {
+    // Professor manually unlocked it
+    if (!day.locked) return true;
+    // Auto-reveal: week number <= current course week
+    if (day.day <= courseCurrentWeek) return true;
+    return false;
+  };
+
   useEffect(() => {
     const loadPlan = async () => {
       if (!enrolledCourseId) { setPlanLoading(false); return; }
       try {
-        const { data: course } = await supabase.from("courses").select("teacher_id").eq("id", enrolledCourseId).maybeSingle();
+        const { data: course } = await supabase.from("courses").select("teacher_id, start_date").eq("id", enrolledCourseId).maybeSingle();
         if (!course?.teacher_id) { setPlanLoading(false); return; }
+        if (course.start_date) setCourseStartDate(course.start_date);
+
+        // Compute current week from course start_date
+        const computedWeek = course.start_date
+          ? Math.max(1, Math.min(totalWeeks, Math.floor((Date.now() - new Date(course.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1))
+          : 999; // If no start_date, show all unlocked
+
         const { data } = await supabase.storage.from("course-materials").download(`${course.teacher_id}/lesson-plan/published-plan.json?t=${Date.now()}`);
         if (data) {
           const parsed = JSON.parse(await data.text());
           if (Array.isArray(parsed) && parsed.length > 0) {
-            setLessonPlan(parsed.filter((d: any) => !d.locked));
+            setLessonPlan(parsed.filter((d: any) => isWeekVisible(d, computedWeek)));
             setPlanLoading(false);
             return;
           }

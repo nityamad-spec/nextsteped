@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import {
   ChevronDown, ChevronUp, Pencil, Trash2, Plus, FileText, FileDown, X,
-  Check, BookOpen, Download, Eye, EyeOff, Sparkles, Loader2, GripVertical, ArrowLeftRight,
+  Check, BookOpen, Download, Eye, EyeOff, Sparkles, Loader2, GripVertical, ArrowLeftRight, Clock,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -98,6 +98,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
   const [newResourceType, setNewResourceType] = useState<Resource["type"]>("exercise");
   const [editingConceptName, setEditingConceptName] = useState<string | null>(null);
   const [editConceptValue, setEditConceptValue] = useState("");
+  const [courseCurrentWeek, setCourseCurrentWeek] = useState<number>(0);
 
   const renameConcept = (dayId: string, oldName: string, newName: string) => {
     if (!newName.trim() || newName === oldName) { setEditingConceptName(null); return; }
@@ -151,6 +152,19 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
     };
     load();
   }, [user]);
+
+  // Fetch course start_date to compute auto-reveal week
+  useEffect(() => {
+    if (!courseId) return;
+    const fetchCourseWeek = async () => {
+      const { data } = await supabase.from("courses").select("start_date").eq("id", courseId).maybeSingle();
+      if (data?.start_date) {
+        const week = Math.max(1, Math.floor((Date.now() - new Date(data.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1);
+        setCourseCurrentWeek(week);
+      }
+    };
+    fetchCourseWeek();
+  }, [courseId]);
 
   const savePlan = async () => {
     if (!user) return;
@@ -734,9 +748,15 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
                               className="h-7 px-2 text-sm"
                             >
                               {dp.locked ? (
-                                <Badge variant="outline" className="text-sm gap-1 border-destructive/30 text-destructive bg-destructive/5">
-                                  <EyeOff className="h-3 w-3" /> Hidden from students
-                                </Badge>
+                                dp.day <= courseCurrentWeek && courseCurrentWeek > 0 ? (
+                                  <Badge variant="outline" className="text-sm gap-1 border-amber-500/30 text-amber-600 bg-amber-50 dark:bg-amber-950/20 dark:text-amber-400">
+                                    <Clock className="h-3 w-3" /> Auto-visible (Week {dp.day} reached)
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-sm gap-1 border-destructive/30 text-destructive bg-destructive/5">
+                                    <EyeOff className="h-3 w-3" /> Hidden from students
+                                  </Badge>
+                                )
                               ) : (
                                 <Badge variant="outline" className="text-sm gap-1 border-green-500/30 text-green-600 bg-green-50 dark:bg-green-950/20 dark:text-green-400">
                                   <Eye className="h-3 w-3" /> Visible to students
