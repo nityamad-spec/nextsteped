@@ -153,6 +153,19 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
     load();
   }, [user]);
 
+  // Fetch course start_date to compute auto-reveal week
+  useEffect(() => {
+    if (!courseId) return;
+    const fetchCourseWeek = async () => {
+      const { data } = await supabase.from("courses").select("start_date").eq("id", courseId).maybeSingle();
+      if (data?.start_date) {
+        const week = Math.max(1, Math.floor((Date.now() - new Date(data.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1);
+        setCourseCurrentWeek(week);
+      }
+    };
+    fetchCourseWeek();
+  }, [courseId]);
+
   const savePlan = async () => {
     if (!user) return;
     setSaving(true);
