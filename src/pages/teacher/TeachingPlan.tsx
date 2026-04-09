@@ -98,6 +98,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
   const [newResourceType, setNewResourceType] = useState<Resource["type"]>("exercise");
   const [editingConceptName, setEditingConceptName] = useState<string | null>(null);
   const [editConceptValue, setEditConceptValue] = useState("");
+  const [courseCurrentWeek, setCourseCurrentWeek] = useState<number>(0);
 
   const renameConcept = (dayId: string, oldName: string, newName: string) => {
     if (!newName.trim() || newName === oldName) { setEditingConceptName(null); return; }
