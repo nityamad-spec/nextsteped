@@ -176,7 +176,6 @@ const Assessments = () => {
 
   const filterQuestions = (list: EditableQuestion[]) => {
     return list.filter(q => {
-      if (filterDifficulties.length > 0 && !filterDifficulties.includes(q.difficulty)) return false;
       if (filterTypes.length > 0 && !filterTypes.includes(q.type)) return false;
       return true;
     });
