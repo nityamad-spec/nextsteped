@@ -660,6 +660,21 @@ const TeachingPlan = () => {
         </div>
       </div>
 
+      {/* Guidance Banner */}
+      <Card className="border-primary/20 bg-primary/5">
+        <div className="flex items-start gap-3 p-4">
+          <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Your lesson plan is a living document</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              You don't need to finalize everything now. Use <strong>AI Suggest</strong> to auto-generate learning outcomes, activities, and resources for each week based on your syllabus. 
+              You can edit topics, reorder weeks, control student visibility, and add resources at any time — even after setup is complete. 
+              Once published, students will see the latest version on their home page. You can continue editing and re-publishing from the <strong>Lesson Plan & Resources</strong> section in your main navigation.
+            </p>
+          </div>
+        </div>
+      </Card>
+
       <Tabs defaultValue="plan" className="space-y-4">
         <div className="flex items-center justify-between">
           <TabsList>
