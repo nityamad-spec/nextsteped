@@ -86,8 +86,9 @@ export const questionBank: Question[] = [
 
 // Map question mix settings to allowed types
 const mixToTypes: Record<string, Question["type"][]> = {
-  mixed: ["mcq", "short_answer", "problem_solving"],
+  mixed: ["mcq", "short_answer", "problem_solving", "true_false"],
   mcq_only: ["mcq"],
+  true_false_only: ["true_false"],
   short_answer: ["short_answer"],
   problem_solving: ["problem_solving"],
   mcq_short: ["mcq", "short_answer"],
