@@ -194,7 +194,6 @@ const Assessments = () => {
     <div key={q.id} className="rounded-lg border p-4">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant={q.difficulty === "Easy" ? "secondary" : q.difficulty === "Hard" ? "destructive" : "outline"} className="text-xs">{q.difficulty}</Badge>
           <Badge variant="outline" className={`text-[10px] ${typeBadgeColor(q.type)}`}>{q.type}</Badge>
           <span className="text-xs text-muted-foreground">{q.topic}</span>
         </div>
@@ -213,7 +212,12 @@ const Assessments = () => {
           ))}
         </div>
       )}
-      {q.type !== "MCQ" && q.answer && (
+      {q.type === "True/False" && q.answer && (
+        <div className="mt-2">
+          <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Answer:</span> {q.answer}</p>
+        </div>
+      )}
+      {(q.type === "Short Answer" || q.type === "Code Practice") && q.answer && (
         <div className="mt-2">
           <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Answer:</span> {q.answer}</p>
         </div>
