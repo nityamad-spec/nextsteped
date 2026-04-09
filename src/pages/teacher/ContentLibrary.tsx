@@ -215,26 +215,8 @@ const ContentLibrary = () => {
         </TabsContent>
 
         {/* Lesson Plan Tab */}
-        <TabsContent value="lesson-plan" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <BookOpen className="h-5 w-5 text-primary" /> Weekly Lesson Plan
-              </CardTitle>
-              <CardDescription>
-                Structured weekly plan with overview, learning outcomes, and activities
-              </CardDescription>
-            </CardHeader>
-          </Card>
-          {planLoading ? (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {lessonPlan.map(renderLessonPlanWeek)}
-            </div>
-          )}
+        <TabsContent value="lesson-plan">
+          <TeachingPlan embedded />
         </TabsContent>
       </Tabs>
     </div>
