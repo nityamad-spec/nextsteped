@@ -333,7 +333,7 @@ const AIChat = () => {
             mcq_short: ["mcq", "short_answer"],
             mcq_problem: ["mcq", "problem_solving"],
           }[custom.questionMix] || ["mcq", "short_answer", "problem_solving", "true_false"];
-      const filtered = questions.filter(q => allowed.includes(q.type));
+      const filtered = questions.filter(q => allowedTypes.includes(q.type));
       const pool = filtered.length > 0 ? filtered : questions;
       const seed = (user?.id || "anon") + (enrolledCourseId || "");
       const shuffled = seededShuffle(pool, seed);
