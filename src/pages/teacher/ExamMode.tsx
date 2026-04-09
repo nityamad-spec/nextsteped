@@ -48,7 +48,7 @@ const ExamMode = () => {
   const [examManualQuestions, setExamManualQuestions] = useState(taSettings.examManualQuestions ?? false);
   const [examManualCount, setExamManualCount] = useState(taSettings.examManualCount ?? 5);
 
-  const estimate = useMemo(() => questionEstimate(examLength, examQuestionTypes, settings.examDifficulty), [examLength, examQuestionTypes, settings.examDifficulty]);
+  const estimate = useMemo(() => questionEstimate(examLength, examQuestionTypes), [examLength, examQuestionTypes]);
   const [customBreakdown, setCustomBreakdown] = useState<Record<string, number>>(estimate.breakdown);
   const [estimateApproved, setEstimateApproved] = useState(false);
 
