@@ -227,25 +227,14 @@ const Assessments = () => {
       <div className="flex items-center gap-2 mb-2">
         <Filter className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm font-medium">Filters</span>
-        {(filterDifficulties.length > 0 || filterTypes.length > 0) && (
+        {filterTypes.length > 0 && (
           <Button variant="ghost" size="sm" className="h-6 text-[10px] ml-auto" onClick={clearFilters}>Clear all</Button>
         )}
       </div>
       <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground">Difficulty</Label>
-        <div className="flex flex-wrap gap-2">
-          {["Easy", "Medium", "Hard"].map(diff => (
-            <button key={diff} onClick={() => toggleFilterDifficulty(diff)}
-              className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${filterDifficulties.includes(diff) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"}`}>
-              {diff}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="space-y-2">
         <Label className="text-xs text-muted-foreground">Type</Label>
         <div className="flex flex-wrap gap-2">
-          {(["MCQ", "Short Answer", "Code Practice"] as QuestionType[]).map(type => (
+          {(["MCQ", "True/False", "Short Answer", "Code Practice"] as QuestionType[]).map(type => (
             <button key={type} onClick={() => toggleFilterType(type)}
               className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${filterTypes.includes(type) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"}`}>
               {type}
