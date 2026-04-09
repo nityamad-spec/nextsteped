@@ -12,16 +12,16 @@ import { Slider } from "@/components/ui/slider";
 import { ArrowRight, ArrowLeft, BookOpen, Calculator, Check, Pencil, Clock, Info, AlertTriangle } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 
-const questionEstimate = (length: number, mix: string, difficulty: string) => {
-  const base = Math.round(length / 3);
-  const diffMod = difficulty === "Easy" ? 1.3 : difficulty === "Hard" ? 0.7 : 1;
-  const total = Math.max(5, Math.round(base * diffMod));
+const questionEstimate = (length: number, mix: string) => {
+  const total = Math.max(5, Math.round(length / 3));
 
   let breakdown: Record<string, number> = {};
   if (mix === "mixed") {
-    breakdown = { MCQ: Math.round(total * 0.4), "Short Answer": Math.round(total * 0.3), "Problem Solving": total - Math.round(total * 0.4) - Math.round(total * 0.3) };
+    breakdown = { MCQ: Math.round(total * 0.3), "True/False": Math.round(total * 0.2), "Short Answer": Math.round(total * 0.25), "Problem Solving": total - Math.round(total * 0.3) - Math.round(total * 0.2) - Math.round(total * 0.25) };
   } else if (mix === "mcq_only") {
     breakdown = { MCQ: total };
+  } else if (mix === "true_false_only") {
+    breakdown = { "True/False": total };
   } else if (mix === "short_answer") {
     breakdown = { "Short Answer": total };
   } else if (mix === "problem_solving") {
