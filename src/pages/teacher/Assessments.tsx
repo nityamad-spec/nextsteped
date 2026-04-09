@@ -422,22 +422,9 @@ const Assessments = () => {
               <Label>Question</Label>
               <Textarea value={formQuestion} onChange={e => setFormQuestion(e.target.value)} placeholder="Enter question text..." rows={3} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Topic</Label>
-                <Input value={formTopic} onChange={e => setFormTopic(e.target.value)} placeholder="e.g. Functions" />
-              </div>
-              <div className="space-y-2">
-                <Label>Difficulty</Label>
-                <Select value={formDifficulty} onValueChange={v => setFormDifficulty(v as any)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Easy">Easy</SelectItem>
-                    <SelectItem value="Medium">Medium</SelectItem>
-                    <SelectItem value="Hard">Hard</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label>Topic</Label>
+              <Input value={formTopic} onChange={e => setFormTopic(e.target.value)} placeholder="e.g. Functions" />
             </div>
             <div className="space-y-2">
               <Label>Question Type</Label>
@@ -445,6 +432,7 @@ const Assessments = () => {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="MCQ">Multiple Choice</SelectItem>
+                  <SelectItem value="True/False">True / False</SelectItem>
                   <SelectItem value="Short Answer">Short Answer</SelectItem>
                   <SelectItem value="Code Practice">Code Practice</SelectItem>
                 </SelectContent>
@@ -463,6 +451,17 @@ const Assessments = () => {
                     <Input value={opt} onChange={e => updateOption(i, e.target.value)} placeholder={`Option ${String.fromCharCode(65 + i)}`} className="h-8 text-sm" />
                   </div>
                 ))}
+              </div>
+            ) : formType === "True/False" ? (
+              <div className="space-y-2">
+                <Label>Correct Answer</Label>
+                <Select value={formAnswer} onValueChange={v => setFormAnswer(v)}>
+                  <SelectTrigger><SelectValue placeholder="Select correct answer" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="True">True</SelectItem>
+                    <SelectItem value="False">False</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             ) : (
               <div className="space-y-2">
