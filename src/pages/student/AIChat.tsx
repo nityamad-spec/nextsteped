@@ -322,17 +322,18 @@ const AIChat = () => {
       fallback = filterByVisibleTopics(fallback, visibleTopics);
       questions = fallback.length > 0 ? fallback : getExamQuestions(count, undefined, custom.questionMix);
     } else {
-      const mixToTypes: Record<string, string[]> = {
-        mixed: ["mcq", "short_answer", "problem_solving", "true_false"],
-        mcq_only: ["mcq"],
-        true_false_only: ["true_false"],
-        short_answer: ["short_answer"],
-        problem_solving: ["problem_solving"],
-        mcq_short: ["mcq", "short_answer"],
-        mcq_problem: ["mcq", "problem_solving"],
-      };
-      const allowed = mixToTypes[custom.questionMix] || mixToTypes.mixed;
-      const filtered = questions.filter(q => allowed.includes(q.type));
+      const allowedTypes = custom.questionMix.includes(",")
+        ? custom.questionMix.split(",")
+        : {
+            mixed: ["mcq", "short_answer", "problem_solving", "true_false"],
+            mcq_only: ["mcq"],
+            true_false_only: ["true_false"],
+            short_answer: ["short_answer"],
+            problem_solving: ["problem_solving"],
+            mcq_short: ["mcq", "short_answer"],
+            mcq_problem: ["mcq", "problem_solving"],
+          }[custom.questionMix] || ["mcq", "short_answer", "problem_solving", "true_false"];
+      const filtered = questions.filter(q => allowedTypes.includes(q.type));
       const pool = filtered.length > 0 ? filtered : questions;
       const seed = (user?.id || "anon") + (enrolledCourseId || "");
       const shuffled = seededShuffle(pool, seed);
