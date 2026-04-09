@@ -748,9 +748,15 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
                               className="h-7 px-2 text-sm"
                             >
                               {dp.locked ? (
-                                <Badge variant="outline" className="text-sm gap-1 border-destructive/30 text-destructive bg-destructive/5">
-                                  <EyeOff className="h-3 w-3" /> Hidden from students
-                                </Badge>
+                                dp.day <= courseCurrentWeek && courseCurrentWeek > 0 ? (
+                                  <Badge variant="outline" className="text-sm gap-1 border-amber-500/30 text-amber-600 bg-amber-50 dark:bg-amber-950/20 dark:text-amber-400">
+                                    <Clock className="h-3 w-3" /> Auto-visible (Week {dp.day} reached)
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-sm gap-1 border-destructive/30 text-destructive bg-destructive/5">
+                                    <EyeOff className="h-3 w-3" /> Hidden from students
+                                  </Badge>
+                                )
                               ) : (
                                 <Badge variant="outline" className="text-sm gap-1 border-green-500/30 text-green-600 bg-green-50 dark:bg-green-950/20 dark:text-green-400">
                                   <Eye className="h-3 w-3" /> Visible to students
