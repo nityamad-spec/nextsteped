@@ -50,24 +50,6 @@ const ContentLibrary = () => {
     setLoading(false);
   };
 
-  const fetchLessonPlan = async () => {
-    if (!user) { setPlanLoading(false); return; }
-    try {
-      const { data, error } = await supabase.storage
-        .from("course-materials")
-        .download(`${user.id}/lesson-plan/published-plan.json?t=${Date.now()}`);
-      if (!error && data) {
-        const parsed = JSON.parse(await data.text());
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setLessonPlan(parsed);
-          setPlanLoading(false);
-          return;
-        }
-      }
-    } catch {}
-    setLessonPlan(defaultPlan.map(d => ({ ...d, description: "" })));
-    setPlanLoading(false);
-  };
 
   useEffect(() => {
     fetchFiles();
