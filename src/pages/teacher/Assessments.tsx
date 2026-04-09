@@ -16,6 +16,7 @@ import { Plus, ClipboardCheck, Pencil, Trash2, Filter, Shield, BookOpen, Clock, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import QuestionTypeSelector from "@/components/QuestionTypeSelector";
 
 type QuestionType = "MCQ" | "True/False" | "Short Answer" | "Code Practice";
 type QuestionMode = "learning" | "exam" | "daily_quiz";
