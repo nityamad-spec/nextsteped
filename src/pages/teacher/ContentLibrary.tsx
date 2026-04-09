@@ -53,7 +53,6 @@ const ContentLibrary = () => {
 
   useEffect(() => {
     fetchFiles();
-    fetchLessonPlan();
   }, [user, courseId]);
 
   const handleDownload = async (file: StoredFile) => {
