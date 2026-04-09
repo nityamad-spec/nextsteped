@@ -305,16 +305,8 @@ const Assessments = () => {
               </div>
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Exam Question Types</Label>
-                <Select value={taSettings.examQuestionMix} onValueChange={v => saveTASettings({ ...taSettings, examQuestionMix: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="mixed">Mixed (MCQ + True/False + Short Answer + Problem Solving)</SelectItem>
-                    <SelectItem value="mcq_only">Multiple Choice Only</SelectItem>
-                    <SelectItem value="true_false_only">True/False Only</SelectItem>
-                    <SelectItem value="short_answer">Short Answer Only</SelectItem>
-                    <SelectItem value="problem_solving">Problem Solving Only</SelectItem>
-                  </SelectContent>
-                </Select>
+                <p className="text-xs text-muted-foreground">Select which question types to include</p>
+                <QuestionTypeSelector value={taSettings.examQuestionMix} onChange={v => saveTASettings({ ...taSettings, examQuestionMix: v })} />
               </div>
               <Button onClick={handleSaveExamSettings} className="w-full">Save Exam Settings</Button>
             </CardContent>

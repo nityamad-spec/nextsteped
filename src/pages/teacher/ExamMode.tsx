@@ -132,18 +132,8 @@ const ExamMode = () => {
             <CardContent className="space-y-6">
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Question Types</Label>
-                <Select value={examQuestionTypes} onValueChange={handleExamTypeChange}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="mixed">Mixed (MCQ + True/False + Short Answer + Problem Solving)</SelectItem>
-                    <SelectItem value="mcq_only">Multiple Choice Only</SelectItem>
-                    <SelectItem value="true_false_only">True/False Only</SelectItem>
-                    <SelectItem value="short_answer">Short Answer Only</SelectItem>
-                    <SelectItem value="problem_solving">Problem Solving Only</SelectItem>
-                    <SelectItem value="mcq_short">MCQ + Short Answer</SelectItem>
-                    <SelectItem value="mcq_problem">MCQ + Problem Solving</SelectItem>
-                  </SelectContent>
-                </Select>
+                <p className="text-xs text-muted-foreground">Select which question types to include in exams</p>
+                <QuestionTypeSelector value={examQuestionTypes} onChange={handleExamTypeChange} />
               </div>
 
               <div className="space-y-3">
