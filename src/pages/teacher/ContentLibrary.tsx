@@ -3,14 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { FileText, Download, Upload, Trash2, Loader2, BookOpen, Presentation, FolderOpen, ChevronDown, ChevronUp, Lock, Check } from "lucide-react";
+import { FileText, Download, Upload, Trash2, Loader2, BookOpen, Presentation, FolderOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import FileUploadZone from "@/components/FileUploadZone";
 import { toast } from "sonner";
-import { workshopPlan as defaultPlan, WorkshopDay, groupResourcesByConcept } from "@/data/workshopPlan";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import TeachingPlan from "@/pages/teacher/TeachingPlan";
 
 interface StoredFile {
   id: string;
