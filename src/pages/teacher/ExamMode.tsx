@@ -180,7 +180,7 @@ const ExamMode = () => {
                 ) : (
                   <>
                     <p className="text-xs text-muted-foreground">
-                      Based on {examLength} min, {settings.examDifficulty} difficulty — estimated <span className="font-bold text-foreground">{activeTotal} questions</span>
+                      Based on {examLength} min — estimated <span className="font-bold text-foreground">{activeTotal} questions</span>
                     </p>
                     <div className="space-y-2">
                       {Object.entries(activeBreakdown).map(([type, count]) => (
