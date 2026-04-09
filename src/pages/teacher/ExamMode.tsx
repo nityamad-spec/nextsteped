@@ -7,10 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { ArrowRight, ArrowLeft, BookOpen, Calculator, Check, Pencil, Clock, Info, AlertTriangle } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
+import QuestionTypeSelector, { parseQuestionMix } from "@/components/QuestionTypeSelector";
 
 const questionEstimate = (length: number, mix: string) => {
   const total = Math.max(5, Math.round(length / 3));
