@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ArrowRight, ArrowLeft, User, Plus, X, ChevronsUpDown } from "lucide-react";
+import { ArrowRight, ArrowLeft, User, Plus, X, ChevronsUpDown, MessageSquare } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import { toast } from "sonner";
 
