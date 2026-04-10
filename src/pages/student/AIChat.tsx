@@ -76,6 +76,10 @@ const AIChat = () => {
   const [showWeeklyQuizPrompt, setShowWeeklyQuizPrompt] = useState(false);
   const [currentWeek, setCurrentWeek] = useState<number | null>(null);
 
+  // Practice questions widget state
+  const [showPractice, setShowPractice] = useState(false);
+  const [practiceHistory, setPracticeHistory] = useState<any[]>([]);
+
   const {
     sessions: chats,
     activeSession: activeChat,
