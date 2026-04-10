@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User, BarChart3 } from "lucide-react";
+import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User, BarChart3, Dumbbell } from "lucide-react";
 import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import ExamHistory from "@/components/ExamHistory";
@@ -20,6 +20,7 @@ import { seededShuffle } from "@/lib/seededShuffle";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import PracticeQuestions, { PracticeQuestion } from "@/components/PracticeQuestions";
+import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 
 const WELCOME_LEARNING = "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?";
 const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Configure your practice settings and click **Start Exam** to begin a timed simulation. Good luck!";
