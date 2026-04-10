@@ -215,10 +215,22 @@ Generate 3-5 questions by default unless the student specifies a number. Always 
 - Encouraging critical thinking rather than memorization
 Keep responses focused and exam-relevant. Use markdown formatting.`;
 
+    const defaultTeacher = `You are an AI Course Assistant for university professors. Your role is to:
+- Help professors plan and improve their courses
+- Suggest relevant concepts, case studies, and real-world examples to include
+- Advise on teaching strategies, active learning techniques, and engagement methods
+- Help design assessments, rubrics, and learning outcomes
+- Provide pedagogical best practices and evidence-based teaching approaches
+- Suggest ways to structure lectures, assignments, and projects
+- Help with course pacing and content sequencing
+Format responses with markdown for readability (headers, bold, lists). Be collaborative and supportive.`;
+
     let systemPrompt =
-      mode === "exam"
-        ? examSystemPrompt || defaultExam
-        : studySystemPrompt || defaultStudy;
+      mode === "teacher"
+        ? defaultTeacher
+        : mode === "exam"
+          ? examSystemPrompt || defaultExam
+          : studySystemPrompt || defaultStudy;
 
     // If the question was classified as off-topic, prepend a relating instruction
     if (
@@ -234,7 +246,7 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
 
     // ---- RAG: Retrieve course context ----
     let ragContext = "";
-    if (courseId && teacherId && studentId) {
+    if (courseId && teacherId && (studentId || mode === "teacher")) {
       const supabaseUrl = Deno.env.get("SUPABASE_URL");
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -244,13 +256,16 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
         const latestUserMessage =
           messages?.[messages.length - 1]?.content || "";
 
-        const [syllabusCtx, conceptsCtx, questionsCtx, progressCtx] =
-          await Promise.all([
+        const ragPromises: Promise<string>[] = [
             fetchSyllabusContext(supabaseAdmin, teacherId),
             fetchConceptsContext(supabaseAdmin, courseId),
             fetchQuestionBankContext(supabaseAdmin, courseId, latestUserMessage),
-            fetchStudentProgressContext(supabaseAdmin, studentId, courseId),
-          ]);
+        ];
+        if (studentId && mode !== "teacher") {
+          ragPromises.push(fetchStudentProgressContext(supabaseAdmin, studentId, courseId));
+        }
+        const [syllabusCtx, conceptsCtx, questionsCtx, progressCtx] =
+          await Promise.all(ragPromises);
 
         const parts = [syllabusCtx, conceptsCtx, questionsCtx, progressCtx].filter(Boolean);
         if (parts.length > 0) {

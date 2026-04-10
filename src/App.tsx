@@ -42,6 +42,7 @@ import AdminStudents from "./pages/admin/AdminStudents";
 import AdminTeachers from "./pages/admin/AdminTeachers";
 import ResetPassword from "./pages/ResetPassword";
 import ContentLibrary from "./pages/teacher/ContentLibrary";
+import TeacherChat from "./pages/teacher/TeacherChat";
 
 const queryClient = new QueryClient();
 
@@ -168,6 +169,7 @@ const App = () => (
                 <Route path="/teacher/assessments" element={<Assessments />} />
                 
                 <Route path="/teacher/teaching-plan" element={<TeachingPlan />} />
+                <Route path="/teacher/chat" element={<TeacherChat />} />
                 <Route path="/teacher/content-library" element={<ContentLibrary />} />
                 <Route path="/teacher/settings" element={<SettingsIntegrity />} />
                 <Route path="/teacher/support" element={<Support />} />
