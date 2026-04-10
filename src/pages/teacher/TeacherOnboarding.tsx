@@ -493,6 +493,18 @@ const TeacherOnboarding = () => {
                 />
               </div>
 
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                <div className="flex items-start gap-3">
+                  <MessageSquare className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">Your AI Course Assistant</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Once setup is complete, you'll have access to an AI Course Assistant that can help you with teaching strategies, suggest concepts and case studies, recommend assessment approaches, and more. Look for it in your sidebar!
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex justify-between pt-2">
                 <Button variant="ghost" onClick={() => navigate("/")}>
                   <ArrowLeft className="mr-2 h-4 w-4" /> Back
