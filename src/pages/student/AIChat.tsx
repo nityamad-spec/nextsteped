@@ -768,6 +768,19 @@ const AIChat = () => {
     );
   };
 
+  // If practice widget is active, show it full-screen
+  if (showPractice) {
+    return (
+      <div className="flex h-[calc(100vh-57px)] md:h-screen flex-col">
+        <PracticeQuestionsWidget
+          onClose={() => setShowPractice(false)}
+          onSaveResult={handlePracticeResult}
+          practiceHistory={practiceHistory}
+        />
+      </div>
+    );
+  }
+
   // If assessment is active, show full-screen assessment view
   if (assessmentActive && assessmentQuestions.length > 0) {
     const timeLimit = assessmentType === "exam"
@@ -873,6 +886,9 @@ const AIChat = () => {
           </div>
           {mode === "learning" && (
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowPractice(true)}>
+                <Dumbbell className="h-4 w-4" /> Practice
+              </Button>
               <Button variant="outline" size="sm" className="h-9 text-sm" onClick={createNewChat}>
                 <Plus className="mr-2 h-4 w-4" /> New Chat
               </Button>
