@@ -135,8 +135,72 @@ const AIChat = () => {
     };
     determineWeek();
   }, [enrolledCourseId, mode]);
+  // Load practice history
+  useEffect(() => {
+    if (!user || !enrolledCourseId) return;
+    const loadHistory = async () => {
+      const { data } = await supabase
+        .from("assessment_results")
+        .select("*")
+        .eq("student_id", user.id)
+        .eq("mode", "practice")
+        .eq("course_id", enrolledCourseId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (data) {
+        setPracticeHistory(data.map(r => ({
+          id: r.id,
+          prompt: "Practice session",
+          score: r.score,
+          totalQuestions: r.total_questions,
+          correctAnswers: r.correct_answers,
+          timestamp: new Date(r.created_at).getTime(),
+          topics: Array.isArray(r.answers) ? [...new Set((r.answers as any[]).map((a: any) => a.topic).filter(Boolean))] : [],
+        })));
+      }
+    };
+    loadHistory();
+  }, [user, enrolledCourseId]);
 
-  // Auto-start quiz/exam if coming from home page with mode=quiz or mode=exam
+  const handlePracticeResult = async (result: { score: number; totalQuestions: number; correctAnswers: number; answers: any[]; timeSpent: number }) => {
+    if (!user || !enrolledCourseId) return;
+    try {
+      await supabase.from("assessment_results").insert({
+        student_id: user.id,
+        course_id: enrolledCourseId,
+        mode: "practice",
+        score: result.score,
+        total_questions: result.totalQuestions,
+        correct_answers: result.correctAnswers,
+        answers: result.answers as any,
+        time_spent: result.timeSpent,
+      });
+      // Refresh history
+      const { data } = await supabase
+        .from("assessment_results")
+        .select("*")
+        .eq("student_id", user.id)
+        .eq("mode", "practice")
+        .eq("course_id", enrolledCourseId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (data) {
+        setPracticeHistory(data.map(r => ({
+          id: r.id,
+          prompt: "Practice session",
+          score: r.score,
+          totalQuestions: r.total_questions,
+          correctAnswers: r.correct_answers,
+          timestamp: new Date(r.created_at).getTime(),
+          topics: Array.isArray(r.answers) ? [...new Set((r.answers as any[]).map((a: any) => a.topic).filter(Boolean))] : [],
+        })));
+      }
+    } catch (e) {
+      console.error("Failed to save practice result:", e);
+    }
+  };
+
+
   useEffect(() => {
     const urlMode = searchParams.get("mode");
     const urlDay = parseInt(searchParams.get("day") || "1") || 1;
