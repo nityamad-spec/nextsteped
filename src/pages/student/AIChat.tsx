@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User, BarChart3 } from "lucide-react";
+import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User, BarChart3, Dumbbell } from "lucide-react";
 import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import ExamHistory from "@/components/ExamHistory";
@@ -20,6 +20,7 @@ import { seededShuffle } from "@/lib/seededShuffle";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import PracticeQuestions, { PracticeQuestion } from "@/components/PracticeQuestions";
+import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 
 const WELCOME_LEARNING = "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?";
 const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Configure your practice settings and click **Start Exam** to begin a timed simulation. Good luck!";
@@ -74,6 +75,10 @@ const AIChat = () => {
   // Weekly quiz popup state
   const [showWeeklyQuizPrompt, setShowWeeklyQuizPrompt] = useState(false);
   const [currentWeek, setCurrentWeek] = useState<number | null>(null);
+
+  // Practice questions widget state
+  const [showPractice, setShowPractice] = useState(false);
+  const [practiceHistory, setPracticeHistory] = useState<any[]>([]);
 
   const {
     sessions: chats,
@@ -130,8 +135,72 @@ const AIChat = () => {
     };
     determineWeek();
   }, [enrolledCourseId, mode]);
+  // Load practice history
+  useEffect(() => {
+    if (!user || !enrolledCourseId) return;
+    const loadHistory = async () => {
+      const { data } = await supabase
+        .from("assessment_results")
+        .select("*")
+        .eq("student_id", user.id)
+        .eq("mode", "practice")
+        .eq("course_id", enrolledCourseId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (data) {
+        setPracticeHistory(data.map(r => ({
+          id: r.id,
+          prompt: "Practice session",
+          score: r.score,
+          totalQuestions: r.total_questions,
+          correctAnswers: r.correct_answers,
+          timestamp: new Date(r.created_at).getTime(),
+          topics: Array.isArray(r.answers) ? [...new Set((r.answers as any[]).map((a: any) => a.topic).filter(Boolean))] : [],
+        })));
+      }
+    };
+    loadHistory();
+  }, [user, enrolledCourseId]);
 
-  // Auto-start quiz/exam if coming from home page with mode=quiz or mode=exam
+  const handlePracticeResult = async (result: { score: number; totalQuestions: number; correctAnswers: number; answers: any[]; timeSpent: number }) => {
+    if (!user || !enrolledCourseId) return;
+    try {
+      await supabase.from("assessment_results").insert({
+        student_id: user.id,
+        course_id: enrolledCourseId,
+        mode: "practice",
+        score: result.score,
+        total_questions: result.totalQuestions,
+        correct_answers: result.correctAnswers,
+        answers: result.answers as any,
+        time_spent: result.timeSpent,
+      });
+      // Refresh history
+      const { data } = await supabase
+        .from("assessment_results")
+        .select("*")
+        .eq("student_id", user.id)
+        .eq("mode", "practice")
+        .eq("course_id", enrolledCourseId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (data) {
+        setPracticeHistory(data.map(r => ({
+          id: r.id,
+          prompt: "Practice session",
+          score: r.score,
+          totalQuestions: r.total_questions,
+          correctAnswers: r.correct_answers,
+          timestamp: new Date(r.created_at).getTime(),
+          topics: Array.isArray(r.answers) ? [...new Set((r.answers as any[]).map((a: any) => a.topic).filter(Boolean))] : [],
+        })));
+      }
+    } catch (e) {
+      console.error("Failed to save practice result:", e);
+    }
+  };
+
+
   useEffect(() => {
     const urlMode = searchParams.get("mode");
     const urlDay = parseInt(searchParams.get("day") || "1") || 1;
@@ -699,6 +768,19 @@ const AIChat = () => {
     );
   };
 
+  // If practice widget is active, show it full-screen
+  if (showPractice) {
+    return (
+      <div className="flex h-[calc(100vh-57px)] md:h-screen flex-col">
+        <PracticeQuestionsWidget
+          onClose={() => setShowPractice(false)}
+          onSaveResult={handlePracticeResult}
+          practiceHistory={practiceHistory}
+        />
+      </div>
+    );
+  }
+
   // If assessment is active, show full-screen assessment view
   if (assessmentActive && assessmentQuestions.length > 0) {
     const timeLimit = assessmentType === "exam"
@@ -804,6 +886,9 @@ const AIChat = () => {
           </div>
           {mode === "learning" && (
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowPractice(true)}>
+                <Dumbbell className="h-4 w-4" /> Practice
+              </Button>
               <Button variant="outline" size="sm" className="h-9 text-sm" onClick={createNewChat}>
                 <Plus className="mr-2 h-4 w-4" /> New Chat
               </Button>
