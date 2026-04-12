@@ -394,7 +394,7 @@ Return ONLY a JSON array (no markdown fencing, no extra text) of question object
                 <Textarea
                   value={prompt}
                   onChange={e => setPrompt(e.target.value)}
-                  placeholder='e.g. "Test me on what I\'ve learned so far" or "I need help with loops — give me 10 questions" or "Quiz me on my weak areas"'
+                  placeholder={`e.g. "Test me on what I've learned so far" or "I need help with loops — give me 10 questions" or "Quiz me on my weak areas"`}
                   className="min-h-[100px] resize-none"
                   onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && prompt.trim()) { e.preventDefault(); generateQuestions(); } }}
                 />
