@@ -248,7 +248,7 @@ const CourseCreation = () => {
       ? "plan"
       : draft.phase === "generating" || draft.phase === "plan"
         ? draft.phase
-        : "upload";
+        : "generating";
 
     localStorage.setItem("lessonPlanPhase", nextPhase);
     setPhaseRaw(nextPhase);
@@ -359,38 +359,11 @@ const CourseCreation = () => {
   const totalWeightage = days.reduce((sum, d) => sum + (d.weightage || 0), 0);
 
   useEffect(() => {
-    const fetchFiles = async () => {
-      if (!user) return;
-      let query = supabase
-        .from("course_material_files")
-        .select("file_name, file_size, storage_path, folder_type")
-        .eq("teacher_id", user.id);
-      if (courseId) query = query.eq("course_id", courseId);
-      const { data } = await query;
-      if (data) {
-        const mapFile = (f: { file_name: string; file_size: number; storage_path: string }) => ({
-          name: f.file_name, size: f.file_size, path: f.storage_path,
-        });
-        setLessonPlanFiles(data.filter((f) => f.folder_type === "lesson-plans").map(mapFile));
-        setMaterialsFiles(data.filter((f) => f.folder_type === "materials").map(mapFile));
-      }
-    };
-    fetchFiles();
-  }, [user, courseId]);
-
-  const handleStartGeneration = async () => {
-    if (courseId && user) {
-      const allPaths = [...lessonPlanFiles.map((f) => f.path), ...materialsFiles.map((f) => f.path)];
-      if (allPaths.length > 0) {
-        await supabase
-          .from("course_material_files")
-          .update({ course_id: courseId })
-          .in("storage_path", allPaths);
-      }
-      await supabase.from("courses").update({ materials_uploaded: materialsFiles.length > 0 } as any).eq("id", courseId);
+    // Auto-start generation if we're on the generating phase and haven't started yet
+    if (phase === "generating" && genStep === 0) {
+      // Generation is handled by the timer effect below
     }
-    setPhase("generating");
-  };
+  }, [phase, genStep]);
 
   useEffect(() => {
     if (phase !== "generating") return;
@@ -863,103 +836,6 @@ const CourseCreation = () => {
       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin text-primary" /> Restoring your lesson plan draft…
-        </div>
-      </div>
-    );
-  }
-
-  // ─── UPLOAD PHASE ───
-  if (phase === "upload") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
-        <div className="w-full max-w-3xl">
-          <SetupProgressBar currentStep={3} />
-
-          <div className="mb-8 text-center">
-            <h1 className="font-heading text-3xl font-bold">
-              Lesson <span className="text-primary">Plan</span>
-            </h1>
-            <p className="mt-2 text-muted-foreground">
-              Upload your lesson plans and course materials. AI will review your lesson plans and generate a workshop plan.
-            </p>
-          </div>
-
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <ClipboardList className="h-5 w-5 text-primary" /> Upload Lesson Plans
-              </CardTitle>
-              <CardDescription>
-                These files help us understand the structure of your course's topics over the semester and each class or weekly topic covered, guiding your instruction plan.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
-              </p>
-              {user ? (
-                <FileUploadZone
-                  folderPath={`${user.id}/lesson-plans`}
-                  accept={UPLOAD_ACCEPT}
-                  files={lessonPlanFiles}
-                  onFilesChange={setLessonPlanFiles}
-                  teacherId={user.id}
-                  folderType="lesson-plans"
-                  courseId={courseId}
-                />
-              ) : (
-                <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
-                  Preparing upload area…
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <BookOpen className="h-5 w-5 text-primary" /> Upload Course Materials
-              </CardTitle>
-              <CardDescription>
-                Upload materials used in your course — including past exams, quizzes, homework assignments, projects, lecture slides, and handouts. Past assessments are especially valuable as they help power the AI-driven exam practice mode for students.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
-              </p>
-              {user ? (
-                <FileUploadZone
-                  folderPath={`${user.id}/materials`}
-                  accept={UPLOAD_ACCEPT}
-                  files={materialsFiles}
-                  onFilesChange={setMaterialsFiles}
-                  teacherId={user.id}
-                  folderType="materials"
-                  courseId={courseId}
-                />
-              ) : (
-                <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
-                  Preparing upload area…
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-center gap-3">
-            <Button variant="outline" onClick={() => navigate("/teacher/setup/concepts")}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
-            </Button>
-            <Button onClick={handleStartGeneration} disabled={lessonPlanFiles.length === 0} size="lg">
-              Generate Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
         </div>
       </div>
     );
