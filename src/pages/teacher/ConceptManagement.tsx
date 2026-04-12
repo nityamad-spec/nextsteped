@@ -67,37 +67,31 @@ const ConceptManagement = () => {
     if (!user || !courseId) return;
     setGenerating(true);
     try {
-      // Fetch course materials content for AI analysis
-      const { data: files } = await supabase
-        .from("course_material_files")
-        .select("file_name, storage_path, folder_type")
-        .eq("course_id", courseId);
+      // Fetch approved syllabus JSON for concept extraction
+      const { data: course } = await supabase
+        .from("courses")
+        .select("syllabus_json_path")
+        .eq("id", courseId)
+        .maybeSingle();
 
-      if (!files || files.length === 0) {
-        toast({ title: "No materials found", description: "Please upload course materials first.", variant: "destructive" });
+      const syllabusPath = course?.syllabus_json_path;
+      if (!syllabusPath) {
+        toast({ title: "No approved syllabus found", description: "Please complete the Syllabus Review step first.", variant: "destructive" });
         setGenerating(false);
         return;
       }
 
-      // Download material contents for analysis
-      let materialText = "";
-      for (const file of files.slice(0, 5)) {
-        try {
-          const { data: blob } = await supabase.storage
-            .from("course-materials")
-            .download(file.storage_path);
-          if (blob) {
-            const text = await blob.text();
-            materialText += `\n--- ${file.file_name} (${file.folder_type}) ---\n${text.slice(0, 5000)}\n`;
-          }
-        } catch { /* skip unreadable files */ }
-      }
+      const { data: blob } = await supabase.storage
+        .from("course-materials")
+        .download(syllabusPath);
 
-      if (!materialText.trim()) {
-        toast({ title: "Could not read materials", description: "Try re-uploading your course materials.", variant: "destructive" });
+      if (!blob) {
+        toast({ title: "Could not read syllabus", description: "Try re-approving your syllabus in the previous step.", variant: "destructive" });
         setGenerating(false);
         return;
       }
+
+      const materialText = await blob.text();
 
       // Call AI to generate concepts
       const { data: aiResult, error: aiError } = await supabase.functions.invoke("seed-concepts", {
@@ -236,7 +230,7 @@ const ConceptManagement = () => {
             Course <span className="text-primary">Concepts</span>
           </h1>
           <p className="mt-2 text-muted-foreground">
-            AI auto-fills concepts from your uploaded materials. Review, adjust weights, and approve each concept before continuing.
+            AI auto-fills concepts from your approved syllabus. Review, adjust weights, and approve each concept before continuing.
           </p>
         </div>
 
@@ -245,7 +239,7 @@ const ConceptManagement = () => {
           <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
           <div className="text-xs text-muted-foreground">
             <p className="font-medium text-foreground mb-1">How it works</p>
-            <p>Concepts are auto-generated from your uploaded course materials. Each concept has a weight (0–100%) representing its importance in the course. You must approve every concept before proceeding to the diagnostic setup.</p>
+            <p>Concepts are auto-generated from your approved syllabus. Each concept has a weight (0–100%) representing its importance in the course. You must approve every concept before proceeding.</p>
           </div>
         </div>
 
@@ -257,7 +251,7 @@ const ConceptManagement = () => {
               <div>
                 <h3 className="font-semibold text-lg">Auto-Generate Concepts</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  AI will analyze your uploaded materials and suggest concepts with weights based on course content and best practices.
+                  AI will analyze your approved syllabus and suggest concepts with weights based on course content and best practices.
                 </p>
               </div>
               <Button size="lg" onClick={handleAutoGenerate} disabled={generating}>
@@ -444,10 +438,10 @@ const ConceptManagement = () => {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Syllabus Review
           </Button>
           <Button
-            onClick={() => navigate("/teacher/setup/lesson-plan")}
+            onClick={() => navigate("/teacher/setup/materials")}
             disabled={!allApproved || concepts.length === 0}
           >
-            Continue to Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
+            Continue to Course Materials <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
 
