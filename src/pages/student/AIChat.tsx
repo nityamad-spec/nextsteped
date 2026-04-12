@@ -817,7 +817,7 @@ const AIChat = () => {
     <div className="flex h-[calc(100vh-57px)] md:h-screen">
       {/* Chat History Sidebar */}
       {showHistory && (
-        <div className="w-72 border-r bg-sidebar p-4 space-y-3">
+        <div className="w-72 border-r bg-sidebar p-4 space-y-3 overflow-auto">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold">
               {mode === "learning" ? "Study" : "Exam Prep"} History
@@ -829,9 +829,39 @@ const AIChat = () => {
               <Plus className="mr-1 h-4 w-4" /> New Chat
             </Button>
           )}
+
+          {/* Practice Questions History — study mode only */}
+          {mode === "learning" && practiceHistory.length > 0 && (
+            <div className="space-y-1 mt-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">Practice Questions</p>
+              {practiceHistory.slice(0, 10).map(h => (
+                <button
+                  key={h.id}
+                  onClick={() => { setShowPractice(true); setShowHistory(false); }}
+                  className="w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-sidebar-accent/50"
+                >
+                  <div className="flex items-center gap-2">
+                    <Dumbbell className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <p className="truncate text-xs font-medium">{h.prompt}</p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 ml-5.5">
+                    <span className={`font-semibold ${h.score >= 60 ? "text-primary" : "text-destructive"}`}>{h.score}%</span>
+                    <span>{h.correctAnswers}/{h.totalQuestions}</span>
+                    <span>{new Date(h.timestamp).toLocaleDateString()}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Chat Sessions */}
           <div className="space-y-1 mt-3">
+            {mode === "learning" && (practiceHistory.length > 0 || chats.length > 0) && (
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">
+                {mode === "learning" ? "Chat Sessions" : "Exam Sessions"}
+              </p>
+            )}
             {(() => {
-              // For exam mode, only show sessions where an exam was actually taken (more than just welcome message)
               const displayChats = mode === "exam" 
                 ? chats.filter(c => c.messages.length > 1)
                 : chats;
@@ -839,7 +869,6 @@ const AIChat = () => {
               <p className="text-sm text-muted-foreground text-center py-4">No {mode === "learning" ? "study" : "exam prep"} history yet</p>
             ) : (
               displayChats.map((chat) => {
-                // Extract score from exam results messages
                 const scoreMsg = mode === "exam" ? chat.messages.find(m => m.role === "assistant" && m.content.includes("Score:")) : null;
                 const scoreMatch = scoreMsg?.content.match(/Score:\s*(\d+)%/);
                 const score = scoreMatch ? parseInt(scoreMatch[1]) : null;
