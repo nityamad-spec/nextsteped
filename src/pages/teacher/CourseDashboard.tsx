@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { useTASettings } from "@/hooks/useTASettings";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, MessageSquare, Shield, BarChart3, Sparkles, Lightbulb } from "lucide-react";
+import { Users, MessageSquare, Shield, BarChart3, Lightbulb, AlertTriangle, BookOpen } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 import CourseCollaborators from "@/components/CourseCollaborators";
 
 /* ── Concept Exploration Map categories ── */
@@ -30,15 +33,29 @@ const insightsMock = [
 
 const CourseDashboard = () => {
   const { currentCourse } = useApp();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const courseId = useTeacherCourseId();
   const { taSettings } = useTASettings(courseId);
   const courseSections = currentCourse?.sections || [];
   const [selectedSection, setSelectedSection] = useState<string>("all");
+  const [lessonPlanPublished, setLessonPlanPublished] = useState<boolean | null>(null);
 
   // Semester progress (mock)
   const totalWeeks = 16;
   const currentWeek = 6;
   const progressPct = Math.round((currentWeek / totalWeeks) * 100);
+
+  useEffect(() => {
+    if (!user) return;
+    const checkPlan = async () => {
+      const { data } = await supabase.storage
+        .from("course-materials")
+        .download(`${user.id}/lesson-plan/published-plan.json?t=${Date.now()}`);
+      setLessonPlanPublished(!!data);
+    };
+    checkPlan();
+  }, [user]);
 
   return (
     <div className="p-6">
@@ -65,6 +82,28 @@ const CourseDashboard = () => {
           <p className="text-xs text-muted-foreground">All student data is anonymized to protect privacy and encourage authentic engagement with the Teaching Assistant.</p>
         </div>
       </div>
+
+      {/* Lesson Plan Not Published Banner */}
+      {lessonPlanPublished === false && (
+        <div className="mb-6 flex items-start gap-3 rounded-lg border-2 border-amber-500/30 bg-amber-500/10 px-5 py-4">
+          <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">Your lesson plan hasn't been published to students yet</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Students won't see the lesson plan until you publish it. You can continue editing, control which weeks are visible, and publish when you're ready — all from <strong>Lesson Plan & Resources</strong>.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3 gap-2"
+              onClick={() => navigate("/teacher/courses/content")}
+            >
+              <BookOpen className="h-4 w-4" />
+              Go to Lesson Plan & Resources
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Course Progress */}
       <Card className="mb-6">

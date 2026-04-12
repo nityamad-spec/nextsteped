@@ -5,12 +5,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { ArrowRight, ArrowLeft, Calendar, UserPlus, Upload, Copy, Info, Check } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowRight, ArrowLeft, UserPlus, Upload, Copy, Info, Check } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 
 const PublishEnrollment = () => {
@@ -20,9 +17,6 @@ const PublishEnrollment = () => {
   const courseSections = currentCourse?.sections || [];
   const hasMultipleSections = courseSections.length > 1;
 
-  const [publishSection, setPublishSection] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
   const [weeklyNudges, setWeeklyNudges] = useState(true);
   const [csvUploaded, setCsvUploaded] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState(false);
@@ -77,40 +71,9 @@ const PublishEnrollment = () => {
       <div className="mx-auto w-full max-w-4xl space-y-8">
         <SetupProgressBar currentStep={8} />
         <div>
-          <h1 className="font-heading text-3xl font-bold">Publish & Enroll Students</h1>
-          <p className="text-muted-foreground">Configure publish settings and add students to your course</p>
+          <h1 className="font-heading text-3xl font-bold">Student Enrollment</h1>
+          <p className="text-muted-foreground">Share your enrollment code or upload a student roster to get started</p>
         </div>
-
-        {/* Publish Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5" /> Publish Settings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-2">
-                <Label>Sections</Label>
-                <Select value={publishSection} onValueChange={setPublishSection}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Sections</SelectItem>
-                    {courseSections.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>End Date</Label>
-                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Student Enrollment */}
         <Card>
@@ -197,7 +160,7 @@ const PublishEnrollment = () => {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
           <Button onClick={handleFinish}>
-            Publish & Go to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
+            Go to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </div>
