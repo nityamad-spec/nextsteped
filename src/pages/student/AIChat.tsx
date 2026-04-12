@@ -766,6 +766,9 @@ const AIChat = () => {
           onClose={() => setShowPractice(false)}
           onSaveResult={handlePracticeResult}
           practiceHistory={practiceHistory}
+          courseContext={courseContext}
+          enrolledCourseId={enrolledCourseId}
+          studentId={user?.id || null}
         />
       </div>
     );
