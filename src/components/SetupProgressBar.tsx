@@ -8,7 +8,7 @@ const steps = [
   { label: "Diagnostic Qs", path: "/teacher/setup/diagnostic" },
   { label: "AI Assistant", path: "/teacher/setup/ai-settings" },
   { label: "Exam Mode", path: "/teacher/setup/exam-mode" },
-  { label: "Publish", path: "/teacher/setup/publish" },
+  { label: "Enrollment", path: "/teacher/setup/publish" },
 ];
 
 interface SetupProgressBarProps {
