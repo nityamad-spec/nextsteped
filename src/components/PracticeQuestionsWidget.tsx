@@ -1,19 +1,16 @@
 import { useState, useCallback } from "react";
-import { Question } from "@/data/questionBank";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  CheckCircle, XCircle, Trophy, Loader2, Sparkles, Send, ArrowLeft,
+  CheckCircle, XCircle, Trophy, Loader2, Sparkles, ArrowLeft,
   Lightbulb, BookOpen, X, History, ChevronDown, ChevronUp,
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 
 interface PracticeResult {
@@ -24,6 +21,7 @@ interface PracticeResult {
   correctAnswers: number;
   timestamp: number;
   topics: string[];
+  answers?: any[];
 }
 
 interface PracticeQuestionsWidgetProps {
@@ -36,9 +34,17 @@ interface PracticeQuestionsWidgetProps {
     timeSpent: number;
   }) => void;
   practiceHistory?: PracticeResult[];
+  courseContext?: {
+    courseName: string;
+    objectives: string[];
+    concepts: string[];
+    teacherId: string;
+  } | null;
+  enrolledCourseId?: string | null;
+  studentId?: string | null;
 }
 
-type Phase = "prompt" | "loading" | "active" | "review";
+type Phase = "prompt" | "loading" | "active" | "review" | "review-history";
 
 interface GeneratedQuestion {
   id: string;
@@ -50,7 +56,7 @@ interface GeneratedQuestion {
   topic: string;
 }
 
-const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [] }: PracticeQuestionsWidgetProps) => {
+const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], courseContext, enrolledCourseId, studentId }: PracticeQuestionsWidgetProps) => {
   const [phase, setPhase] = useState<Phase>("prompt");
   const [prompt, setPrompt] = useState("");
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
@@ -60,6 +66,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [] }
   const [results, setResults] = useState<{ score: number; correct: number; total: number } | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [startTime] = useState(Date.now());
+  const [reviewingSession, setReviewingSession] = useState<PracticeResult | null>(null);
 
   const generateQuestions = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -67,16 +74,22 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [] }
 
     try {
       const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
-      const systemPrompt = `You are a practice question generator. Generate practice questions based on the student's request. 
+      const systemPrompt = `You are a practice question generator for a university course. Generate practice questions based on the student's request.
+
+IMPORTANT RULES:
+- If the student doesn't specify a number of questions, generate exactly 5.
+- If the student doesn't specify topics/concepts, generate questions based on the course material they've covered so far (use the course context provided).
+- If the student mentions weak points or areas they struggle with, focus on those topics.
+- Mix question types naturally (MCQ, True/False, Short Answer) unless the student specifies otherwise.
+- Make questions progressively challenging.
+
 Return ONLY a JSON array (no markdown fencing, no extra text) of question objects. Each object must have:
 - "question": the question text
 - "type": one of "mcq", "true_false", or "short_answer"
 - "options": array of 4 strings (required for mcq, omit for others)
 - "answer": the correct answer (for mcq, must match one option exactly; for true_false, must be "True" or "False")
 - "explanation": a clear explanation of why the answer is correct
-- "topic": the topic area
-
-Generate 5 questions by default unless the student specifies a different number. Mix question types naturally.`;
+- "topic": the topic area`;
 
       const resp = await fetch(CHAT_URL, {
         method: "POST",
@@ -88,6 +101,9 @@ Generate 5 questions by default unless the student specifies a different number.
           messages: [{ role: "user", content: prompt }],
           mode: "learning",
           studySystemPrompt: systemPrompt,
+          courseId: enrolledCourseId || undefined,
+          teacherId: courseContext?.teacherId || undefined,
+          studentId: studentId || undefined,
         }),
       });
 
@@ -131,14 +147,12 @@ Generate 5 questions by default unless the student specifies a different number.
       // Parse the JSON from the response
       let parsed: GeneratedQuestion[];
       try {
-        // Strip markdown fencing if present
         let cleaned = fullContent.trim();
         if (cleaned.startsWith("```")) {
           cleaned = cleaned.replace(/^```[a-z]*\n?/i, "").replace(/\n?```\s*$/, "");
         }
         parsed = JSON.parse(cleaned);
       } catch {
-        // Try to find JSON array in the content
         const match = fullContent.match(/\[[\s\S]*\]/);
         if (match) {
           parsed = JSON.parse(match[0]);
@@ -149,7 +163,6 @@ Generate 5 questions by default unless the student specifies a different number.
         }
       }
 
-      // Add IDs
       const withIds = parsed.map((q, i) => ({ ...q, id: `pq-${Date.now()}-${i}` }));
       setQuestions(withIds);
       setCurrentIndex(0);
@@ -162,14 +175,14 @@ Generate 5 questions by default unless the student specifies a different number.
       toast.error("Something went wrong. Please try again.");
       setPhase("prompt");
     }
-  }, [prompt]);
+  }, [prompt, enrolledCourseId, courseContext, studentId]);
 
   const currentQuestion = questions[currentIndex];
   const isAnswered = currentQuestion ? !!answers[currentQuestion.id] : false;
   const isRevealed = currentQuestion ? revealed.has(currentQuestion.id) : false;
 
   const handleAnswer = (questionId: string, answer: string) => {
-    if (revealed.has(questionId)) return; // Can't change after reveal
+    if (revealed.has(questionId)) return;
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
   };
 
@@ -182,7 +195,6 @@ Generate 5 questions by default unless the student specifies a different number.
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
     } else {
-      // Finish — calculate results
       let correct = 0;
       const answerDetails = questions.map(q => {
         const userAnswer = answers[q.id] || "";
@@ -227,6 +239,93 @@ Generate 5 questions by default unless the student specifies a different number.
     return userAnswer === q.answer;
   };
 
+  // Review a past session from history
+  if (phase === "review-history" && reviewingSession) {
+    const sessionAnswers = reviewingSession.answers || [];
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div className="flex items-center gap-2">
+            <button onClick={() => { setPhase("prompt"); setReviewingSession(null); setShowHistory(true); }}>
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <h2 className="font-semibold text-sm">Practice Review</h2>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <ScrollArea className="flex-1 p-4">
+          <div className="max-w-lg mx-auto space-y-4">
+            <Card>
+              <CardContent className="p-5 space-y-3">
+                <p className="text-sm font-medium truncate">{reviewingSession.prompt}</p>
+                <div className="grid grid-cols-2 gap-4 text-center">
+                  <div className="rounded-lg bg-muted p-3">
+                    <p className={`text-2xl font-bold ${reviewingSession.score >= 60 ? "text-primary" : "text-destructive"}`}>{reviewingSession.score}%</p>
+                    <p className="text-xs text-muted-foreground">Score</p>
+                  </div>
+                  <div className="rounded-lg bg-muted p-3">
+                    <p className="text-2xl font-bold">{reviewingSession.correctAnswers}/{reviewingSession.totalQuestions}</p>
+                    <p className="text-xs text-muted-foreground">Correct</p>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  {new Date(reviewingSession.timestamp).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+                </p>
+              </CardContent>
+            </Card>
+
+            {sessionAnswers.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold">Question Review</h3>
+                {sessionAnswers.map((a: any, i: number) => (
+                  <Card key={i} className={`border ${a.is_correct ? "border-primary/30" : "border-destructive/30"}`}>
+                    <CardContent className="p-4 space-y-2">
+                      <div className="flex items-start gap-2">
+                        {a.is_correct
+                          ? <CheckCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                          : <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                        }
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium whitespace-pre-wrap">Q{i + 1}: {a.question_text}</p>
+                          <div className="mt-1 space-y-0.5 text-xs">
+                            <p>
+                              <span className="text-muted-foreground">Your answer: </span>
+                              <span className={a.is_correct ? "text-primary font-medium" : "text-destructive font-medium"}>
+                                {a.selected || "Not answered"}
+                              </span>
+                            </p>
+                            {!a.is_correct && (
+                              <p>
+                                <span className="text-muted-foreground">Correct: </span>
+                                <span className="text-primary font-medium">{a.correct}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {a.topic && <Badge variant="outline" className="text-[10px] shrink-0">{a.topic}</Badge>}
+                      </div>
+                      {a.explanation && (
+                        <div className="rounded-lg bg-muted/50 p-3 ml-6">
+                          <div className="flex items-start gap-2 mb-1">
+                            <Lightbulb className="h-3 w-3 text-primary mt-0.5 shrink-0" />
+                            <span className="text-[10px] font-semibold text-primary">Explanation</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{a.explanation}</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
+    );
+  }
+
   // Prompt phase
   if (phase === "prompt") {
     return (
@@ -253,23 +352,29 @@ Generate 5 questions by default unless the student specifies a different number.
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground">Past Practice Sessions</h3>
               {practiceHistory.map(h => (
-                <Card key={h.id} className="border">
-                  <CardContent className="p-3 space-y-1.5">
-                    <p className="text-sm font-medium truncate">{h.prompt}</p>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className={`font-semibold ${h.score >= 70 ? "text-primary" : "text-destructive"}`}>{h.score}%</span>
-                      <span>{h.correctAnswers}/{h.totalQuestions} correct</span>
-                      <span>{new Date(h.timestamp).toLocaleDateString()}</span>
-                    </div>
-                    {h.topics.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {h.topics.slice(0, 3).map(t => (
-                          <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>
-                        ))}
+                <button
+                  key={h.id}
+                  onClick={() => { setReviewingSession(h); setPhase("review-history"); }}
+                  className="w-full text-left"
+                >
+                  <Card className="border hover:border-primary/30 transition-colors cursor-pointer">
+                    <CardContent className="p-3 space-y-1.5">
+                      <p className="text-sm font-medium truncate">{h.prompt}</p>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className={`font-semibold ${h.score >= 70 ? "text-primary" : "text-destructive"}`}>{h.score}%</span>
+                        <span>{h.correctAnswers}/{h.totalQuestions} correct</span>
+                        <span>{new Date(h.timestamp).toLocaleDateString()}</span>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
+                      {h.topics.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {h.topics.slice(0, 3).map(t => (
+                            <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </button>
               ))}
             </div>
           </ScrollArea>
@@ -282,31 +387,20 @@ Generate 5 questions by default unless the student specifies a different number.
               <div>
                 <h3 className="text-lg font-semibold">What would you like to practice?</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Describe the topics or concepts you want to be tested on. You can also mention how many questions you'd like.
+                  Tell us what you want to be tested on. If you don't specify, we'll generate questions based on where you are in the course.
                 </p>
               </div>
               <div className="space-y-3 text-left">
                 <Textarea
                   value={prompt}
                   onChange={e => setPrompt(e.target.value)}
-                  placeholder='e.g. "5 questions on loops and conditionals" or "test me on list comprehensions and dictionary methods"'
+                  placeholder='e.g. "Test me on what I\'ve learned so far" or "I need help with loops — give me 10 questions" or "Quiz me on my weak areas"'
                   className="min-h-[100px] resize-none"
                   onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && prompt.trim()) { e.preventDefault(); generateQuestions(); } }}
                 />
                 <Button onClick={generateQuestions} disabled={!prompt.trim()} className="w-full gap-2">
                   <Sparkles className="h-4 w-4" /> Generate Practice Questions
                 </Button>
-              </div>
-              <div className="flex flex-wrap justify-center gap-2">
-                {["Loops & conditionals", "Functions & scope", "Lists & dictionaries", "OOP basics"].map(suggestion => (
-                  <button
-                    key={suggestion}
-                    onClick={() => setPrompt(`Give me practice questions on ${suggestion.toLowerCase()}`)}
-                    className="rounded-full border px-3 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
               </div>
             </div>
           </div>
@@ -450,7 +544,6 @@ Generate 5 questions by default unless the student specifies a different number.
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="border-b px-4 py-3">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -469,7 +562,6 @@ Generate 5 questions by default unless the student specifies a different number.
         <Progress value={((currentIndex + (isRevealed ? 1 : 0)) / questions.length) * 100} className="h-1.5" />
       </div>
 
-      {/* Question */}
       <ScrollArea className="flex-1 p-4">
         <div className="max-w-lg mx-auto space-y-4">
           <div className="flex items-center gap-2 mb-1">
@@ -481,7 +573,6 @@ Generate 5 questions by default unless the student specifies a different number.
             {currentQuestion.question}
           </p>
 
-          {/* MCQ */}
           {currentQuestion.type === "mcq" && currentQuestion.options && (
             <RadioGroup
               value={answers[currentQuestion.id] || ""}
@@ -513,7 +604,6 @@ Generate 5 questions by default unless the student specifies a different number.
             </RadioGroup>
           )}
 
-          {/* True/False */}
           {currentQuestion.type === "true_false" && (
             <div className="flex gap-3">
               {["True", "False"].map(opt => {
@@ -541,7 +631,6 @@ Generate 5 questions by default unless the student specifies a different number.
             </div>
           )}
 
-          {/* Short Answer */}
           {currentQuestion.type === "short_answer" && (
             <Textarea
               placeholder="Type your answer here…"
@@ -552,7 +641,6 @@ Generate 5 questions by default unless the student specifies a different number.
             />
           )}
 
-          {/* Reveal / Feedback */}
           {isAnswered && !isRevealed && (
             <Button onClick={handleReveal} className="w-full gap-2">
               <CheckCircle className="h-4 w-4" /> Check Answer
