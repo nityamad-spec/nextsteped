@@ -165,6 +165,7 @@ const CourseDashboard = () => {
                 <div className="h-3 w-3 rounded bg-muted" />
                 <span className="text-xs text-muted-foreground">Not Explored</span>
               </div>
+              <span className="ml-auto text-[10px] italic text-muted-foreground">Hover over the dark bar to see mastery</span>
             </div>
 
             {conceptMasteryMock.map((c) => {
