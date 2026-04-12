@@ -208,7 +208,7 @@ const ConceptManagement = () => {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
         <div className="w-full max-w-3xl">
-          <SetupProgressBar currentStep={4} />
+          <SetupProgressBar currentStep={3} />
           <p className="text-center text-muted-foreground">No course found. Please complete previous steps first.</p>
           <div className="mt-4 flex justify-center">
             <Button variant="outline" onClick={() => navigate("/teacher/onboarding")}>
@@ -223,7 +223,7 @@ const ConceptManagement = () => {
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto w-full max-w-3xl space-y-6">
-        <SetupProgressBar currentStep={4} />
+        <SetupProgressBar currentStep={3} />
 
         <div className="text-center">
           <h1 className="font-heading text-3xl font-bold">

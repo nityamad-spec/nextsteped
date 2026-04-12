@@ -101,7 +101,7 @@ const ExamMode = () => {
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto w-full max-w-3xl">
-        <SetupProgressBar currentStep={7} />
+        <SetupProgressBar currentStep={8} />
         <div className="mb-8 text-center">
           <h1 className="font-heading text-3xl font-bold">Exam <span className="text-primary">Mode</span></h1>
           <p className="text-muted-foreground">Configure exam simulation rules for your students</p>
