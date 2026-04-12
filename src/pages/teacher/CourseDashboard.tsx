@@ -40,6 +40,7 @@ const CourseDashboard = () => {
   const courseSections = currentCourse?.sections || [];
   const [selectedSection, setSelectedSection] = useState<string>("all");
   const [lessonPlanPublished, setLessonPlanPublished] = useState<boolean | null>(null);
+  const [hoveredConcept, setHoveredConcept] = useState<string | null>(null);
 
   // Semester progress (mock)
   const totalWeeks = 16;
