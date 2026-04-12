@@ -838,20 +838,30 @@ const AIChat = () => {
               return displayChats.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No {mode === "learning" ? "study" : "exam prep"} history yet</p>
             ) : (
-              displayChats.map((chat) => (
-                <button
-                  key={chat.id}
-                  onClick={() => { setActiveChatId(chat.id); setShowHistory(false); setAssessmentActive(false); }}
-                  className={`w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
-                    chat.id === activeChatId ? "bg-sidebar-accent font-medium" : "hover:bg-sidebar-accent/50"
-                  }`}
-                >
-                  <p className="truncate">{chat.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {chat.messages.length} messages · {new Date(chat.updatedAt).toLocaleDateString()}
-                  </p>
-                </button>
-              ))
+              displayChats.map((chat) => {
+                // Extract score from exam results messages
+                const scoreMsg = mode === "exam" ? chat.messages.find(m => m.role === "assistant" && m.content.includes("Score:")) : null;
+                const scoreMatch = scoreMsg?.content.match(/Score:\s*(\d+)%/);
+                const score = scoreMatch ? parseInt(scoreMatch[1]) : null;
+
+                return (
+                  <button
+                    key={chat.id}
+                    onClick={() => { setActiveChatId(chat.id); setShowHistory(false); setAssessmentActive(false); }}
+                    className={`w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
+                      chat.id === activeChatId ? "bg-sidebar-accent font-medium" : "hover:bg-sidebar-accent/50"
+                    }`}
+                  >
+                    <p className="truncate">{chat.title}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                      {score !== null && (
+                        <span className={`font-semibold ${score >= 60 ? "text-primary" : "text-destructive"}`}>{score}%</span>
+                      )}
+                      <span>{new Date(chat.updatedAt).toLocaleDateString()}</span>
+                    </div>
+                  </button>
+                );
+              })
             );
             })()}
           </div>
