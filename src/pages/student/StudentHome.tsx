@@ -15,7 +15,7 @@ import { Progress } from "@/components/ui/progress";
 import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, ChevronDown, ChevronUp, Lock, Check, Sparkles } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { workshopPlan as defaultPlan } from "@/data/workshopPlan";
+
 
 /* ── Concept mastery data (mock — will be wired to real chat data later) ── */
 const conceptMasteryData = [
