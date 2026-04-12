@@ -880,7 +880,7 @@ const AIChat = () => {
           {mode === "learning" && (
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowPractice(true)}>
-                <Dumbbell className="h-4 w-4" /> Practice
+                <Dumbbell className="h-4 w-4" /> Practice Questions
               </Button>
               <Button variant="outline" size="sm" className="h-9 text-sm" onClick={createNewChat}>
                 <Plus className="mr-2 h-4 w-4" /> New Chat
