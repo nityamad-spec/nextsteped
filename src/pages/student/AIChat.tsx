@@ -184,25 +184,7 @@ const AIChat = () => {
         time_spent: result.timeSpent,
       });
       // Refresh history
-      const { data } = await supabase
-        .from("assessment_results")
-        .select("*")
-        .eq("student_id", user.id)
-        .eq("mode", "practice")
-        .eq("course_id", enrolledCourseId)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (data) {
-        setPracticeHistory(data.map(r => ({
-          id: r.id,
-          prompt: "Practice session",
-          score: r.score,
-          totalQuestions: r.total_questions,
-          correctAnswers: r.correct_answers,
-          timestamp: new Date(r.created_at).getTime(),
-          topics: Array.isArray(r.answers) ? [...new Set((r.answers as any[]).map((a: any) => a.topic).filter(Boolean))] : [],
-        })));
-      }
+      await loadPracticeHistory();
     } catch (e) {
       console.error("Failed to save practice result:", e);
     }
