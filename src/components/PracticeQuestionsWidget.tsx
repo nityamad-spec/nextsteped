@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
@@ -42,6 +42,7 @@ interface PracticeQuestionsWidgetProps {
   } | null;
   enrolledCourseId?: string | null;
   studentId?: string | null;
+  initialReviewSessionId?: string | null;
 }
 
 type Phase = "prompt" | "loading" | "active" | "review" | "review-history";
@@ -56,7 +57,7 @@ interface GeneratedQuestion {
   topic: string;
 }
 
-const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], courseContext, enrolledCourseId, studentId }: PracticeQuestionsWidgetProps) => {
+const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], courseContext, enrolledCourseId, studentId, initialReviewSessionId = null }: PracticeQuestionsWidgetProps) => {
   const [phase, setPhase] = useState<Phase>("prompt");
   const [prompt, setPrompt] = useState("");
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
@@ -67,6 +68,16 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   const [showHistory, setShowHistory] = useState(false);
   const [startTime] = useState(Date.now());
   const [reviewingSession, setReviewingSession] = useState<PracticeResult | null>(null);
+
+  useEffect(() => {
+    if (!initialReviewSessionId) return;
+    const session = practiceHistory.find((item) => item.id === initialReviewSessionId);
+    if (!session) return;
+
+    setReviewingSession(session);
+    setShowHistory(true);
+    setPhase("review-history");
+  }, [initialReviewSessionId, practiceHistory]);
 
   const generateQuestions = useCallback(async () => {
     if (!prompt.trim()) return;

@@ -71,6 +71,7 @@ const AIChat = () => {
   const [assessmentQuestions, setAssessmentQuestions] = useState<Question[]>([]);
   const [assessmentDay, setAssessmentDay] = useState(1);
   const [customExamTimeLimit, setCustomExamTimeLimit] = useState<number | null>(null);
+  const [currentAssessmentSessionId, setCurrentAssessmentSessionId] = useState<string | null>(null);
 
   // Weekly quiz popup state
   const [showWeeklyQuizPrompt, setShowWeeklyQuizPrompt] = useState(false);
@@ -79,6 +80,7 @@ const AIChat = () => {
   // Practice questions widget state
   const [showPractice, setShowPractice] = useState(false);
   const [practiceHistory, setPracticeHistory] = useState<any[]>([]);
+  const [selectedPracticeHistoryId, setSelectedPracticeHistoryId] = useState<string | null>(null);
 
   const {
     sessions: chats,
@@ -183,6 +185,41 @@ const AIChat = () => {
         answers: result.answers as any,
         time_spent: result.timeSpent,
       });
+
+      if (activeChat) {
+        const weakTopics = [...new Set(result.answers.filter((answer: any) => !answer.is_correct).map((answer: any) => answer.topic).filter(Boolean))];
+        const reviewLines = result.answers.flatMap((answer: any, index: number) => {
+          const lines = [
+            `${index + 1}. **${answer.question_text}**`,
+            `   - Your answer: ${answer.selected || "Not answered"}`,
+            `   - Correct answer: ${answer.correct}`,
+          ];
+
+          if (answer.explanation) {
+            lines.push(`   - Why: ${answer.explanation}`);
+          }
+
+          return lines;
+        });
+
+        const practiceSummary = [
+          "✅ **Practice Questions Complete!**",
+          "",
+          `Score: **${result.score}%** (${result.correctAnswers}/${result.totalQuestions}) · Time: **${Math.floor(result.timeSpent / 60)}m ${result.timeSpent % 60}s**`,
+          weakTopics.length > 0 ? `Focus next on: **${weakTopics.join(", ")}**` : "Great work — you answered all of these correctly.",
+          "",
+          "### Question Review",
+          ...reviewLines,
+        ].join("\n");
+
+        await addMessage(activeChat.id, "assistant", practiceSummary);
+
+        if (activeChat.messages.every((message) => message.role !== "user") && activeChat.title === "New Study Session") {
+          const practiceDate = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
+          await updateSessionTitle(activeChat.id, `Practice Questions — ${practiceDate}`);
+        }
+      }
+
       // Refresh history
       await loadPracticeHistory();
     } catch (e) {
@@ -370,7 +407,8 @@ const AIChat = () => {
     const examDate = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
     const examNumber = chats.filter(c => c.title.startsWith("Exam Practice")).length + 1;
     const sessionTitle = `Exam Practice ${examNumber} — ${examDate}`;
-    await createSession(sessionTitle, WELCOME_EXAM, "exam");
+    const sessionId = await createSession(sessionTitle, WELCOME_EXAM, "exam");
+    setCurrentAssessmentSessionId(sessionId || activeChatId);
 
     const visibleTopics = await fetchVisibleTopics();
     const count = custom.questionCount;
@@ -424,6 +462,7 @@ const AIChat = () => {
 
   const handleAssessmentEnd = () => {
     setAssessmentActive(false);
+    setCurrentAssessmentSessionId(null);
     navigate("/student/home");
   };
 
@@ -433,18 +472,34 @@ const AIChat = () => {
     const topicsList = topics.join(", ");
     const welcome = `I noticed you need more practice with **${topicsList}**. Let's work through these concepts together! Which topic would you like to start with?`;
     const title = `Study: ${topicsList.slice(0, 40)}`;
-    await createSession(title, welcome);
+    await createSession(title, welcome, "learning");
     // Pre-send a study prompt
     setInput(`Help me understand these topics better: ${topicsList}. Start with the one I'm weakest on and explain it with examples.`);
   };
 
   const handleAssessmentSubmit = async (results: AssessmentResults) => {
+    const targetSessionId = currentAssessmentSessionId || activeChat?.id;
+
     // Log results to chat session for record
-    if (activeChat) {
-      const summary = assessmentType === "quiz"
-        ? `✅ **Daily Quiz Complete!** Score: ${results.score}% (${results.correctAnswers}/${results.totalQuestions})`
-        : `✅ **Exam Complete!** Score: ${results.score}% (${results.correctAnswers}/${results.totalQuestions})`;
-      await addMessage(activeChat.id, "assistant", summary);
+    if (targetSessionId) {
+      const weakTopics = [...new Set(results.answers.filter((answer) => !answer.is_correct).map((answer) => answer.topic).filter(Boolean))];
+      const reviewLines = results.answers.flatMap((answer, index) => [
+        `${index + 1}. **${answer.question_text}**`,
+        `   - Your answer: ${answer.selected || "Not answered"}`,
+        `   - Correct answer: ${answer.correct}`,
+      ]);
+
+      const summary = [
+        assessmentType === "quiz" ? "✅ **Daily Quiz Complete!**" : "✅ **Exam Practice Complete!**",
+        "",
+        `Score: **${results.score}%** (${results.correctAnswers}/${results.totalQuestions}) · Time: **${Math.floor(results.timeSpent / 60)}m ${results.timeSpent % 60}s**`,
+        weakTopics.length > 0 ? `Topics to strengthen in Study mode: **${weakTopics.join(", ")}**` : "Strong work across this attempt.",
+        "",
+        "### Question Review",
+        ...reviewLines,
+      ].join("\n");
+
+      await addMessage(targetSessionId, "assistant", summary);
     }
 
     // Persist structured results to database
@@ -464,6 +519,8 @@ const AIChat = () => {
         console.error("Failed to save assessment results:", error);
       }
     }
+
+    setCurrentAssessmentSessionId(null);
   };
 
   const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 3): Promise<Response> => {
@@ -673,6 +730,8 @@ const AIChat = () => {
     }
   };
 
+  const hasMeaningfulHistory = (chat: typeof chats[number]) => chat.messages.length > 1 || chat.messages.some((message) => message.role === "user");
+
   const formatTimestamp = (ts?: number) => {
     if (!ts) return "";
     const d = new Date(ts);
@@ -763,12 +822,16 @@ const AIChat = () => {
     return (
       <div className="flex h-[calc(100vh-57px)] md:h-screen flex-col">
         <PracticeQuestionsWidget
-          onClose={() => setShowPractice(false)}
+          onClose={() => {
+            setShowPractice(false);
+            setSelectedPracticeHistoryId(null);
+          }}
           onSaveResult={handlePracticeResult}
           practiceHistory={practiceHistory}
           courseContext={courseContext}
           enrolledCourseId={enrolledCourseId}
           studentId={user?.id || null}
+          initialReviewSessionId={selectedPracticeHistoryId}
         />
       </div>
     );
@@ -837,7 +900,11 @@ const AIChat = () => {
               {practiceHistory.slice(0, 10).map(h => (
                 <button
                   key={h.id}
-                  onClick={() => { setShowPractice(true); setShowHistory(false); }}
+                  onClick={() => {
+                    setSelectedPracticeHistoryId(h.id);
+                    setShowPractice(true);
+                    setShowHistory(false);
+                  }}
                   className="w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-sidebar-accent/50"
                 >
                   <div className="flex items-center gap-2">
@@ -857,8 +924,7 @@ const AIChat = () => {
           {/* Chat Sessions */}
           <div className="space-y-1 mt-3">
             {(() => {
-              // Only show sessions where the student actually sent a message
-              const displayChats = chats.filter(c => c.messages.some(m => m.role === "user"));
+              const displayChats = chats.filter(hasMeaningfulHistory);
               
               if (mode === "learning" && (practiceHistory.length > 0 || displayChats.length > 0)) {
                 return (
@@ -891,7 +957,6 @@ const AIChat = () => {
               }
 
               if (mode === "exam") {
-                // Exam mode: only show sessions with actual interaction
                 const examChats = displayChats;
                 return examChats.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">No exam prep history yet</p>
@@ -1079,7 +1144,7 @@ const AIChat = () => {
         <div className="border-t p-4">
           <div className="flex gap-2">
             <Input
-              placeholder={mode === "learning" ? "Ask your Teaching Assistant anything..." : "Ask about exam topics or start a simulation..."}
+              placeholder={mode === "learning" ? "Ask your Teaching Assistant anything..." : "Exam Prep chat is off here — use the controls above to run a practice exam."}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}

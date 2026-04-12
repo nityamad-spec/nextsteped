@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { History, Trophy, Clock, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus, Loader2, CheckCircle, XCircle, Lightbulb, BarChart3, BookOpen, Brain, ArrowRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -224,8 +223,7 @@ const ExamHistory = ({ courseId }: ExamHistoryProps) => {
       {/* Attempt list */}
       <div>
         <p className="text-xs font-semibold text-muted-foreground mb-2">All Attempts</p>
-        <ScrollArea className="max-h-[350px]">
-          <div className="space-y-2">
+        <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-2">
             {attempts.map((attempt, i) => {
               const isExpanded = expandedAttempt === attempt.id;
               const trend = getTrend(i);
@@ -342,8 +340,7 @@ const ExamHistory = ({ courseId }: ExamHistoryProps) => {
                 </Card>
               );
             })}
-          </div>
-        </ScrollArea>
+        </div>
       </div>
     </div>
   );
