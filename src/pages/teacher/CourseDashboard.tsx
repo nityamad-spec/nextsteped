@@ -182,13 +182,20 @@ const CourseDashboard = () => {
                       <span>{c.notExplored} unexplored</span>
                     </div>
                   </div>
-                  <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
-                    <div className="bg-primary transition-all" style={{ width: `${deepPct}%` }} />
+                  <div
+                    className="flex h-3 w-full overflow-hidden rounded-full bg-muted"
+                  >
+                    <div
+                      className="bg-primary transition-all cursor-pointer relative"
+                      style={{ width: `${deepPct}%` }}
+                      onMouseEnter={() => setHoveredConcept(c.concept)}
+                      onMouseLeave={() => setHoveredConcept(null)}
+                    />
                     <div className="bg-primary/40 transition-all" style={{ width: `${touchedPct}%` }} />
                   </div>
-                  {/* Mastery understanding for deeply explored students */}
-                  {c.deeplyExplored > 0 && (
-                    <div className="flex items-center gap-2 ml-1">
+                  {/* Mastery tooltip — only on hover */}
+                  {hoveredConcept === c.concept && c.deeplyExplored > 0 && (
+                    <div className="flex items-center gap-2 ml-1 animate-in fade-in duration-200">
                       <div className="flex items-center gap-1.5">
                         <div className="h-1.5 w-16 rounded-full bg-muted overflow-hidden">
                           <div
