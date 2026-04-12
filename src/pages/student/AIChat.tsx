@@ -136,31 +136,39 @@ const AIChat = () => {
     determineWeek();
   }, [enrolledCourseId, mode]);
   // Load practice history
-  useEffect(() => {
+  const loadPracticeHistory = useCallback(async () => {
     if (!user || !enrolledCourseId) return;
-    const loadHistory = async () => {
-      const { data } = await supabase
-        .from("assessment_results")
-        .select("*")
-        .eq("student_id", user.id)
-        .eq("mode", "practice")
-        .eq("course_id", enrolledCourseId)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (data) {
-        setPracticeHistory(data.map(r => ({
+    const { data } = await supabase
+      .from("assessment_results")
+      .select("*")
+      .eq("student_id", user.id)
+      .eq("mode", "practice")
+      .eq("course_id", enrolledCourseId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (data) {
+      setPracticeHistory(data.map(r => {
+        const answersArr = Array.isArray(r.answers) ? (r.answers as any[]) : [];
+        const topics = [...new Set(answersArr.map((a: any) => a.topic).filter(Boolean))];
+        // Try to extract prompt from first answer's metadata or use topic summary
+        const promptText = topics.length > 0 ? `Practice: ${topics.join(", ")}` : "Practice session";
+        return {
           id: r.id,
-          prompt: "Practice session",
+          prompt: promptText,
           score: r.score,
           totalQuestions: r.total_questions,
           correctAnswers: r.correct_answers,
           timestamp: new Date(r.created_at).getTime(),
-          topics: Array.isArray(r.answers) ? [...new Set((r.answers as any[]).map((a: any) => a.topic).filter(Boolean))] : [],
-        })));
-      }
-    };
-    loadHistory();
+          topics,
+          answers: answersArr,
+        };
+      }));
+    }
   }, [user, enrolledCourseId]);
+
+  useEffect(() => {
+    loadPracticeHistory();
+  }, [loadPracticeHistory]);
 
   const handlePracticeResult = async (result: { score: number; totalQuestions: number; correctAnswers: number; answers: any[]; timeSpent: number }) => {
     if (!user || !enrolledCourseId) return;
@@ -176,25 +184,7 @@ const AIChat = () => {
         time_spent: result.timeSpent,
       });
       // Refresh history
-      const { data } = await supabase
-        .from("assessment_results")
-        .select("*")
-        .eq("student_id", user.id)
-        .eq("mode", "practice")
-        .eq("course_id", enrolledCourseId)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (data) {
-        setPracticeHistory(data.map(r => ({
-          id: r.id,
-          prompt: "Practice session",
-          score: r.score,
-          totalQuestions: r.total_questions,
-          correctAnswers: r.correct_answers,
-          timestamp: new Date(r.created_at).getTime(),
-          topics: Array.isArray(r.answers) ? [...new Set((r.answers as any[]).map((a: any) => a.topic).filter(Boolean))] : [],
-        })));
-      }
+      await loadPracticeHistory();
     } catch (e) {
       console.error("Failed to save practice result:", e);
     }
@@ -776,6 +766,9 @@ const AIChat = () => {
           onClose={() => setShowPractice(false)}
           onSaveResult={handlePracticeResult}
           practiceHistory={practiceHistory}
+          courseContext={courseContext}
+          enrolledCourseId={enrolledCourseId}
+          studentId={user?.id || null}
         />
       </div>
     );
@@ -845,20 +838,30 @@ const AIChat = () => {
               return displayChats.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No {mode === "learning" ? "study" : "exam prep"} history yet</p>
             ) : (
-              displayChats.map((chat) => (
-                <button
-                  key={chat.id}
-                  onClick={() => { setActiveChatId(chat.id); setShowHistory(false); setAssessmentActive(false); }}
-                  className={`w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
-                    chat.id === activeChatId ? "bg-sidebar-accent font-medium" : "hover:bg-sidebar-accent/50"
-                  }`}
-                >
-                  <p className="truncate">{chat.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {chat.messages.length} messages · {new Date(chat.updatedAt).toLocaleDateString()}
-                  </p>
-                </button>
-              ))
+              displayChats.map((chat) => {
+                // Extract score from exam results messages
+                const scoreMsg = mode === "exam" ? chat.messages.find(m => m.role === "assistant" && m.content.includes("Score:")) : null;
+                const scoreMatch = scoreMsg?.content.match(/Score:\s*(\d+)%/);
+                const score = scoreMatch ? parseInt(scoreMatch[1]) : null;
+
+                return (
+                  <button
+                    key={chat.id}
+                    onClick={() => { setActiveChatId(chat.id); setShowHistory(false); setAssessmentActive(false); }}
+                    className={`w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
+                      chat.id === activeChatId ? "bg-sidebar-accent font-medium" : "hover:bg-sidebar-accent/50"
+                    }`}
+                  >
+                    <p className="truncate">{chat.title}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                      {score !== null && (
+                        <span className={`font-semibold ${score >= 60 ? "text-primary" : "text-destructive"}`}>{score}%</span>
+                      )}
+                      <span>{new Date(chat.updatedAt).toLocaleDateString()}</span>
+                    </div>
+                  </button>
+                );
+              })
             );
             })()}
           </div>
@@ -887,7 +890,7 @@ const AIChat = () => {
           {mode === "learning" && (
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowPractice(true)}>
-                <Dumbbell className="h-4 w-4" /> Practice
+                <Dumbbell className="h-4 w-4" /> Practice Questions
               </Button>
               <Button variant="outline" size="sm" className="h-9 text-sm" onClick={createNewChat}>
                 <Plus className="mr-2 h-4 w-4" /> New Chat
