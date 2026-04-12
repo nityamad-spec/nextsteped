@@ -41,6 +41,7 @@ const CourseDashboard = () => {
   const [selectedSection, setSelectedSection] = useState<string>("all");
   const [lessonPlanPublished, setLessonPlanPublished] = useState<boolean | null>(null);
   const [hoveredConcept, setHoveredConcept] = useState<string | null>(null);
+  const [expandedConcept, setExpandedConcept] = useState<string | null>(null);
 
   // Semester progress (mock)
   const totalWeeks = 16;
@@ -165,39 +166,51 @@ const CourseDashboard = () => {
                 <div className="h-3 w-3 rounded bg-muted" />
                 <span className="text-xs text-muted-foreground">Not Explored</span>
               </div>
-              <span className="ml-auto text-[10px] italic text-muted-foreground">Hover over the dark bar to see mastery</span>
+              <div className="ml-auto flex items-center gap-1.5">
+                <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                <div className="h-2.5 w-2.5 rounded-full bg-destructive" />
+                <span className="text-[10px] text-muted-foreground">Mastery level — click a row for details</span>
+              </div>
             </div>
 
             {conceptMasteryMock.map((c) => {
               const total = c.touched + c.deeplyExplored + c.notExplored;
               const touchedPct = Math.round((c.touched / total) * 100);
               const deepPct = Math.round((c.deeplyExplored / total) * 100);
+              const isExpanded = expandedConcept === c.concept;
+              const dotColor = c.deeplyExplored === 0
+                ? "bg-muted-foreground/30"
+                : c.masteryPct >= 70
+                  ? "bg-emerald-500"
+                  : c.masteryPct >= 50
+                    ? "bg-amber-500"
+                    : "bg-destructive";
               return (
-                <div key={c.concept} className="space-y-1.5">
+                <div
+                  key={c.concept}
+                  className="space-y-1.5 rounded-lg px-3 py-2 cursor-pointer transition-colors hover:bg-muted/40"
+                  onClick={() => setExpandedConcept(isExpanded ? null : c.concept)}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{c.concept}</span>
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2.5 w-2.5 rounded-full ${dotColor} shrink-0`} />
+                      <span className="text-sm font-medium">{c.concept}</span>
+                    </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span>{c.deeplyExplored} deep</span>
                       <span>{c.touched} touched</span>
                       <span>{c.notExplored} unexplored</span>
                     </div>
                   </div>
-                  <div
-                    className="flex h-3 w-full overflow-hidden rounded-full bg-muted"
-                  >
-                    <div
-                      className="bg-primary transition-all cursor-pointer relative"
-                      style={{ width: `${deepPct}%` }}
-                      onMouseEnter={() => setHoveredConcept(c.concept)}
-                      onMouseLeave={() => setHoveredConcept(null)}
-                    />
+                  <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="bg-primary transition-all" style={{ width: `${deepPct}%` }} />
                     <div className="bg-primary/40 transition-all" style={{ width: `${touchedPct}%` }} />
                   </div>
-                  {/* Mastery tooltip — only on hover */}
-                  {hoveredConcept === c.concept && c.deeplyExplored > 0 && (
-                    <div className="flex items-center gap-2 ml-1 animate-in fade-in duration-200">
+                  {isExpanded && c.deeplyExplored > 0 && (
+                    <div className="flex items-center gap-2 ml-5 pt-1 animate-in slide-in-from-top-1 fade-in duration-200">
                       <div className="flex items-center gap-1.5">
-                        <div className="h-1.5 w-16 rounded-full bg-muted overflow-hidden">
+                        <div className="h-1.5 w-20 rounded-full bg-muted overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all ${
                               c.masteryPct >= 70 ? "bg-emerald-500" : c.masteryPct >= 50 ? "bg-amber-500" : "bg-destructive"
@@ -212,7 +225,7 @@ const CourseDashboard = () => {
                         </span>
                       </div>
                       <span className="text-[10px] text-muted-foreground">
-                        among {c.deeplyExplored} who deeply explored
+                        among {c.deeplyExplored} students who deeply explored
                       </span>
                     </div>
                   )}
