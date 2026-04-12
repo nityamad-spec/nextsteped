@@ -888,15 +888,15 @@ const CourseCreation = () => {
   return (
     <div className="flex min-h-screen items-start justify-center bg-background px-4 py-8">
       <div className="w-full max-w-4xl space-y-6">
-        <SetupProgressBar currentStep={3} />
+        <SetupProgressBar currentStep={5} />
 
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="font-heading text-3xl font-bold">
-            AI Workshop <span className="text-primary">Lesson Plan</span>
+            AI <span className="text-primary">Lesson Plan</span>
           </h1>
           <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            We've analyzed your uploaded materials to draft a lesson plan. Each day is fully editable — adjust topics, descriptions, and resources as needed. Use <strong className="text-foreground">AI Suggest</strong> to auto-generate detailed lesson guidance and additional resources.
+            We've analyzed your uploaded materials to draft a lesson plan. Each week is fully editable — adjust topics, descriptions, and resources as needed. Use <strong className="text-foreground">AI Suggest</strong> to auto-generate detailed lesson guidance and additional resources.
           </p>
         </div>
 
@@ -1124,7 +1124,7 @@ const CourseCreation = () => {
 
         {/* Bottom Bar */}
         <div className="sticky bottom-0 bg-background border-t py-4 -mx-4 px-4 flex justify-between items-center z-10">
-          <Button variant="ghost" onClick={() => navigate("/teacher/setup/concepts")}>
+          <Button variant="ghost" onClick={() => navigate("/teacher/setup/materials")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
           <div className="flex items-center gap-2">
