@@ -955,7 +955,7 @@ const CourseCreation = () => {
           </Card>
 
           <div className="flex justify-center gap-3">
-            <Button variant="outline" onClick={() => navigate("/teacher/setup/quality-check")}>
+            <Button variant="outline" onClick={() => navigate("/teacher/setup/concepts")}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
             </Button>
             <Button onClick={handleStartGeneration} disabled={lessonPlanFiles.length === 0} size="lg">
@@ -1250,7 +1250,7 @@ const CourseCreation = () => {
 
         {/* Bottom Bar */}
         <div className="sticky bottom-0 bg-background border-t py-4 -mx-4 px-4 flex justify-between items-center z-10">
-          <Button variant="ghost" onClick={() => navigate("/teacher/setup/quality-check")}>
+          <Button variant="ghost" onClick={() => navigate("/teacher/setup/concepts")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
           <div className="flex items-center gap-2">
@@ -1269,8 +1269,8 @@ const CourseCreation = () => {
                     <DropdownMenuItem onClick={() => handleExport("word")}><FileDown className="mr-2 h-4 w-4" /> Download as Word</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button onClick={() => navigate("/teacher/setup/concepts")}>
-                  Continue to Concepts <ArrowRight className="ml-2 h-4 w-4" />
+                <Button onClick={() => navigate("/teacher/setup/diagnostic")}>
+                  Continue to Diagnostic Qs <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             )}

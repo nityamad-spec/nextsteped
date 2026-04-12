@@ -286,8 +286,8 @@ const DiagnosticQuestionsSetup = () => {
 
         {/* Navigation */}
         <div className="flex justify-between pt-4">
-          <Button variant="outline" onClick={() => navigate("/teacher/setup/concepts")}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Concepts
+          <Button variant="outline" onClick={() => navigate("/teacher/setup/lesson-plan")}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Lesson Plan
           </Button>
           <Button onClick={handleContinue}>
             Continue to AI Settings <ArrowRight className="ml-2 h-4 w-4" />

@@ -440,14 +440,14 @@ const ConceptManagement = () => {
 
         {/* Navigation */}
         <div className="flex justify-between pt-4">
-          <Button variant="outline" onClick={() => navigate("/teacher/setup/lesson-plan")}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Lesson Plan
+          <Button variant="outline" onClick={() => navigate("/teacher/setup/quality-check")}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Syllabus Review
           </Button>
           <Button
-            onClick={() => navigate("/teacher/setup/diagnostic")}
+            onClick={() => navigate("/teacher/setup/lesson-plan")}
             disabled={!allApproved || concepts.length === 0}
           >
-            Continue to Diagnostic Setup <ArrowRight className="ml-2 h-4 w-4" />
+            Continue to Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
 
