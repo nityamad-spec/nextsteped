@@ -447,7 +447,7 @@ const ConceptManagement = () => {
             onClick={() => navigate("/teacher/setup/lesson-plan")}
             disabled={!allApproved || concepts.length === 0}
           >
-            Continue to Diagnostic Setup <ArrowRight className="ml-2 h-4 w-4" />
+            Continue to Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
 
