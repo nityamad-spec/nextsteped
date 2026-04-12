@@ -13,7 +13,7 @@ import remarkGfm from "remark-gfm";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-const WELCOME = "Hi Professor! I'm your **Course Assistant** — here to help you build and refine your course. I can help you think through lesson plan ideas, suggest new concepts or exercises to add, review AI-generated suggestions from your lesson plan, brainstorm real-world case studies, design better assessments, or answer any questions about structuring your course. What would you like to work on?";
+const WELCOME = "Hi Professor! I'm your **Course Assistant**. I can help you refine your lesson plan, brainstorm exercises and case studies, review AI suggestions, or answer any course design questions. What would you like to work on?";
 
 const TeacherChat = () => {
   const { user } = useAuth();
