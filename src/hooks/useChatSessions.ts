@@ -77,7 +77,7 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher") {
 
   // Create a new session in DB
   const createSession = useCallback(
-    async (title: string, welcomeContent: string, modeOverride?: "learning" | "exam"): Promise<string | null> => {
+    async (title: string, welcomeContent: string, modeOverride?: "learning" | "exam" | "teacher"): Promise<string | null> => {
       if (!user) return null;
       const sessionMode = modeOverride || mode;
       try {
