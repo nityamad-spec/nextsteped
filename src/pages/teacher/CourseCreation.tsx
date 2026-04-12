@@ -144,12 +144,12 @@ const initialPlan: DayPlan[] = [
   },
   {
     id: "d3", day: 3, dates: "Week 3", topic: "File Handling, OOP Basics & Review",
-    description: "Overview:\nCover object-oriented programming fundamentals and file I/O operations. Conclude with a comprehensive workshop review.\n\nLearning Outcomes:\n- Understand classes and objects\n- Read and write files in Python\n- Synthesize all workshop concepts\n\nConcepts & Topics:\n\nConcept: Object-Oriented Programming\n- [Lecture] OOP & File Handling Slides: Cover classes, objects, file reading/writing\n\nConcept: File I/O\n- [Exercise] File Organizer Project: Build a simple file organizer script\n\nConcept: Course Review\n- [Reading] Workshop Review Sheet: Comprehensive review covering all workshop topics",
+    description: "Overview:\nCover object-oriented programming fundamentals and file I/O operations. Conclude with a comprehensive course review.\n\nLearning Outcomes:\n- Understand classes and objects\n- Read and write files in Python\n- Synthesize all course concepts\n\nConcepts & Topics:\n\nConcept: Object-Oriented Programming\n- [Lecture] OOP & File Handling Slides: Cover classes, objects, file reading/writing\n\nConcept: File I/O\n- [Exercise] File Organizer Project: Build a simple file organizer script\n\nConcept: Course Review\n- [Reading] Course Review Sheet: Comprehensive review covering all course topics",
     weightage: 30, locked: true,
     resources: [
       { id: "r18", title: "OOP & File Handling Slides", action: "Cover classes, objects, file reading/writing", type: "textbook", accepted: true, provenance: "uploads", concept: "Object-Oriented Programming" },
       { id: "r21", title: "File Organizer Project", action: "Build a simple file organizer script", type: "exercise", accepted: true, provenance: "uploads", concept: "File I/O" },
-      { id: "r16", title: "Workshop Review Sheet", action: "Comprehensive review covering all workshop topics", type: "textbook", accepted: true, provenance: "uploads", concept: "Course Review" },
+      { id: "r16", title: "Course Review Sheet", action: "Comprehensive review covering all course topics", type: "textbook", accepted: true, provenance: "uploads", concept: "Course Review" },
     ],
   },
 ];
