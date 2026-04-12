@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { TASettings } from "@/types";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,17 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard }: ExamPrepPanelPr
   const resetToRecommended = () => {
     setTimeLimit(profTime);
     setQuestionCount(profCount);
+  };
+
+  const handleQuestionCountChange = (value: string) => {
+    if (value === "") {
+      setQuestionCount(0);
+      return;
+    }
+
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isNaN(parsed)) return;
+    setQuestionCount(Math.max(1, Math.min(100, parsed)));
   };
 
   return (
@@ -106,7 +118,7 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard }: ExamPrepPanelPr
                 )}
               </Label>
               <div className="flex items-center gap-4">
-                <Slider value={[timeLimit]} onValueChange={(v) => setTimeLimit(v[0])} min={15} max={180} step={15} className="flex-1" />
+                <Slider value={[timeLimit]} onValueChange={(v) => setTimeLimit(v[0])} min={10} max={180} step={10} className="flex-1" />
                 <span className="w-16 text-right text-sm font-bold">{timeLimit} min</span>
               </div>
             </div>
@@ -119,8 +131,15 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard }: ExamPrepPanelPr
                 )}
               </Label>
               <div className="flex items-center gap-4">
-                <Slider value={[questionCount]} onValueChange={(v) => setQuestionCount(v[0])} min={5} max={100} step={1} className="flex-1" />
-                <span className="w-16 text-right text-sm font-bold">{questionCount}</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={questionCount === 0 ? "" : questionCount}
+                  onChange={(e) => handleQuestionCountChange(e.target.value)}
+                  className="max-w-[140px]"
+                />
+                <span className="text-xs text-muted-foreground">Enter how many questions you want.</span>
               </div>
             </div>
           </div>

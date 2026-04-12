@@ -7,7 +7,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 const studentNav = [
   { title: "Home", path: "/student/home", icon: Home },
-  { title: "Teaching Assistant Chat", path: "/student/chat", icon: MessageSquare },
+  { title: "Teaching Assistant", path: "/student/chat", icon: MessageSquare },
   { title: "Feedback", path: "/student/feedback", icon: MessageSquareHeart },
 ];
 
