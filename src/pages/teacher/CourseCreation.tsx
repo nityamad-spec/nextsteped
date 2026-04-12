@@ -165,17 +165,15 @@ const CourseCreation = () => {
   const legacyDraftLocalKey = "lessonPlanDraft";
   const draftStoragePath = user ? `${user.id}/lesson-plan/draft-plan.json` : null;
 
-  const [phase, setPhaseRaw] = useState<"upload" | "generating" | "plan">(() => {
+  const [phase, setPhaseRaw] = useState<"generating" | "plan">(() => {
     const saved = localStorage.getItem("lessonPlanPhase");
-    if (saved === "plan" || saved === "generating") return "plan";
-    return "upload";
+    if (saved === "plan") return "plan";
+    return "generating";
   });
-  const setPhase = (p: "upload" | "generating" | "plan") => {
+  const setPhase = (p: "generating" | "plan") => {
     localStorage.setItem("lessonPlanPhase", p);
     setPhaseRaw(p);
   };
-  const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
-  const [materialsFiles, setMaterialsFiles] = useState<UploadedFile[]>([]);
   const [genStep, setGenStep] = useState(0);
   const [genElapsed, setGenElapsed] = useState(0);
   const [days, setDaysRaw] = useState<DayPlan[]>(() => {
