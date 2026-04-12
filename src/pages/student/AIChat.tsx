@@ -136,31 +136,39 @@ const AIChat = () => {
     determineWeek();
   }, [enrolledCourseId, mode]);
   // Load practice history
-  useEffect(() => {
+  const loadPracticeHistory = useCallback(async () => {
     if (!user || !enrolledCourseId) return;
-    const loadHistory = async () => {
-      const { data } = await supabase
-        .from("assessment_results")
-        .select("*")
-        .eq("student_id", user.id)
-        .eq("mode", "practice")
-        .eq("course_id", enrolledCourseId)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (data) {
-        setPracticeHistory(data.map(r => ({
+    const { data } = await supabase
+      .from("assessment_results")
+      .select("*")
+      .eq("student_id", user.id)
+      .eq("mode", "practice")
+      .eq("course_id", enrolledCourseId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (data) {
+      setPracticeHistory(data.map(r => {
+        const answersArr = Array.isArray(r.answers) ? (r.answers as any[]) : [];
+        const topics = [...new Set(answersArr.map((a: any) => a.topic).filter(Boolean))];
+        // Try to extract prompt from first answer's metadata or use topic summary
+        const promptText = topics.length > 0 ? `Practice: ${topics.join(", ")}` : "Practice session";
+        return {
           id: r.id,
-          prompt: "Practice session",
+          prompt: promptText,
           score: r.score,
           totalQuestions: r.total_questions,
           correctAnswers: r.correct_answers,
           timestamp: new Date(r.created_at).getTime(),
-          topics: Array.isArray(r.answers) ? [...new Set((r.answers as any[]).map((a: any) => a.topic).filter(Boolean))] : [],
-        })));
-      }
-    };
-    loadHistory();
+          topics,
+          answers: answersArr,
+        };
+      }));
+    }
   }, [user, enrolledCourseId]);
+
+  useEffect(() => {
+    loadPracticeHistory();
+  }, [loadPracticeHistory]);
 
   const handlePracticeResult = async (result: { score: number; totalQuestions: number; correctAnswers: number; answers: any[]; timeSpent: number }) => {
     if (!user || !enrolledCourseId) return;
