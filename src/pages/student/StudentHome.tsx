@@ -55,11 +55,12 @@ const StudentHome = () => {
 
   // Semester progress — compute from course start_date
   const [courseStartDate, setCourseStartDate] = useState<string | null>(null);
-  const totalWeeks = 16;
+  const [totalWeeks, setTotalWeeks] = useState(16);
   const currentWeek = courseStartDate
     ? Math.max(1, Math.min(totalWeeks, Math.floor((Date.now() - new Date(courseStartDate).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1))
-    : 6;
+    : 1;
   const progressPct = Math.round((currentWeek / totalWeeks) * 100);
+  const [lessonPlanPublished, setLessonPlanPublished] = useState(false);
 
   // Lesson plan
   const [lessonPlan, setLessonPlan] = useState<any[]>([]);
@@ -79,26 +80,30 @@ const StudentHome = () => {
     const loadPlan = async () => {
       if (!enrolledCourseId) { setPlanLoading(false); return; }
       try {
-        const { data: course } = await supabase.from("courses").select("teacher_id, start_date").eq("id", enrolledCourseId).maybeSingle();
+        const { data: course } = await supabase.from("courses").select("teacher_id, start_date, total_weeks").eq("id", enrolledCourseId).maybeSingle();
         if (!course?.teacher_id) { setPlanLoading(false); return; }
         if (course.start_date) setCourseStartDate(course.start_date);
+        if (course.total_weeks) setTotalWeeks(course.total_weeks);
 
         // Compute current week from course start_date
+        const weeks = course.total_weeks || 16;
         const computedWeek = course.start_date
-          ? Math.max(1, Math.min(totalWeeks, Math.floor((Date.now() - new Date(course.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1))
+          ? Math.max(1, Math.min(weeks, Math.floor((Date.now() - new Date(course.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1))
           : 999; // If no start_date, show all unlocked
 
         const { data } = await supabase.storage.from("course-materials").download(`${course.teacher_id}/lesson-plan/published-plan.json?t=${Date.now()}`);
         if (data) {
           const parsed = JSON.parse(await data.text());
           if (Array.isArray(parsed) && parsed.length > 0) {
+            setLessonPlanPublished(true);
             setLessonPlan(parsed.filter((d: any) => isWeekVisible(d, computedWeek)));
             setPlanLoading(false);
             return;
           }
         }
       } catch {}
-      setLessonPlan(defaultPlan.filter(d => !d.locked));
+      setLessonPlanPublished(false);
+      setLessonPlan([]);
       setPlanLoading(false);
     };
     loadPlan();
@@ -221,8 +226,14 @@ const StudentHome = () => {
           <CardContent className="space-y-2">
             {planLoading ? (
               <p className="text-sm text-muted-foreground text-center py-4">Loading lesson plan...</p>
+            ) : !lessonPlanPublished ? (
+              <div className="text-center py-6 space-y-1">
+                <BookOpen className="h-8 w-8 mx-auto text-muted-foreground/40" />
+                <p className="text-sm font-medium text-muted-foreground">Lesson plan not yet available</p>
+                <p className="text-xs text-muted-foreground">Your professor hasn't published the lesson plan yet. You're currently on Week {currentWeek} of {totalWeeks}.</p>
+              </div>
             ) : lessonPlan.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No lesson plan published yet</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No weeks are visible yet — check back soon</p>
             ) : (
               lessonPlan.map((dp: any) => {
                 const isExpanded = expandedWeeks.includes(dp.day);
