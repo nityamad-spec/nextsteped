@@ -90,7 +90,7 @@ const CourseDashboard = () => {
           <div className="flex-1">
             <p className="text-sm font-semibold text-foreground">Your lesson plan hasn't been published to students yet</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Students won't see the lesson plan until you publish it. You can continue editing, control which weeks are visible, and publish when you're ready — all from <strong>Lesson Plan & Resources</strong>.
+              Students won't see the lesson plan until you publish it. You can keep making edits at any time, and control which weeks are visible to students — perfect for revealing content week by week as you finalize each section. Publish when you're ready from <strong>Lesson Plan & Resources</strong>.
             </p>
             <Button
               variant="outline"
