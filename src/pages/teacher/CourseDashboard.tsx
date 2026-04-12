@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
@@ -40,6 +40,7 @@ const CourseDashboard = () => {
   const courseSections = currentCourse?.sections || [];
   const [selectedSection, setSelectedSection] = useState<string>("all");
   const [lessonPlanPublished, setLessonPlanPublished] = useState<boolean | null>(null);
+  const [hoveredConcept, setHoveredConcept] = useState<string | null>(null);
 
   // Semester progress (mock)
   const totalWeeks = 16;
@@ -164,6 +165,7 @@ const CourseDashboard = () => {
                 <div className="h-3 w-3 rounded bg-muted" />
                 <span className="text-xs text-muted-foreground">Not Explored</span>
               </div>
+              <span className="ml-auto text-[10px] italic text-muted-foreground">Hover over the dark bar to see mastery</span>
             </div>
 
             {conceptMasteryMock.map((c) => {
@@ -180,13 +182,20 @@ const CourseDashboard = () => {
                       <span>{c.notExplored} unexplored</span>
                     </div>
                   </div>
-                  <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
-                    <div className="bg-primary transition-all" style={{ width: `${deepPct}%` }} />
+                  <div
+                    className="flex h-3 w-full overflow-hidden rounded-full bg-muted"
+                  >
+                    <div
+                      className="bg-primary transition-all cursor-pointer relative"
+                      style={{ width: `${deepPct}%` }}
+                      onMouseEnter={() => setHoveredConcept(c.concept)}
+                      onMouseLeave={() => setHoveredConcept(null)}
+                    />
                     <div className="bg-primary/40 transition-all" style={{ width: `${touchedPct}%` }} />
                   </div>
-                  {/* Mastery understanding for deeply explored students */}
-                  {c.deeplyExplored > 0 && (
-                    <div className="flex items-center gap-2 ml-1">
+                  {/* Mastery tooltip — only on hover */}
+                  {hoveredConcept === c.concept && c.deeplyExplored > 0 && (
+                    <div className="flex items-center gap-2 ml-1 animate-in fade-in duration-200">
                       <div className="flex items-center gap-1.5">
                         <div className="h-1.5 w-16 rounded-full bg-muted overflow-hidden">
                           <div
