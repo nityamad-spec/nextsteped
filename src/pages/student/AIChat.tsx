@@ -856,42 +856,73 @@ const AIChat = () => {
 
           {/* Chat Sessions */}
           <div className="space-y-1 mt-3">
-            {mode === "learning" && (practiceHistory.length > 0 || chats.length > 0) && (
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">
-                {mode === "learning" ? "Chat Sessions" : "Exam Sessions"}
-              </p>
-            )}
             {(() => {
-              const displayChats = mode === "exam" 
-                ? chats.filter(c => c.messages.length > 1)
-                : chats;
-              return displayChats.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No {mode === "learning" ? "study" : "exam prep"} history yet</p>
-            ) : (
-              displayChats.map((chat) => {
-                const scoreMsg = mode === "exam" ? chat.messages.find(m => m.role === "assistant" && m.content.includes("Score:")) : null;
-                const scoreMatch = scoreMsg?.content.match(/Score:\s*(\d+)%/);
-                const score = scoreMatch ? parseInt(scoreMatch[1]) : null;
-
+              // Only show sessions where the student actually sent a message
+              const displayChats = chats.filter(c => c.messages.some(m => m.role === "user"));
+              
+              if (mode === "learning" && (practiceHistory.length > 0 || displayChats.length > 0)) {
                 return (
-                  <button
-                    key={chat.id}
-                    onClick={() => { setActiveChatId(chat.id); setShowHistory(false); setAssessmentActive(false); }}
-                    className={`w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
-                      chat.id === activeChatId ? "bg-sidebar-accent font-medium" : "hover:bg-sidebar-accent/50"
-                    }`}
-                  >
-                    <p className="truncate">{chat.title}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                      {score !== null && (
-                        <span className={`font-semibold ${score >= 60 ? "text-primary" : "text-destructive"}`}>{score}%</span>
-                      )}
-                      <span>{new Date(chat.updatedAt).toLocaleDateString()}</span>
-                    </div>
-                  </button>
+                  <>
+                    {displayChats.length > 0 && (
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">Chat Sessions</p>
+                    )}
+                    {displayChats.length === 0 ? (
+                      practiceHistory.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">No study history yet</p>
+                      )
+                    ) : (
+                      displayChats.map((chat) => (
+                        <button
+                          key={chat.id}
+                          onClick={() => { setActiveChatId(chat.id); setShowHistory(false); setAssessmentActive(false); }}
+                          className={`w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
+                            chat.id === activeChatId ? "bg-sidebar-accent font-medium" : "hover:bg-sidebar-accent/50"
+                          }`}
+                        >
+                          <p className="truncate">{chat.title}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            <span>{new Date(chat.updatedAt).toLocaleDateString()}</span>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </>
                 );
-              })
-            );
+              }
+
+              if (mode === "exam") {
+                // Exam mode: only show sessions with actual interaction
+                const examChats = displayChats;
+                return examChats.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No exam prep history yet</p>
+                ) : (
+                  examChats.map((chat) => {
+                    const scoreMsg = chat.messages.find(m => m.role === "assistant" && m.content.includes("Score:"));
+                    const scoreMatch = scoreMsg?.content.match(/Score:\s*(\d+)%/);
+                    const score = scoreMatch ? parseInt(scoreMatch[1]) : null;
+
+                    return (
+                      <button
+                        key={chat.id}
+                        onClick={() => { setActiveChatId(chat.id); setShowHistory(false); setAssessmentActive(false); }}
+                        className={`w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
+                          chat.id === activeChatId ? "bg-sidebar-accent font-medium" : "hover:bg-sidebar-accent/50"
+                        }`}
+                      >
+                        <p className="truncate">{chat.title}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                          {score !== null && (
+                            <span className={`font-semibold ${score >= 60 ? "text-primary" : "text-destructive"}`}>{score}%</span>
+                          )}
+                          <span>{new Date(chat.updatedAt).toLocaleDateString()}</span>
+                        </div>
+                      </button>
+                    );
+                  })
+                );
+              }
+
+              return <p className="text-sm text-muted-foreground text-center py-4">No history yet</p>;
             })()}
           </div>
         </div>
