@@ -18,12 +18,12 @@ import {
 import {
   Check, X, ArrowRight, ArrowLeft, Sparkles, Loader2,
   ChevronDown, ChevronUp, Download, Pencil, GripVertical,
-  BookOpen, Plus, Trash2, FileText, FileDown,
-  Eye, EyeOff, ClipboardList, ArrowLeftRight,
+  Plus, Trash2, FileText, FileDown,
+  Eye, EyeOff, ArrowLeftRight,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import SetupProgressBar from "@/components/SetupProgressBar";
-import FileUploadZone from "@/components/FileUploadZone";
+import { useAuth } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {

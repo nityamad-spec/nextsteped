@@ -15,6 +15,7 @@ import StudentLayout from "./layouts/StudentLayout";
 import TeacherOnboarding from "./pages/teacher/TeacherOnboarding";
 import MaterialQualityCheck from "./pages/teacher/MaterialQualityCheck";
 import CourseCreation from "./pages/teacher/CourseCreation";
+import CourseMaterials from "./pages/teacher/CourseMaterials";
 import AITASettings from "./pages/teacher/AITASettings";
 import ExamMode from "./pages/teacher/ExamMode";
 import ConceptManagement from "./pages/teacher/ConceptManagement";
@@ -157,6 +158,7 @@ const App = () => (
               <Route path="/teacher/onboarding" element={<ProtectedRoute><TeacherOnboarding /></ProtectedRoute>} />
               <Route path="/teacher/setup/quality-check" element={<ProtectedRoute><MaterialQualityCheck /></ProtectedRoute>} />
               <Route path="/teacher/setup/lesson-plan" element={<ProtectedRoute><CourseCreation /></ProtectedRoute>} />
+              <Route path="/teacher/setup/materials" element={<ProtectedRoute><CourseMaterials /></ProtectedRoute>} />
               <Route path="/teacher/setup/concepts" element={<ProtectedRoute><ConceptManagement /></ProtectedRoute>} />
               <Route path="/teacher/setup/diagnostic" element={<ProtectedRoute><DiagnosticQuestionsSetup /></ProtectedRoute>} />
               <Route path="/teacher/setup/ai-settings" element={<ProtectedRoute><AITASettings /></ProtectedRoute>} />
