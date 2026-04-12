@@ -444,7 +444,7 @@ const ConceptManagement = () => {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Syllabus Review
           </Button>
           <Button
-            onClick={() => navigate("/teacher/setup/diagnostic")}
+            onClick={() => navigate("/teacher/setup/lesson-plan")}
             disabled={!allApproved || concepts.length === 0}
           >
             Continue to Diagnostic Setup <ArrowRight className="ml-2 h-4 w-4" />

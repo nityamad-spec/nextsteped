@@ -1269,8 +1269,8 @@ const CourseCreation = () => {
                     <DropdownMenuItem onClick={() => handleExport("word")}><FileDown className="mr-2 h-4 w-4" /> Download as Word</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button onClick={() => navigate("/teacher/setup/concepts")}>
-                  Continue to Concepts <ArrowRight className="ml-2 h-4 w-4" />
+                <Button onClick={() => navigate("/teacher/setup/diagnostic")}>
+                  Continue to Diagnostic Qs <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             )}
