@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ChatMessage, ChatSession } from "@/types";
 import { toast } from "sonner";
 
-export function useChatSessions(mode: "learning" | "exam") {
+export function useChatSessions(mode: "learning" | "exam" | "teacher") {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);

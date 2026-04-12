@@ -40,7 +40,7 @@ const TeacherChat = () => {
     addMessageLocally,
     updateLastMessage,
     updateSessionTitle,
-  } = useChatSessions("learning");
+  } = useChatSessions("teacher");
 
   // Fetch course context
   useEffect(() => {
