@@ -516,7 +516,9 @@ const MaterialQualityCheck = () => {
               </Button>
             )}
             <Button
-              onClick={runPipeline}
+              onClick={() => {
+                void runPipeline();
+              }}
               disabled={syllabusFiles.length === 0}
               size="lg"
               variant={previewJson ? "outline" : "default"}
