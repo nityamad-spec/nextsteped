@@ -164,11 +164,7 @@ const CourseCreation = () => {
   const legacyDraftLocalKey = "lessonPlanDraft";
   const draftStoragePath = user ? `${user.id}/lesson-plan/draft-plan.json` : null;
 
-  const [phase, setPhaseRaw] = useState<"generating" | "plan">(() => {
-    const saved = localStorage.getItem("lessonPlanPhase");
-    if (saved === "plan") return "plan";
-    return "generating";
-  });
+  const [phase, setPhaseRaw] = useState<"generating" | "plan">("generating");
   const setPhase = (p: "generating" | "plan") => {
     localStorage.setItem("lessonPlanPhase", p);
     setPhaseRaw(p);
@@ -243,11 +239,7 @@ const CourseCreation = () => {
       setPublishTimestamp(draft.publishTimestamp ?? null);
     }
 
-    const nextPhase = hasDraftDays
-      ? "plan"
-      : draft.phase === "generating" || draft.phase === "plan"
-        ? draft.phase
-        : "generating";
+    const nextPhase = hasDraftDays ? "plan" : "generating";
 
     localStorage.setItem("lessonPlanPhase", nextPhase);
     setPhaseRaw(nextPhase);
