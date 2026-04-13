@@ -64,7 +64,7 @@ interface QualityIssue {
   original: string;
   correction: string;
   reason: string;
-  severity: "error" | "warning" | "suggestion";
+  severity: "correction" | "suggestion";
   status: "pending" | "approved" | "edited" | "dismissed";
   editedCorrection?: string;
 }
@@ -74,9 +74,18 @@ type PipelineStage = "idle" | "loading" | "parsing" | "checking" | "review" | "p
 const UPLOAD_ACCEPT = ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
 
 const severityConfig = {
-  error: { label: "Error", className: "bg-destructive/10 text-destructive border-destructive/30" },
-  warning: { label: "Warning", className: "bg-warning/10 text-warning border-warning/30" },
+  correction: { label: "Correction", className: "bg-warning/10 text-warning border-warning/30" },
   suggestion: { label: "Suggestion", className: "bg-primary/10 text-primary border-primary/30" },
+};
+
+const humanizePath = (jsonPath: string): string => {
+  return jsonPath
+    .replace(/\[(\d+)\]/g, " $1")
+    .replace(/\./g, " › ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/\s+/g, " ")
+    .trim();
 };
 
 // ── Helpers ────────────────────────────────────────────────────────
