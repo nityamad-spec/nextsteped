@@ -280,6 +280,7 @@ const MaterialQualityCheck = () => {
         const isBinary = binaryExts.includes(ext);
 
         let body: Record<string, string>;
+        let extractedSourceText: string | null = null;
         if (isBinary) {
           // Convert to base64 for multimodal AI parsing
           const arrayBuffer = await blob.arrayBuffer();
@@ -292,6 +293,7 @@ const MaterialQualityCheck = () => {
           body = { fileBase64: base64, fileName: file.file_name };
         } else {
           const fileContent = await blob.text();
+          extractedSourceText = fileContent;
           body = { fileContent, fileName: file.file_name };
         }
 
@@ -308,6 +310,7 @@ const MaterialQualityCheck = () => {
 
         parsed = parseData.syllabus;
         setSyllabusJson(parsed);
+        if (extractedSourceText) setRawSourceText(extractedSourceText);
       }
 
       // Quality check
@@ -317,7 +320,7 @@ const MaterialQualityCheck = () => {
       }
 
       const { data: checkData, error: checkError } = await supabase.functions.invoke("quality-check", {
-        body: { syllabusJson: parsed },
+        body: { syllabusJson: parsed, sourceText: rawSourceText || undefined },
       });
 
       if (checkError) throw new Error(checkError.message);
