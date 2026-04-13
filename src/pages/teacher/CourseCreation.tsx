@@ -879,7 +879,7 @@ const CourseCreation = () => {
   return (
     <div className="flex min-h-screen items-start justify-center bg-background px-4 py-8">
       <div className="w-full max-w-4xl space-y-6">
-        <SetupProgressBar currentStep={5} />
+        <SetupProgressBar currentStep={4} />
 
         {/* Header */}
         <div className="text-center space-y-2">
