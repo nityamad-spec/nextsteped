@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowRight, ArrowLeft, BookOpen, ClipboardList } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ArrowRight, ArrowLeft, BookOpen, ClipboardList, Calendar } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import FileUploadZone from "@/components/FileUploadZone";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,10 +29,29 @@ const CourseMaterials = () => {
 
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
   const [materialsFiles, setMaterialsFiles] = useState<UploadedFile[]>([]);
+  const [totalWeeks, setTotalWeeks] = useState("16");
+  const [sessionsPerWeek, setSessionsPerWeek] = useState("2");
+  const [sessionLength, setSessionLength] = useState("60");
 
   useEffect(() => {
-    const fetchFiles = async () => {
+    const fetchData = async () => {
       if (!user) return;
+
+      // Fetch schedule from course
+      if (courseId) {
+        const { data: course } = await supabase
+          .from("courses")
+          .select("total_weeks, sessions_per_week, session_length_minutes")
+          .eq("id", courseId)
+          .maybeSingle();
+        if (course) {
+          if (course.total_weeks) setTotalWeeks(String(course.total_weeks));
+          if (course.sessions_per_week) setSessionsPerWeek(String(course.sessions_per_week));
+          if (course.session_length_minutes) setSessionLength(String(course.session_length_minutes));
+        }
+      }
+
+      // Fetch files
       let query = supabase
         .from("course_material_files")
         .select("file_name, file_size, storage_path, folder_type")
@@ -55,11 +76,22 @@ const CourseMaterials = () => {
         );
       }
     };
-    fetchFiles();
+    fetchData();
   }, [user, courseId]);
 
   const handleContinue = async () => {
     if (courseId && user) {
+      // Save schedule to course
+      await supabase
+        .from("courses")
+        .update({
+          total_weeks: parseInt(totalWeeks) || 16,
+          sessions_per_week: parseInt(sessionsPerWeek) || 2,
+          session_length_minutes: parseInt(sessionLength) || 60,
+          materials_uploaded: materialsFiles.length > 0,
+        })
+        .eq("id", courseId);
+
       const allPaths = [
         ...lessonPlanFiles.map((f) => f.path),
         ...materialsFiles.map((f) => f.path),
@@ -70,10 +102,6 @@ const CourseMaterials = () => {
           .update({ course_id: courseId })
           .in("storage_path", allPaths);
       }
-      await supabase
-        .from("courses")
-        .update({ materials_uploaded: materialsFiles.length > 0 } as any)
-        .eq("id", courseId);
     }
     navigate("/teacher/setup/lesson-plan");
   };
@@ -92,6 +120,33 @@ const CourseMaterials = () => {
             generate a tailored lesson plan in the next step.
           </p>
         </div>
+
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Calendar className="h-5 w-5 text-primary" /> Course Schedule
+            </CardTitle>
+            <CardDescription>
+              Define your course structure. This informs the AI-generated lesson plan.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Weeks of Class</Label>
+                <Input type="number" min="1" max="52" value={totalWeeks} onChange={(e) => setTotalWeeks(e.target.value)} placeholder="16" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Sessions per Week</Label>
+                <Input type="number" min="1" max="7" value={sessionsPerWeek} onChange={(e) => setSessionsPerWeek(e.target.value)} placeholder="2" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Session Length (min)</Label>
+                <Input type="number" min="15" max="300" step="15" value={sessionLength} onChange={(e) => setSessionLength(e.target.value)} placeholder="60" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="mb-6">
           <CardHeader>
