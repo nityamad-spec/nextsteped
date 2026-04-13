@@ -43,7 +43,7 @@ For each issue, specify:
 - The EXACT original text at that location (copy verbatim) — for missing sections, use "N/A - section not found"
 - Your suggested correction or addition
 - A clear reason why this is an issue or why this section matters
-- Severity: "error" (factually wrong/contradictory), "warning" (potentially misleading/incomplete), "suggestion" (could be improved or added)
+- Severity: "correction" (something existing that needs fixing — errors, inconsistencies, ambiguities) or "suggestion" (something missing that should be added)
 
 If the syllabus is comprehensive and well-constructed, return an empty array.`;
 
@@ -83,7 +83,7 @@ ${JSON.stringify(syllabusJson, null, 2)}`;
                           original: { type: "string", description: "The original text or value at this path" },
                           correction: { type: "string", description: "Suggested corrected text or value" },
                           reason: { type: "string", description: "Why this is flagged" },
-                          severity: { type: "string", enum: ["error", "warning", "suggestion"], description: "Issue severity" },
+                          severity: { type: "string", enum: ["correction", "suggestion"], description: "correction = fix existing content, suggestion = add missing content" },
                         },
                         required: ["jsonPath", "original", "correction", "reason", "severity"],
                         additionalProperties: false,
