@@ -69,7 +69,7 @@ const PublishEnrollment = () => {
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto w-full max-w-4xl space-y-8">
-        <SetupProgressBar currentStep={9} />
+        <SetupProgressBar currentStep={8} />
         <div>
           <h1 className="font-heading text-3xl font-bold">Student Enrollment</h1>
           <p className="text-muted-foreground">Share your enrollment code or upload a student roster to get started</p>
