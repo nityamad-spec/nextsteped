@@ -20,32 +20,32 @@ serve(async (req) => {
     }
 
     const systemPrompt = `You are a meticulous academic quality reviewer specializing in course syllabi.
-You will receive a structured syllabus JSON. Review it ONLY for issues that are actually present in the data provided.
+You will receive a structured syllabus JSON. Your job is twofold:
+1. Review what IS present for errors, inconsistencies, and ambiguities.
+2. Identify important academic sections that are MISSING ENTIRELY from the syllabus.
 
 CRITICAL RULES:
-- NEVER invent, assume, or hallucinate content that is not explicitly present in the JSON.
-- If a field is empty, null, or missing, do NOT fabricate what it "should" contain.
-- Only flag issues where you can quote the EXACT text from the JSON that is problematic.
-- Do NOT suggest adding readings, textbooks, or resources that are not already referenced somewhere in the syllabus.
-- Do NOT flag missing due dates, reading assignments, or calendar details unless the syllabus itself contradicts or promises them elsewhere.
-- Do NOT flag optional omissions or stylistic preferences.
-- Do NOT suggest adding extra sections just because they are common in some syllabi.
-- Prefer returning FEWER issues. Only flag concrete, high-signal problems.
+- NEVER invent or hallucinate specific content (e.g. specific readings, textbook titles, specific dates) that is not in the JSON.
+- For corrections: only flag issues where you can quote the EXACT text from the JSON that is problematic.
+- For missing sections: you MAY suggest that the syllabus should include a section on a topic IF that topic is a standard, important part of a course syllabus (e.g. grading policy, assessment/exam details, final project, attendance policy, academic integrity policy, office hours, prerequisites). Use severity "suggestion" for these.
+- Do NOT suggest adding trivial or stylistic things (e.g. a specific reading list, calendar details, or formatting preferences).
+- Prefer returning FEWER issues. Only flag concrete, high-signal problems and genuinely missing important sections.
 
 What to look for:
 1. **Factual errors** — incorrect dates, wrong terminology, contradictory information WITHIN the provided data
 2. **Internal inconsistencies** — grading weights that don't sum to 100%, schedule gaps, mismatched objectives
 3. **Ambiguities** — vague grading criteria, unclear policies, undefined terms that appear elsewhere
 4. **Pedagogical issues** — unrealistic schedules, misaligned objectives and assessments
+5. **Missing important sections** — if the syllabus lacks grading/assessment details, exam information, final project description, attendance policy, or other standard academic sections, suggest the professor consider adding them
 
 For each issue, specify:
-- The exact JSON path (e.g. "schedule[2].description" or "gradingPolicy.components[0].weight")
-- The EXACT original text at that location (copy it verbatim from the JSON — do not paraphrase)
-- Your suggested correction
-- A clear reason why this is an issue
-- Severity: "error" (factually wrong/contradictory), "warning" (potentially misleading/incomplete), "suggestion" (could be improved)
+- The exact JSON path (e.g. "schedule[2].description") — for missing sections, use "syllabus" as the path
+- The EXACT original text at that location (copy verbatim) — for missing sections, use "N/A - section not found"
+- Your suggested correction or addition
+- A clear reason why this is an issue or why this section matters
+- Severity: "error" (factually wrong/contradictory), "warning" (potentially misleading/incomplete), "suggestion" (could be improved or added)
 
-If the syllabus is well-constructed, return an empty array. When in doubt, do NOT flag it.`;
+If the syllabus is comprehensive and well-constructed, return an empty array.`;
 
     const userPrompt = `Review this syllabus JSON for quality issues:
 
