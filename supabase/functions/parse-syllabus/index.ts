@@ -37,14 +37,20 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = `You are a document parser specializing in academic syllabi. 
+    const systemPrompt = `You are a document parser specializing in academic syllabi.
 Given the content of a syllabus document, extract ALL information into a structured format.
 Be thorough — capture every detail from the document including course info, schedule, grading, policies, and resources.
-If a field is not present in the document, use an empty string or empty array as appropriate.
-CRITICAL: Do NOT invent or fabricate information. Only extract what is EXPLICITLY stated in the document.
-If the document does not mention grading weights, leave the grading components array empty.
-If there is no schedule, leave the schedule array empty.
-If there are no policies mentioned, leave policies array empty.`;
+
+CRITICAL RULES:
+- Do NOT invent or fabricate information. Only extract what is EXPLICITLY stated in the document.
+- CAREFULLY distinguish between different sections. "Learning Objectives" and "Learning Outcomes" (or "Course Outcomes") are DIFFERENT sections — do not merge them.
+- If the document has separate sections for objectives and outcomes, extract them into separate arrays.
+- If the document only has one of these, populate that array and leave the other empty.
+- Preserve the exact wording from the document. Do not paraphrase or rewrite.
+- If a field is not present in the document, use an empty string or empty array.
+- If the document does not mention grading weights, leave the grading components array empty.
+- If there is no schedule, leave the schedule array empty.
+- If there are no policies mentioned, leave policies array empty.`;
 
     // Build messages based on whether we have base64 (binary file) or text content
     const userMessages: any[] = [];
@@ -111,7 +117,12 @@ ${fileContent}
                     learningObjectives: {
                       type: "array",
                       items: { type: "string" },
-                      description: "List of learning objectives or outcomes",
+                      description: "List of learning OBJECTIVES only (goals students should achieve). Do NOT mix with outcomes.",
+                    },
+                    learningOutcomes: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "List of learning OUTCOMES only (measurable skills/competencies). Do NOT mix with objectives. Leave empty if document does not distinguish outcomes from objectives.",
                     },
                     schedule: {
                       type: "array",
@@ -170,7 +181,7 @@ ${fileContent}
                   },
                   required: [
                     "courseTitle", "courseCode", "instructor", "term", "description",
-                    "learningObjectives", "schedule", "gradingPolicy", "policies", "resources",
+                    "learningObjectives", "learningOutcomes", "schedule", "gradingPolicy", "policies", "resources",
                   ],
                   additionalProperties: false,
                 },
