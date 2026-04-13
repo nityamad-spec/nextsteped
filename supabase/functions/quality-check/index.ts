@@ -27,6 +27,13 @@ Review the provided structured syllabus JSON for:
 4. **Missing information** — important sections that are empty or incomplete
 5. **Pedagogical issues** — unrealistic schedules, misaligned objectives and assessments
 
+Important review rules:
+- Only flag concrete, high-signal issues that would confuse students or create a real course-design problem.
+- Do NOT flag optional omissions or stylistic preferences.
+- Do NOT complain that a syllabus lacks a specific due date, final assignment date, reading date, or other calendar detail unless the JSON explicitly promises one elsewhere or the omission creates a contradiction/compliance issue.
+- Do NOT suggest adding extra sections just because they are common in some syllabi.
+- Prefer returning fewer issues over speculative ones.
+
 For each issue, specify:
 - The exact JSON path (e.g. "schedule[2].description" or "gradingPolicy.components[0].weight")
 - The original text at that location

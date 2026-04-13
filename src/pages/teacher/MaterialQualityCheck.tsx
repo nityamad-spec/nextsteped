@@ -42,6 +42,7 @@ interface UploadedFile {
   name: string;
   size: number;
   path: string;
+  createdAt?: string;
 }
 
 interface SyllabusJson {
@@ -102,6 +103,20 @@ function setByPath(obj: any, path: string, value: any): any {
   return clone;
 }
 
+function getFileTimestamp(file: UploadedFile): number {
+  if (file.createdAt) {
+    const parsed = new Date(file.createdAt).getTime();
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+
+  const match = file.path.match(/\/(\d+)_/);
+  return match ? Number(match[1]) : 0;
+}
+
+function sortFilesByNewest(files: UploadedFile[]) {
+  return [...files].sort((a, b) => getFileTimestamp(b) - getFileTimestamp(a));
+}
+
 // ── Component ──────────────────────────────────────────────────────
 
 const MaterialQualityCheck = () => {
@@ -125,6 +140,46 @@ const MaterialQualityCheck = () => {
   const pendingCount = issues.filter((i) => i.status === "pending").length;
   const resolvedCount = issues.filter((i) => i.status !== "pending").length;
   const allResolved = issues.length > 0 && pendingCount === 0;
+  const latestUploadedFile = syllabusFiles[0] ?? null;
+
+  const resetReviewState = () => {
+    setStage("idle");
+    setStageMessage("Preparing…");
+    setSyllabusJson(null);
+    setIssues([]);
+    setExpandedId(null);
+    setEditingId(null);
+    setEditText("");
+    setFinalApproved(false);
+    setErrorMsg("");
+  };
+
+  const handleSyllabusFilesChange = (files: UploadedFile[]) => {
+    setSyllabusFiles(sortFilesByNewest(files));
+    resetReviewState();
+  };
+
+  const downloadSyllabusJson = (json: SyllabusJson, fileName?: string) => {
+    const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName || `syllabus-${json.courseCode || "export"}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const openSavedApprovedSyllabus = () => {
+    if (!previewJson) return;
+    setSyllabusJson(previewJson);
+    setIssues([]);
+    setExpandedId(null);
+    setEditingId(null);
+    setEditText("");
+    setErrorMsg("");
+    setFinalApproved(true);
+    setStage("preview");
+  };
 
   // ── Load existing uploaded files on mount ───────────────────────
 
@@ -133,14 +188,15 @@ const MaterialQualityCheck = () => {
       if (!user) return;
       let query = supabase
         .from("course_material_files")
-        .select("file_name, file_size, storage_path")
+        .select("file_name, file_size, storage_path, created_at")
         .eq("teacher_id", user.id)
-        .eq("folder_type", "syllabus");
+        .eq("folder_type", "syllabus")
+        .order("created_at", { ascending: false });
       if (courseId) query = query.eq("course_id", courseId);
       const { data } = await query;
       if (data) {
         setSyllabusFiles(
-          data.map((f) => ({ name: f.file_name, size: f.file_size, path: f.storage_path }))
+          data.map((f) => ({ name: f.file_name, size: f.file_size, path: f.storage_path, createdAt: f.created_at }))
         );
       }
     };
@@ -170,33 +226,32 @@ const MaterialQualityCheck = () => {
 
   // ── Pipeline: fetch → parse → check ─────────────────────────────
 
-  const runPipeline = useCallback(async () => {
+  const runPipeline = useCallback(async (sourceJson?: SyllabusJson) => {
     if (!user) return;
 
     try {
       let parsed: SyllabusJson;
+      setFinalApproved(false);
+      setExpandedId(null);
+      setEditingId(null);
+      setEditText("");
+      setErrorMsg("");
 
-      // Try loading existing approved JSON first (skip PDF re-conversion)
-      setStage("loading");
-      setStageMessage("Checking for existing syllabus data…");
-
-      const { data: existingBlob, error: existingErr } = await supabase.storage
-        .from("course-materials")
-        .download(`${user.id}/syllabus/approved-syllabus.json`);
-
-      if (!existingErr && existingBlob) {
-        setStageMessage("Loading saved syllabus…");
-        const jsonText = await existingBlob.text();
-        parsed = JSON.parse(jsonText) as SyllabusJson;
+      if (sourceJson) {
+        setStage("checking");
+        setStageMessage("AI is re-reviewing your edited syllabus…");
+        parsed = sourceJson;
         setSyllabusJson(parsed);
       } else {
+        setStage("loading");
         setStageMessage("Fetching your syllabus files…");
 
         const { data: files, error: filesErr } = await supabase
           .from("course_material_files")
-          .select("file_name, storage_path")
+          .select("file_name, storage_path, created_at")
           .eq("teacher_id", user.id)
-          .eq("folder_type", "syllabus");
+          .eq("folder_type", "syllabus")
+          .order("created_at", { ascending: false });
 
         if (filesErr) throw new Error(filesErr.message);
         if (!files || files.length === 0) {
@@ -230,8 +285,10 @@ const MaterialQualityCheck = () => {
       }
 
       // Quality check
-      setStage("checking");
-      setStageMessage("AI is reviewing for errors, inconsistencies, and improvements…");
+      if (!sourceJson) {
+        setStage("checking");
+        setStageMessage("AI is reviewing for errors, inconsistencies, and improvements…");
+      }
 
       const { data: checkData, error: checkError } = await supabase.functions.invoke("quality-check", {
         body: { syllabusJson: parsed },
@@ -348,6 +405,7 @@ const MaterialQualityCheck = () => {
       }
 
       setStage("preview");
+      setPreviewJson(syllabusJson);
       setFinalApproved(true);
       toast({ title: "Syllabus saved", description: "Your approved syllabus has been stored successfully." });
     } catch (err: any) {
@@ -377,10 +435,10 @@ const MaterialQualityCheck = () => {
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
-                <FileText className="h-5 w-5 text-primary" /> Upload Syllabus & AICTE Guidelines
+                <FileText className="h-5 w-5 text-primary" /> Upload Syllabus
               </CardTitle>
               <CardDescription>
-                Upload your course syllabus and any AICTE guidelines documents. These will be parsed and analyzed by AI for quality and consistency.
+                Upload your syllabus, then review AI suggestions. The newest uploaded syllabus is always the one that gets reviewed.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -390,12 +448,17 @@ const MaterialQualityCheck = () => {
               <p className="text-xs text-muted-foreground">
                 <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
               </p>
+              {latestUploadedFile && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-foreground">
+                  Latest upload to review: <span className="font-medium">{latestUploadedFile.name}</span>
+                </div>
+              )}
               {user ? (
                 <FileUploadZone
                   folderPath={`${user.id}/syllabus`}
                   accept={UPLOAD_ACCEPT}
                   files={syllabusFiles}
-                  onFilesChange={setSyllabusFiles}
+                  onFilesChange={handleSyllabusFilesChange}
                   teacherId={user.id}
                   folderType="syllabus"
                   courseId={courseId}
@@ -412,30 +475,25 @@ const MaterialQualityCheck = () => {
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <CheckCircle2 className="h-5 w-5 text-primary" /> Previously Approved Syllabus
+                  <CheckCircle2 className="h-5 w-5 text-primary" /> Saved Approved Syllabus
                 </CardTitle>
                 <CardDescription>
-                  Your syllabus was previously reviewed and approved. You can continue or re-upload and re-review if needed.
+                  Your last approved syllabus is saved here if you want to reopen it, keep editing it, or download it.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <SyllabusPreview syllabus={previewJson} editable onChange={setPreviewJson} />
-                <div className="flex justify-end">
+              <CardContent>
+                <div className="flex flex-wrap gap-3">
+                  <Button variant="outline" onClick={openSavedApprovedSyllabus}>
+                    <Pencil className="mr-2 h-4 w-4" /> Open & Edit
+                  </Button>
                   <Button
-                    size="sm"
-                    className="gap-1"
-                    onClick={async () => {
-                      if (!user || !previewJson) return;
-                      const blob = new Blob([JSON.stringify(previewJson, null, 2)], { type: "application/json" });
-                      const { error } = await supabase.storage.from("course-materials").upload(`${user.id}/syllabus/approved-syllabus.json`, blob, { upsert: true });
-                      if (error) {
-                        toast({ title: "Save failed", description: error.message, variant: "destructive" });
-                      } else {
-                        toast({ title: "Changes saved", description: "Your syllabus edits have been saved." });
-                      }
+                    variant="outline"
+                    onClick={() => {
+                      downloadSyllabusJson(previewJson);
+                      toast({ title: "Syllabus downloaded" });
                     }}
                   >
-                    <Save className="h-3.5 w-3.5" /> Save Changes
+                    <Download className="mr-2 h-4 w-4" /> Download
                   </Button>
                 </div>
               </CardContent>
@@ -450,13 +508,7 @@ const MaterialQualityCheck = () => {
               <Button
                 variant="outline"
                 onClick={() => {
-                  const blob = new Blob([JSON.stringify(previewJson, null, 2)], { type: "application/json" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `syllabus-${previewJson.courseCode || "export"}.json`;
-                  a.click();
-                  URL.revokeObjectURL(url);
+                  downloadSyllabusJson(previewJson);
                   toast({ title: "Syllabus downloaded" });
                 }}
               >
@@ -701,19 +753,21 @@ const MaterialQualityCheck = () => {
 
             <SyllabusPreview syllabus={syllabusJson} editable onChange={setSyllabusJson} />
 
-            {!finalApproved ? (
-              <div className="flex justify-center">
-                <Button size="lg" onClick={handleApproveAndSave}>
-                  <ShieldCheck className="mr-2 h-5 w-5" /> Approve & Save Syllabus
-                </Button>
-              </div>
-            ) : (
+            <div className="flex flex-wrap justify-center gap-3">
+              <Button variant="outline" onClick={() => runPipeline(syllabusJson)}>
+                <RotateCcw className="mr-2 h-4 w-4" /> Re-Review This Syllabus
+              </Button>
+              <Button size="lg" onClick={handleApproveAndSave}>
+                <ShieldCheck className="mr-2 h-5 w-5" /> {finalApproved ? "Save Changes" : "Approve & Save Syllabus"}
+              </Button>
+            </div>
+            {finalApproved && (
               <Card className="border-primary/30 bg-primary/5">
                 <CardContent className="flex items-center gap-4 p-5">
                   <CheckCircle2 className="h-8 w-8 text-primary" />
                   <div className="flex-1">
                     <p className="font-medium">Syllabus approved and saved</p>
-                    <p className="text-sm text-muted-foreground">Continue to the next step or download the approved syllabus.</p>
+                    <p className="text-sm text-muted-foreground">You can keep editing, re-review, save changes again, or continue to the next step.</p>
                   </div>
                   <Button variant="outline" size="sm" onClick={async () => {
                     if (!user) return;
