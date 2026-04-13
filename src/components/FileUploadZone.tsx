@@ -34,6 +34,12 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
     if (!fileList || fileList.length === 0) return;
     setUploading(true);
 
+    // Ensure we have a fresh session token before uploading
+    const { error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError) {
+      console.warn("Session refresh failed, proceeding with current session:", refreshError.message);
+    }
+
     const newFiles: UploadedFile[] = [];
 
     for (const file of Array.from(fileList)) {
