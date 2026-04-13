@@ -80,15 +80,7 @@ const severityConfig = {
   suggestion: { label: "Suggestion", className: "bg-primary/10 text-primary border-primary/30" },
 };
 
-const humanizePath = (jsonPath: string): string => {
-  return jsonPath
-    .replace(/\[(\d+)\]/g, " $1")
-    .replace(/\./g, " › ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .replace(/\s+/g, " ")
-    .trim();
-};
+// humanizePath removed — quality-check now returns human-readable titles
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -149,6 +141,7 @@ const MaterialQualityCheck = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [previewJson, setPreviewJson] = useState<SyllabusJson | null>(null);
   const [newFileUploaded, setNewFileUploaded] = useState(false);
+  const [rawSourceText, setRawSourceText] = useState<string | null>(null);
 
   const pendingCount = issues.filter((i) => i.status === "pending").length;
   const resolvedCount = issues.filter((i) => i.status !== "pending").length;
@@ -355,7 +348,7 @@ const MaterialQualityCheck = () => {
   // ── Issue actions ────────────────────────────────────────────────
 
   const applyCorrection = (issue: QualityIssue, correctionText: string) => {
-    if (!syllabusJson) return;
+    if (!syllabusJson || !issue.jsonPath) return;
     setSyllabusJson(setByPath(syllabusJson, issue.jsonPath, correctionText));
   };
 
@@ -390,7 +383,7 @@ const MaterialQualityCheck = () => {
 
   const handleUndo = (id: string) => {
     const issue = issues.find((i) => i.id === id);
-    if (issue && syllabusJson) {
+    if (issue && syllabusJson && issue.jsonPath) {
       setSyllabusJson(setByPath(syllabusJson, issue.jsonPath, issue.original));
     }
     setIssues((prev) =>
