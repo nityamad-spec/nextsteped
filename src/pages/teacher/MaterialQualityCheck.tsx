@@ -876,6 +876,9 @@ function SyllabusPreview({
       case "objectives":
         updated.learningObjectives = draft;
         break;
+      case "outcomes":
+        updated.learningOutcomes = draft;
+        break;
       case "schedule":
         updated.schedule = draft;
         break;
@@ -1000,7 +1003,34 @@ function SyllabusPreview({
           </section>
         )}
 
-        {/* Schedule */}
+        {/* Learning Outcomes */}
+        {(syllabus.learningOutcomes && syllabus.learningOutcomes.length > 0 || editingSection === "outcomes") && (
+          <section>
+            <SectionHeader icon={GraduationCap} label="Learning Outcomes" section="outcomes" value={syllabus.learningOutcomes || []} />
+            {editingSection === "outcomes" ? (
+              <div className="space-y-2">
+                {(draft as string[]).map((obj: string, i: number) => (
+                  <div key={i} className="flex gap-2">
+                    <Input value={obj} onChange={(e) => { const d = [...draft]; d[i] = e.target.value; setDraft(d); }} />
+                    <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setDraft(draft.filter((_: any, j: number) => j !== i))}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" className="gap-1" onClick={() => setDraft([...draft, ""])}>
+                  <Plus className="h-3 w-3" /> Add Outcome
+                </Button>
+              </div>
+            ) : (
+              <ul className="list-disc space-y-1 pl-5 text-sm">
+                {(syllabus.learningOutcomes || []).map((obj, i) => (
+                  <li key={i}>{obj}</li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+
         {(syllabus.schedule?.length > 0 || editingSection === "schedule") && (
           <section>
             <SectionHeader icon={Calendar} label="Weekly Schedule" section="schedule" value={syllabus.schedule} />
