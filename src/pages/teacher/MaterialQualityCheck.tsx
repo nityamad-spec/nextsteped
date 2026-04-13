@@ -52,6 +52,7 @@ interface SyllabusJson {
   term: string;
   description: string;
   learningObjectives: string[];
+  learningOutcomes?: string[];
   schedule: { week: number; topic: string; description: string; readings: string }[];
   gradingPolicy: { components: { name: string; weight: string; description: string }[] };
   policies: { title: string; content: string }[];
@@ -60,7 +61,8 @@ interface SyllabusJson {
 
 interface QualityIssue {
   id: string;
-  jsonPath: string;
+  title: string;
+  jsonPath?: string;
   original: string;
   correction: string;
   reason: string;
