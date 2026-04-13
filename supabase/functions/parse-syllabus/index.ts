@@ -6,13 +6,31 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function getMimeType(fileName: string): string {
+  const ext = fileName.split(".").pop()?.toLowerCase() || "";
+  const map: Record<string, string> = {
+    pdf: "application/pdf",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    txt: "text/plain",
+    csv: "text/csv",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    bmp: "image/bmp",
+    webp: "image/webp",
+  };
+  return map[ext] || "application/octet-stream";
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { fileContent, fileName } = await req.json();
+    const { fileContent, fileName, fileBase64 } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -23,16 +41,44 @@ serve(async (req) => {
 Given the content of a syllabus document, extract ALL information into a structured format.
 Be thorough — capture every detail from the document including course info, schedule, grading, policies, and resources.
 If a field is not present in the document, use an empty string or empty array as appropriate.
-Do NOT invent or fabricate information — only extract what is explicitly stated in the document.`;
+CRITICAL: Do NOT invent or fabricate information. Only extract what is EXPLICITLY stated in the document.
+If the document does not mention grading weights, leave the grading components array empty.
+If there is no schedule, leave the schedule array empty.
+If there are no policies mentioned, leave policies array empty.`;
 
-    const userPrompt = `Parse the following syllabus document (file: "${fileName}") into a structured format.
+    // Build messages based on whether we have base64 (binary file) or text content
+    const userMessages: any[] = [];
+    
+    if (fileBase64) {
+      // Binary file (PDF, DOCX, images) — send as inline_data for Gemini multimodal
+      const mimeType = getMimeType(fileName);
+      userMessages.push({
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `Parse the following syllabus document (file: "${fileName}") into a structured format. Extract ONLY information that is explicitly present in the document. Do NOT invent any content.`,
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: `data:${mimeType};base64,${fileBase64}`,
+            },
+          },
+        ],
+      });
+    } else {
+      // Plain text content
+      userMessages.push({
+        role: "user",
+        content: `Parse the following syllabus document (file: "${fileName}") into a structured format. Extract ONLY information that is explicitly present in the document. Do NOT invent any content.
 
 Document content:
 ---
 ${fileContent}
----
-
-Extract all information from this syllabus into the structured format using the provided tool.`;
+---`,
+      });
+    }
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -46,14 +92,14 @@ Extract all information from this syllabus into the structured format using the 
           model: "google/gemini-2.5-pro",
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
+            ...userMessages,
           ],
           tools: [
             {
               type: "function",
               function: {
                 name: "extract_syllabus",
-                description: "Extract structured syllabus data from a document",
+                description: "Extract structured syllabus data from a document. Only include information explicitly present in the document.",
                 parameters: {
                   type: "object",
                   properties: {
@@ -101,7 +147,7 @@ Extract all information from this syllabus into the structured format using the 
                       },
                       required: ["components"],
                       additionalProperties: false,
-                      description: "Grading breakdown",
+                      description: "Grading breakdown. Leave components empty if not mentioned in the document.",
                     },
                     policies: {
                       type: "array",

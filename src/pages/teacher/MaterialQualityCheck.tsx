@@ -270,13 +270,32 @@ const MaterialQualityCheck = () => {
 
         if (dlErr || !blob) throw new Error(dlErr?.message || "Failed to download file");
 
-        const fileContent = await blob.text();
+        // Determine if file is binary (PDF, DOCX, PPTX, images) or text
+        const ext = file.file_name.split(".").pop()?.toLowerCase() || "";
+        const binaryExts = ["pdf", "docx", "pptx", "png", "jpg", "jpeg", "gif", "bmp", "webp"];
+        const isBinary = binaryExts.includes(ext);
+
+        let body: Record<string, string>;
+        if (isBinary) {
+          // Convert to base64 for multimodal AI parsing
+          const arrayBuffer = await blob.arrayBuffer();
+          const uint8 = new Uint8Array(arrayBuffer);
+          let binary = "";
+          for (let i = 0; i < uint8.length; i++) {
+            binary += String.fromCharCode(uint8[i]);
+          }
+          const base64 = btoa(binary);
+          body = { fileBase64: base64, fileName: file.file_name };
+        } else {
+          const fileContent = await blob.text();
+          body = { fileContent, fileName: file.file_name };
+        }
 
         setStage("parsing");
         setStageMessage("AI is analyzing your syllabus and extracting structured content…");
 
         const { data: parseData, error: parseError } = await supabase.functions.invoke("parse-syllabus", {
-          body: { fileContent, fileName: file.file_name },
+          body,
         });
 
         if (parseError) throw new Error(parseError.message);
