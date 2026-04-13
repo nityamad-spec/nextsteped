@@ -239,11 +239,7 @@ const CourseCreation = () => {
       setPublishTimestamp(draft.publishTimestamp ?? null);
     }
 
-    const nextPhase = hasDraftDays
-      ? "plan"
-      : draft.phase === "generating" || draft.phase === "plan"
-        ? draft.phase
-        : "generating";
+    const nextPhase = hasDraftDays ? "plan" : "generating";
 
     localStorage.setItem("lessonPlanPhase", nextPhase);
     setPhaseRaw(nextPhase);
