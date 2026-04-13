@@ -434,7 +434,7 @@ const ConceptManagement = () => {
 
         {/* Navigation */}
         <div className="flex justify-between pt-4">
-          <Button variant="outline" onClick={() => navigate("/teacher/setup/quality-check")}>
+          <Button variant="outline" onClick={() => navigate("/teacher/setup/quality-check", { state: { courseId, fromStep: "concepts" } })}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Syllabus Review
           </Button>
           <Button
