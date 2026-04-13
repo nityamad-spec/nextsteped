@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { syllabusJson } = await req.json();
+    const { syllabusJson, sourceText } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -20,36 +20,41 @@ serve(async (req) => {
     }
 
     const systemPrompt = `You are a meticulous academic quality reviewer specializing in course syllabi.
-You will receive a structured syllabus JSON. Your job is twofold:
-1. Review what IS present for errors, inconsistencies, and ambiguities.
-2. Identify important academic sections that are MISSING ENTIRELY from the syllabus.
+You will receive:
+1. A structured JSON extraction of a syllabus.
+2. The original source text of the syllabus (if available).
 
-CRITICAL RULES:
-- NEVER invent or hallucinate specific content (e.g. specific readings, textbook titles, specific dates) that is not in the JSON.
-- For corrections: only flag issues where you can quote the EXACT text from the JSON that is problematic.
-- For missing sections: you MAY suggest that the syllabus should include a section on a topic IF that topic is a standard, important part of a course syllabus (e.g. grading policy, assessment/exam details, final project, attendance policy, academic integrity policy, office hours, prerequisites). Use severity "suggestion" for these.
-- Do NOT suggest adding trivial or stylistic things (e.g. a specific reading list, calendar details, or formatting preferences).
-- Prefer returning FEWER issues. Only flag concrete, high-signal problems and genuinely missing important sections.
+Your job is to review the JSON for issues AND suggest important missing sections.
+
+CRITICAL RULES — READ CAREFULLY:
+- You MUST cross-reference every finding against the original source text (if provided) to verify accuracy.
+- NEVER confuse different sections of the syllabus. "Learning Objectives" and "Learning Outcomes" (or "Course Outcomes") are DIFFERENT sections. Do not conflate them.
+- Before citing any item (e.g. "objective 3"), COUNT the actual items in the JSON array to verify that index exists.
+- NEVER reference items that do not exist. If learningObjectives has 5 items, do not reference "objective 6" or higher.
+- NEVER invent or hallucinate specific content (e.g. specific readings, textbook titles, dates) not in the data.
+- For corrections: only flag issues where you can point to SPECIFIC text in the JSON that is wrong or inconsistent.
+- For suggestions (missing sections): you may suggest the syllabus include important standard sections (grading policy, assessment details, attendance policy, academic integrity, office hours, prerequisites) IF they are truly absent.
+- Do NOT suggest adding trivial or stylistic things.
+- Prefer FEWER, high-confidence issues over many speculative ones. When in doubt, do NOT flag it.
 
 What to look for:
-1. **Factual errors** — incorrect dates, wrong terminology, contradictory information WITHIN the provided data
-2. **Internal inconsistencies** — grading weights that don't sum to 100%, schedule gaps, mismatched objectives
-3. **Ambiguities** — vague grading criteria, unclear policies, undefined terms that appear elsewhere
-4. **Pedagogical issues** — unrealistic schedules, misaligned objectives and assessments
-5. **Missing important sections** — if the syllabus lacks grading/assessment details, exam information, final project description, attendance policy, or other standard academic sections, suggest the professor consider adding them
+1. **Factual errors** — incorrect dates, wrong terminology, contradictory information
+2. **Internal inconsistencies** — grading weights not summing to 100%, schedule gaps, mismatched objectives
+3. **Ambiguities** — vague grading criteria, unclear policies
+4. **Missing important sections** — no grading policy, no exam details, no attendance policy, etc.
 
-For each issue, specify:
-- The exact JSON path (e.g. "schedule[2].description") — for missing sections, use "syllabus" as the path
-- The EXACT original text at that location (copy verbatim) — for missing sections, use "N/A - section not found"
+For each issue, provide:
+- A short human-readable title describing the area (e.g. "Grading Policy", "Learning Objectives", "Week 3 Schedule") — NOT a raw JSON path
+- The exact original text that is problematic (copy verbatim). For missing sections, use "N/A - section not found"
 - Your suggested correction or addition
-- A clear reason why this is an issue or why this section matters
-- Severity: "correction" (something existing that needs fixing — errors, inconsistencies, ambiguities) or "suggestion" (something missing that should be added)
+- A clear, accurate reason. VERIFY all claims against the source data before writing.
+- Category: "correction" (fix existing content) or "suggestion" (add missing content)`;
 
-If the syllabus is comprehensive and well-constructed, return an empty array.`;
-
-    const userPrompt = `Review this syllabus JSON for quality issues:
-
-${JSON.stringify(syllabusJson, null, 2)}`;
+    let userPrompt = `Review this syllabus JSON for quality issues:\n\n${JSON.stringify(syllabusJson, null, 2)}`;
+    
+    if (sourceText) {
+      userPrompt += `\n\n--- ORIGINAL SOURCE TEXT (for cross-reference) ---\n${sourceText}`;
+    }
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -79,13 +84,13 @@ ${JSON.stringify(syllabusJson, null, 2)}`;
                       items: {
                         type: "object",
                         properties: {
-                          jsonPath: { type: "string", description: "Dot/bracket path in the JSON (e.g. schedule[2].description)" },
-                          original: { type: "string", description: "The original text or value at this path" },
-                          correction: { type: "string", description: "Suggested corrected text or value" },
-                          reason: { type: "string", description: "Why this is flagged" },
+                          title: { type: "string", description: "Short human-readable title for this issue (e.g. 'Grading Policy', 'Week 5 Topic')" },
+                          original: { type: "string", description: "The original text or value that is problematic, copied verbatim. Use 'N/A - section not found' for missing sections." },
+                          correction: { type: "string", description: "Suggested corrected text, value, or addition" },
+                          reason: { type: "string", description: "Why this is flagged — must be accurate and verifiable against the source" },
                           severity: { type: "string", enum: ["correction", "suggestion"], description: "correction = fix existing content, suggestion = add missing content" },
                         },
-                        required: ["jsonPath", "original", "correction", "reason", "severity"],
+                        required: ["title", "original", "correction", "reason", "severity"],
                         additionalProperties: false,
                       },
                     },

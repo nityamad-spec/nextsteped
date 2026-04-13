@@ -52,6 +52,7 @@ interface SyllabusJson {
   term: string;
   description: string;
   learningObjectives: string[];
+  learningOutcomes?: string[];
   schedule: { week: number; topic: string; description: string; readings: string }[];
   gradingPolicy: { components: { name: string; weight: string; description: string }[] };
   policies: { title: string; content: string }[];
@@ -60,7 +61,8 @@ interface SyllabusJson {
 
 interface QualityIssue {
   id: string;
-  jsonPath: string;
+  title: string;
+  jsonPath?: string;
   original: string;
   correction: string;
   reason: string;
@@ -78,15 +80,7 @@ const severityConfig = {
   suggestion: { label: "Suggestion", className: "bg-primary/10 text-primary border-primary/30" },
 };
 
-const humanizePath = (jsonPath: string): string => {
-  return jsonPath
-    .replace(/\[(\d+)\]/g, " $1")
-    .replace(/\./g, " › ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .replace(/\s+/g, " ")
-    .trim();
-};
+// humanizePath removed — quality-check now returns human-readable titles
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -147,6 +141,7 @@ const MaterialQualityCheck = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [previewJson, setPreviewJson] = useState<SyllabusJson | null>(null);
   const [newFileUploaded, setNewFileUploaded] = useState(false);
+  const [rawSourceText, setRawSourceText] = useState<string | null>(null);
 
   const pendingCount = issues.filter((i) => i.status === "pending").length;
   const resolvedCount = issues.filter((i) => i.status !== "pending").length;
@@ -285,6 +280,7 @@ const MaterialQualityCheck = () => {
         const isBinary = binaryExts.includes(ext);
 
         let body: Record<string, string>;
+        let extractedSourceText: string | null = null;
         if (isBinary) {
           // Convert to base64 for multimodal AI parsing
           const arrayBuffer = await blob.arrayBuffer();
@@ -297,6 +293,7 @@ const MaterialQualityCheck = () => {
           body = { fileBase64: base64, fileName: file.file_name };
         } else {
           const fileContent = await blob.text();
+          extractedSourceText = fileContent;
           body = { fileContent, fileName: file.file_name };
         }
 
@@ -313,6 +310,7 @@ const MaterialQualityCheck = () => {
 
         parsed = parseData.syllabus;
         setSyllabusJson(parsed);
+        if (extractedSourceText) setRawSourceText(extractedSourceText);
       }
 
       // Quality check
@@ -322,7 +320,7 @@ const MaterialQualityCheck = () => {
       }
 
       const { data: checkData, error: checkError } = await supabase.functions.invoke("quality-check", {
-        body: { syllabusJson: parsed },
+        body: { syllabusJson: parsed, sourceText: rawSourceText || undefined },
       });
 
       if (checkError) throw new Error(checkError.message);
@@ -353,7 +351,7 @@ const MaterialQualityCheck = () => {
   // ── Issue actions ────────────────────────────────────────────────
 
   const applyCorrection = (issue: QualityIssue, correctionText: string) => {
-    if (!syllabusJson) return;
+    if (!syllabusJson || !issue.jsonPath) return;
     setSyllabusJson(setByPath(syllabusJson, issue.jsonPath, correctionText));
   };
 
@@ -388,7 +386,7 @@ const MaterialQualityCheck = () => {
 
   const handleUndo = (id: string) => {
     const issue = issues.find((i) => i.id === id);
-    if (issue && syllabusJson) {
+    if (issue && syllabusJson && issue.jsonPath) {
       setSyllabusJson(setByPath(syllabusJson, issue.jsonPath, issue.original));
     }
     setIssues((prev) =>
@@ -673,7 +671,7 @@ const MaterialQualityCheck = () => {
                       <div className="flex-1 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="outline" className={sev.className}>{sev.label}</Badge>
-                          <span className="text-sm font-medium">{humanizePath(issue.jsonPath)}</span>
+                          <span className="text-sm font-medium">{issue.title}</span>
                           {resolved && (
                             <Badge variant="secondary" className="gap-1 text-xs">
                               <CheckCircle2 className="h-3 w-3" />
@@ -681,11 +679,7 @@ const MaterialQualityCheck = () => {
                             </Badge>
                           )}
                         </div>
-                        {issue.original && issue.original !== "N/A - section not found" && (
-                          <p className="text-sm leading-snug">
-                            <span className="font-medium text-destructive line-through">{issue.original}</span>
-                          </p>
-                        )}
+                        <p className="text-sm text-muted-foreground leading-snug">{issue.reason}</p>
                       </div>
                       {isExpanded ? (
                         <ChevronUp className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -882,6 +876,9 @@ function SyllabusPreview({
       case "objectives":
         updated.learningObjectives = draft;
         break;
+      case "outcomes":
+        updated.learningOutcomes = draft;
+        break;
       case "schedule":
         updated.schedule = draft;
         break;
@@ -1006,7 +1003,34 @@ function SyllabusPreview({
           </section>
         )}
 
-        {/* Schedule */}
+        {/* Learning Outcomes */}
+        {(syllabus.learningOutcomes && syllabus.learningOutcomes.length > 0 || editingSection === "outcomes") && (
+          <section>
+            <SectionHeader icon={GraduationCap} label="Learning Outcomes" section="outcomes" value={syllabus.learningOutcomes || []} />
+            {editingSection === "outcomes" ? (
+              <div className="space-y-2">
+                {(draft as string[]).map((obj: string, i: number) => (
+                  <div key={i} className="flex gap-2">
+                    <Input value={obj} onChange={(e) => { const d = [...draft]; d[i] = e.target.value; setDraft(d); }} />
+                    <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setDraft(draft.filter((_: any, j: number) => j !== i))}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" className="gap-1" onClick={() => setDraft([...draft, ""])}>
+                  <Plus className="h-3 w-3" /> Add Outcome
+                </Button>
+              </div>
+            ) : (
+              <ul className="list-disc space-y-1 pl-5 text-sm">
+                {(syllabus.learningOutcomes || []).map((obj, i) => (
+                  <li key={i}>{obj}</li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+
         {(syllabus.schedule?.length > 0 || editingSection === "schedule") && (
           <section>
             <SectionHeader icon={Calendar} label="Weekly Schedule" section="schedule" value={syllabus.schedule} />
