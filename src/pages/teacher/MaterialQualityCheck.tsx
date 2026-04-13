@@ -418,9 +418,19 @@ const MaterialQualityCheck = () => {
     }
   };
 
+  // ── Auto-run pipeline when a new file is uploaded ────────────────
+  useEffect(() => {
+    if (newFileUploaded && syllabusFiles.length > 0 && stage === "idle" && user) {
+      setNewFileUploaded(false);
+      void runPipeline();
+    }
+  }, [newFileUploaded, syllabusFiles.length, stage, user, runPipeline]);
+
   // ── Render: Idle state — upload + Review button ──────────────────
 
   if (stage === "idle") {
+    const showSavedSyllabus = cameFromLaterStep && previewJson && !newFileUploaded;
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
         <div className="w-full max-w-3xl">
@@ -431,57 +441,20 @@ const MaterialQualityCheck = () => {
               Syllabus <span className="text-primary">Review</span>
             </h1>
             <p className="mt-2 text-muted-foreground">
-              Upload your syllabus and AICTE guidelines, then review with AI-powered analysis.
+              {showSavedSyllabus
+                ? "Your approved syllabus is saved. You can edit it, upload a new one, or continue."
+                : "Upload your syllabus, then it will be automatically reviewed with AI-powered analysis."}
             </p>
           </div>
 
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <FileText className="h-5 w-5 text-primary" /> Upload Syllabus
-              </CardTitle>
-              <CardDescription>
-                Upload your syllabus, then review AI suggestions. The newest uploaded syllabus is always the one that gets reviewed.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
-              </p>
-              {latestUploadedFile && (
-                <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-foreground">
-                  Latest upload to review: <span className="font-medium">{latestUploadedFile.name}</span>
-                </div>
-              )}
-              {user ? (
-                <FileUploadZone
-                  folderPath={`${user.id}/syllabus`}
-                  accept={UPLOAD_ACCEPT}
-                  files={syllabusFiles}
-                  onFilesChange={handleSyllabusFilesChange}
-                  teacherId={user.id}
-                  folderType="syllabus"
-                  courseId={courseId}
-                />
-              ) : (
-                <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
-                  Preparing upload area…
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {previewJson && (
+          {showSavedSyllabus && (
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <CheckCircle2 className="h-5 w-5 text-primary" /> Saved Approved Syllabus
+                  <CheckCircle2 className="h-5 w-5 text-primary" /> Approved Syllabus
                 </CardTitle>
                 <CardDescription>
-                  Your last approved syllabus is saved here if you want to reopen it, keep editing it, or download it.
+                  Your approved syllabus is saved. You can reopen it, edit it, download it, or upload a new version below.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -503,38 +476,70 @@ const MaterialQualityCheck = () => {
             </Card>
           )}
 
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="h-5 w-5 text-primary" /> {showSavedSyllabus ? "Upload New Syllabus" : "Upload Syllabus"}
+              </CardTitle>
+              <CardDescription>
+                {showSavedSyllabus
+                  ? "Upload a new version to replace your current syllabus. Review will start automatically."
+                  : "Upload your syllabus file. AI review will start automatically after upload."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
+              </p>
+              {user ? (
+                <FileUploadZone
+                  folderPath={`${user.id}/syllabus`}
+                  accept={UPLOAD_ACCEPT}
+                  files={syllabusFiles}
+                  onFilesChange={handleSyllabusFilesChange}
+                  teacherId={user.id}
+                  folderType="syllabus"
+                  courseId={courseId}
+                />
+              ) : (
+                <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                  Preparing upload area…
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="flex justify-center gap-3 flex-wrap">
             <Button variant="outline" onClick={() => navigate("/teacher/onboarding")}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
             </Button>
-            {previewJson && (
+            {syllabusFiles.length > 0 && !showSavedSyllabus && (
               <Button
-                variant="outline"
-                onClick={() => {
-                  downloadSyllabusJson(previewJson);
-                  toast({ title: "Syllabus downloaded" });
-                }}
+                onClick={() => void runPipeline()}
+                size="lg"
               >
-                <FileText className="mr-2 h-4 w-4" /> Download Syllabus
+                <BookOpen className="mr-2 h-4 w-4" /> Review Syllabus
               </Button>
             )}
-            <Button
-              onClick={() => {
-                void runPipeline();
-              }}
-              disabled={syllabusFiles.length === 0}
-              size="lg"
-              variant={previewJson ? "outline" : "default"}
-            >
-              <BookOpen className="mr-2 h-4 w-4" /> {previewJson ? "Re-Review Syllabus" : "Review Syllabus"}
-            </Button>
-            {previewJson && (
-              <Button
-                size="lg"
-                onClick={() => navigate("/teacher/setup/concepts", { state: { courseId } })}
-              >
-                Continue to Concepts <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+            {showSavedSyllabus && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => void runPipeline()}
+                  disabled={syllabusFiles.length === 0}
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" /> Re-Review Current Syllabus
+                </Button>
+                <Button
+                  size="lg"
+                  onClick={() => navigate("/teacher/setup/concepts", { state: { courseId } })}
+                >
+                  Continue to Concepts <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </>
             )}
           </div>
         </div>
