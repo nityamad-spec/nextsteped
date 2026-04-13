@@ -124,6 +124,7 @@ const MaterialQualityCheck = () => {
   const location = useLocation();
   const { user } = useAuth();
   const courseId = (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
+  const cameFromLaterStep = (location.state as any)?.fromStep === "concepts";
 
   const [stage, setStage] = useState<PipelineStage>("idle");
   const [syllabusFiles, setSyllabusFiles] = useState<UploadedFile[]>([]);
@@ -136,6 +137,7 @@ const MaterialQualityCheck = () => {
   const [finalApproved, setFinalApproved] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [previewJson, setPreviewJson] = useState<SyllabusJson | null>(null);
+  const [newFileUploaded, setNewFileUploaded] = useState(false);
 
   const pendingCount = issues.filter((i) => i.status === "pending").length;
   const resolvedCount = issues.filter((i) => i.status !== "pending").length;
@@ -156,6 +158,7 @@ const MaterialQualityCheck = () => {
 
   const handleSyllabusFilesChange = (files: UploadedFile[]) => {
     setSyllabusFiles(sortFilesByNewest(files));
+    setNewFileUploaded(true);
     resetReviewState();
   };
 
