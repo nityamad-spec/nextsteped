@@ -673,7 +673,7 @@ const MaterialQualityCheck = () => {
                       <div className="flex-1 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="outline" className={sev.className}>{sev.label}</Badge>
-                          <span className="text-xs text-muted-foreground font-mono">{issue.jsonPath}</span>
+                          <span className="text-sm font-medium">{humanizePath(issue.jsonPath)}</span>
                           {resolved && (
                             <Badge variant="secondary" className="gap-1 text-xs">
                               <CheckCircle2 className="h-3 w-3" />
@@ -681,9 +681,11 @@ const MaterialQualityCheck = () => {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm leading-snug">
-                          <span className="font-medium text-destructive line-through">{issue.original}</span>
-                        </p>
+                        {issue.original && issue.original !== "N/A - section not found" && (
+                          <p className="text-sm leading-snug">
+                            <span className="font-medium text-destructive line-through">{issue.original}</span>
+                          </p>
+                        )}
                       </div>
                       {isExpanded ? (
                         <ChevronUp className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -702,7 +704,7 @@ const MaterialQualityCheck = () => {
                         >
                           <div className="rounded-md bg-primary/5 p-3">
                             <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">
-                              Suggested Correction
+                              {issue.severity === "correction" ? "Suggested Correction" : "Suggested Addition"}
                             </p>
                             {isEditing ? (
                               <Textarea
