@@ -44,7 +44,7 @@ What to look for:
 4. **Missing important sections** — no grading policy, no exam details, no attendance policy, etc.
 
 For each issue, provide:
-- A short human-readable title describing the area (e.g. "Grading Policy", "Learning Objectives", "Week 3 Schedule") — NOT a raw JSON path
+- A short human-readable title that describes the SPECIFIC topic of the issue (e.g. "Attendance Policy", "Academic Integrity", "Grading Weights", "Week 3 Schedule", "Learning Objectives"). For missing sections, use the name of the missing section (e.g. "Attendance Policy", "Office Hours") — NOT generic words like "Syllabus".
 - The exact original text that is problematic (copy verbatim). For missing sections, use "N/A - section not found"
 - Your suggested correction or addition
 - A clear, accurate reason. VERIFY all claims against the source data before writing.
