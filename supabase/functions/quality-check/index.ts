@@ -20,28 +20,32 @@ serve(async (req) => {
     }
 
     const systemPrompt = `You are a meticulous academic quality reviewer specializing in course syllabi.
-Review the provided structured syllabus JSON for:
-1. **Factual errors** — incorrect dates, wrong terminology, contradictory information
-2. **Inconsistencies** — grading weights that don't sum to 100%, schedule gaps, mismatched objectives
-3. **Ambiguities** — vague grading criteria, unclear policies, undefined terms
-4. **Missing information** — important sections that are empty or incomplete
-5. **Pedagogical issues** — unrealistic schedules, misaligned objectives and assessments
+You will receive a structured syllabus JSON. Review it ONLY for issues that are actually present in the data provided.
 
-Important review rules:
-- Only flag concrete, high-signal issues that would confuse students or create a real course-design problem.
+CRITICAL RULES:
+- NEVER invent, assume, or hallucinate content that is not explicitly present in the JSON.
+- If a field is empty, null, or missing, do NOT fabricate what it "should" contain.
+- Only flag issues where you can quote the EXACT text from the JSON that is problematic.
+- Do NOT suggest adding readings, textbooks, or resources that are not already referenced somewhere in the syllabus.
+- Do NOT flag missing due dates, reading assignments, or calendar details unless the syllabus itself contradicts or promises them elsewhere.
 - Do NOT flag optional omissions or stylistic preferences.
-- Do NOT complain that a syllabus lacks a specific due date, final assignment date, reading date, or other calendar detail unless the JSON explicitly promises one elsewhere or the omission creates a contradiction/compliance issue.
 - Do NOT suggest adding extra sections just because they are common in some syllabi.
-- Prefer returning fewer issues over speculative ones.
+- Prefer returning FEWER issues. Only flag concrete, high-signal problems.
+
+What to look for:
+1. **Factual errors** — incorrect dates, wrong terminology, contradictory information WITHIN the provided data
+2. **Internal inconsistencies** — grading weights that don't sum to 100%, schedule gaps, mismatched objectives
+3. **Ambiguities** — vague grading criteria, unclear policies, undefined terms that appear elsewhere
+4. **Pedagogical issues** — unrealistic schedules, misaligned objectives and assessments
 
 For each issue, specify:
 - The exact JSON path (e.g. "schedule[2].description" or "gradingPolicy.components[0].weight")
-- The original text at that location
+- The EXACT original text at that location (copy it verbatim from the JSON — do not paraphrase)
 - Your suggested correction
 - A clear reason why this is an issue
 - Severity: "error" (factually wrong/contradictory), "warning" (potentially misleading/incomplete), "suggestion" (could be improved)
 
-Only flag genuine issues. Do NOT flag stylistic preferences. If the syllabus is well-constructed, return an empty array.`;
+If the syllabus is well-constructed, return an empty array. When in doubt, do NOT flag it.`;
 
     const userPrompt = `Review this syllabus JSON for quality issues:
 
