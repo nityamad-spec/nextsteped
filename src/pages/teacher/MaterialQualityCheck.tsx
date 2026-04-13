@@ -64,7 +64,7 @@ interface QualityIssue {
   original: string;
   correction: string;
   reason: string;
-  severity: "error" | "warning" | "suggestion";
+  severity: "correction" | "suggestion";
   status: "pending" | "approved" | "edited" | "dismissed";
   editedCorrection?: string;
 }
@@ -74,9 +74,18 @@ type PipelineStage = "idle" | "loading" | "parsing" | "checking" | "review" | "p
 const UPLOAD_ACCEPT = ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
 
 const severityConfig = {
-  error: { label: "Error", className: "bg-destructive/10 text-destructive border-destructive/30" },
-  warning: { label: "Warning", className: "bg-warning/10 text-warning border-warning/30" },
+  correction: { label: "Correction", className: "bg-warning/10 text-warning border-warning/30" },
   suggestion: { label: "Suggestion", className: "bg-primary/10 text-primary border-primary/30" },
+};
+
+const humanizePath = (jsonPath: string): string => {
+  return jsonPath
+    .replace(/\[(\d+)\]/g, " $1")
+    .replace(/\./g, " › ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/\s+/g, " ")
+    .trim();
 };
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -664,7 +673,7 @@ const MaterialQualityCheck = () => {
                       <div className="flex-1 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="outline" className={sev.className}>{sev.label}</Badge>
-                          <span className="text-xs text-muted-foreground font-mono">{issue.jsonPath}</span>
+                          <span className="text-sm font-medium">{humanizePath(issue.jsonPath)}</span>
                           {resolved && (
                             <Badge variant="secondary" className="gap-1 text-xs">
                               <CheckCircle2 className="h-3 w-3" />
@@ -672,9 +681,11 @@ const MaterialQualityCheck = () => {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm leading-snug">
-                          <span className="font-medium text-destructive line-through">{issue.original}</span>
-                        </p>
+                        {issue.original && issue.original !== "N/A - section not found" && (
+                          <p className="text-sm leading-snug">
+                            <span className="font-medium text-destructive line-through">{issue.original}</span>
+                          </p>
+                        )}
                       </div>
                       {isExpanded ? (
                         <ChevronUp className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -693,7 +704,7 @@ const MaterialQualityCheck = () => {
                         >
                           <div className="rounded-md bg-primary/5 p-3">
                             <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">
-                              Suggested Correction
+                              {issue.severity === "correction" ? "Suggested Correction" : "Suggested Addition"}
                             </p>
                             {isEditing ? (
                               <Textarea
