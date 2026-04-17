@@ -211,7 +211,8 @@ const CourseCreation = () => {
     const hasDraftDays = Array.isArray(draft.days) && draft.days.length > 0;
 
     if (hasDraftDays) {
-      setDaysRaw(draft.days as DayPlan[]);
+      // Always normalize to keep week numbers + dates in sync
+      setDaysRaw(normalizeDays(draft.days as DayPlan[]));
     }
     if (Array.isArray(draft.expandedDays)) {
       setExpandedDays(draft.expandedDays);
