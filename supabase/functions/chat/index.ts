@@ -83,43 +83,92 @@ async function fetchSyllabusContext(
 ): Promise<string> {
   const version = await getCacheVersion(supabaseAdmin, "syllabus", teacherId);
   return cached(`syllabus:${teacherId}:v${version}`, TTL_SYLLABUS_MS, async () => {
-  try {
-    const { data, error } = await supabaseAdmin.storage
-      .from("course-materials")
-      .download(`${teacherId}/syllabus/approved-syllabus.json`);
-    if (error || !data) return "";
+    try {
+      const { data, error } = await supabaseAdmin.storage
+        .from("course-materials")
+        .download(`${teacherId}/syllabus/approved-syllabus.json`);
+      if (error || !data) return "";
 
-    const text = await data.text();
-    const syllabus = JSON.parse(text);
+      const text = await data.text();
+      const syllabus = JSON.parse(text);
 
-    // Extract week titles, topics, and learning outcomes
-    const parts: string[] = [];
-    if (Array.isArray(syllabus.weeks)) {
-      for (const week of syllabus.weeks.slice(0, 16)) {
-        let line = `Week ${week.week || ""}: ${week.title || week.topic || ""}`;
-        if (week.topics && Array.isArray(week.topics)) {
-          line += ` — ${week.topics.join(", ")}`;
-        }
-        if (week.learningOutcomes && Array.isArray(week.learningOutcomes)) {
-          line += ` [Outcomes: ${week.learningOutcomes.join("; ")}]`;
-        }
-        parts.push(line);
-      }
-    }
-    // Also grab high-level objectives
-    if (syllabus.objectives && Array.isArray(syllabus.objectives)) {
-      parts.unshift(`Course objectives: ${syllabus.objectives.join("; ")}`);
-    }
-    if (syllabus.courseName) {
-      parts.unshift(`Course: ${syllabus.courseName}`);
-    }
+      // ---- Field-level truncation helpers ----
+      const trim = (s: unknown, n: number): string => {
+        const str = typeof s === "string" ? s : s == null ? "" : String(s);
+        const clean = str.replace(/\s+/g, " ").trim();
+        return clean.length > n ? clean.slice(0, n - 1) + "…" : clean;
+      };
+      const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
-    const result = parts.join("\n");
-    return result.slice(0, 2000);
-  } catch (e) {
-    console.error("Syllabus RAG error:", e);
-    return "";
-  }
+      // ---- Build minified JSON payload per template ----
+      const payload: Record<string, unknown> = {};
+
+      // course header
+      const code = trim(syllabus.courseCode || syllabus.code, 20);
+      const title = trim(syllabus.courseName || syllabus.title || syllabus.name, 80);
+      const term = trim(syllabus.term || syllabus.semester, 20);
+      const courseObj: Record<string, string> = {};
+      if (code) courseObj.code = code;
+      if (title) courseObj.title = title;
+      if (term) courseObj.term = term;
+      if (Object.keys(courseObj).length > 0) payload.course = courseObj;
+
+      // summary
+      const summary = trim(
+        syllabus.summary || syllabus.description || syllabus.courseDescription,
+        200
+      );
+      if (summary) payload.summary = summary;
+
+      // objectives (≤6, ≤120 chars each)
+      const objectives = arr(syllabus.objectives)
+        .slice(0, 6)
+        .map((o) => trim(o, 120))
+        .filter(Boolean);
+      if (objectives.length > 0) payload.objectives = objectives;
+
+      // outcomes (≤6, ≤120 chars each)
+      const outcomesSrc =
+        arr(syllabus.outcomes).length > 0
+          ? arr(syllabus.outcomes)
+          : arr(syllabus.learningOutcomes);
+      const outcomes = outcomesSrc
+        .slice(0, 6)
+        .map((o) => trim(o, 120))
+        .filter(Boolean);
+      if (outcomes.length > 0) payload.outcomes = outcomes;
+
+      // schedule (≤16 weeks, topic ≤40, desc ≤60)
+      const weeksSrc =
+        arr(syllabus.weeks).length > 0
+          ? arr(syllabus.weeks)
+          : arr(syllabus.schedule);
+      const schedule = weeksSrc
+        .slice(0, 16)
+        .map((wk: any, i: number) => {
+          const w = Number(wk?.week ?? wk?.w ?? i + 1) || i + 1;
+          const topic = trim(wk?.title || wk?.topic, 40);
+          let descSrc: string = wk?.description || wk?.desc || "";
+          if (!descSrc && Array.isArray(wk?.topics)) {
+            descSrc = wk.topics.join(", ");
+          }
+          const desc = trim(descSrc, 60);
+          const entry: Record<string, unknown> = { w };
+          if (topic) entry.topic = topic;
+          if (desc) entry.desc = desc;
+          return entry;
+        })
+        .filter((e) => e.topic || e.desc);
+      if (schedule.length > 0) payload.schedule = schedule;
+
+      if (Object.keys(payload).length === 0) return "";
+
+      const result = `SYLLABUS_CONTEXT (JSON):\n${JSON.stringify(payload)}`;
+      return result.slice(0, 2000);
+    } catch (e) {
+      console.error("Syllabus RAG error:", e);
+      return "";
+    }
   });
 }
 
