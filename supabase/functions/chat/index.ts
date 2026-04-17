@@ -127,7 +127,8 @@ async function fetchConceptsContext(
   supabaseAdmin: ReturnType<typeof createClient>,
   courseId: string
 ): Promise<string> {
-  return cached(`concepts:${courseId}`, TTL_CONCEPTS_MS, async () => {
+  const version = await getCacheVersion(supabaseAdmin, "concepts", courseId);
+  return cached(`concepts:${courseId}:v${version}`, TTL_CONCEPTS_MS, async () => {
     try {
       const { data, error } = await supabaseAdmin
         .from("concepts")
