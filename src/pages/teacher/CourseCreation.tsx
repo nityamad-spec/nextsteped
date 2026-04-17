@@ -956,16 +956,32 @@ const CourseCreation = () => {
 
         {/* Export bar */}
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Daily Breakdown</h2>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm"><Download className="mr-1.5 h-3.5 w-3.5" /> Export Plan</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleExport("pdf")}><FileText className="mr-2 h-4 w-4" /> Export as PDF</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("word")}><FileDown className="mr-2 h-4 w-4" /> Export as Word</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <h2 className="text-lg font-semibold">Weekly Breakdown</h2>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (window.confirm("Regenerate the lesson plan from your uploaded documents? This will replace the current plan.")) {
+                  setDays([]);
+                  setExpandedDays([]);
+                  localStorage.removeItem("lessonPlanDays");
+                  setPhase("generating");
+                }
+              }}
+            >
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Regenerate
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm"><Download className="mr-1.5 h-3.5 w-3.5" /> Export Plan</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExport("pdf")}><FileText className="mr-2 h-4 w-4" /> Export as PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("word")}><FileDown className="mr-2 h-4 w-4" /> Export as Word</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         {/* Day Cards */}
