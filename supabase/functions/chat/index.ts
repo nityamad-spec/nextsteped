@@ -154,7 +154,8 @@ async function fetchQuestionBankContext(
   courseId: string,
   _latestMessage: string
 ): Promise<string> {
-  return cached(`questions:${courseId}`, TTL_QUESTIONS_MS, async () => {
+  const version = await getCacheVersion(supabaseAdmin, "questions", courseId);
+  return cached(`questions:${courseId}:v${version}`, TTL_QUESTIONS_MS, async () => {
     try {
       // Simple keyword approach: fetch a few quiz questions and let the model see them
       const { data, error } = await supabaseAdmin
