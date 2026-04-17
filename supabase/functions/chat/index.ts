@@ -125,30 +125,32 @@ async function fetchConceptsContext(
 async function fetchQuestionBankContext(
   supabaseAdmin: ReturnType<typeof createClient>,
   courseId: string,
-  latestMessage: string
+  _latestMessage: string
 ): Promise<string> {
-  try {
-    // Simple keyword approach: fetch a few quiz questions and let the model see them
-    const { data, error } = await supabaseAdmin
-      .from("assessment_questions")
-      .select("question_text, topic, difficulty, question_type")
-      .eq("course_id", courseId)
-      .eq("mode", "daily_quiz")
-      .limit(5);
-    if (error || !data || data.length === 0) return "";
+  return cached(`questions:${courseId}`, TTL_QUESTIONS_MS, async () => {
+    try {
+      // Simple keyword approach: fetch a few quiz questions and let the model see them
+      const { data, error } = await supabaseAdmin
+        .from("assessment_questions")
+        .select("question_text, topic, difficulty, question_type")
+        .eq("course_id", courseId)
+        .eq("mode", "daily_quiz")
+        .limit(5);
+      if (error || !data || data.length === 0) return "";
 
-    const lines = data.map(
-      (q: any) =>
-        `[${q.difficulty}/${q.question_type}] ${q.question_text} (Topic: ${q.topic})`
-    );
-    return `Reference questions the professor uses:\n${lines.join("\n")}`.slice(
-      0,
-      1000
-    );
-  } catch (e) {
-    console.error("Question bank RAG error:", e);
-    return "";
-  }
+      const lines = data.map(
+        (q: any) =>
+          `[${q.difficulty}/${q.question_type}] ${q.question_text} (Topic: ${q.topic})`
+      );
+      return `Reference questions the professor uses:\n${lines.join("\n")}`.slice(
+        0,
+        1000
+      );
+    } catch (e) {
+      console.error("Question bank RAG error:", e);
+      return "";
+    }
+  });
 }
 
 async function fetchStudentProgressContext(
