@@ -340,24 +340,76 @@ const CourseCreation = () => {
 
   const totalWeightage = days.reduce((sum, d) => sum + (d.weightage || 0), 0);
 
-  useEffect(() => {
-    // Auto-start generation if we're on the generating phase and haven't started yet
-    if (phase === "generating" && genStep === 0) {
-      // Generation is handled by the timer effect below
+  // Real generation: call edge function that reads syllabus + uploaded lesson plans
+  const runGeneration = useCallback(async () => {
+    if (!courseId) {
+      setGenError("No course selected. Please complete course setup first.");
+      return;
     }
-  }, [phase, genStep]);
+    setGenError(null);
+    setGenStep(0);
+    setGenElapsed(0);
+    try {
+      // Step 1: reading uploads (visual cue)
+      setGenStep(0);
+      const stepTimer = setInterval(() => setGenStep(s => Math.min(s + 1, 2)), 4000);
+      const elapsedTimer = setInterval(() => setGenElapsed(e => e + 1), 1000);
+
+      const { data, error } = await supabase.functions.invoke("generate-lesson-plan", {
+        body: { courseId },
+      });
+
+      clearInterval(stepTimer);
+      clearInterval(elapsedTimer);
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (!Array.isArray(data?.weeks) || data.weeks.length === 0) {
+        throw new Error("AI returned no weeks. Please try regenerating.");
+      }
+
+      const generated: DayPlan[] = data.weeks.map((w: any, i: number) => {
+        const weekResources: Resource[] = (w.resources || []).map((r: any) => ({
+          id: makeId(),
+          title: r.title || "Untitled",
+          action: r.action || "",
+          type: (r.type || "exercise") as Resource["type"],
+          accepted: true,
+          provenance: "uploads" as const,
+          concept: r.concept || "General",
+        }));
+        return {
+          id: `d_${i + 1}_${Date.now()}`,
+          day: i + 1,
+          dates: `Week ${i + 1}`,
+          topic: w.topic || `Week ${i + 1}`,
+          description: w.description || "",
+          resources: weekResources,
+          weightage: Math.round(100 / data.weeks.length),
+          locked: i > 0, // first week visible, rest hidden initially
+        };
+      });
+
+      setDays(normalizeDays(generated));
+      setExpandedDays(generated.length > 0 ? [generated[0].id] : []);
+      setGenStep(2);
+      setTimeout(() => setPhase("plan"), 600);
+    } catch (err: any) {
+      console.error("Lesson plan generation failed:", err);
+      setGenError(err?.message || "Failed to generate lesson plan");
+    }
+  }, [courseId]);
 
   useEffect(() => {
     if (phase !== "generating") return;
-    const stepTimer = setInterval(() => {
-      setGenStep((s) => {
-        if (s >= 2) { clearInterval(stepTimer); setTimeout(() => setPhase("plan"), 800); return s; }
-        return s + 1;
-      });
-    }, 1200);
-    const elapsedTimer = setInterval(() => setGenElapsed((e) => e + 1), 1000);
-    return () => { clearInterval(stepTimer); clearInterval(elapsedTimer); };
-  }, [phase]);
+    if (days.length > 0) {
+      // Already have a plan (restored from draft) — skip generation
+      setPhase("plan");
+      return;
+    }
+    if (restoringDraft) return;
+    runGeneration();
+  }, [phase, days.length, restoringDraft, runGeneration]);
 
   const toggleDay = (id: string) => {
     setExpandedDays((prev) => prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]);
