@@ -94,13 +94,14 @@ async function fetchSyllabusContext(
     console.error("Syllabus RAG error:", e);
     return "";
   }
+  });
 }
 
 async function fetchConceptsContext(
   supabaseAdmin: ReturnType<typeof createClient>,
   courseId: string
 ): Promise<string> {
-  try {
+  return cached(`concepts:${courseId}`, TTL_CONCEPTS_MS, async () => {
     const { data, error } = await supabaseAdmin
       .from("concepts")
       .select("concept_code, weight")
