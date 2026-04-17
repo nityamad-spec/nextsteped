@@ -1,60 +1,84 @@
 
 
-## Fix Lesson Plan Display Structure
+## Goal
+Define a **JSON-shaped template** for the syllabus context block returned by `fetchSyllabusContext`. The LLM receives structured JSON instead of labeled prose, so it can parse `objectives`, `outcomes`, and per-week `topic` fields unambiguously — no risk of conflating sections or misreading week numbers.
 
-### Problem
-The current lesson plan displays a flat list under "Concepts & Activities" — all resources are shown at the same level. The user wants a **hierarchical, chronological** structure:
+This plan defines the template only (chat output). No code changes.
 
-1. **Learning Outcomes** (brief checklist)
-2. **Concepts** (listed in order for that week)
-   - Under each concept: its specific lectures, exercises, activities
+## The template
 
-### Data Model Change
-The current `WorkshopResource` has no concept grouping. Resources need a `concept` field so they can be grouped hierarchically.
-
-**`src/data/workshopPlan.ts`**: Add optional `concept?: string` to `WorkshopResource`. Update mock data so each resource has a concept label (e.g., "Variables & Types", "Control Flow"). Resources with the same concept get grouped together.
-
-### Display Changes (3 files)
-
-All three files that render lesson plans will use the same hierarchical layout:
+A single fenced JSON block, minified to save chars, with short field names:
 
 ```text
-Week 1: Python Fundamentals
-├── Learning Outcomes
-│   ✓ Understand variables and data types
-│   ✓ Write basic control flow statements
-├── Variables & Data Types          ← concept heading
-│   ├── Intro to Python Slides      [textbook]
-│   ├── Python Setup Guide           [textbook]
-│   └── Interactive Coding Exercise  [exercise]
-├── Control Flow                    ← concept heading
-│   └── Pair Programming: Hello World [lab]
-└── Teaching Strategies (collapsible, optional)
+SYLLABUS_CONTEXT (JSON):
+{"course":{"code":"CS101","title":"Intro to Python","term":"Fall 2025"},
+"summary":"Foundational Python: syntax, data structures, problem-solving.",
+"objectives":["Build fluency with Python syntax","Apply control flow and functions","Read and debug small programs"],
+"outcomes":["Write working Python scripts","Decompose problems into functions","Use lists/dicts idiomatically"],
+"schedule":[
+{"w":1,"topic":"Variables & types","desc":"primitives, assignment, I/O"},
+{"w":2,"topic":"Control flow","desc":"if/else, loops, booleans"},
+{"w":3,"topic":"Functions","desc":"defs, args, return, scope"},
+...
+{"w":16,"topic":"Final project","desc":"capstone integration"}
+]}
 ```
 
-**Files to update:**
-1. **`src/data/workshopPlan.ts`** — Add `concept` field to type and mock data
-2. **`src/pages/teacher/ContentLibrary.tsx`** (`renderLessonPlanWeek`) — Group resources by concept, render concept headings with nested activities
-3. **`src/pages/student/StudentHome.tsx`** (lesson plan section) — Same hierarchical grouping
-4. **`src/pages/teacher/TeachingPlan.tsx`** (resource rendering in edit view) — Group by concept in the display/edit cards
+## Why JSON over labeled prose
 
-### Rendering Logic
-```typescript
-// Group resources by concept, preserving order of first appearance
-const concepts = resources.reduce((acc, r) => {
-  const key = r.concept || "General";
-  if (!acc.has(key)) acc.set(key, []);
-  acc.get(key).push(r);
-  return acc;
-}, new Map());
+| Property | Benefit |
+|---|---|
+| **Unambiguous field names** (`objectives` vs `outcomes`) | Model can't conflate them — the key *is* the label |
+| **Numeric `w` field** | "Week 3" maps to `"w":3` — exact int match, no `W03` vs `W3` ambiguity |
+| **Array structure** | Model knows objective count, can iterate; no "is this the last bullet?" guessing |
+| **Single fenced block** with `SYLLABUS_CONTEXT` prefix | Easy for model to locate and treat as authoritative course data |
+| **Minified (no pretty-print)** | Saves ~30% chars vs indented JSON — more weeks/objectives fit in 2,000-char cap |
+| **Short keys** (`w`, `desc` not `weekNumber`, `description`) | Char savings compound across 16 weeks |
 
-// Render: concept heading → indented activity list
+## Budget allocation (total: 2,000 chars)
+
+| Block | Hard cap | Notes |
+|---|---|---|
+| `course` + `summary` | 300 | Stable header |
+| `objectives` (≤6 items, ≤120 chars each) | 450 | JSON quoting overhead ~5 chars/item |
+| `outcomes` (≤6 items, ≤120 chars each) | 450 | Same |
+| `schedule` (16 weeks × ~50 chars) | 800 | `{"w":N,"topic":"...","desc":"..."}` ≈ 50 chars |
+
+## Per-field truncation rules
+
+- Objectives/outcomes: trim to 120 chars, suffix `…` if cut
+- `topic`: trim to 40 chars
+- `desc`: trim to 60 chars
+- Drop excess objectives/outcomes (keep first 6) — never truncate mid-string
+- **Escape quotes/backslashes** in any string field before serializing (avoid breaking JSON)
+- Omit empty arrays entirely (no `"objectives":[]`)
+- Final `.slice(0, 2000)` safety guard kept
+
+## Concrete worked example (~750 chars)
+
+```text
+SYLLABUS_CONTEXT (JSON):
+{"course":{"code":"CS101","title":"Intro to Python","term":"Fall 2025"},
+"summary":"Foundational programming course covering Python syntax, data structures, and problem-solving.",
+"objectives":["Build fluency with Python syntax and core data types","Apply control flow and functions to solve problems","Read and debug small Python programs"],
+"outcomes":["Write working Python scripts using variables, loops, and functions","Decompose problems into reusable functions","Use lists, dicts, and strings idiomatically"],
+"schedule":[
+{"w":1,"topic":"Variables & types","desc":"primitives, assignment, basic I/O"},
+{"w":2,"topic":"Control flow","desc":"if/else, for/while, boolean logic"},
+{"w":3,"topic":"Functions","desc":"defs, args, return, scope"},
+{"w":4,"topic":"Lists & tuples","desc":"indexing, slicing, iteration"},
+{"w":5,"topic":"Dictionaries & sets","desc":"key/value, lookup, membership"}
+]}
 ```
 
-### Summary
-- Remove the "Overview" section (user only wants Learning Outcomes → Concepts → Activities)
-- Remove flat "Concepts & Activities" heading
-- Group resources under concept headings in chronological order
-- Each concept shows its activities (lectures, exercises, labs) nested beneath it
-- Teaching Strategies stays as a collapsible at the bottom
+## Trade-offs vs prose template
+
+- **Pro**: zero ambiguity, machine-parseable if we ever want to log/inspect the context
+- **Con**: ~10–15% more char overhead from JSON syntax (`{}`, `""`, `,`) — partially offset by short keys and minification
+- **Con**: slightly less human-readable in edge function logs
+
+## Scope
+
+- This plan defines the **chat output template only**. No code changes proposed here.
+- If approved, the follow-up edit wires this shape into `fetchSyllabusContext` in `supabase/functions/chat/index.ts` (single function rewrite, ~30 lines).
 
