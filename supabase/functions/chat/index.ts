@@ -7,12 +7,56 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ---------- In-memory TTL cache (per warm instance) ----------
+// Reuses RAG lookups across requests so repeated chats in the same session
+// don't re-hit storage / Postgres for slow-changing data.
+
+type CacheEntry = { value: string; expiresAt: number };
+const ragCache = new Map<string, CacheEntry>();
+const MAX_CACHE_ENTRIES = 200;
+
+const TTL_SYLLABUS_MS = 10 * 60 * 1000; // 10 min — changes only on re-approval
+const TTL_CONCEPTS_MS = 5 * 60 * 1000;  // 5 min — teacher edits occasionally
+const TTL_QUESTIONS_MS = 2 * 60 * 1000; // 2 min — newly-added questions still surface fast
+
+function cacheGet(key: string): string | null {
+  const entry = ragCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    ragCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function cacheSet(key: string, value: string, ttlMs: number) {
+  // Simple LRU-ish eviction: drop oldest insertion when over capacity.
+  if (ragCache.size >= MAX_CACHE_ENTRIES) {
+    const firstKey = ragCache.keys().next().value;
+    if (firstKey !== undefined) ragCache.delete(firstKey);
+  }
+  ragCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
+
+async function cached<T extends string>(
+  key: string,
+  ttlMs: number,
+  loader: () => Promise<T>
+): Promise<string> {
+  const hit = cacheGet(key);
+  if (hit !== null) return hit;
+  const value = await loader();
+  cacheSet(key, value, ttlMs);
+  return value;
+}
+
 // ---------- RAG helpers ----------
 
 async function fetchSyllabusContext(
   supabaseAdmin: ReturnType<typeof createClient>,
   teacherId: string
 ): Promise<string> {
+  return cached(`syllabus:${teacherId}`, TTL_SYLLABUS_MS, async () => {
   try {
     const { data, error } = await supabaseAdmin.storage
       .from("course-materials")
