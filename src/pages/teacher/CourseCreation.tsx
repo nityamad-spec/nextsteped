@@ -903,11 +903,21 @@ const CourseCreation = () => {
             ))}
           </div>
           <p className="text-xs text-muted-foreground">You can leave this page — we'll keep working.</p>
-          {genElapsed > 90 && (
+          {genError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3 text-left">
+              <p className="text-sm font-medium text-destructive">Generation failed</p>
+              <p className="text-xs text-muted-foreground">{genError}</p>
+              <div className="flex justify-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => runGeneration()}>Retry</Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/teacher/setup/materials")}>Back to materials</Button>
+              </div>
+            </div>
+          )}
+          {!genError && genElapsed > 90 && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3">
               <p className="text-sm font-medium">This is taking longer than usual.</p>
               <div className="flex justify-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => { setGenStep(0); setGenElapsed(0); }}>Retry generation</Button>
+                <Button variant="outline" size="sm" onClick={() => runGeneration()}>Retry generation</Button>
                 <Button variant="ghost" size="sm">Continue waiting</Button>
               </div>
             </div>
