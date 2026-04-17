@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import QuestionTypeSelector from "@/components/QuestionTypeSelector";
+import { bumpCacheVersion } from "@/lib/cacheVersion";
 
 type QuestionType = "MCQ" | "True/False" | "Short Answer" | "Code Practice";
 type QuestionMode = "learning" | "exam" | "daily_quiz";
@@ -155,6 +156,7 @@ const Assessments = () => {
         toast.success("Question added");
       }
       setDialogOpen(false);
+      if (courseId) bumpCacheVersion("questions", courseId);
     } catch (err: any) { toast.error("Failed to save question"); }
     finally { setSaving(false); }
   };
@@ -163,6 +165,7 @@ const Assessments = () => {
     const { error } = await supabase.from("assessment_questions").delete().eq("id", id);
     if (error) { toast.error("Failed to delete question"); return; }
     setQuestions(prev => prev.filter(q => q.id !== id));
+    if (courseId) bumpCacheVersion("questions", courseId);
     toast.success("Question deleted");
   };
 

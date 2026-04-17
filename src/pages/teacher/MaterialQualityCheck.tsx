@@ -436,6 +436,7 @@ const MaterialQualityCheck = () => {
       setStage("preview");
       setPreviewJson(syllabusJson);
       setFinalApproved(true);
+      bumpCacheVersion("syllabus", user.id);
       toast({ title: "Syllabus saved", description: "Your approved syllabus has been stored successfully." });
     } catch (err: any) {
       console.error("Save error:", err);
