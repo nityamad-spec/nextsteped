@@ -7,12 +7,56 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ---------- In-memory TTL cache (per warm instance) ----------
+// Reuses RAG lookups across requests so repeated chats in the same session
+// don't re-hit storage / Postgres for slow-changing data.
+
+type CacheEntry = { value: string; expiresAt: number };
+const ragCache = new Map<string, CacheEntry>();
+const MAX_CACHE_ENTRIES = 200;
+
+const TTL_SYLLABUS_MS = 10 * 60 * 1000; // 10 min — changes only on re-approval
+const TTL_CONCEPTS_MS = 5 * 60 * 1000;  // 5 min — teacher edits occasionally
+const TTL_QUESTIONS_MS = 2 * 60 * 1000; // 2 min — newly-added questions still surface fast
+
+function cacheGet(key: string): string | null {
+  const entry = ragCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    ragCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function cacheSet(key: string, value: string, ttlMs: number) {
+  // Simple LRU-ish eviction: drop oldest insertion when over capacity.
+  if (ragCache.size >= MAX_CACHE_ENTRIES) {
+    const firstKey = ragCache.keys().next().value;
+    if (firstKey !== undefined) ragCache.delete(firstKey);
+  }
+  ragCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
+
+async function cached<T extends string>(
+  key: string,
+  ttlMs: number,
+  loader: () => Promise<T>
+): Promise<string> {
+  const hit = cacheGet(key);
+  if (hit !== null) return hit;
+  const value = await loader();
+  cacheSet(key, value, ttlMs);
+  return value;
+}
+
 // ---------- RAG helpers ----------
 
 async function fetchSyllabusContext(
   supabaseAdmin: ReturnType<typeof createClient>,
   teacherId: string
 ): Promise<string> {
+  return cached(`syllabus:${teacherId}`, TTL_SYLLABUS_MS, async () => {
   try {
     const { data, error } = await supabaseAdmin.storage
       .from("course-materials")
@@ -50,58 +94,63 @@ async function fetchSyllabusContext(
     console.error("Syllabus RAG error:", e);
     return "";
   }
+  });
 }
 
 async function fetchConceptsContext(
   supabaseAdmin: ReturnType<typeof createClient>,
   courseId: string
 ): Promise<string> {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from("concepts")
-      .select("concept_code, weight")
-      .eq("course_id", courseId)
-      .order("weight", { ascending: false })
-      .limit(30);
-    if (error || !data || data.length === 0) return "";
+  return cached(`concepts:${courseId}`, TTL_CONCEPTS_MS, async () => {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("concepts")
+        .select("concept_code, weight")
+        .eq("course_id", courseId)
+        .order("weight", { ascending: false })
+        .limit(30);
+      if (error || !data || data.length === 0) return "";
 
-    const lines = data.map(
-      (c: any) => `${c.concept_code} (weight: ${c.weight})`
-    );
-    return `Course concepts (by importance): ${lines.join(", ")}`.slice(0, 500);
-  } catch (e) {
-    console.error("Concepts RAG error:", e);
-    return "";
-  }
+      const lines = data.map(
+        (c: any) => `${c.concept_code} (weight: ${c.weight})`
+      );
+      return `Course concepts (by importance): ${lines.join(", ")}`.slice(0, 500);
+    } catch (e) {
+      console.error("Concepts RAG error:", e);
+      return "";
+    }
+  });
 }
 
 async function fetchQuestionBankContext(
   supabaseAdmin: ReturnType<typeof createClient>,
   courseId: string,
-  latestMessage: string
+  _latestMessage: string
 ): Promise<string> {
-  try {
-    // Simple keyword approach: fetch a few quiz questions and let the model see them
-    const { data, error } = await supabaseAdmin
-      .from("assessment_questions")
-      .select("question_text, topic, difficulty, question_type")
-      .eq("course_id", courseId)
-      .eq("mode", "daily_quiz")
-      .limit(5);
-    if (error || !data || data.length === 0) return "";
+  return cached(`questions:${courseId}`, TTL_QUESTIONS_MS, async () => {
+    try {
+      // Simple keyword approach: fetch a few quiz questions and let the model see them
+      const { data, error } = await supabaseAdmin
+        .from("assessment_questions")
+        .select("question_text, topic, difficulty, question_type")
+        .eq("course_id", courseId)
+        .eq("mode", "daily_quiz")
+        .limit(5);
+      if (error || !data || data.length === 0) return "";
 
-    const lines = data.map(
-      (q: any) =>
-        `[${q.difficulty}/${q.question_type}] ${q.question_text} (Topic: ${q.topic})`
-    );
-    return `Reference questions the professor uses:\n${lines.join("\n")}`.slice(
-      0,
-      1000
-    );
-  } catch (e) {
-    console.error("Question bank RAG error:", e);
-    return "";
-  }
+      const lines = data.map(
+        (q: any) =>
+          `[${q.difficulty}/${q.question_type}] ${q.question_text} (Topic: ${q.topic})`
+      );
+      return `Reference questions the professor uses:\n${lines.join("\n")}`.slice(
+        0,
+        1000
+      );
+    } catch (e) {
+      console.error("Question bank RAG error:", e);
+      return "";
+    }
+  });
 }
 
 async function fetchStudentProgressContext(
