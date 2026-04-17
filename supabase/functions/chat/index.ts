@@ -102,22 +102,24 @@ async function fetchConceptsContext(
   courseId: string
 ): Promise<string> {
   return cached(`concepts:${courseId}`, TTL_CONCEPTS_MS, async () => {
-    const { data, error } = await supabaseAdmin
-      .from("concepts")
-      .select("concept_code, weight")
-      .eq("course_id", courseId)
-      .order("weight", { ascending: false })
-      .limit(30);
-    if (error || !data || data.length === 0) return "";
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("concepts")
+        .select("concept_code, weight")
+        .eq("course_id", courseId)
+        .order("weight", { ascending: false })
+        .limit(30);
+      if (error || !data || data.length === 0) return "";
 
-    const lines = data.map(
-      (c: any) => `${c.concept_code} (weight: ${c.weight})`
-    );
-    return `Course concepts (by importance): ${lines.join(", ")}`.slice(0, 500);
-  } catch (e) {
-    console.error("Concepts RAG error:", e);
-    return "";
-  }
+      const lines = data.map(
+        (c: any) => `${c.concept_code} (weight: ${c.weight})`
+      );
+      return `Course concepts (by importance): ${lines.join(", ")}`.slice(0, 500);
+    } catch (e) {
+      console.error("Concepts RAG error:", e);
+      return "";
+    }
+  });
 }
 
 async function fetchQuestionBankContext(
