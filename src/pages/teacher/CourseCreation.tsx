@@ -958,7 +958,7 @@ const CourseCreation = () => {
         </div>
 
         {/* Day Cards */}
-        <Reorder.Group axis="y" values={days} onReorder={(newOrder) => setDays(newOrder.map((d, i) => ({ ...d, day: i + 1 })))}>
+        <Reorder.Group axis="y" values={days} onReorder={(newOrder) => setDays(newOrder.map((d, i) => ({ ...d, day: i + 1, dates: `Week ${i + 1}` })))}>
           <div className="space-y-4">
             {days.map((dp) => {
               const isExpanded = expandedDays.includes(dp.id);
