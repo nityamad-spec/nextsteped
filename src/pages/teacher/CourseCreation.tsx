@@ -165,22 +165,21 @@ const CourseCreation = () => {
   const draftStoragePath = user ? `${user.id}/lesson-plan/draft-plan.json` : null;
 
   const [phase, setPhaseRaw] = useState<"generating" | "plan">("generating");
+  const [genError, setGenError] = useState<string | null>(null);
   const setPhase = (p: "generating" | "plan") => {
     localStorage.setItem("lessonPlanPhase", p);
     setPhaseRaw(p);
   };
   const [genStep, setGenStep] = useState(0);
   const [genElapsed, setGenElapsed] = useState(0);
-  const [days, setDaysRaw] = useState<DayPlan[]>(() => {
-    try {
-      const saved = localStorage.getItem("lessonPlanDays");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return initialPlan;
-  });
+  // Sort helper: ensures days are always in sequential week order with synced labels
+  const normalizeDays = (list: DayPlan[]): DayPlan[] =>
+    list
+      .slice()
+      .sort((a, b) => (a.day || 0) - (b.day || 0))
+      .map((d, i) => ({ ...d, day: i + 1, dates: `Week ${i + 1}` }));
+
+  const [days, setDaysRaw] = useState<DayPlan[]>([]);
   const setDays: React.Dispatch<React.SetStateAction<DayPlan[]>> = (action) => {
     setDaysRaw(prev => {
       const next = typeof action === "function" ? action(prev) : action;
@@ -188,16 +187,7 @@ const CourseCreation = () => {
       return next;
     });
   };
-  const [expandedDays, setExpandedDays] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem("lessonPlanDays");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed.map((d: any) => d.id);
-      }
-    } catch {}
-    return initialPlan.map((d) => d.id);
-  });
+  const [expandedDays, setExpandedDays] = useState<string[]>([]);
   const [editingDayId, setEditingDayId] = useState<string | null>(null);
   const [editTopic, setEditTopic] = useState("");
   const [editDates, setEditDates] = useState("");
