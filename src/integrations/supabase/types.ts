@@ -184,6 +184,27 @@ export type Database = {
           },
         ]
       }
+      cache_versions: {
+        Row: {
+          scope: string
+          scope_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          scope: string
+          scope_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          scope?: string
+          scope_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           code_content: string | null
@@ -1011,6 +1032,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bump_cache_version: {
+        Args: { _scope: string; _scope_id: string }
+        Returns: number
+      }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_course_member: {
         Args: { _course_id: string; _user_id: string }

@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
 import { ArrowLeft, ArrowRight, Plus, Pencil, Trash2, Save, X, Loader2, Sparkles, RefreshCw, Check, Info } from "lucide-react";
+import { bumpCacheVersion } from "@/lib/cacheVersion";
 
 interface Concept {
   id: string;
@@ -160,6 +161,7 @@ const ConceptManagement = () => {
       setNewConceptId("");
       setNewWeight("0");
       setShowAddForm(false);
+      if (courseId) bumpCacheVersion("concepts", courseId);
       await fetchConcepts();
     }
     setSaving(false);
@@ -188,6 +190,7 @@ const ConceptManagement = () => {
     } else {
       toast({ title: "Concept updated" });
       setEditingId(null);
+      if (courseId) bumpCacheVersion("concepts", courseId);
       await fetchConcepts();
     }
     setSaving(false);
@@ -200,6 +203,7 @@ const ConceptManagement = () => {
       toast({ title: "Error deleting concept", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Concept deleted" });
+      if (courseId) bumpCacheVersion("concepts", courseId);
       await fetchConcepts();
     }
   };

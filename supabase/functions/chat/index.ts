@@ -50,13 +50,39 @@ async function cached<T extends string>(
   return value;
 }
 
+/**
+ * Fetches the current version counter for a (scope, scope_id) so cache keys
+ * include it. When a teacher edits content, the version bumps and our cache
+ * key changes — the next request misses cache and re-fetches automatically.
+ * Returns 0 if no version row exists yet (initial state).
+ */
+async function getCacheVersion(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  scope: "syllabus" | "concepts" | "questions",
+  scopeId: string
+): Promise<number> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("cache_versions")
+      .select("version")
+      .eq("scope", scope)
+      .eq("scope_id", scopeId)
+      .maybeSingle();
+    if (error || !data) return 0;
+    return Number((data as any).version) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 // ---------- RAG helpers ----------
 
 async function fetchSyllabusContext(
   supabaseAdmin: ReturnType<typeof createClient>,
   teacherId: string
 ): Promise<string> {
-  return cached(`syllabus:${teacherId}`, TTL_SYLLABUS_MS, async () => {
+  const version = await getCacheVersion(supabaseAdmin, "syllabus", teacherId);
+  return cached(`syllabus:${teacherId}:v${version}`, TTL_SYLLABUS_MS, async () => {
   try {
     const { data, error } = await supabaseAdmin.storage
       .from("course-materials")
@@ -101,7 +127,8 @@ async function fetchConceptsContext(
   supabaseAdmin: ReturnType<typeof createClient>,
   courseId: string
 ): Promise<string> {
-  return cached(`concepts:${courseId}`, TTL_CONCEPTS_MS, async () => {
+  const version = await getCacheVersion(supabaseAdmin, "concepts", courseId);
+  return cached(`concepts:${courseId}:v${version}`, TTL_CONCEPTS_MS, async () => {
     try {
       const { data, error } = await supabaseAdmin
         .from("concepts")
@@ -127,7 +154,8 @@ async function fetchQuestionBankContext(
   courseId: string,
   _latestMessage: string
 ): Promise<string> {
-  return cached(`questions:${courseId}`, TTL_QUESTIONS_MS, async () => {
+  const version = await getCacheVersion(supabaseAdmin, "questions", courseId);
+  return cached(`questions:${courseId}:v${version}`, TTL_QUESTIONS_MS, async () => {
     try {
       // Simple keyword approach: fetch a few quiz questions and let the model see them
       const { data, error } = await supabaseAdmin
