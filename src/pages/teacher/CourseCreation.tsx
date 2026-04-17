@@ -165,22 +165,21 @@ const CourseCreation = () => {
   const draftStoragePath = user ? `${user.id}/lesson-plan/draft-plan.json` : null;
 
   const [phase, setPhaseRaw] = useState<"generating" | "plan">("generating");
+  const [genError, setGenError] = useState<string | null>(null);
   const setPhase = (p: "generating" | "plan") => {
     localStorage.setItem("lessonPlanPhase", p);
     setPhaseRaw(p);
   };
   const [genStep, setGenStep] = useState(0);
   const [genElapsed, setGenElapsed] = useState(0);
-  const [days, setDaysRaw] = useState<DayPlan[]>(() => {
-    try {
-      const saved = localStorage.getItem("lessonPlanDays");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return initialPlan;
-  });
+  // Sort helper: ensures days are always in sequential week order with synced labels
+  const normalizeDays = (list: DayPlan[]): DayPlan[] =>
+    list
+      .slice()
+      .sort((a, b) => (a.day || 0) - (b.day || 0))
+      .map((d, i) => ({ ...d, day: i + 1, dates: `Week ${i + 1}` }));
+
+  const [days, setDaysRaw] = useState<DayPlan[]>([]);
   const setDays: React.Dispatch<React.SetStateAction<DayPlan[]>> = (action) => {
     setDaysRaw(prev => {
       const next = typeof action === "function" ? action(prev) : action;
@@ -188,16 +187,7 @@ const CourseCreation = () => {
       return next;
     });
   };
-  const [expandedDays, setExpandedDays] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem("lessonPlanDays");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed.map((d: any) => d.id);
-      }
-    } catch {}
-    return initialPlan.map((d) => d.id);
-  });
+  const [expandedDays, setExpandedDays] = useState<string[]>([]);
   const [editingDayId, setEditingDayId] = useState<string | null>(null);
   const [editTopic, setEditTopic] = useState("");
   const [editDates, setEditDates] = useState("");
@@ -221,7 +211,8 @@ const CourseCreation = () => {
     const hasDraftDays = Array.isArray(draft.days) && draft.days.length > 0;
 
     if (hasDraftDays) {
-      setDaysRaw(draft.days as DayPlan[]);
+      // Always normalize to keep week numbers + dates in sync
+      setDaysRaw(normalizeDays(draft.days as DayPlan[]));
     }
     if (Array.isArray(draft.expandedDays)) {
       setExpandedDays(draft.expandedDays);
@@ -349,24 +340,76 @@ const CourseCreation = () => {
 
   const totalWeightage = days.reduce((sum, d) => sum + (d.weightage || 0), 0);
 
-  useEffect(() => {
-    // Auto-start generation if we're on the generating phase and haven't started yet
-    if (phase === "generating" && genStep === 0) {
-      // Generation is handled by the timer effect below
+  // Real generation: call edge function that reads syllabus + uploaded lesson plans
+  const runGeneration = useCallback(async () => {
+    if (!courseId) {
+      setGenError("No course selected. Please complete course setup first.");
+      return;
     }
-  }, [phase, genStep]);
+    setGenError(null);
+    setGenStep(0);
+    setGenElapsed(0);
+    try {
+      // Step 1: reading uploads (visual cue)
+      setGenStep(0);
+      const stepTimer = setInterval(() => setGenStep(s => Math.min(s + 1, 2)), 4000);
+      const elapsedTimer = setInterval(() => setGenElapsed(e => e + 1), 1000);
+
+      const { data, error } = await supabase.functions.invoke("generate-lesson-plan", {
+        body: { courseId },
+      });
+
+      clearInterval(stepTimer);
+      clearInterval(elapsedTimer);
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (!Array.isArray(data?.weeks) || data.weeks.length === 0) {
+        throw new Error("AI returned no weeks. Please try regenerating.");
+      }
+
+      const generated: DayPlan[] = data.weeks.map((w: any, i: number) => {
+        const weekResources: Resource[] = (w.resources || []).map((r: any) => ({
+          id: makeId(),
+          title: r.title || "Untitled",
+          action: r.action || "",
+          type: (r.type || "exercise") as Resource["type"],
+          accepted: true,
+          provenance: "uploads" as const,
+          concept: r.concept || "General",
+        }));
+        return {
+          id: `d_${i + 1}_${Date.now()}`,
+          day: i + 1,
+          dates: `Week ${i + 1}`,
+          topic: w.topic || `Week ${i + 1}`,
+          description: w.description || "",
+          resources: weekResources,
+          weightage: Math.round(100 / data.weeks.length),
+          locked: i > 0, // first week visible, rest hidden initially
+        };
+      });
+
+      setDays(normalizeDays(generated));
+      setExpandedDays(generated.length > 0 ? [generated[0].id] : []);
+      setGenStep(2);
+      setTimeout(() => setPhase("plan"), 600);
+    } catch (err: any) {
+      console.error("Lesson plan generation failed:", err);
+      setGenError(err?.message || "Failed to generate lesson plan");
+    }
+  }, [courseId]);
 
   useEffect(() => {
     if (phase !== "generating") return;
-    const stepTimer = setInterval(() => {
-      setGenStep((s) => {
-        if (s >= 2) { clearInterval(stepTimer); setTimeout(() => setPhase("plan"), 800); return s; }
-        return s + 1;
-      });
-    }, 1200);
-    const elapsedTimer = setInterval(() => setGenElapsed((e) => e + 1), 1000);
-    return () => { clearInterval(stepTimer); clearInterval(elapsedTimer); };
-  }, [phase]);
+    if (days.length > 0) {
+      // Already have a plan (restored from draft) — skip generation
+      setPhase("plan");
+      return;
+    }
+    if (restoringDraft) return;
+    runGeneration();
+  }, [phase, days.length, restoringDraft, runGeneration]);
 
   const toggleDay = (id: string) => {
     setExpandedDays((prev) => prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]);
@@ -405,13 +448,14 @@ const CourseCreation = () => {
   };
 
   const deleteDay = (id: string) => {
-    setDays((prev) => prev.filter((d) => d.id !== id).map((d, i) => ({ ...d, day: i + 1 })));
+    setDays((prev) => prev.filter((d) => d.id !== id).map((d, i) => ({ ...d, day: i + 1, dates: `Week ${i + 1}` })));
     setPublished(false);
   };
 
   const addDay = () => {
+    const newWeek = days.length + 1;
     const newDay: DayPlan = {
-      id: `d_new_${Date.now()}`, day: days.length + 1, dates: `Day ${days.length + 1}`,
+      id: `d_new_${Date.now()}`, day: newWeek, dates: `Week ${newWeek}`,
       topic: "New Topic", description: "", resources: [], weightage: 0, locked: true,
     };
     setDays((prev) => [...prev, newDay]);
@@ -859,11 +903,21 @@ const CourseCreation = () => {
             ))}
           </div>
           <p className="text-xs text-muted-foreground">You can leave this page — we'll keep working.</p>
-          {genElapsed > 90 && (
+          {genError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3 text-left">
+              <p className="text-sm font-medium text-destructive">Generation failed</p>
+              <p className="text-xs text-muted-foreground">{genError}</p>
+              <div className="flex justify-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => runGeneration()}>Retry</Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/teacher/setup/materials")}>Back to materials</Button>
+              </div>
+            </div>
+          )}
+          {!genError && genElapsed > 90 && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3">
               <p className="text-sm font-medium">This is taking longer than usual.</p>
               <div className="flex justify-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => { setGenStep(0); setGenElapsed(0); }}>Retry generation</Button>
+                <Button variant="outline" size="sm" onClick={() => runGeneration()}>Retry generation</Button>
                 <Button variant="ghost" size="sm">Continue waiting</Button>
               </div>
             </div>
@@ -902,20 +956,36 @@ const CourseCreation = () => {
 
         {/* Export bar */}
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Daily Breakdown</h2>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm"><Download className="mr-1.5 h-3.5 w-3.5" /> Export Plan</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleExport("pdf")}><FileText className="mr-2 h-4 w-4" /> Export as PDF</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("word")}><FileDown className="mr-2 h-4 w-4" /> Export as Word</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <h2 className="text-lg font-semibold">Weekly Breakdown</h2>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (window.confirm("Regenerate the lesson plan from your uploaded documents? This will replace the current plan.")) {
+                  setDays([]);
+                  setExpandedDays([]);
+                  localStorage.removeItem("lessonPlanDays");
+                  setPhase("generating");
+                }
+              }}
+            >
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Regenerate
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm"><Download className="mr-1.5 h-3.5 w-3.5" /> Export Plan</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExport("pdf")}><FileText className="mr-2 h-4 w-4" /> Export as PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("word")}><FileDown className="mr-2 h-4 w-4" /> Export as Word</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         {/* Day Cards */}
-        <Reorder.Group axis="y" values={days} onReorder={(newOrder) => setDays(newOrder.map((d, i) => ({ ...d, day: i + 1 })))}>
+        <Reorder.Group axis="y" values={days} onReorder={(newOrder) => setDays(newOrder.map((d, i) => ({ ...d, day: i + 1, dates: `Week ${i + 1}` })))}>
           <div className="space-y-4">
             {days.map((dp) => {
               const isExpanded = expandedDays.includes(dp.id);
