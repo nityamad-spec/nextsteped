@@ -448,13 +448,14 @@ const CourseCreation = () => {
   };
 
   const deleteDay = (id: string) => {
-    setDays((prev) => prev.filter((d) => d.id !== id).map((d, i) => ({ ...d, day: i + 1 })));
+    setDays((prev) => prev.filter((d) => d.id !== id).map((d, i) => ({ ...d, day: i + 1, dates: `Week ${i + 1}` })));
     setPublished(false);
   };
 
   const addDay = () => {
+    const newWeek = days.length + 1;
     const newDay: DayPlan = {
-      id: `d_new_${Date.now()}`, day: days.length + 1, dates: `Day ${days.length + 1}`,
+      id: `d_new_${Date.now()}`, day: newWeek, dates: `Week ${newWeek}`,
       topic: "New Topic", description: "", resources: [], weightage: 0, locked: true,
     };
     setDays((prev) => [...prev, newDay]);
