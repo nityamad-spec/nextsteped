@@ -1,17 +1,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, ArrowLeft, BookOpen, ClipboardList, Calendar, FileText, GraduationCap } from "lucide-react";
-import SetupProgressBar from "@/components/SetupProgressBar";
+import { Badge } from "@/components/ui/badge";
+import { FileText, ClipboardList } from "lucide-react";
 import FileUploadZone from "@/components/FileUploadZone";
+import SetupModuleNav from "@/components/SetupModuleNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
-const UPLOAD_ACCEPT =
+const SYLLABUS_ACCEPT = ".pdf,.docx";
+const MATERIALS_ACCEPT =
   ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
 
 interface UploadedFile {
@@ -25,39 +23,14 @@ const CourseMaterials = () => {
   const location = useLocation();
   const { user } = useAuth();
   const courseId =
-    (location.state as any)?.courseId ||
-    localStorage.getItem("currentCourseId");
+    (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
 
   const [syllabusFiles, setSyllabusFiles] = useState<UploadedFile[]>([]);
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
-  const [materialsFiles, setMaterialsFiles] = useState<UploadedFile[]>([]);
-  const [totalWeeks, setTotalWeeks] = useState("16");
-  const [sessionsPerWeek, setSessionsPerWeek] = useState("2");
-  const [sessionLength, setSessionLength] = useState("60");
-  // "none" = explicitly no exam; "" = not yet chosen (forces selection)
-  const [midtermWeek, setMidtermWeek] = useState<string>("");
-  const [finalWeek, setFinalWeek] = useState<string>("");
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchFiles = async () => {
       if (!user) return;
-
-      if (courseId) {
-        const { data: course } = await supabase
-          .from("courses")
-          .select("total_weeks, sessions_per_week, session_length_minutes, midterm_week, final_week")
-          .eq("id", courseId)
-          .maybeSingle();
-        if (course) {
-          if (course.total_weeks) setTotalWeeks(String(course.total_weeks));
-          if (course.sessions_per_week) setSessionsPerWeek(String(course.sessions_per_week));
-          if (course.session_length_minutes) setSessionLength(String(course.session_length_minutes));
-          // Persisted null = "none" (explicitly no exam) once they've saved before
-          setMidtermWeek(course.midterm_week ? String(course.midterm_week) : "none");
-          setFinalWeek(course.final_week ? String(course.final_week) : "none");
-        }
-      }
-
       let query = supabase
         .from("course_material_files")
         .select("file_name, file_size, storage_path, folder_type")
@@ -66,41 +39,27 @@ const CourseMaterials = () => {
       const { data } = await query;
       if (data) {
         const mapFile = (f: { file_name: string; file_size: number; storage_path: string }) => ({
-          name: f.file_name,
-          size: f.file_size,
-          path: f.storage_path,
+          name: f.file_name, size: f.file_size, path: f.storage_path,
         });
         setSyllabusFiles(data.filter((f) => f.folder_type === "syllabus").map(mapFile));
         setLessonPlanFiles(data.filter((f) => f.folder_type === "lesson-plans").map(mapFile));
-        setMaterialsFiles(data.filter((f) => f.folder_type === "materials").map(mapFile));
       }
     };
-    fetchData();
+    fetchFiles();
   }, [user, courseId]);
 
-  const handleContinue = async () => {
+  const handleNext = async () => {
     if (!user) return;
-
     let activeCourseId = courseId;
-    const weeks = parseInt(totalWeeks) || 16;
-    const midParsed = midtermWeek === "none" || midtermWeek === "" ? null : parseInt(midtermWeek);
-    const finParsed = finalWeek === "none" || finalWeek === "" ? null : parseInt(finalWeek);
 
     const courseFields = {
-      total_weeks: weeks,
-      sessions_per_week: parseInt(sessionsPerWeek) || 2,
-      session_length_minutes: parseInt(sessionLength) || 60,
-      midterm_week: midParsed && midParsed > 0 && midParsed <= weeks ? midParsed : null,
-      final_week: finParsed && finParsed > 0 && finParsed <= weeks ? finParsed : null,
       syllabus_uploaded: syllabusFiles.length > 0,
-      materials_uploaded: materialsFiles.length > 0 || lessonPlanFiles.length > 0,
+      materials_uploaded: lessonPlanFiles.length > 0,
     };
 
     if (activeCourseId) {
       await supabase.from("courses").update(courseFields).eq("id", activeCourseId);
     } else {
-      // No course yet — auto-create a draft so lesson plan generation can proceed
-      // without forcing the user through full course setup first.
       const { data: profile } = await supabase
         .from("profiles")
         .select("name, department")
@@ -133,7 +92,6 @@ const CourseMaterials = () => {
     const allPaths = [
       ...syllabusFiles.map((f) => f.path),
       ...lessonPlanFiles.map((f) => f.path),
-      ...materialsFiles.map((f) => f.path),
     ];
     if (allPaths.length > 0) {
       await supabase
@@ -141,115 +99,41 @@ const CourseMaterials = () => {
         .update({ course_id: activeCourseId })
         .in("storage_path", allPaths);
     }
-
-    // Force regeneration on entry to lesson plan page
-    localStorage.removeItem("lessonPlanDays");
-    localStorage.removeItem("lessonPlanPhase");
-    const draftKey = `lessonPlanDraft:${activeCourseId || user.id}`;
-    localStorage.removeItem(draftKey);
-    localStorage.removeItem("lessonPlanDraft");
-
-    navigate("/teacher/setup/lesson-plan", { state: { courseId: activeCourseId } });
   };
 
-  const totalWeeksNum = parseInt(totalWeeks) || 16;
-  const weekOptions = Array.from({ length: totalWeeksNum }, (_, i) => i + 1);
-  const hasFiles = syllabusFiles.length > 0 || lessonPlanFiles.length > 0;
-  const examChosen = midtermWeek !== "" && finalWeek !== "";
-  const canContinue = hasFiles && examChosen;
+  const canContinue = syllabusFiles.length > 0;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
-      <div className="w-full max-w-3xl">
-        <SetupProgressBar currentStep={2} />
-
-        <div className="mb-8 text-center">
-          <h1 className="font-heading text-3xl font-bold">
-            Course <span className="text-primary">Materials</span>
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            Upload your syllabus, lesson plans, and supporting materials. Set your schedule and exam weeks. The AI will use all of this to generate your lesson plan in the next step.
+    <div className="min-h-screen bg-background p-6 md:p-8">
+      <div className="mx-auto max-w-3xl space-y-6">
+        <div>
+          <h1 className="font-heading text-3xl font-bold">Upload Course Materials</h1>
+          <p className="text-muted-foreground mt-1">
+            Upload your syllabus and any supporting teaching materials.
           </p>
         </div>
 
-        <Card className="mb-6">
+        {/* Syllabus — Required */}
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Calendar className="h-5 w-5 text-primary" /> Course Schedule & Exams
-            </CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="h-5 w-5 text-primary" /> Syllabus
+              </CardTitle>
+              <Badge className="bg-destructive text-destructive-foreground hover:bg-destructive">Required</Badge>
+            </div>
             <CardDescription>
-              Define your course structure and when exams happen. This informs the AI-generated lesson plan.
+              This is required to unlock Lesson Plan generation and align the AI TA to your course.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Weeks of Class</Label>
-                <Input type="number" min="1" max="52" value={totalWeeks} onChange={(e) => setTotalWeeks(e.target.value)} placeholder="16" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Sessions per Week</Label>
-                <Input type="number" min="1" max="7" value={sessionsPerWeek} onChange={(e) => setSessionsPerWeek(e.target.value)} placeholder="2" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Session Length (min)</Label>
-                <Input type="number" min="15" max="300" step="15" value={sessionLength} onChange={(e) => setSessionLength(e.target.value)} placeholder="60" />
-              </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <GraduationCap className="h-3.5 w-3.5" /> Midterm Exam Week <span className="text-destructive">*</span>
-                </Label>
-                <Select value={midtermWeek} onValueChange={setMidtermWeek}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select midterm week" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    <SelectItem value="none">No midterm exam</SelectItem>
-                    {weekOptions.map((w) => (
-                      <SelectItem key={w} value={String(w)}>Week {w}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <GraduationCap className="h-3.5 w-3.5" /> Final Exam Week <span className="text-destructive">*</span>
-                </Label>
-                <Select value={finalWeek} onValueChange={setFinalWeek}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select final exam week" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    <SelectItem value="none">No final exam</SelectItem>
-                    {weekOptions.map((w) => (
-                      <SelectItem key={w} value={String(w)}>Week {w}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <FileText className="h-5 w-5 text-primary" /> Upload Syllabus
-            </CardTitle>
-            <CardDescription>
-              Upload your course syllabus. The AI will use it as the structural skeleton for your lesson plan.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              <strong>Recommended:</strong> PDF, DOCX, or TXT for best results.
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              <strong>Accepted:</strong> PDF, DOCX
             </p>
             {user ? (
               <FileUploadZone
                 folderPath={`${user.id}/syllabus`}
-                accept={UPLOAD_ACCEPT}
+                accept={SYLLABUS_ACCEPT}
                 files={syllabusFiles}
                 onFilesChange={setSyllabusFiles}
                 teacherId={user.id}
@@ -264,23 +148,27 @@ const CourseMaterials = () => {
           </CardContent>
         </Card>
 
-        <Card className="mb-6">
+        {/* Optional Lesson Plans */}
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <ClipboardList className="h-5 w-5 text-primary" /> Upload Lesson Plans
-            </CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <ClipboardList className="h-5 w-5 text-primary" /> Lesson Plans and Other Teaching Materials
+              </CardTitle>
+              <Badge variant="secondary">Optional</Badge>
+            </div>
             <CardDescription>
-              These files are the <strong>primary source</strong> for the AI lesson plan. Upload existing weekly schedules, course outlines, or topic breakdowns.
+              Upload any existing lesson plans, lecture notes, or reference material you want the AI to be aware of.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              <strong>Recommended:</strong> PDF, PPTX, DOCX for best results. Scans/images may reduce accuracy.
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images.
             </p>
             {user ? (
               <FileUploadZone
                 folderPath={`${user.id}/lesson-plans`}
-                accept={UPLOAD_ACCEPT}
+                accept={MATERIALS_ACCEPT}
                 files={lessonPlanFiles}
                 onFilesChange={setLessonPlanFiles}
                 teacherId={user.id}
@@ -295,54 +183,18 @@ const CourseMaterials = () => {
           </CardContent>
         </Card>
 
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <BookOpen className="h-5 w-5 text-primary" /> Upload Course Materials
-            </CardTitle>
-            <CardDescription>
-              Past exams, quizzes, homework, projects, lecture slides, and handouts. Used as supporting context for the AI and to power student exam practice mode.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images (PNG, JPG, JPEG, GIF, BMP, WEBP).
-            </p>
-            {user ? (
-              <FileUploadZone
-                folderPath={`${user.id}/materials`}
-                accept={UPLOAD_ACCEPT}
-                files={materialsFiles}
-                onFilesChange={setMaterialsFiles}
-                teacherId={user.id}
-                folderType="materials"
-                courseId={courseId}
-              />
-            ) : (
-              <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
-                Preparing upload area…
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {!canContinue && (
+          <p className="text-xs text-destructive text-center">
+            Please upload your syllabus to continue.
+          </p>
+        )}
 
-        <div className="flex flex-col items-center gap-2">
-          {!canContinue && (
-            <p className="text-xs text-muted-foreground text-center">
-              {!hasFiles
-                ? "Upload at least one syllabus or lesson plan to continue."
-                : "Please choose midterm and final exam weeks (or select 'No exam')."}
-            </p>
-          )}
-          <div className="flex justify-center gap-3">
-            <Button variant="outline" onClick={() => navigate("/teacher/onboarding")}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Profile
-            </Button>
-            <Button onClick={handleContinue} disabled={!canContinue} size="lg">
-              Generate Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        <SetupModuleNav
+          nextPath="/teacher/setup/lesson-plan"
+          nextLabel="Next: Generate Lesson Plan"
+          onNext={handleNext}
+          nextDisabled={!canContinue}
+        />
       </div>
     </div>
   );

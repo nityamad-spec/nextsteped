@@ -33,7 +33,7 @@ const Landing = () => {
     }
 
     setRole(role);
-    navigate(`/auth?role=${role}`);
+    navigate(role === "teacher" ? "/intro/teacher" : "/intro/student");
   };
 
   return (

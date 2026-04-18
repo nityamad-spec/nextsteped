@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { useTASettings } from "@/hooks/useTASettings";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { toast } from "sonner";
@@ -8,9 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { ArrowRight, ArrowLeft, BookOpen, Calculator, Check, Pencil, Clock, Info, AlertTriangle } from "lucide-react";
-import SetupProgressBar from "@/components/SetupProgressBar";
-import QuestionTypeSelector, { parseQuestionMix } from "@/components/QuestionTypeSelector";
+import { BookOpen, Calculator, Check, Pencil, Info, AlertTriangle } from "lucide-react";
+import SetupModuleNav from "@/components/SetupModuleNav";
+import QuestionTypeSelector from "@/components/QuestionTypeSelector";
 
 const questionEstimate = (length: number, mix: string) => {
   const total = Math.max(5, Math.round(length / 3));
@@ -37,7 +36,6 @@ const questionEstimate = (length: number, mix: string) => {
 const ExamMode = () => {
   const courseId = useTeacherCourseId();
   const { taSettings, loading, saveTASettings } = useTASettings(courseId);
-  const navigate = useNavigate();
   const [settings, setSettings] = useState(taSettings);
   const [examLength, setExamLength] = useState(taSettings.examTimeLimit ?? 60);
   const [examQuestionTypes, setExamQuestionTypes] = useState(taSettings.examQuestionMix || "mixed");
@@ -92,18 +90,17 @@ const ExamMode = () => {
         examManualQuestions,
         examManualCount,
       });
-      navigate("/teacher/setup/publish");
     } catch {
       toast.error("Failed to save exam settings. Please try again.");
+      throw new Error("save failed");
     }
   };
 
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto w-full max-w-3xl">
-        <SetupProgressBar currentStep={7} />
-        <div className="mb-8 text-center">
-          <h1 className="font-heading text-3xl font-bold">Exam <span className="text-primary">Mode</span></h1>
+        <div className="mb-8">
+          <h1 className="font-heading text-3xl font-bold">Exam Mode Settings</h1>
           <p className="text-muted-foreground">Configure exam simulation rules for your students</p>
         </div>
 
@@ -216,19 +213,15 @@ const ExamMode = () => {
             </CardContent>
           </Card>
 
-          <div className="flex justify-between items-center">
-            <Button variant="ghost" onClick={() => navigate("/teacher/setup/ai-settings")}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back
-            </Button>
-            <div className="flex flex-col items-end gap-1">
-              <Button onClick={handleSave} disabled={!canContinue}>
-                Continue to Publish <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-              {!canContinue && (
-                <p className="text-xs text-destructive">Please approve exam rules to continue</p>
-              )}
-            </div>
-          </div>
+          <SetupModuleNav
+            nextLabel="Save & Finish"
+            finishMode
+            nextDisabled={!canContinue}
+            onNext={handleSave}
+          />
+          {!canContinue && (
+            <p className="text-xs text-destructive text-right">Please approve exam rules to continue</p>
+          )}
         </div>
       </div>
     </div>

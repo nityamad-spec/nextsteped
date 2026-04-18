@@ -474,7 +474,7 @@ const CourseCreation = () => {
               <p className="text-xs text-muted-foreground">{genError}</p>
               <div className="flex justify-center gap-2">
                 <Button variant="outline" size="sm" onClick={runGeneration}>Retry</Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/teacher/setup/materials")}>Back to materials</Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/teacher/setup/upload")}>Back to materials</Button>
               </div>
             </div>
           )}
