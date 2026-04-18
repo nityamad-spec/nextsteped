@@ -48,6 +48,7 @@ type Resource = {
 type WeekPlan = {
   id: string;
   week: number;
+  week_name: string;
   overview: string;
   is_exam_week: boolean;
   exam_type: "midterm" | "final" | null;
@@ -61,6 +62,8 @@ type LessonPlanDraft = {
   expandedWeeks?: string[];
   published?: boolean;
   publishTimestamp?: string | null;
+  overallOutcomes?: string;
+  gapMode?: boolean;
 };
 
 const makeId = () => `i_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
