@@ -523,9 +523,11 @@ export type Database = {
           end_date: string | null
           enrollment_code: string
           enrollment_open: boolean
+          final_week: number | null
           graduation_year: string[] | null
           id: string
           materials_uploaded: boolean
+          midterm_week: number | null
           name: string
           objectives: string[] | null
           published: boolean
@@ -547,9 +549,11 @@ export type Database = {
           end_date?: string | null
           enrollment_code?: string
           enrollment_open?: boolean
+          final_week?: number | null
           graduation_year?: string[] | null
           id?: string
           materials_uploaded?: boolean
+          midterm_week?: number | null
           name: string
           objectives?: string[] | null
           published?: boolean
@@ -571,9 +575,11 @@ export type Database = {
           end_date?: string | null
           enrollment_code?: string
           enrollment_open?: boolean
+          final_week?: number | null
           graduation_year?: string[] | null
           id?: string
           materials_uploaded?: boolean
+          midterm_week?: number | null
           name?: string
           objectives?: string[] | null
           published?: boolean
