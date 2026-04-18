@@ -44,11 +44,9 @@ import AdminTeachers from "./pages/admin/AdminTeachers";
 import ResetPassword from "./pages/ResetPassword";
 import ContentLibrary from "./pages/teacher/ContentLibrary";
 import TeacherChat from "./pages/teacher/TeacherChat";
+import { AUTH_BYPASS } from "@/lib/authBypass";
 
 const queryClient = new QueryClient();
-
-// TEMPORARY: set to false to restore normal auth gating
-const AUTH_BYPASS = true;
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
