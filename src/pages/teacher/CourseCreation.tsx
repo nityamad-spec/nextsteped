@@ -574,7 +574,10 @@ const CourseCreation = () => {
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-sm font-semibold">Week {w.week}</p>
+                              <p className="text-sm font-semibold">
+                                Week {w.week}
+                                {w.week_name ? <span className="text-muted-foreground font-normal"> — {w.week_name}</span> : null}
+                              </p>
                               {w.is_exam_week && (
                                 <Badge variant="outline" className="text-[10px] gap-1 border-primary/40 text-primary bg-primary/10">
                                   <GraduationCap className="h-2.5 w-2.5" />
