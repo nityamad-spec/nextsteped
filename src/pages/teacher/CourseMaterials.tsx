@@ -326,13 +326,22 @@ const CourseMaterials = () => {
           </CardContent>
         </Card>
 
-        <div className="flex justify-center gap-3">
-          <Button variant="outline" onClick={() => navigate("/teacher/onboarding")}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Profile
-          </Button>
-          <Button onClick={handleContinue} disabled={!canContinue} size="lg">
-            Generate Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
+        <div className="flex flex-col items-center gap-2">
+          {!canContinue && (
+            <p className="text-xs text-muted-foreground text-center">
+              {!hasFiles
+                ? "Upload at least one syllabus or lesson plan to continue."
+                : "Please choose midterm and final exam weeks (or select 'No exam')."}
+            </p>
+          )}
+          <div className="flex justify-center gap-3">
+            <Button variant="outline" onClick={() => navigate("/teacher/onboarding")}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Profile
+            </Button>
+            <Button onClick={handleContinue} disabled={!canContinue} size="lg">
+              Generate Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>
