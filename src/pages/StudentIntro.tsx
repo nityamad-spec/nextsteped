@@ -120,9 +120,9 @@ const StudentIntro = () => {
                         {f.title}
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">
-                      {f.subtitle}
-                    </div>
-                  </button>
+                        {f.subtitle}
+                      </div>
+                    </button>
                 </li>
               );
             })}
