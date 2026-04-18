@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Brain, Info, Loader2, BookOpen, Trash2, Sparkles,
+  Brain, Info, Loader2, BookOpen, Trash2, Sparkles, ArrowLeft,
 } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { useToast } from "@/hooks/use-toast";
@@ -170,7 +170,9 @@ const DiagnosticQuestionsSetup = () => {
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto w-full max-w-3xl">
-        {/* progress bar removed — using shared SetupModuleNav */}
+        <Button variant="outline" size="sm" onClick={() => navigate("/teacher/setup")} className="gap-2 mb-4">
+          <ArrowLeft className="h-4 w-4" /> Back to Course Setup
+        </Button>
 
         <div className="mb-6 text-center">
           <h1 className="font-heading text-3xl font-bold">

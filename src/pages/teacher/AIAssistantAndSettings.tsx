@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
@@ -14,10 +15,11 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BookOpen, Info, Calendar, UserPlus, Upload, Copy, FileText } from "lucide-react";
+import { BookOpen, Info, Calendar, UserPlus, Upload, Copy, FileText, ArrowLeft } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 
 const AIAssistantAndSettings = () => {
+  const navigate = useNavigate();
   const courseId = useTeacherCourseId();
   const { taSettings, loading, saveTASettings } = useTASettings(courseId);
   const { currentCourse } = useApp();
@@ -86,6 +88,9 @@ const AIAssistantAndSettings = () => {
     <div className="min-h-screen bg-background p-6 md:p-8">
       <div className="mx-auto max-w-3xl space-y-8">
         <div>
+          <Button variant="outline" size="sm" onClick={() => navigate("/teacher/setup")} className="gap-2 mb-4">
+            <ArrowLeft className="h-4 w-4" /> Back to Course Setup
+          </Button>
           <h1 className="font-heading text-3xl font-bold">AI Assistant Settings</h1>
           <p className="text-muted-foreground mt-1">
             Configure your Student AI TA and manage course enrollment settings.
