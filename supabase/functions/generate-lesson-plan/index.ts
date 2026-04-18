@@ -51,7 +51,7 @@ serve(async (req) => {
   }
 
   try {
-    const { courseId } = await req.json();
+    const { courseId, mode: requestedMode } = await req.json();
     if (!courseId) {
       return new Response(JSON.stringify({ error: "courseId is required" }), {
         status: 400,
@@ -146,6 +146,14 @@ serve(async (req) => {
       finalWeek ? `- Week ${finalWeek}: FINAL EXAM` : null,
     ].filter(Boolean).join("\n");
 
+    // Gap mode = teacher uploaded existing lesson plan docs; surface only NEW additions/insights
+    const gapMode = requestedMode === "gap" || lessonPlanFiles.length > 0;
+
+    const gapModeInstruction = gapMode
+      ? `
+GAP MODE (CRITICAL): The professor has uploaded existing lesson plan/teaching materials. Your job is NOT to repeat or paraphrase what is already in those documents. Instead, for each week, the overview, concepts, exercise, articles, and key concepts you emit should ONLY be net-new additions, gaps, or current-industry insights NOT already present in the uploaded materials. If a week is fully covered by uploaded content, emit a short overview that says "Existing materials cover this week well — see additions below." and provide only true additions in concepts/resources. Mark every concept and resource you emit as ai_suggested=true in this mode.`
+      : "";
+
     const systemPrompt = `You are an expert curriculum designer building a complete week-by-week lesson plan for a university course.
 
 OUTPUT RULES:
@@ -153,16 +161,25 @@ OUTPUT RULES:
 2. Ground EVERY week in the actual uploaded materials. Lesson plan documents are the PRIMARY source. The syllabus is the structural skeleton. Other materials are context.
 3. Topics MUST be specific to THIS course — never default to a generic Python/intro template.
 4. Mark exam weeks with is_exam_week=true (we will pass which weeks are exam weeks). Exam weeks still get normal content; the badge is just a flag.
+${gapModeInstruction}
 
-PER-WEEK CONTENT:
-- "overview": ONE sentence (max ~25 words) describing what students learn this week.
-- "concepts": 2-5 items. Each = a topic name + one short sentence describing it. Set ai_suggested=true ONLY when the concept is genuinely missing from the uploaded docs but is a necessary prerequisite or a current/timely real-world topic that strengthens the course. Otherwise ai_suggested=false.
-- "resources": 2-4 items. ONLY two types are allowed:
-   * "coding-exercise": an industry-aligned coding task. Title + a concrete prompt-style description that tells students what to build and why it mirrors industry practice.
-   * "article": a recent (last ~3 years), real, high-quality article tying the week's concepts to current industry/real-world examples. Provide a working URL (https://...).
+PER-WEEK CONTENT (STRICT FORMAT):
+- "week_name": A short, specific title for the week's theme (e.g., "Functions & Scope", "Intro to Pandas DataFrames"). 3-6 words. Required.
+- "overview": 1 to 2 sentences summarizing what students learn this week.
+- "concepts" (Topics Covered): 2-5 items. Each = a topic name + one short sentence describing it. Set ai_suggested=true ONLY when the concept is genuinely missing from the uploaded docs but is a necessary prerequisite or a current/timely real-world topic that strengthens the course. Otherwise ai_suggested=false.
+- "resources": EXACTLY 1 coding-exercise + 1 to 2 articles. NO other types are allowed.
+   * coding-exercise (exactly 1 per week): an industry-relevant coding task. Title + a concrete prompt-style description that ties to a real-world application.
+   * article (1 to 2 per week): a recent (last ~3 years), real, high-quality article tying the week's concepts to current industry/real-world examples. Provide a working URL (https://...).
   Set ai_suggested=true if YOU generated it (vs. extracted from uploads). All articles you generate are ai_suggested=true.
+- The LAST 1 to 2 concepts in the concepts array (with ai_suggested=true preferred) will be surfaced as "Key Concepts to Include" — make sure at least the final concept is something the professor must ensure students understand by the end of the week.
 
-DO NOT include "additional tips", "teaching strategies", or any other freeform sections. Only overview, concepts, resources.
+TOP-LEVEL OUTPUT:
+- "overall_course_learning_outcomes": ONE short paragraph (3-5 sentences) summarizing what students should be able to do by the end of the entire course. Returned ONCE, not per week.
+
+FORBIDDEN:
+- Do NOT include any "Learning Outcomes by Week" section.
+- Do NOT include any "Additional Tips", "Teaching Strategies", or freeform sections.
+- Do NOT emit more than 1 coding-exercise per week. Do NOT emit more than 2 articles per week.
 
 Return ONLY via the provided tool — no prose.`;
 
@@ -187,7 +204,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n") : "(none uploa
 OTHER COURSE MATERIALS AVAILABLE (filenames only, for context):
 ${materialFileNames.length > 0 ? materialFileNames.join(", ") : "(none)"}
 
-Generate exactly ${totalWeeks} weeks following all rules.`;
+Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP (additions only)" : "FULL"}.`;
 
     // 4. Call Lovable AI gateway with tool calling
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -217,7 +234,8 @@ Generate exactly ${totalWeeks} weeks following all rules.`;
                       type: "object",
                       properties: {
                         week: { type: "integer", description: "Week number, 1-indexed" },
-                        overview: { type: "string", description: "One-sentence overview of what's taught this week" },
+                        week_name: { type: "string", description: "Short specific title for the week's theme, 3-6 words" },
+                        overview: { type: "string", description: "1-2 sentence overview of what's taught this week" },
                         is_exam_week: { type: "boolean" },
                         concepts: {
                           type: "array",
@@ -248,12 +266,16 @@ Generate exactly ${totalWeeks} weeks following all rules.`;
                           },
                         },
                       },
-                      required: ["week", "overview", "is_exam_week", "concepts", "resources"],
+                      required: ["week", "week_name", "overview", "is_exam_week", "concepts", "resources"],
                       additionalProperties: false,
                     },
                   },
+                  overall_course_learning_outcomes: {
+                    type: "string",
+                    description: "ONE short paragraph (3-5 sentences) summarizing what students should be able to do by the end of the entire course. Returned ONCE.",
+                  },
                 },
-                required: ["weeks"],
+                required: ["weeks", "overall_course_learning_outcomes"],
                 additionalProperties: false,
               },
             },
@@ -289,6 +311,17 @@ Generate exactly ${totalWeeks} weeks following all rules.`;
 
     const parsed = JSON.parse(toolCall.function.arguments);
     const rawWeeks: any[] = parsed.weeks || [];
+    const overallOutcomes: string = typeof parsed.overall_course_learning_outcomes === "string"
+      ? parsed.overall_course_learning_outcomes.trim()
+      : "";
+
+    // Cap resources to enforce: max 1 coding-exercise + max 2 articles per week
+    const capResources = (resources: any[]) => {
+      if (!Array.isArray(resources)) return [];
+      const exercises = resources.filter((r) => r?.type === "coding-exercise").slice(0, 1);
+      const articles = resources.filter((r) => r?.type === "article").slice(0, 2);
+      return [...exercises, ...articles];
+    };
 
     // Normalize: sort, slice to totalWeeks, force is_exam_week based on midterm/final
     const normalized = rawWeeks
@@ -300,11 +333,12 @@ Generate exactly ${totalWeeks} weeks following all rules.`;
         const isExam = weekNum === midtermWeek || weekNum === finalWeek || !!w.is_exam_week;
         return {
           week: weekNum,
+          week_name: typeof w.week_name === "string" ? w.week_name.trim() : "",
           overview: w.overview || "",
           is_exam_week: isExam,
           exam_type: weekNum === midtermWeek ? "midterm" : weekNum === finalWeek ? "final" : null,
           concepts: Array.isArray(w.concepts) ? w.concepts : [],
-          resources: Array.isArray(w.resources) ? w.resources : [],
+          resources: capResources(w.resources),
         };
       });
 
@@ -315,6 +349,7 @@ Generate exactly ${totalWeeks} weeks following all rules.`;
       const isExam = weekNum === midtermWeek || weekNum === finalWeek;
       normalized.push({
         week: weekNum,
+        week_name: "",
         overview: "",
         is_exam_week: isExam,
         exam_type: weekNum === midtermWeek ? "midterm" : weekNum === finalWeek ? "final" : null,
@@ -351,6 +386,7 @@ Generate exactly ${totalWeeks} weeks following all rules.`;
     return new Response(
       JSON.stringify({
         weeks: normalized,
+        overall_course_learning_outcomes: overallOutcomes,
         meta: {
           totalWeeks,
           midtermWeek,
@@ -359,6 +395,7 @@ Generate exactly ${totalWeeks} weeks following all rules.`;
           lessonPlanFilesUsed: lessonPlanFiles.length,
           materialFilesAvailable: materialFiles.length,
           syllabusContextLoaded: !!syllabusContext,
+          gapMode,
         },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },

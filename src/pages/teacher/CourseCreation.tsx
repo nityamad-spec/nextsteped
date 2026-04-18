@@ -48,6 +48,7 @@ type Resource = {
 type WeekPlan = {
   id: string;
   week: number;
+  week_name: string;
   overview: string;
   is_exam_week: boolean;
   exam_type: "midterm" | "final" | null;
@@ -61,6 +62,8 @@ type LessonPlanDraft = {
   expandedWeeks?: string[];
   published?: boolean;
   publishTimestamp?: string | null;
+  overallOutcomes?: string;
+  gapMode?: boolean;
 };
 
 const makeId = () => `i_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -128,6 +131,8 @@ const CourseCreation = () => {
   const [restoringDraft, setRestoringDraft] = useState(true);
   const [published, setPublished] = useState(false);
   const [publishTimestamp, setPublishTimestamp] = useState<string | null>(null);
+  const [overallOutcomes, setOverallOutcomes] = useState<string>("");
+  const [gapMode, setGapMode] = useState<boolean>(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishChecklist, setPublishChecklist] = useState({ overview: false, concepts: false, resources: false });
 
@@ -160,6 +165,8 @@ const CourseCreation = () => {
     if (Array.isArray(draft.expandedWeeks)) setExpandedWeeks(draft.expandedWeeks);
     if (typeof draft.published === "boolean") setPublished(draft.published);
     if (draft.publishTimestamp !== undefined) setPublishTimestamp(draft.publishTimestamp ?? null);
+    if (typeof draft.overallOutcomes === "string") setOverallOutcomes(draft.overallOutcomes);
+    if (typeof draft.gapMode === "boolean") setGapMode(draft.gapMode);
   }, []);
 
   useEffect(() => {
@@ -185,7 +192,7 @@ const CourseCreation = () => {
   // ─── Persist draft ───
   useEffect(() => {
     if (!user || restoringDraft) return;
-    const draft: LessonPlanDraft = { weeks, expandedWeeks, published, publishTimestamp };
+    const draft: LessonPlanDraft = { weeks, expandedWeeks, published, publishTimestamp, overallOutcomes, gapMode };
     const serialized = JSON.stringify(draft);
     localStorage.setItem(draftLocalKey, serialized);
     if (!draftStoragePath || weeks.length === 0) return;
@@ -199,7 +206,7 @@ const CourseCreation = () => {
       }
     }, 600);
     return () => window.clearTimeout(t);
-  }, [weeks, expandedWeeks, published, publishTimestamp, user, restoringDraft, draftLocalKey, draftStoragePath]);
+  }, [weeks, expandedWeeks, published, publishTimestamp, overallOutcomes, gapMode, user, restoringDraft, draftLocalKey, draftStoragePath]);
 
   // ─── Generation ───
   const runGeneration = useCallback(async () => {
@@ -227,6 +234,7 @@ const CourseCreation = () => {
       const generated: WeekPlan[] = data.weeks.map((w: any, i: number) => ({
         id: `w_${i + 1}_${Date.now()}`,
         week: w.week ?? i + 1,
+        week_name: w.week_name || "",
         overview: w.overview || "",
         is_exam_week: !!w.is_exam_week,
         exam_type: w.exam_type ?? null,
@@ -249,6 +257,8 @@ const CourseCreation = () => {
 
       setWeeksRaw(normalizeWeeks(generated));
       setExpandedWeeks(generated.length > 0 ? [generated[0].id] : []);
+      setOverallOutcomes(typeof data.overall_course_learning_outcomes === "string" ? data.overall_course_learning_outcomes : "");
+      setGapMode(!!data.meta?.gapMode);
       setGenStep(2);
       setTimeout(() => setPhase("plan"), 500);
     } catch (err: any) {
@@ -293,6 +303,7 @@ const CourseCreation = () => {
     const newWeek: WeekPlan = {
       id: `w_new_${Date.now()}`,
       week: weeks.length + 1,
+      week_name: "",
       overview: "",
       is_exam_week: false,
       exam_type: null,
@@ -414,7 +425,8 @@ const CourseCreation = () => {
     setPublishChecklist({ overview: false, concepts: false, resources: false });
     if (user) {
       try {
-        const planJson = JSON.stringify(weeks, null, 2);
+        const payload = { weeks, overall_course_learning_outcomes: overallOutcomes };
+        const planJson = JSON.stringify(payload, null, 2);
         const blob = new Blob([planJson], { type: "application/json" });
         const file = new File([blob], "published-plan.json", { type: "application/json" });
         await supabase.storage
@@ -536,6 +548,12 @@ const CourseCreation = () => {
           </Button>
         </div>
 
+        {gapMode && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground/80">
+            Since you've uploaded existing teaching materials, the plan below highlights gaps and additions not already covered in what you've shared.
+          </div>
+        )}
+
         {/* Week Cards */}
         <Reorder.Group
           axis="y"
@@ -563,7 +581,10 @@ const CourseCreation = () => {
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-sm font-semibold">Week {w.week}</p>
+                              <p className="text-sm font-semibold">
+                                Week {w.week}
+                                {w.week_name ? <span className="text-muted-foreground font-normal"> — {w.week_name}</span> : null}
+                              </p>
                               {w.is_exam_week && (
                                 <Badge variant="outline" className="text-[10px] gap-1 border-primary/40 text-primary bg-primary/10">
                                   <GraduationCap className="h-2.5 w-2.5" />
@@ -638,11 +659,11 @@ const CourseCreation = () => {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <div className="h-5 w-1 rounded-full bg-primary" />
-                                <Label className="text-sm font-semibold">Concepts & Topics</Label>
+                                <Label className="text-sm font-semibold">Topics Covered</Label>
                                 <Badge variant="secondary" className="text-[10px]">{w.concepts.length}</Badge>
                               </div>
                               <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => addConcept(w.id)}>
-                                <Plus className="h-3 w-3" /> Add concept
+                                <Plus className="h-3 w-3" /> Add topic
                               </Button>
                             </div>
 
@@ -729,7 +750,7 @@ const CourseCreation = () => {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <div className="h-5 w-1 rounded-full bg-primary" />
-                                <Label className="text-sm font-semibold">Resources & Exercises</Label>
+                                <Label className="text-sm font-semibold">Industry-Relevant Exercise &amp; Suggested Articles</Label>
                                 <Badge variant="secondary" className="text-[10px]">{w.resources.length}</Badge>
                               </div>
                               <DropdownMenu>
@@ -740,14 +761,17 @@ const CourseCreation = () => {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem onClick={() => addResource(w.id, "coding-exercise")} className="text-xs">
-                                    <Code2 className="h-3 w-3 mr-2" /> Coding exercise
+                                    <Code2 className="h-3 w-3 mr-2" /> Industry-Relevant Exercise
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => addResource(w.id, "article")} className="text-xs">
-                                    <FileText className="h-3 w-3 mr-2" /> Article
+                                    <FileText className="h-3 w-3 mr-2" /> Article / Resource
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>
+                            <p className="text-[11px] text-muted-foreground -mt-1">
+                              Exactly 1 industry-relevant exercise and 1–2 suggested articles per week.
+                            </p>
 
                             {w.resources.length === 0 ? (
                               <p className="text-xs text-muted-foreground italic px-2 py-3 border border-dashed rounded">
@@ -851,6 +875,27 @@ const CourseCreation = () => {
                             )}
                           </section>
 
+                          {/* Key Concepts to Include — last 1–2 concepts highlighted */}
+                          {w.concepts.length > 0 && (
+                            <section className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                              <div className="flex items-center gap-2">
+                                <div className="h-5 w-1 rounded-full bg-primary" />
+                                <Label className="text-sm font-semibold">Key Concepts to Include</Label>
+                              </div>
+                              <ul className="text-xs text-foreground/80 space-y-1 pl-4 list-disc">
+                                {w.concepts.slice(-2).map((kc) => (
+                                  <li key={`key-${kc.id}`}>
+                                    <span className="font-semibold">{kc.name}</span>
+                                    {kc.brief_description ? <span className="text-muted-foreground"> — {kc.brief_description}</span> : null}
+                                  </li>
+                                ))}
+                              </ul>
+                              <p className="text-[10px] text-muted-foreground">
+                                Concepts students must understand by the end of this week.
+                              </p>
+                            </section>
+                          )}
+
                           {/* Week actions */}
                           <div className="flex justify-end gap-2 pt-2 border-t">
                             <Button size="sm" variant="ghost" onClick={() => deleteWeek(w.id)} className="h-7 text-xs text-destructive hover:text-destructive">
@@ -871,6 +916,23 @@ const CourseCreation = () => {
         <Button variant="outline" onClick={addWeek} className="w-full">
           <Plus className="mr-2 h-4 w-4" /> Add another week
         </Button>
+
+        {/* Overall Course Learning Outcomes */}
+        <Card className="p-5 space-y-3 border-primary/20 bg-primary/5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-primary" />
+              <Label className="text-base font-semibold">Overall Course Learning Outcomes</Label>
+            </div>
+          </div>
+          <Textarea
+            value={overallOutcomes}
+            onChange={(e) => { setOverallOutcomes(e.target.value); setPublished(false); }}
+            rows={4}
+            placeholder="A short paragraph summarizing what students will be able to do by the end of the course."
+            className="text-sm"
+          />
+        </Card>
 
         {/* Footer actions */}
         <div className="flex justify-between gap-3 pt-4 border-t">
