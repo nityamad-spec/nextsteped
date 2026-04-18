@@ -170,7 +170,7 @@ const DiagnosticQuestionsSetup = () => {
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto w-full max-w-3xl">
-        <SetupProgressBar currentStep={5} />
+        {/* progress bar removed — using shared SetupModuleNav */}
 
         <div className="mb-6 text-center">
           <h1 className="font-heading text-3xl font-bold">
@@ -346,15 +346,7 @@ const DiagnosticQuestionsSetup = () => {
           </CardContent>
         </Card>
 
-        {/* Navigation */}
-        <div className="flex justify-between pt-4">
-          <Button variant="outline" onClick={() => navigate("/teacher/setup/lesson-plan")}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Lesson Plan
-          </Button>
-          <Button onClick={handleContinue}>
-            Continue to AI Settings <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
+        <SetupModuleNav nextPath="/teacher/setup/ai-settings" nextLabel="Next: AI Assistant Settings" />
       </div>
     </div>
   );
