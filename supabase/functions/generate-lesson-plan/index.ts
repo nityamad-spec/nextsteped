@@ -234,7 +234,8 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
                       type: "object",
                       properties: {
                         week: { type: "integer", description: "Week number, 1-indexed" },
-                        overview: { type: "string", description: "One-sentence overview of what's taught this week" },
+                        week_name: { type: "string", description: "Short specific title for the week's theme, 3-6 words" },
+                        overview: { type: "string", description: "1-2 sentence overview of what's taught this week" },
                         is_exam_week: { type: "boolean" },
                         concepts: {
                           type: "array",
@@ -265,12 +266,16 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
                           },
                         },
                       },
-                      required: ["week", "overview", "is_exam_week", "concepts", "resources"],
+                      required: ["week", "week_name", "overview", "is_exam_week", "concepts", "resources"],
                       additionalProperties: false,
                     },
                   },
+                  overall_course_learning_outcomes: {
+                    type: "string",
+                    description: "ONE short paragraph (3-5 sentences) summarizing what students should be able to do by the end of the entire course. Returned ONCE.",
+                  },
                 },
-                required: ["weeks"],
+                required: ["weeks", "overall_course_learning_outcomes"],
                 additionalProperties: false,
               },
             },
