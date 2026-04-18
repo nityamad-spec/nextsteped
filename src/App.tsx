@@ -92,7 +92,7 @@ function TeacherRedirect() {
     );
   }
 
-  return <Navigate to={hasCourse ? "/teacher/courses/dashboard" : "/teacher/onboarding"} replace />;
+  return <Navigate to={hasCourse ? "/teacher/setup" : "/teacher/onboarding"} replace />;
 }
 
 function StudentRedirect() {
@@ -175,7 +175,7 @@ const App = () => (
                 <Route path="/teacher/setup/diagnostic" element={<DiagnosticQuestionsSetup />} />
                 <Route path="/teacher/setup/ai-settings" element={<AIAssistantAndSettings />} />
                 <Route path="/teacher/setup/exam-mode" element={<ExamMode />} />
-                <Route path="/teacher/assessments" element={<Assessments />} />
+                <Route path="/teacher/assessments" element={<Navigate to="/teacher/setup/exam-mode" replace />} />
                 <Route path="/teacher/teaching-plan" element={<TeachingPlan />} />
                 <Route path="/teacher/chat" element={<TeacherChat />} />
                 <Route path="/teacher/content-library" element={<ContentLibrary />} />

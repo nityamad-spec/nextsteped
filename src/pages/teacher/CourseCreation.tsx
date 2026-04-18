@@ -21,7 +21,7 @@ import {
   Plus, Trash2, FileText, BookOpen, Code2, ExternalLink,
   GraduationCap, Eye, EyeOff,
 } from "lucide-react";
-import SetupProgressBar from "@/components/SetupProgressBar";
+// SetupProgressBar removed — using top-left "Back to Course Setup" button instead.
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -509,7 +509,12 @@ const CourseCreation = () => {
   return (
     <div className="flex min-h-screen items-start justify-center bg-background px-4 py-8">
       <div className="w-full max-w-4xl space-y-6">
-        <SetupProgressBar currentStep={3} />
+        {/* Top-left return navigation (replaces SetupProgressBar) */}
+        <div>
+          <Button variant="outline" size="sm" onClick={() => navigate("/teacher/setup")} className="gap-2">
+            <ArrowLeft className="h-4 w-4" /> Back to Course Setup
+          </Button>
+        </div>
 
         {/* Header */}
         <div className="text-center space-y-2">
@@ -517,7 +522,7 @@ const CourseCreation = () => {
             AI <span className="text-primary">Lesson Plan</span>
           </h1>
           <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            Generated from your uploaded syllabus, lesson plans, and course materials. Each week has an overview, key concepts, and industry-relevant resources. Edit anything — move concepts and resources between weeks, add your own, or remove AI suggestions.
+            Generated from your uploaded syllabus, lesson plans, and course materials. Each week has key concepts and industry-relevant resources. Edit anything — move concepts and resources between weeks, add your own, or remove AI suggestions.
           </p>
         </div>
 
@@ -529,6 +534,27 @@ const CourseCreation = () => {
             </div>
           </div>
         )}
+
+        {gapMode && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground/80">
+            Since you've uploaded existing teaching materials, the plan below highlights gaps and additions not already covered in what you've shared.
+          </div>
+        )}
+
+        {/* Overall Course Learning Outcomes — shown FIRST, before Week 1 */}
+        <Card className="p-5 space-y-3 border-primary/20 bg-primary/5">
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-primary" />
+            <Label className="text-base font-semibold">Overall Course Learning Outcomes</Label>
+          </div>
+          <Textarea
+            value={overallOutcomes}
+            onChange={(e) => { setOverallOutcomes(e.target.value); setPublished(false); }}
+            rows={4}
+            placeholder="A short paragraph summarizing what students will be able to do by the end of the course."
+            className="text-sm"
+          />
+        </Card>
 
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Weekly Breakdown</h2>
@@ -547,12 +573,6 @@ const CourseCreation = () => {
             <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Regenerate
           </Button>
         </div>
-
-        {gapMode && (
-          <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground/80">
-            Since you've uploaded existing teaching materials, the plan below highlights gaps and additions not already covered in what you've shared.
-          </div>
-        )}
 
         {/* Week Cards */}
         <Reorder.Group
@@ -592,9 +612,6 @@ const CourseCreation = () => {
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground truncate mt-0.5">
-                              {w.overview || <span className="italic">No overview yet</span>}
-                            </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -623,37 +640,6 @@ const CourseCreation = () => {
                     {isExpanded && (
                       <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} className="border-t">
                         <div className="px-5 py-5 space-y-6">
-                          {/* Overview */}
-                          <section className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Overview</Label>
-                              {editingOverviewId !== w.id && (
-                                <Button size="sm" variant="ghost" className="h-6 text-xs gap-1" onClick={() => startEditOverview(w)}>
-                                  <Pencil className="h-3 w-3" /> Edit
-                                </Button>
-                              )}
-                            </div>
-                            {editingOverviewId === w.id ? (
-                              <div className="space-y-2">
-                                <Textarea
-                                  value={editOverviewValue}
-                                  onChange={(e) => setEditOverviewValue(e.target.value)}
-                                  rows={2}
-                                  className="text-sm"
-                                  placeholder="One sentence describing what students will learn this week."
-                                />
-                                <div className="flex gap-2">
-                                  <Button size="sm" onClick={saveOverview} className="h-7 text-xs">Save</Button>
-                                  <Button size="sm" variant="ghost" onClick={() => setEditingOverviewId(null)} className="h-7 text-xs">Cancel</Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <p className="text-sm text-foreground/80 leading-relaxed">
-                                {w.overview || <span className="italic text-muted-foreground">No overview yet — click Edit to add one.</span>}
-                              </p>
-                            )}
-                          </section>
-
                           {/* Concepts */}
                           <section className="space-y-3">
                             <div className="flex items-center justify-between">
@@ -917,22 +903,7 @@ const CourseCreation = () => {
           <Plus className="mr-2 h-4 w-4" /> Add another week
         </Button>
 
-        {/* Overall Course Learning Outcomes */}
-        <Card className="p-5 space-y-3 border-primary/20 bg-primary/5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-5 w-1 rounded-full bg-primary" />
-              <Label className="text-base font-semibold">Overall Course Learning Outcomes</Label>
-            </div>
-          </div>
-          <Textarea
-            value={overallOutcomes}
-            onChange={(e) => { setOverallOutcomes(e.target.value); setPublished(false); }}
-            rows={4}
-            placeholder="A short paragraph summarizing what students will be able to do by the end of the course."
-            className="text-sm"
-          />
-        </Card>
+        {/* Overall Course Learning Outcomes is now shown at the top, before Week 1. */}
 
         {/* Footer actions */}
         <div className="flex justify-between gap-3 pt-4 border-t">

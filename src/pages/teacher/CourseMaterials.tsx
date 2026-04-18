@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, ClipboardList } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { FileText, ClipboardList, ArrowLeft } from "lucide-react";
 import FileUploadZone from "@/components/FileUploadZone";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { useAuth } from "@/contexts/AuthContext";
@@ -107,6 +108,9 @@ const CourseMaterials = () => {
     <div className="min-h-screen bg-background p-6 md:p-8">
       <div className="mx-auto max-w-3xl space-y-6">
         <div>
+          <Button variant="outline" size="sm" onClick={() => navigate("/teacher/setup")} className="gap-2 mb-4">
+            <ArrowLeft className="h-4 w-4" /> Back to Course Setup
+          </Button>
           <h1 className="font-heading text-3xl font-bold">Upload Course Materials</h1>
           <p className="text-muted-foreground mt-1">
             Upload your syllabus and any supporting teaching materials.
