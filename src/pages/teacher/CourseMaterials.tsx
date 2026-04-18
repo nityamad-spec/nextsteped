@@ -79,47 +79,77 @@ const CourseMaterials = () => {
   }, [user, courseId]);
 
   const handleContinue = async () => {
-    if (courseId && user) {
-      const weeks = parseInt(totalWeeks) || 16;
-      const midParsed = midtermWeek ? parseInt(midtermWeek) : null;
-      const finParsed = finalWeek ? parseInt(finalWeek) : null;
+    if (!user) return;
 
-      await supabase
+    let activeCourseId = courseId;
+    const weeks = parseInt(totalWeeks) || 16;
+    const midParsed = midtermWeek === "none" || midtermWeek === "" ? null : parseInt(midtermWeek);
+    const finParsed = finalWeek === "none" || finalWeek === "" ? null : parseInt(finalWeek);
+
+    const courseFields = {
+      total_weeks: weeks,
+      sessions_per_week: parseInt(sessionsPerWeek) || 2,
+      session_length_minutes: parseInt(sessionLength) || 60,
+      midterm_week: midParsed && midParsed > 0 && midParsed <= weeks ? midParsed : null,
+      final_week: finParsed && finParsed > 0 && finParsed <= weeks ? finParsed : null,
+      syllabus_uploaded: syllabusFiles.length > 0,
+      materials_uploaded: materialsFiles.length > 0 || lessonPlanFiles.length > 0,
+    };
+
+    if (activeCourseId) {
+      await supabase.from("courses").update(courseFields).eq("id", activeCourseId);
+    } else {
+      // No course yet — auto-create a draft so lesson plan generation can proceed
+      // without forcing the user through full course setup first.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("name, department")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const draftName = profile?.department
+        ? `${profile.department} Course (Draft)`
+        : "Untitled Course (Draft)";
+
+      const { data: created, error: createErr } = await supabase
         .from("courses")
-        .update({
-          total_weeks: weeks,
-          sessions_per_week: parseInt(sessionsPerWeek) || 2,
-          session_length_minutes: parseInt(sessionLength) || 60,
-          midterm_week: midParsed && midParsed > 0 && midParsed <= weeks ? midParsed : null,
-          final_week: finParsed && finParsed > 0 && finParsed <= weeks ? finParsed : null,
-          syllabus_uploaded: syllabusFiles.length > 0,
-          materials_uploaded: materialsFiles.length > 0 || lessonPlanFiles.length > 0,
+        .insert({
+          teacher_id: user.id,
+          name: draftName,
+          term: "Draft",
+          ...courseFields,
         })
-        .eq("id", courseId);
+        .select("id")
+        .single();
 
-      const allPaths = [
-        ...syllabusFiles.map((f) => f.path),
-        ...lessonPlanFiles.map((f) => f.path),
-        ...materialsFiles.map((f) => f.path),
-      ];
-      if (allPaths.length > 0) {
-        await supabase
-          .from("course_material_files")
-          .update({ course_id: courseId })
-          .in("storage_path", allPaths);
+      if (createErr || !created) {
+        console.error("Failed to create draft course:", createErr);
+        return;
       }
+      activeCourseId = created.id;
+      localStorage.setItem("currentCourseId", activeCourseId);
+    }
+
+    const allPaths = [
+      ...syllabusFiles.map((f) => f.path),
+      ...lessonPlanFiles.map((f) => f.path),
+      ...materialsFiles.map((f) => f.path),
+    ];
+    if (allPaths.length > 0) {
+      await supabase
+        .from("course_material_files")
+        .update({ course_id: activeCourseId })
+        .in("storage_path", allPaths);
     }
 
     // Force regeneration on entry to lesson plan page
     localStorage.removeItem("lessonPlanDays");
     localStorage.removeItem("lessonPlanPhase");
-    if (user) {
-      const draftKey = `lessonPlanDraft:${courseId || user.id}`;
-      localStorage.removeItem(draftKey);
-      localStorage.removeItem("lessonPlanDraft");
-    }
+    const draftKey = `lessonPlanDraft:${activeCourseId || user.id}`;
+    localStorage.removeItem(draftKey);
+    localStorage.removeItem("lessonPlanDraft");
 
-    navigate("/teacher/setup/lesson-plan");
+    navigate("/teacher/setup/lesson-plan", { state: { courseId: activeCourseId } });
   };
 
   const totalWeeksNum = parseInt(totalWeeks) || 16;
