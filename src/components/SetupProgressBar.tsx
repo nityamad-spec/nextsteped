@@ -2,9 +2,8 @@ import { Check } from "lucide-react";
 
 const steps = [
   { label: "Profile & Course", path: "/teacher/onboarding" },
-  { label: "Syllabus Review", path: "/teacher/setup/quality-check" },
-  { label: "Concepts", path: "/teacher/setup/concepts" },
-  { label: "Lesson Plan", path: "/teacher/setup/materials" },
+  { label: "Materials", path: "/teacher/setup/materials" },
+  { label: "Lesson Plan", path: "/teacher/setup/lesson-plan" },
   { label: "Diagnostic Qs", path: "/teacher/setup/diagnostic" },
   { label: "AI Assistant", path: "/teacher/setup/ai-settings" },
   { label: "Exam Mode", path: "/teacher/setup/exam-mode" },
