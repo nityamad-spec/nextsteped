@@ -35,6 +35,12 @@ const CARDS: CardDef[] = [
   { id: "exam-mode", title: "Exam Mode Settings", description: "Set up and customise the exam mode experience for your students.", icon: GraduationCap, path: "/teacher/setup/exam-mode" },
 ];
 
+// Track per-user "card opened" state in localStorage to drive In Progress status
+const openedKey = (uid: string) => `setup-opened:${uid}`;
+const getOpened = (uid: string): Record<string, boolean> => {
+  try { return JSON.parse(localStorage.getItem(openedKey(uid)) || "{}"); } catch { return {}; }
+};
+
 const StatusBadge = ({ status }: { status: Status }) => {
   if (status === "Complete") {
     return (
@@ -74,53 +80,67 @@ const CourseSetup = () => {
     if (!user) return;
     const fetchStatuses = async () => {
       setLoading(true);
-      const next: Record<string, Status> = { ...statuses };
+      const opened = getOpened(user.id);
+      const next: Record<string, Status> = {
+        upload: "Not Started",
+        "lesson-plan": "Not Started",
+        diagnostic: "Not Started",
+        "ai-settings": "Not Started",
+        "exam-mode": "Not Started",
+      };
 
-      // Card 1: syllabus uploaded?
+      // Card 1 (Upload): Complete only if at least one syllabus file actually exists.
       const { data: syllabusFiles } = await supabase
         .from("course_material_files")
         .select("id")
         .eq("teacher_id", user.id)
         .eq("folder_type", "syllabus")
         .limit(1);
-      next.upload = syllabusFiles && syllabusFiles.length > 0 ? "Complete" : "Not Started";
+      if (syllabusFiles && syllabusFiles.length > 0) {
+        next.upload = "Complete";
+      } else if (opened.upload) {
+        next.upload = "In Progress";
+      }
 
-      // Card 2: lesson plan published / in-progress
+      // Card 2 (Lesson Plan): Complete ONLY if the teacher has explicitly published the plan.
+      // We do NOT treat a draft as In Progress unless the teacher actually opened the module.
       try {
         const { data: published } = await supabase.storage
           .from("course-materials")
           .download(`${user.id}/lesson-plan/published-plan.json`);
         if (published) {
           next["lesson-plan"] = "Complete";
-        } else {
-          const { data: draft } = await supabase.storage
-            .from("course-materials")
-            .download(`${user.id}/lesson-plan/draft-plan-v2.json`);
-          if (draft) next["lesson-plan"] = "In Progress";
+        } else if (opened["lesson-plan"]) {
+          next["lesson-plan"] = "In Progress";
         }
       } catch {
-        // ignored — file just doesn't exist
+        if (opened["lesson-plan"]) next["lesson-plan"] = "In Progress";
       }
 
       if (courseId) {
-        // Card 3: diagnostic questions present
+        // Card 3 (Diagnostic): Complete only if questions exist for the course.
         const { data: dq } = await supabase
           .from("diagnostic_questions")
           .select("id")
           .eq("course_id", courseId)
           .limit(1);
-        next.diagnostic = dq && dq.length > 0 ? "Complete" : "Not Started";
+        if (dq && dq.length > 0) next.diagnostic = "Complete";
+        else if (opened.diagnostic) next.diagnostic = "In Progress";
 
-        // Cards 4 & 5: TA settings
+        // Cards 4 & 5 (TA settings)
         const { data: ta } = await supabase
           .from("course_ta_settings")
           .select("custom_study_prompt, exam_enabled, exam_approved")
           .eq("course_id", courseId)
           .maybeSingle();
-        next["ai-settings"] = ta?.custom_study_prompt && ta.custom_study_prompt.trim().length > 0
-          ? "Complete"
-          : "Not Started";
-        next["exam-mode"] = ta?.exam_enabled || ta?.exam_approved ? "Complete" : "Not Started";
+        const aiDone = !!(ta?.custom_study_prompt && ta.custom_study_prompt.trim().length > 0);
+        const examDone = !!(ta?.exam_enabled || ta?.exam_approved);
+        next["ai-settings"] = aiDone ? "Complete" : opened["ai-settings"] ? "In Progress" : "Not Started";
+        next["exam-mode"] = examDone ? "Complete" : opened["exam-mode"] ? "In Progress" : "Not Started";
+      } else {
+        if (opened.diagnostic) next.diagnostic = "In Progress";
+        if (opened["ai-settings"]) next["ai-settings"] = "In Progress";
+        if (opened["exam-mode"]) next["exam-mode"] = "In Progress";
       }
 
       setStatuses(next);
@@ -131,6 +151,14 @@ const CourseSetup = () => {
   }, [user, courseId]);
 
   const isLessonPlanLocked = statuses.upload !== "Complete";
+
+  const handleOpen = (cardId: string, locked: boolean, path: string) => {
+    if (locked || !user) return;
+    const opened = getOpened(user.id);
+    opened[cardId] = true;
+    localStorage.setItem(openedKey(user.id), JSON.stringify(opened));
+    navigate(path);
+  };
 
   return (
     <div className="p-6 md:p-8">
@@ -149,7 +177,7 @@ const CourseSetup = () => {
           return (
             <Card
               key={c.id}
-              onClick={() => { if (!locked) navigate(c.path); }}
+              onClick={() => handleOpen(c.id, locked, c.path)}
               className={`relative aspect-square transition-all ${
                 locked
                   ? "opacity-60 cursor-not-allowed"
