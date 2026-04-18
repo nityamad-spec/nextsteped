@@ -153,7 +153,10 @@ const CourseMaterials = () => {
   };
 
   const totalWeeksNum = parseInt(totalWeeks) || 16;
-  const canContinue = syllabusFiles.length > 0 || lessonPlanFiles.length > 0;
+  const weekOptions = Array.from({ length: totalWeeksNum }, (_, i) => i + 1);
+  const hasFiles = syllabusFiles.length > 0 || lessonPlanFiles.length > 0;
+  const examChosen = midtermWeek !== "" && finalWeek !== "";
+  const canContinue = hasFiles && examChosen;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
