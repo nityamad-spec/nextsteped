@@ -303,6 +303,7 @@ const CourseCreation = () => {
     const newWeek: WeekPlan = {
       id: `w_new_${Date.now()}`,
       week: weeks.length + 1,
+      week_name: "",
       overview: "",
       is_exam_week: false,
       exam_type: null,
