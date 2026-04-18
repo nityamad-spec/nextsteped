@@ -743,7 +743,7 @@ const CourseCreation = () => {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <div className="h-5 w-1 rounded-full bg-primary" />
-                                <Label className="text-sm font-semibold">Resources & Exercises</Label>
+                                <Label className="text-sm font-semibold">Industry-Relevant Exercise &amp; Suggested Articles</Label>
                                 <Badge variant="secondary" className="text-[10px]">{w.resources.length}</Badge>
                               </div>
                               <DropdownMenu>
@@ -754,14 +754,17 @@ const CourseCreation = () => {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem onClick={() => addResource(w.id, "coding-exercise")} className="text-xs">
-                                    <Code2 className="h-3 w-3 mr-2" /> Coding exercise
+                                    <Code2 className="h-3 w-3 mr-2" /> Industry-Relevant Exercise
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => addResource(w.id, "article")} className="text-xs">
-                                    <FileText className="h-3 w-3 mr-2" /> Article
+                                    <FileText className="h-3 w-3 mr-2" /> Article / Resource
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>
+                            <p className="text-[11px] text-muted-foreground -mt-1">
+                              Exactly 1 industry-relevant exercise and 1–2 suggested articles per week.
+                            </p>
 
                             {w.resources.length === 0 ? (
                               <p className="text-xs text-muted-foreground italic px-2 py-3 border border-dashed rounded">
