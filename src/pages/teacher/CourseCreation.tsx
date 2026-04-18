@@ -559,6 +559,25 @@ const CourseCreation = () => {
           </div>
         )}
 
+        {/* Overall Course Learning Outcomes — shown FIRST, before Week 1 */}
+        <Card className="p-5 space-y-3 border-primary/20 bg-primary/5">
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-1 rounded-full bg-primary" />
+            <Label className="text-base font-semibold">Overall Course Learning Outcomes</Label>
+          </div>
+          <Textarea
+            value={overallOutcomes}
+            onChange={(e) => { setOverallOutcomes(e.target.value); setPublished(false); }}
+            rows={4}
+            placeholder="A short paragraph summarizing what students will be able to do by the end of the course."
+            className="text-sm"
+          />
+        </Card>
+
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Weekly Breakdown</h2>
+        </div>
+
         {/* Week Cards */}
         <Reorder.Group
           axis="y"
