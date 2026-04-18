@@ -547,6 +547,12 @@ const CourseCreation = () => {
           </Button>
         </div>
 
+        {gapMode && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground/80">
+            Since you've uploaded existing teaching materials, the plan below highlights gaps and additions not already covered in what you've shared.
+          </div>
+        )}
+
         {/* Week Cards */}
         <Reorder.Group
           axis="y"
