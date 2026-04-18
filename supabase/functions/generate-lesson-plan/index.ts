@@ -51,7 +51,7 @@ serve(async (req) => {
   }
 
   try {
-    const { courseId } = await req.json();
+    const { courseId, mode: requestedMode } = await req.json();
     if (!courseId) {
       return new Response(JSON.stringify({ error: "courseId is required" }), {
         status: 400,
