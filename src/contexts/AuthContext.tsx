@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { AUTH_BYPASS, BYPASS_ADMIN_EMAIL, BYPASS_ADMIN_PASSWORD } from "@/lib/authBypass";
 
 interface AuthState {
   user: User | null;
@@ -62,9 +63,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    const ensureBypassAdminSession = async () => {
+      // TEMPORARY: when AUTH_BYPASS is on, auto-sign-in as the seeded admin
+      // so RLS-protected queries still resolve via is_admin(auth.uid()).
+      try {
+        let { error } = await supabase.auth.signInWithPassword({
+          email: BYPASS_ADMIN_EMAIL,
+          password: BYPASS_ADMIN_PASSWORD,
+        });
+        if (error) {
+          // Admin may not exist yet — invoke seeder, then retry once.
+          await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/seed-admin`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              },
+            }
+          );
+          ({ error } = await supabase.auth.signInWithPassword({
+            email: BYPASS_ADMIN_EMAIL,
+            password: BYPASS_ADMIN_PASSWORD,
+          }));
+          if (error) console.warn("[AUTH_BYPASS] admin auto-signin failed:", error.message);
+        }
+      } catch (err) {
+        console.warn("[AUTH_BYPASS] admin auto-signin error:", err);
+      }
+    };
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session && AUTH_BYPASS) {
+        await ensureBypassAdminSession();
+        const { data } = await supabase.auth.getSession();
+        setSession(data.session);
+        setUser(data.session?.user ?? null);
+      } else {
+        setSession(session);
+        setUser(session?.user ?? null);
+      }
       setLoading(false);
     });
 
