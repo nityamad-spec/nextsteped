@@ -78,6 +78,43 @@ const DiagnosticQuestionsSetup = () => {
     toast({ title: "Question removed" });
   };
 
+  const handleGenerate = async () => {
+    if (!courseId) {
+      toast({ title: "No course selected", variant: "destructive" });
+      return;
+    }
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-diagnostic-questions", {
+        body: { courseId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      // Refetch
+      const { data: refreshed } = await supabase
+        .from("diagnostic_questions")
+        .select("id, item_code, content_text, format, difficulty_estimate, bloom_level, answer, options, topic")
+        .eq("course_id", courseId)
+        .order("difficulty_estimate");
+      if (refreshed) setQuestions(refreshed);
+
+      toast({
+        title: "Question bank generated",
+        description: data?.message || "Diagnostic questions are ready to review.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Generation failed",
+        description: e?.message || "Could not generate questions. Try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+
   const standardQuestions = questions.slice(0, 5);
   const adaptiveQuestions = questions.slice(5, 10);
 
