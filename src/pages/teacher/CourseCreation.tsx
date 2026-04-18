@@ -21,7 +21,7 @@ import {
   Plus, Trash2, FileText, BookOpen, Code2, ExternalLink,
   GraduationCap, Eye, EyeOff,
 } from "lucide-react";
-import SetupProgressBar from "@/components/SetupProgressBar";
+// SetupProgressBar removed — using top-left "Back to Course Setup" button instead.
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -509,7 +509,12 @@ const CourseCreation = () => {
   return (
     <div className="flex min-h-screen items-start justify-center bg-background px-4 py-8">
       <div className="w-full max-w-4xl space-y-6">
-        <SetupProgressBar currentStep={3} />
+        {/* Top-left return navigation (replaces SetupProgressBar) */}
+        <div>
+          <Button variant="outline" size="sm" onClick={() => navigate("/teacher/setup")} className="gap-2">
+            <ArrowLeft className="h-4 w-4" /> Back to Course Setup
+          </Button>
+        </div>
 
         {/* Header */}
         <div className="text-center space-y-2">
@@ -517,7 +522,7 @@ const CourseCreation = () => {
             AI <span className="text-primary">Lesson Plan</span>
           </h1>
           <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            Generated from your uploaded syllabus, lesson plans, and course materials. Each week has an overview, key concepts, and industry-relevant resources. Edit anything — move concepts and resources between weeks, add your own, or remove AI suggestions.
+            Generated from your uploaded syllabus, lesson plans, and course materials. Each week has key concepts and industry-relevant resources. Edit anything — move concepts and resources between weeks, add your own, or remove AI suggestions.
           </p>
         </div>
 
