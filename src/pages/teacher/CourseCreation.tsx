@@ -165,6 +165,8 @@ const CourseCreation = () => {
     if (Array.isArray(draft.expandedWeeks)) setExpandedWeeks(draft.expandedWeeks);
     if (typeof draft.published === "boolean") setPublished(draft.published);
     if (draft.publishTimestamp !== undefined) setPublishTimestamp(draft.publishTimestamp ?? null);
+    if (typeof draft.overallOutcomes === "string") setOverallOutcomes(draft.overallOutcomes);
+    if (typeof draft.gapMode === "boolean") setGapMode(draft.gapMode);
   }, []);
 
   useEffect(() => {
