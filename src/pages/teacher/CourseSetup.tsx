@@ -45,7 +45,7 @@ const StatusBadge = ({ status }: { status: Status }) => {
   }
   if (status === "In Progress") {
     return (
-      <Badge variant="outline" className="gap-1 border-amber-500/40 text-amber-600 bg-amber-500/5">
+      <Badge variant="outline" className="gap-1 border-warning/40 text-warning bg-warning/5">
         <CircleDot className="h-3 w-3" /> In Progress
       </Badge>
     );

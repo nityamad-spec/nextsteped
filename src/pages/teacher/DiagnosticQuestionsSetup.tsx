@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  ArrowRight, ArrowLeft, Brain, Info, Loader2, BookOpen, Trash2, Sparkles,
+  Brain, Info, Loader2, BookOpen, Trash2, Sparkles,
 } from "lucide-react";
-import SetupProgressBar from "@/components/SetupProgressBar";
+import SetupModuleNav from "@/components/SetupModuleNav";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -124,10 +124,6 @@ const DiagnosticQuestionsSetup = () => {
 
   // Concept coverage from questions
   const allTopics = [...new Set(questions.map(q => q.topic).filter(Boolean))] as string[];
-
-  const handleContinue = () => {
-    navigate("/teacher/setup/ai-settings");
-  };
 
   if (loading) {
     return (
