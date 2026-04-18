@@ -612,9 +612,6 @@ const CourseCreation = () => {
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground truncate mt-0.5">
-                              {w.overview || <span className="italic">No overview yet</span>}
-                            </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -643,37 +640,6 @@ const CourseCreation = () => {
                     {isExpanded && (
                       <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} className="border-t">
                         <div className="px-5 py-5 space-y-6">
-                          {/* Overview */}
-                          <section className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Overview</Label>
-                              {editingOverviewId !== w.id && (
-                                <Button size="sm" variant="ghost" className="h-6 text-xs gap-1" onClick={() => startEditOverview(w)}>
-                                  <Pencil className="h-3 w-3" /> Edit
-                                </Button>
-                              )}
-                            </div>
-                            {editingOverviewId === w.id ? (
-                              <div className="space-y-2">
-                                <Textarea
-                                  value={editOverviewValue}
-                                  onChange={(e) => setEditOverviewValue(e.target.value)}
-                                  rows={2}
-                                  className="text-sm"
-                                  placeholder="One sentence describing what students will learn this week."
-                                />
-                                <div className="flex gap-2">
-                                  <Button size="sm" onClick={saveOverview} className="h-7 text-xs">Save</Button>
-                                  <Button size="sm" variant="ghost" onClick={() => setEditingOverviewId(null)} className="h-7 text-xs">Cancel</Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <p className="text-sm text-foreground/80 leading-relaxed">
-                                {w.overview || <span className="italic text-muted-foreground">No overview yet — click Edit to add one.</span>}
-                              </p>
-                            )}
-                          </section>
-
                           {/* Concepts */}
                           <section className="space-y-3">
                             <div className="flex items-center justify-between">
