@@ -521,7 +521,7 @@ const CourseCreation = () => {
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="text-sm font-semibold">Week {w.week}</p>
                               {w.is_exam_week && (
-                                <Badge variant="outline" className="text-[10px] gap-1 border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20">
+                                <Badge variant="outline" className="text-[10px] gap-1 border-primary/40 text-primary bg-primary/10">
                                   <GraduationCap className="h-2.5 w-2.5" />
                                   {w.exam_type === "midterm" ? "Midterm" : w.exam_type === "final" ? "Final" : "Exam"}
                                 </Badge>
@@ -544,7 +544,7 @@ const CourseCreation = () => {
                                 <EyeOff className="h-2.5 w-2.5" /> Hidden
                               </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-[10px] gap-1 border-green-500/30 text-green-600 bg-green-50 dark:bg-green-950/20 dark:text-green-400">
+                              <Badge variant="outline" className="text-[10px] gap-1 border-primary/30 text-primary bg-primary/5">
                                 <Eye className="h-2.5 w-2.5" /> Visible
                               </Badge>
                             )}

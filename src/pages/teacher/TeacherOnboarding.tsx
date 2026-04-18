@@ -227,7 +227,7 @@ const TeacherOnboarding = () => {
       objectives: objectives ? objectives.split("\n").filter(Boolean) : mockCourse.objectives,
       enrollmentCode,
     });
-    navigate("/teacher/setup/quality-check", { state: { courseId } });
+    navigate("/teacher/setup/materials", { state: { courseId } });
   };
 
   if (loading) {
