@@ -1,5 +1,5 @@
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { BookOpen, Users, ClipboardCheck, Settings, HelpCircle, LogOut, FileText, Library, MessageSquare } from "lucide-react";
+import { Outlet, useNavigate } from "react-router-dom";
+import { BookOpen, ClipboardCheck, HelpCircle, LogOut, Library, MessageSquare, ListChecks } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
@@ -7,10 +7,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 const teacherNav = [
   { title: "Course Dashboard", path: "/teacher/courses/dashboard", icon: BookOpen },
+  { title: "Course Setup", path: "/teacher/setup", icon: ListChecks },
   { title: "Course Assistant", path: "/teacher/chat", icon: MessageSquare },
   { title: "Lesson Plan & Resources", path: "/teacher/content-library", icon: Library },
   { title: "Assessments", path: "/teacher/assessments", icon: ClipboardCheck },
-  { title: "Settings", path: "/teacher/settings", icon: Settings },
   { title: "Support", path: "/teacher/support", icon: HelpCircle },
 ];
 
@@ -18,7 +18,6 @@ const TeacherLayout = () => {
   const { currentCourse, resetAll } = useApp();
   const { signOut } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const isMobile = useIsMobile();
 
   const handleLogout = async () => {

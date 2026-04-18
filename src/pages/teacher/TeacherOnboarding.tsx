@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useApp } from "@/contexts/AppContext";
@@ -10,12 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ArrowRight, ArrowLeft, User, Plus, X, ChevronsUpDown, MessageSquare } from "lucide-react";
-import SetupProgressBar from "@/components/SetupProgressBar";
+import { ArrowRight, User, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 
 const TeacherOnboarding = () => {
@@ -24,38 +20,37 @@ const TeacherOnboarding = () => {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
+
+  // Profile
   const [name, setName] = useState("");
+  const [institution, setInstitution] = useState("");
   const [department, setDepartment] = useState("");
-  const [courseCode, setCourseCode] = useState("");
+  const [designation, setDesignation] = useState("");
+
+  // Course
   const [courseName, setCourseName] = useState("");
-  const [sections, setSections] = useState<string[]>([]);
-  const [sectionInput, setSectionInput] = useState("");
+  const [courseCode, setCourseCode] = useState("");
   const [term, setTerm] = useState("");
-  const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
-  const [selectedYears, setSelectedYears] = useState<string[]>([]);
-  const [objectives, setObjectives] = useState("");
-  const [allBranches, setAllBranches] = useState<{ id: string; name: string }[]>([]);
+  const [graduationYear, setGraduationYear] = useState("");
+  const [learningObjective, setLearningObjective] = useState("");
 
   const availableYears = ["2027", "2028", "2029", "2030", "2031"];
-
-  useEffect(() => {
-    supabase.from("branches").select("id, name").order("name").then(({ data }) => {
-      if (data) setAllBranches(data);
-    });
-  }, []);
 
   useEffect(() => {
     if (!user) return;
     const fetchExistingData = async () => {
       setLoading(true);
       const storedCourseId = localStorage.getItem("currentCourseId");
-      
-      const courseFields = "id, branch, term, sections, objectives, course_code, name, graduation_year, total_weeks, sessions_per_week, session_length_minutes";
 
-      const profileRes = await supabase.from("profiles").select("name, department").eq("id", user.id).maybeSingle();
+      const courseFields = "id, term, objectives, course_code, name, graduation_year";
+
+      const profileRes = await supabase
+        .from("profiles")
+        .select("name, department, institution, designation")
+        .eq("id", user.id)
+        .maybeSingle();
 
       let courseRes: { data: any } = { data: null };
-
       if (storedCourseId) {
         courseRes = await supabase.from("courses").select(courseFields).eq("id", storedCourseId).maybeSingle();
       } else {
@@ -65,43 +60,26 @@ const TeacherOnboarding = () => {
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
-
-        if (owned.data) {
-          courseRes = owned;
-        } else {
-          const membership = await supabase.from("course_teachers")
-            .select("course_id")
-            .eq("teacher_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (membership.data?.course_id) {
-            courseRes = await supabase.from("courses")
-              .select(courseFields)
-              .eq("id", membership.data.course_id)
-              .maybeSingle();
-          }
-        }
+        if (owned.data) courseRes = owned;
       }
 
       if (profileRes.data) {
         if (profileRes.data.name) setName(profileRes.data.name);
         if (profileRes.data.department) setDepartment(profileRes.data.department);
+        if ((profileRes.data as any).institution) setInstitution((profileRes.data as any).institution);
+        if ((profileRes.data as any).designation) setDesignation((profileRes.data as any).designation);
       }
 
       if (courseRes.data) {
         localStorage.setItem("currentCourseId", courseRes.data.id);
-        if (courseRes.data.branch && Array.isArray(courseRes.data.branch)) {
-          setSelectedBranches(courseRes.data.branch);
-        }
         if (courseRes.data.term) setTerm(courseRes.data.term);
-        if (courseRes.data.sections) setSections(courseRes.data.sections as string[]);
-        if (courseRes.data.objectives) setObjectives((courseRes.data.objectives as string[]).join("\n"));
         if (courseRes.data.course_code) setCourseCode(courseRes.data.course_code);
         if (courseRes.data.name) setCourseName(courseRes.data.name);
-        if (courseRes.data.graduation_year && Array.isArray(courseRes.data.graduation_year)) {
-          setSelectedYears(courseRes.data.graduation_year);
+        if (Array.isArray(courseRes.data.graduation_year) && courseRes.data.graduation_year.length > 0) {
+          setGraduationYear(courseRes.data.graduation_year[0]);
+        }
+        if (Array.isArray(courseRes.data.objectives)) {
+          setLearningObjective(courseRes.data.objectives.join("\n"));
         }
       }
 
@@ -112,31 +90,26 @@ const TeacherOnboarding = () => {
 
   const isValid =
     name.trim() &&
+    institution.trim() &&
     department &&
-    courseCode.trim() &&
+    designation.trim() &&
     courseName.trim() &&
-    sections.length > 0 &&
+    courseCode.trim() &&
     term &&
-    selectedBranches.length > 0 &&
-    selectedYears.length > 0 &&
-    objectives.trim();
-
-  const addSection = () => {
-    const trimmed = sectionInput.trim();
-    if (trimmed && !sections.includes(trimmed)) {
-      setSections((prev) => [...prev, trimmed]);
-      setSectionInput("");
-    }
-  };
-
-  const removeSection = (s: string) => {
-    setSections((prev) => prev.filter((sec) => sec !== s));
-  };
+    graduationYear &&
+    learningObjective.trim();
 
   const handleContinue = async () => {
     if (!user) return;
 
     // Upsert profile
+    const profilePayload = {
+      name,
+      department,
+      institution,
+      designation,
+      email: user.email || "",
+    };
     const { data: existingProfile } = await supabase
       .from("profiles")
       .select("id")
@@ -144,36 +117,24 @@ const TeacherOnboarding = () => {
       .maybeSingle();
 
     if (existingProfile) {
-      const { error: profileError } = await supabase.from("profiles")
-        .update({ name, department, email: user.email || "" })
-        .eq("id", user.id);
-      if (profileError) {
-        toast.error("Failed to update profile: " + profileError.message);
-        return;
-      }
+      const { error } = await supabase.from("profiles").update(profilePayload).eq("id", user.id);
+      if (error) { toast.error("Failed to update profile: " + error.message); return; }
     } else {
-      const { error: profileError } = await supabase.from("profiles").insert({
+      const { error } = await supabase.from("profiles").insert({
         id: user.id,
-        name,
         role: "teacher",
-        department,
-        email: user.email || "",
+        ...profilePayload,
       });
-      if (profileError) {
-        toast.error("Failed to save profile: " + profileError.message);
-        return;
-      }
+      if (error) { toast.error("Failed to save profile: " + error.message); return; }
     }
 
     // Upsert course
     const coursePayload = {
       name: courseName.trim(),
       course_code: courseCode.trim(),
-      branch: selectedBranches,
       term,
-      sections,
-      objectives: objectives.split("\n").filter(Boolean),
-      graduation_year: selectedYears,
+      graduation_year: [graduationYear],
+      objectives: learningObjective.split("\n").filter(Boolean),
     };
 
     const { data: existingCourse } = await supabase
@@ -185,7 +146,6 @@ const TeacherOnboarding = () => {
       .maybeSingle();
 
     let courseId: string;
-
     let enrollmentCode = "";
 
     if (existingCourse) {
@@ -194,26 +154,19 @@ const TeacherOnboarding = () => {
         .eq("id", existingCourse.id)
         .select("id, enrollment_code")
         .single();
-      if (error || !updated) {
-        toast.error("Failed to update course: " + (error?.message ?? "Unknown error"));
-        return;
-      }
+      if (error || !updated) { toast.error("Failed to update course: " + (error?.message ?? "Unknown")); return; }
       courseId = updated.id;
       enrollmentCode = updated.enrollment_code;
     } else {
-      const { data: courseData, error } = await supabase.from("courses")
+      const { data: created, error } = await supabase.from("courses")
         .insert({ ...coursePayload, teacher_id: user.id })
         .select("id, enrollment_code")
         .single();
-      if (error || !courseData) {
-        toast.error("Failed to save course: " + (error?.message ?? "Unknown error"));
-        return;
-      }
-      courseId = courseData.id;
-      enrollmentCode = courseData.enrollment_code;
+      if (error || !created) { toast.error("Failed to save course: " + (error?.message ?? "Unknown")); return; }
+      courseId = created.id;
+      enrollmentCode = created.enrollment_code;
     }
 
-    // Store courseId for downstream pages
     localStorage.setItem("currentCourseId", courseId);
 
     setTeacherProfile({ name, department, courses: [courseName] });
@@ -221,147 +174,121 @@ const TeacherOnboarding = () => {
       ...mockCourse,
       id: courseId,
       name: courseName,
-      branch: selectedBranches.join(", "),
       term: (term as any) || mockCourse.term,
-      sections: sections.length > 0 ? sections : mockCourse.sections,
-      objectives: objectives ? objectives.split("\n").filter(Boolean) : mockCourse.objectives,
+      objectives: learningObjective ? learningObjective.split("\n").filter(Boolean) : mockCourse.objectives,
       enrollmentCode,
     });
-    navigate("/teacher/setup/materials", { state: { courseId } });
+
+    navigate("/teacher/courses/dashboard");
   };
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
-        <div className="w-full max-w-xl">
-          <SetupProgressBar currentStep={1} />
-          <div className="mb-8 text-center">
-            <h1 className="font-heading text-3xl font-bold">
-              Welcome to Next<span className="text-primary">Step</span>
-            </h1>
-            <p className="mt-2 text-muted-foreground">Set up your profile and course details</p>
-          </div>
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-10 w-10 rounded-lg" />
-                <div className="space-y-1.5">
-                  <Skeleton className="h-5 w-48" />
-                  <Skeleton className="h-4 w-36" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
-              <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
-                <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
-              </div>
-              <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
-                <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
-              </div>
-              <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
-              <div className="space-y-2"><Skeleton className="h-4 w-32" /><Skeleton className="h-[80px] w-full" /></div>
-              <div className="flex justify-between pt-2">
-                <Skeleton className="h-10 w-24" />
-                <Skeleton className="h-10 w-56" />
-              </div>
-            </CardContent>
-          </Card>
+      <div className="min-h-screen bg-background px-4 py-12">
+        <div className="mx-auto w-full max-w-2xl space-y-6">
+          <Skeleton className="h-10 w-72" />
+          <Skeleton className="h-6 w-96" />
+          <Card><CardContent className="p-6 space-y-4">
+            <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
+          </CardContent></Card>
+          <Card><CardContent className="p-6 space-y-4">
+            <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
+          </CardContent></Card>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
-      <div className="w-full max-w-xl">
-        <SetupProgressBar currentStep={1} />
+    <div className="min-h-screen bg-background px-4 py-12">
+      <div className="mx-auto w-full max-w-2xl">
         <div className="mb-8 text-center">
           <h1 className="font-heading text-3xl font-bold">
             Welcome to Next<span className="text-primary">Step</span>
           </h1>
-          <p className="mt-2 text-muted-foreground">Set up your profile and course details</p>
+          <p className="mt-2 text-muted-foreground">Set up your profile and your course in one go.</p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <User className="h-5 w-5" />
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+          {/* Sub-section 1: Your Profile */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <User className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle>Your Profile</CardTitle>
+                  <CardDescription>Tell us about yourself</CardDescription>
+                </div>
               </div>
-              <div>
-                <CardTitle>Professor Profile & Course Setup</CardTitle>
-                <CardDescription>Your information and course details</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+            </CardHeader>
+            <CardContent className="space-y-5">
               <div className="space-y-2">
                 <Label>Full Name</Label>
                 <Input placeholder="Dr. Jane Smith" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
               </div>
 
               <div className="space-y-2">
-                <Label>Department</Label>
-                <Select value={department} onValueChange={setDepartment}>
-                  <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
-                  <SelectContent>
-                    {availableDepartments.map((d) => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Institutional Email</Label>
+                <Input value={user?.email || ""} disabled className="bg-muted/40 cursor-not-allowed" />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Institution Name</Label>
+                <Input placeholder="e.g. Indian Institute of Technology, Delhi" value={institution} onChange={(e) => setInstitution(e.target.value)} />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Course Code</Label>
-                  <Input placeholder="e.g. PY101" value={courseCode} onChange={(e) => setCourseCode(e.target.value)} />
+                  <Label>Department</Label>
+                  <Select value={department} onValueChange={setDepartment}>
+                    <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectContent>
+                      {availableDepartments.map((d) => (
+                        <SelectItem key={d} value={d}>{d}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Designation</Label>
+                  <Input placeholder="e.g. Associate Professor" value={designation} onChange={(e) => setDesignation(e.target.value)} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Sub-section 2: Your Course */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <BookOpen className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle>Your Course</CardTitle>
+                  <CardDescription>The course you'll be teaching</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Course Name</Label>
                   <Input placeholder="e.g. Intro to Python" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Section(s)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="e.g. Section A"
-                    value={sectionInput}
-                    onChange={(e) => setSectionInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSection(); } }}
-                  />
-                  <Button type="button" variant="outline" size="icon" onClick={addSection} disabled={!sectionInput.trim()}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
+                <div className="space-y-2">
+                  <Label>Course Code</Label>
+                  <Input placeholder="e.g. PY101" value={courseCode} onChange={(e) => setCourseCode(e.target.value)} />
                 </div>
-                {sections.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {sections.map((s) => (
-                      <Badge key={s} variant="secondary" className="gap-1">
-                        {s}
-                        <button onClick={() => removeSection(s)} className="ml-0.5 hover:text-destructive">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-                <p className="text-[11px] text-muted-foreground">For each section you teach, add them separately.</p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Term</Label>
+                  <Label>Semester</Label>
                   <Select value={term} onValueChange={setTerm}>
-                    <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Select semester" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="First Semester">First Semester</SelectItem>
                       <SelectItem value="Second Semester">Second Semester</SelectItem>
@@ -370,125 +297,36 @@ const TeacherOnboarding = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Branch(es)</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-between font-normal h-auto min-h-[40px]">
-                        {selectedBranches.length > 0
-                          ? <span className="truncate">{selectedBranches.length} selected</span>
-                          : <span className="text-muted-foreground">Select branches</span>}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-2 max-h-60 overflow-y-auto" align="start">
-                      {allBranches.map((b) => (
-                        <label key={b.id} className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent cursor-pointer">
-                          <Checkbox
-                            checked={selectedBranches.includes(b.name)}
-                            onCheckedChange={(checked) => {
-                              setSelectedBranches((prev) =>
-                                checked ? [...prev, b.name] : prev.filter((x) => x !== b.name)
-                              );
-                            }}
-                          />
-                          {b.name}
-                        </label>
+                  <Label>Student Graduation Year</Label>
+                  <Select value={graduationYear} onValueChange={setGraduationYear}>
+                    <SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger>
+                    <SelectContent>
+                      {availableYears.map((y) => (
+                        <SelectItem key={y} value={y}>{y}</SelectItem>
                       ))}
-                      {allBranches.length === 0 && (
-                        <p className="text-sm text-muted-foreground p-2">No branches found</p>
-                      )}
-                    </PopoverContent>
-                  </Popover>
-                  {selectedBranches.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {selectedBranches.map((b) => (
-                        <Badge key={b} variant="secondary" className="gap-1">
-                          {b}
-                          <button onClick={() => setSelectedBranches((prev) => prev.filter((x) => x !== b))} className="ml-0.5 hover:text-destructive">
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Graduation Year(s)</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-between font-normal h-auto min-h-[40px]">
-                      {selectedYears.length > 0
-                        ? <span className="truncate">{selectedYears.join(", ")}</span>
-                        : <span className="text-muted-foreground">Select graduation years</span>}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-2" align="start">
-                    {availableYears.map((y) => (
-                      <label key={y} className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent cursor-pointer">
-                        <Checkbox
-                          checked={selectedYears.includes(y)}
-                          onCheckedChange={(checked) => {
-                            setSelectedYears((prev) =>
-                              checked ? [...prev, y] : prev.filter((x) => x !== y)
-                            );
-                          }}
-                        />
-                        {y}
-                      </label>
-                    ))}
-                  </PopoverContent>
-                </Popover>
-                {selectedYears.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {selectedYears.map((y) => (
-                      <Badge key={y} variant="secondary" className="gap-1">
-                        {y}
-                        <button onClick={() => setSelectedYears((prev) => prev.filter((x) => x !== y))} className="ml-0.5 hover:text-destructive">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-
-              <div className="space-y-2">
-                <Label>Learning Objectives</Label>
+                <Label>Learning Objective of Course</Label>
                 <textarea
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  placeholder="One objective per line..."
-                  value={objectives}
-                  onChange={(e) => setObjectives(e.target.value)}
+                  className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  placeholder="What should students be able to do by the end of the course?"
+                  value={learningObjective}
+                  onChange={(e) => setLearningObjective(e.target.value)}
                 />
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
-                <div className="flex items-start gap-3">
-                  <MessageSquare className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">Your AI Course Assistant</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Once setup is complete, you'll have access to an AI Course Assistant that can help you with teaching strategies, suggest concepts and case studies, recommend assessment approaches, and more. Look for it in your sidebar!
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-between pt-2">
-                <Button variant="ghost" onClick={() => navigate("/")}>
-                  <ArrowLeft className="mr-2 h-4 w-4" /> Back
-                </Button>
-                <Button onClick={handleContinue} disabled={!isValid}>
-                  Continue to Syllabus Review <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
-            </motion.div>
-          </CardContent>
-        </Card>
+          <div className="flex justify-end pt-2">
+            <Button onClick={handleContinue} disabled={!isValid} size="lg" className="gap-2">
+              Go to Dashboard <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </motion.div>
       </div>
     </div>
   );
