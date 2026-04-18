@@ -192,7 +192,7 @@ const CourseCreation = () => {
   // ─── Persist draft ───
   useEffect(() => {
     if (!user || restoringDraft) return;
-    const draft: LessonPlanDraft = { weeks, expandedWeeks, published, publishTimestamp };
+    const draft: LessonPlanDraft = { weeks, expandedWeeks, published, publishTimestamp, overallOutcomes, gapMode };
     const serialized = JSON.stringify(draft);
     localStorage.setItem(draftLocalKey, serialized);
     if (!draftStoragePath || weeks.length === 0) return;
@@ -206,7 +206,7 @@ const CourseCreation = () => {
       }
     }, 600);
     return () => window.clearTimeout(t);
-  }, [weeks, expandedWeeks, published, publishTimestamp, user, restoringDraft, draftLocalKey, draftStoragePath]);
+  }, [weeks, expandedWeeks, published, publishTimestamp, overallOutcomes, gapMode, user, restoringDraft, draftLocalKey, draftStoragePath]);
 
   // ─── Generation ───
   const runGeneration = useCallback(async () => {
