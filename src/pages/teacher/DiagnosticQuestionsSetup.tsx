@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  ArrowRight, ArrowLeft, Brain, Info, Loader2, BookOpen, Trash2,
+  ArrowRight, ArrowLeft, Brain, Info, Loader2, BookOpen, Trash2, Sparkles,
 } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +44,7 @@ const DiagnosticQuestionsSetup = () => {
 
   const [questions, setQuestions] = useState<DiagnosticQuestion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
   const [conceptCount, setConceptCount] = useState(0);
   const [adaptiveFilter, setAdaptiveFilter] = useState<string | null>(null);
 
@@ -76,6 +77,43 @@ const DiagnosticQuestionsSetup = () => {
     setQuestions(prev => prev.filter(q => q.id !== id));
     toast({ title: "Question removed" });
   };
+
+  const handleGenerate = async () => {
+    if (!courseId) {
+      toast({ title: "No course selected", variant: "destructive" });
+      return;
+    }
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-diagnostic-questions", {
+        body: { courseId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      // Refetch
+      const { data: refreshed } = await supabase
+        .from("diagnostic_questions")
+        .select("id, item_code, content_text, format, difficulty_estimate, bloom_level, answer, options, topic")
+        .eq("course_id", courseId)
+        .order("difficulty_estimate");
+      if (refreshed) setQuestions(refreshed);
+
+      toast({
+        title: "Question bank generated",
+        description: data?.message || "Diagnostic questions are ready to review.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Generation failed",
+        description: e?.message || "Could not generate questions. Try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
 
   const standardQuestions = questions.slice(0, 5);
   const adaptiveQuestions = questions.slice(5, 10);
@@ -179,12 +217,40 @@ const DiagnosticQuestionsSetup = () => {
         {/* Question Bank */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <BookOpen className="h-5 w-5 text-primary" /> Question Bank
-            </CardTitle>
-            <CardDescription>
-              {questions.length} sample questions across {conceptCount} concepts — review and remove any that don't fit.
-            </CardDescription>
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <BookOpen className="h-5 w-5 text-primary" /> Question Bank
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  {questions.length > 0
+                    ? `${questions.length} sample questions across ${conceptCount} concepts — review and remove any that don't fit.`
+                    : `No questions yet. Generate a template based on your ${conceptCount} course concepts.`}
+                </CardDescription>
+              </div>
+              <Button
+                onClick={handleGenerate}
+                disabled={generating || conceptCount === 0}
+                size="sm"
+                variant={questions.length > 0 ? "outline" : "default"}
+              >
+                {generating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    {questions.length > 0 ? "Regenerate" : "Generate Question Bank"}
+                  </>
+                )}
+              </Button>
+            </div>
+            {conceptCount === 0 && (
+              <p className="text-xs text-amber-600 mt-2">
+                Generate your lesson plan first to extract concepts before building the diagnostic.
+              </p>
+            )}
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Stats */}
