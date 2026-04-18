@@ -34,8 +34,9 @@ const CourseMaterials = () => {
   const [totalWeeks, setTotalWeeks] = useState("16");
   const [sessionsPerWeek, setSessionsPerWeek] = useState("2");
   const [sessionLength, setSessionLength] = useState("60");
-  const [midtermWeek, setMidtermWeek] = useState("");
-  const [finalWeek, setFinalWeek] = useState("");
+  // "none" = explicitly no exam; "" = not yet chosen (forces selection)
+  const [midtermWeek, setMidtermWeek] = useState<string>("");
+  const [finalWeek, setFinalWeek] = useState<string>("");
 
   useEffect(() => {
     const fetchData = async () => {
