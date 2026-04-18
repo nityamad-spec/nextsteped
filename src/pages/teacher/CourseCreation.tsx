@@ -261,10 +261,16 @@ const CourseCreation = () => {
 
   useEffect(() => {
     if (restoringDraft) return;
+    if (resolvingCourse) return;
+    if (!user) return;
     if (phase !== "generating") return;
     if (weeks.length > 0) { setPhase("plan"); return; }
+    if (!courseId) {
+      setGenError("No course found yet. Start by uploading materials in Course Materials, then return here.");
+      return;
+    }
     runGeneration();
-  }, [phase, weeks.length, restoringDraft, runGeneration]);
+  }, [phase, weeks.length, restoringDraft, runGeneration, user, resolvingCourse, courseId]);
 
   // ─── Week handlers ───
   const toggleWeek = (id: string) =>
