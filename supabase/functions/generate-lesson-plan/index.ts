@@ -311,6 +311,17 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
 
     const parsed = JSON.parse(toolCall.function.arguments);
     const rawWeeks: any[] = parsed.weeks || [];
+    const overallOutcomes: string = typeof parsed.overall_course_learning_outcomes === "string"
+      ? parsed.overall_course_learning_outcomes.trim()
+      : "";
+
+    // Cap resources to enforce: max 1 coding-exercise + max 2 articles per week
+    const capResources = (resources: any[]) => {
+      if (!Array.isArray(resources)) return [];
+      const exercises = resources.filter((r) => r?.type === "coding-exercise").slice(0, 1);
+      const articles = resources.filter((r) => r?.type === "article").slice(0, 2);
+      return [...exercises, ...articles];
+    };
 
     // Normalize: sort, slice to totalWeeks, force is_exam_week based on midterm/final
     const normalized = rawWeeks
@@ -322,11 +333,12 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
         const isExam = weekNum === midtermWeek || weekNum === finalWeek || !!w.is_exam_week;
         return {
           week: weekNum,
+          week_name: typeof w.week_name === "string" ? w.week_name.trim() : "",
           overview: w.overview || "",
           is_exam_week: isExam,
           exam_type: weekNum === midtermWeek ? "midterm" : weekNum === finalWeek ? "final" : null,
           concepts: Array.isArray(w.concepts) ? w.concepts : [],
-          resources: Array.isArray(w.resources) ? w.resources : [],
+          resources: capResources(w.resources),
         };
       });
 
@@ -337,6 +349,7 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
       const isExam = weekNum === midtermWeek || weekNum === finalWeek;
       normalized.push({
         week: weekNum,
+        week_name: "",
         overview: "",
         is_exam_week: isExam,
         exam_type: weekNum === midtermWeek ? "midterm" : weekNum === finalWeek ? "final" : null,
@@ -373,6 +386,7 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
     return new Response(
       JSON.stringify({
         weeks: normalized,
+        overall_course_learning_outcomes: overallOutcomes,
         meta: {
           totalWeeks,
           midtermWeek,
@@ -381,6 +395,7 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
           lessonPlanFilesUsed: lessonPlanFiles.length,
           materialFilesAvailable: materialFiles.length,
           syllabusContextLoaded: !!syllabusContext,
+          gapMode,
         },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
