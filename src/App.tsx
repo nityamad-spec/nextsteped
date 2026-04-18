@@ -9,12 +9,16 @@ import { useStudentStatus } from "@/hooks/useStudentStatus";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import Landing from "./pages/Landing";
+import TeacherIntro from "./pages/TeacherIntro";
+import StudentIntro from "./pages/StudentIntro";
 import Auth from "./pages/Auth";
 import TeacherLayout from "./layouts/TeacherLayout";
 import StudentLayout from "./layouts/StudentLayout";
 import TeacherOnboarding from "./pages/teacher/TeacherOnboarding";
 import MaterialQualityCheck from "./pages/teacher/MaterialQualityCheck";
 import CourseCreation from "./pages/teacher/CourseCreation";
+import CourseSetup from "./pages/teacher/CourseSetup";
+import AIAssistantAndSettings from "./pages/teacher/AIAssistantAndSettings";
 import CourseMaterials from "./pages/teacher/CourseMaterials";
 import AITASettings from "./pages/teacher/AITASettings";
 import ExamMode from "./pages/teacher/ExamMode";
@@ -153,30 +157,29 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/auth" element={<AuthRedirect />} />
+              <Route path="/intro/teacher" element={<TeacherIntro />} />
+              <Route path="/intro/student" element={<StudentIntro />} />
               <Route path="/reset-password" element={<ResetPassword />} />
 
-              {/* Teacher setup routes */}
+              {/* Teacher onboarding (single-page, no layout) */}
               <Route path="/teacher" element={<ProtectedRoute><TeacherRedirect /></ProtectedRoute>} />
               <Route path="/teacher/onboarding" element={<ProtectedRoute><TeacherOnboarding /></ProtectedRoute>} />
-              <Route path="/teacher/setup/materials" element={<ProtectedRoute><CourseMaterials /></ProtectedRoute>} />
-              <Route path="/teacher/setup/lesson-plan" element={<ProtectedRoute><CourseCreation /></ProtectedRoute>} />
-              <Route path="/teacher/setup/diagnostic" element={<ProtectedRoute><DiagnosticQuestionsSetup /></ProtectedRoute>} />
-              <Route path="/teacher/setup/ai-settings" element={<ProtectedRoute><AITASettings /></ProtectedRoute>} />
-              <Route path="/teacher/setup/exam-mode" element={<ProtectedRoute><ExamMode /></ProtectedRoute>} />
-              <Route path="/teacher/setup/publish" element={<ProtectedRoute><PublishEnrollment /></ProtectedRoute>} />
-              {/* Legacy setup routes — kept for safety, not in flow */}
-              <Route path="/teacher/setup/quality-check" element={<ProtectedRoute><MaterialQualityCheck /></ProtectedRoute>} />
-              <Route path="/teacher/setup/concepts" element={<ProtectedRoute><ConceptManagement /></ProtectedRoute>} />
 
-              {/* Teacher dashboard routes */}
+              {/* Teacher dashboard + setup modules (all share TeacherLayout) */}
               <Route element={<ProtectedRoute><TeacherLayout /></ProtectedRoute>}>
                 <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
+                <Route path="/teacher/setup" element={<CourseSetup />} />
+                <Route path="/teacher/setup/upload" element={<CourseMaterials />} />
+                <Route path="/teacher/setup/materials" element={<Navigate to="/teacher/setup/upload" replace />} />
+                <Route path="/teacher/setup/lesson-plan" element={<CourseCreation />} />
+                <Route path="/teacher/setup/diagnostic" element={<DiagnosticQuestionsSetup />} />
+                <Route path="/teacher/setup/ai-settings" element={<AIAssistantAndSettings />} />
+                <Route path="/teacher/setup/exam-mode" element={<ExamMode />} />
                 <Route path="/teacher/assessments" element={<Assessments />} />
-                
                 <Route path="/teacher/teaching-plan" element={<TeachingPlan />} />
                 <Route path="/teacher/chat" element={<TeacherChat />} />
                 <Route path="/teacher/content-library" element={<ContentLibrary />} />
-                <Route path="/teacher/settings" element={<SettingsIntegrity />} />
+                <Route path="/teacher/settings" element={<Navigate to="/teacher/setup/ai-settings" replace />} />
                 <Route path="/teacher/support" element={<Support />} />
               </Route>
 

@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { useTASettings } from "@/hooks/useTASettings";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { toast } from "sonner";
@@ -37,7 +36,6 @@ const questionEstimate = (length: number, mix: string) => {
 const ExamMode = () => {
   const courseId = useTeacherCourseId();
   const { taSettings, loading, saveTASettings } = useTASettings(courseId);
-  const navigate = useNavigate();
   const [settings, setSettings] = useState(taSettings);
   const [examLength, setExamLength] = useState(taSettings.examTimeLimit ?? 60);
   const [examQuestionTypes, setExamQuestionTypes] = useState(taSettings.examQuestionMix || "mixed");
