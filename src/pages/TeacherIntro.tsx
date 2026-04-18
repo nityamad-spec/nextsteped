@@ -1,6 +1,6 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   ArrowRight,
   ArrowLeft,
@@ -10,41 +10,60 @@ import {
   BarChart3,
   Lightbulb,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const features = [
   {
     icon: ClipboardList,
     title: "Lesson Plan Generation",
-    desc: "Upload your syllabus and get a structured, week-by-week lesson plan with industry-relevant exercises and resources.",
+    subtitle: "Built from your syllabus",
+    description:
+      "Upload your syllabus and NextStep instantly generates a structured, week-by-week lesson plan. Each week includes topics, one industry-relevant exercise, curated articles, and key concepts to cover. If you've already got a lesson plan, NextStep identifies gaps and adds only what's missing.",
+    callout: "Cut hours of prep work down to minutes.",
   },
   {
     icon: Bot,
-    title: "Curriculum-Aligned AI TA for Students",
-    desc: "Your students get an AI tutor that only teaches what you've covered, keeping learning on track and on syllabus.",
+    title: "Curriculum-Aligned AI TA",
+    subtitle: "For your students",
+    description:
+      "Your students get access to an AI tutor that is trained only on what you've uploaded. It won't go off-syllabus, won't give away answers, and guides students through concepts the way you would want it to.",
+    callout: "Every student gets support that matches exactly what you teach.",
   },
   {
     icon: Sparkles,
     title: "Professor AI TA",
-    desc: "Get your own AI assistant to help you with course planning, student questions, and teaching support.",
+    subtitle: "Your personal teaching assistant",
+    description:
+      "You get your own AI assistant separate from the student-facing one. Use it to get help with course planning, drafting explanations, anticipating student questions, or thinking through how to structure a difficult topic.",
+    callout: "Like having a well-prepared co-instructor available at all times.",
   },
   {
     icon: BarChart3,
     title: "Student Mastery Tracking",
-    desc: "See exactly where each student stands across concepts, with class-wide diagnostics and performance data.",
+    subtitle: "Real-time performance data",
+    description:
+      "NextStep tracks how each student is progressing across every concept in your course, segmented by mastery level from Beginner to Expert. You get a class-wide view as well as individual student breakdowns.",
+    callout: "Stop guessing who needs help — see it directly in your dashboard.",
   },
   {
     icon: Lightbulb,
     title: "AI Teaching Insights",
-    desc: "Identify which concepts students are struggling with most so you can adjust your teaching before it's too late.",
+    subtitle: "Know where students struggle",
+    description:
+      "NextStep surfaces which concepts your students are collectively struggling with most, based on their interactions with the AI TA and diagnostic performance. You get actionable data, not just raw numbers.",
+    callout: "Adjust your teaching before a concept becomes a class-wide gap.",
   },
 ];
 
 const TeacherIntro = () => {
   const navigate = useNavigate();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const active = features[activeIndex];
+  const ActiveIcon = active.icon;
 
   return (
     <div className="min-h-screen bg-background px-4 py-12">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         <button
           onClick={() => navigate("/")}
           className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -61,22 +80,66 @@ const TeacherIntro = () => {
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((f) => (
-            <Card key={f.title} className="border bg-card transition-shadow hover:shadow-md">
-              <CardContent className="p-6 space-y-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <f.icon className="h-5 w-5" />
-                </div>
-                <h3 className="font-semibold text-base text-foreground">{f.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="grid gap-0 rounded-xl border bg-card overflow-hidden md:grid-cols-[35%_65%]">
+          {/* Left: tabs */}
+          <div className="border-b md:border-b-0 md:border-r bg-muted/30">
+            <ul className="flex flex-col">
+              {features.map((f, i) => {
+                const isActive = i === activeIndex;
+                return (
+                  <li key={f.title}>
+                    <button
+                      onClick={() => setActiveIndex(i)}
+                      className={cn(
+                        "w-full text-left px-5 py-4 border-l-4 transition-colors",
+                        isActive
+                          ? "border-l-primary bg-primary/5"
+                          : "border-l-transparent hover:bg-muted/60",
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "font-semibold text-sm",
+                          isActive ? "text-primary" : "text-foreground",
+                        )}
+                      >
+                        {f.title}
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {f.subtitle}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* Right: panel */}
+          <div className="p-8 md:p-10">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-6">
+              <ActiveIcon className="h-8 w-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-foreground md:text-3xl">
+              {active.title}
+            </h2>
+            <p className="mt-4 text-base text-muted-foreground leading-relaxed">
+              {active.description}
+            </p>
+            <div className="mt-6 rounded-md border-l-4 border-primary bg-primary/5 px-4 py-3">
+              <p className="text-sm font-medium text-foreground">
+                {active.callout}
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="mt-12 flex justify-center">
-          <Button size="lg" onClick={() => navigate("/auth?role=teacher")} className="gap-2">
+          <Button
+            size="lg"
+            onClick={() => navigate("/auth?role=teacher")}
+            className="gap-2"
+          >
             Get Started <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
