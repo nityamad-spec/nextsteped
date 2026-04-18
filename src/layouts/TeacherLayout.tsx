@@ -1,30 +1,90 @@
-import { Outlet, useNavigate } from "react-router-dom";
-import { BookOpen, ClipboardCheck, HelpCircle, LogOut, Library, MessageSquare, ListChecks } from "lucide-react";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { BookOpen, HelpCircle, LogOut, Library, MessageSquare, ListChecks, Lock } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
+import { supabase } from "@/integrations/supabase/client";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const teacherNav = [
+interface NavItem {
+  title: string;
+  path: string;
+  icon: typeof BookOpen;
+  alwaysUnlocked?: boolean;
+}
+
+const teacherNav: NavItem[] = [
+  { title: "Course Setup", path: "/teacher/setup", icon: ListChecks, alwaysUnlocked: true },
   { title: "Course Dashboard", path: "/teacher/courses/dashboard", icon: BookOpen },
-  { title: "Course Setup", path: "/teacher/setup", icon: ListChecks },
   { title: "Course Assistant", path: "/teacher/chat", icon: MessageSquare },
   { title: "Lesson Plan & Resources", path: "/teacher/content-library", icon: Library },
-  { title: "Assessments", path: "/teacher/assessments", icon: ClipboardCheck },
-  { title: "Support", path: "/teacher/support", icon: HelpCircle },
+  { title: "Support", path: "/teacher/support", icon: HelpCircle, alwaysUnlocked: true },
 ];
 
 const TeacherLayout = () => {
   const { currentCourse, resetAll } = useApp();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useIsMobile();
+  const courseId = useTeacherCourseId();
+  const [setupComplete, setSetupComplete] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    const checkSetup = async () => {
+      try {
+        // 1. Syllabus uploaded
+        const { data: syllabusFiles } = await supabase
+          .from("course_material_files")
+          .select("id")
+          .eq("teacher_id", user.id)
+          .eq("folder_type", "syllabus")
+          .limit(1);
+        if (!syllabusFiles || syllabusFiles.length === 0) { setSetupComplete(false); return; }
+
+        // 2. Lesson plan published
+        const { data: published } = await supabase.storage
+          .from("course-materials")
+          .download(`${user.id}/lesson-plan/published-plan.json`);
+        if (!published) { setSetupComplete(false); return; }
+
+        if (!courseId) { setSetupComplete(false); return; }
+
+        // 3. Diagnostic questions
+        const { data: dq } = await supabase
+          .from("diagnostic_questions")
+          .select("id")
+          .eq("course_id", courseId)
+          .limit(1);
+        if (!dq || dq.length === 0) { setSetupComplete(false); return; }
+
+        // 4 & 5. TA settings: custom prompt + exam approved/enabled
+        const { data: ta } = await supabase
+          .from("course_ta_settings")
+          .select("custom_study_prompt, exam_enabled, exam_approved")
+          .eq("course_id", courseId)
+          .maybeSingle();
+        const aiDone = !!(ta?.custom_study_prompt && ta.custom_study_prompt.trim().length > 0);
+        const examDone = !!(ta?.exam_enabled || ta?.exam_approved);
+        setSetupComplete(aiDone && examDone);
+      } catch {
+        setSetupComplete(false);
+      }
+    };
+    checkSetup();
+  }, [user, courseId, location.pathname]);
 
   const handleLogout = async () => {
     await signOut();
     resetAll();
     navigate("/");
   };
+
+  const isLocked = (item: NavItem) => !item.alwaysUnlocked && !setupComplete;
 
   if (isMobile) {
     return (
@@ -40,15 +100,35 @@ const TeacherLayout = () => {
           <Outlet />
         </main>
         <nav className="flex border-t bg-card">
-          {teacherNav.slice(0, 5).map((item) => (
-            <NavLink key={item.path} to={item.path} end={false}
-              className="flex flex-1 flex-col items-center gap-1 py-2 text-muted-foreground"
-              activeClassName="text-primary"
-            >
-              <item.icon className="h-5 w-5" />
-              <span className="text-[10px]">{item.title.split(" ")[0]}</span>
-            </NavLink>
-          ))}
+          {teacherNav.map((item) => {
+            const locked = isLocked(item);
+            if (locked) {
+              return (
+                <Tooltip key={item.path}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex flex-1 flex-col items-center gap-1 py-2 text-muted-foreground/50 cursor-not-allowed relative"
+                    >
+                      <item.icon className="h-5 w-5" />
+                      <Lock className="absolute top-1 right-1/3 h-2.5 w-2.5" />
+                      <span className="text-[10px]">{item.title.split(" ")[0]}</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>Complete your Course Setup to unlock this.</TooltipContent>
+                </Tooltip>
+              );
+            }
+            return (
+              <NavLink key={item.path} to={item.path} end={false}
+                className="flex flex-1 flex-col items-center gap-1 py-2 text-muted-foreground"
+                activeClassName="text-primary"
+              >
+                <item.icon className="h-5 w-5" />
+                <span className="text-[10px]">{item.title.split(" ")[0]}</span>
+              </NavLink>
+            );
+          })}
         </nav>
       </div>
     );
@@ -66,18 +146,38 @@ const TeacherLayout = () => {
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
-          {teacherNav.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={false}
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
-              activeClassName="bg-sidebar-accent text-primary font-medium"
-            >
-              <item.icon className="h-4 w-4" />
-              {item.title}
-            </NavLink>
-          ))}
+          {teacherNav.map((item) => {
+            const locked = isLocked(item);
+            if (locked) {
+              return (
+                <Tooltip key={item.path}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/40 cursor-not-allowed"
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span className="flex-1 text-left">{item.title}</span>
+                      <Lock className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Complete your Course Setup to unlock this.</TooltipContent>
+                </Tooltip>
+              );
+            }
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={false}
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+                activeClassName="bg-sidebar-accent text-primary font-medium"
+              >
+                <item.icon className="h-4 w-4" />
+                {item.title}
+              </NavLink>
+            );
+          })}
         </nav>
 
         <div className="border-t p-3 space-y-1">
