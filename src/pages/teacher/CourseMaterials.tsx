@@ -199,29 +199,35 @@ const CourseMaterials = () => {
             <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t">
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <GraduationCap className="h-3.5 w-3.5" /> Midterm Exam Week (optional)
+                  <GraduationCap className="h-3.5 w-3.5" /> Midterm Exam Week <span className="text-destructive">*</span>
                 </Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max={totalWeeksNum}
-                  value={midtermWeek}
-                  onChange={(e) => setMidtermWeek(e.target.value)}
-                  placeholder={`e.g. ${Math.floor(totalWeeksNum / 2)}`}
-                />
+                <Select value={midtermWeek} onValueChange={setMidtermWeek}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select midterm week" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    <SelectItem value="none">No midterm exam</SelectItem>
+                    {weekOptions.map((w) => (
+                      <SelectItem key={w} value={String(w)}>Week {w}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <GraduationCap className="h-3.5 w-3.5" /> Final Exam Week (optional)
+                  <GraduationCap className="h-3.5 w-3.5" /> Final Exam Week <span className="text-destructive">*</span>
                 </Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max={totalWeeksNum}
-                  value={finalWeek}
-                  onChange={(e) => setFinalWeek(e.target.value)}
-                  placeholder={`e.g. ${totalWeeksNum}`}
-                />
+                <Select value={finalWeek} onValueChange={setFinalWeek}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select final exam week" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    <SelectItem value="none">No final exam</SelectItem>
+                    {weekOptions.map((w) => (
+                      <SelectItem key={w} value={String(w)}>Week {w}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </CardContent>
