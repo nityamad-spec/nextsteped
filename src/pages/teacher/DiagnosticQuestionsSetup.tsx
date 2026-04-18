@@ -44,6 +44,7 @@ const DiagnosticQuestionsSetup = () => {
 
   const [questions, setQuestions] = useState<DiagnosticQuestion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
   const [conceptCount, setConceptCount] = useState(0);
   const [adaptiveFilter, setAdaptiveFilter] = useState<string | null>(null);
 
