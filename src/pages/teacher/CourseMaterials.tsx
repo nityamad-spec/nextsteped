@@ -52,8 +52,9 @@ const CourseMaterials = () => {
           if (course.total_weeks) setTotalWeeks(String(course.total_weeks));
           if (course.sessions_per_week) setSessionsPerWeek(String(course.sessions_per_week));
           if (course.session_length_minutes) setSessionLength(String(course.session_length_minutes));
-          if (course.midterm_week) setMidtermWeek(String(course.midterm_week));
-          if (course.final_week) setFinalWeek(String(course.final_week));
+          // Persisted null = "none" (explicitly no exam) once they've saved before
+          setMidtermWeek(course.midterm_week ? String(course.midterm_week) : "none");
+          setFinalWeek(course.final_week ? String(course.final_week) : "none");
         }
       }
 
