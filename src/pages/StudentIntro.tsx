@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
@@ -46,11 +47,31 @@ const features = [
   },
 ];
 
+const ADVANCE_MS = 4000;
+
 const StudentIntro = () => {
   const navigate = useNavigate();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [progressKey, setProgressKey] = useState(0);
+  const timerRef = useRef<number | null>(null);
   const active = features[activeIndex];
   const ActiveIcon = active.icon;
+
+  useEffect(() => {
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => {
+      setActiveIndex((i) => (i + 1) % features.length);
+      setProgressKey((k) => k + 1);
+    }, ADVANCE_MS);
+    return () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+    };
+  }, [activeIndex, progressKey]);
+
+  const selectTab = (i: number) => {
+    setActiveIndex(i);
+    setProgressKey((k) => k + 1);
+  };
 
   return (
     <div className="min-h-screen bg-background px-4 py-12">
@@ -80,7 +101,7 @@ const StudentIntro = () => {
                 return (
                   <li key={f.title}>
                     <button
-                      onClick={() => setActiveIndex(i)}
+                      onClick={() => selectTab(i)}
                       className={cn(
                         "w-full text-left px-5 py-4 border-l-4 transition-colors",
                         isActive
@@ -90,8 +111,10 @@ const StudentIntro = () => {
                     >
                       <div
                         className={cn(
-                          "font-semibold text-sm",
-                          isActive ? "text-primary" : "text-foreground",
+                          "font-semibold transition-all duration-300 ease-out",
+                          isActive
+                            ? "text-primary text-base"
+                            : "text-muted-foreground text-sm",
                         )}
                       >
                         {f.title}
@@ -99,6 +122,17 @@ const StudentIntro = () => {
                       <div className="mt-0.5 text-xs text-muted-foreground">
                         {f.subtitle}
                       </div>
+                      {isActive && (
+                        <div className="mt-2 h-0.5 w-full overflow-hidden rounded-full bg-primary/15">
+                          <motion.div
+                            key={progressKey}
+                            className="h-full bg-primary"
+                            initial={{ width: "0%" }}
+                            animate={{ width: "100%" }}
+                            transition={{ duration: ADVANCE_MS / 1000, ease: "linear" }}
+                          />
+                        </div>
+                      )}
                     </button>
                   </li>
                 );
@@ -107,21 +141,41 @@ const StudentIntro = () => {
           </div>
 
           {/* Right: panel */}
-          <div className="p-8 md:p-10">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-6">
-              <ActiveIcon className="h-8 w-8" />
-            </div>
-            <h2 className="text-2xl font-bold text-foreground md:text-3xl">
-              {active.title}
-            </h2>
-            <p className="mt-4 text-base text-muted-foreground leading-relaxed">
-              {active.description}
-            </p>
-            <div className="mt-6 rounded-md border-l-4 border-primary bg-primary/5 px-4 py-3">
-              <p className="text-sm font-medium text-foreground">
-                {active.callout}
-              </p>
-            </div>
+          <div className="relative p-8 md:p-10 overflow-hidden min-h-[360px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeIndex}
+                initial={{ opacity: 0, x: 24 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -24 }}
+                transition={{
+                  opacity: { duration: 0.3, ease: "easeOut" },
+                  x: { duration: 0.3, ease: "easeOut" },
+                }}
+              >
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-6">
+                  <ActiveIcon className="h-8 w-8" />
+                </div>
+                <h2 className="text-2xl font-bold text-foreground md:text-3xl">
+                  {active.title}
+                </h2>
+                <p className="mt-4 text-base text-muted-foreground leading-relaxed">
+                  {active.description}
+                </p>
+                <div className="mt-6 relative overflow-hidden rounded-md border-l-4 border-primary bg-primary/5 px-4 py-3">
+                  <p className="relative z-10 text-sm font-medium text-foreground">
+                    {active.callout}
+                  </p>
+                  <motion.div
+                    key={`sweep-${activeIndex}`}
+                    className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-primary/20 to-transparent"
+                    initial={{ x: "-100%" }}
+                    animate={{ x: "350%" }}
+                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.3 }}
+                  />
+                </div>
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
 
