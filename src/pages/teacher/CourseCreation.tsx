@@ -131,6 +131,8 @@ const CourseCreation = () => {
   const [restoringDraft, setRestoringDraft] = useState(true);
   const [published, setPublished] = useState(false);
   const [publishTimestamp, setPublishTimestamp] = useState<string | null>(null);
+  const [overallOutcomes, setOverallOutcomes] = useState<string>("");
+  const [gapMode, setGapMode] = useState<boolean>(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishChecklist, setPublishChecklist] = useState({ overview: false, concepts: false, resources: false });
 
