@@ -535,24 +535,6 @@ const CourseCreation = () => {
           </div>
         )}
 
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Weekly Breakdown</h2>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (window.confirm("Regenerate the lesson plan from your uploaded materials? This will replace the current plan.")) {
-                setWeeksRaw([]);
-                setExpandedWeeks([]);
-                localStorage.removeItem(draftLocalKey);
-                setPhase("generating");
-              }
-            }}
-          >
-            <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Regenerate
-          </Button>
-        </div>
-
         {gapMode && (
           <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground/80">
             Since you've uploaded existing teaching materials, the plan below highlights gaps and additions not already covered in what you've shared.
@@ -576,6 +558,20 @@ const CourseCreation = () => {
 
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Weekly Breakdown</h2>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (window.confirm("Regenerate the lesson plan from your uploaded materials? This will replace the current plan.")) {
+                setWeeksRaw([]);
+                setExpandedWeeks([]);
+                localStorage.removeItem(draftLocalKey);
+                setPhase("generating");
+              }
+            }}
+          >
+            <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Regenerate
+          </Button>
         </div>
 
         {/* Week Cards */}
