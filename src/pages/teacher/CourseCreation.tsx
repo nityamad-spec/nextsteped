@@ -234,6 +234,7 @@ const CourseCreation = () => {
       const generated: WeekPlan[] = data.weeks.map((w: any, i: number) => ({
         id: `w_${i + 1}_${Date.now()}`,
         week: w.week ?? i + 1,
+        week_name: w.week_name || "",
         overview: w.overview || "",
         is_exam_week: !!w.is_exam_week,
         exam_type: w.exam_type ?? null,
@@ -256,6 +257,8 @@ const CourseCreation = () => {
 
       setWeeksRaw(normalizeWeeks(generated));
       setExpandedWeeks(generated.length > 0 ? [generated[0].id] : []);
+      setOverallOutcomes(typeof data.overall_course_learning_outcomes === "string" ? data.overall_course_learning_outcomes : "");
+      setGapMode(!!data.meta?.gapMode);
       setGenStep(2);
       setTimeout(() => setPhase("plan"), 500);
     } catch (err: any) {
