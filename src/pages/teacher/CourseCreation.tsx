@@ -652,11 +652,11 @@ const CourseCreation = () => {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <div className="h-5 w-1 rounded-full bg-primary" />
-                                <Label className="text-sm font-semibold">Concepts & Topics</Label>
+                                <Label className="text-sm font-semibold">Topics Covered</Label>
                                 <Badge variant="secondary" className="text-[10px]">{w.concepts.length}</Badge>
                               </div>
                               <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => addConcept(w.id)}>
-                                <Plus className="h-3 w-3" /> Add concept
+                                <Plus className="h-3 w-3" /> Add topic
                               </Button>
                             </div>
 
