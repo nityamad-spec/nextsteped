@@ -805,9 +805,11 @@ export type Database = {
           created_at: string
           degree_id: string | null
           department: string | null
+          designation: string | null
           email: string | null
           graduation_year: string | null
           id: string
+          institution: string | null
           learner_level: string | null
           name: string
           role: string
@@ -820,9 +822,11 @@ export type Database = {
           created_at?: string
           degree_id?: string | null
           department?: string | null
+          designation?: string | null
           email?: string | null
           graduation_year?: string | null
           id: string
+          institution?: string | null
           learner_level?: string | null
           name: string
           role: string
@@ -835,9 +839,11 @@ export type Database = {
           created_at?: string
           degree_id?: string | null
           department?: string | null
+          designation?: string | null
           email?: string | null
           graduation_year?: string | null
           id?: string
+          institution?: string | null
           learner_level?: string | null
           name?: string
           role?: string
