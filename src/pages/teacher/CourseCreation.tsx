@@ -425,7 +425,8 @@ const CourseCreation = () => {
     setPublishChecklist({ overview: false, concepts: false, resources: false });
     if (user) {
       try {
-        const planJson = JSON.stringify(weeks, null, 2);
+        const payload = { weeks, overall_course_learning_outcomes: overallOutcomes };
+        const planJson = JSON.stringify(payload, null, 2);
         const blob = new Blob([planJson], { type: "application/json" });
         const file = new File([blob], "published-plan.json", { type: "application/json" });
         await supabase.storage
