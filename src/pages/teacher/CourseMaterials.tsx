@@ -116,7 +116,7 @@ const CourseMaterials = () => {
         .insert({
           teacher_id: user.id,
           name: draftName,
-          term: "Draft",
+          term: "First Semester",
           ...courseFields,
         })
         .select("id")
