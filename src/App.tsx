@@ -47,8 +47,12 @@ import TeacherChat from "./pages/teacher/TeacherChat";
 
 const queryClient = new QueryClient();
 
+// TEMPORARY: set to false to restore normal auth gating
+const AUTH_BYPASS = true;
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  if (AUTH_BYPASS) return <>{children}</>;
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
