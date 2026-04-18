@@ -156,14 +156,15 @@ const App = () => (
               {/* Teacher setup routes */}
               <Route path="/teacher" element={<ProtectedRoute><TeacherRedirect /></ProtectedRoute>} />
               <Route path="/teacher/onboarding" element={<ProtectedRoute><TeacherOnboarding /></ProtectedRoute>} />
-              <Route path="/teacher/setup/quality-check" element={<ProtectedRoute><MaterialQualityCheck /></ProtectedRoute>} />
-              <Route path="/teacher/setup/lesson-plan" element={<ProtectedRoute><CourseCreation /></ProtectedRoute>} />
               <Route path="/teacher/setup/materials" element={<ProtectedRoute><CourseMaterials /></ProtectedRoute>} />
-              <Route path="/teacher/setup/concepts" element={<ProtectedRoute><ConceptManagement /></ProtectedRoute>} />
+              <Route path="/teacher/setup/lesson-plan" element={<ProtectedRoute><CourseCreation /></ProtectedRoute>} />
               <Route path="/teacher/setup/diagnostic" element={<ProtectedRoute><DiagnosticQuestionsSetup /></ProtectedRoute>} />
               <Route path="/teacher/setup/ai-settings" element={<ProtectedRoute><AITASettings /></ProtectedRoute>} />
               <Route path="/teacher/setup/exam-mode" element={<ProtectedRoute><ExamMode /></ProtectedRoute>} />
               <Route path="/teacher/setup/publish" element={<ProtectedRoute><PublishEnrollment /></ProtectedRoute>} />
+              {/* Legacy setup routes — kept for safety, not in flow */}
+              <Route path="/teacher/setup/quality-check" element={<ProtectedRoute><MaterialQualityCheck /></ProtectedRoute>} />
+              <Route path="/teacher/setup/concepts" element={<ProtectedRoute><ConceptManagement /></ProtectedRoute>} />
 
               {/* Teacher dashboard routes */}
               <Route element={<ProtectedRoute><TeacherLayout /></ProtectedRoute>}>
