@@ -1,84 +1,48 @@
 
+The user wants:
+1. Auth bypass — already done (`AUTH_BYPASS = true` in `src/App.tsx`). Need to verify it covers all redirects properly.
+2. Admin full RLS access to all DB queries/data.
 
-## Goal
-Define a **JSON-shaped template** for the syllabus context block returned by `fetchSyllabusContext`. The LLM receives structured JSON instead of labeled prose, so it can parse `objectives`, `outcomes`, and per-week `topic` fields unambiguously — no risk of conflating sections or misreading week numbers.
+Looking at RLS policies — admins already have policies on most tables (admin_settings, assessment_questions, assessment_results, branches, chat_messages, chat_sessions, concepts, course_material_files, course_ta_settings, course_teachers, courses, degrees, diagnostic_questions, diagnostic_results, enrollments, profiles, signin_attempts, signup_attempts, student_feedback, teacher_applications, universities).
 
-This plan defines the template only (chat output). No code changes.
+Gaps I noticed:
+- `cache_versions` — no admin policy (only authenticated SELECT). Minor.
+- `assessment_results` — admin only has SELECT, no UPDATE/DELETE. Same for `diagnostic_results`, `enrollments`, `signin_attempts`, `signup_attempts`, `student_feedback`, `profiles` (no DELETE).
+- `course_material_files` — admin only has SELECT, no manage.
+- `teacher_applications` — admin has ALL but no WITH CHECK clause.
+- `courses` — admin has SELECT + UPDATE but no INSERT/DELETE.
 
-## The template
+But the bigger blocker for admin testing: **with auth bypassed, there is no `auth.uid()`**. Every RLS policy keys off `auth.uid()` matching admin. So even a perfect admin policy returns false when not logged in. The bypass means RLS will block all reads from the client.
 
-A single fenced JSON block, minified to save chars, with short field names:
+Two practical paths:
+- **A)** Keep RLS strict, but actually log in as the seeded admin (`admin@nextstep.ai` / `admin@3465`) so `auth.uid()` resolves and existing admin policies kick in. Then auth bypass is just for navigating UI without re-login between role swaps.
+- **B)** Add temporary `anon` SELECT policies on every table for testing. Risky — leaks data publicly on the preview URL.
 
-```text
-SYLLABUS_CONTEXT (JSON):
-{"course":{"code":"CS101","title":"Intro to Python","term":"Fall 2025"},
-"summary":"Foundational Python: syntax, data structures, problem-solving.",
-"objectives":["Build fluency with Python syntax","Apply control flow and functions","Read and debug small programs"],
-"outcomes":["Write working Python scripts","Decompose problems into functions","Use lists/dicts idiomatically"],
-"schedule":[
-{"w":1,"topic":"Variables & types","desc":"primitives, assignment, I/O"},
-{"w":2,"topic":"Control flow","desc":"if/else, loops, booleans"},
-{"w":3,"topic":"Functions","desc":"defs, args, return, scope"},
-...
-{"w":16,"topic":"Final project","desc":"capstone integration"}
-]}
-```
+Recommendation: **A** + fill in the small admin policy gaps so admin truly has full ALL access on every table. Then keep the existing `AUTH_BYPASS` for route navigation. I'll also auto-sign-in the seeded admin when bypass is on, so `auth.uid()` is always populated for DB queries.
 
-## Why JSON over labeled prose
+## Plan
 
-| Property | Benefit |
-|---|---|
-| **Unambiguous field names** (`objectives` vs `outcomes`) | Model can't conflate them — the key *is* the label |
-| **Numeric `w` field** | "Week 3" maps to `"w":3` — exact int match, no `W03` vs `W3` ambiguity |
-| **Array structure** | Model knows objective count, can iterate; no "is this the last bullet?" guessing |
-| **Single fenced block** with `SYLLABUS_CONTEXT` prefix | Easy for model to locate and treat as authoritative course data |
-| **Minified (no pretty-print)** | Saves ~30% chars vs indented JSON — more weeks/objectives fit in 2,000-char cap |
-| **Short keys** (`w`, `desc` not `weekNumber`, `description`) | Char savings compound across 16 weeks |
+**1. Auto-login as admin when bypass is on** (`src/contexts/AuthContext.tsx`)
+- On provider mount, if `AUTH_BYPASS` and no session, call `supabase.auth.signInWithPassword({ email: "admin@nextstep.ai", password: "admin@3465" })`. Falls back to invoking `seed-admin` edge function first if login fails (admin not yet created).
+- Export `AUTH_BYPASS` from a shared constant file (`src/lib/authBypass.ts`) so both `App.tsx` and `AuthContext.tsx` use the same flag.
 
-## Budget allocation (total: 2,000 chars)
+**2. Fill RLS gaps so admin truly has ALL on everything** (one migration)
+- `courses`: add admin INSERT + DELETE policies (currently only SELECT + UPDATE).
+- `course_material_files`: add admin ALL policy (currently only SELECT).
+- `assessment_results`, `diagnostic_results`, `enrollments`, `student_feedback`, `signin_attempts`, `signup_attempts`: add admin UPDATE + DELETE policies.
+- `profiles`: add admin DELETE policy.
+- `cache_versions`: add admin ALL policy.
+- `teacher_applications`: add WITH CHECK clause to existing ALL policy.
+- All use the existing `is_admin(auth.uid())` security-definer function (no recursion risk).
 
-| Block | Hard cap | Notes |
-|---|---|---|
-| `course` + `summary` | 300 | Stable header |
-| `objectives` (≤6 items, ≤120 chars each) | 450 | JSON quoting overhead ~5 chars/item |
-| `outcomes` (≤6 items, ≤120 chars each) | 450 | Same |
-| `schedule` (16 weeks × ~50 chars) | 800 | `{"w":N,"topic":"...","desc":"..."}` ≈ 50 chars |
+**3. Verify `ProtectedRoute` bypass already in place**
+- Already done in last turn. No changes needed there.
 
-## Per-field truncation rules
+## Revert path
+Set `AUTH_BYPASS = false` in `src/lib/authBypass.ts`. The expanded admin RLS policies are safe to keep permanently — they only grant access to verified admins via `is_admin()`.
 
-- Objectives/outcomes: trim to 120 chars, suffix `…` if cut
-- `topic`: trim to 40 chars
-- `desc`: trim to 60 chars
-- Drop excess objectives/outcomes (keep first 6) — never truncate mid-string
-- **Escape quotes/backslashes** in any string field before serializing (avoid breaking JSON)
-- Omit empty arrays entirely (no `"objectives":[]`)
-- Final `.slice(0, 2000)` safety guard kept
-
-## Concrete worked example (~750 chars)
-
-```text
-SYLLABUS_CONTEXT (JSON):
-{"course":{"code":"CS101","title":"Intro to Python","term":"Fall 2025"},
-"summary":"Foundational programming course covering Python syntax, data structures, and problem-solving.",
-"objectives":["Build fluency with Python syntax and core data types","Apply control flow and functions to solve problems","Read and debug small Python programs"],
-"outcomes":["Write working Python scripts using variables, loops, and functions","Decompose problems into reusable functions","Use lists, dicts, and strings idiomatically"],
-"schedule":[
-{"w":1,"topic":"Variables & types","desc":"primitives, assignment, basic I/O"},
-{"w":2,"topic":"Control flow","desc":"if/else, for/while, boolean logic"},
-{"w":3,"topic":"Functions","desc":"defs, args, return, scope"},
-{"w":4,"topic":"Lists & tuples","desc":"indexing, slicing, iteration"},
-{"w":5,"topic":"Dictionaries & sets","desc":"key/value, lookup, membership"}
-]}
-```
-
-## Trade-offs vs prose template
-
-- **Pro**: zero ambiguity, machine-parseable if we ever want to log/inspect the context
-- **Con**: ~10–15% more char overhead from JSON syntax (`{}`, `""`, `,`) — partially offset by short keys and minification
-- **Con**: slightly less human-readable in edge function logs
-
-## Scope
-
-- This plan defines the **chat output template only**. No code changes proposed here.
-- If approved, the follow-up edit wires this shape into `fetchSyllabusContext` in `supabase/functions/chat/index.ts` (single function rewrite, ~30 lines).
-
+## Files to touch
+- `src/lib/authBypass.ts` (new — single source of truth for the flag)
+- `src/App.tsx` (import flag from new file)
+- `src/contexts/AuthContext.tsx` (auto-signin as admin when bypass active)
+- New migration: admin RLS policies on the tables listed above.
