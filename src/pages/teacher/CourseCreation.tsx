@@ -77,9 +77,47 @@ const CourseCreation = () => {
   const location = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
-  const courseId = (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
+  const initialCourseId = (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
+  const [courseId, setCourseId] = useState<string | null>(initialCourseId);
+  const [resolvingCourse, setResolvingCourse] = useState(!initialCourseId);
   const draftLocalKey = `lessonPlanDraftV2:${courseId || user?.id || "default"}`;
   const draftStoragePath = user ? `${user.id}/lesson-plan/draft-plan-v2.json` : null;
+
+  // ─── Auto-recover course when missing (e.g. AUTH_BYPASS admin, fresh load) ───
+  useEffect(() => {
+    if (courseId || !user) return;
+    let cancelled = false;
+    (async () => {
+      setResolvingCourse(true);
+      // Owned course first
+      let { data } = await supabase
+        .from("courses")
+        .select("id")
+        .eq("teacher_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // Fallback: any course (admin / collaborator can see via RLS)
+      if (!data) {
+        const res = await supabase
+          .from("courses")
+          .select("id")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        data = res.data;
+      }
+
+      if (cancelled) return;
+      if (data?.id) {
+        setCourseId(data.id);
+        localStorage.setItem("currentCourseId", data.id);
+      }
+      setResolvingCourse(false);
+    })();
+    return () => { cancelled = true; };
+  }, [courseId, user]);
 
   const [phase, setPhase] = useState<"generating" | "plan">("generating");
   const [genError, setGenError] = useState<string | null>(null);
@@ -223,10 +261,16 @@ const CourseCreation = () => {
 
   useEffect(() => {
     if (restoringDraft) return;
+    if (resolvingCourse) return;
+    if (!user) return;
     if (phase !== "generating") return;
     if (weeks.length > 0) { setPhase("plan"); return; }
+    if (!courseId) {
+      setGenError("No course found yet. Start by uploading materials in Course Materials, then return here.");
+      return;
+    }
     runGeneration();
-  }, [phase, weeks.length, restoringDraft, runGeneration]);
+  }, [phase, weeks.length, restoringDraft, runGeneration, user, resolvingCourse, courseId]);
 
   // ─── Week handlers ───
   const toggleWeek = (id: string) =>
