@@ -129,25 +129,14 @@ const TeacherIntro = () => {
                         {f.title}
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">
-                        {f.subtitle}
-                      </div>
-                      {isActive && (
-                        <div className="mt-2 h-0.5 w-full overflow-hidden rounded-full bg-primary/15">
-                          <motion.div
-                            key={progressKey}
-                            className="h-full bg-primary"
-                            initial={{ width: "0%" }}
-                            animate={{ width: "100%" }}
-                            transition={{ duration: ADVANCE_MS / 1000, ease: "linear" }}
-                          />
-                        </div>
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+                      {f.subtitle}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
 
           {/* Right: panel */}
           <div className="relative p-8 md:p-10 overflow-hidden min-h-[360px]">
