@@ -916,6 +916,23 @@ const CourseCreation = () => {
           <Plus className="mr-2 h-4 w-4" /> Add another week
         </Button>
 
+        {/* Overall Course Learning Outcomes */}
+        <Card className="p-5 space-y-3 border-primary/20 bg-primary/5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-1 rounded-full bg-primary" />
+              <Label className="text-base font-semibold">Overall Course Learning Outcomes</Label>
+            </div>
+          </div>
+          <Textarea
+            value={overallOutcomes}
+            onChange={(e) => { setOverallOutcomes(e.target.value); setPublished(false); }}
+            rows={4}
+            placeholder="A short paragraph summarizing what students will be able to do by the end of the course."
+            className="text-sm"
+          />
+        </Card>
+
         {/* Footer actions */}
         <div className="flex justify-between gap-3 pt-4 border-t">
           <Button variant="outline" onClick={() => navigate("/teacher/setup/materials")}>
