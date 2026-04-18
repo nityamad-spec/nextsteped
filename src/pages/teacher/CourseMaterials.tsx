@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowRight, ArrowLeft, BookOpen, ClipboardList, Calendar, FileText, GraduationCap } from "lucide-react";
 import SetupProgressBar from "@/components/SetupProgressBar";
 import FileUploadZone from "@/components/FileUploadZone";
@@ -33,8 +34,9 @@ const CourseMaterials = () => {
   const [totalWeeks, setTotalWeeks] = useState("16");
   const [sessionsPerWeek, setSessionsPerWeek] = useState("2");
   const [sessionLength, setSessionLength] = useState("60");
-  const [midtermWeek, setMidtermWeek] = useState("");
-  const [finalWeek, setFinalWeek] = useState("");
+  // "none" = explicitly no exam; "" = not yet chosen (forces selection)
+  const [midtermWeek, setMidtermWeek] = useState<string>("");
+  const [finalWeek, setFinalWeek] = useState<string>("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -50,8 +52,9 @@ const CourseMaterials = () => {
           if (course.total_weeks) setTotalWeeks(String(course.total_weeks));
           if (course.sessions_per_week) setSessionsPerWeek(String(course.sessions_per_week));
           if (course.session_length_minutes) setSessionLength(String(course.session_length_minutes));
-          if (course.midterm_week) setMidtermWeek(String(course.midterm_week));
-          if (course.final_week) setFinalWeek(String(course.final_week));
+          // Persisted null = "none" (explicitly no exam) once they've saved before
+          setMidtermWeek(course.midterm_week ? String(course.midterm_week) : "none");
+          setFinalWeek(course.final_week ? String(course.final_week) : "none");
         }
       }
 
@@ -76,51 +79,84 @@ const CourseMaterials = () => {
   }, [user, courseId]);
 
   const handleContinue = async () => {
-    if (courseId && user) {
-      const weeks = parseInt(totalWeeks) || 16;
-      const midParsed = midtermWeek ? parseInt(midtermWeek) : null;
-      const finParsed = finalWeek ? parseInt(finalWeek) : null;
+    if (!user) return;
 
-      await supabase
+    let activeCourseId = courseId;
+    const weeks = parseInt(totalWeeks) || 16;
+    const midParsed = midtermWeek === "none" || midtermWeek === "" ? null : parseInt(midtermWeek);
+    const finParsed = finalWeek === "none" || finalWeek === "" ? null : parseInt(finalWeek);
+
+    const courseFields = {
+      total_weeks: weeks,
+      sessions_per_week: parseInt(sessionsPerWeek) || 2,
+      session_length_minutes: parseInt(sessionLength) || 60,
+      midterm_week: midParsed && midParsed > 0 && midParsed <= weeks ? midParsed : null,
+      final_week: finParsed && finParsed > 0 && finParsed <= weeks ? finParsed : null,
+      syllabus_uploaded: syllabusFiles.length > 0,
+      materials_uploaded: materialsFiles.length > 0 || lessonPlanFiles.length > 0,
+    };
+
+    if (activeCourseId) {
+      await supabase.from("courses").update(courseFields).eq("id", activeCourseId);
+    } else {
+      // No course yet — auto-create a draft so lesson plan generation can proceed
+      // without forcing the user through full course setup first.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("name, department")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const draftName = profile?.department
+        ? `${profile.department} Course (Draft)`
+        : "Untitled Course (Draft)";
+
+      const { data: created, error: createErr } = await supabase
         .from("courses")
-        .update({
-          total_weeks: weeks,
-          sessions_per_week: parseInt(sessionsPerWeek) || 2,
-          session_length_minutes: parseInt(sessionLength) || 60,
-          midterm_week: midParsed && midParsed > 0 && midParsed <= weeks ? midParsed : null,
-          final_week: finParsed && finParsed > 0 && finParsed <= weeks ? finParsed : null,
-          syllabus_uploaded: syllabusFiles.length > 0,
-          materials_uploaded: materialsFiles.length > 0 || lessonPlanFiles.length > 0,
+        .insert({
+          teacher_id: user.id,
+          name: draftName,
+          term: "Draft",
+          ...courseFields,
         })
-        .eq("id", courseId);
+        .select("id")
+        .single();
 
-      const allPaths = [
-        ...syllabusFiles.map((f) => f.path),
-        ...lessonPlanFiles.map((f) => f.path),
-        ...materialsFiles.map((f) => f.path),
-      ];
-      if (allPaths.length > 0) {
-        await supabase
-          .from("course_material_files")
-          .update({ course_id: courseId })
-          .in("storage_path", allPaths);
+      if (createErr || !created) {
+        console.error("Failed to create draft course:", createErr);
+        return;
       }
+      activeCourseId = created.id;
+      localStorage.setItem("currentCourseId", activeCourseId);
+    }
+
+    const allPaths = [
+      ...syllabusFiles.map((f) => f.path),
+      ...lessonPlanFiles.map((f) => f.path),
+      ...materialsFiles.map((f) => f.path),
+    ];
+    if (allPaths.length > 0) {
+      await supabase
+        .from("course_material_files")
+        .update({ course_id: activeCourseId })
+        .in("storage_path", allPaths);
     }
 
     // Force regeneration on entry to lesson plan page
     localStorage.removeItem("lessonPlanDays");
     localStorage.removeItem("lessonPlanPhase");
-    if (user) {
-      const draftKey = `lessonPlanDraft:${courseId || user.id}`;
-      localStorage.removeItem(draftKey);
-      localStorage.removeItem("lessonPlanDraft");
-    }
+    const draftKey = `lessonPlanDraft:${activeCourseId || user.id}`;
+    localStorage.removeItem(draftKey);
+    localStorage.removeItem("lessonPlanDraft");
 
-    navigate("/teacher/setup/lesson-plan");
+    navigate("/teacher/setup/lesson-plan", { state: { courseId: activeCourseId } });
   };
 
   const totalWeeksNum = parseInt(totalWeeks) || 16;
-  const canContinue = syllabusFiles.length > 0 || lessonPlanFiles.length > 0;
+  const weekOptions = Array.from({ length: totalWeeksNum }, (_, i) => i + 1);
+  const hasFiles = syllabusFiles.length > 0 || lessonPlanFiles.length > 0;
+  const examChosen = midtermWeek !== "" && finalWeek !== "";
+  const canContinue = hasFiles && examChosen;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
@@ -163,29 +199,35 @@ const CourseMaterials = () => {
             <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t">
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <GraduationCap className="h-3.5 w-3.5" /> Midterm Exam Week (optional)
+                  <GraduationCap className="h-3.5 w-3.5" /> Midterm Exam Week <span className="text-destructive">*</span>
                 </Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max={totalWeeksNum}
-                  value={midtermWeek}
-                  onChange={(e) => setMidtermWeek(e.target.value)}
-                  placeholder={`e.g. ${Math.floor(totalWeeksNum / 2)}`}
-                />
+                <Select value={midtermWeek} onValueChange={setMidtermWeek}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select midterm week" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    <SelectItem value="none">No midterm exam</SelectItem>
+                    {weekOptions.map((w) => (
+                      <SelectItem key={w} value={String(w)}>Week {w}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <GraduationCap className="h-3.5 w-3.5" /> Final Exam Week (optional)
+                  <GraduationCap className="h-3.5 w-3.5" /> Final Exam Week <span className="text-destructive">*</span>
                 </Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max={totalWeeksNum}
-                  value={finalWeek}
-                  onChange={(e) => setFinalWeek(e.target.value)}
-                  placeholder={`e.g. ${totalWeeksNum}`}
-                />
+                <Select value={finalWeek} onValueChange={setFinalWeek}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select final exam week" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    <SelectItem value="none">No final exam</SelectItem>
+                    {weekOptions.map((w) => (
+                      <SelectItem key={w} value={String(w)}>Week {w}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </CardContent>
@@ -284,13 +326,22 @@ const CourseMaterials = () => {
           </CardContent>
         </Card>
 
-        <div className="flex justify-center gap-3">
-          <Button variant="outline" onClick={() => navigate("/teacher/onboarding")}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Profile
-          </Button>
-          <Button onClick={handleContinue} disabled={!canContinue} size="lg">
-            Generate Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
+        <div className="flex flex-col items-center gap-2">
+          {!canContinue && (
+            <p className="text-xs text-muted-foreground text-center">
+              {!hasFiles
+                ? "Upload at least one syllabus or lesson plan to continue."
+                : "Please choose midterm and final exam weeks (or select 'No exam')."}
+            </p>
+          )}
+          <div className="flex justify-center gap-3">
+            <Button variant="outline" onClick={() => navigate("/teacher/onboarding")}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Profile
+            </Button>
+            <Button onClick={handleContinue} disabled={!canContinue} size="lg">
+              Generate Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>
