@@ -936,14 +936,27 @@ const CourseCreation = () => {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Materials
           </Button>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowPublishModal(true)} disabled={weeks.length === 0}>
+            <Button
+              variant={published ? "outline" : "default"}
+              onClick={() => setShowPublishModal(true)}
+              disabled={weeks.length === 0}
+            >
               {published ? "Re-publish Plan" : "Publish Plan"}
             </Button>
-            <Button onClick={() => navigate("/teacher/setup/diagnostic")} disabled={weeks.length === 0}>
+            <Button
+              onClick={() => navigate("/teacher/setup/diagnostic")}
+              disabled={weeks.length === 0 || !published}
+              title={!published ? "Publish the lesson plan first to continue" : undefined}
+            >
               Continue to Diagnostic <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
         </div>
+        {!published && weeks.length > 0 && (
+          <p className="text-xs text-muted-foreground text-right -mt-3">
+            Publish the lesson plan to unlock the Diagnostic step. You can still edit weeks afterward.
+          </p>
+        )}
       </div>
 
       {/* Publish modal */}
@@ -952,38 +965,24 @@ const CourseCreation = () => {
           <DialogHeader>
             <DialogTitle>Publish lesson plan?</DialogTitle>
             <DialogDescription>
-              Publishing makes this plan live for your AI Teaching Assistant and unlocks the next setup steps. Students only see weeks you've marked <span className="inline-flex items-center gap-1 font-medium"><Eye className="h-3 w-3" /> Visible</span>. You can keep editing future weeks anytime from Course Setup or the Content Library — just re-publish to push updates.
+              Publishing makes this plan live for your AI Teaching Assistant and unlocks the Diagnostic step. Students only see weeks you've marked <span className="inline-flex items-center gap-1 font-medium"><Eye className="h-3 w-3" /> Visible</span>. You can keep editing any week anytime from Course Setup or the Content Library — just re-publish to push updates.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
+          <div className="py-2">
             <label className="flex items-start gap-2 cursor-pointer">
               <Checkbox
-                checked={publishChecklist.overview}
-                onCheckedChange={(v) => setPublishChecklist(p => ({ ...p, overview: !!v }))}
+                checked={publishConfirmed}
+                onCheckedChange={(v) => setPublishConfirmed(!!v)}
                 className="mt-0.5"
               />
-              <span className="text-sm">I reviewed each week's overview</span>
-            </label>
-            <label className="flex items-start gap-2 cursor-pointer">
-              <Checkbox
-                checked={publishChecklist.concepts}
-                onCheckedChange={(v) => setPublishChecklist(p => ({ ...p, concepts: !!v }))}
-                className="mt-0.5"
-              />
-              <span className="text-sm">I reviewed the concepts in each week</span>
-            </label>
-            <label className="flex items-start gap-2 cursor-pointer">
-              <Checkbox
-                checked={publishChecklist.resources}
-                onCheckedChange={(v) => setPublishChecklist(p => ({ ...p, resources: !!v }))}
-                className="mt-0.5"
-              />
-              <span className="text-sm">I reviewed the resources and exercises</span>
+              <span className="text-sm">
+                I'm ready to publish this lesson plan and continue to the Diagnostic setup step. I understand I can keep editing future weeks afterward.
+              </span>
             </label>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowPublishModal(false)}>Cancel</Button>
-            <Button onClick={handlePublish} disabled={!allChecked}>Publish</Button>
+            <Button onClick={handlePublish} disabled={!publishConfirmed}>Publish & Continue</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
