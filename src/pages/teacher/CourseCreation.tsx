@@ -951,7 +951,7 @@ const CourseCreation = () => {
           <DialogHeader>
             <DialogTitle>Publish lesson plan?</DialogTitle>
             <DialogDescription>
-              Confirm you've reviewed the plan before publishing. Students will see weeks marked "Visible".
+              Publishing makes this plan live for your AI Teaching Assistant and unlocks the next setup steps. Students only see weeks you've marked <span className="inline-flex items-center gap-1 font-medium"><Eye className="h-3 w-3" /> Visible</span>. You can keep editing future weeks anytime from Course Setup or the Content Library — just re-publish to push updates.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
