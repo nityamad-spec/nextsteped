@@ -377,7 +377,7 @@ const ExamMode = () => {
                   <CardTitle className="flex items-center gap-2 text-base">
                     <ClipboardCheck className="h-5 w-5" /> Custom Exam Questions
                   </CardTitle>
-                  <CardDescription>Add any custom questions you want students to see during the exam. These appear alongside AI-generated questions.</CardDescription>
+                  <CardDescription>Add any custom exam questions you want students to see during their practice exams. These appear alongside AI-generated questions.</CardDescription>
                 </div>
                 <Button size="sm" onClick={openAddDialog}><Plus className="mr-1 h-4 w-4" /> Add Question</Button>
               </div>
