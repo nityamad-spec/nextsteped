@@ -75,7 +75,11 @@ const normalizeWeeks = (list: WeekPlan[]): WeekPlan[] =>
     .sort((a, b) => (a.week || 0) - (b.week || 0))
     .map((w, i) => ({ ...w, week: i + 1 }));
 
-const CourseCreation = () => {
+interface CourseCreationProps {
+  embedded?: boolean;
+}
+
+const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
