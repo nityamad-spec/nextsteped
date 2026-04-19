@@ -161,20 +161,17 @@ const CourseMaterials = () => {
               </CardTitle>
               <Badge variant="secondary">Optional but Recommended</Badge>
             </div>
-            <CardDescription asChild>
-              <div>
-                <p>
-                  Upload anything from previous iterations of this course or related teaching that helps the AI understand how you teach. The more context you give it, the better it can support your students. Examples:
-                </p>
-                <ul className="list-disc list-inside mt-2 space-y-1 text-xs">
-                  <li><strong>Past assessments:</strong> previous exams, quizzes, assignments, projects, problem sets</li>
-                  <li><strong>Lecture materials:</strong> slide decks, lecture notes, handouts</li>
-                  <li><strong>Lesson plans:</strong> existing weekly plans or schedules</li>
-                  <li><strong>Reference material:</strong> reading lists, supplementary articles, sample solutions</li>
-                </ul>
-              </div>
+            <CardDescription>
+              Upload anything from previous iterations of this course or related teaching that helps the AI understand how you teach. The more context you give it, the better it can support your students.
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <ul className="list-disc list-inside mb-3 space-y-1 text-xs text-muted-foreground">
+              <li><strong className="text-foreground">Past assessments:</strong> previous exams, quizzes, assignments, projects, problem sets</li>
+              <li><strong className="text-foreground">Lecture materials:</strong> slide decks, lecture notes, handouts</li>
+              <li><strong className="text-foreground">Lesson plans:</strong> existing weekly plans or schedules</li>
+              <li><strong className="text-foreground">Reference material:</strong> reading lists, supplementary articles, sample solutions</li>
+            </ul>
           <CardContent>
             <p className="text-xs text-muted-foreground mb-3">
               <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images.
