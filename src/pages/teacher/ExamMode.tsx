@@ -337,19 +337,35 @@ const ExamMode = () => {
                 )}
               </div>
 
-              <div className={`flex items-center justify-between rounded-lg border p-4 ${examApproved ? "border-primary/30 bg-primary/5" : ""}`}>
-                <div>
-                  <p className="text-sm font-medium">Approve Exam Rules</p>
-                  <p className="text-xs text-muted-foreground">You must approve exam settings before publishing</p>
-                </div>
-                <Button variant={examApproved ? "outline" : "default"} size="sm" onClick={() => {
-                  const next = !examApproved;
-                  setExamApproved(next);
-                  if (next && !examEnabled) setExamEnabled(true);
-                }}>
-                  {examApproved ? <><Check className="mr-1 h-4 w-4" /> Approved</> : "Approve"}
-                </Button>
-              </div>
+              {(() => {
+                const typesSelected = examQuestionTypes && examQuestionTypes !== "mixed"
+                  ? examQuestionTypes.split(",").filter(Boolean).length > 0
+                  : false;
+                return (
+                  <div className={`flex items-center justify-between rounded-lg border p-4 ${examApproved ? "border-primary/30 bg-primary/5" : ""}`}>
+                    <div>
+                      <p className="text-sm font-medium">Approve Exam Rules</p>
+                      <p className="text-xs text-muted-foreground">
+                        {typesSelected
+                          ? "You must approve exam settings before publishing"
+                          : "Select at least one question type above before approving"}
+                      </p>
+                    </div>
+                    <Button
+                      variant={examApproved ? "outline" : "default"}
+                      size="sm"
+                      disabled={!examApproved && !typesSelected}
+                      onClick={() => {
+                        const next = !examApproved;
+                        setExamApproved(next);
+                        if (next && !examEnabled) setExamEnabled(true);
+                      }}
+                    >
+                      {examApproved ? <><Check className="mr-1 h-4 w-4" /> Approved</> : "Approve"}
+                    </Button>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
 
