@@ -172,7 +172,6 @@ const CourseMaterials = () => {
               <li><strong className="text-foreground">Lesson plans:</strong> existing weekly plans or schedules</li>
               <li><strong className="text-foreground">Reference material:</strong> reading lists, supplementary articles, sample solutions</li>
             </ul>
-          <CardContent>
             <p className="text-xs text-muted-foreground mb-3">
               <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images.
             </p>
