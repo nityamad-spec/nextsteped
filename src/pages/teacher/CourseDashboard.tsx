@@ -40,6 +40,8 @@ const CourseDashboard = () => {
   const courseSections = currentCourse?.sections || [];
   const [selectedSection, setSelectedSection] = useState<string>("all");
   const [lessonPlanPublished, setLessonPlanPublished] = useState<boolean | null>(null);
+  const [setupComplete, setSetupComplete] = useState<boolean | null>(null);
+  const [coursePublished, setCoursePublished] = useState<boolean | null>(null);
   const [hoveredConcept, setHoveredConcept] = useState<string | null>(null);
   const [expandedConcept, setExpandedConcept] = useState<string | null>(null);
 
@@ -58,6 +60,61 @@ const CourseDashboard = () => {
     };
     checkPlan();
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const checkSetup = async () => {
+      try {
+        const { data: syllabusFiles } = await supabase
+          .from("course_material_files")
+          .select("id")
+          .eq("teacher_id", user.id)
+          .eq("folder_type", "syllabus")
+          .limit(1);
+        if (!syllabusFiles || syllabusFiles.length === 0) { setSetupComplete(false); return; }
+
+        const { data: published } = await supabase.storage
+          .from("course-materials")
+          .download(`${user.id}/lesson-plan/published-plan.json`);
+        if (!published) { setSetupComplete(false); return; }
+
+        if (!courseId) { setSetupComplete(false); return; }
+
+        const { data: dq } = await supabase
+          .from("diagnostic_questions")
+          .select("id")
+          .eq("course_id", courseId)
+          .limit(1);
+        if (!dq || dq.length === 0) { setSetupComplete(false); return; }
+
+        const { data: ta } = await supabase
+          .from("course_ta_settings")
+          .select("custom_study_prompt, exam_enabled, exam_approved")
+          .eq("course_id", courseId)
+          .maybeSingle();
+        const aiDone = !!(ta?.custom_study_prompt && ta.custom_study_prompt.trim().length > 0);
+        const examDone = !!(ta?.exam_enabled || ta?.exam_approved);
+        setSetupComplete(aiDone && examDone);
+      } catch {
+        setSetupComplete(false);
+      }
+    };
+    checkSetup();
+  }, [user, courseId]);
+
+  useEffect(() => {
+    if (!courseId) { setCoursePublished(null); return; }
+    const checkPublished = async () => {
+      const { data } = await supabase
+        .from("courses")
+        .select("published")
+        .eq("id", courseId)
+        .maybeSingle();
+      setCoursePublished(!!data?.published);
+    };
+    checkPublished();
+  }, [courseId]);
+
 
   return (
     <div className="p-6">
