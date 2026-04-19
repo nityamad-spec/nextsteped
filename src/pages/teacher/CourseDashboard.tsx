@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, MessageSquare, Shield, BarChart3, Lightbulb, AlertTriangle, BookOpen } from "lucide-react";
+import { Users, MessageSquare, Shield, BarChart3, Lightbulb, AlertTriangle, BookOpen, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import CourseCollaborators from "@/components/CourseCollaborators";
