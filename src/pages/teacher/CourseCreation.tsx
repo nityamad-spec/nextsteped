@@ -422,7 +422,7 @@ const CourseCreation = () => {
     setPublished(true);
     setPublishTimestamp(new Date().toLocaleString());
     setShowPublishModal(false);
-    setPublishChecklist({ overview: false, concepts: false, resources: false });
+    setPublishConfirmed(false);
     if (user) {
       try {
         const payload = { weeks, overall_course_learning_outcomes: overallOutcomes };
@@ -436,6 +436,8 @@ const CourseCreation = () => {
         console.error("Failed to save published plan:", err);
       }
     }
+    toast({ title: "Lesson plan published", description: "You can keep editing future weeks anytime — just re-publish to push updates." });
+    navigate("/teacher/setup/diagnostic");
   };
 
   // ─── Generation phase UI ───
