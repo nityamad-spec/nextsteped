@@ -43,8 +43,8 @@ const features = [
     title: "Student Mastery Tracking",
     subtitle: "Real-time performance data",
     description:
-      "NextStep tracks how each student is progressing across every concept in your course, segmented by mastery level from Beginner to Expert. You get a class-wide view as well as individual student breakdowns.",
-    callout: "Stop guessing who needs help — see it directly in your dashboard.",
+      "NextStep tracks how your class is progressing across every concept in your course, segmented by mastery level from Beginner to Expert. All data is fully anonymized — you get class-wide and aggregate views without seeing individual student breakdowns.",
+    callout: "Stop guessing where your class needs help — see it directly in your dashboard.",
   },
   {
     icon: Lightbulb,
