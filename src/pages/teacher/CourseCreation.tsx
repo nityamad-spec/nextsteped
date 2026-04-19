@@ -19,7 +19,7 @@ import {
   Check, X, ArrowRight, ArrowLeft, Sparkles, Loader2,
   ChevronDown, ChevronUp, Pencil, GripVertical,
   Plus, Trash2, FileText, BookOpen, Code2, ExternalLink,
-  GraduationCap, Eye, EyeOff,
+  GraduationCap, Eye, EyeOff, Info, Library,
 } from "lucide-react";
 // SetupProgressBar removed — using top-left "Back to Course Setup" button instead.
 import { useAuth } from "@/contexts/AuthContext";
