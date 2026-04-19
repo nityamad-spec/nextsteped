@@ -1,15 +1,14 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { FileText, Download, Upload, Trash2, Loader2, BookOpen, Presentation, FolderOpen } from "lucide-react";
+import { FileText, Download, Upload, Trash2, Loader2, BookOpen, Library, FolderOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import FileUploadZone from "@/components/FileUploadZone";
 import { toast } from "sonner";
-import TeachingPlan from "@/pages/teacher/TeachingPlan";
+import CourseCreation from "@/pages/teacher/CourseCreation";
 
 interface StoredFile {
   id: string;
@@ -50,7 +49,6 @@ const ContentLibrary = () => {
     setLoading(false);
   };
 
-
   useEffect(() => {
     fetchFiles();
   }, [user, courseId]);
@@ -86,7 +84,6 @@ const ContentLibrary = () => {
     URL.revokeObjectURL(url);
     toast.success("Syllabus downloaded");
   };
-
 
   const renderFileList = (folderType: string, label: string, Icon: typeof FileText) => {
     const folderFiles = files.filter(f => f.folder_type === folderType);
@@ -151,7 +148,6 @@ const ContentLibrary = () => {
     );
   };
 
-
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -164,19 +160,18 @@ const ContentLibrary = () => {
     <div className="p-6">
       <div className="mb-6">
         <h1 className="font-heading text-3xl font-bold">Lesson Plan & Resources</h1>
-        <p className="text-muted-foreground">Your living lesson plan and all course materials in one place</p>
+        <p className="text-muted-foreground">Your published lesson plan and all course materials in one place. Edits here go live to students and the AI Teaching Assistant when you re-publish.</p>
       </div>
 
       <Tabs defaultValue="lesson-plan" className="space-y-6">
         <TabsList>
           <TabsTrigger value="lesson-plan" className="gap-2"><BookOpen className="h-4 w-4" /> Lesson Plan</TabsTrigger>
-          <TabsTrigger value="materials" className="gap-2"><Presentation className="h-4 w-4" /> Teaching Materials</TabsTrigger>
+          <TabsTrigger value="content-library" className="gap-2"><Library className="h-4 w-4" /> Content Library</TabsTrigger>
           <TabsTrigger value="syllabus" className="gap-2"><FileText className="h-4 w-4" /> Syllabus</TabsTrigger>
         </TabsList>
 
         {/* Syllabus Tab */}
         <TabsContent value="syllabus" className="space-y-6">
-          {/* Quick action: Download approved syllabus */}
           <Card>
             <CardContent className="flex items-center justify-between p-4">
               <div className="flex items-center gap-3">
@@ -200,23 +195,23 @@ const ContentLibrary = () => {
           </Card>
         </TabsContent>
 
-        {/* Teaching Materials Tab */}
-        <TabsContent value="materials" className="space-y-6">
+        {/* Content Library Tab — every resource uploaded in Course Setup Step 1 surfaces here */}
+        <TabsContent value="content-library" className="space-y-6">
           <Card>
             <CardContent className="p-6">
-              {renderFileList("materials", "Teaching Materials", Presentation)}
+              {renderFileList("materials", "Past Course Materials & Teaching Resources", Library)}
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6">
-              {renderFileList("lesson-plans", "Lesson Plan Files", BookOpen)}
+              {renderFileList("lesson-plans", "Existing Lesson Plan Documents", BookOpen)}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Lesson Plan Tab */}
+        {/* Lesson Plan Tab — embeds the same publishable lesson plan from Course Setup */}
         <TabsContent value="lesson-plan">
-          <TeachingPlan embedded />
+          <CourseCreation embedded />
         </TabsContent>
       </Tabs>
     </div>
