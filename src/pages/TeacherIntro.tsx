@@ -56,7 +56,7 @@ const features = [
   },
 ];
 
-const ADVANCE_MS = 4000;
+const ADVANCE_MS = 8000;
 
 const TeacherIntro = () => {
   const navigate = useNavigate();
