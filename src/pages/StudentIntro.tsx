@@ -18,7 +18,7 @@ const features = [
     title: "Adaptive AI Tutor",
     subtitle: "Study mode, built for you",
     description:
-      "NextStep's AI tutor adapts to your mastery level and teaches only what your professor has covered in your course. Every explanation uses real-world, industry-relevant examples so you can see how concepts apply beyond the classroom.",
+      "NextStep's AI tutor adapts to your knowledge level and learning style, all while being aligned to your specific course syllabus and materials. Every explanation uses real-world, industry-relevant examples so you can see how concepts apply beyond the classroom.",
     callout: "Get personalised support that actually matches what you're being taught.",
   },
   {
