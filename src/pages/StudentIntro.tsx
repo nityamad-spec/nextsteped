@@ -26,7 +26,7 @@ const features = [
     title: "AI Tutor for Exam Mode",
     subtitle: "Practice under real conditions",
     description:
-      "Switch into Exam Mode when you want to practice under test conditions. The AI tutor guides you through problems with hints and structured feedback, without just handing you the answer.",
+      "Switch into Exam Mode when you want to practice under real test conditions. After each practice exam, you get structured feedback, concept explanations, and a targeted list of concepts to review — plus the ability to track your performance on practice exams over time.",
     callout: "Build real confidence before the exam, not just familiarity with the material.",
   },
   {
