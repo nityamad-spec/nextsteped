@@ -47,18 +47,20 @@ const features = [
   },
 ];
 
-const ADVANCE_MS = 4000;
+const ADVANCE_MS = 8000;
 
 const StudentIntro = () => {
   const navigate = useNavigate();
   const [activeIndex, setActiveIndex] = useState(0);
   const [progressKey, setProgressKey] = useState(0);
+  const [paused, setPaused] = useState(false);
   const timerRef = useRef<number | null>(null);
   const active = features[activeIndex];
   const ActiveIcon = active.icon;
 
   useEffect(() => {
     if (timerRef.current) window.clearTimeout(timerRef.current);
+    if (paused) return;
     timerRef.current = window.setTimeout(() => {
       setActiveIndex((i) => (i + 1) % features.length);
       setProgressKey((k) => k + 1);
@@ -66,11 +68,12 @@ const StudentIntro = () => {
     return () => {
       if (timerRef.current) window.clearTimeout(timerRef.current);
     };
-  }, [activeIndex, progressKey]);
+  }, [activeIndex, progressKey, paused]);
 
   const selectTab = (i: number) => {
     setActiveIndex(i);
     setProgressKey((k) => k + 1);
+    setPaused(true);
   };
 
   return (
