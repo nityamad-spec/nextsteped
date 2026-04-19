@@ -440,8 +440,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         console.error("Failed to save published plan:", err);
       }
     }
-    toast({ title: "Lesson plan published", description: "You can keep editing future weeks anytime — just re-publish to push updates." });
-    navigate("/teacher/setup/diagnostic");
+    toast({ title: "Lesson plan published", description: embedded ? "Changes are now live for students and the AI Teaching Assistant." : "You can keep editing future weeks anytime — just re-publish to push updates." });
+    if (!embedded) navigate("/teacher/setup/diagnostic");
   };
 
   // ─── Generation phase UI ───
