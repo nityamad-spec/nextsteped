@@ -134,7 +134,7 @@ const CourseCreation = () => {
   const [overallOutcomes, setOverallOutcomes] = useState<string>("");
   const [gapMode, setGapMode] = useState<boolean>(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
-  const [publishChecklist, setPublishChecklist] = useState({ overview: false, concepts: false, resources: false });
+  const [publishConfirmed, setPublishConfirmed] = useState(false);
 
   // edit states
   const [editingOverviewId, setEditingOverviewId] = useState<string | null>(null);
