@@ -157,12 +157,22 @@ const CourseMaterials = () => {
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <CardTitle className="flex items-center gap-2 text-lg">
-                <ClipboardList className="h-5 w-5 text-primary" /> Lesson Plans and Other Teaching Materials
+                <ClipboardList className="h-5 w-5 text-primary" /> Past Course Materials & Teaching Resources
               </CardTitle>
-              <Badge variant="secondary">Optional</Badge>
+              <Badge variant="secondary">Optional but Recommended</Badge>
             </div>
-            <CardDescription>
-              Upload any existing lesson plans, lecture notes, or reference material you want the AI to be aware of.
+            <CardDescription asChild>
+              <div>
+                <p>
+                  Upload anything from previous iterations of this course or related teaching that helps the AI understand how you teach. The more context you give it, the better it can support your students. Examples:
+                </p>
+                <ul className="list-disc list-inside mt-2 space-y-1 text-xs">
+                  <li><strong>Past assessments:</strong> previous exams, quizzes, assignments, projects, problem sets</li>
+                  <li><strong>Lecture materials:</strong> slide decks, lecture notes, handouts</li>
+                  <li><strong>Lesson plans:</strong> existing weekly plans or schedules</li>
+                  <li><strong>Reference material:</strong> reading lists, supplementary articles, sample solutions</li>
+                </ul>
+              </div>
             </CardDescription>
           </CardHeader>
           <CardContent>
