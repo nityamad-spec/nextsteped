@@ -75,7 +75,11 @@ const normalizeWeeks = (list: WeekPlan[]): WeekPlan[] =>
     .sort((a, b) => (a.week || 0) - (b.week || 0))
     .map((w, i) => ({ ...w, week: i + 1 }));
 
-const CourseCreation = () => {
+interface CourseCreationProps {
+  embedded?: boolean;
+}
+
+const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
@@ -436,8 +440,8 @@ const CourseCreation = () => {
         console.error("Failed to save published plan:", err);
       }
     }
-    toast({ title: "Lesson plan published", description: "You can keep editing future weeks anytime — just re-publish to push updates." });
-    navigate("/teacher/setup/diagnostic");
+    toast({ title: "Lesson plan published", description: embedded ? "Changes are now live for students and the AI Teaching Assistant." : "You can keep editing future weeks anytime — just re-publish to push updates." });
+    if (!embedded) navigate("/teacher/setup/diagnostic");
   };
 
   // ─── Generation phase UI ───
@@ -508,15 +512,16 @@ const CourseCreation = () => {
   // ─── PLAN PHASE ───
 
   return (
-    <div className="flex min-h-screen items-start justify-center bg-background px-4 py-8">
-      <div className="w-full max-w-4xl space-y-6">
+    <div className={embedded ? "w-full" : "flex min-h-screen items-start justify-center bg-background px-4 py-8"}>
+      <div className={embedded ? "w-full space-y-6" : "w-full max-w-4xl space-y-6"}>
         {/* Top-left return navigation (replaces SetupProgressBar) */}
-        <div>
-          <Button variant="outline" size="sm" onClick={() => navigate("/teacher/setup")} className="gap-2">
-            <ArrowLeft className="h-4 w-4" /> Back to Course Setup
-          </Button>
-        </div>
-
+        {!embedded && (
+          <div>
+            <Button variant="outline" size="sm" onClick={() => navigate("/teacher/setup")} className="gap-2">
+              <ArrowLeft className="h-4 w-4" /> Back to Course Setup
+            </Button>
+          </div>
+        )}
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="font-heading text-3xl font-bold">
@@ -932,9 +937,13 @@ const CourseCreation = () => {
 
         {/* Footer actions */}
         <div className="flex justify-between gap-3 pt-4 border-t">
-          <Button variant="outline" onClick={() => navigate("/teacher/setup/materials")}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Materials
-          </Button>
+          {embedded ? (
+            <div />
+          ) : (
+            <Button variant="outline" onClick={() => navigate("/teacher/setup/materials")}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Materials
+            </Button>
+          )}
           <div className="flex gap-2">
             <Button
               variant={published ? "outline" : "default"}
@@ -943,16 +952,18 @@ const CourseCreation = () => {
             >
               {published ? "Re-publish Plan" : "Publish Plan"}
             </Button>
-            <Button
-              onClick={() => navigate("/teacher/setup/diagnostic")}
-              disabled={weeks.length === 0 || !published}
-              title={!published ? "Publish the lesson plan first to continue" : undefined}
-            >
-              Continue to Diagnostic <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
+            {!embedded && (
+              <Button
+                onClick={() => navigate("/teacher/setup/diagnostic")}
+                disabled={weeks.length === 0 || !published}
+                title={!published ? "Publish the lesson plan first to continue" : undefined}
+              >
+                Continue to Diagnostic <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
-        {!published && weeks.length > 0 && (
+        {!embedded && !published && weeks.length > 0 && (
           <p className="text-xs text-muted-foreground text-right -mt-3">
             Publish the lesson plan to unlock the Diagnostic step. You can still edit weeks afterward.
           </p>
