@@ -27,8 +27,8 @@ const features = [
     title: "Curriculum-Aligned AI TA",
     subtitle: "For your students",
     description:
-      "Your students get access to an AI tutor that is trained only on what you've uploaded. It won't go off-syllabus, won't give away answers, and guides students through concepts the way you would want it to.",
-    callout: "Every student gets support that matches exactly what you teach.",
+      "Students get access to an AI tutor that is aligned to your specific course, trained on what you've uploaded. It won't give away answers directly and guides students through concepts the way you would want it to.",
+    callout: "Every student gets individualized support that matches your course objectives.",
   },
   {
     icon: Sparkles,
