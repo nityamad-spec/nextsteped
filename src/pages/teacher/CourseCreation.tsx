@@ -937,9 +937,13 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
 
         {/* Footer actions */}
         <div className="flex justify-between gap-3 pt-4 border-t">
-          <Button variant="outline" onClick={() => navigate("/teacher/setup/materials")}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Materials
-          </Button>
+          {embedded ? (
+            <div />
+          ) : (
+            <Button variant="outline" onClick={() => navigate("/teacher/setup/materials")}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Materials
+            </Button>
+          )}
           <div className="flex gap-2">
             <Button
               variant={published ? "outline" : "default"}
@@ -948,16 +952,18 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             >
               {published ? "Re-publish Plan" : "Publish Plan"}
             </Button>
-            <Button
-              onClick={() => navigate("/teacher/setup/diagnostic")}
-              disabled={weeks.length === 0 || !published}
-              title={!published ? "Publish the lesson plan first to continue" : undefined}
-            >
-              Continue to Diagnostic <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
+            {!embedded && (
+              <Button
+                onClick={() => navigate("/teacher/setup/diagnostic")}
+                disabled={weeks.length === 0 || !published}
+                title={!published ? "Publish the lesson plan first to continue" : undefined}
+              >
+                Continue to Diagnostic <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
-        {!published && weeks.length > 0 && (
+        {!embedded && !published && weeks.length > 0 && (
           <p className="text-xs text-muted-foreground text-right -mt-3">
             Publish the lesson plan to unlock the Diagnostic step. You can still edit weeks afterward.
           </p>
