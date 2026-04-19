@@ -506,7 +506,6 @@ const CourseCreation = () => {
   }
 
   // ─── PLAN PHASE ───
-  const allChecked = publishChecklist.overview && publishChecklist.concepts && publishChecklist.resources;
 
   return (
     <div className="flex min-h-screen items-start justify-center bg-background px-4 py-8">
