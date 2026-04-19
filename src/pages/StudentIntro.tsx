@@ -91,7 +91,7 @@ const StudentIntro = () => {
             Here's how Next<span className="text-primary">Step</span> helps you learn.
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-base text-muted-foreground leading-relaxed">
-            NextStep is your AI-powered study partner, built around your actual course syllabus. It adapts to your level, guides you through concepts step by step, and helps you understand where you stand. Here's what you get.
+            NextStep is your AI-powered study partner, built around your specific course. It adapts to your learning style, guides you though concepts step by step, and helps you understand where you stand. Here's what you get.
           </p>
         </div>
 
