@@ -535,6 +535,30 @@ const CourseCreation = () => {
           </div>
         )}
 
+        {/* How this works — publish-then-iterate guidance */}
+        <Card className="p-4 border-primary/20 bg-primary/5">
+          <div className="flex gap-3">
+            <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+            <div className="space-y-2 text-sm text-foreground/80 leading-relaxed">
+              <p className="font-semibold text-foreground">How the lesson plan works</p>
+              <ul className="space-y-1.5 list-disc pl-5">
+                <li>
+                  <span className="font-medium text-foreground">Publish once you're happy with the structure.</span> Publishing makes the plan available to your AI Teaching Assistant and unlocks the rest of course setup. You don't need every week perfected before publishing.
+                </li>
+                <li>
+                  <span className="font-medium text-foreground">Keep editing future weeks anytime.</span> After publishing, you can return to <span className="font-medium">Course Setup → AI Lesson Plan</span> (or the <span className="font-medium">Content Library → Lesson Plan</span> tab) to refine upcoming weeks, swap resources, or add concepts as the term unfolds. Re-publish to push your changes live.
+                </li>
+                <li>
+                  <span className="font-medium text-foreground">Show or hide weeks as you teach.</span> Use the <Eye className="inline h-3.5 w-3.5 align-text-bottom" /> / <EyeOff className="inline h-3.5 w-3.5 align-text-bottom" /> toggle on each week to control visibility — students only see weeks you've made visible, and the AI Teaching Assistant + exam questions stay constrained to those visible topics.
+                </li>
+                <li>
+                  <span className="font-medium text-foreground">Reorder freely.</span> Drag weeks to reorder; numbering updates automatically.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </Card>
+
         {gapMode && (
           <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground/80">
             Since you've uploaded existing teaching materials, the plan below highlights gaps and additions not already covered in what you've shared.
