@@ -142,6 +142,50 @@ const CourseDashboard = () => {
         </div>
       </div>
 
+      {/* Setup Incomplete Banner */}
+      {setupComplete === false && (
+        <div className="mb-6 flex items-start gap-3 rounded-lg border-2 border-primary/30 bg-primary/10 px-5 py-4">
+          <ListChecks className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">Finish setting up your course</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Your course setup isn't complete yet. Finish all five setup modules so your students get the full experience — lesson plan, AI assistant, diagnostic, and exam mode all configured.
+            </p>
+            <Button
+              variant="default"
+              size="sm"
+              className="mt-3 gap-2"
+              onClick={() => navigate("/teacher/setup")}
+            >
+              <ListChecks className="h-4 w-4" />
+              Go to Course Setup
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Course Not Published Banner */}
+      {setupComplete === true && coursePublished === false && (
+        <div className="mb-6 flex items-start gap-3 rounded-lg border-2 border-primary/30 bg-primary/10 px-5 py-4">
+          <AlertTriangle className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">Publish your course so students can enroll</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Your setup is complete — the last step is publishing the course so students can join with your enrollment code.
+            </p>
+            <Button
+              variant="default"
+              size="sm"
+              className="mt-3 gap-2"
+              onClick={() => navigate("/teacher/setup")}
+            >
+              <ListChecks className="h-4 w-4" />
+              Go to Course Setup
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Lesson Plan Not Published Banner */}
       {lessonPlanPublished === false && (
         <div className="mb-6 flex items-start gap-3 rounded-lg border-2 border-amber-500/30 bg-amber-500/10 px-5 py-4">
