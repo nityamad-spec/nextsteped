@@ -51,7 +51,7 @@ const features = [
     title: "AI Teaching Insights",
     subtitle: "Know where students struggle",
     description:
-      "NextStep surfaces which concepts your students are collectively struggling with most, based on their interactions with the AI TA and diagnostic performance. You get actionable data, not just raw numbers.",
+      "NextStep surfaces which concepts your students are collectively struggling with most, based on their interactions with the AI TA. You get actionable data, not just raw numbers.",
     callout: "Adjust your teaching before a concept becomes a class-wide gap.",
   },
 ];
