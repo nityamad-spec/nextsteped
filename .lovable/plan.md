@@ -1,68 +1,64 @@
 
 
-## Auto-parse syllabus on upload + remove orphan Syllabus Review code
+## Wipe-all-courses edge function + admin trigger
 
 ### Goal
 
-When a teacher uploads a syllabus PDF/DOCX in `/teacher/setup/upload`, parse it in the background and save `approved-syllabus.json` to storage so downstream concept extraction can use structured data. No new UI step. Also delete the orphaned `MaterialQualityCheck` code path.
+Give admins a one-click "Reset all course data" action that deletes every course in the database along with all dependent rows and storage files, leaving teacher/admin/student accounts untouched. Net result: a clean slate where teachers can run setup again from scratch.
 
-### Part 1 — Auto-parse on syllabus upload
+### Part 1 — New edge function: `wipe-courses`
 
-**Trigger point:** `src/components/FileUploadZone.tsx` → `handleConfirmedUpload()`, immediately after a syllabus file lands in storage and the `course_material_files` row is inserted. Detection: `folderType === "syllabus"`.
+Path: `supabase/functions/wipe-courses/index.ts`
 
-**Flow per syllabus file:**
+Behavior (admin-only, `verify_jwt = false` in code with manual JWT check via service role):
 
-1. Fire-and-forget (non-blocking) call to existing `parse-syllabus` edge function with the file's base64 content + filename.
-2. On success, write the returned JSON to storage at `course-materials/{teacherId}/syllabus/approved-syllabus.json` (upsert; latest upload wins).
-3. Resolve the active course id (prefer `courseId` prop → fall back to latest `courses` row for the teacher). If found, `UPDATE courses SET syllabus_json_path = '<that path>'`. If no course row yet, store the path in component state and back-fill in `CourseMaterials.handleNext()` alongside the existing `course_id` back-fill.
-4. Show a small inline status pill on the syllabus file row: `Parsing…` → `Parsed ✓` (green) or `Parse failed` (muted, non-blocking, with retry on next upload). No toast spam, no blocking the Next button.
-5. Errors (429/402/parse failure) are logged + reflected in the pill only — upload itself is still considered successful.
+1. Validate the caller is an admin: read JWT from `Authorization` header, look up `profiles.role === 'admin'`. Reject with 403 otherwise.
+2. Use the service role client to delete in dependency order (no FK cascades exist in the schema, so we delete explicitly):
+   - `assessment_results`
+   - `assessment_questions`
+   - `diagnostic_results`
+   - `diagnostic_questions`
+   - `concepts`
+   - `course_ta_settings`
+   - `course_material_files`
+   - `course_teachers`
+   - `enrollments`
+   - `chat_messages` (via `chat_sessions.course_id`) then `chat_sessions` where `course_id IS NOT NULL`
+   - `student_feedback` where `course_id IS NOT NULL`
+   - `cache_versions` where `scope = 'course'`
+   - `teacher_setup_progress` (so re-setup starts fresh)
+   - `courses` (last)
+3. Wipe storage bucket `course-materials`: list all objects recursively (paginated, 1000 at a time) and `storage.remove(paths)`. This catches every PDF, every `approved-syllabus.json`, every `published-plan.json`, every `lesson-plan-draft-v2.json`, etc.
+4. Also clear `teacher_applications.assigned_course_id` (set to NULL) so previously-approved apps don't dangle pointing to deleted courses. Keep the application rows themselves.
+5. Return a summary: `{ ok: true, deleted: { courses: N, files: M, ...per-table counts } }`.
 
-**Why fire-and-forget:** parsing takes 5–20s with `gemini-2.5-pro`. We don't want to gate the teacher behind it. By the time they click through Concept Review, the JSON is almost always ready; if it's not, downstream still has the raw file fallback that exists today.
+What is **NOT** deleted:
+- `profiles` (teachers, students, admins)
+- `auth.users`
+- `teacher_applications` rows (only `assigned_course_id` is nulled)
+- `admin_settings`, `degrees`, `branches`, `universities`, `signin_attempts`, `signup_attempts`
 
-**Downstream payoff (no extra work needed):**
+### Part 2 — Admin Dashboard UI
 
-- `ConceptManagement.handleAutoGenerate()` already reads `courses.syllabus_json_path` → now it actually finds something.
-- `ConceptReview` / `suggest-concepts` edge function already reads `syllabus_json_path` (truncated to 12k chars) → same code path, now backed by structured JSON instead of being NULL.
+In `src/pages/admin/AdminDashboard.tsx`, add a **Danger Zone** card at the bottom of the existing **Settings** tab.
 
-**Re-upload behavior:** if a teacher uploads a new syllabus, we overwrite `approved-syllabus.json` (upsert) and re-point `syllabus_json_path` to the same canonical path. Old parsed content is replaced.
-
-**Delete behavior:** if the only syllabus file is deleted (`FileUploadZone.performDelete`), also delete `approved-syllabus.json` and clear `courses.syllabus_json_path`.
-
-### Part 2 — Remove orphan Syllabus Review code
-
-Files to delete:
-
-- `src/pages/teacher/MaterialQualityCheck.tsx`
-
-Routes to remove from `src/App.tsx`:
-
-- Any `<Route>` pointing to `MaterialQualityCheck` (e.g. `/teacher/setup/syllabus-review` if present) and the corresponding import.
-
-Verify nothing else imports `MaterialQualityCheck` (search before delete). The `parse-syllabus` and `quality-check` edge functions are **kept** — `parse-syllabus` is now used by the auto-parse flow. `quality-check` becomes unused; leave deployed for now (cheap, no UI references it) and note in memory that it's dormant — easy to revive if we want a teacher-facing review later.
-
-### Memory updates
-
-Update `mem://ux/teacher-setup-flow.md`:
-
-- Document that syllabus uploads now auto-trigger `parse-syllabus` and persist `approved-syllabus.json` + `courses.syllabus_json_path`.
-- Note that `MaterialQualityCheck.tsx` and its route are removed.
-- Note that `quality-check` edge function is dormant.
+UI:
+- Red-bordered `Card` titled "Danger Zone — Reset all course data"
+- Description listing exactly what gets wiped (courses, materials, concepts, lesson plans, diagnostic & assessment questions, results, enrollments, course chats, TA settings, uploaded files in storage) and what is preserved (user accounts, teacher applications, admin settings).
+- Destructive `Button` "Wipe all courses" → opens an `AlertDialog` requiring the admin to type the word `WIPE` into an `Input` to enable the confirm button.
+- On confirm: `supabase.functions.invoke("wipe-courses")`, show loading spinner, then toast the per-table summary returned by the function and call `fetchData()` to refresh the dashboard.
 
 ### Files touched
 
 | File | Change |
 |---|---|
-| `src/components/FileUploadZone.tsx` | Add post-upload syllabus parse hook + status pill state + delete cleanup |
-| `src/pages/teacher/CourseMaterials.tsx` | Back-fill `syllabus_json_path` on `handleNext()` if course was created lazily |
-| `src/App.tsx` | Remove `MaterialQualityCheck` import + route |
-| `src/pages/teacher/MaterialQualityCheck.tsx` | Delete |
-| `.lovable/memory/ux/teacher-setup-flow.md` | Update flow doc |
+| `supabase/functions/wipe-courses/index.ts` | New — admin-gated mass delete + storage purge |
+| `src/pages/admin/AdminDashboard.tsx` | Add Danger Zone card in Settings tab + confirmation dialog with type-to-confirm |
 
 ### Out of scope
 
-- No new UI step or page.
-- No changes to `parse-syllabus` or `quality-check` edge functions.
-- No retry queue / background job table — best-effort inline call is sufficient at this scale.
-- No schema changes (`courses.syllabus_json_path` already exists).
+- No schema migration. We are not adding `ON DELETE CASCADE` to existing FKs (would require touching every table). Explicit per-table delete in the edge function is sufficient and auditable.
+- Not deleting any user accounts or teacher applications.
+- No per-course "delete one course" action — this is intentionally a full reset.
+- No undo. The confirmation dialog + type-to-confirm is the only safety net.
 
