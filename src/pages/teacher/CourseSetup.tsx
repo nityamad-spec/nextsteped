@@ -13,6 +13,7 @@ import {
   Check,
   CircleDashed,
   CircleDot,
+  Layers,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
@@ -30,7 +31,8 @@ interface CardDef {
 
 const CARDS: CardDef[] = [
   { id: "upload", title: "Upload Course Materials", description: "Upload your syllabus and any supporting teaching materials.", icon: Upload, path: "/teacher/setup/upload" },
-  { id: "lesson-plan", title: "Generate Lesson Plan", description: "Generate a structured weekly lesson plan based on your syllabus.", icon: ClipboardList, path: "/teacher/setup/lesson-plan" },
+  { id: "concept-review", title: "Concept Review", description: "Review concepts extracted from your materials before generating the lesson plan.", icon: Layers, path: "/teacher/setup/concept-review" },
+  { id: "lesson-plan", title: "Generate Lesson Plan", description: "Generate a structured weekly lesson plan based on your confirmed concepts.", icon: ClipboardList, path: "/teacher/setup/lesson-plan" },
   { id: "diagnostic", title: "Approve Diagnostic Quiz", description: "Review and approve the AI-generated diagnostic quiz for your students.", icon: Brain, path: "/teacher/setup/diagnostic" },
   { id: "ai-settings", title: "AI Assistant Settings", description: "Configure the AI TA for your students and access your own professor AI assistant.", icon: Bot, path: "/teacher/setup/ai-settings" },
   { id: "exam-mode", title: "Exam Mode Settings", description: "Set up and customise the exam mode experience for your students.", icon: GraduationCap, path: "/teacher/setup/exam-mode" },
@@ -71,6 +73,7 @@ const CourseSetup = () => {
   const courseId = useTeacherCourseId();
   const [statuses, setStatuses] = useState<Record<string, Status>>({
     upload: "Not Started",
+    "concept-review": "Not Started",
     "lesson-plan": "Not Started",
     diagnostic: "Not Started",
     "ai-settings": "Not Started",
@@ -86,6 +89,7 @@ const CourseSetup = () => {
       const opened = getOpened(user.id);
       const next: Record<string, Status> = {
         upload: "Not Started",
+        "concept-review": "Not Started",
         "lesson-plan": "Not Started",
         diagnostic: "Not Started",
         "ai-settings": "Not Started",
