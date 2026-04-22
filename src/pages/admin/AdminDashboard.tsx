@@ -623,6 +623,8 @@ const AdminDashboard = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="calculator" className="space-y-4">
           <CostCalculator />
         </TabsContent>
       </Tabs>
