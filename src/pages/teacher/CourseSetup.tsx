@@ -104,7 +104,7 @@ const CourseSetup = () => {
     if (!user) return;
     const fetchStatuses = async () => {
       setLoading(true);
-      const opened = getOpened(user.id);
+      const opened = await fetchOpenedSteps(user.id);
       const next: Record<string, Status> = {
         upload: "Not Started",
         "concept-review": "Not Started",
