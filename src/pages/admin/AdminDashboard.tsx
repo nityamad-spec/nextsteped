@@ -48,6 +48,33 @@ const AdminDashboard = () => {
   const [selectedRoles, setSelectedRoles] = useState<Record<string, AssignmentRole>>({});
   const [teacherSignupsEnabled, setTeacherSignupsEnabled] = useState(true);
   const [togglingEnrollment, setTogglingEnrollment] = useState<string | null>(null);
+  const [wipeDialogOpen, setWipeDialogOpen] = useState(false);
+  const [wipeConfirmText, setWipeConfirmText] = useState("");
+  const [wiping, setWiping] = useState(false);
+
+  const handleWipeCourses = async () => {
+    setWiping(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("wipe-courses");
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const deleted = data?.deleted ?? {};
+      const summary = Object.entries(deleted)
+        .filter(([, v]) => (v as number) > 0)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(", ");
+      toast.success("All course data wiped", {
+        description: summary || "Nothing to delete — already clean.",
+      });
+      setWipeDialogOpen(false);
+      setWipeConfirmText("");
+      await fetchData();
+    } catch (err: any) {
+      toast.error("Wipe failed", { description: err?.message ?? "Unknown error" });
+    } finally {
+      setWiping(false);
+    }
+  };
 
   useEffect(() => {
     fetchData();
