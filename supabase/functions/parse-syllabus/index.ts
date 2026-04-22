@@ -38,19 +38,22 @@ serve(async (req) => {
     }
 
     const systemPrompt = `You are a document parser specializing in academic syllabi.
-Given the content of a syllabus document, extract ALL information into a structured format.
-Be thorough — capture every detail from the document including course info, schedule, grading, policies, and resources.
+Given the content of a syllabus document, extract the information into a STRICT JSON structure with EXACTLY these top-level sections:
+  - objectives        (array of strings: course/learning OBJECTIVES — goals)
+  - units             (array of unit objects: the syllabus body, organized by unit/module)
+  - outcomes          (array of strings: course OUTCOMES — measurable competencies)
+  - textbooks         (array of strings: required/primary textbooks)
+  - referencebooks    (array of strings: reference books and supplementary reading)
 
 CRITICAL RULES:
+- Output ONLY the five sections above. No other top-level keys.
 - Do NOT invent or fabricate information. Only extract what is EXPLICITLY stated in the document.
-- CAREFULLY distinguish between different sections. "Learning Objectives" and "Learning Outcomes" (or "Course Outcomes") are DIFFERENT sections — do not merge them.
-- If the document has separate sections for objectives and outcomes, extract them into separate arrays.
-- If the document only has one of these, populate that array and leave the other empty.
-- Preserve the exact wording from the document. Do not paraphrase or rewrite.
-- If a field is not present in the document, use an empty string or empty array.
-- If the document does not mention grading weights, leave the grading components array empty.
-- If there is no schedule, leave the schedule array empty.
-- If there are no policies mentioned, leave policies array empty.`;
+- CAREFULLY distinguish "objectives" (goals) from "outcomes" (measurable skills). They are DIFFERENT sections — never merge them.
+- If the document only has one of objectives/outcomes, populate that array and leave the other empty ([]).
+- Distinguish "textbooks" (primary/required) from "referencebooks" (supplementary). If the document does not distinguish them, treat all listed books as textbooks and leave referencebooks empty.
+- For "units": each unit must have a unit_number (integer, starting at 1), a title (string), and topics (array of strings — the topics/subtopics covered in that unit). If the syllabus is organized by week instead of unit, map each week to a unit. If no structure is given, leave units as [].
+- Preserve the EXACT wording from the document. Do not paraphrase or rewrite.
+- If a section is not present in the document, return an empty array [].`;
 
     // Build messages based on whether we have base64 (binary file) or text content
     const userMessages: any[] = [];
@@ -109,80 +112,46 @@ ${fileContent}
                 parameters: {
                   type: "object",
                   properties: {
-                    courseTitle: { type: "string", description: "Full course title" },
-                    courseCode: { type: "string", description: "Course code (e.g. CS101)" },
-                    instructor: { type: "string", description: "Instructor name(s)" },
-                    term: { type: "string", description: "Academic term (e.g. Fall 2025)" },
-                    description: { type: "string", description: "Course description paragraph" },
-                    learningObjectives: {
+                    objectives: {
                       type: "array",
                       items: { type: "string" },
-                      description: "List of learning OBJECTIVES only (goals students should achieve). Do NOT mix with outcomes.",
+                      description: "Course/learning OBJECTIVES — high-level goals the course aims to achieve. Do NOT include outcomes here.",
                     },
-                    learningOutcomes: {
-                      type: "array",
-                      items: { type: "string" },
-                      description: "List of learning OUTCOMES only (measurable skills/competencies). Do NOT mix with objectives. Leave empty if document does not distinguish outcomes from objectives.",
-                    },
-                    schedule: {
+                    units: {
                       type: "array",
                       items: {
                         type: "object",
                         properties: {
-                          week: { type: "number", description: "Week number" },
-                          topic: { type: "string", description: "Topic or module title" },
-                          description: { type: "string", description: "Description of what is covered" },
-                          readings: { type: "string", description: "Required readings or materials" },
-                        },
-                        required: ["week", "topic", "description", "readings"],
-                        additionalProperties: false,
-                      },
-                      description: "Weekly or session-by-session schedule",
-                    },
-                    gradingPolicy: {
-                      type: "object",
-                      properties: {
-                        components: {
-                          type: "array",
-                          items: {
-                            type: "object",
-                            properties: {
-                              name: { type: "string", description: "Component name (e.g. Midterm, Homework)" },
-                              weight: { type: "string", description: "Weight or percentage (e.g. 30%)" },
-                              description: { type: "string", description: "Additional details" },
-                            },
-                            required: ["name", "weight", "description"],
-                            additionalProperties: false,
+                          unit_number: { type: "number", description: "Unit/module number, starting at 1" },
+                          title: { type: "string", description: "Unit title or heading" },
+                          topics: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Topics/subtopics covered in this unit, preserved verbatim from the document.",
                           },
                         },
-                      },
-                      required: ["components"],
-                      additionalProperties: false,
-                      description: "Grading breakdown. Leave components empty if not mentioned in the document.",
-                    },
-                    policies: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          title: { type: "string", description: "Policy title (e.g. Attendance, Academic Integrity)" },
-                          content: { type: "string", description: "Full policy text" },
-                        },
-                        required: ["title", "content"],
+                        required: ["unit_number", "title", "topics"],
                         additionalProperties: false,
                       },
-                      description: "Course policies and rules",
+                      description: "Syllabus body organized by unit/module. If the syllabus is week-based, map each week to a unit.",
                     },
-                    resources: {
+                    outcomes: {
                       type: "array",
                       items: { type: "string" },
-                      description: "Textbooks, websites, and other resources",
+                      description: "Course OUTCOMES — measurable skills/competencies students will demonstrate. Distinct from objectives.",
+                    },
+                    textbooks: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "Required/primary textbooks (full citations as written in the document).",
+                    },
+                    referencebooks: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "Reference books and supplementary reading. Empty if document does not distinguish them from textbooks.",
                     },
                   },
-                  required: [
-                    "courseTitle", "courseCode", "instructor", "term", "description",
-                    "learningObjectives", "learningOutcomes", "schedule", "gradingPolicy", "policies", "resources",
-                  ],
+                  required: ["objectives", "units", "outcomes", "textbooks", "referencebooks"],
                   additionalProperties: false,
                 },
               },
