@@ -224,7 +224,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
 
     // Kick off background parsing for syllabus files. Non-blocking.
     for (const { file, path } of syllabusToParse) {
-      void parseSyllabusInBackground(file, path);
+      void parseSyllabusInBackground({ file, storagePath: path });
     }
   };
 
