@@ -21,6 +21,8 @@ interface Concept {
 interface Suggestion {
   name: string;
   rationale: string;
+  unit_number?: number;
+  unit_title?: string;
 }
 
 const ConceptReview = () => {
@@ -313,33 +315,72 @@ const ConceptReview = () => {
                 No additional suggestions. Your concept list looks complete.
               </div>
             ) : (
-              <div className="space-y-2">
-                {suggestions.map((s) => (
-                  <div
-                    key={s.name}
-                    className="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3 flex items-start gap-3"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold">{s.name}</p>
-                        <Badge variant="outline" className="text-[10px] gap-0.5 border-primary/30 text-primary">
-                          <Sparkles className="h-2.5 w-2.5" /> Suggested
-                        </Badge>
+              <div className="space-y-5">
+                {(() => {
+                  // Group suggestions by unit, preserving server order
+                  const groups: { key: string; unit_number?: number; unit_title?: string; items: Suggestion[] }[] = [];
+                  const indexByKey = new Map<string, number>();
+                  for (const s of suggestions) {
+                    const key =
+                      s.unit_number != null
+                        ? `u-${s.unit_number}`
+                        : "other";
+                    if (!indexByKey.has(key)) {
+                      indexByKey.set(key, groups.length);
+                      groups.push({
+                        key,
+                        unit_number: s.unit_number,
+                        unit_title: s.unit_title,
+                        items: [],
+                      });
+                    }
+                    groups[indexByKey.get(key)!].items.push(s);
+                  }
+                  return groups.map((g) => (
+                    <div key={g.key} className="space-y-2">
+                      <div className="flex items-center gap-2 px-1">
+                        {g.unit_number != null ? (
+                          <>
+                            <Badge variant="secondary" className="text-[10px] font-semibold">
+                              Unit {g.unit_number}
+                            </Badge>
+                            <span className="text-xs font-medium text-foreground">
+                              {g.unit_title || ""}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-xs font-medium text-muted-foreground">Other</span>
+                        )}
                       </div>
-                      {s.rationale && (
-                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{s.rationale}</p>
-                      )}
+                      {g.items.map((s) => (
+                        <div
+                          key={s.name}
+                          className="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3 flex items-start gap-3"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-semibold">{s.name}</p>
+                              <Badge variant="outline" className="text-[10px] gap-0.5 border-primary/30 text-primary">
+                                <Sparkles className="h-2.5 w-2.5" /> Suggested
+                              </Badge>
+                            </div>
+                            {s.rationale && (
+                              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{s.rationale}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => handleAddSuggestion(s)}>
+                              <Plus className="h-3 w-3 mr-1" /> Add
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => handleDismissSuggestion(s)}>
+                              Dismiss
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => handleAddSuggestion(s)}>
-                        <Plus className="h-3 w-3 mr-1" /> Add
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => handleDismissSuggestion(s)}>
-                        Dismiss
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  ));
+                })()}
               </div>
             )}
           </CardContent>
