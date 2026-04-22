@@ -38,19 +38,22 @@ serve(async (req) => {
     }
 
     const systemPrompt = `You are a document parser specializing in academic syllabi.
-Given the content of a syllabus document, extract ALL information into a structured format.
-Be thorough — capture every detail from the document including course info, schedule, grading, policies, and resources.
+Given the content of a syllabus document, extract the information into a STRICT JSON structure with EXACTLY these top-level sections:
+  - objectives        (array of strings: course/learning OBJECTIVES — goals)
+  - units             (array of unit objects: the syllabus body, organized by unit/module)
+  - outcomes          (array of strings: course OUTCOMES — measurable competencies)
+  - textbooks         (array of strings: required/primary textbooks)
+  - referencebooks    (array of strings: reference books and supplementary reading)
 
 CRITICAL RULES:
+- Output ONLY the five sections above. No other top-level keys.
 - Do NOT invent or fabricate information. Only extract what is EXPLICITLY stated in the document.
-- CAREFULLY distinguish between different sections. "Learning Objectives" and "Learning Outcomes" (or "Course Outcomes") are DIFFERENT sections — do not merge them.
-- If the document has separate sections for objectives and outcomes, extract them into separate arrays.
-- If the document only has one of these, populate that array and leave the other empty.
-- Preserve the exact wording from the document. Do not paraphrase or rewrite.
-- If a field is not present in the document, use an empty string or empty array.
-- If the document does not mention grading weights, leave the grading components array empty.
-- If there is no schedule, leave the schedule array empty.
-- If there are no policies mentioned, leave policies array empty.`;
+- CAREFULLY distinguish "objectives" (goals) from "outcomes" (measurable skills). They are DIFFERENT sections — never merge them.
+- If the document only has one of objectives/outcomes, populate that array and leave the other empty ([]).
+- Distinguish "textbooks" (primary/required) from "referencebooks" (supplementary). If the document does not distinguish them, treat all listed books as textbooks and leave referencebooks empty.
+- For "units": each unit must have a unit_number (integer, starting at 1), a title (string), and topics (array of strings — the topics/subtopics covered in that unit). If the syllabus is organized by week instead of unit, map each week to a unit. If no structure is given, leave units as [].
+- Preserve the EXACT wording from the document. Do not paraphrase or rewrite.
+- If a section is not present in the document, return an empty array [].`;
 
     // Build messages based on whether we have base64 (binary file) or text content
     const userMessages: any[] = [];
