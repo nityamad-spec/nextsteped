@@ -11,11 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BookOpen, Info, Calendar, UserPlus, Upload, Copy, FileText, ArrowLeft } from "lucide-react";
+import { BookOpen, Info, ArrowLeft } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 
 const AIAssistantAndSettings = () => {
