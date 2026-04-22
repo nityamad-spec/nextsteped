@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Upload, Check, X, FileText, Loader2, Trash2 } from "lucide-react";
+import { Upload, Check, X, FileText, Loader2, Trash2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -95,14 +95,34 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
    * Fire-and-forget syllabus parsing. Calls parse-syllabus edge function,
    * writes JSON to {teacherId}/syllabus/approved-syllabus.json, and updates
    * courses.syllabus_json_path on the latest course for this teacher.
+   *
+   * Source can be either an in-memory File (fresh upload) or a storage path
+   * (retry after failure — file downloaded from bucket and re-encoded).
    */
-  const parseSyllabusInBackground = async (file: File, storagePath: string) => {
+  const parseSyllabusInBackground = async (
+    source: { file: File; storagePath: string } | { storagePath: string; fileName: string }
+  ) => {
     if (!teacherId) return;
+    const storagePath = source.storagePath;
     setParseStatus((prev) => ({ ...prev, [storagePath]: "parsing" }));
     try {
-      const fileBase64 = await fileToBase64(file);
+      let fileBase64: string;
+      let fileName: string;
+      if ("file" in source) {
+        fileBase64 = await fileToBase64(source.file);
+        fileName = source.file.name;
+      } else {
+        const { data: blob, error: dlErr } = await supabase.storage
+          .from("course-materials")
+          .download(storagePath);
+        if (dlErr || !blob) throw new Error(dlErr?.message || "Failed to download file for retry");
+        const asFile = new File([blob], source.fileName, { type: blob.type });
+        fileBase64 = await fileToBase64(asFile);
+        fileName = source.fileName;
+      }
+
       const { data, error } = await supabase.functions.invoke("parse-syllabus", {
-        body: { fileBase64, fileName: file.name },
+        body: { fileBase64, fileName },
       });
       if (error) throw new Error(error.message);
       const syllabusJson = (data as any)?.syllabus;
@@ -143,6 +163,10 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
       console.warn("Syllabus parse failed:", err);
       setParseStatus((prev) => ({ ...prev, [storagePath]: "failed" }));
     }
+  };
+
+  const retryParse = (file: UploadedFile) => {
+    void parseSyllabusInBackground({ storagePath: file.path, fileName: file.name });
   };
 
   const handleConfirmedUpload = async () => {
@@ -200,7 +224,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
 
     // Kick off background parsing for syllabus files. Non-blocking.
     for (const { file, path } of syllabusToParse) {
-      void parseSyllabusInBackground(file, path);
+      void parseSyllabusInBackground({ file, storagePath: path });
     }
   };
 
@@ -403,6 +427,19 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
               <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="flex-1 truncate">{f.name}</span>
               {folderType === "syllabus" && renderParsePill(f.path)}
+              {folderType === "syllabus" && parseStatus[f.path] === "failed" && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    retryParse(f);
+                  }}
+                  className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  title="Retry parsing this syllabus"
+                >
+                  <RefreshCw className="h-2.5 w-2.5" /> Retry
+                </button>
+              )}
               <span className="text-xs text-muted-foreground">{formatSize(f.size)}</span>
               <button
                 type="button"
