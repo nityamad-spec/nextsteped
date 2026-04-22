@@ -90,6 +90,7 @@ const CourseSetup = () => {
         diagnostic: "Not Started",
         "ai-settings": "Not Started",
         "exam-mode": "Not Started",
+        enrollment: "Not Started",
       };
 
       // Card 1 (Upload): Complete only if at least one syllabus file actually exists.
