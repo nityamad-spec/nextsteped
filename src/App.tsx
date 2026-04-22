@@ -22,6 +22,7 @@ import AIAssistantAndSettings from "./pages/teacher/AIAssistantAndSettings";
 import CourseMaterials from "./pages/teacher/CourseMaterials";
 import AITASettings from "./pages/teacher/AITASettings";
 import ExamMode from "./pages/teacher/ExamMode";
+import EnrollmentSettings from "./pages/teacher/EnrollmentSettings";
 import ConceptManagement from "./pages/teacher/ConceptManagement";
 import DiagnosticQuestionsSetup from "./pages/teacher/DiagnosticQuestionsSetup";
 import PublishEnrollment from "./pages/teacher/PublishEnrollment";
