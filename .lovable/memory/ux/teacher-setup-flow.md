@@ -1,17 +1,35 @@
 ---
 name: teacher-setup-flow
-description: 7-step professor setup pipeline. Materials step requires explicit midterm/final exam choice (week or "No exam"). Lesson plan step auto-creates a draft course if none exists.
+description: 7-step professor setup pipeline. Concept Review is now step 2 (between Materials and Lesson Plan). After onboarding, professors land on /teacher/setup.
 type: feature
 ---
 
-7-step pipeline: Profile → Materials → Lesson Plan → Diagnostic → AI Assistant → Exam Mode → Publish.
+7-step pipeline: Materials → Concept Review → Lesson Plan → Diagnostic → AI Assistant → Exam Mode → Enrollment & Course Settings.
 
-Materials step (`/teacher/setup/materials`):
-- Schedule + exams + uploads in one page.
-- Midterm & Final exam week are REQUIRED selects: any week 1..N OR "No midterm exam" / "No final exam".
-- Continue is gated on (≥1 syllabus or lesson plan file) AND both exam selections made.
-- If no `currentCourseId` exists, this step auto-creates a draft course (name: "<Department> Course (Draft)" or "Untitled Course (Draft)", term: "Draft") so the lesson plan generator has a course to attach concepts/files to. Teachers can complete full course metadata later.
+Landing:
+- After teacher onboarding, navigate to `/teacher/setup` (Course Setup), not the dashboard.
+- Returning professors with ≥1 course also land on `/teacher/setup` via TeacherRedirect.
+
+Materials step (`/teacher/setup/upload`):
+- FileUploadZone STAGES selected files (does not upload on selection).
+- Shows file name, type (extension), size summary.
+- Required confirmation checkbox: "I confirm these materials are correct and aligned to my course syllabus." before Upload button enables.
+- Delete uses shadcn AlertDialog: "Are you sure you want to delete [name]? This will remove it from your course materials and may affect concept mapping." with Cancel + red Delete.
+
+Concept Review step (`/teacher/setup/concept-review`):
+- Reads/writes `concepts` table (concept_code, weight, course_id).
+- Confirmed list: grid of concept chips with hover-revealed X → inline "Remove? Confirm/Cancel" (no single-click delete).
+- Manual add: "Add a concept..." input + Add button.
+- AI-Suggested section: dashed border + bg-primary/5; calls `suggest-concepts` edge function (Lovable AI google/gemini-2.5-flash via tool calling) with courseId + existing concepts; each suggestion has Add (inserts to concepts table) + Dismiss.
+- Continue requires ≥1 confirmed concept.
 
 Lesson Plan step:
-- Calls `generate-lesson-plan` edge function with the courseId.
-- Edge function auto-extracts concepts into the `concepts` table (no separate concepts page).
+- "Key Concepts to Include" highlighted block REMOVED from week cards (concepts now confirmed upstream in Concept Review).
+- Generated from confirmed concepts via `generate-lesson-plan`.
+
+Content Library → Syllabus tab:
+- "Approved Syllabus" download card REMOVED. Tab now shows only the syllabus files list.
+
+CourseSetup card locking:
+- concept-review locked until upload Complete.
+- lesson-plan locked until concept-review Complete (≥1 concept exists).

@@ -13,6 +13,7 @@ import {
   Check,
   CircleDashed,
   CircleDot,
+  Layers,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
@@ -30,7 +31,8 @@ interface CardDef {
 
 const CARDS: CardDef[] = [
   { id: "upload", title: "Upload Course Materials", description: "Upload your syllabus and any supporting teaching materials.", icon: Upload, path: "/teacher/setup/upload" },
-  { id: "lesson-plan", title: "Generate Lesson Plan", description: "Generate a structured weekly lesson plan based on your syllabus.", icon: ClipboardList, path: "/teacher/setup/lesson-plan" },
+  { id: "concept-review", title: "Concept Review", description: "Review concepts extracted from your materials before generating the lesson plan.", icon: Layers, path: "/teacher/setup/concept-review" },
+  { id: "lesson-plan", title: "Generate Lesson Plan", description: "Generate a structured weekly lesson plan based on your confirmed concepts.", icon: ClipboardList, path: "/teacher/setup/lesson-plan" },
   { id: "diagnostic", title: "Approve Diagnostic Quiz", description: "Review and approve the AI-generated diagnostic quiz for your students.", icon: Brain, path: "/teacher/setup/diagnostic" },
   { id: "ai-settings", title: "AI Assistant Settings", description: "Configure the AI TA for your students and access your own professor AI assistant.", icon: Bot, path: "/teacher/setup/ai-settings" },
   { id: "exam-mode", title: "Exam Mode Settings", description: "Set up and customise the exam mode experience for your students.", icon: GraduationCap, path: "/teacher/setup/exam-mode" },
@@ -71,6 +73,7 @@ const CourseSetup = () => {
   const courseId = useTeacherCourseId();
   const [statuses, setStatuses] = useState<Record<string, Status>>({
     upload: "Not Started",
+    "concept-review": "Not Started",
     "lesson-plan": "Not Started",
     diagnostic: "Not Started",
     "ai-settings": "Not Started",
@@ -86,6 +89,7 @@ const CourseSetup = () => {
       const opened = getOpened(user.id);
       const next: Record<string, Status> = {
         upload: "Not Started",
+        "concept-review": "Not Started",
         "lesson-plan": "Not Started",
         diagnostic: "Not Started",
         "ai-settings": "Not Started",
@@ -122,7 +126,16 @@ const CourseSetup = () => {
       }
 
       if (courseId) {
-        // Card 3 (Diagnostic): Complete only if questions exist for the course.
+        // Card 2 (Concept Review): Complete if at least one concept exists for the course.
+        const { data: cr } = await supabase
+          .from("concepts")
+          .select("id")
+          .eq("course_id", courseId)
+          .limit(1);
+        if (cr && cr.length > 0) next["concept-review"] = "Complete";
+        else if (opened["concept-review"]) next["concept-review"] = "In Progress";
+
+        // Card 4 (Diagnostic): Complete only if questions exist for the course.
         const { data: dq } = await supabase
           .from("diagnostic_questions")
           .select("id")
@@ -131,7 +144,7 @@ const CourseSetup = () => {
         if (dq && dq.length > 0) next.diagnostic = "Complete";
         else if (opened.diagnostic) next.diagnostic = "In Progress";
 
-        // Cards 4 & 5 (TA settings)
+        // Cards 5 & 6 (TA settings)
         const { data: ta } = await supabase
           .from("course_ta_settings")
           .select("custom_study_prompt, exam_enabled, exam_approved")
@@ -142,6 +155,7 @@ const CourseSetup = () => {
         next["ai-settings"] = aiDone ? "Complete" : opened["ai-settings"] ? "In Progress" : "Not Started";
         next["exam-mode"] = examDone ? "Complete" : opened["exam-mode"] ? "In Progress" : "Not Started";
       } else {
+        if (opened["concept-review"]) next["concept-review"] = "In Progress";
         if (opened.diagnostic) next.diagnostic = "In Progress";
         if (opened["ai-settings"]) next["ai-settings"] = "In Progress";
         if (opened["exam-mode"]) next["exam-mode"] = "In Progress";
@@ -157,7 +171,17 @@ const CourseSetup = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, courseId]);
 
-  const isLessonPlanLocked = statuses.upload !== "Complete";
+  const isCardLocked = (id: string) => {
+    if (id === "concept-review") return statuses.upload !== "Complete";
+    if (id === "lesson-plan") return statuses["concept-review"] !== "Complete";
+    return false;
+  };
+
+  const lockMessage = (id: string) => {
+    if (id === "concept-review") return "Upload your syllabus in Step 1 to unlock this.";
+    if (id === "lesson-plan") return "Confirm your concepts in Step 2 to unlock this.";
+    return "";
+  };
 
   const handleOpen = (cardId: string, locked: boolean, path: string) => {
     if (locked || !user) return;
@@ -179,7 +203,7 @@ const CourseSetup = () => {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {CARDS.map((c, idx) => {
           const status = statuses[c.id];
-          const locked = c.id === "lesson-plan" && isLessonPlanLocked;
+          const locked = isCardLocked(c.id);
           const Icon = c.icon;
           return (
             <Card
@@ -202,7 +226,7 @@ const CourseSetup = () => {
                 </div>
                 <h3 className="font-semibold text-base text-foreground mb-1.5 leading-tight">{c.title}</h3>
                 <p className="text-xs text-muted-foreground leading-relaxed flex-1">
-                  {locked ? "Upload your syllabus in Step 1 to unlock this." : c.description}
+                  {locked ? lockMessage(c.id) : c.description}
                 </p>
                 <div className="mt-4">
                   {loading ? (

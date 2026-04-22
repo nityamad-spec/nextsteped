@@ -24,6 +24,7 @@ import AITASettings from "./pages/teacher/AITASettings";
 import ExamMode from "./pages/teacher/ExamMode";
 import EnrollmentSettings from "./pages/teacher/EnrollmentSettings";
 import ConceptManagement from "./pages/teacher/ConceptManagement";
+import ConceptReview from "./pages/teacher/ConceptReview";
 import DiagnosticQuestionsSetup from "./pages/teacher/DiagnosticQuestionsSetup";
 import PublishEnrollment from "./pages/teacher/PublishEnrollment";
 import CourseDashboard from "./pages/teacher/CourseDashboard";
@@ -172,6 +173,7 @@ const App = () => (
                 <Route path="/teacher/setup" element={<CourseSetup />} />
                 <Route path="/teacher/setup/upload" element={<CourseMaterials />} />
                 <Route path="/teacher/setup/materials" element={<Navigate to="/teacher/setup/upload" replace />} />
+                <Route path="/teacher/setup/concept-review" element={<ConceptReview />} />
                 <Route path="/teacher/setup/lesson-plan" element={<CourseCreation />} />
                 <Route path="/teacher/setup/diagnostic" element={<DiagnosticQuestionsSetup />} />
                 <Route path="/teacher/setup/ai-settings" element={<AIAssistantAndSettings />} />
