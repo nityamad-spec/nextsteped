@@ -115,11 +115,25 @@ const DiagnosticQuestionsSetup = () => {
   };
 
 
-  const standardQuestions = questions.slice(0, 5);
-  const adaptiveQuestions = questions.slice(5, 10);
+  // Partition by item_code tier (STANDARD / EASY / MEDIUM / HARD).
+  // Fallback to difficulty buckets for legacy rows that don't follow the tier convention.
+  const tierOf = (q: DiagnosticQuestion): "STANDARD" | "EASY" | "MEDIUM" | "HARD" => {
+    const code = (q.item_code || "").toUpperCase();
+    if (code.includes("-STANDARD-")) return "STANDARD";
+    if (code.includes("-EASY-")) return "EASY";
+    if (code.includes("-MEDIUM-")) return "MEDIUM";
+    if (code.includes("-HARD-")) return "HARD";
+    // Legacy fallback by difficulty
+    if (q.difficulty_estimate <= 0.33) return "EASY";
+    if (q.difficulty_estimate >= 0.75) return "HARD";
+    return "MEDIUM";
+  };
+
+  const standardQuestions = questions.filter(q => tierOf(q) === "STANDARD");
+  const adaptiveQuestions = questions.filter(q => tierOf(q) !== "STANDARD");
 
   const filteredAdaptive = adaptiveFilter
-    ? adaptiveQuestions.filter(q => difficultyLabel(q.difficulty_estimate) === adaptiveFilter)
+    ? adaptiveQuestions.filter(q => tierOf(q) === adaptiveFilter.toUpperCase())
     : adaptiveQuestions;
 
   // Concept coverage from questions
