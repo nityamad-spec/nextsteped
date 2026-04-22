@@ -147,6 +147,9 @@ const CourseSetup = () => {
         if (opened["exam-mode"]) next["exam-mode"] = "In Progress";
       }
 
+      // Card 6 (Enrollment): no DB-backed completion criteria yet — track via opened state.
+      if (opened.enrollment) next.enrollment = "In Progress";
+
       setStatuses(next);
       setLoading(false);
     };
