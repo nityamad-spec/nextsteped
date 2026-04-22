@@ -6,9 +6,12 @@ type: feature
 
 7-step pipeline: Materials → Concept Review → Lesson Plan → Diagnostic → AI Assistant → Exam Mode → Enrollment & Course Settings.
 
-Landing:
-- After teacher onboarding, navigate to `/teacher/setup` (Course Setup), not the dashboard.
-- Returning professors with ≥1 course also land on `/teacher/setup` via TeacherRedirect.
+Landing (HARD GATE):
+- After teacher onboarding, navigate to `/teacher/setup`.
+- On every login, `TeacherRedirect` (App.tsx) calls `useTeacherSetupStatus()`. If setup is incomplete → forced to `/teacher/setup`. If complete → lands on `/teacher/courses/dashboard`.
+- `TeacherLayout` enforces the gate: any visit to a non-setup, non-support route while setup is incomplete is auto-redirected to `/teacher/setup`. Sidebar items (Dashboard, Course Assistant, Lesson Plan & Resources) render as locked with tooltip "Complete your Course Setup to unlock this."
+- Setup is "complete" only when ALL of: profile (name + department), course basics (name, course_code, term, graduation_year), ≥1 uploaded course material, ≥1 confirmed concept, AND a published lesson plan (`{uid}/lesson-plan/published-plan.json` in `course-materials` storage).
+- Centralized in `src/hooks/useTeacherSetupStatus.ts` — reuse this hook for any new gating.
 
 Materials step (`/teacher/setup/upload`):
 - FileUploadZone STAGES selected files (does not upload on selection).

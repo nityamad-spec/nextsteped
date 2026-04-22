@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useStudentStatus } from "@/hooks/useStudentStatus";
+import { useTeacherSetupStatus } from "@/hooks/useTeacherSetupStatus";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import Landing from "./pages/Landing";
@@ -72,6 +73,7 @@ function TeacherRedirect() {
   const { user } = useAuth();
   const [checking, setChecking] = useState(true);
   const [hasCourse, setHasCourse] = useState(false);
+  const { loading: setupLoading, isComplete } = useTeacherSetupStatus();
 
   useEffect(() => {
     if (!user) return;
@@ -86,7 +88,7 @@ function TeacherRedirect() {
       });
   }, [user]);
 
-  if (checking) {
+  if (checking || setupLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-muted-foreground">Loading...</div>
@@ -94,7 +96,10 @@ function TeacherRedirect() {
     );
   }
 
-  return <Navigate to={hasCourse ? "/teacher/setup" : "/teacher/onboarding"} replace />;
+  if (!hasCourse) return <Navigate to="/teacher/onboarding" replace />;
+  // Setup-incomplete professors are forced into Course Setup on every login.
+  if (!isComplete) return <Navigate to="/teacher/setup" replace />;
+  return <Navigate to="/teacher/courses/dashboard" replace />;
 }
 
 function StudentRedirect() {
