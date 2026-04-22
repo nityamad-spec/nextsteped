@@ -4,7 +4,7 @@ const ALL_TYPES = [
   { key: "mcq", label: "MCQ" },
   { key: "true_false", label: "True / False" },
   { key: "short_answer", label: "Short Answer" },
-  { key: "problem_solving", label: "Problem Solving" },
+  { key: "problem_solving", label: "Coding" },
 ] as const;
 
 interface QuestionTypeSelectorProps {
