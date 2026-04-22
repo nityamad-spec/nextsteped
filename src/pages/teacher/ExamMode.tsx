@@ -35,24 +35,44 @@ interface EditableQuestion {
   correctIndex?: number;
 }
 
+// Map internal type keys to display labels
+const TYPE_LABELS: Record<string, string> = {
+  mcq: "MCQ",
+  true_false: "True/False",
+  short_answer: "Short Answer",
+  problem_solving: "Coding",
+};
+
+// Parse the mix value (supports legacy presets + new comma-separated keys)
+const parseMix = (mix: string): string[] => {
+  if (!mix || mix === "mixed") return ["mcq", "true_false", "short_answer", "problem_solving"];
+  const legacy: Record<string, string[]> = {
+    mcq_only: ["mcq"],
+    true_false_only: ["true_false"],
+    short_answer: ["short_answer"],
+    problem_solving: ["problem_solving"],
+    mcq_short: ["mcq", "short_answer"],
+    mcq_problem: ["mcq", "problem_solving"],
+  };
+  if (legacy[mix]) return legacy[mix];
+  return mix.split(",").map(k => k.trim()).filter(Boolean);
+};
+
 const questionEstimate = (length: number, mix: string) => {
   const total = Math.max(5, Math.round(length / 3));
-  let breakdown: Record<string, number> = {};
-  if (mix === "mixed") {
-    breakdown = { MCQ: Math.round(total * 0.3), "True/False": Math.round(total * 0.2), "Short Answer": Math.round(total * 0.25), "Problem Solving": total - Math.round(total * 0.3) - Math.round(total * 0.2) - Math.round(total * 0.25) };
-  } else if (mix === "mcq_only") {
-    breakdown = { MCQ: total };
-  } else if (mix === "true_false_only") {
-    breakdown = { "True/False": total };
-  } else if (mix === "short_answer") {
-    breakdown = { "Short Answer": total };
-  } else if (mix === "problem_solving") {
-    breakdown = { "Problem Solving": total };
-  } else if (mix === "mcq_short") {
-    breakdown = { MCQ: Math.round(total * 0.5), "Short Answer": total - Math.round(total * 0.5) };
-  } else if (mix === "mcq_problem") {
-    breakdown = { MCQ: Math.round(total * 0.5), "Problem Solving": total - Math.round(total * 0.5) };
-  }
+  const types = parseMix(mix);
+  const breakdown: Record<string, number> = {};
+
+  if (types.length === 0) return { total, breakdown };
+
+  // Distribute evenly across selected types, remainder goes to first type
+  const base = Math.floor(total / types.length);
+  const remainder = total - base * types.length;
+  types.forEach((key, idx) => {
+    const label = TYPE_LABELS[key] ?? key;
+    breakdown[label] = base + (idx < remainder ? 1 : 0);
+  });
+
   return { total, breakdown };
 };
 
