@@ -21,6 +21,8 @@ interface Concept {
 interface Suggestion {
   name: string;
   rationale: string;
+  unit_number?: number;
+  unit_title?: string;
 }
 
 const ConceptReview = () => {
