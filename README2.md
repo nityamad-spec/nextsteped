@@ -80,7 +80,7 @@ A comprehensive listing of every code file in the project with its path and desc
 | `src/pages/teacher/CourseDashboard.tsx` | Teacher dashboard with course metrics and student activity |
 | `src/pages/teacher/ContentLibrary.tsx` | Upload and manage course materials (syllabus, documents) |
 | `src/pages/teacher/ContentReview.tsx` | Review AI-generated content suggestions and recommendations |
-| `src/pages/teacher/MaterialQualityCheck.tsx` | Quality assurance checks for uploaded course materials |
+
 | `src/pages/teacher/AITASettings.tsx` | Configure AI Teaching Assistant behavior (hints, difficulty, etc.) |
 | `src/pages/teacher/TeachingPlan.tsx` | Teaching plan and curriculum timeline management |
 | `src/pages/teacher/Assessments.tsx` | Create and manage course assessments and quizzes |
