@@ -200,8 +200,8 @@ const CourseMaterials = () => {
         )}
 
         <SetupModuleNav
-          nextPath="/teacher/setup/lesson-plan"
-          nextLabel="Next: Generate Lesson Plan"
+          nextPath="/teacher/setup/concept-review"
+          nextLabel="Next: Review Concepts"
           onNext={handleNext}
           nextDisabled={!canContinue}
         />
