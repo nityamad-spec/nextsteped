@@ -447,8 +447,8 @@ const ExamMode = () => {
           </Card>
 
           <SetupModuleNav
-            nextLabel="Save & Finish"
-            finishMode
+            nextPath="/teacher/setup/enrollment"
+            nextLabel="Save & Continue to Enrollment"
             nextDisabled={!canContinue}
             onNext={handleSave}
           />

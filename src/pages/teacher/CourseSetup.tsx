@@ -8,6 +8,7 @@ import {
   Brain,
   Bot,
   GraduationCap,
+  UserPlus,
   Lock,
   Check,
   CircleDashed,
@@ -33,6 +34,7 @@ const CARDS: CardDef[] = [
   { id: "diagnostic", title: "Approve Diagnostic Quiz", description: "Review and approve the AI-generated diagnostic quiz for your students.", icon: Brain, path: "/teacher/setup/diagnostic" },
   { id: "ai-settings", title: "AI Assistant Settings", description: "Configure the AI TA for your students and access your own professor AI assistant.", icon: Bot, path: "/teacher/setup/ai-settings" },
   { id: "exam-mode", title: "Exam Mode Settings", description: "Set up and customise the exam mode experience for your students.", icon: GraduationCap, path: "/teacher/setup/exam-mode" },
+  { id: "enrollment", title: "Enrollment & Course Settings", description: "Configure your course schedule, sections, enrollment code, and student roster.", icon: UserPlus, path: "/teacher/setup/enrollment" },
 ];
 
 // Track per-user "card opened" state in localStorage to drive In Progress status
@@ -73,6 +75,7 @@ const CourseSetup = () => {
     diagnostic: "Not Started",
     "ai-settings": "Not Started",
     "exam-mode": "Not Started",
+    enrollment: "Not Started",
   });
   const [loading, setLoading] = useState(true);
 
@@ -87,6 +90,7 @@ const CourseSetup = () => {
         diagnostic: "Not Started",
         "ai-settings": "Not Started",
         "exam-mode": "Not Started",
+        enrollment: "Not Started",
       };
 
       // Card 1 (Upload): Complete only if at least one syllabus file actually exists.
@@ -142,6 +146,9 @@ const CourseSetup = () => {
         if (opened["ai-settings"]) next["ai-settings"] = "In Progress";
         if (opened["exam-mode"]) next["exam-mode"] = "In Progress";
       }
+
+      // Card 6 (Enrollment): no DB-backed completion criteria yet — track via opened state.
+      if (opened.enrollment) next.enrollment = "In Progress";
 
       setStatuses(next);
       setLoading(false);
