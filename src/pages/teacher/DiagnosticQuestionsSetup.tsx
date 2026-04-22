@@ -46,7 +46,7 @@ const DiagnosticQuestionsSetup = () => {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [conceptCount, setConceptCount] = useState(0);
-  const [adaptiveFilter, setAdaptiveFilter] = useState<string | null>(null);
+  const [adaptiveFilter, setAdaptiveFilter] = useState<string>("Easy");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -132,9 +132,9 @@ const DiagnosticQuestionsSetup = () => {
   const standardQuestions = questions.filter(q => tierOf(q) === "STANDARD");
   const adaptiveQuestions = questions.filter(q => tierOf(q) !== "STANDARD");
 
-  const filteredAdaptive = adaptiveFilter
-    ? adaptiveQuestions.filter(q => tierOf(q) === adaptiveFilter.toUpperCase())
-    : adaptiveQuestions;
+  const filteredAdaptive = adaptiveQuestions.filter(
+    q => tierOf(q) === adaptiveFilter.toUpperCase(),
+  );
 
   // Concept coverage from questions
   const allTopics = [...new Set(questions.map(q => q.topic).filter(Boolean))] as string[];
@@ -314,23 +314,23 @@ const DiagnosticQuestionsSetup = () => {
               </div>
               {/* Tier filters */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Filter by tier:</span>
-                {["Easy", "Medium", "Hard"].map(tier => (
-                  <button
-                    key={tier}
-                    onClick={() => setAdaptiveFilter(adaptiveFilter === tier ? null : tier)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-                      adaptiveFilter === tier
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-background border-border hover:bg-muted"
-                    }`}
-                  >
-                    {tier}
-                  </button>
-                ))}
-                {adaptiveFilter && (
-                  <button onClick={() => setAdaptiveFilter(null)} className="text-xs text-muted-foreground hover:text-foreground ml-1">Clear</button>
-                )}
+                <span className="text-xs text-muted-foreground">View tier:</span>
+                {(["Easy", "Medium", "Hard"] as const).map(tier => {
+                  const count = adaptiveQuestions.filter(q => tierOf(q) === tier.toUpperCase()).length;
+                  return (
+                    <button
+                      key={tier}
+                      onClick={() => setAdaptiveFilter(tier)}
+                      className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                        adaptiveFilter === tier
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background border-border hover:bg-muted"
+                      }`}
+                    >
+                      {tier} ({count})
+                    </button>
+                  );
+                })}
               </div>
               {filteredAdaptive.length > 0 ? (
                 <div className="space-y-2">
@@ -338,9 +338,7 @@ const DiagnosticQuestionsSetup = () => {
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed p-4 text-center">
-                  <p className="text-xs text-muted-foreground">
-                    {adaptiveFilter ? `No ${adaptiveFilter} tier questions` : "No adaptive questions yet"}
-                  </p>
+                  <p className="text-xs text-muted-foreground">No {adaptiveFilter} tier questions yet</p>
                 </div>
               )}
             </div>
