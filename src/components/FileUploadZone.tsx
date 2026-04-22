@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Upload, Check, X, FileText, Loader2, Trash2 } from "lucide-react";
+import { Upload, Check, X, FileText, Loader2, Trash2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
