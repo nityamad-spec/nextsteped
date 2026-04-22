@@ -97,6 +97,12 @@ const ExamMode = () => {
   const [customBreakdown, setCustomBreakdown] = useState<Record<string, number>>(estimate.breakdown);
   const [estimateApproved, setEstimateApproved] = useState(false);
 
+  // Keep custom breakdown in sync with the auto estimate when not actively editing
+  useEffect(() => {
+    if (!editingEstimate) setCustomBreakdown(estimate.breakdown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examLength, examQuestionTypes]);
+
   // ── Custom exam questions state (merged from Assessments) ──
   const [questions, setQuestions] = useState<EditableQuestion[]>([]);
   const [questionsLoading, setQuestionsLoading] = useState(true);
