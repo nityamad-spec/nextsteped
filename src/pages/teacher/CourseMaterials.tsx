@@ -3,15 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { FileText, ClipboardList, ArrowLeft, ShieldCheck } from "lucide-react";
+import { FileText, ClipboardList, ArrowLeft } from "lucide-react";
 import FileUploadZone from "@/components/FileUploadZone";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,12 +19,6 @@ interface UploadedFile {
   path: string;
 }
 
-interface TeacherOption {
-  id: string;
-  name: string;
-  email: string | null;
-}
-
 const CourseMaterials = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -43,51 +29,13 @@ const CourseMaterials = () => {
   const [syllabusFiles, setSyllabusFiles] = useState<UploadedFile[]>([]);
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
 
-  // Admin-on-behalf-of-teacher state
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
-  const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
-
-  // Detect admin role + load teacher list when admin
-  useEffect(() => {
-    const detectRole = async () => {
-      if (!user) return;
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profile?.role === "admin") {
-        setIsAdmin(true);
-        const { data: teacherRows } = await supabase
-          .from("profiles")
-          .select("id, name, email")
-          .eq("role", "teacher")
-          .order("name", { ascending: true });
-        if (teacherRows) setTeachers(teacherRows as TeacherOption[]);
-      } else {
-        setIsAdmin(false);
-        setSelectedTeacherId(user.id);
-      }
-    };
-    detectRole();
-  }, [user]);
-
-  // The teacher whose materials we are managing on this page
-  const effectiveTeacherId = isAdmin ? selectedTeacherId : user?.id ?? null;
-
   useEffect(() => {
     const fetchFiles = async () => {
-      if (!effectiveTeacherId) {
-        setSyllabusFiles([]);
-        setLessonPlanFiles([]);
-        return;
-      }
+      if (!user) return;
       let query = supabase
         .from("course_material_files")
         .select("file_name, file_size, storage_path, folder_type")
-        .eq("teacher_id", effectiveTeacherId);
+        .eq("teacher_id", user.id);
       if (courseId) query = query.eq("course_id", courseId);
       const { data } = await query;
       if (data) {
@@ -96,16 +44,13 @@ const CourseMaterials = () => {
         });
         setSyllabusFiles(data.filter((f) => f.folder_type === "syllabus").map(mapFile));
         setLessonPlanFiles(data.filter((f) => f.folder_type === "lesson-plans").map(mapFile));
-      } else {
-        setSyllabusFiles([]);
-        setLessonPlanFiles([]);
       }
     };
     fetchFiles();
-  }, [effectiveTeacherId, courseId]);
+  }, [user, courseId]);
 
   const handleNext = async () => {
-    if (!effectiveTeacherId) return;
+    if (!user) return;
     let activeCourseId = courseId;
 
     const courseFields = {
@@ -119,7 +64,7 @@ const CourseMaterials = () => {
       const { data: profile } = await supabase
         .from("profiles")
         .select("name, department")
-        .eq("id", effectiveTeacherId)
+        .eq("id", user.id)
         .maybeSingle();
 
       const draftName = profile?.department
@@ -129,7 +74,7 @@ const CourseMaterials = () => {
       const { data: created, error: createErr } = await supabase
         .from("courses")
         .insert({
-          teacher_id: effectiveTeacherId,
+          teacher_id: user.id,
           name: draftName,
           term: "First Semester",
           ...courseFields,
@@ -157,8 +102,7 @@ const CourseMaterials = () => {
     }
   };
 
-  const canContinue = syllabusFiles.length > 0 && !!effectiveTeacherId;
-  const showUploadZones = !!effectiveTeacherId;
+  const canContinue = syllabusFiles.length > 0;
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-8">
@@ -172,52 +116,6 @@ const CourseMaterials = () => {
             Upload your syllabus and any supporting teaching materials.
           </p>
         </div>
-
-        {/* Admin-only: select which teacher these uploads belong to */}
-        {isAdmin && (
-          <Card className="border-primary/40">
-            <CardHeader>
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <ShieldCheck className="h-5 w-5 text-primary" /> Admin: Upload on behalf of a teacher
-                </CardTitle>
-                <Badge variant="secondary">Admin</Badge>
-              </div>
-              <CardDescription>
-                Files will be stored under the selected teacher's folder and attributed to their course.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Label htmlFor="teacher-select">Teacher</Label>
-              <Select
-                value={selectedTeacherId ?? undefined}
-                onValueChange={(v) => setSelectedTeacherId(v)}
-              >
-                <SelectTrigger id="teacher-select">
-                  <SelectValue placeholder="Select a teacher…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {teachers.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">
-                      No teachers found.
-                    </div>
-                  ) : (
-                    teachers.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name}{t.email ? ` — ${t.email}` : ""}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              {!selectedTeacherId && (
-                <p className="text-xs text-muted-foreground">
-                  Pick a teacher to enable uploads.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        )}
 
         {/* Syllabus — Required */}
         <Card>
@@ -236,19 +134,19 @@ const CourseMaterials = () => {
             <p className="text-xs text-muted-foreground mb-3">
               <strong>Accepted:</strong> PDF, DOCX
             </p>
-            {showUploadZones ? (
+            {user ? (
               <FileUploadZone
-                folderPath={`${effectiveTeacherId}/syllabus`}
+                folderPath={`${user.id}/syllabus`}
                 accept={SYLLABUS_ACCEPT}
                 files={syllabusFiles}
                 onFilesChange={setSyllabusFiles}
-                teacherId={effectiveTeacherId!}
+                teacherId={user.id}
                 folderType="syllabus"
                 courseId={courseId}
               />
             ) : (
               <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
-                {isAdmin ? "Select a teacher above to enable upload." : "Preparing upload area…"}
+                Preparing upload area…
               </div>
             )}
           </CardContent>
@@ -277,19 +175,19 @@ const CourseMaterials = () => {
             <p className="text-xs text-muted-foreground mb-3">
               <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images.
             </p>
-            {showUploadZones ? (
+            {user ? (
               <FileUploadZone
-                folderPath={`${effectiveTeacherId}/lesson-plans`}
+                folderPath={`${user.id}/lesson-plans`}
                 accept={MATERIALS_ACCEPT}
                 files={lessonPlanFiles}
                 onFilesChange={setLessonPlanFiles}
-                teacherId={effectiveTeacherId!}
+                teacherId={user.id}
                 folderType="lesson-plans"
                 courseId={courseId}
               />
             ) : (
               <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
-                {isAdmin ? "Select a teacher above to enable upload." : "Preparing upload area…"}
+                Preparing upload area…
               </div>
             )}
           </CardContent>
@@ -297,9 +195,7 @@ const CourseMaterials = () => {
 
         {!canContinue && (
           <p className="text-xs text-destructive text-center">
-            {isAdmin && !selectedTeacherId
-              ? "Please select a teacher and upload a syllabus to continue."
-              : "Please upload your syllabus to continue."}
+            Please upload your syllabus to continue.
           </p>
         )}
 
