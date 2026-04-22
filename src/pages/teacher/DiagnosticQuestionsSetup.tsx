@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Brain, Info, Loader2, BookOpen, Trash2, Sparkles, ArrowLeft,
+  Brain, Info, Loader2, BookOpen, Trash2, Sparkles, ArrowLeft, Check,
 } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { useToast } from "@/hooks/use-toast";
@@ -150,36 +150,71 @@ const DiagnosticQuestionsSetup = () => {
     );
   }
 
-  const renderQuestionCard = (q: DiagnosticQuestion, index: number) => (
-    <div key={q.id} className="rounded-lg border p-3 space-y-1.5">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-medium text-muted-foreground">Q{index + 1}</span>
-          <Badge variant="outline" className={`text-[10px] ${difficultyColor(q.difficulty_estimate)}`}>
-            {difficultyLabel(q.difficulty_estimate)}
-          </Badge>
-          <Badge variant="outline" className="text-[10px]">{q.format.toUpperCase()}</Badge>
-          {q.topic && <span className="text-[10px] text-muted-foreground">{q.topic}</span>}
+  const renderQuestionCard = (q: DiagnosticQuestion, index: number) => {
+    const opts = Array.isArray(q.options) ? (q.options as string[]) : [];
+    const correctIdx = opts.findIndex(opt => opt === q.answer);
+    const correctLetter = correctIdx >= 0 ? String.fromCharCode(65 + correctIdx) : null;
+
+    return (
+      <div key={q.id} className="rounded-lg border p-3 space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-medium text-muted-foreground">Q{index + 1}</span>
+            <Badge variant="outline" className={`text-[10px] ${difficultyColor(q.difficulty_estimate)}`}>
+              {difficultyLabel(q.difficulty_estimate)}
+            </Badge>
+            <Badge variant="outline" className="text-[10px]">{q.format.toUpperCase()}</Badge>
+            {q.topic && <span className="text-[10px] text-muted-foreground">{q.topic}</span>}
+          </div>
+          <button
+            onClick={() => handleDelete(q.id)}
+            className="rounded p-1.5 hover:bg-destructive/10 hover:text-destructive shrink-0"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
         </div>
-        <button
-          onClick={() => handleDelete(q.id)}
-          className="rounded p-1.5 hover:bg-destructive/10 hover:text-destructive shrink-0"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+
+        <p className="text-sm whitespace-pre-wrap">{q.content_text}</p>
+
+        {q.format === "mcq" && opts.length > 0 && (
+          <div className="space-y-1 pl-2">
+            {opts.map((opt: string, i: number) => {
+              const isCorrect = opt === q.answer;
+              return (
+                <div
+                  key={i}
+                  className={`flex items-start gap-1.5 text-xs rounded px-1.5 py-0.5 ${
+                    isCorrect
+                      ? "bg-emerald-500/10 text-emerald-700 font-medium"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {isCorrect ? (
+                    <Check className="h-3 w-3 mt-0.5 shrink-0 text-emerald-600" />
+                  ) : (
+                    <span className="w-3 shrink-0" />
+                  )}
+                  <span>
+                    {String.fromCharCode(65 + i)}. {opt}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="flex items-start gap-2 rounded-md bg-emerald-500/5 border border-emerald-500/20 px-2.5 py-1.5">
+          <Check className="h-3.5 w-3.5 text-emerald-600 mt-0.5 shrink-0" />
+          <div className="text-xs">
+            <span className="font-semibold text-emerald-700">Correct answer: </span>
+            <span className="text-foreground">
+              {q.format === "mcq" && correctLetter ? `${correctLetter}. ${q.answer}` : q.answer}
+            </span>
+          </div>
+        </div>
       </div>
-      <p className="text-sm whitespace-pre-wrap">{q.content_text}</p>
-      {q.format === "mcq" && q.options && (
-        <div className="space-y-0.5 pl-2">
-          {(Array.isArray(q.options) ? q.options : []).map((opt: string, i: number) => (
-            <p key={i} className={`text-xs ${opt === q.answer ? "text-primary font-medium" : "text-muted-foreground"}`}>
-              {String.fromCharCode(65 + i)}. {opt}
-            </p>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background px-4 py-8">
