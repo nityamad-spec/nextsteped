@@ -205,6 +205,9 @@ const AdminDashboard = () => {
           <TabsTrigger value="settings" className="gap-2">
             <Settings className="h-4 w-4" /> Settings
           </TabsTrigger>
+          <TabsTrigger value="calculator" className="gap-2">
+            <Calculator className="h-4 w-4" /> Cost Calculator
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="space-y-4">
