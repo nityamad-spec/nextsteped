@@ -16,7 +16,6 @@ import Auth from "./pages/Auth";
 import TeacherLayout from "./layouts/TeacherLayout";
 import StudentLayout from "./layouts/StudentLayout";
 import TeacherOnboarding from "./pages/teacher/TeacherOnboarding";
-import MaterialQualityCheck from "./pages/teacher/MaterialQualityCheck";
 import CourseCreation from "./pages/teacher/CourseCreation";
 import CourseSetup from "./pages/teacher/CourseSetup";
 import AIAssistantAndSettings from "./pages/teacher/AIAssistantAndSettings";
