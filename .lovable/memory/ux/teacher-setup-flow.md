@@ -12,6 +12,7 @@ Landing (HARD GATE):
 - `TeacherLayout` enforces the gate: any visit to a non-setup, non-support route while setup is incomplete is auto-redirected to `/teacher/setup`. Sidebar items (Dashboard, Course Assistant, Lesson Plan & Resources) render as locked with tooltip "Complete your Course Setup to unlock this."
 - Setup is "complete" only when ALL of: profile (name + department), course basics (name, course_code, term, graduation_year), ≥1 uploaded course material, ≥1 confirmed concept, AND a published lesson plan (`{uid}/lesson-plan/published-plan.json` in `course-materials` storage).
 - Centralized in `src/hooks/useTeacherSetupStatus.ts` — reuse this hook for any new gating.
+- Per-step "opened / In Progress" state is persisted in the `teacher_setup_progress` table (fields: teacher_id, step_id, opened_at; unique on teacher_id+step_id; RLS: teacher manages own rows, admin manages all). `CourseSetup.tsx` reads via `fetchOpenedSteps(uid)` and writes via `markStepOpened(uid, stepId)` (upsert) — replaces the prior `localStorage` `setup-opened:{uid}` key so In Progress badges follow the professor across devices and logins.
 
 Materials step (`/teacher/setup/upload`):
 - FileUploadZone STAGES selected files (does not upload on selection).

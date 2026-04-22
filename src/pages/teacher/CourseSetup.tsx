@@ -39,10 +39,28 @@ const CARDS: CardDef[] = [
   { id: "enrollment", title: "Enrollment & Course Settings", description: "Configure your course schedule, sections, enrollment code, and student roster.", icon: UserPlus, path: "/teacher/setup/enrollment" },
 ];
 
-// Track per-user "card opened" state in localStorage to drive In Progress status
-const openedKey = (uid: string) => `setup-opened:${uid}`;
-const getOpened = (uid: string): Record<string, boolean> => {
-  try { return JSON.parse(localStorage.getItem(openedKey(uid)) || "{}"); } catch { return {}; }
+// Per-teacher per-step "opened" state is persisted in the
+// `teacher_setup_progress` table so In Progress badges follow the
+// professor across devices and logins.
+const fetchOpenedSteps = async (uid: string): Promise<Record<string, boolean>> => {
+  const { data, error } = await supabase
+    .from("teacher_setup_progress")
+    .select("step_id")
+    .eq("teacher_id", uid);
+  if (error || !data) return {};
+  const map: Record<string, boolean> = {};
+  for (const row of data) map[row.step_id] = true;
+  return map;
+};
+
+const markStepOpened = async (uid: string, stepId: string) => {
+  // Upsert on (teacher_id, step_id) so re-opening doesn't error.
+  await supabase
+    .from("teacher_setup_progress")
+    .upsert(
+      { teacher_id: uid, step_id: stepId, opened_at: new Date().toISOString() },
+      { onConflict: "teacher_id,step_id" }
+    );
 };
 
 const StatusBadge = ({ status }: { status: Status }) => {
@@ -86,7 +104,7 @@ const CourseSetup = () => {
     if (!user) return;
     const fetchStatuses = async () => {
       setLoading(true);
-      const opened = getOpened(user.id);
+      const opened = await fetchOpenedSteps(user.id);
       const next: Record<string, Status> = {
         upload: "Not Started",
         "concept-review": "Not Started",
@@ -185,9 +203,11 @@ const CourseSetup = () => {
 
   const handleOpen = (cardId: string, locked: boolean, path: string) => {
     if (locked || !user) return;
-    const opened = getOpened(user.id);
-    opened[cardId] = true;
-    localStorage.setItem(openedKey(user.id), JSON.stringify(opened));
+    // Optimistically reflect In Progress in the UI; persistence is fire-and-forget.
+    setStatuses((prev) =>
+      prev[cardId] === "Complete" ? prev : { ...prev, [cardId]: "In Progress" }
+    );
+    void markStepOpened(user.id, cardId);
     navigate(path);
   };
 
