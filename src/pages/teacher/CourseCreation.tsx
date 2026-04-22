@@ -891,27 +891,6 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                             )}
                           </section>
 
-                          {/* Key Concepts to Include — last 1–2 concepts highlighted */}
-                          {w.concepts.length > 0 && (
-                            <section className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
-                              <div className="flex items-center gap-2">
-                                <div className="h-5 w-1 rounded-full bg-primary" />
-                                <Label className="text-sm font-semibold">Key Concepts to Include</Label>
-                              </div>
-                              <ul className="text-xs text-foreground/80 space-y-1 pl-4 list-disc">
-                                {w.concepts.slice(-2).map((kc) => (
-                                  <li key={`key-${kc.id}`}>
-                                    <span className="font-semibold">{kc.name}</span>
-                                    {kc.brief_description ? <span className="text-muted-foreground"> — {kc.brief_description}</span> : null}
-                                  </li>
-                                ))}
-                              </ul>
-                              <p className="text-[10px] text-muted-foreground">
-                                Concepts students must understand by the end of this week.
-                              </p>
-                            </section>
-                          )}
-
                           {/* Week actions */}
                           <div className="flex justify-end gap-2 pt-2 border-t">
                             <Button size="sm" variant="ghost" onClick={() => deleteWeek(w.id)} className="h-7 text-xs text-destructive hover:text-destructive">

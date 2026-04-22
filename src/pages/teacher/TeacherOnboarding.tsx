@@ -179,7 +179,7 @@ const TeacherOnboarding = () => {
       enrollmentCode,
     });
 
-    navigate("/teacher/courses/dashboard");
+    navigate("/teacher/setup");
   };
 
   if (loading) {
