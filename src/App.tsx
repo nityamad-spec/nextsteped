@@ -69,13 +69,19 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function TeacherRedirect() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [checking, setChecking] = useState(true);
   const [hasCourse, setHasCourse] = useState(false);
   const { loading: setupLoading, isComplete } = useTeacherSetupStatus();
 
   useEffect(() => {
-    if (!user) return;
+    if (authLoading) return;
+    if (!user) {
+      // No user resolved (bypass signin may have failed). Send to onboarding.
+      setHasCourse(false);
+      setChecking(false);
+      return;
+    }
     supabase
       .from("courses")
       .select("id")
@@ -85,9 +91,15 @@ function TeacherRedirect() {
         setHasCourse(!!(data && data.length > 0));
         setChecking(false);
       });
-  }, [user]);
+  }, [user, authLoading]);
 
-  if (checking || setupLoading) {
+  // Safety net: never hang on Loading… for more than 4s.
+  useEffect(() => {
+    const t = window.setTimeout(() => setChecking(false), 4000);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  if (authLoading || checking || setupLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-muted-foreground">Loading...</div>
