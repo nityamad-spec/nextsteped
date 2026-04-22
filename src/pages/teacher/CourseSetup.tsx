@@ -126,7 +126,16 @@ const CourseSetup = () => {
       }
 
       if (courseId) {
-        // Card 3 (Diagnostic): Complete only if questions exist for the course.
+        // Card 2 (Concept Review): Complete if at least one concept exists for the course.
+        const { data: cr } = await supabase
+          .from("concepts")
+          .select("id")
+          .eq("course_id", courseId)
+          .limit(1);
+        if (cr && cr.length > 0) next["concept-review"] = "Complete";
+        else if (opened["concept-review"]) next["concept-review"] = "In Progress";
+
+        // Card 4 (Diagnostic): Complete only if questions exist for the course.
         const { data: dq } = await supabase
           .from("diagnostic_questions")
           .select("id")
@@ -135,7 +144,7 @@ const CourseSetup = () => {
         if (dq && dq.length > 0) next.diagnostic = "Complete";
         else if (opened.diagnostic) next.diagnostic = "In Progress";
 
-        // Cards 4 & 5 (TA settings)
+        // Cards 5 & 6 (TA settings)
         const { data: ta } = await supabase
           .from("course_ta_settings")
           .select("custom_study_prompt, exam_enabled, exam_approved")
@@ -146,6 +155,7 @@ const CourseSetup = () => {
         next["ai-settings"] = aiDone ? "Complete" : opened["ai-settings"] ? "In Progress" : "Not Started";
         next["exam-mode"] = examDone ? "Complete" : opened["exam-mode"] ? "In Progress" : "Not Started";
       } else {
+        if (opened["concept-review"]) next["concept-review"] = "In Progress";
         if (opened.diagnostic) next.diagnostic = "In Progress";
         if (opened["ai-settings"]) next["ai-settings"] = "In Progress";
         if (opened["exam-mode"]) next["exam-mode"] = "In Progress";
