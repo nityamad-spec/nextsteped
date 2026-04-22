@@ -112,80 +112,46 @@ ${fileContent}
                 parameters: {
                   type: "object",
                   properties: {
-                    courseTitle: { type: "string", description: "Full course title" },
-                    courseCode: { type: "string", description: "Course code (e.g. CS101)" },
-                    instructor: { type: "string", description: "Instructor name(s)" },
-                    term: { type: "string", description: "Academic term (e.g. Fall 2025)" },
-                    description: { type: "string", description: "Course description paragraph" },
-                    learningObjectives: {
+                    objectives: {
                       type: "array",
                       items: { type: "string" },
-                      description: "List of learning OBJECTIVES only (goals students should achieve). Do NOT mix with outcomes.",
+                      description: "Course/learning OBJECTIVES — high-level goals the course aims to achieve. Do NOT include outcomes here.",
                     },
-                    learningOutcomes: {
-                      type: "array",
-                      items: { type: "string" },
-                      description: "List of learning OUTCOMES only (measurable skills/competencies). Do NOT mix with objectives. Leave empty if document does not distinguish outcomes from objectives.",
-                    },
-                    schedule: {
+                    units: {
                       type: "array",
                       items: {
                         type: "object",
                         properties: {
-                          week: { type: "number", description: "Week number" },
-                          topic: { type: "string", description: "Topic or module title" },
-                          description: { type: "string", description: "Description of what is covered" },
-                          readings: { type: "string", description: "Required readings or materials" },
-                        },
-                        required: ["week", "topic", "description", "readings"],
-                        additionalProperties: false,
-                      },
-                      description: "Weekly or session-by-session schedule",
-                    },
-                    gradingPolicy: {
-                      type: "object",
-                      properties: {
-                        components: {
-                          type: "array",
-                          items: {
-                            type: "object",
-                            properties: {
-                              name: { type: "string", description: "Component name (e.g. Midterm, Homework)" },
-                              weight: { type: "string", description: "Weight or percentage (e.g. 30%)" },
-                              description: { type: "string", description: "Additional details" },
-                            },
-                            required: ["name", "weight", "description"],
-                            additionalProperties: false,
+                          unit_number: { type: "number", description: "Unit/module number, starting at 1" },
+                          title: { type: "string", description: "Unit title or heading" },
+                          topics: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Topics/subtopics covered in this unit, preserved verbatim from the document.",
                           },
                         },
-                      },
-                      required: ["components"],
-                      additionalProperties: false,
-                      description: "Grading breakdown. Leave components empty if not mentioned in the document.",
-                    },
-                    policies: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          title: { type: "string", description: "Policy title (e.g. Attendance, Academic Integrity)" },
-                          content: { type: "string", description: "Full policy text" },
-                        },
-                        required: ["title", "content"],
+                        required: ["unit_number", "title", "topics"],
                         additionalProperties: false,
                       },
-                      description: "Course policies and rules",
+                      description: "Syllabus body organized by unit/module. If the syllabus is week-based, map each week to a unit.",
                     },
-                    resources: {
+                    outcomes: {
                       type: "array",
                       items: { type: "string" },
-                      description: "Textbooks, websites, and other resources",
+                      description: "Course OUTCOMES — measurable skills/competencies students will demonstrate. Distinct from objectives.",
+                    },
+                    textbooks: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "Required/primary textbooks (full citations as written in the document).",
+                    },
+                    referencebooks: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "Reference books and supplementary reading. Empty if document does not distinguish them from textbooks.",
                     },
                   },
-                  required: [
-                    "courseTitle", "courseCode", "instructor", "term", "description",
-                    "learningObjectives", "learningOutcomes", "schedule", "gradingPolicy", "policies", "resources",
-                  ],
+                  required: ["objectives", "units", "outcomes", "textbooks", "referencebooks"],
                   additionalProperties: false,
                 },
               },
