@@ -59,7 +59,11 @@ const CourseMaterials = () => {
     const expectedSyllabusJsonPath =
       syllabusFiles.length > 0 ? `${user.id}/syllabus/approved-syllabus.json` : null;
 
-    const courseFields: Record<string, unknown> = {
+    const courseFields: {
+      syllabus_uploaded: boolean;
+      materials_uploaded: boolean;
+      syllabus_json_path?: string;
+    } = {
       syllabus_uploaded: syllabusFiles.length > 0,
       materials_uploaded: lessonPlanFiles.length > 0,
     };
