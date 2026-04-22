@@ -16,7 +16,7 @@ import { toast } from "sonner";
 
 const TeacherOnboarding = () => {
   const { setTeacherProfile, setCurrentCourse } = useApp();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
@@ -37,7 +37,12 @@ const TeacherOnboarding = () => {
   const availableYears = ["2027", "2028", "2029", "2030", "2031"];
 
   useEffect(() => {
-    if (!user) return;
+    // Wait until auth resolves; if no user, render the empty form.
+    if (authLoading) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     const fetchExistingData = async () => {
       setLoading(true);
       const storedCourseId = localStorage.getItem("currentCourseId");
@@ -86,7 +91,11 @@ const TeacherOnboarding = () => {
       setLoading(false);
     };
     fetchExistingData();
-  }, [user]);
+
+    // Safety net: never leave the skeleton up for more than 4s.
+    const t = window.setTimeout(() => setLoading(false), 4000);
+    return () => window.clearTimeout(t);
+  }, [user, authLoading]);
 
   const isValid =
     name.trim() &&
