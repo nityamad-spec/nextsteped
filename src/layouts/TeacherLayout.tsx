@@ -1,12 +1,11 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { BookOpen, HelpCircle, LogOut, Library, MessageSquare, ListChecks, Lock } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
-import { supabase } from "@/integrations/supabase/client";
+import { useTeacherSetupStatus } from "@/hooks/useTeacherSetupStatus";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface NavItem {
@@ -24,59 +23,30 @@ const teacherNav: NavItem[] = [
   { title: "Support", path: "/teacher/support", icon: HelpCircle, alwaysUnlocked: true },
 ];
 
+// Routes that remain accessible regardless of setup completion. Anything
+// else inside TeacherLayout is gated until setup is fully complete.
+const ALWAYS_OPEN_PATHS = [
+  "/teacher/setup",
+  "/teacher/support",
+];
+
 const TeacherLayout = () => {
   const { currentCourse, resetAll } = useApp();
-  const { signOut, user } = useAuth();
+  const { signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
-  const courseId = useTeacherCourseId();
-  const [setupComplete, setSetupComplete] = useState(false);
+  const { loading: setupLoading, isComplete: setupComplete } = useTeacherSetupStatus();
 
+  // Hard gate: if the professor lands on a non-setup route while setup is
+  // incomplete, force them back to /teacher/setup.
   useEffect(() => {
-    if (!user) return;
-    const checkSetup = async () => {
-      try {
-        // 1. Syllabus uploaded
-        const { data: syllabusFiles } = await supabase
-          .from("course_material_files")
-          .select("id")
-          .eq("teacher_id", user.id)
-          .eq("folder_type", "syllabus")
-          .limit(1);
-        if (!syllabusFiles || syllabusFiles.length === 0) { setSetupComplete(false); return; }
-
-        // 2. Lesson plan published
-        const { data: published } = await supabase.storage
-          .from("course-materials")
-          .download(`${user.id}/lesson-plan/published-plan.json`);
-        if (!published) { setSetupComplete(false); return; }
-
-        if (!courseId) { setSetupComplete(false); return; }
-
-        // 3. Diagnostic questions
-        const { data: dq } = await supabase
-          .from("diagnostic_questions")
-          .select("id")
-          .eq("course_id", courseId)
-          .limit(1);
-        if (!dq || dq.length === 0) { setSetupComplete(false); return; }
-
-        // 4 & 5. TA settings: custom prompt + exam approved/enabled
-        const { data: ta } = await supabase
-          .from("course_ta_settings")
-          .select("custom_study_prompt, exam_enabled, exam_approved")
-          .eq("course_id", courseId)
-          .maybeSingle();
-        const aiDone = !!(ta?.custom_study_prompt && ta.custom_study_prompt.trim().length > 0);
-        const examDone = !!(ta?.exam_enabled || ta?.exam_approved);
-        setSetupComplete(aiDone && examDone);
-      } catch {
-        setSetupComplete(false);
-      }
-    };
-    checkSetup();
-  }, [user, courseId, location.pathname]);
+    if (setupLoading) return;
+    if (setupComplete) return;
+    const path = location.pathname;
+    const allowed = ALWAYS_OPEN_PATHS.some((p) => path === p || path.startsWith(p + "/"));
+    if (!allowed) navigate("/teacher/setup", { replace: true });
+  }, [setupLoading, setupComplete, location.pathname, navigate]);
 
   const handleLogout = async () => {
     await signOut();
@@ -85,6 +55,7 @@ const TeacherLayout = () => {
   };
 
   const isLocked = (item: NavItem) => !item.alwaysUnlocked && !setupComplete;
+
 
   if (isMobile) {
     return (
