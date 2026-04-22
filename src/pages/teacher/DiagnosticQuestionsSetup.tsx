@@ -46,7 +46,7 @@ const DiagnosticQuestionsSetup = () => {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [conceptCount, setConceptCount] = useState(0);
-  const [adaptiveFilter, setAdaptiveFilter] = useState<string | null>(null);
+  const [adaptiveFilter, setAdaptiveFilter] = useState<string>("Easy");
 
   useEffect(() => {
     const fetchData = async () => {
