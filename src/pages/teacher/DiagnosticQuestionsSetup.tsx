@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Brain, Info, Loader2, BookOpen, Trash2, Sparkles, ArrowLeft,
+  Brain, Info, Loader2, BookOpen, Trash2, Sparkles, ArrowLeft, Check,
 } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { useToast } from "@/hooks/use-toast";
