@@ -13,7 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { CheckCircle, XCircle, UserPlus, Users, Clock, BookOpen, Crown, PlusCircle, Settings, Calculator } from "lucide-react";
+import { CheckCircle, XCircle, UserPlus, Users, Clock, BookOpen, Crown, PlusCircle, Settings, Calculator, AlertTriangle, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import CostCalculator from "@/components/admin/CostCalculator";
 
 interface TeacherApplication {
@@ -47,6 +48,33 @@ const AdminDashboard = () => {
   const [selectedRoles, setSelectedRoles] = useState<Record<string, AssignmentRole>>({});
   const [teacherSignupsEnabled, setTeacherSignupsEnabled] = useState(true);
   const [togglingEnrollment, setTogglingEnrollment] = useState<string | null>(null);
+  const [wipeDialogOpen, setWipeDialogOpen] = useState(false);
+  const [wipeConfirmText, setWipeConfirmText] = useState("");
+  const [wiping, setWiping] = useState(false);
+
+  const handleWipeCourses = async () => {
+    setWiping(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("wipe-courses");
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const deleted = data?.deleted ?? {};
+      const summary = Object.entries(deleted)
+        .filter(([, v]) => (v as number) > 0)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(", ");
+      toast.success("All course data wiped", {
+        description: summary || "Nothing to delete — already clean.",
+      });
+      setWipeDialogOpen(false);
+      setWipeConfirmText("");
+      await fetchData();
+    } catch (err: any) {
+      toast.error("Wipe failed", { description: err?.message ?? "Unknown error" });
+    } finally {
+      setWiping(false);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -508,6 +536,90 @@ const AdminDashboard = () => {
                   </TableBody>
                 </Table>
               )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-destructive/50">
+            <CardHeader>
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
+                <div>
+                  <CardTitle className="text-destructive">Danger Zone — Reset all course data</CardTitle>
+                  <CardDescription className="mt-1">
+                    Permanently deletes every course and all dependent data. This cannot be undone.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 text-sm">
+                <div>
+                  <p className="font-medium mb-1">Will be wiped</p>
+                  <ul className="text-muted-foreground text-xs list-disc list-inside space-y-0.5">
+                    <li>All courses & enrollments</li>
+                    <li>Concepts, lesson plans, TA settings</li>
+                    <li>Diagnostic & assessment questions + results</li>
+                    <li>Course-scoped chats & feedback</li>
+                    <li>Uploaded files in storage (PDFs, JSON)</li>
+                    <li>Teacher setup progress</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">Preserved</p>
+                  <ul className="text-muted-foreground text-xs list-disc list-inside space-y-0.5">
+                    <li>All user accounts (admin, teachers, students)</li>
+                    <li>Teacher applications (course assignments cleared)</li>
+                    <li>Admin settings, degrees, branches, universities</li>
+                  </ul>
+                </div>
+              </div>
+              <AlertDialog open={wipeDialogOpen} onOpenChange={(open) => {
+                setWipeDialogOpen(open);
+                if (!open) setWipeConfirmText("");
+              }}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive">
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                    Wipe all courses
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Wipe all course data?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete every course, all materials, concepts, lesson plans,
+                      diagnostic & assessment questions, results, enrollments, course chats, TA settings,
+                      and uploaded files in storage. User accounts will be preserved.
+                      <br /><br />
+                      Type <span className="font-mono font-bold text-destructive">WIPE</span> to confirm.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <Input
+                    value={wipeConfirmText}
+                    onChange={(e) => setWipeConfirmText(e.target.value)}
+                    placeholder="Type WIPE to confirm"
+                    disabled={wiping}
+                    autoFocus
+                  />
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={wiping}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleWipeCourses();
+                      }}
+                      disabled={wipeConfirmText !== "WIPE" || wiping}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {wiping ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Wiping…</>
+                      ) : (
+                        "Wipe everything"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </CardContent>
           </Card>
         </TabsContent>
