@@ -203,9 +203,11 @@ const CourseSetup = () => {
 
   const handleOpen = (cardId: string, locked: boolean, path: string) => {
     if (locked || !user) return;
-    const opened = getOpened(user.id);
-    opened[cardId] = true;
-    localStorage.setItem(openedKey(user.id), JSON.stringify(opened));
+    // Optimistically reflect In Progress in the UI; persistence is fire-and-forget.
+    setStatuses((prev) =>
+      prev[cardId] === "Complete" ? prev : { ...prev, [cardId]: "In Progress" }
+    );
+    void markStepOpened(user.id, cardId);
     navigate(path);
   };
 
