@@ -53,12 +53,34 @@ const CourseMaterials = () => {
     if (!user) return;
     let activeCourseId = courseId;
 
-    const courseFields = {
+    // If a syllabus has been uploaded, the background parser writes JSON to
+    // {uid}/syllabus/approved-syllabus.json. Back-fill courses.syllabus_json_path
+    // for lazily-created courses so downstream concept extraction can read it.
+    const expectedSyllabusJsonPath =
+      syllabusFiles.length > 0 ? `${user.id}/syllabus/approved-syllabus.json` : null;
+
+    const courseFields: {
+      syllabus_uploaded: boolean;
+      materials_uploaded: boolean;
+      syllabus_json_path?: string;
+    } = {
       syllabus_uploaded: syllabusFiles.length > 0,
       materials_uploaded: lessonPlanFiles.length > 0,
     };
 
     if (activeCourseId) {
+      // Only set syllabus_json_path if not already set by the background parser
+      // (the parser already updates this field when it resolves a course id).
+      if (expectedSyllabusJsonPath) {
+        const { data: existing } = await supabase
+          .from("courses")
+          .select("syllabus_json_path")
+          .eq("id", activeCourseId)
+          .maybeSingle();
+        if (!existing?.syllabus_json_path) {
+          courseFields.syllabus_json_path = expectedSyllabusJsonPath;
+        }
+      }
       await supabase.from("courses").update(courseFields).eq("id", activeCourseId);
     } else {
       const { data: profile } = await supabase
@@ -70,6 +92,10 @@ const CourseMaterials = () => {
       const draftName = profile?.department
         ? `${profile.department} Course (Draft)`
         : "Untitled Course (Draft)";
+
+      if (expectedSyllabusJsonPath) {
+        courseFields.syllabus_json_path = expectedSyllabusJsonPath;
+      }
 
       const { data: created, error: createErr } = await supabase
         .from("courses")

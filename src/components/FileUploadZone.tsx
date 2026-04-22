@@ -21,6 +21,8 @@ interface UploadedFile {
   path: string;
 }
 
+type ParseStatus = "parsing" | "parsed" | "failed";
+
 interface FileUploadZoneProps {
   folderPath: string;
   accept: string;
@@ -43,12 +45,29 @@ function getExt(name: string) {
   return i >= 0 ? name.slice(i + 1).toUpperCase() : "FILE";
 }
 
+// Read a File as raw base64 (no data: prefix), in chunks to avoid stack overflow on large PDFs.
+async function fileToBase64(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(
+      null,
+      Array.from(bytes.subarray(i, i + chunk)) as unknown as number[]
+    );
+  }
+  return btoa(binary);
+}
+
 const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, folderType, courseId }: FileUploadZoneProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [pending, setPending] = useState<File[]>([]);
   const [confirmed, setConfirmed] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UploadedFile | null>(null);
+  // Per-file parse status keyed by storage_path. Only used for syllabus uploads.
+  const [parseStatus, setParseStatus] = useState<Record<string, ParseStatus>>({});
 
   const handleSelect = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
@@ -72,6 +91,60 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
     setConfirmed(false);
   };
 
+  /**
+   * Fire-and-forget syllabus parsing. Calls parse-syllabus edge function,
+   * writes JSON to {teacherId}/syllabus/approved-syllabus.json, and updates
+   * courses.syllabus_json_path on the latest course for this teacher.
+   */
+  const parseSyllabusInBackground = async (file: File, storagePath: string) => {
+    if (!teacherId) return;
+    setParseStatus((prev) => ({ ...prev, [storagePath]: "parsing" }));
+    try {
+      const fileBase64 = await fileToBase64(file);
+      const { data, error } = await supabase.functions.invoke("parse-syllabus", {
+        body: { fileBase64, fileName: file.name },
+      });
+      if (error) throw new Error(error.message);
+      const syllabusJson = (data as any)?.syllabus;
+      if (!syllabusJson) throw new Error("Empty parser response");
+
+      const jsonPath = `${teacherId}/syllabus/approved-syllabus.json`;
+      const blob = new Blob([JSON.stringify(syllabusJson, null, 2)], {
+        type: "application/json",
+      });
+      const { error: uploadErr } = await supabase.storage
+        .from("course-materials")
+        .upload(jsonPath, blob, { upsert: true, contentType: "application/json" });
+      if (uploadErr) throw new Error(uploadErr.message);
+
+      // Resolve active course id: prefer prop → fall back to latest course for teacher.
+      let activeCourseId: string | null = courseId ?? null;
+      if (!activeCourseId) {
+        const { data: latest } = await supabase
+          .from("courses")
+          .select("id")
+          .eq("teacher_id", teacherId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        activeCourseId = latest?.id ?? null;
+      }
+      if (activeCourseId) {
+        await supabase
+          .from("courses")
+          .update({ syllabus_json_path: jsonPath })
+          .eq("id", activeCourseId);
+      }
+      // If no course exists yet, CourseMaterials.handleNext() will back-fill
+      // syllabus_json_path on the lazily-created course row.
+
+      setParseStatus((prev) => ({ ...prev, [storagePath]: "parsed" }));
+    } catch (err) {
+      console.warn("Syllabus parse failed:", err);
+      setParseStatus((prev) => ({ ...prev, [storagePath]: "failed" }));
+    }
+  };
+
   const handleConfirmedUpload = async () => {
     if (pending.length === 0 || !confirmed) return;
     setUploading(true);
@@ -83,6 +156,8 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
     }
 
     const newFiles: UploadedFile[] = [];
+    const syllabusToParse: Array<{ file: File; path: string }> = [];
+
     for (const file of pending) {
       const filePath = `${folderPath}/${Date.now()}_${file.name}`;
       const { error } = await supabase.storage
@@ -108,6 +183,9 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
           }
         }
         newFiles.push({ name: file.name, size: file.size, path: filePath });
+        if (folderType === "syllabus") {
+          syllabusToParse.push({ file, path: filePath });
+        }
       }
     }
 
@@ -119,6 +197,11 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
     setPending([]);
     setConfirmed(false);
     setUploading(false);
+
+    // Kick off background parsing for syllabus files. Non-blocking.
+    for (const { file, path } of syllabusToParse) {
+      void parseSyllabusInBackground(file, path);
+    }
   };
 
   const performDelete = async () => {
@@ -141,9 +224,63 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
         .eq("storage_path", file.path);
     }
 
-    onFilesChange(files.filter((f) => f.path !== file.path));
+    const remaining = files.filter((f) => f.path !== file.path);
+    onFilesChange(remaining);
+
+    // If this was the last syllabus file, clear the parsed JSON + course pointer.
+    if (folderType === "syllabus" && teacherId && remaining.length === 0) {
+      const jsonPath = `${teacherId}/syllabus/approved-syllabus.json`;
+      await supabase.storage.from("course-materials").remove([jsonPath]).catch(() => {});
+      let activeCourseId: string | null = courseId ?? null;
+      if (!activeCourseId) {
+        const { data: latest } = await supabase
+          .from("courses")
+          .select("id")
+          .eq("teacher_id", teacherId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        activeCourseId = latest?.id ?? null;
+      }
+      if (activeCourseId) {
+        await supabase
+          .from("courses")
+          .update({ syllabus_json_path: null })
+          .eq("id", activeCourseId);
+      }
+    }
+
+    setParseStatus((prev) => {
+      const next = { ...prev };
+      delete next[file.path];
+      return next;
+    });
     toast.success(`Removed "${file.name}"`);
     setDeleteTarget(null);
+  };
+
+  const renderParsePill = (filePath: string) => {
+    const status = parseStatus[filePath];
+    if (!status) return null;
+    if (status === "parsing") {
+      return (
+        <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+          <Loader2 className="h-2.5 w-2.5 animate-spin" /> Parsing…
+        </span>
+      );
+    }
+    if (status === "parsed") {
+      return (
+        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+          Parsed ✓
+        </span>
+      );
+    }
+    return (
+      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+        Parse failed
+      </span>
+    );
   };
 
   return (
@@ -265,6 +402,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
             >
               <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="flex-1 truncate">{f.name}</span>
+              {folderType === "syllabus" && renderParsePill(f.path)}
               <span className="text-xs text-muted-foreground">{formatSize(f.size)}</span>
               <button
                 type="button"
