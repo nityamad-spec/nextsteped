@@ -183,7 +183,7 @@ const TeacherIntro = () => {
         <div className="mt-12 flex justify-center">
           <Button
             size="lg"
-            onClick={() => navigate("/auth?role=teacher")}
+            onClick={() => navigate("/teacher")}
             className="gap-2"
           >
             Get Started <ArrowRight className="h-4 w-4" />
