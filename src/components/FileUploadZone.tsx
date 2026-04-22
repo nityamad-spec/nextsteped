@@ -427,6 +427,19 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
               <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="flex-1 truncate">{f.name}</span>
               {folderType === "syllabus" && renderParsePill(f.path)}
+              {folderType === "syllabus" && parseStatus[f.path] === "failed" && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    retryParse(f);
+                  }}
+                  className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  title="Retry parsing this syllabus"
+                >
+                  <RefreshCw className="h-2.5 w-2.5" /> Retry
+                </button>
+              )}
               <span className="text-xs text-muted-foreground">{formatSize(f.size)}</span>
               <button
                 type="button"
