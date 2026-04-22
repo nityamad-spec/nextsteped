@@ -171,7 +171,17 @@ const CourseSetup = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, courseId]);
 
-  const isLessonPlanLocked = statuses.upload !== "Complete";
+  const isCardLocked = (id: string) => {
+    if (id === "concept-review") return statuses.upload !== "Complete";
+    if (id === "lesson-plan") return statuses["concept-review"] !== "Complete";
+    return false;
+  };
+
+  const lockMessage = (id: string) => {
+    if (id === "concept-review") return "Upload your syllabus in Step 1 to unlock this.";
+    if (id === "lesson-plan") return "Confirm your concepts in Step 2 to unlock this.";
+    return "";
+  };
 
   const handleOpen = (cardId: string, locked: boolean, path: string) => {
     if (locked || !user) return;
@@ -193,7 +203,7 @@ const CourseSetup = () => {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {CARDS.map((c, idx) => {
           const status = statuses[c.id];
-          const locked = c.id === "lesson-plan" && isLessonPlanLocked;
+          const locked = isCardLocked(c.id);
           const Icon = c.icon;
           return (
             <Card
@@ -216,7 +226,7 @@ const CourseSetup = () => {
                 </div>
                 <h3 className="font-semibold text-base text-foreground mb-1.5 leading-tight">{c.title}</h3>
                 <p className="text-xs text-muted-foreground leading-relaxed flex-1">
-                  {locked ? "Upload your syllabus in Step 1 to unlock this." : c.description}
+                  {locked ? lockMessage(c.id) : c.description}
                 </p>
                 <div className="mt-4">
                   {loading ? (
