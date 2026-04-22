@@ -1021,6 +1021,33 @@ export type Database = {
           },
         ]
       }
+      teacher_setup_progress: {
+        Row: {
+          created_at: string
+          id: string
+          opened_at: string
+          step_id: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          opened_at?: string
+          step_id: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          opened_at?: string
+          step_id?: string
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       universities: {
         Row: {
           created_at: string
