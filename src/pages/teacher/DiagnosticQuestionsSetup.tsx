@@ -132,9 +132,9 @@ const DiagnosticQuestionsSetup = () => {
   const standardQuestions = questions.filter(q => tierOf(q) === "STANDARD");
   const adaptiveQuestions = questions.filter(q => tierOf(q) !== "STANDARD");
 
-  const filteredAdaptive = adaptiveFilter
-    ? adaptiveQuestions.filter(q => tierOf(q) === adaptiveFilter.toUpperCase())
-    : adaptiveQuestions;
+  const filteredAdaptive = adaptiveQuestions.filter(
+    q => tierOf(q) === adaptiveFilter.toUpperCase(),
+  );
 
   // Concept coverage from questions
   const allTopics = [...new Set(questions.map(q => q.topic).filter(Boolean))] as string[];
