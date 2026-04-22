@@ -75,6 +75,7 @@ const CourseSetup = () => {
     diagnostic: "Not Started",
     "ai-settings": "Not Started",
     "exam-mode": "Not Started",
+    enrollment: "Not Started",
   });
   const [loading, setLoading] = useState(true);
 
