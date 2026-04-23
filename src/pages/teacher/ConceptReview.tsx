@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ArrowRight, Plus, X, Loader2, Sparkles, Check, RefreshCw, Info } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, X, Loader2, Sparkles, Check, RefreshCw, Info, ListOrdered } from "lucide-react";
 import { toast } from "sonner";
 import { bumpCacheVersion } from "@/lib/cacheVersion";
 
@@ -39,6 +39,7 @@ const ConceptReview = () => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [suggestionsRequested, setSuggestionsRequested] = useState(false);
+  const [addingUnitKey, setAddingUnitKey] = useState<string | null>(null);
 
   const fetchConcepts = async () => {
     if (!courseId) return;
@@ -77,7 +78,6 @@ const ConceptReview = () => {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const incoming: Suggestion[] = Array.isArray(data?.suggestions) ? data.suggestions : [];
-      // Filter out anything that already exists in confirmed list
       const existingLc = new Set(concepts.map((c) => c.concept_code.trim().toLowerCase()));
       setSuggestions(incoming.filter((s) => !existingLc.has(s.name.trim().toLowerCase())));
     } catch (e: any) {
@@ -123,6 +123,33 @@ const ConceptReview = () => {
       setSuggestions((prev) => prev.filter((x) => x.name !== s.name));
       bumpCacheVersion("concepts", courseId);
     }
+  };
+
+  const handleAddAllInUnit = async (unitKey: string, items: Suggestion[]) => {
+    if (!courseId || items.length === 0) return;
+    setAddingUnitKey(unitKey);
+    const rows = items.map((s) => ({
+      concept_code: s.name,
+      weight: 0,
+      course_id: courseId,
+    }));
+    const { data, error } = await supabase
+      .from("concepts")
+      .insert(rows)
+      .select("*");
+    if (error) {
+      toast.error("Failed to add concepts: " + error.message);
+      setAddingUnitKey(null);
+      return;
+    }
+    if (data && data.length > 0) {
+      setConcepts((prev) => [...prev, ...data]);
+      const addedNames = new Set(items.map((s) => s.name));
+      setSuggestions((prev) => prev.filter((x) => !addedNames.has(x.name)));
+      bumpCacheVersion("concepts", courseId);
+      toast.success(`Added ${data.length} concept${data.length === 1 ? "" : "s"}`);
+    }
+    setAddingUnitKey(null);
   };
 
   const handleDismissSuggestion = (s: Suggestion) => {
@@ -174,49 +201,183 @@ const ConceptReview = () => {
           </Button>
           <h1 className="font-heading text-3xl font-bold">Concept Review</h1>
           <p className="text-muted-foreground mt-1">
-            Review the concepts extracted from your uploaded materials. Confirm, add, or remove concepts before generating your lesson plan.
+            These are the concepts we identified based on your uploaded course materials.
           </p>
         </div>
 
-        <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
-          <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-          <div className="text-xs text-muted-foreground">
-            <p className="font-medium text-foreground mb-0.5">Human-in-the-loop checkpoint</p>
-            <p>The lesson plan will be generated using only the concepts you confirm here. Take a moment to refine the list — add anything missing, remove anything irrelevant.</p>
-          </div>
-        </div>
+        {/* Identify Concepts — primary trigger */}
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" /> Identify Concepts
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Scan your uploaded course materials to extract concepts you can review and confirm below.
+              </p>
+            </div>
+            <Button
+              onClick={fetchSuggestions}
+              disabled={loadingSuggestions}
+              className="shrink-0"
+            >
+              {loadingSuggestions ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Identifying…</>
+              ) : suggestionsRequested ? (
+                <><RefreshCw className="h-4 w-4 mr-2" /> Re-identify Concepts</>
+              ) : (
+                <><Sparkles className="h-4 w-4 mr-2" /> Identify Concepts</>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Extracted concepts */}
+        <Card className="border-dashed">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" /> Extracted Concepts
+            </CardTitle>
+            <CardDescription>
+              Concepts identified from your uploaded course materials. Add the ones that fit — individually or by unit.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!suggestionsRequested && !loadingSuggestions ? (
+              <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                Click "Identify Concepts" above to extract concepts from your materials.
+              </div>
+            ) : loadingSuggestions ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              </div>
+            ) : suggestions.length === 0 ? (
+              <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                No additional concepts to extract. Your confirmed list looks complete.
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {(() => {
+                  const groups: { key: string; unit_number?: number; unit_title?: string; items: Suggestion[] }[] = [];
+                  const indexByKey = new Map<string, number>();
+                  for (const s of suggestions) {
+                    const key = s.unit_number != null ? `u-${s.unit_number}` : "other";
+                    if (!indexByKey.has(key)) {
+                      indexByKey.set(key, groups.length);
+                      groups.push({
+                        key,
+                        unit_number: s.unit_number,
+                        unit_title: s.unit_title,
+                        items: [],
+                      });
+                    }
+                    groups[indexByKey.get(key)!].items.push(s);
+                  }
+                  return groups.map((g) => (
+                    <div key={g.key} className="space-y-2">
+                      <div className="flex items-center justify-between gap-2 px-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {g.unit_number != null ? (
+                            <>
+                              <Badge variant="secondary" className="text-[10px] font-semibold shrink-0">
+                                Unit {g.unit_number}
+                              </Badge>
+                              <span className="text-xs font-medium text-foreground truncate">
+                                {g.unit_title || ""}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xs font-medium text-muted-foreground">Other</span>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs shrink-0"
+                          onClick={() => handleAddAllInUnit(g.key, g.items)}
+                          disabled={addingUnitKey === g.key}
+                        >
+                          {addingUnitKey === g.key ? (
+                            <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Adding…</>
+                          ) : (
+                            <><Plus className="h-3 w-3 mr-1" /> Add All ({g.items.length})</>
+                          )}
+                        </Button>
+                      </div>
+                      {g.items.map((s) => (
+                        <div
+                          key={s.name}
+                          className="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3 flex items-start gap-3"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-semibold">{s.name}</p>
+                              <Badge variant="outline" className="text-[10px] gap-0.5 border-primary/30 text-primary">
+                                <Sparkles className="h-2.5 w-2.5" /> Extracted
+                              </Badge>
+                            </div>
+                            {s.rationale && (
+                              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{s.rationale}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => handleAddSuggestion(s)}>
+                              <Plus className="h-3 w-3 mr-1" /> Add
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => handleDismissSuggestion(s)}>
+                              Dismiss
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ));
+                })()}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Confirmed concepts */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Check className="h-5 w-5 text-primary" /> Confirmed Concepts
-                </CardTitle>
-                <CardDescription>
-                  {concepts.length} concept{concepts.length === 1 ? "" : "s"} will be used to generate your lesson plan.
-                </CardDescription>
-              </div>
-            </div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Check className="h-5 w-5 text-primary" /> Confirmed Concepts
+            </CardTitle>
+            <CardDescription>
+              {concepts.length} concept{concepts.length === 1 ? "" : "s"} will be used to generate your lesson plan. You can delete irrelevant concepts or add any that were missed.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Sequencing note */}
+            <div className="flex items-start gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
+              <ListOrdered className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Concepts are numbered in the order they appear in your syllabus and sequenced in a structured, pedagogically informed order to support effective teaching progression. Numbers update automatically as you add or remove concepts.
+              </p>
+            </div>
+
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
               </div>
             ) : concepts.length === 0 ? (
               <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                No concepts yet. Add some manually below or fetch AI suggestions.
+                No concepts confirmed yet. Use "Identify Concepts" above or add one manually below.
               </div>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2">
-                {concepts.map((c) => (
+                {concepts.map((c, idx) => (
                   <div
                     key={c.id}
                     className="group relative flex items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2.5"
                   >
-                    <span className="text-sm font-medium truncate">{c.concept_code}</span>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary tabular-nums">
+                        {idx + 1}
+                      </span>
+                      <span className="text-sm font-medium truncate">{c.concept_code}</span>
+                    </div>
                     {confirmDeleteId === c.id ? (
                       <div className="flex items-center gap-1 shrink-0">
                         <span className="text-[11px] text-muted-foreground mr-1">Remove?</span>
@@ -255,7 +416,7 @@ const ConceptReview = () => {
             {/* Manual add */}
             <div className="flex items-center gap-2 pt-2 border-t">
               <Input
-                placeholder="Add a concept..."
+                placeholder="Manually add a concept that was missed…"
                 value={newConcept}
                 onChange={(e) => setNewConcept(e.target.value)}
                 onKeyDown={(e) => {
@@ -270,119 +431,6 @@ const ConceptReview = () => {
                 {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 mr-1" /> Add</>}
               </Button>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* AI Suggestions */}
-        <Card className="border-dashed">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" /> AI-Suggested Concepts to Include
-                </CardTitle>
-                <CardDescription>
-                  Concepts that may be missing or underrepresented in your materials. Review and add any that fit.
-                </CardDescription>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchSuggestions}
-                disabled={loadingSuggestions}
-              >
-                {loadingSuggestions ? (
-                  <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Analyzing…</>
-                ) : suggestionsRequested ? (
-                  <><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh</>
-                ) : (
-                  <><Sparkles className="h-3.5 w-3.5 mr-1.5" /> Get suggestions</>
-                )}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {!suggestionsRequested && !loadingSuggestions ? (
-              <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-                Click "Get suggestions" to see concepts the AI thinks may be missing.
-              </div>
-            ) : loadingSuggestions ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              </div>
-            ) : suggestions.length === 0 ? (
-              <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-                No additional suggestions. Your concept list looks complete.
-              </div>
-            ) : (
-              <div className="space-y-5">
-                {(() => {
-                  // Group suggestions by unit, preserving server order
-                  const groups: { key: string; unit_number?: number; unit_title?: string; items: Suggestion[] }[] = [];
-                  const indexByKey = new Map<string, number>();
-                  for (const s of suggestions) {
-                    const key =
-                      s.unit_number != null
-                        ? `u-${s.unit_number}`
-                        : "other";
-                    if (!indexByKey.has(key)) {
-                      indexByKey.set(key, groups.length);
-                      groups.push({
-                        key,
-                        unit_number: s.unit_number,
-                        unit_title: s.unit_title,
-                        items: [],
-                      });
-                    }
-                    groups[indexByKey.get(key)!].items.push(s);
-                  }
-                  return groups.map((g) => (
-                    <div key={g.key} className="space-y-2">
-                      <div className="flex items-center gap-2 px-1">
-                        {g.unit_number != null ? (
-                          <>
-                            <Badge variant="secondary" className="text-[10px] font-semibold">
-                              Unit {g.unit_number}
-                            </Badge>
-                            <span className="text-xs font-medium text-foreground">
-                              {g.unit_title || ""}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-xs font-medium text-muted-foreground">Other</span>
-                        )}
-                      </div>
-                      {g.items.map((s) => (
-                        <div
-                          key={s.name}
-                          className="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3 flex items-start gap-3"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-sm font-semibold">{s.name}</p>
-                              <Badge variant="outline" className="text-[10px] gap-0.5 border-primary/30 text-primary">
-                                <Sparkles className="h-2.5 w-2.5" /> Suggested
-                              </Badge>
-                            </div>
-                            {s.rationale && (
-                              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{s.rationale}</p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => handleAddSuggestion(s)}>
-                              <Plus className="h-3 w-3 mr-1" /> Add
-                            </Button>
-                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => handleDismissSuggestion(s)}>
-                              Dismiss
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ));
-                })()}
-              </div>
-            )}
           </CardContent>
         </Card>
 
