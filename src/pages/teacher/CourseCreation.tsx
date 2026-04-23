@@ -516,6 +516,57 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   }
 
   if (phase === "generating") {
+    // If schedule is loaded but Total Weeks isn't set yet, prompt the teacher to set it
+    if (scheduleLoaded && !totalWeeks) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+          <Card className="w-full max-w-[560px] p-6 space-y-5">
+            {!embedded && (
+              <Button variant="outline" size="sm" onClick={() => navigate("/teacher/setup")} className="gap-2 self-start">
+                <ArrowLeft className="h-4 w-4" /> Back to Course Setup
+              </Button>
+            )}
+            <div className="space-y-1">
+              <h1 className="font-heading text-xl font-bold">Set your course schedule</h1>
+              <p className="text-sm text-muted-foreground">
+                Tell us how long the course runs and which weeks are exam weeks. We'll distribute your approved concepts across the remaining teaching weeks in learning order.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm">Total Weeks</Label>
+                <Input
+                  type="number"
+                  min={4}
+                  max={24}
+                  value={totalWeeks ?? ""}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (Number.isFinite(v) && v >= 4 && v <= 24) {
+                      setTotalWeeks(v);
+                      persistSchedule({ total_weeks: v });
+                    } else if (e.target.value === "") {
+                      setTotalWeeks(null);
+                    }
+                  }}
+                  placeholder="e.g. 16"
+                  className="mt-1"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">Between 4 and 24 weeks.</p>
+              </div>
+            </div>
+            <Button
+              className="w-full"
+              disabled={!totalWeeks}
+              onClick={() => { /* effect picks up totalWeeks change */ }}
+            >
+              Continue
+            </Button>
+          </Card>
+        </div>
+      );
+    }
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
         <div className="w-full max-w-[640px] text-center space-y-8">
@@ -542,11 +593,21 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           </div>
           {genError && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3 text-left">
-              <p className="text-sm font-medium text-destructive">Generation failed</p>
+              <p className="text-sm font-medium text-destructive">
+                {noConceptsError ? "No approved concepts found" : "Generation failed"}
+              </p>
               <p className="text-xs text-muted-foreground">{genError}</p>
-              <div className="flex justify-center gap-2">
-                <Button variant="outline" size="sm" onClick={runGeneration}>Retry</Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/teacher/setup/upload")}>Back to materials</Button>
+              <div className="flex justify-center gap-2 flex-wrap">
+                {noConceptsError ? (
+                  <Button size="sm" onClick={() => navigate("/teacher/setup/concept-review")}>
+                    Go to Concept Review <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="outline" size="sm" onClick={runGeneration}>Retry</Button>
+                    <Button variant="ghost" size="sm" onClick={() => navigate("/teacher/setup/upload")}>Back to materials</Button>
+                  </>
+                )}
               </div>
             </div>
           )}
