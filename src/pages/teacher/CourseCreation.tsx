@@ -104,13 +104,32 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [scheduleExpanded, setScheduleExpanded] = useState(true);
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
 
-  // ─── Auto-recover course when missing (e.g. AUTH_BYPASS admin, fresh load) ───
+  // ─── Auto-recover / validate course (handles missing or stale localStorage IDs) ───
   useEffect(() => {
-    if (courseId || !user) return;
+    if (!user) return;
     let cancelled = false;
     (async () => {
       setResolvingCourse(true);
-      // Owned course first
+
+      // 1. If we have a stored courseId, verify it still exists
+      if (courseId) {
+        const { data: existing } = await supabase
+          .from("courses")
+          .select("id")
+          .eq("id", courseId)
+          .maybeSingle();
+        if (cancelled) return;
+        if (existing?.id) {
+          setResolvingCourse(false);
+          return;
+        }
+        // Stale ID — clear it and fall through to recovery
+        console.warn("Stored courseId no longer exists, recovering:", courseId);
+        localStorage.removeItem("currentCourseId");
+        setCourseId(null);
+      }
+
+      // 2. Recover: owned course first
       let { data } = await supabase
         .from("courses")
         .select("id")
@@ -119,7 +138,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         .limit(1)
         .maybeSingle();
 
-      // Fallback: any course (admin / collaborator can see via RLS)
+      // 3. Fallback: any course visible via RLS (admin / collaborator)
       if (!data) {
         const res = await supabase
           .from("courses")
