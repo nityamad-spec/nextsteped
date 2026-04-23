@@ -134,6 +134,39 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     return () => { cancelled = true; };
   }, [courseId, user]);
 
+  // ─── Load course schedule (total_weeks / midterm / final) ───
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("courses")
+        .select("total_weeks, midterm_week, final_week")
+        .eq("id", courseId)
+        .maybeSingle();
+      if (cancelled) return;
+      const tw = data?.total_weeks ?? 16;
+      const mw = data?.midterm_week ?? null;
+      const fw = data?.final_week ?? null;
+      setTotalWeeks(tw);
+      setMidtermWeek(mw);
+      setFinalWeek(fw);
+      // Auto-expand the schedule card if anything is unset
+      setScheduleExpanded(!data?.total_weeks || (mw == null && fw == null));
+      setScheduleLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
+
+  // Persist a single schedule field to the courses table
+  const persistSchedule = useCallback(async (patch: { total_weeks?: number; midterm_week?: number | null; final_week?: number | null }) => {
+    if (!courseId) return;
+    const { error } = await supabase.from("courses").update(patch).eq("id", courseId);
+    if (error) {
+      toast({ title: "Could not save schedule", description: error.message, variant: "destructive" });
+    }
+  }, [courseId, toast]);
+
   const [phase, setPhase] = useState<"generating" | "plan">("generating");
   const [genError, setGenError] = useState<string | null>(null);
   const [noConceptsError, setNoConceptsError] = useState(false);
