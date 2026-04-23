@@ -680,11 +680,112 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           </div>
         </Card>
 
-        {gapMode && (
-          <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground/80">
-            Since you've uploaded existing teaching materials, the plan below highlights gaps and additions not already covered in what you've shared.
-          </div>
-        )}
+        {/* Course Schedule — Total Weeks / Midterm / Final */}
+        <Card className="overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setScheduleExpanded(s => !s)}
+            className="flex w-full items-center justify-between px-5 py-3.5 hover:bg-muted/20 transition-colors text-left"
+          >
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-primary" />
+              <p className="text-sm font-semibold">Course Schedule</p>
+              {totalWeeks && (
+                <span className="text-xs text-muted-foreground">
+                  · {totalWeeks} weeks
+                  {midtermWeek ? ` · Midterm Wk ${midtermWeek}` : ""}
+                  {finalWeek ? ` · Final Wk ${finalWeek}` : ""}
+                </span>
+              )}
+            </div>
+            {scheduleExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {scheduleExpanded && (
+            <div className="border-t px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <Label className="text-xs">Total Weeks</Label>
+                <Input
+                  type="number"
+                  min={4}
+                  max={24}
+                  value={totalWeeks ?? ""}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (Number.isFinite(v) && v >= 4 && v <= 24) {
+                      setTotalWeeks(v);
+                      // If midterm/final exceed new total, clear them
+                      const patch: any = { total_weeks: v };
+                      if (midtermWeek && midtermWeek > v) { setMidtermWeek(null); patch.midterm_week = null; }
+                      if (finalWeek && finalWeek > v) { setFinalWeek(null); patch.final_week = null; }
+                      persistSchedule(patch);
+                    } else if (e.target.value === "") {
+                      setTotalWeeks(null);
+                    }
+                  }}
+                  className="mt-1 h-9"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">4–24 weeks</p>
+              </div>
+              <div>
+                <Label className="text-xs">Midterm Week</Label>
+                <Select
+                  value={midtermWeek ? String(midtermWeek) : "none"}
+                  onValueChange={(v) => {
+                    const next = v === "none" ? null : parseInt(v, 10);
+                    setMidtermWeek(next);
+                    persistSchedule({ midterm_week: next });
+                  }}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
+                      .filter(n => n !== finalWeek)
+                      .map(n => (
+                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Final Week</Label>
+                <Select
+                  value={finalWeek ? String(finalWeek) : "none"}
+                  onValueChange={(v) => {
+                    const next = v === "none" ? null : parseInt(v, 10);
+                    setFinalWeek(next);
+                    persistSchedule({ final_week: next });
+                  }}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
+                      .filter(n => n !== midtermWeek)
+                      .map(n => (
+                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="sm:col-span-3 flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRegenerateConfirm(true)}
+                  disabled={!totalWeeks}
+                >
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Regenerate plan with these settings
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {/* Notice: concepts come from approved list */}
+        <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground/80">
+          Concepts shown below come from your approved concept list and have been arranged in teaching order based on estimated learning duration.
+        </div>
 
         {/* Overall Course Learning Outcomes — shown FIRST, before Week 1 */}
         <Card className="p-5 space-y-3 border-primary/20 bg-primary/5">
