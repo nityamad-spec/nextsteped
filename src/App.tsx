@@ -126,11 +126,12 @@ function StudentRedirect() {
   }
 
   // Sync DB state to local context
-  if (hasProfile && hasEnrollment) setStudentOnboarded(true);
+  if (hasProfile) setStudentOnboarded(true);
   if (hasDiagnostic) setDiagnosticComplete(true);
 
-  if (!hasProfile || !hasEnrollment) return <Navigate to="/student/onboarding" replace />;
-  if (!hasDiagnostic) return <Navigate to="/student/diagnostic" replace />;
+  // Profile is the only onboarding gate; enrollment is optional and can happen later.
+  if (!hasProfile) return <Navigate to="/student/onboarding" replace />;
+  if (hasEnrollment && !hasDiagnostic) return <Navigate to="/student/diagnostic" replace />;
   return <Navigate to="/student/home" replace />;
 }
 
