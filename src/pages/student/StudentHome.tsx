@@ -8,6 +8,7 @@ import { useTASettings } from "@/hooks/useTASettings";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { resolvePublishedPath, LESSON_PLAN_BUCKET } from "@/lib/lessonPlanPath";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -80,7 +81,11 @@ const StudentHome = () => {
     const loadPlan = async () => {
       if (!enrolledCourseId) { setPlanLoading(false); return; }
       try {
-        const { data: course } = await supabase.from("courses").select("teacher_id, start_date, total_weeks").eq("id", enrolledCourseId).maybeSingle();
+        const { data: course } = await supabase
+          .from("courses")
+          .select("teacher_id, start_date, total_weeks, lesson_plan_path")
+          .eq("id", enrolledCourseId)
+          .maybeSingle();
         if (!course?.teacher_id) { setPlanLoading(false); return; }
         if (course.start_date) setCourseStartDate(course.start_date);
         if (course.total_weeks) setTotalWeeks(course.total_weeks);
@@ -91,7 +96,10 @@ const StudentHome = () => {
           ? Math.max(1, Math.min(weeks, Math.floor((Date.now() - new Date(course.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1))
           : 999; // If no start_date, show all unlocked
 
-        const { data } = await supabase.storage.from("course-materials").download(`${course.teacher_id}/lesson-plan/published-plan.json?t=${Date.now()}`);
+        const planPath = resolvePublishedPath(course, course.teacher_id);
+        const { data } = await supabase.storage
+          .from(LESSON_PLAN_BUCKET)
+          .download(`${planPath}?t=${Date.now()}`);
         if (data) {
           const parsed = JSON.parse(await data.text());
           if (Array.isArray(parsed) && parsed.length > 0) {

@@ -18,6 +18,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { supabase } from "@/integrations/supabase/client";
+import { resolvePublishedPath, LESSON_PLAN_BUCKET } from "@/lib/lessonPlanPath";
 
 type Status = "Not Started" | "In Progress" | "Complete";
 
@@ -131,9 +132,19 @@ const CourseSetup = () => {
       // Card 2 (Lesson Plan): Complete ONLY if the teacher has explicitly published the plan.
       // We do NOT treat a draft as In Progress unless the teacher actually opened the module.
       try {
+        // Look up the path from the courses row (falls back to legacy path).
+        let publishedPath = `${user.id}/lesson-plan/published-plan.json`;
+        if (courseId) {
+          const { data: courseRow } = await supabase
+            .from("courses")
+            .select("lesson_plan_path")
+            .eq("id", courseId)
+            .maybeSingle();
+          publishedPath = resolvePublishedPath(courseRow, user.id);
+        }
         const { data: published } = await supabase.storage
-          .from("course-materials")
-          .download(`${user.id}/lesson-plan/published-plan.json`);
+          .from(LESSON_PLAN_BUCKET)
+          .download(publishedPath);
         if (published) {
           next["lesson-plan"] = "Complete";
         } else if (opened["lesson-plan"]) {

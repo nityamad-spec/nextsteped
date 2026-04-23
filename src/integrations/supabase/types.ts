@@ -526,6 +526,9 @@ export type Database = {
           final_week: number | null
           graduation_year: string[] | null
           id: string
+          lesson_plan_draft_path: string | null
+          lesson_plan_path: string | null
+          lesson_plan_published_at: string | null
           materials_uploaded: boolean
           midterm_week: number | null
           name: string
@@ -552,6 +555,9 @@ export type Database = {
           final_week?: number | null
           graduation_year?: string[] | null
           id?: string
+          lesson_plan_draft_path?: string | null
+          lesson_plan_path?: string | null
+          lesson_plan_published_at?: string | null
           materials_uploaded?: boolean
           midterm_week?: number | null
           name: string
@@ -578,6 +584,9 @@ export type Database = {
           final_week?: number | null
           graduation_year?: string[] | null
           id?: string
+          lesson_plan_draft_path?: string | null
+          lesson_plan_path?: string | null
+          lesson_plan_published_at?: string | null
           materials_uploaded?: boolean
           midterm_week?: number | null
           name?: string

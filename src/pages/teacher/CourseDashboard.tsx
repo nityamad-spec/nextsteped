@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { useTASettings } from "@/hooks/useTASettings";
 import { supabase } from "@/integrations/supabase/client";
+import { resolvePublishedPath, LESSON_PLAN_BUCKET } from "@/lib/lessonPlanPath";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -53,13 +54,22 @@ const CourseDashboard = () => {
   useEffect(() => {
     if (!user) return;
     const checkPlan = async () => {
+      let publishedPath = `${user.id}/lesson-plan/published-plan.json`;
+      if (courseId) {
+        const { data: courseRow } = await supabase
+          .from("courses")
+          .select("lesson_plan_path")
+          .eq("id", courseId)
+          .maybeSingle();
+        publishedPath = resolvePublishedPath(courseRow, user.id);
+      }
       const { data } = await supabase.storage
-        .from("course-materials")
-        .download(`${user.id}/lesson-plan/published-plan.json?t=${Date.now()}`);
+        .from(LESSON_PLAN_BUCKET)
+        .download(`${publishedPath}?t=${Date.now()}`);
       setLessonPlanPublished(!!data);
     };
     checkPlan();
-  }, [user]);
+  }, [user, courseId]);
 
   useEffect(() => {
     if (!user) return;
@@ -73,9 +83,18 @@ const CourseDashboard = () => {
           .limit(1);
         if (!syllabusFiles || syllabusFiles.length === 0) { setSetupComplete(false); return; }
 
+        let publishedPath = `${user.id}/lesson-plan/published-plan.json`;
+        if (courseId) {
+          const { data: courseRow } = await supabase
+            .from("courses")
+            .select("lesson_plan_path")
+            .eq("id", courseId)
+            .maybeSingle();
+          publishedPath = resolvePublishedPath(courseRow, user.id);
+        }
         const { data: published } = await supabase.storage
-          .from("course-materials")
-          .download(`${user.id}/lesson-plan/published-plan.json`);
+          .from(LESSON_PLAN_BUCKET)
+          .download(publishedPath);
         if (!published) { setSetupComplete(false); return; }
 
         if (!courseId) { setSetupComplete(false); return; }

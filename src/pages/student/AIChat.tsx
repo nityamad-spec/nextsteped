@@ -16,6 +16,7 @@ import ExamHistory from "@/components/ExamHistory";
 import ExamPrepPanel, { ExamCustomSettings } from "@/components/ExamPrepPanel";
 import { getQuizQuestions, getExamQuestions, Question } from "@/data/questionBank";
 import { supabase } from "@/integrations/supabase/client";
+import { resolvePublishedPath, LESSON_PLAN_BUCKET } from "@/lib/lessonPlanPath";
 import { seededShuffle } from "@/lib/seededShuffle";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -323,16 +324,21 @@ const AIChat = () => {
   const fetchVisibleTopics = async (): Promise<string[]> => {
     if (!enrolledCourseId || !courseContext?.teacherId) return [];
     try {
-      const [planRes, courseRes] = await Promise.all([
-        supabase.storage.from("course-materials").download(`${courseContext.teacherId}/lesson-plan/published-plan.json?t=${Date.now()}`),
-        supabase.from("courses").select("start_date").eq("id", enrolledCourseId).maybeSingle(),
-      ]);
+      const { data: courseRow } = await supabase
+        .from("courses")
+        .select("start_date, lesson_plan_path")
+        .eq("id", enrolledCourseId)
+        .maybeSingle();
+      const planPath = resolvePublishedPath(courseRow, courseContext.teacherId);
+      const planRes = await supabase.storage
+        .from(LESSON_PLAN_BUCKET)
+        .download(`${planPath}?t=${Date.now()}`);
       if (!planRes.data) return [];
       const plan = JSON.parse(await planRes.data.text());
       if (!Array.isArray(plan)) return [];
 
       // Compute current week from course start_date
-      const startDate = courseRes.data?.start_date;
+      const startDate = courseRow?.start_date;
       const courseCurrentWeek = startDate
         ? Math.max(1, Math.floor((Date.now() - new Date(startDate).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1)
         : 999;

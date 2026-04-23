@@ -3,6 +3,12 @@ import { motion, Reorder } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  resolvePublishedPath,
+  recordPublishedPath,
+  legacyPublishedPath,
+  LESSON_PLAN_BUCKET,
+} from "@/lib/lessonPlanPath";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -135,9 +141,18 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
     const load = async () => {
       if (!user) return;
       try {
+        let publishedPath = legacyPublishedPath(user.id);
+        if (courseId) {
+          const { data: courseRow } = await supabase
+            .from("courses")
+            .select("lesson_plan_path")
+            .eq("id", courseId)
+            .maybeSingle();
+          publishedPath = resolvePublishedPath(courseRow, user.id);
+        }
         const { data } = await supabase.storage
-          .from("course-materials")
-          .download(`${user.id}/lesson-plan/published-plan.json?t=${Date.now()}`);
+          .from(LESSON_PLAN_BUCKET)
+          .download(`${publishedPath}?t=${Date.now()}`);
         if (data) {
           const parsed = JSON.parse(await data.text());
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -151,7 +166,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
       setLoading(false);
     };
     load();
-  }, [user]);
+  }, [user, courseId]);
 
   // Fetch course start_date to compute auto-reveal week
   useEffect(() => {
@@ -177,10 +192,13 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
       }));
       const blob = new Blob([JSON.stringify(cleanDays, null, 2)], { type: "application/json" });
       const file = new File([blob], "published-plan.json", { type: "application/json" });
+      const publishedPath = legacyPublishedPath(user.id);
       const { error } = await supabase.storage
-        .from("course-materials")
-        .upload(`${user.id}/lesson-plan/published-plan.json`, file, { upsert: true, cacheControl: "0" });
+        .from(LESSON_PLAN_BUCKET)
+        .upload(publishedPath, file, { upsert: true, cacheControl: "0" });
       if (error) throw error;
+      // Record path + publish timestamp on the course row (best-effort).
+      if (courseId) await recordPublishedPath(courseId, publishedPath);
       setDays(cleanDays);
       setHasChanges(false);
       toast({ title: "Plan saved", description: "Your lesson plan has been saved successfully." });
