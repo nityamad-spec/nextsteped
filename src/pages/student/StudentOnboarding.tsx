@@ -9,16 +9,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, ArrowLeft, User, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowRight, ArrowLeft, User } from "lucide-react";
 import { toast } from "sonner";
 
 interface University { id: string; name: string }
 interface Degree { id: string; name: string }
 interface Branch { id: string; name: string; degree_id: string }
-interface ResolvedCourse { id: string; name: string; course_code: string | null; sections: string[] | null; branch: string[] | null; graduation_year: string[] | null }
 
 const StudentOnboarding = () => {
-  const { setStudentProfile, setStudentOnboarded, setCurrentCourse } = useApp();
+  const { setStudentProfile, setStudentOnboarded } = useApp();
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [checkingStatus, setCheckingStatus] = useState(true);
@@ -30,21 +29,15 @@ const StudentOnboarding = () => {
   const [degreeId, setDegreeId] = useState("");
   const [branchId, setBranchId] = useState("");
 
-  const [resolvedCourse, setResolvedCourse] = useState<ResolvedCourse | null>(null);
-  const [resolvingCourse, setResolvingCourse] = useState(false);
-  const [enrollmentCode, setEnrollmentCode] = useState("");
-  const [section, setSection] = useState("");
-
   const [universities, setUniversities] = useState<University[]>([]);
   const [degrees, setDegrees] = useState<Degree[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Redirect if already onboarded — wait for auth to settle, then proceed even if no user
+  // Redirect if already onboarded — wait for auth to settle
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      // Auth resolved but no user (e.g. bypass admin signin failed). Stop blocking the UI.
       setCheckingStatus(false);
       return;
     }
@@ -64,33 +57,6 @@ const StudentOnboarding = () => {
     check();
   }, [user, authLoading]);
 
-  // Auto-resolve enrollment code from user metadata
-  useEffect(() => {
-    if (!user) return;
-    const code = user.user_metadata?.enrollment_code;
-    if (!code) return;
-    setEnrollmentCode(code);
-    setResolvingCourse(true);
-    const resolve = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("courses")
-          .select("id, name, course_code, sections, branch, graduation_year")
-          .eq("enrollment_code", code)
-          .eq("published", true)
-          .limit(1)
-          .maybeSingle();
-        if (error) throw error;
-        if (data) setResolvedCourse(data);
-      } catch (err: any) {
-        toast.error("Could not resolve your enrollment code. Contact your instructor.");
-      } finally {
-        setResolvingCourse(false);
-      }
-    };
-    resolve();
-  }, [user]);
-
   useEffect(() => {
     const fetchData = async () => {
       const [uniRes, degRes] = await Promise.all([
@@ -103,7 +69,7 @@ const StudentOnboarding = () => {
     fetchData();
   }, []);
 
-  // Filter branches by course-specified branches and degree
+  // Load branches for the selected degree
   useEffect(() => {
     if (!degreeId) { setBranches([]); setBranchId(""); return; }
     const fetchBranches = async () => {
@@ -113,44 +79,23 @@ const StudentOnboarding = () => {
         .eq("degree_id", degreeId)
         .order("name");
       if (data) {
-        // Filter to only course-specified branches if available
-        const courseBranches = resolvedCourse?.branch;
-        const filtered = courseBranches && courseBranches.length > 0
-          ? data.filter((b) => courseBranches.includes(b.name))
-          : data;
-        setBranches(filtered);
-        // Auto-select if only one option
-        if (filtered.length === 1) {
-          setBranchId(filtered[0].id);
-        } else {
-          setBranchId("");
-        }
+        setBranches(data);
+        if (data.length === 1) setBranchId(data[0].id);
+        else setBranchId("");
       } else {
         setBranches([]);
         setBranchId("");
       }
     };
     fetchBranches();
-  }, [degreeId, resolvedCourse]);
+  }, [degreeId]);
 
-  // Compute filtered graduation years from course
-  const courseYears = resolvedCourse?.graduation_year;
-  const filteredYears = courseYears && courseYears.length > 0
-    ? courseYears
-    : ["2027", "2028", "2029", "2030", "2031"];
+  const yearOptions = ["2027", "2028", "2029", "2030", "2031"];
 
-  // Auto-select year if only one option
-  useEffect(() => {
-    if (filteredYears.length === 1 && year !== filteredYears[0]) {
-      setYear(filteredYears[0]);
-    }
-  }, [filteredYears.length]);
-
-  const hasSections = resolvedCourse?.sections && resolvedCourse.sections.length > 0;
-  const isValid = name.trim() && rollNumber.trim() && universityId && degreeId && branchId && year && resolvedCourse && (!hasSections || section);
+  const isValid = name.trim() && rollNumber.trim() && universityId && degreeId && branchId && year;
 
   const handleComplete = async () => {
-    if (!user || !resolvedCourse) return;
+    if (!user) return;
     setSaving(true);
     try {
       const { error } = await supabase.from("profiles").upsert({
@@ -167,29 +112,12 @@ const StudentOnboarding = () => {
       });
       if (error) throw error;
 
-      await supabase.from("enrollments").upsert(
-        { student_id: user.id, course_id: resolvedCourse.id, ...(section ? { section } : {}) },
-        { onConflict: "student_id,course_id" as any }
-      );
-
       setStudentProfile({
         name,
-        courseCode: resolvedCourse.course_code || "",
+        courseCode: "",
         learnerLevel: "Beginner",
         topicBaseline: {},
       });
-      setCurrentCourse({
-        id: resolvedCourse.id,
-        name: resolvedCourse.name,
-        term: "First Semester",
-        sections: [],
-        objectives: [],
-        enrollmentCode: enrollmentCode,
-        syllabusUploaded: false,
-        materialsUploaded: false,
-        published: true,
-      });
-      localStorage.setItem("enrolledCourseId", resolvedCourse.id);
       setStudentOnboarded(true);
       navigate("/student/diagnostic");
     } catch (err: any) {
@@ -231,49 +159,6 @@ const StudentOnboarding = () => {
           </CardHeader>
           <CardContent>
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-              {/* Course confirmation card */}
-              {resolvingCourse ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Resolving your course...
-                </div>
-              ) : resolvedCourse ? (
-                <Card className="border-primary/20 bg-primary/5">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <CheckCircle2 className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{resolvedCourse.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Course Code: {resolvedCourse.course_code || "N/A"}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <p className="text-sm text-destructive">
-                  No enrollment code found. Please sign up again with a valid code.
-                </p>
-              )}
-
-              {hasSections && (
-                <div className="space-y-2">
-                  <Label>Section</Label>
-                  <Select value={section} onValueChange={setSection}>
-                    <SelectTrigger className="h-11">
-                      <SelectValue placeholder="Select your section" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {resolvedCourse!.sections!.map((s) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
               <div className="space-y-2">
                 <Label>Full Name</Label>
                 <Input placeholder="Enter your full name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
@@ -333,7 +218,7 @@ const StudentOnboarding = () => {
                     <SelectValue placeholder="Select graduation year" />
                   </SelectTrigger>
                   <SelectContent>
-                    {filteredYears.map((y) => (
+                    {yearOptions.map((y) => (
                       <SelectItem key={y} value={y}>{y}</SelectItem>
                     ))}
                   </SelectContent>
@@ -345,7 +230,7 @@ const StudentOnboarding = () => {
                   <ArrowLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
                 <Button onClick={handleComplete} disabled={!isValid || saving}>
-                  {saving ? "Saving..." : "Continue to Diagnostic"} <ArrowRight className="ml-2 h-4 w-4" />
+                  {saving ? "Saving..." : "Continue"} <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </motion.div>

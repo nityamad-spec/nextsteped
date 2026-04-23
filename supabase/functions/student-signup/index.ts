@@ -11,7 +11,7 @@ const BodySchema = z.object({
   email: z.string().email("Invalid email address").max(255),
   password: z.string().min(6, "Password must be at least 6 characters").max(128),
   name: z.string().trim().min(1, "Name is required").max(200),
-  enrollment_code: z.string().trim().min(1, "Enrollment code is required").max(50),
+  enrollment_code: z.string().trim().max(50).optional(),
 });
 
 const MAX_ATTEMPTS_PER_HOUR = 5;
@@ -64,38 +64,42 @@ Deno.serve(async (req) => {
     // Record the attempt
     await adminClient.from("signup_attempts").insert({ email: email.toLowerCase() });
 
-    // --- Verify enrollment code ---
-    const { data: course, error: courseError } = await adminClient
-      .from("courses")
-      .select("id, name, course_code, enrollment_open")
-      .eq("enrollment_code", enrollment_code)
-      .eq("published", true)
-      .limit(1)
-      .maybeSingle();
+    // --- Optionally verify enrollment code (kept for backward compat) ---
+    if (enrollment_code) {
+      const { data: course, error: courseError } = await adminClient
+        .from("courses")
+        .select("id, name, course_code, enrollment_open")
+        .eq("enrollment_code", enrollment_code)
+        .eq("published", true)
+        .limit(1)
+        .maybeSingle();
 
-    if (courseError) throw courseError;
+      if (courseError) throw courseError;
 
-    if (!course) {
-      return new Response(
-        JSON.stringify({ error: "Invalid enrollment code. Please check with your instructor." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+      if (!course) {
+        return new Response(
+          JSON.stringify({ error: "Invalid enrollment code. Please check with your instructor." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
-    if (!course.enrollment_open) {
-      return new Response(
-        JSON.stringify({ error: "Enrollment is closed for this course. Please contact your instructor." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (!course.enrollment_open) {
+        return new Response(
+          JSON.stringify({ error: "Enrollment is closed for this course. Please contact your instructor." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // --- Create user via admin API (bypasses IP rate limits) ---
-    // --- Create user with auto-confirm (enrollment code already proves legitimacy) ---
+    const userMetadata: Record<string, string> = { name, role: "student" };
+    if (enrollment_code) userMetadata.enrollment_code = enrollment_code;
+
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { name, role: "student", enrollment_code },
+      user_metadata: userMetadata,
     });
 
     if (createError) {

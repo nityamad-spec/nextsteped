@@ -32,7 +32,7 @@ async function withRetry<T>(
   throw new Error("Unreachable");
 }
 
-interface ResolvedCourse { id: string; name: string; course_code: string | null }
+
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -52,11 +52,6 @@ const Auth = () => {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
 
-  // Enrollment code state (student signup only)
-  const [enrollmentCode, setEnrollmentCode] = useState("");
-  const [resolvedCourse, setResolvedCourse] = useState<ResolvedCourse | null>(null);
-  const [verifyingCode, setVerifyingCode] = useState(false);
-  const [codeError, setCodeError] = useState("");
   const [teacherSignupsEnabled, setTeacherSignupsEnabled] = useState(true);
   const [teacherSignupsLoading, setTeacherSignupsLoading] = useState(false);
 
@@ -75,43 +70,6 @@ const Auth = () => {
         });
     }
   }, [isLogin, role]);
-
-  const verifyEnrollmentCode = async () => {
-    const code = enrollmentCode.trim();
-    if (!code) return;
-    setVerifyingCode(true);
-    setCodeError("");
-    setResolvedCourse(null);
-    try {
-      const { data, error } = await withRetry(
-        async () => {
-          const res = await supabase
-            .from("courses")
-            .select("id, name, course_code, enrollment_open")
-            .eq("enrollment_code", code)
-            .eq("published", true)
-            .limit(1)
-            .maybeSingle();
-          return res;
-        },
-        (r) => r.error?.message ?? null
-      );
-      if (error) throw error;
-      if (data) {
-        if (!data.enrollment_open) {
-          setCodeError("Enrollment is closed for this course. Please contact your instructor.");
-        } else {
-          setResolvedCourse(data);
-        }
-      } else {
-        setCodeError("Invalid enrollment code. Please check with your instructor.");
-      }
-    } catch (err: any) {
-      setCodeError(err.message || "Failed to verify code");
-    } finally {
-      setVerifyingCode(false);
-    }
-  };
 
   const startCooldown = () => {
     setIsCooldown(true);
@@ -211,15 +169,8 @@ const Auth = () => {
           toast.success("Your application has been submitted! An admin will review it shortly.");
         }
       } else {
-        // Student signup: enrollment code must be verified
-        if (!resolvedCourse) {
-          toast.error("Please verify your enrollment code before signing up.");
-          setLoading(false);
-          return;
-        }
-
         const { error } = await withRetry(
-          () => signUp(email, password, name, role, enrollmentCode.trim()),
+          () => signUp(email, password, name, role),
           (r) => r.error
         );
         if (error) {
@@ -238,7 +189,7 @@ const Auth = () => {
     setLoading(false);
   };
 
-  const showEnrollmentField = !isLogin && role === "student";
+  
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -345,57 +296,6 @@ const Auth = () => {
                 )}
               </div>
 
-              {showEnrollmentField && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="enrollmentCode">Enrollment Code</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="enrollmentCode"
-                        placeholder="Enter code from your instructor"
-                        value={enrollmentCode}
-                        onChange={(e) => {
-                          setEnrollmentCode(e.target.value);
-                          setResolvedCourse(null);
-                          setCodeError("");
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={verifyEnrollmentCode}
-                        disabled={!enrollmentCode.trim() || verifyingCode}
-                      >
-                        {verifyingCode ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify"}
-                      </Button>
-                    </div>
-                    {codeError && (
-                      <p className="text-sm text-destructive">{codeError}</p>
-                    )}
-                  </div>
-
-                  {resolvedCourse && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
-                      <Card className="border-primary/20 bg-primary/5">
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                              <CheckCircle2 className="h-5 w-5" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">{resolvedCourse.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Course Code: {resolvedCourse.course_code || "N/A"}
-                              </p>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  )}
-                </>
-              )}
-
               {!isLogin && role === "teacher" && !teacherSignupsEnabled && (
                 <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-center">
                   <p className="text-sm font-medium text-destructive">
@@ -413,7 +313,6 @@ const Auth = () => {
                 disabled={
                   loading ||
                   isCooldown ||
-                  (showEnrollmentField && !resolvedCourse) ||
                   (!isLogin && role === "teacher" && !teacherSignupsEnabled) ||
                   teacherSignupsLoading
                 }
