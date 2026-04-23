@@ -1,56 +1,51 @@
 
 
-## Fix "In Progress" badge stuck after AI Assistant & Enrollment save
+## Fix "Go to Dashboard" button on Teacher Onboarding
 
-### Root cause
+### Problem
 
-`CourseSetup.tsx` uses two strategies to compute the status badge:
+Clicking **Go to Dashboard** on `/teacher/onboarding` appears to do nothing on the first attempt; the user has to reload the page to make progress. Two underlying issues:
 
-1. **Data-driven** (e.g. syllabus uploaded, concepts exist, lesson plan published) → flips to **Complete** automatically.
-2. **Opened-only** (Enrollment) or **content-driven** (AI Assistant requires `custom_study_prompt` non-empty).
-
-Problems:
-- **AI Assistant**: stays **In Progress** unless the teacher types a custom prompt. The default prompt is shown disabled and is sufficient on its own — most teachers save without overriding it, so the step never completes.
-- **Enrollment & Course Settings**: there is no completion criterion in `CourseSetup.tsx` at all (comment in code: "no DB-backed completion criteria yet"), and `EnrollmentSettings.handleSave` is a toast-only no-op. So clicking "Save & Finish" can never mark it Complete.
+1. **No visible feedback during save.** `handleContinue` runs 4–6 sequential Supabase queries (profile read → profile insert/update → course read → course insert/update). The button stays enabled with the same label the entire time, so a slow network looks like a dead button. If the user clicks again, a second insert may run.
+2. **Silent failures.** There is no `try/catch` around the whole flow. If any query throws (transient network error, RLS race right after sign-up, `setSession` not yet propagated), the handler aborts mid-way with no toast and no navigation. After reload, the partial state is detected and the second attempt succeeds — which is exactly the "reload to proceed" symptom.
+3. **Auth-readiness race.** Right after sign-up, the Supabase JS client occasionally fires the `INITIAL_SESSION` event before the access token is fully attached to the client. The first DB write can therefore run with no `Authorization` header, get rejected by RLS, and throw — again silently.
 
 ### Fix
 
-Introduce an explicit per-step **"completed"** flag stored in the existing `teacher_setup_progress` table, alongside `opened_at`. The save handler in each module marks it complete; `CourseSetup` reads it as the completion source for steps that don't have a natural data-driven signal.
+Tighten `src/pages/teacher/TeacherOnboarding.tsx` only. No DB changes, no schema changes, no routing changes.
 
-#### 1. DB migration
+#### 1. Add a `saving` state + double-submit guard
 
-Add `completed_at timestamptz NULL` to `teacher_setup_progress`. No backfill needed — null = not completed.
+- New `const [saving, setSaving] = useState(false);`
+- Guard at top of `handleContinue`: `if (saving || !user) return;` then `setSaving(true)` and `setSaving(false)` in a `finally` block.
+- Button: `disabled={!isValid || saving}`; label flips to **"Saving…"** with a spinner icon while saving so the click is obviously registered.
 
-#### 2. New helper in `CourseSetup.tsx`
+#### 2. Wrap the whole flow in `try/catch/finally`
 
-- Extend `fetchOpenedSteps` → `fetchStepProgress(uid)` returning `{ opened: Record<string,boolean>, completed: Record<string,boolean> }`.
-- New `markStepCompleted(uid, stepId)` upserts `completed_at = now()`.
+- Catch any thrown error and show `toast.error("Something went wrong. Please try again.")` with the error message appended.
+- `finally { setSaving(false); }` so the button always re-enables.
 
-#### 3. Module save handlers mark themselves complete
+#### 3. Ensure auth session is attached before the first write
 
-| Module | File | Change |
-|---|---|---|
-| AI Assistant | `src/pages/teacher/AIAssistantAndSettings.tsx` | After successful `saveTASettings(...)`, call `markStepCompleted(user.id, "ai-settings")` |
-| Enrollment & Course | `src/pages/teacher/EnrollmentSettings.tsx` | In `handleSave`, persist `start_date`/`end_date` to `courses` table (currently lost), then call `markStepCompleted(user.id, "enrollment")` |
+- At the top of `handleContinue`, after the `saving` guard, call `await supabase.auth.getSession()` once and bail out with a toast if no `session?.access_token` is present. This forces the Supabase client to flush any pending `setSession` before the first RLS-protected query runs, eliminating the post-signup race.
 
-#### 4. Update `CourseSetup.tsx` status logic
+#### 4. Parallelize the two independent reads
 
-- **AI Assistant** (`ai-settings`): Complete if `completed[ai-settings]` is true OR `custom_study_prompt` is non-empty (keep legacy auto-complete for teachers who already wrote a prompt). Otherwise In Progress if opened.
-- **Enrollment** (`enrollment`): Complete if `completed[enrollment]` is true. Otherwise In Progress if opened.
-- **Exam Mode**: Keep existing logic (`exam_enabled || exam_approved`); no change.
+- Run the existing-profile lookup and existing-course lookup with `Promise.all([...])` instead of sequentially. Cuts perceived save time roughly in half on a slow network. The two writes (`update`/`insert`) still run sequentially because they depend on the read results.
+
+#### 5. Defer context updates until after navigate decision
+
+Keep the existing `setTeacherProfile` / `setCurrentCourse` calls, but only run them after both DB writes have succeeded, so a mid-flight failure never leaves the AppContext partially populated.
 
 ### Files touched
 
 | Path | Change |
 |---|---|
-| `supabase/migrations/<new>.sql` | `ALTER TABLE teacher_setup_progress ADD COLUMN completed_at timestamptz NULL;` |
-| `src/pages/teacher/CourseSetup.tsx` | Replace `fetchOpenedSteps` with `fetchStepProgress`; update AI Assistant + Enrollment completion rules; export `markStepCompleted` helper (or move helpers to a small shared file) |
-| `src/pages/teacher/AIAssistantAndSettings.tsx` | Call `markStepCompleted(user.id, "ai-settings")` after successful save |
-| `src/pages/teacher/EnrollmentSettings.tsx` | Persist `start_date`/`end_date` to `courses`; call `markStepCompleted(user.id, "enrollment")` after save |
+| `src/pages/teacher/TeacherOnboarding.tsx` | Add `saving` state, double-submit guard, `try/catch/finally`, `getSession()` warm-up, `Promise.all` for reads, button shows "Saving…" with spinner. |
 
 ### Out of scope
 
-- No change to the AI Assistant's default prompt behavior or Enrollment UI/fields.
-- No retroactive marking — teachers who previously saved these modules will need to click "Save & Finish" once more (single click, then permanent).
-- No change to other steps (Upload, Concept Review, Lesson Plan, Diagnostic, Exam Mode) — their data-driven completion already works.
+- No change to `useTeacherSetupStatus`, `TeacherRedirect`, or `TeacherLayout` gating logic — those already work once a course row exists.
+- No change to the database, RLS, or edge functions.
+- No change to other onboarding flows (student, admin).
 
