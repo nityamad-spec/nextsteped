@@ -18,6 +18,7 @@ import { resolvePublishedPath, LESSON_PLAN_BUCKET } from "@/lib/lessonPlanPath";
  */
 export function useTeacherSetupStatus() {
   const { user } = useAuth();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [isComplete, setIsComplete] = useState(false);
 
