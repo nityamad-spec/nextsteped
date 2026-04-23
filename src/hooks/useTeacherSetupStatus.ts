@@ -104,7 +104,7 @@ export function useTeacherSetupStatus() {
 
     run();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [user, location.pathname]);
 
   return { loading, isComplete };
 }
