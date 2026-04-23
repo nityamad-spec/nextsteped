@@ -1,0 +1,1 @@
+ALTER TABLE public.teacher_setup_progress ADD COLUMN IF NOT EXISTS completed_at timestamptz NULL;

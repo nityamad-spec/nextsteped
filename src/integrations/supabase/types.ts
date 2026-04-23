@@ -1032,6 +1032,7 @@ export type Database = {
       }
       teacher_setup_progress: {
         Row: {
+          completed_at: string | null
           created_at: string
           id: string
           opened_at: string
@@ -1040,6 +1041,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          completed_at?: string | null
           created_at?: string
           id?: string
           opened_at?: string
@@ -1048,6 +1050,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          completed_at?: string | null
           created_at?: string
           id?: string
           opened_at?: string
