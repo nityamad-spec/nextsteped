@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { resolvePublishedPath, LESSON_PLAN_BUCKET } from "@/lib/lessonPlanPath";
@@ -17,6 +18,7 @@ import { resolvePublishedPath, LESSON_PLAN_BUCKET } from "@/lib/lessonPlanPath";
  */
 export function useTeacherSetupStatus() {
   const { user } = useAuth();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [isComplete, setIsComplete] = useState(false);
 
@@ -102,7 +104,7 @@ export function useTeacherSetupStatus() {
 
     run();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [user, location.pathname]);
 
   return { loading, isComplete };
 }
