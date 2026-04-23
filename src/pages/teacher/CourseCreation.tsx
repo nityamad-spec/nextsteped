@@ -90,6 +90,14 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const draftLocalKey = `lessonPlanDraftV2:${courseId || user?.id || "default"}`;
   const draftStoragePath = user ? `${user.id}/lesson-plan/draft-plan-v2.json` : null;
 
+  // ─── Course schedule settings (Total Weeks / Midterm / Final) ───
+  const [totalWeeks, setTotalWeeks] = useState<number | null>(null);
+  const [midtermWeek, setMidtermWeek] = useState<number | null>(null);
+  const [finalWeek, setFinalWeek] = useState<number | null>(null);
+  const [scheduleLoaded, setScheduleLoaded] = useState(false);
+  const [scheduleExpanded, setScheduleExpanded] = useState(true);
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
+
   // ─── Auto-recover course when missing (e.g. AUTH_BYPASS admin, fresh load) ───
   useEffect(() => {
     if (courseId || !user) return;
