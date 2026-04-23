@@ -51,7 +51,7 @@ serve(async (req) => {
   }
 
   try {
-    const { courseId, mode: requestedMode } = await req.json();
+    const { courseId } = await req.json();
     if (!courseId) {
       return new Response(JSON.stringify({ error: "courseId is required" }), {
         status: 400,
@@ -85,7 +85,35 @@ serve(async (req) => {
     const midtermWeek = course.midterm_week || null;
     const finalWeek = course.final_week || null;
 
-    // 2. Fetch all uploaded files; classify by folder type
+    // 2. Load CONFIRMED concepts from Concept Review (source of truth)
+    const { data: conceptRows, error: conceptError } = await supabaseAdmin
+      .from("concepts")
+      .select("id, concept_code, weight, created_at")
+      .eq("course_id", courseId)
+      .order("created_at", { ascending: true });
+
+    if (conceptError) {
+      throw new Error(`Failed to load concepts: ${conceptError.message}`);
+    }
+
+    if (!conceptRows || conceptRows.length === 0) {
+      return new Response(
+        JSON.stringify({
+          error: "No confirmed concepts. Complete Concept Review first.",
+          code: "NO_CONCEPTS",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const orderedConceptNames: string[] = conceptRows.map((c: any) => String(c.concept_code).trim());
+    // Lookup map for case-insensitive name resolution
+    const conceptNameLookup = new Map<string, string>();
+    for (const name of orderedConceptNames) {
+      conceptNameLookup.set(name.toLowerCase(), name);
+    }
+
+    // 3. Fetch uploaded files (for context only)
     const { data: files } = await supabaseAdmin
       .from("course_material_files")
       .select("file_name, storage_path, folder_type")
@@ -97,7 +125,7 @@ serve(async (req) => {
     const lessonPlanFiles = (files || []).filter((f) => f.folder_type === "lesson-plans");
     const materialFiles = (files || []).filter((f) => f.folder_type === "materials");
 
-    // 2a. Syllabus context — prefer uploaded syllabus files, fall back to legacy syllabus_json_path
+    // 3a. Syllabus context
     let syllabusContext = "";
     let syllabusChars = 0;
     for (const f of syllabusFiles) {
@@ -123,7 +151,7 @@ serve(async (req) => {
       }
     }
 
-    // 2b. Lesson plan docs (PRIMARY)
+    // 3b. Lesson plan docs (context for pacing)
     let totalChars = 0;
     const lessonPlanExcerpts: string[] = [];
     for (const f of lessonPlanFiles) {
@@ -133,80 +161,80 @@ serve(async (req) => {
         const slice = text.slice(0, MAX_TOTAL_DOC_CHARS - totalChars);
         lessonPlanExcerpts.push(`--- ${f.file_name} ---\n${slice}`);
         totalChars += slice.length;
-      } else {
-        lessonPlanExcerpts.push(`--- ${f.file_name} (binary, name only) ---`);
       }
     }
 
     const materialFileNames = materialFiles.map((f) => f.file_name);
 
-    // 3. Build prompts
+    // 4. Build prompts
+    const examWeeks = new Set<number>();
+    if (midtermWeek) examWeeks.add(midtermWeek);
+    if (finalWeek) examWeeks.add(finalWeek);
+    const teachingWeeksCount = totalWeeks - examWeeks.size;
+
     const examWeeksDescription = [
-      midtermWeek ? `- Week ${midtermWeek}: MIDTERM EXAM` : null,
-      finalWeek ? `- Week ${finalWeek}: FINAL EXAM` : null,
+      midtermWeek ? `- Week ${midtermWeek}: MIDTERM EXAM (no new concepts)` : null,
+      finalWeek ? `- Week ${finalWeek}: FINAL EXAM (no new concepts)` : null,
     ].filter(Boolean).join("\n");
 
-    // Gap mode = teacher uploaded existing lesson plan docs; surface only NEW additions/insights
-    const gapMode = requestedMode === "gap" || lessonPlanFiles.length > 0;
+    const systemPrompt = `You are an expert curriculum designer distributing a finalized list of approved course concepts across teaching weeks for a university course.
 
-    const gapModeInstruction = gapMode
-      ? `
-GAP MODE (CRITICAL): The professor has uploaded existing lesson plan/teaching materials. Your job is NOT to repeat or paraphrase what is already in those documents. Instead, for each week, the overview, concepts, exercise, articles, and key concepts you emit should ONLY be net-new additions, gaps, or current-industry insights NOT already present in the uploaded materials. If a week is fully covered by uploaded content, emit a short overview that says "Existing materials cover this week well — see additions below." and provide only true additions in concepts/resources. Mark every concept and resource you emit as ai_suggested=true in this mode.`
-      : "";
+CRITICAL RULES:
+1. You will be given a finalized ORDERED list of concepts. You MUST distribute ALL of them across the ${teachingWeeksCount} teaching weeks (excluding exam weeks).
+2. Maintain the SAME LEARNING ORDER as the input list — concepts in earlier list positions go in earlier weeks. Never reorder them.
+3. Estimate how many weeks each concept needs based on depth/complexity:
+   - A simple concept may share a week with 1-2 other concepts.
+   - A complex concept may span 2 consecutive weeks (repeat the SAME concept name in both weeks).
+   - Aim for roughly balanced cognitive load per week.
+4. Exam weeks (midterm/final) get NO new concepts — set is_exam_week=true, concept_names=[], no resources, and overview="Exam week — review prior content."
+5. Every concept from the input list MUST appear in at least one week. DO NOT invent new concepts. DO NOT drop any concepts. Use concept names EXACTLY as given.
+6. Produce EXACTLY ${totalWeeks} weeks numbered 1..${totalWeeks} in order.
 
-    const systemPrompt = `You are an expert curriculum designer building a complete week-by-week lesson plan for a university course.
-
-OUTPUT RULES:
-1. Produce EXACTLY ${totalWeeks} weeks, numbered 1..${totalWeeks}, in chronological teaching order. Prerequisites first; complexity grows.
-2. Ground EVERY week in the actual uploaded materials. Lesson plan documents are the PRIMARY source. The syllabus is the structural skeleton. Other materials are context.
-3. Topics MUST be specific to THIS course — never default to a generic Python/intro template.
-4. Mark exam weeks with is_exam_week=true (we will pass which weeks are exam weeks). Exam weeks still get normal content; the badge is just a flag.
-${gapModeInstruction}
-
-PER-WEEK CONTENT (STRICT FORMAT):
-- "week_name": A short, specific title for the week's theme (e.g., "Functions & Scope", "Intro to Pandas DataFrames"). 3-6 words. Required.
-- "overview": 1 to 2 sentences summarizing what students learn this week.
-- "concepts" (Topics Covered): 2-5 items. Each = a topic name + one short sentence describing it. Set ai_suggested=true ONLY when the concept is genuinely missing from the uploaded docs but is a necessary prerequisite or a current/timely real-world topic that strengthens the course. Otherwise ai_suggested=false.
-- "resources": EXACTLY 1 coding-exercise + 1 to 2 articles. NO other types are allowed.
-   * coding-exercise (exactly 1 per week): an industry-relevant coding task. Title + a concrete prompt-style description that ties to a real-world application.
-   * article (1 to 2 per week): a recent (last ~3 years), real, high-quality article tying the week's concepts to current industry/real-world examples. Provide a working URL (https://...).
-  Set ai_suggested=true if YOU generated it (vs. extracted from uploads). All articles you generate are ai_suggested=true.
-- The LAST 1 to 2 concepts in the concepts array (with ai_suggested=true preferred) will be surfaced as "Key Concepts to Include" — make sure at least the final concept is something the professor must ensure students understand by the end of the week.
+PER-WEEK CONTENT (for non-exam weeks):
+- "week_name": short specific title for the theme (3-6 words), e.g. "Functions & Scope", "Intro to Pandas".
+- "overview": 1-2 sentences summarizing what students learn this week, grounded in the assigned concepts.
+- "concept_names": array of concept names assigned to this week, drawn EXACTLY from the input list.
+- "resources": EXACTLY 1 coding-exercise + 1 to 2 articles tied to the week's concepts.
+   * coding-exercise (exactly 1): industry-relevant task. Title + concrete prompt-style description.
+   * article (1-2): real, recent (~3 yrs), high-quality article with working https URL.
 
 TOP-LEVEL OUTPUT:
-- "overall_course_learning_outcomes": ONE short paragraph (3-5 sentences) summarizing what students should be able to do by the end of the entire course. Returned ONCE, not per week.
-
-FORBIDDEN:
-- Do NOT include any "Learning Outcomes by Week" section.
-- Do NOT include any "Additional Tips", "Teaching Strategies", or freeform sections.
-- Do NOT emit more than 1 coding-exercise per week. Do NOT emit more than 2 articles per week.
+- "overall_course_learning_outcomes": ONE short paragraph (3-5 sentences) on what students will be able to do by course end.
 
 Return ONLY via the provided tool — no prose.`;
+
+    const conceptListBlock = orderedConceptNames
+      .map((n, i) => `${i + 1}. ${n}`)
+      .join("\n");
 
     const userPrompt = `COURSE METADATA:
 - Name: ${course.name}
 - Code: ${course.course_code || "N/A"}
 - Term: ${course.term}
 - Total weeks: ${totalWeeks}
+- Teaching weeks (non-exam): ${teachingWeeksCount}
 - Sessions/week: ${course.sessions_per_week || 2}
 - Session length: ${course.session_length_minutes || 60} min
 - Objectives: ${(course.objectives || []).join("; ") || "Not specified"}
 
-EXAM WEEKS (mark is_exam_week=true on these):
+EXAM WEEKS (must be marked is_exam_week=true with no concepts):
 ${examWeeksDescription || "(no exam weeks specified)"}
 
-SYLLABUS (uploaded by professor):
+APPROVED CONCEPTS — DISTRIBUTE THESE EXACTLY, IN THIS ORDER:
+${conceptListBlock}
+
+SYLLABUS CONTEXT (for pacing/depth signals only — DO NOT add new concepts from here):
 ${syllabusContext || "(none uploaded)"}
 
-UPLOADED LESSON PLAN DOCUMENTS (PRIMARY SOURCE):
-${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n") : "(none uploaded — derive plan from syllabus + objectives)"}
+LESSON PLAN DOCUMENTS (for pacing signals only):
+${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n") : "(none uploaded)"}
 
 OTHER COURSE MATERIALS AVAILABLE (filenames only, for context):
 ${materialFileNames.length > 0 ? materialFileNames.join(", ") : "(none)"}
 
-Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP (additions only)" : "FULL"}.`;
+Distribute the ${orderedConceptNames.length} approved concepts above across ${totalWeeks} weeks (${teachingWeeksCount} teaching + ${examWeeks.size} exam). Maintain order. Every concept must appear at least once.`;
 
-    // 4. Call Lovable AI gateway with tool calling
+    // 5. Call Lovable AI gateway with tool calling
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -223,8 +251,8 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
           {
             type: "function",
             function: {
-              name: "emit_lesson_plan",
-              description: "Emit the complete week-by-week lesson plan",
+              name: "distribute_concepts_into_weeks",
+              description: "Distribute the approved concepts across the course weeks in learning order.",
               parameters: {
                 type: "object",
                 properties: {
@@ -234,21 +262,13 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
                       type: "object",
                       properties: {
                         week: { type: "integer", description: "Week number, 1-indexed" },
-                        week_name: { type: "string", description: "Short specific title for the week's theme, 3-6 words" },
-                        overview: { type: "string", description: "1-2 sentence overview of what's taught this week" },
+                        week_name: { type: "string", description: "Short specific title (3-6 words). Empty for exam weeks." },
+                        overview: { type: "string", description: "1-2 sentence overview. For exam weeks: 'Exam week — review prior content.'" },
                         is_exam_week: { type: "boolean" },
-                        concepts: {
+                        concept_names: {
                           type: "array",
-                          items: {
-                            type: "object",
-                            properties: {
-                              name: { type: "string" },
-                              brief_description: { type: "string", description: "One short sentence" },
-                              ai_suggested: { type: "boolean", description: "True only when this concept is genuinely missing from uploads but additive" },
-                            },
-                            required: ["name", "brief_description", "ai_suggested"],
-                            additionalProperties: false,
-                          },
+                          items: { type: "string" },
+                          description: "Concept names drawn EXACTLY from the approved list. Empty array for exam weeks.",
                         },
                         resources: {
                           type: "array",
@@ -257,8 +277,8 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
                             properties: {
                               type: { type: "string", enum: ["coding-exercise", "article"] },
                               title: { type: "string" },
-                              description: { type: "string", description: "For coding-exercise: a prompt-style task. For article: 1-2 sentence summary." },
-                              url: { type: "string", description: "Required for article (https://...). Optional for coding-exercise." },
+                              description: { type: "string" },
+                              url: { type: "string", description: "Required for article (https://...)." },
                               ai_suggested: { type: "boolean" },
                             },
                             required: ["type", "title", "description", "ai_suggested"],
@@ -266,13 +286,13 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
                           },
                         },
                       },
-                      required: ["week", "week_name", "overview", "is_exam_week", "concepts", "resources"],
+                      required: ["week", "week_name", "overview", "is_exam_week", "concept_names", "resources"],
                       additionalProperties: false,
                     },
                   },
                   overall_course_learning_outcomes: {
                     type: "string",
-                    description: "ONE short paragraph (3-5 sentences) summarizing what students should be able to do by the end of the entire course. Returned ONCE.",
+                    description: "ONE short paragraph (3-5 sentences) on what students will be able to do by course end.",
                   },
                 },
                 required: ["weeks", "overall_course_learning_outcomes"],
@@ -281,7 +301,7 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
             },
           },
         ],
-        tool_choice: { type: "function", function: { name: "emit_lesson_plan" } },
+        tool_choice: { type: "function", function: { name: "distribute_concepts_into_weeks" } },
       }),
     });
 
@@ -306,7 +326,7 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
     const data = await response.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall?.function?.arguments) {
-      throw new Error("AI did not return a structured lesson plan");
+      throw new Error("AI did not return a structured distribution");
     }
 
     const parsed = JSON.parse(toolCall.function.arguments);
@@ -323,65 +343,95 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
       return [...exercises, ...articles];
     };
 
-    // Normalize: sort, slice to totalWeeks, force is_exam_week based on midterm/final
-    const normalized = rawWeeks
-      .slice()
-      .sort((a, b) => (a.week || 0) - (b.week || 0))
-      .slice(0, totalWeeks)
-      .map((w, i) => {
-        const weekNum = i + 1;
-        const isExam = weekNum === midtermWeek || weekNum === finalWeek || !!w.is_exam_week;
-        return {
-          week: weekNum,
-          week_name: typeof w.week_name === "string" ? w.week_name.trim() : "",
-          overview: w.overview || "",
-          is_exam_week: isExam,
-          exam_type: weekNum === midtermWeek ? "midterm" : weekNum === finalWeek ? "final" : null,
-          concepts: Array.isArray(w.concepts) ? w.concepts : [],
-          resources: capResources(w.resources),
-        };
-      });
+    // Resolve a concept name (case-insensitive) back to its canonical form. Returns null if unknown.
+    const resolveConceptName = (raw: string): string | null => {
+      if (!raw || typeof raw !== "string") return null;
+      const key = raw.trim().toLowerCase();
+      return conceptNameLookup.get(key) || null;
+    };
 
-    // Pad if AI returned fewer weeks
-    while (normalized.length < totalWeeks) {
-      const i = normalized.length;
-      const weekNum = i + 1;
-      const isExam = weekNum === midtermWeek || weekNum === finalWeek;
-      normalized.push({
-        week: weekNum,
-        week_name: "",
-        overview: "",
-        is_exam_week: isExam,
-        exam_type: weekNum === midtermWeek ? "midterm" : weekNum === finalWeek ? "final" : null,
-        concepts: [],
-        resources: [],
-      });
+    // Track which approved concepts have been assigned at least once
+    const assignedConcepts = new Set<string>();
+
+    // Normalize: index by week number, slice/pad to totalWeeks, force exam-week behavior
+    const byWeek = new Map<number, any>();
+    for (const w of rawWeeks) {
+      const num = Number(w?.week);
+      if (Number.isFinite(num) && num >= 1 && num <= totalWeeks && !byWeek.has(num)) {
+        byWeek.set(num, w);
+      }
     }
 
-    // 5. Store derived concepts in the concepts table (backend mapping for diagnostic/exam targeting)
-    try {
-      const allConceptNames = new Set<string>();
-      for (const w of normalized) {
-        for (const c of w.concepts || []) {
-          if (c?.name) allConceptNames.add(String(c.name).trim());
+    const normalized: any[] = [];
+    for (let weekNum = 1; weekNum <= totalWeeks; weekNum++) {
+      const w = byWeek.get(weekNum) || {};
+      const isExam = examWeeks.has(weekNum);
+      const examType = weekNum === midtermWeek ? "midterm" : weekNum === finalWeek ? "final" : null;
+
+      if (isExam) {
+        normalized.push({
+          week: weekNum,
+          week_name: examType === "midterm" ? "Midterm Exam" : examType === "final" ? "Final Exam" : "Exam Week",
+          overview: "Exam week — review prior content.",
+          is_exam_week: true,
+          exam_type: examType,
+          concepts: [],
+          resources: [],
+        });
+        continue;
+      }
+
+      // Resolve concept names against the approved list
+      const rawNames: string[] = Array.isArray(w.concept_names) ? w.concept_names : [];
+      const resolvedNames: string[] = [];
+      const seenInWeek = new Set<string>();
+      for (const rn of rawNames) {
+        const canonical = resolveConceptName(rn);
+        if (canonical && !seenInWeek.has(canonical)) {
+          resolvedNames.push(canonical);
+          seenInWeek.add(canonical);
+          assignedConcepts.add(canonical);
         }
       }
 
-      // Wipe existing concepts for this course and reseed
-      await supabaseAdmin.from("concepts").delete().eq("course_id", courseId);
+      const concepts = resolvedNames.map((name) => ({
+        name,
+        brief_description: "",
+        ai_suggested: false,
+      }));
 
-      if (allConceptNames.size > 0) {
-        const weight = Math.round((100 / allConceptNames.size) * 100) / 100;
-        const rows = Array.from(allConceptNames).map((name) => ({
-          course_id: courseId,
-          concept_code: name,
-          weight,
-        }));
-        await supabaseAdmin.from("concepts").insert(rows);
-      }
-    } catch (conceptErr) {
-      console.error("concept persistence failed (non-fatal):", conceptErr);
+      normalized.push({
+        week: weekNum,
+        week_name: typeof w.week_name === "string" ? w.week_name.trim() : "",
+        overview: typeof w.overview === "string" ? w.overview : "",
+        is_exam_week: false,
+        exam_type: null,
+        concepts,
+        resources: capResources(w.resources),
+      });
     }
+
+    // Defensive fallback: any approved concept the AI failed to assign goes to the last non-exam week
+    const unassigned = orderedConceptNames.filter((n) => !assignedConcepts.has(n));
+    if (unassigned.length > 0) {
+      console.warn("Unassigned concepts appended to last teaching week:", unassigned);
+      // Find last non-exam week
+      for (let i = normalized.length - 1; i >= 0; i--) {
+        if (!normalized[i].is_exam_week) {
+          for (const name of unassigned) {
+            normalized[i].concepts.push({
+              name,
+              brief_description: "",
+              ai_suggested: false,
+            });
+          }
+          break;
+        }
+      }
+    }
+
+    // NOTE: We intentionally do NOT modify the concepts table here.
+    // The Concept Review step is the sole source of truth for concepts.
 
     return new Response(
       JSON.stringify({
@@ -391,11 +441,13 @@ Generate exactly ${totalWeeks} weeks following all rules. Mode: ${gapMode ? "GAP
           totalWeeks,
           midtermWeek,
           finalWeek,
+          teachingWeeksCount,
+          approvedConceptsCount: orderedConceptNames.length,
+          unassignedConcepts: unassigned,
           syllabusFilesUsed: syllabusFiles.length,
           lessonPlanFilesUsed: lessonPlanFiles.length,
           materialFilesAvailable: materialFiles.length,
           syllabusContextLoaded: !!syllabusContext,
-          gapMode,
         },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },

@@ -90,6 +90,14 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const draftLocalKey = `lessonPlanDraftV2:${courseId || user?.id || "default"}`;
   const draftStoragePath = user ? `${user.id}/lesson-plan/draft-plan-v2.json` : null;
 
+  // ─── Course schedule settings (Total Weeks / Midterm / Final) ───
+  const [totalWeeks, setTotalWeeks] = useState<number | null>(null);
+  const [midtermWeek, setMidtermWeek] = useState<number | null>(null);
+  const [finalWeek, setFinalWeek] = useState<number | null>(null);
+  const [scheduleLoaded, setScheduleLoaded] = useState(false);
+  const [scheduleExpanded, setScheduleExpanded] = useState(true);
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
+
   // ─── Auto-recover course when missing (e.g. AUTH_BYPASS admin, fresh load) ───
   useEffect(() => {
     if (courseId || !user) return;
@@ -126,8 +134,42 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     return () => { cancelled = true; };
   }, [courseId, user]);
 
+  // ─── Load course schedule (total_weeks / midterm / final) ───
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("courses")
+        .select("total_weeks, midterm_week, final_week")
+        .eq("id", courseId)
+        .maybeSingle();
+      if (cancelled) return;
+      const tw = data?.total_weeks ?? 16;
+      const mw = data?.midterm_week ?? null;
+      const fw = data?.final_week ?? null;
+      setTotalWeeks(tw);
+      setMidtermWeek(mw);
+      setFinalWeek(fw);
+      // Auto-expand the schedule card if anything is unset
+      setScheduleExpanded(!data?.total_weeks || (mw == null && fw == null));
+      setScheduleLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
+
+  // Persist a single schedule field to the courses table
+  const persistSchedule = useCallback(async (patch: { total_weeks?: number; midterm_week?: number | null; final_week?: number | null }) => {
+    if (!courseId) return;
+    const { error } = await supabase.from("courses").update(patch).eq("id", courseId);
+    if (error) {
+      toast({ title: "Could not save schedule", description: error.message, variant: "destructive" });
+    }
+  }, [courseId, toast]);
+
   const [phase, setPhase] = useState<"generating" | "plan">("generating");
   const [genError, setGenError] = useState<string | null>(null);
+  const [noConceptsError, setNoConceptsError] = useState(false);
   const [genElapsed, setGenElapsed] = useState(0);
   const [genStep, setGenStep] = useState(0);
   const [weeks, setWeeksRaw] = useState<WeekPlan[]>([]);
@@ -219,6 +261,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       return;
     }
     setGenError(null);
+    setNoConceptsError(false);
     setGenStep(0);
     setGenElapsed(0);
     const stepTimer = setInterval(() => setGenStep(s => Math.min(s + 1, 2)), 8000);
@@ -230,7 +273,14 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       clearInterval(stepTimer);
       clearInterval(elapsedTimer);
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (data?.error) {
+        if (data?.code === "NO_CONCEPTS") {
+          setNoConceptsError(true);
+          setGenError(data.error);
+          return;
+        }
+        throw new Error(data.error);
+      }
       if (!Array.isArray(data?.weeks) || data.weeks.length === 0) {
         throw new Error("AI returned no weeks. Please try regenerating.");
       }
@@ -262,7 +312,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       setWeeksRaw(normalizeWeeks(generated));
       setExpandedWeeks(generated.length > 0 ? [generated[0].id] : []);
       setOverallOutcomes(typeof data.overall_course_learning_outcomes === "string" ? data.overall_course_learning_outcomes : "");
-      setGapMode(!!data.meta?.gapMode);
+      setGapMode(false);
       setGenStep(2);
       setTimeout(() => setPhase("plan"), 500);
     } catch (err: any) {
@@ -276,6 +326,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   useEffect(() => {
     if (restoringDraft) return;
     if (resolvingCourse) return;
+    if (!scheduleLoaded) return;
     if (!user) return;
     if (phase !== "generating") return;
     if (weeks.length > 0) { setPhase("plan"); return; }
@@ -283,8 +334,11 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       setGenError("No course found yet. Start by uploading materials in Course Materials, then return here.");
       return;
     }
+    if (!totalWeeks) {
+      return;
+    }
     runGeneration();
-  }, [phase, weeks.length, restoringDraft, runGeneration, user, resolvingCourse, courseId]);
+  }, [phase, weeks.length, restoringDraft, runGeneration, user, resolvingCourse, courseId, scheduleLoaded, totalWeeks]);
 
   // ─── Week handlers ───
   const toggleWeek = (id: string) =>
@@ -446,9 +500,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
 
   // ─── Generation phase UI ───
   const genSteps = [
-    { label: "Reading uploaded materials", desc: "Parsing your syllabus, lesson plans, and course documents" },
-    { label: "Mapping weekly topics", desc: "Building concept progression with prerequisites first" },
-    { label: "Generating resources & exercises", desc: "Industry-relevant coding tasks and current articles" },
+    { label: "Loading approved concepts", desc: "Fetching the concepts you confirmed in Concept Review" },
+    { label: "Estimating teaching duration", desc: "Gauging depth and complexity of each concept" },
+    { label: "Distributing across weeks", desc: "Placing concepts into weeks in learning order" },
   ];
 
   if (restoringDraft) {
@@ -462,6 +516,57 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   }
 
   if (phase === "generating") {
+    // If schedule is loaded but Total Weeks isn't set yet, prompt the teacher to set it
+    if (scheduleLoaded && !totalWeeks) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+          <Card className="w-full max-w-[560px] p-6 space-y-5">
+            {!embedded && (
+              <Button variant="outline" size="sm" onClick={() => navigate("/teacher/setup")} className="gap-2 self-start">
+                <ArrowLeft className="h-4 w-4" /> Back to Course Setup
+              </Button>
+            )}
+            <div className="space-y-1">
+              <h1 className="font-heading text-xl font-bold">Set your course schedule</h1>
+              <p className="text-sm text-muted-foreground">
+                Tell us how long the course runs and which weeks are exam weeks. We'll distribute your approved concepts across the remaining teaching weeks in learning order.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm">Total Weeks</Label>
+                <Input
+                  type="number"
+                  min={4}
+                  max={24}
+                  value={totalWeeks ?? ""}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (Number.isFinite(v) && v >= 4 && v <= 24) {
+                      setTotalWeeks(v);
+                      persistSchedule({ total_weeks: v });
+                    } else if (e.target.value === "") {
+                      setTotalWeeks(null);
+                    }
+                  }}
+                  placeholder="e.g. 16"
+                  className="mt-1"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">Between 4 and 24 weeks.</p>
+              </div>
+            </div>
+            <Button
+              className="w-full"
+              disabled={!totalWeeks}
+              onClick={() => { /* effect picks up totalWeeks change */ }}
+            >
+              Continue
+            </Button>
+          </Card>
+        </div>
+      );
+    }
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
         <div className="w-full max-w-[640px] text-center space-y-8">
@@ -488,11 +593,21 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           </div>
           {genError && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3 text-left">
-              <p className="text-sm font-medium text-destructive">Generation failed</p>
+              <p className="text-sm font-medium text-destructive">
+                {noConceptsError ? "No approved concepts found" : "Generation failed"}
+              </p>
               <p className="text-xs text-muted-foreground">{genError}</p>
-              <div className="flex justify-center gap-2">
-                <Button variant="outline" size="sm" onClick={runGeneration}>Retry</Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate("/teacher/setup/upload")}>Back to materials</Button>
+              <div className="flex justify-center gap-2 flex-wrap">
+                {noConceptsError ? (
+                  <Button size="sm" onClick={() => navigate("/teacher/setup/concept-review")}>
+                    Go to Concept Review <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="outline" size="sm" onClick={runGeneration}>Retry</Button>
+                    <Button variant="ghost" size="sm" onClick={() => navigate("/teacher/setup/upload")}>Back to materials</Button>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -565,11 +680,112 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           </div>
         </Card>
 
-        {gapMode && (
-          <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground/80">
-            Since you've uploaded existing teaching materials, the plan below highlights gaps and additions not already covered in what you've shared.
-          </div>
-        )}
+        {/* Course Schedule — Total Weeks / Midterm / Final */}
+        <Card className="overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setScheduleExpanded(s => !s)}
+            className="flex w-full items-center justify-between px-5 py-3.5 hover:bg-muted/20 transition-colors text-left"
+          >
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-primary" />
+              <p className="text-sm font-semibold">Course Schedule</p>
+              {totalWeeks && (
+                <span className="text-xs text-muted-foreground">
+                  · {totalWeeks} weeks
+                  {midtermWeek ? ` · Midterm Wk ${midtermWeek}` : ""}
+                  {finalWeek ? ` · Final Wk ${finalWeek}` : ""}
+                </span>
+              )}
+            </div>
+            {scheduleExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {scheduleExpanded && (
+            <div className="border-t px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <Label className="text-xs">Total Weeks</Label>
+                <Input
+                  type="number"
+                  min={4}
+                  max={24}
+                  value={totalWeeks ?? ""}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (Number.isFinite(v) && v >= 4 && v <= 24) {
+                      setTotalWeeks(v);
+                      // If midterm/final exceed new total, clear them
+                      const patch: any = { total_weeks: v };
+                      if (midtermWeek && midtermWeek > v) { setMidtermWeek(null); patch.midterm_week = null; }
+                      if (finalWeek && finalWeek > v) { setFinalWeek(null); patch.final_week = null; }
+                      persistSchedule(patch);
+                    } else if (e.target.value === "") {
+                      setTotalWeeks(null);
+                    }
+                  }}
+                  className="mt-1 h-9"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">4–24 weeks</p>
+              </div>
+              <div>
+                <Label className="text-xs">Midterm Week</Label>
+                <Select
+                  value={midtermWeek ? String(midtermWeek) : "none"}
+                  onValueChange={(v) => {
+                    const next = v === "none" ? null : parseInt(v, 10);
+                    setMidtermWeek(next);
+                    persistSchedule({ midterm_week: next });
+                  }}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
+                      .filter(n => n !== finalWeek)
+                      .map(n => (
+                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Final Week</Label>
+                <Select
+                  value={finalWeek ? String(finalWeek) : "none"}
+                  onValueChange={(v) => {
+                    const next = v === "none" ? null : parseInt(v, 10);
+                    setFinalWeek(next);
+                    persistSchedule({ final_week: next });
+                  }}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
+                      .filter(n => n !== midtermWeek)
+                      .map(n => (
+                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="sm:col-span-3 flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRegenerateConfirm(true)}
+                  disabled={!totalWeeks}
+                >
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Regenerate plan with these settings
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {/* Notice: concepts come from approved list */}
+        <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground/80">
+          Concepts shown below come from your approved concept list and have been arranged in teaching order based on estimated learning duration.
+        </div>
 
         {/* Overall Course Learning Outcomes — shown FIRST, before Week 1 */}
         <Card className="p-5 space-y-3 border-primary/20 bg-primary/5">
@@ -591,14 +807,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              if (window.confirm("Regenerate the lesson plan from your uploaded materials? This will replace the current plan.")) {
-                setWeeksRaw([]);
-                setExpandedWeeks([]);
-                localStorage.removeItem(draftLocalKey);
-                setPhase("generating");
-              }
-            }}
+            onClick={() => setShowRegenerateConfirm(true)}
           >
             <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Regenerate
           </Button>
@@ -973,6 +1182,32 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowPublishModal(false)}>Cancel</Button>
             <Button onClick={handlePublish} disabled={!publishConfirmed}>Publish & Continue</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Regenerate confirm */}
+      <Dialog open={showRegenerateConfirm} onOpenChange={setShowRegenerateConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Regenerate lesson plan?</DialogTitle>
+            <DialogDescription>
+              This will replace your current weeks and any edits with a fresh distribution based on the schedule above and your approved concepts. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowRegenerateConfirm(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                setShowRegenerateConfirm(false);
+                setWeeksRaw([]);
+                setExpandedWeeks([]);
+                localStorage.removeItem(draftLocalKey);
+                setPhase("generating");
+              }}
+            >
+              Regenerate
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
