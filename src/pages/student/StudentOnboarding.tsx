@@ -19,7 +19,7 @@ interface ResolvedCourse { id: string; name: string; course_code: string | null;
 
 const StudentOnboarding = () => {
   const { setStudentProfile, setStudentOnboarded, setCurrentCourse } = useApp();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [checkingStatus, setCheckingStatus] = useState(true);
 
@@ -40,20 +40,29 @@ const StudentOnboarding = () => {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Redirect if already onboarded
+  // Redirect if already onboarded — wait for auth to settle, then proceed even if no user
   useEffect(() => {
-    if (!user) return;
+    if (authLoading) return;
+    if (!user) {
+      // Auth resolved but no user (e.g. bypass admin signin failed). Stop blocking the UI.
+      setCheckingStatus(false);
+      return;
+    }
     const check = async () => {
-      const { data } = await supabase.from("profiles").select("id, role").eq("id", user.id).maybeSingle();
-      if (data && data.role === "student") {
-        setStudentOnboarded(true);
-        navigate("/student/diagnostic", { replace: true });
-      } else {
-        setCheckingStatus(false);
+      try {
+        const { data } = await supabase.from("profiles").select("id, role").eq("id", user.id).maybeSingle();
+        if (data && data.role === "student") {
+          setStudentOnboarded(true);
+          navigate("/student/diagnostic", { replace: true });
+          return;
+        }
+      } catch (err) {
+        console.warn("[StudentOnboarding] profile check failed:", err);
       }
+      setCheckingStatus(false);
     };
     check();
-  }, [user]);
+  }, [user, authLoading]);
 
   // Auto-resolve enrollment code from user metadata
   useEffect(() => {
