@@ -807,14 +807,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              if (window.confirm("Regenerate the lesson plan from your uploaded materials? This will replace the current plan.")) {
-                setWeeksRaw([]);
-                setExpandedWeeks([]);
-                localStorage.removeItem(draftLocalKey);
-                setPhase("generating");
-              }
-            }}
+            onClick={() => setShowRegenerateConfirm(true)}
           >
             <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Regenerate
           </Button>
