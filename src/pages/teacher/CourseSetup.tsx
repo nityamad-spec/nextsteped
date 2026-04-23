@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { supabase } from "@/integrations/supabase/client";
 import { resolvePublishedPath, LESSON_PLAN_BUCKET } from "@/lib/lessonPlanPath";
+import { fetchStepProgress, markStepOpened } from "@/lib/setupProgress";
 
 type Status = "Not Started" | "In Progress" | "Complete";
 
@@ -40,29 +41,8 @@ const CARDS: CardDef[] = [
   { id: "enrollment", title: "Enrollment & Course Settings", description: "Configure your course schedule, sections, enrollment code, and student roster.", icon: UserPlus, path: "/teacher/setup/enrollment" },
 ];
 
-// Per-teacher per-step "opened" state is persisted in the
-// `teacher_setup_progress` table so In Progress badges follow the
-// professor across devices and logins.
-const fetchOpenedSteps = async (uid: string): Promise<Record<string, boolean>> => {
-  const { data, error } = await supabase
-    .from("teacher_setup_progress")
-    .select("step_id")
-    .eq("teacher_id", uid);
-  if (error || !data) return {};
-  const map: Record<string, boolean> = {};
-  for (const row of data) map[row.step_id] = true;
-  return map;
-};
-
-const markStepOpened = async (uid: string, stepId: string) => {
-  // Upsert on (teacher_id, step_id) so re-opening doesn't error.
-  await supabase
-    .from("teacher_setup_progress")
-    .upsert(
-      { teacher_id: uid, step_id: stepId, opened_at: new Date().toISOString() },
-      { onConflict: "teacher_id,step_id" }
-    );
-};
+// Per-teacher per-step opened/completed state lives in `teacher_setup_progress`
+// (see src/lib/setupProgress.ts) so badges follow the professor across devices.
 
 const StatusBadge = ({ status }: { status: Status }) => {
   if (status === "Complete") {
@@ -105,7 +85,7 @@ const CourseSetup = () => {
     if (!user) return;
     const fetchStatuses = async () => {
       setLoading(true);
-      const opened = await fetchOpenedSteps(user.id);
+      const { opened, completed } = await fetchStepProgress(user.id);
       const next: Record<string, Status> = {
         upload: "Not Started",
         "concept-review": "Not Started",
@@ -179,19 +159,21 @@ const CourseSetup = () => {
           .select("custom_study_prompt, exam_enabled, exam_approved")
           .eq("course_id", courseId)
           .maybeSingle();
-        const aiDone = !!(ta?.custom_study_prompt && ta.custom_study_prompt.trim().length > 0);
+        const aiDone = completed["ai-settings"] || !!(ta?.custom_study_prompt && ta.custom_study_prompt.trim().length > 0);
         const examDone = !!(ta?.exam_enabled || ta?.exam_approved);
         next["ai-settings"] = aiDone ? "Complete" : opened["ai-settings"] ? "In Progress" : "Not Started";
         next["exam-mode"] = examDone ? "Complete" : opened["exam-mode"] ? "In Progress" : "Not Started";
       } else {
         if (opened["concept-review"]) next["concept-review"] = "In Progress";
         if (opened.diagnostic) next.diagnostic = "In Progress";
-        if (opened["ai-settings"]) next["ai-settings"] = "In Progress";
+        if (completed["ai-settings"]) next["ai-settings"] = "Complete";
+        else if (opened["ai-settings"]) next["ai-settings"] = "In Progress";
         if (opened["exam-mode"]) next["exam-mode"] = "In Progress";
       }
 
-      // Card 6 (Enrollment): no DB-backed completion criteria yet — track via opened state.
-      if (opened.enrollment) next.enrollment = "In Progress";
+      // Enrollment: completion is explicit via the save handler.
+      if (completed.enrollment) next.enrollment = "Complete";
+      else if (opened.enrollment) next.enrollment = "In Progress";
 
       setStatuses(next);
       setLoading(false);

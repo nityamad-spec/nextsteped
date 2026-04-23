@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { useTASettings } from "@/hooks/useTASettings";
+import { useAuth } from "@/contexts/AuthContext";
+import { markStepCompleted } from "@/lib/setupProgress";
 import { defaultStudyPrompt } from "@/data/mockData";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -14,6 +16,7 @@ import SetupModuleNav from "@/components/SetupModuleNav";
 const AIAssistantAndSettings = () => {
   const navigate = useNavigate();
   const courseId = useTeacherCourseId();
+  const { user } = useAuth();
   const { taSettings, loading, saveTASettings } = useTASettings(courseId);
 
   const [customStudyPrompt, setCustomStudyPrompt] = useState("");
@@ -25,6 +28,7 @@ const AIAssistantAndSettings = () => {
   const handleSaveAll = async () => {
     try {
       await saveTASettings({ ...taSettings, customStudyPrompt });
+      if (user?.id) await markStepCompleted(user.id, "ai-settings");
       toast.success("Settings saved");
     } catch {
       toast.error("Failed to save settings. Please try again.");

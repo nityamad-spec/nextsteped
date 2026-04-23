@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, UserPlus, Upload, Copy, FileText, ArrowLeft } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
+import { markStepCompleted } from "@/lib/setupProgress";
 
 const EnrollmentSettings = () => {
   const navigate = useNavigate();
@@ -63,8 +64,23 @@ const EnrollmentSettings = () => {
   };
 
   const handleSave = async () => {
-    // Persist any future fields here. For now schedule/sections/nudges are local-only.
-    toast.success("Enrollment settings saved");
+    try {
+      const id = currentCourse?.id || courseId;
+      if (id) {
+        const updates: { start_date?: string | null; end_date?: string | null } = {};
+        if (startDate) updates.start_date = startDate;
+        if (endDate) updates.end_date = endDate;
+        if (Object.keys(updates).length > 0) {
+          const { error } = await supabase.from("courses").update(updates).eq("id", id);
+          if (error) throw error;
+        }
+      }
+      if (user?.id) await markStepCompleted(user.id, "enrollment");
+      toast.success("Enrollment settings saved");
+    } catch {
+      toast.error("Failed to save settings. Please try again.");
+      throw new Error("save failed");
+    }
   };
 
   return (
