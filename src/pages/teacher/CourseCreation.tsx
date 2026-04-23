@@ -500,9 +500,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
 
   // ─── Generation phase UI ───
   const genSteps = [
-    { label: "Reading uploaded materials", desc: "Parsing your syllabus, lesson plans, and course documents" },
-    { label: "Mapping weekly topics", desc: "Building concept progression with prerequisites first" },
-    { label: "Generating resources & exercises", desc: "Industry-relevant coding tasks and current articles" },
+    { label: "Loading approved concepts", desc: "Fetching the concepts you confirmed in Concept Review" },
+    { label: "Estimating teaching duration", desc: "Gauging depth and complexity of each concept" },
+    { label: "Distributing across weeks", desc: "Placing concepts into weeks in learning order" },
   ];
 
   if (restoringDraft) {
