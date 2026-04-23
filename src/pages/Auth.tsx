@@ -32,7 +32,7 @@ async function withRetry<T>(
   throw new Error("Unreachable");
 }
 
-interface ResolvedCourse { id: string; name: string; course_code: string | null }
+
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -52,11 +52,6 @@ const Auth = () => {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
 
-  // Enrollment code state (student signup only)
-  const [enrollmentCode, setEnrollmentCode] = useState("");
-  const [resolvedCourse, setResolvedCourse] = useState<ResolvedCourse | null>(null);
-  const [verifyingCode, setVerifyingCode] = useState(false);
-  const [codeError, setCodeError] = useState("");
   const [teacherSignupsEnabled, setTeacherSignupsEnabled] = useState(true);
   const [teacherSignupsLoading, setTeacherSignupsLoading] = useState(false);
 
@@ -75,43 +70,6 @@ const Auth = () => {
         });
     }
   }, [isLogin, role]);
-
-  const verifyEnrollmentCode = async () => {
-    const code = enrollmentCode.trim();
-    if (!code) return;
-    setVerifyingCode(true);
-    setCodeError("");
-    setResolvedCourse(null);
-    try {
-      const { data, error } = await withRetry(
-        async () => {
-          const res = await supabase
-            .from("courses")
-            .select("id, name, course_code, enrollment_open")
-            .eq("enrollment_code", code)
-            .eq("published", true)
-            .limit(1)
-            .maybeSingle();
-          return res;
-        },
-        (r) => r.error?.message ?? null
-      );
-      if (error) throw error;
-      if (data) {
-        if (!data.enrollment_open) {
-          setCodeError("Enrollment is closed for this course. Please contact your instructor.");
-        } else {
-          setResolvedCourse(data);
-        }
-      } else {
-        setCodeError("Invalid enrollment code. Please check with your instructor.");
-      }
-    } catch (err: any) {
-      setCodeError(err.message || "Failed to verify code");
-    } finally {
-      setVerifyingCode(false);
-    }
-  };
 
   const startCooldown = () => {
     setIsCooldown(true);
@@ -211,15 +169,8 @@ const Auth = () => {
           toast.success("Your application has been submitted! An admin will review it shortly.");
         }
       } else {
-        // Student signup: enrollment code must be verified
-        if (!resolvedCourse) {
-          toast.error("Please verify your enrollment code before signing up.");
-          setLoading(false);
-          return;
-        }
-
         const { error } = await withRetry(
-          () => signUp(email, password, name, role, enrollmentCode.trim()),
+          () => signUp(email, password, name, role),
           (r) => r.error
         );
         if (error) {
@@ -238,7 +189,7 @@ const Auth = () => {
     setLoading(false);
   };
 
-  const showEnrollmentField = !isLogin && role === "student";
+  
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
