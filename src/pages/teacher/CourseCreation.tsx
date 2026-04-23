@@ -1192,6 +1192,32 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Regenerate confirm */}
+      <Dialog open={showRegenerateConfirm} onOpenChange={setShowRegenerateConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Regenerate lesson plan?</DialogTitle>
+            <DialogDescription>
+              This will replace your current weeks and any edits with a fresh distribution based on the schedule above and your approved concepts. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowRegenerateConfirm(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                setShowRegenerateConfirm(false);
+                setWeeksRaw([]);
+                setExpandedWeeks([]);
+                localStorage.removeItem(draftLocalKey);
+                setPhase("generating");
+              }}
+            >
+              Regenerate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
