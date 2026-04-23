@@ -7,7 +7,7 @@ interface AuthState {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, name: string, role: string, enrollment_code?: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, name: string, role: string) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string, role?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
@@ -118,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const signUp = async (email: string, password: string, name: string, role: string, enrollment_code?: string) => {
+  const signUp = async (email: string, password: string, name: string, role: string) => {
     // Student signups go through edge function to bypass per-IP rate limits
     if (role === "student") {
       try {
@@ -130,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               "Content-Type": "application/json",
               apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
             },
-            body: JSON.stringify({ email, password, name, enrollment_code }),
+            body: JSON.stringify({ email, password, name }),
           }
         );
         const data = await parseFunctionResponse(response);
@@ -154,7 +154,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Non-student roles use standard auth signup
     const metadata: Record<string, string> = { name, role };
-    if (enrollment_code) metadata.enrollment_code = enrollment_code;
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
