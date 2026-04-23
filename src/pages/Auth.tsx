@@ -296,57 +296,6 @@ const Auth = () => {
                 )}
               </div>
 
-              {showEnrollmentField && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="enrollmentCode">Enrollment Code</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="enrollmentCode"
-                        placeholder="Enter code from your instructor"
-                        value={enrollmentCode}
-                        onChange={(e) => {
-                          setEnrollmentCode(e.target.value);
-                          setResolvedCourse(null);
-                          setCodeError("");
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={verifyEnrollmentCode}
-                        disabled={!enrollmentCode.trim() || verifyingCode}
-                      >
-                        {verifyingCode ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify"}
-                      </Button>
-                    </div>
-                    {codeError && (
-                      <p className="text-sm text-destructive">{codeError}</p>
-                    )}
-                  </div>
-
-                  {resolvedCourse && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
-                      <Card className="border-primary/20 bg-primary/5">
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                              <CheckCircle2 className="h-5 w-5" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">{resolvedCourse.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Course Code: {resolvedCourse.course_code || "N/A"}
-                              </p>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  )}
-                </>
-              )}
-
               {!isLogin && role === "teacher" && !teacherSignupsEnabled && (
                 <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-center">
                   <p className="text-sm font-medium text-destructive">
@@ -364,7 +313,6 @@ const Auth = () => {
                 disabled={
                   loading ||
                   isCooldown ||
-                  (showEnrollmentField && !resolvedCourse) ||
                   (!isLogin && role === "teacher" && !teacherSignupsEnabled) ||
                   teacherSignupsLoading
                 }
