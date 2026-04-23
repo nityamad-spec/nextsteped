@@ -355,7 +355,7 @@ const TeacherOnboarding = () => {
                 </>
               ) : (
                 <>
-                  Go to Dashboard <ArrowRight className="h-4 w-4" />
+                  Go to Course Setup <ArrowRight className="h-4 w-4" />
                 </>
               )}
             </Button>
