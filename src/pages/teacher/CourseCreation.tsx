@@ -261,6 +261,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       return;
     }
     setGenError(null);
+    setNoConceptsError(false);
     setGenStep(0);
     setGenElapsed(0);
     const stepTimer = setInterval(() => setGenStep(s => Math.min(s + 1, 2)), 8000);
@@ -272,7 +273,14 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       clearInterval(stepTimer);
       clearInterval(elapsedTimer);
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (data?.error) {
+        if (data?.code === "NO_CONCEPTS") {
+          setNoConceptsError(true);
+          setGenError(data.error);
+          return;
+        }
+        throw new Error(data.error);
+      }
       if (!Array.isArray(data?.weeks) || data.weeks.length === 0) {
         throw new Error("AI returned no weeks. Please try regenerating.");
       }
@@ -304,7 +312,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       setWeeksRaw(normalizeWeeks(generated));
       setExpandedWeeks(generated.length > 0 ? [generated[0].id] : []);
       setOverallOutcomes(typeof data.overall_course_learning_outcomes === "string" ? data.overall_course_learning_outcomes : "");
-      setGapMode(!!data.meta?.gapMode);
+      setGapMode(false);
       setGenStep(2);
       setTimeout(() => setPhase("plan"), 500);
     } catch (err: any) {
@@ -318,6 +326,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   useEffect(() => {
     if (restoringDraft) return;
     if (resolvingCourse) return;
+    if (!scheduleLoaded) return;
     if (!user) return;
     if (phase !== "generating") return;
     if (weeks.length > 0) { setPhase("plan"); return; }
@@ -325,8 +334,11 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       setGenError("No course found yet. Start by uploading materials in Course Materials, then return here.");
       return;
     }
+    if (!totalWeeks) {
+      return;
+    }
     runGeneration();
-  }, [phase, weeks.length, restoringDraft, runGeneration, user, resolvingCourse, courseId]);
+  }, [phase, weeks.length, restoringDraft, runGeneration, user, resolvingCourse, courseId, scheduleLoaded, totalWeeks]);
 
   // ─── Week handlers ───
   const toggleWeek = (id: string) =>
