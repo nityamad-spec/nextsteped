@@ -20,6 +20,7 @@ const TeacherOnboarding = () => {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   // Profile
   const [name, setName] = useState("");
@@ -109,86 +110,102 @@ const TeacherOnboarding = () => {
     learningObjective.trim();
 
   const handleContinue = async () => {
-    if (!user) return;
+    if (saving || !user) return;
+    setSaving(true);
+    try {
+      // Ensure the Supabase client has the access token attached before the first RLS-protected write.
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session?.access_token) {
+        toast.error("Your session isn't ready yet. Please wait a moment and try again.");
+        return;
+      }
 
-    // Upsert profile
-    const profilePayload = {
-      name,
-      department,
-      institution,
-      designation,
-      email: user.email || "",
-    };
-    const { data: existingProfile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", user.id)
-      .maybeSingle();
+      // Upsert profile
+      const profilePayload = {
+        name,
+        department,
+        institution,
+        designation,
+        email: user.email || "",
+      };
 
-    if (existingProfile) {
-      const { error } = await supabase.from("profiles").update(profilePayload).eq("id", user.id);
-      if (error) { toast.error("Failed to update profile: " + error.message); return; }
-    } else {
-      const { error } = await supabase.from("profiles").insert({
-        id: user.id,
-        role: "teacher",
-        ...profilePayload,
+      // Run independent reads in parallel
+      const [profileLookup, courseLookup] = await Promise.all([
+        supabase.from("profiles").select("id").eq("id", user.id).maybeSingle(),
+        supabase
+          .from("courses")
+          .select("id")
+          .eq("teacher_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      const existingProfile = profileLookup.data;
+      const existingCourse = courseLookup.data;
+
+      if (existingProfile) {
+        const { error } = await supabase.from("profiles").update(profilePayload).eq("id", user.id);
+        if (error) { toast.error("Failed to update profile: " + error.message); return; }
+      } else {
+        const { error } = await supabase.from("profiles").insert({
+          id: user.id,
+          role: "teacher",
+          ...profilePayload,
+        });
+        if (error) { toast.error("Failed to save profile: " + error.message); return; }
+      }
+
+      // Upsert course
+      const coursePayload = {
+        name: courseName.trim(),
+        course_code: courseCode.trim(),
+        term,
+        graduation_year: [graduationYear],
+        objectives: learningObjective.split("\n").filter(Boolean),
+      };
+
+      let courseId: string;
+      let enrollmentCode = "";
+
+      if (existingCourse) {
+        const { data: updated, error } = await supabase.from("courses")
+          .update(coursePayload)
+          .eq("id", existingCourse.id)
+          .select("id, enrollment_code")
+          .single();
+        if (error || !updated) { toast.error("Failed to update course: " + (error?.message ?? "Unknown")); return; }
+        courseId = updated.id;
+        enrollmentCode = updated.enrollment_code;
+      } else {
+        const { data: created, error } = await supabase.from("courses")
+          .insert({ ...coursePayload, teacher_id: user.id })
+          .select("id, enrollment_code")
+          .single();
+        if (error || !created) { toast.error("Failed to save course: " + (error?.message ?? "Unknown")); return; }
+        courseId = created.id;
+        enrollmentCode = created.enrollment_code;
+      }
+
+      localStorage.setItem("currentCourseId", courseId);
+
+      // Defer context updates until after both DB writes succeeded.
+      setTeacherProfile({ name, department, courses: [courseName] });
+      setCurrentCourse({
+        ...mockCourse,
+        id: courseId,
+        name: courseName,
+        term: (term as any) || mockCourse.term,
+        objectives: learningObjective ? learningObjective.split("\n").filter(Boolean) : mockCourse.objectives,
+        enrollmentCode,
       });
-      if (error) { toast.error("Failed to save profile: " + error.message); return; }
+
+      navigate("/teacher/setup");
+    } catch (err: any) {
+      toast.error("Something went wrong. Please try again." + (err?.message ? ` (${err.message})` : ""));
+    } finally {
+      setSaving(false);
     }
-
-    // Upsert course
-    const coursePayload = {
-      name: courseName.trim(),
-      course_code: courseCode.trim(),
-      term,
-      graduation_year: [graduationYear],
-      objectives: learningObjective.split("\n").filter(Boolean),
-    };
-
-    const { data: existingCourse } = await supabase
-      .from("courses")
-      .select("id")
-      .eq("teacher_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    let courseId: string;
-    let enrollmentCode = "";
-
-    if (existingCourse) {
-      const { data: updated, error } = await supabase.from("courses")
-        .update(coursePayload)
-        .eq("id", existingCourse.id)
-        .select("id, enrollment_code")
-        .single();
-      if (error || !updated) { toast.error("Failed to update course: " + (error?.message ?? "Unknown")); return; }
-      courseId = updated.id;
-      enrollmentCode = updated.enrollment_code;
-    } else {
-      const { data: created, error } = await supabase.from("courses")
-        .insert({ ...coursePayload, teacher_id: user.id })
-        .select("id, enrollment_code")
-        .single();
-      if (error || !created) { toast.error("Failed to save course: " + (error?.message ?? "Unknown")); return; }
-      courseId = created.id;
-      enrollmentCode = created.enrollment_code;
-    }
-
-    localStorage.setItem("currentCourseId", courseId);
-
-    setTeacherProfile({ name, department, courses: [courseName] });
-    setCurrentCourse({
-      ...mockCourse,
-      id: courseId,
-      name: courseName,
-      term: (term as any) || mockCourse.term,
-      objectives: learningObjective ? learningObjective.split("\n").filter(Boolean) : mockCourse.objectives,
-      enrollmentCode,
-    });
-
-    navigate("/teacher/setup");
   };
 
   if (loading) {
@@ -331,8 +348,16 @@ const TeacherOnboarding = () => {
           </Card>
 
           <div className="flex justify-end pt-2">
-            <Button onClick={handleContinue} disabled={!isValid} size="lg" className="gap-2">
-              Go to Dashboard <ArrowRight className="h-4 w-4" />
+            <Button onClick={handleContinue} disabled={!isValid || saving} size="lg" className="gap-2">
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+                </>
+              ) : (
+                <>
+                  Go to Dashboard <ArrowRight className="h-4 w-4" />
+                </>
+              )}
             </Button>
           </div>
         </motion.div>
