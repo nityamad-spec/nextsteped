@@ -45,7 +45,7 @@ export function useTeacherSetupStatus() {
         // 2. Course basics — find the teacher's most recent course
         const { data: course } = await supabase
           .from("courses")
-          .select("id, name, course_code, term, graduation_year")
+          .select("id, name, course_code, term, graduation_year, lesson_plan_path")
           .eq("teacher_id", user.id)
           .order("created_at", { ascending: false })
           .limit(1)
@@ -84,10 +84,11 @@ export function useTeacherSetupStatus() {
           return;
         }
 
-        // 5. Lesson plan published to storage
+        // 5. Lesson plan published to storage (path comes from DB, with fallback)
+        const publishedPath = resolvePublishedPath(course, user.id);
         const { data: published } = await supabase.storage
-          .from("course-materials")
-          .download(`${user.id}/lesson-plan/published-plan.json`);
+          .from(LESSON_PLAN_BUCKET)
+          .download(publishedPath);
         if (!published) {
           if (!cancelled) { setIsComplete(false); setLoading(false); }
           return;

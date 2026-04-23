@@ -25,6 +25,12 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  legacyPublishedPath,
+  recordPublishedPath,
+  recordDraftPathIfMissing,
+  LESSON_PLAN_BUCKET,
+} from "@/lib/lessonPlanPath";
+import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -247,12 +253,14 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         const blob = new Blob([JSON.stringify(draft, null, 2)], { type: "application/json" });
         const file = new File([blob], "draft-plan-v2.json", { type: "application/json" });
         await supabase.storage.from("course-materials").upload(draftStoragePath, file, { upsert: true, cacheControl: "0" });
+        // Record draft path on courses row (only if missing — avoids write amplification)
+        if (courseId) await recordDraftPathIfMissing(courseId, draftStoragePath);
       } catch (e) {
         console.error("draft persist failed:", e);
       }
     }, 600);
     return () => window.clearTimeout(t);
-  }, [weeks, expandedWeeks, published, publishTimestamp, overallOutcomes, gapMode, user, restoringDraft, draftLocalKey, draftStoragePath]);
+  }, [weeks, expandedWeeks, published, publishTimestamp, overallOutcomes, gapMode, user, restoringDraft, draftLocalKey, draftStoragePath, courseId]);
 
   // ─── Generation ───
   const runGeneration = useCallback(async () => {
@@ -487,9 +495,12 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         const planJson = JSON.stringify(payload, null, 2);
         const blob = new Blob([planJson], { type: "application/json" });
         const file = new File([blob], "published-plan.json", { type: "application/json" });
+        const publishedPath = legacyPublishedPath(user.id);
         await supabase.storage
-          .from("course-materials")
-          .upload(`${user.id}/lesson-plan/published-plan.json`, file, { upsert: true, cacheControl: "0" });
+          .from(LESSON_PLAN_BUCKET)
+          .upload(publishedPath, file, { upsert: true, cacheControl: "0" });
+        // Record path + publish timestamp on the course row (best-effort).
+        if (courseId) await recordPublishedPath(courseId, publishedPath);
       } catch (err) {
         console.error("Failed to save published plan:", err);
       }
