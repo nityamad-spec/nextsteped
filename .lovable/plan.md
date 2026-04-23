@@ -1,58 +1,56 @@
 
 
-## Track lesson plan JSON path in the database
+## Fix "In Progress" badge stuck after AI Assistant & Enrollment save
 
-### Current state
+### Root cause
 
-- **Published plan** is already persisted to Storage: `course-materials/{teacher_id}/lesson-plan/published-plan.json`
-- **Draft plan** is already persisted to Storage: `course-materials/{teacher_id}/lesson-plan/draft-plan-v2.json`
-- **Gap**: the storage paths are hardcoded in 7 places (`CourseCreation`, `TeachingPlan`, `CourseDashboard`, `CourseSetup`, `StudentHome`, `AIChat`, `useTeacherSetupStatus`). The `courses` table has no column referencing them, so the file location isn't authoritative and can't vary per course.
+`CourseSetup.tsx` uses two strategies to compute the status badge:
 
-### What changes
+1. **Data-driven** (e.g. syllabus uploaded, concepts exist, lesson plan published) → flips to **Complete** automatically.
+2. **Opened-only** (Enrollment) or **content-driven** (AI Assistant requires `custom_study_prompt` non-empty).
 
-**1. Schema migration** — add two nullable columns to `courses`:
-| Column | Type | Purpose |
+Problems:
+- **AI Assistant**: stays **In Progress** unless the teacher types a custom prompt. The default prompt is shown disabled and is sufficient on its own — most teachers save without overriding it, so the step never completes.
+- **Enrollment & Course Settings**: there is no completion criterion in `CourseSetup.tsx` at all (comment in code: "no DB-backed completion criteria yet"), and `EnrollmentSettings.handleSave` is a toast-only no-op. So clicking "Save & Finish" can never mark it Complete.
+
+### Fix
+
+Introduce an explicit per-step **"completed"** flag stored in the existing `teacher_setup_progress` table, alongside `opened_at`. The save handler in each module marks it complete; `CourseSetup` reads it as the completion source for steps that don't have a natural data-driven signal.
+
+#### 1. DB migration
+
+Add `completed_at timestamptz NULL` to `teacher_setup_progress`. No backfill needed — null = not completed.
+
+#### 2. New helper in `CourseSetup.tsx`
+
+- Extend `fetchOpenedSteps` → `fetchStepProgress(uid)` returning `{ opened: Record<string,boolean>, completed: Record<string,boolean> }`.
+- New `markStepCompleted(uid, stepId)` upserts `completed_at = now()`.
+
+#### 3. Module save handlers mark themselves complete
+
+| Module | File | Change |
 |---|---|---|
-| `lesson_plan_path` | text | Storage path of the latest **published** plan JSON |
-| `lesson_plan_draft_path` | text | Storage path of the in-progress **draft** plan JSON |
-| `lesson_plan_published_at` | timestamptz | When the plan was last published (for cache busting / "last updated" UI) |
+| AI Assistant | `src/pages/teacher/AIAssistantAndSettings.tsx` | After successful `saveTASettings(...)`, call `markStepCompleted(user.id, "ai-settings")` |
+| Enrollment & Course | `src/pages/teacher/EnrollmentSettings.tsx` | In `handleSave`, persist `start_date`/`end_date` to `courses` table (currently lost), then call `markStepCompleted(user.id, "enrollment")` |
 
-No backfill needed — existing teachers' files already live at the predictable path; we'll lazily set the column on next save/publish, and readers fall back to the legacy path if the column is null.
+#### 4. Update `CourseSetup.tsx` status logic
 
-**2. Writer updates (`src/pages/teacher/CourseCreation.tsx`)**
-
-- In `handlePublish`: after the storage upload succeeds, run `supabase.from("courses").update({ lesson_plan_path: "<path>", lesson_plan_published_at: new Date().toISOString() }).eq("id", courseId)`.
-- In the debounced draft-sync effect: after the draft upload, update `lesson_plan_draft_path` (only if currently null, to avoid write amplification).
-- `TeachingPlan.tsx` save path: same DB update on publish.
-
-**3. Reader updates** — every place that downloads the plan first reads the path from the DB; if the column is null, falls back to the legacy `${teacherId}/lesson-plan/published-plan.json` path so existing courses keep working:
-- `src/pages/teacher/CourseCreation.tsx` (draft restore)
-- `src/pages/teacher/TeachingPlan.tsx` (load saved plan)
-- `src/pages/teacher/CourseDashboard.tsx` (publish-status check)
-- `src/pages/teacher/CourseSetup.tsx` (step status)
-- `src/pages/student/StudentHome.tsx` (lesson plan widget)
-- `src/pages/student/AIChat.tsx` (TA context)
-- `src/hooks/useTeacherSetupStatus.ts` (gating check)
-
-A small helper `resolveLessonPlanPath(course, teacherId)` will be added (e.g. `src/lib/lessonPlanPath.ts`) and reused by all readers to keep the fallback logic in one place.
+- **AI Assistant** (`ai-settings`): Complete if `completed[ai-settings]` is true OR `custom_study_prompt` is non-empty (keep legacy auto-complete for teachers who already wrote a prompt). Otherwise In Progress if opened.
+- **Enrollment** (`enrollment`): Complete if `completed[enrollment]` is true. Otherwise In Progress if opened.
+- **Exam Mode**: Keep existing logic (`exam_enabled || exam_approved`); no change.
 
 ### Files touched
 
 | Path | Change |
 |---|---|
-| `supabase/migrations/<new>.sql` | Add `lesson_plan_path`, `lesson_plan_draft_path`, `lesson_plan_published_at` to `courses` |
-| `src/lib/lessonPlanPath.ts` | New helper for path resolution + DB update |
-| `src/pages/teacher/CourseCreation.tsx` | Write DB row on publish + draft sync; read via helper |
-| `src/pages/teacher/TeachingPlan.tsx` | Write DB row on save; read via helper |
-| `src/pages/teacher/CourseDashboard.tsx` | Read via helper |
-| `src/pages/teacher/CourseSetup.tsx` | Read via helper |
-| `src/pages/student/StudentHome.tsx` | Read via helper |
-| `src/pages/student/AIChat.tsx` | Read via helper |
-| `src/hooks/useTeacherSetupStatus.ts` | Read via helper |
+| `supabase/migrations/<new>.sql` | `ALTER TABLE teacher_setup_progress ADD COLUMN completed_at timestamptz NULL;` |
+| `src/pages/teacher/CourseSetup.tsx` | Replace `fetchOpenedSteps` with `fetchStepProgress`; update AI Assistant + Enrollment completion rules; export `markStepCompleted` helper (or move helpers to a small shared file) |
+| `src/pages/teacher/AIAssistantAndSettings.tsx` | Call `markStepCompleted(user.id, "ai-settings")` after successful save |
+| `src/pages/teacher/EnrollmentSettings.tsx` | Persist `start_date`/`end_date` to `courses`; call `markStepCompleted(user.id, "enrollment")` after save |
 
 ### Out of scope
 
-- No change to the on-disk JSON shape or filename.
-- No data migration to backfill `lesson_plan_path` for existing courses — fallback handles it.
-- No edge-function changes (`generate-lesson-plan` returns the plan in its response; persistence stays client-side as today).
+- No change to the AI Assistant's default prompt behavior or Enrollment UI/fields.
+- No retroactive marking — teachers who previously saved these modules will need to click "Save & Finish" once more (single click, then permanent).
+- No change to other steps (Upload, Concept Review, Lesson Plan, Diagnostic, Exam Mode) — their data-driven completion already works.
 
