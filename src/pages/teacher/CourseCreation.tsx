@@ -136,6 +136,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
 
   const [phase, setPhase] = useState<"generating" | "plan">("generating");
   const [genError, setGenError] = useState<string | null>(null);
+  const [noConceptsError, setNoConceptsError] = useState(false);
   const [genElapsed, setGenElapsed] = useState(0);
   const [genStep, setGenStep] = useState(0);
   const [weeks, setWeeksRaw] = useState<WeekPlan[]>([]);
