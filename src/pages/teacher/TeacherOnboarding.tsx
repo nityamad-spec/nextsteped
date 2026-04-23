@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, User, BookOpen } from "lucide-react";
+import { ArrowRight, User, BookOpen, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const TeacherOnboarding = () => {
