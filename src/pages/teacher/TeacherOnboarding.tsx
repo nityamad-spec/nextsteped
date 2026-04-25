@@ -299,7 +299,12 @@ const TeacherOnboarding = () => {
 
               <div className="space-y-2">
                 <Label>Institutional Email</Label>
-                <Input value={user?.email || ""} disabled className="bg-muted/40 cursor-not-allowed" />
+                <Input
+                  value={isBypassAdmin ? "" : (user?.email || "")}
+                  placeholder={isBypassAdmin ? "your.name@institution.edu" : undefined}
+                  disabled
+                  className="bg-muted/40 cursor-not-allowed"
+                />
               </div>
 
               <div className="space-y-2">
