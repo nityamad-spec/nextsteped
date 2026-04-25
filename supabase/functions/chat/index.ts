@@ -57,7 +57,7 @@ async function cached<T extends string>(
  * Returns 0 if no version row exists yet (initial state).
  */
 async function getCacheVersion(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: any,
   scope: "syllabus" | "concepts" | "questions",
   scopeId: string
 ): Promise<number> {
@@ -78,7 +78,7 @@ async function getCacheVersion(
 // ---------- RAG helpers ----------
 
 async function fetchSyllabusContext(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: any,
   teacherId: string
 ): Promise<string> {
   const version = await getCacheVersion(supabaseAdmin, "syllabus", teacherId);
@@ -173,7 +173,7 @@ async function fetchSyllabusContext(
 }
 
 async function fetchConceptsContext(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: any,
   courseId: string
 ): Promise<string> {
   const version = await getCacheVersion(supabaseAdmin, "concepts", courseId);
@@ -199,7 +199,7 @@ async function fetchConceptsContext(
 }
 
 async function fetchQuestionBankContext(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: any,
   courseId: string,
   _latestMessage: string
 ): Promise<string> {
@@ -231,7 +231,7 @@ async function fetchQuestionBankContext(
 }
 
 async function fetchStudentProgressContext(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: any,
   studentId: string,
   courseId: string
 ): Promise<string> {
