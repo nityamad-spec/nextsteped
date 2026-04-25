@@ -378,7 +378,7 @@ You are collaborative, practical, and focused on helping the professor make thei
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
       if (supabaseUrl && serviceRoleKey) {
-        const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+        const supabaseAdmin: any = createClient(supabaseUrl, serviceRoleKey);
 
         const latestUserMessage =
           messages?.[messages.length - 1]?.content || "";
