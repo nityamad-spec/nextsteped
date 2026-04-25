@@ -44,58 +44,88 @@ const TeacherOnboarding = () => {
       setLoading(false);
       return;
     }
+    let cancelled = false;
+
     const fetchExistingData = async () => {
       setLoading(true);
-      const storedCourseId = localStorage.getItem("currentCourseId");
+      try {
+        // Warm up the Supabase client so the access token is attached before
+        // RLS-protected reads run. Eliminates the post-signup / cold-start race
+        // where the very first SELECT goes out without an Authorization header
+        // and silently returns 0 rows.
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session?.access_token) {
+          if (!cancelled) setLoading(false);
+          return;
+        }
 
-      const courseFields = "id, term, objectives, course_code, name, graduation_year";
+        const courseFields = "id, term, objectives, course_code, name, graduation_year";
+        const storedCourseId = localStorage.getItem("currentCourseId");
 
-      const profileRes = await supabase
-        .from("profiles")
-        .select("name, department, institution, designation")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      let courseRes: { data: any } = { data: null };
-      if (storedCourseId) {
-        courseRes = await supabase.from("courses").select(courseFields).eq("id", storedCourseId).maybeSingle();
-      } else {
-        const owned = await supabase.from("courses")
+        // Profile + (stored or latest) course in parallel.
+        const latestOwnedQuery = supabase
+          .from("courses")
           .select(courseFields)
           .eq("teacher_id", user.id)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
-        if (owned.data) courseRes = owned;
-      }
 
-      if (profileRes.data) {
-        if (profileRes.data.name) setName(profileRes.data.name);
-        if (profileRes.data.department) setDepartment(profileRes.data.department);
-        if ((profileRes.data as any).institution) setInstitution((profileRes.data as any).institution);
-        if ((profileRes.data as any).designation) setDesignation((profileRes.data as any).designation);
-      }
+        const storedCourseQuery = storedCourseId
+          ? supabase.from("courses").select(courseFields).eq("id", storedCourseId).maybeSingle()
+          : Promise.resolve({ data: null } as { data: any });
 
-      if (courseRes.data) {
-        localStorage.setItem("currentCourseId", courseRes.data.id);
-        if (courseRes.data.term) setTerm(courseRes.data.term);
-        if (courseRes.data.course_code) setCourseCode(courseRes.data.course_code);
-        if (courseRes.data.name) setCourseName(courseRes.data.name);
-        if (Array.isArray(courseRes.data.graduation_year) && courseRes.data.graduation_year.length > 0) {
-          setGraduationYear(courseRes.data.graduation_year[0]);
+        const [profileRes, storedRes] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("name, department, institution, designation")
+            .eq("id", user.id)
+            .maybeSingle(),
+          storedCourseQuery,
+        ]);
+
+        // Fall back to "latest owned course" when the stored id is stale
+        // (course deleted, account swap, wipe-courses, etc.).
+        let courseData: any = storedRes.data;
+        if (!courseData) {
+          if (storedCourseId) localStorage.removeItem("currentCourseId");
+          const owned = await latestOwnedQuery;
+          courseData = owned.data;
         }
-        if (Array.isArray(courseRes.data.objectives)) {
-          setLearningObjective(courseRes.data.objectives.join("\n"));
-        }
-      }
 
-      setLoading(false);
+        if (cancelled) return;
+
+        if (profileRes.data) {
+          if (profileRes.data.name) setName(profileRes.data.name);
+          if (profileRes.data.department) setDepartment(profileRes.data.department);
+          if ((profileRes.data as any).institution) setInstitution((profileRes.data as any).institution);
+          if ((profileRes.data as any).designation) setDesignation((profileRes.data as any).designation);
+        }
+
+        if (courseData) {
+          localStorage.setItem("currentCourseId", courseData.id);
+          if (courseData.term) setTerm(courseData.term);
+          if (courseData.course_code) setCourseCode(courseData.course_code);
+          if (courseData.name) setCourseName(courseData.name);
+          if (Array.isArray(courseData.graduation_year) && courseData.graduation_year.length > 0) {
+            setGraduationYear(courseData.graduation_year[0]);
+          }
+          if (Array.isArray(courseData.objectives)) {
+            setLearningObjective(courseData.objectives.join("\n"));
+          }
+        }
+      } catch (err) {
+        console.error("Onboarding auto-populate failed:", err);
+        if (!cancelled) {
+          toast.error("Couldn't load your saved info. You can re-enter it below.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
     fetchExistingData();
 
-    // Safety net: never leave the skeleton up for more than 4s.
-    const t = window.setTimeout(() => setLoading(false), 4000);
-    return () => window.clearTimeout(t);
+    return () => { cancelled = true; };
   }, [user, authLoading]);
 
   const isValid =
