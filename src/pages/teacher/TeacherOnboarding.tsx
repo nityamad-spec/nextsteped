@@ -394,7 +394,7 @@ const TeacherOnboarding = () => {
             </CardContent>
           </Card>
 
-          <div className="flex justify-end pt-2">
+          <div className="flex flex-col items-end gap-2 pt-2">
             <Button onClick={handleContinue} disabled={!isValid || saving} size="lg" className="gap-2">
               {saving ? (
                 <>
@@ -406,6 +406,9 @@ const TeacherOnboarding = () => {
                 </>
               )}
             </Button>
+            {!isValid && !saving && (
+              <p className="text-xs text-muted-foreground">Fill in all fields to continue.</p>
+            )}
           </div>
         </motion.div>
       </div>
