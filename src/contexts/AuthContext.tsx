@@ -94,8 +94,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session && AUTH_BYPASS) {
+        // Don't arm the safety timeout while the bypass sign-in is in-flight —
+        // otherwise `loading` flips to false before `user` is populated and
+        // consumers (e.g. TeacherOnboarding) see authLoading=false && user=null
+        // and skip their data fetch.
         await ensureBypassAdminSession();
         const { data } = await supabase.auth.getSession();
         setSession(data.session);
@@ -107,10 +113,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    // Safety timeout — stop blocking the UI after 3 seconds
-    const timeout = setTimeout(() => {
-      setLoading(false);
-    }, 3000);
+    // Safety timeout — only used when there's no bypass to wait on.
+    if (!AUTH_BYPASS) {
+      timeout = setTimeout(() => {
+        setLoading(false);
+      }, 3000);
+    } else {
+      // With bypass on, give the sign-in round-trip a generous ceiling
+      // so a stalled network still unblocks the UI eventually.
+      timeout = setTimeout(() => {
+        setLoading(false);
+      }, 8000);
+    }
 
     return () => {
       subscription.unsubscribe();
