@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
           // short_answer — strip any option lines from content
           const lines = contentText.split("\n");
           const optionRegex = /^[A-Z]\)\s+/;
-          contentText = lines.filter(l => !optionRegex.test(l.trim())).join("\n").trim();
+          contentText = lines.filter((l: string) => !optionRegex.test(l.trim())).join("\n").trim();
           options = null;
         }
 
@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: (error as Error).message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

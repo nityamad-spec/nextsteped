@@ -23,7 +23,7 @@ function isProbablyTextual(name: string): boolean {
 }
 
 async function downloadFileAsText(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: any,
   storagePath: string,
   fileName: string,
 ): Promise<string> {
