@@ -21,6 +21,7 @@ const TeacherOnboarding = () => {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isBypassAdmin, setIsBypassAdmin] = useState(false);
 
   // Profile
   const [name, setName] = useState("");
@@ -38,7 +39,10 @@ const TeacherOnboarding = () => {
   const availableYears = ["2027", "2028", "2029", "2030", "2031"];
 
   useEffect(() => {
-    // Wait until auth resolves; if no user, render the empty form.
+    // Wait for auth to fully resolve. We only stop showing the skeleton once
+    // we know definitively whether we have a user — otherwise the page would
+    // briefly render an empty form during the bypass sign-in round-trip and
+    // the "Go to Course Setup" button would look broken (it's just disabled).
     if (authLoading) return;
     if (!user) {
       setLoading(false);
@@ -78,7 +82,7 @@ const TeacherOnboarding = () => {
         const [profileRes, storedRes] = await Promise.all([
           supabase
             .from("profiles")
-            .select("name, department, institution, designation")
+            .select("name, department, institution, designation, role")
             .eq("id", user.id)
             .maybeSingle(),
           storedCourseQuery,
@@ -95,7 +99,15 @@ const TeacherOnboarding = () => {
 
         if (cancelled) return;
 
-        if (profileRes.data) {
+        // Detect the AUTH_BYPASS admin: don't leak the seeded admin's identity
+        // (name, department, institution, designation) into the teacher form.
+        // The admin profile exists for RLS purposes only — onboarding should
+        // behave like a fresh teacher signup.
+        const profileRole = (profileRes.data as any)?.role;
+        const isAdmin = profileRole === "admin";
+        setIsBypassAdmin(isAdmin);
+
+        if (profileRes.data && !isAdmin) {
           if (profileRes.data.name) setName(profileRes.data.name);
           if (profileRes.data.department) setDepartment(profileRes.data.department);
           if ((profileRes.data as any).institution) setInstitution((profileRes.data as any).institution);
@@ -287,7 +299,12 @@ const TeacherOnboarding = () => {
 
               <div className="space-y-2">
                 <Label>Institutional Email</Label>
-                <Input value={user?.email || ""} disabled className="bg-muted/40 cursor-not-allowed" />
+                <Input
+                  value={isBypassAdmin ? "" : (user?.email || "")}
+                  placeholder={isBypassAdmin ? "your.name@institution.edu" : undefined}
+                  disabled
+                  className="bg-muted/40 cursor-not-allowed"
+                />
               </div>
 
               <div className="space-y-2">
@@ -377,7 +394,7 @@ const TeacherOnboarding = () => {
             </CardContent>
           </Card>
 
-          <div className="flex justify-end pt-2">
+          <div className="flex flex-col items-end gap-2 pt-2">
             <Button onClick={handleContinue} disabled={!isValid || saving} size="lg" className="gap-2">
               {saving ? (
                 <>
@@ -389,6 +406,9 @@ const TeacherOnboarding = () => {
                 </>
               )}
             </Button>
+            {!isValid && !saving && (
+              <p className="text-xs text-muted-foreground">Fill in all fields to continue.</p>
+            )}
           </div>
         </motion.div>
       </div>

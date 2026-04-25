@@ -1,69 +1,40 @@
-## Issue identified on `/teacher/onboarding` auto-populate
+## Root cause
 
-The auto-populate effect in `src/pages/teacher/TeacherOnboarding.tsx` (lines 40–99) has three concrete bugs that cause it to silently fail or show stale data.
+**Issue A — Blank form on first load, button looks dead**
+With `AUTH_BYPASS = true` and no cached session, `AuthContext` has to do a real `signInWithPassword` round-trip to log in as `admin@nextstep.ai`. While that's pending:
+- The 3-second safety `setTimeout` in `AuthContext` fires `setLoading(false)` *before* `setUser` runs.
+- `TeacherOnboarding`'s effect sees `authLoading=false && user=null`, hits the `if (!user) return` early-out, and clears its own loading.
+- The form renders empty. Since `isValid` requires every field to be truthy, the "Go to Course Setup" button is disabled — that's the "button doesn't work."
+- A moment later `setUser` finally fires, the effect re-runs, and the data loads — but only if you wait. On reload `getSession()` resolves immediately from localStorage, so the first effect run already has `user`.
 
-### Bug 1 — Race condition: queries run before the access token is attached
+**Issue B — Form auto-fills with "Admin" / "admin@nextstep.ai"**
+Not a form bug. `AUTH_BYPASS` silently signs every visitor in as the seeded admin (`admin@nextstep.ai`). The "Admin" name and that email are the actual values stored in `profiles` for that account, so the auto-populate is correctly loading the admin's profile — because that *is* the current user. Whatever email you typed on `/auth` was ignored by the bypass codepath.
 
-The effect fires as soon as `authLoading` is `false` and `user` is non-null. But `useAuth` flips `loading` to false on the very first `INITIAL_SESSION` event, which can fire **before** `supabase.auth.setSession({ access_token, refresh_token })` finishes propagating the token to the JS client (especially right after sign-up, or on first load with `AUTH_BYPASS`).
+## Solution
 
-Result: the `profiles` and `courses` SELECTs run with no `Authorization` header, RLS returns 0 rows, and the form renders empty even though the data exists in the DB. There is no error — just no auto-populate.
+### 1. Fix the race in `TeacherOnboarding.tsx` (file: `src/pages/teacher/TeacherOnboarding.tsx`)
+- Replace the `if (authLoading) return; if (!user) { setLoading(false); return; }` gate with an explicit auth-ready check that waits for **both** `authLoading === false` **and** `user !== null` (or a definitive "no user" signal) before deciding what to do.
+- Concretely: keep the page's local `loading` state `true` while `authLoading || user === undefined`. Only set it to `false` (and render the empty form) once we know auth has fully resolved with no user. This eliminates the "blank form between safety timeout and bypass signin completing" window.
+- Add a small visible "Authenticating…" hint above the skeletons so the user doesn't try to click a disabled button.
 
-The save handler `handleContinue` (line 117) already protects against this with `await supabase.auth.getSession()` as a warm-up. The read effect does **not**.
+### 2. Remove the 3-second silent fallback for the bypass path (file: `src/contexts/AuthContext.tsx`)
+The `setTimeout(() => setLoading(false), 3000)` is what causes `authLoading` to flip false before `user` is set. Two options — pick one:
+- **Option A (preferred while bypass is on):** When `AUTH_BYPASS` is true, do not arm the safety timeout until *after* `ensureBypassAdminSession()` resolves. That way `loading` only flips to `false` after `user` is populated (or the bypass genuinely failed).
+- **Option B:** Keep the timeout but also expose an `isReady` flag (`!loading && (user !== null || bypassAttempted)`) and have consumers gate on that instead of `loading`.
 
-### Bug 2 — `currentCourseId` from localStorage is never validated
+### 3. Stop the bypass profile from leaking into the form (files: `src/pages/teacher/TeacherOnboarding.tsx`, `src/lib/authBypass.ts`)
+Two complementary fixes:
+- **Short-term, low-risk:** In `TeacherOnboarding.tsx`, only auto-populate `name` / `institution` / `department` / `designation` from `profiles` when `profiles.role === 'teacher'`. If the signed-in user is the bypass admin (`role === 'admin'`), skip auto-fill of identity fields and leave them blank so the form behaves like a real first-time teacher onboarding. Apply the same guard to the disabled email input — show a placeholder instead of `user.email` when the user is the bypass admin.
+- **Proper fix (when ready):** Set `AUTH_BYPASS = false` in `src/lib/authBypass.ts` so each visitor goes through real auth and lands as their own user. Then the auto-populate is correctly scoped to that teacher's data.
 
-Line 49 reads `localStorage.getItem("currentCourseId")` and line 61 queries that exact id. If the course was deleted (e.g. via `wipe-courses`, admin action, or switching test accounts), the query returns `null` and the effect **does not fall back** to the "latest owned course" branch (line 63) — that branch only runs when `storedCourseId` is falsy. Result: form stays blank for a teacher who actually has a course.
+### 4. (Optional polish) Surface the disabled-button reason
+On the "Go to Course Setup" button, when `!isValid`, show a small helper line ("Fill all fields to continue") under the button. That removes the perception that the button is broken when it's just disabled.
 
-This is the same class of bug we fixed last loop in `CourseCreation.tsx`.
+## Files to edit
+- `src/pages/teacher/TeacherOnboarding.tsx` — gate render on real auth-ready, skip auto-fill when current user is admin, add helper text under disabled button.
+- `src/contexts/AuthContext.tsx` — defer/scope the 3s safety timeout so it doesn't flip `loading` false before bypass signin completes.
+- `src/lib/authBypass.ts` — (only if user wants the bypass off) flip `AUTH_BYPASS` to `false`.
 
-### Bug 3 — No try/catch + 4 s safety timeout masks failures
-
-Lines 47–94 have no `try/catch`. Any thrown error (network blip, RLS rejection from Bug 1, JSON parse) aborts the effect mid-way, `setLoading(false)` on line 92 never runs, and the user sees the skeleton until the 4 s safety timeout (line 97) fires — at which point the form renders **empty**, indistinguishable from a brand-new teacher. The thrown error is also swallowed silently (no `console.error`, no toast), so the bug is invisible in dev.
-
-### Bug 4 (minor) — `graduation_year` only restores the first entry
-
-Line 84–86 reads `graduation_year[0]` even though the column is a `text[]`. If a teacher saved multiple years on a later setup screen, the onboarding form silently drops the rest on re-edit. Low priority but worth noting.
-
----
-
-## Fix plan
-
-Single file: `src/pages/teacher/TeacherOnboarding.tsx`. No DB, RLS, edge function, or routing changes.
-
-### 1. Warm up the session before the read queries
-
-At the top of `fetchExistingData` (after `setLoading(true)`), call `await supabase.auth.getSession()` once and bail out gracefully if no `access_token` is present (set `loading=false`, return). This forces the JS client to flush any pending `setSession` and eliminates the post-signup / cold-start RLS race. Mirrors what `handleContinue` already does on line 117.
-
-### 2. Validate `storedCourseId` before trusting it; fall back to "latest owned course"
-
-Refactor the course resolution block (lines 59–70) so:
-
-- If `storedCourseId` is set, query it.
-- **If that query returns `null`**, clear `localStorage.currentCourseId` and re-run the "latest owned course" lookup (the same query already on line 63).
-- If neither yields a row, leave the course fields empty (new teacher case).
-
-### 3. Wrap the whole effect in `try/catch/finally`
-
-- `try { ... }` around the existing read flow.
-- `catch (err) { console.error("Onboarding auto-populate failed:", err); toast.error("Couldn't load your saved info. You can re-enter it below."); }`
-- `finally { setLoading(false); }` — guarantees the skeleton always clears, regardless of error path. Removes the need for the 4 s `setTimeout` safety net (delete lines 96–98), which currently masks the symptom.
-
-### 4. Use `cancelled` flag to prevent state writes after unmount
-
-The current effect can call `setName` etc. after the component unmounts (e.g. user clicks Sign Out mid-load). Add a `let cancelled = false;` guard and `return () => { cancelled = true; };` cleanup, gating each `setState` on `if (!cancelled)`. Standard React pattern; prevents the noisy "state update on unmounted component" warning.
-
-### 5. (Optional, low-cost) Restore all `graduation_year` entries
-
-If you later add multi-year support to onboarding, this is where to fix it. For now, keep `[0]` behavior — out of scope unless you want it.
-
-### Files touched
-
-| Path | Change |
-|---|---|
-| `src/pages/teacher/TeacherOnboarding.tsx` | Add `getSession()` warm-up to the load effect; validate `storedCourseId` and fall back to latest owned course on miss; wrap effect in `try/catch/finally`; add `cancelled` cleanup guard; remove the 4 s `setTimeout` safety net (no longer needed). |
-
-### Out of scope
-
-- No changes to `useAuth`, `AuthContext`, or `App.tsx` redirects — the auth bootstrap is fine; we just need to wait for the token before issuing RLS-protected reads.
-- No changes to `handleContinue` — it already does the right thing.
-- No DB/RLS/edge-function changes.
+## Out of scope
+- Reworking the entire auth flow into a `useAuthReady` hook (can be done later; the targeted fix above resolves the symptom without a refactor).
+- Changing the seeded admin's profile data.
