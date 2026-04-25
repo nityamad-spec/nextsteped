@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { AUTH_BYPASS, BYPASS_ADMIN_EMAIL } from "@/lib/authBypass";
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -17,16 +18,29 @@ const Landing = () => {
       // Check if the user already has a profile with a different role
       const { data: profile } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, email")
         .eq("id", user.id)
         .maybeSingle();
 
-      if (profile && profile.role !== role) {
+      // Bypass-safe role switch: when AUTH_BYPASS is on and the active
+      // session is the seeded admin, allow the user to act as teacher or
+      // student for testing without forcing a sign-out.
+      const isBypassAdmin =
+        AUTH_BYPASS &&
+        (profile?.role === "admin" ||
+          profile?.email === BYPASS_ADMIN_EMAIL ||
+          user.email === BYPASS_ADMIN_EMAIL);
+
+      if (profile && profile.role !== role && !isBypassAdmin) {
         toast.error(`Your account is registered as a ${profile.role}. Please sign out first to use a different role.`);
         return;
       }
 
-      // Already logged in with matching role — go directly
+      if (isBypassAdmin && profile?.role !== role) {
+        toast.message(`Bypass mode: continuing as ${role}`);
+      }
+
+      // Already logged in with matching role (or bypass admin) — go directly
       setRole(role);
       navigate(role === "teacher" ? "/teacher" : "/student");
       return;
