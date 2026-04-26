@@ -900,8 +900,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             variant="outline"
             size="sm"
             onClick={() => setShowRegenerateConfirm(true)}
+            disabled={!scheduleComplete || !scheduleChanged}
+            title={!scheduleChanged ? "Update the Course Schedule above to enable" : undefined}
           >
-            <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Regenerate
+            <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Update Plan
           </Button>
         </div>
 
