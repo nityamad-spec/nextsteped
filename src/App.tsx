@@ -123,7 +123,7 @@ function TeacherRedirect() {
 }
 
 function StudentRedirect() {
-  const { loading, hasProfile, hasEnrollment, hasDiagnostic } = useStudentStatus();
+  const { loading, hasProfile, hasEnrollment, hasDiagnostic, activeCourseId } = useStudentStatus();
   const { setStudentOnboarded, setDiagnosticComplete } = useApp();
 
   if (loading) {
@@ -140,7 +140,14 @@ function StudentRedirect() {
 
   // Profile is the only onboarding gate; enrollment is optional and can happen later.
   if (!hasProfile) return <Navigate to="/student/onboarding" replace />;
-  if (hasEnrollment && !hasDiagnostic) return <Navigate to="/student/diagnostic" replace />;
+  // Per-course isolation: if the student is enrolled in their active course but
+  // hasn't done that course's diagnostic, send them through it first.
+  if (hasEnrollment && !hasDiagnostic) {
+    const target = activeCourseId
+      ? `/student/diagnostic?course=${activeCourseId}`
+      : "/student/diagnostic";
+    return <Navigate to={target} replace />;
+  }
   return <Navigate to="/student/home" replace />;
 }
 
