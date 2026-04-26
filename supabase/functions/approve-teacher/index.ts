@@ -115,6 +115,7 @@ Deno.serve(async (req) => {
           institution: application.institution ?? null,
           department: application.department ?? null,
           designation: application.designation ?? null,
+          needs_password_setup: true,
         });
 
       if (profileError) throw profileError;
