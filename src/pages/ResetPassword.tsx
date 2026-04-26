@@ -17,14 +17,29 @@ const ResetPassword = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Detect recovery (forgot password) or invite (first-time approved professor)
+    // Detect recovery (forgot password) or invite (first-time approved teacher / new student)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "PASSWORD_RECOVERY") {
         setMode("recovery");
         return;
       }
       if (event === "SIGNED_IN" && session?.user) {
-        // Check if this user was just invited and needs to set a password
+        // Check pending_signups first — if a row exists for this email, this is a
+        // brand-new student finishing the verification flow.
+        const email = session.user.email?.toLowerCase();
+        if (email) {
+          const { data: pending } = await supabase
+            .from("pending_signups")
+            .select("id")
+            .eq("email", email)
+            .is("consumed_at", null)
+            .maybeSingle();
+          if (pending) {
+            setMode("invite");
+            return;
+          }
+        }
+        // Otherwise, check the existing teacher needs_password_setup flag
         const { data: profile } = await supabase
           .from("profiles")
           .select("needs_password_setup")
@@ -38,15 +53,27 @@ const ResetPassword = () => {
 
     // Also handle case where session already exists on page load
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("needs_password_setup")
-          .eq("id", session.user.id)
+      if (!session?.user) return;
+      const email = session.user.email?.toLowerCase();
+      if (email) {
+        const { data: pending } = await supabase
+          .from("pending_signups")
+          .select("id")
+          .eq("email", email)
+          .is("consumed_at", null)
           .maybeSingle();
-        if (profile?.needs_password_setup) {
+        if (pending) {
           setMode("invite");
+          return;
         }
+      }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("needs_password_setup")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      if (profile?.needs_password_setup) {
+        setMode("invite");
       }
     });
 
@@ -71,10 +98,38 @@ const ResetPassword = () => {
       return;
     }
 
-    // If this was an invite flow, clear the flag and route them into the app
     if (mode === "invite") {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        // Student invite path: pending_signups row exists → materialize profile + enrollment
+        const email = user.email?.toLowerCase();
+        if (email) {
+          const { data: pending } = await supabase
+            .from("pending_signups")
+            .select("id")
+            .eq("email", email)
+            .is("consumed_at", null)
+            .maybeSingle();
+          if (pending) {
+            try {
+              const { data, error: completeErr } = await supabase.functions.invoke(
+                "complete-student-signup",
+                { body: {} },
+              );
+              if (completeErr) throw completeErr;
+              const courseId = (data as any)?.course_id;
+              toast.success("Account ready! Let's get started.");
+              navigate(courseId ? `/student/diagnostic?course=${courseId}` : "/student");
+              setLoading(false);
+              return;
+            } catch (err: any) {
+              toast.error(err.message || "Couldn't finish setting up your account.");
+              setLoading(false);
+              return;
+            }
+          }
+        }
+        // Teacher invite path
         await supabase
           .from("profiles")
           .update({ needs_password_setup: false })

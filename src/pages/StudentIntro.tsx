@@ -174,7 +174,7 @@ const StudentIntro = () => {
         <div className="mt-12 flex justify-center">
           <Button
             size="lg"
-            onClick={() => navigate("/student")}
+            onClick={() => navigate("/student/onboarding")}
             className="gap-2"
           >
             Get Started <ArrowRight className="h-4 w-4" />
