@@ -723,7 +723,7 @@ export type Database = {
         Row: {
           answers: Json
           confidences: Json
-          course_id: string | null
+          course_id: string
           created_at: string
           id: string
           learner_level: string
@@ -736,7 +736,7 @@ export type Database = {
         Insert: {
           answers?: Json
           confidences?: Json
-          course_id?: string | null
+          course_id: string
           created_at?: string
           id?: string
           learner_level: string
@@ -749,7 +749,7 @@ export type Database = {
         Update: {
           answers?: Json
           confidences?: Json
-          course_id?: string | null
+          course_id?: string
           created_at?: string
           id?: string
           learner_level?: string
@@ -808,8 +808,83 @@ export type Database = {
           },
         ]
       }
+      pending_signups: {
+        Row: {
+          branch_id: string | null
+          consumed_at: string | null
+          course_id: string | null
+          created_at: string
+          degree_id: string | null
+          email: string
+          enrollment_code: string
+          graduation_year: string | null
+          id: string
+          name: string
+          roll_number: string | null
+          university_id: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          consumed_at?: string | null
+          course_id?: string | null
+          created_at?: string
+          degree_id?: string | null
+          email: string
+          enrollment_code: string
+          graduation_year?: string | null
+          id?: string
+          name: string
+          roll_number?: string | null
+          university_id?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          consumed_at?: string | null
+          course_id?: string | null
+          created_at?: string
+          degree_id?: string | null
+          email?: string
+          enrollment_code?: string
+          graduation_year?: string | null
+          id?: string
+          name?: string
+          roll_number?: string | null
+          university_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_signups_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_signups_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_signups_degree_id_fkey"
+            columns: ["degree_id"]
+            isOneToOne: false
+            referencedRelation: "degrees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_signups_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
+          active_course_id: string | null
           branch_id: string | null
           created_at: string
           degree_id: string | null
@@ -828,6 +903,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active_course_id?: string | null
           branch_id?: string | null
           created_at?: string
           degree_id?: string | null
@@ -846,6 +922,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active_course_id?: string | null
           branch_id?: string | null
           created_at?: string
           degree_id?: string | null
@@ -864,6 +941,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_active_course_id_fkey"
+            columns: ["active_course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_branch_id_fkey"
             columns: ["branch_id"]
