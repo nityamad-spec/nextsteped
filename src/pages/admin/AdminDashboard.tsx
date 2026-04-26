@@ -401,7 +401,7 @@ const AdminDashboard = () => {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Reject {app.name}?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            This will reject the application from <strong>{app.email}</strong>. You can include an optional reason that will be saved with the application.
+                            This will reject the application from <strong>{app.email}</strong>. You can include an optional reason that will be saved with the application. <span className="text-muted-foreground">Note: rejection emails are not automatically sent yet — please follow up with the applicant manually.</span>
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <div className="space-y-2 py-2">
