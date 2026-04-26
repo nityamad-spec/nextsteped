@@ -38,6 +38,7 @@ import TeachingPlan from "./pages/teacher/TeachingPlan";
 import SettingsIntegrity from "./pages/teacher/SettingsIntegrity";
 import Support from "./pages/teacher/Support";
 import StudentOnboarding from "./pages/student/StudentOnboarding";
+import VerifyEmail from "./pages/student/VerifyEmail";
 import DiagnosticQuiz from "./pages/student/DiagnosticQuiz";
 import StudentHome from "./pages/student/StudentHome";
 import AIChat from "./pages/student/AIChat";
@@ -216,7 +217,8 @@ const App = () => (
 
               {/* Student routes */}
               <Route path="/student" element={<ProtectedRoute><StudentRedirect /></ProtectedRoute>} />
-              <Route path="/student/onboarding" element={<ProtectedRoute><StudentOnboarding /></ProtectedRoute>} />
+              <Route path="/student/onboarding" element={<StudentOnboarding />} />
+              <Route path="/student/verify-email" element={<VerifyEmail />} />
               <Route path="/student/diagnostic" element={<ProtectedRoute><DiagnosticQuiz /></ProtectedRoute>} />
               <Route element={<ProtectedRoute><StudentLayout /></ProtectedRoute>}>
                 <Route path="/student/home" element={<StudentHome />} />
