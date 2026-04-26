@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { applicationId, assignmentType, courseId, action } = await req.json();
+    const { applicationId, assignmentType, courseId, action, rejectionReason } = await req.json();
 
     if (!applicationId || !action) {
       return new Response(JSON.stringify({ error: "Missing applicationId or action" }), {
@@ -86,6 +86,7 @@ Deno.serve(async (req) => {
           status: "rejected",
           reviewed_at: new Date().toISOString(),
           reviewed_by: adminId,
+          rejection_reason: rejectionReason ?? null,
         })
         .eq("id", applicationId);
 
@@ -110,6 +111,10 @@ Deno.serve(async (req) => {
           id: newUser.user.id,
           name: application.name,
           role: "teacher",
+          email: application.email,
+          institution: application.institution ?? null,
+          department: application.department ?? null,
+          designation: application.designation ?? null,
         });
 
       if (profileError) throw profileError;
