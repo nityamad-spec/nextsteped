@@ -49,8 +49,9 @@ const Landing = () => {
     navigate("/intro/teacher");
   };
 
-  // Students: unchanged — intro then auth.
-  const goStudent = async () => {
+  // Returning students: must already have a profile + diagnostic done.
+  // Send them straight to /auth?role=student (sign in).
+  const goReturningStudent = async () => {
     if (user) {
       const { data: profile } = await supabase
         .from("profiles")
@@ -58,14 +59,22 @@ const Landing = () => {
         .eq("id", user.id)
         .maybeSingle();
 
+      if (profile?.role === "student") {
+        setRole("student");
+        navigate("/student");
+        return;
+      }
       if (profile?.role && profile.role !== "student") {
         toast.error(`Your account is registered as a ${profile.role}. Please sign out first.`);
         return;
       }
-      setRole("student");
-      navigate("/student");
-      return;
     }
+    setRole("student");
+    navigate("/auth?role=student");
+  };
+
+  // New students: always start at the intro page (Step 1 of the gated flow).
+  const goNewStudent = () => {
     setRole("student");
     navigate("/intro/student");
   };
@@ -152,31 +161,61 @@ const Landing = () => {
         </div>
       </div>
 
-      {/* Student — unchanged */}
+      {/* Student — two clearly differentiated paths */}
       <div className="mt-10 w-full max-w-4xl">
         <p className="mb-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
           For Students
         </p>
-        <motion.button
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          whileHover={{ scale: 1.01, y: -2 }}
-          whileTap={{ scale: 0.99 }}
-          onClick={goStudent}
-          className="group flex w-full items-center gap-4 rounded-xl border bg-card p-6 shadow-sm transition-shadow hover:shadow-lg"
-        >
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
-            <GraduationCap className="h-7 w-7" />
-          </div>
-          <div className="flex-1 text-left">
-            <h2 className="text-lg font-semibold text-foreground">I'm a Student</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Learn with an AI tutor, practice for exams, and track your progress.
-            </p>
-          </div>
-          <ArrowRight className="h-5 w-5 text-accent opacity-0 transition-opacity group-hover:opacity-100" />
-        </motion.button>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <motion.button
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            whileHover={{ scale: 1.02, y: -4 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={goNewStudent}
+            className="group relative flex flex-col items-center gap-4 overflow-hidden rounded-xl border-2 border-accent/30 bg-gradient-to-br from-accent/5 to-accent/[0.02] p-8 shadow-sm transition-shadow hover:shadow-lg"
+          >
+            <div className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+              <Sparkles className="h-3 w-3" /> New
+            </div>
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-accent text-accent-foreground transition-transform group-hover:scale-110">
+              <GraduationCap className="h-8 w-8" />
+            </div>
+            <div className="text-center">
+              <h2 className="text-xl font-semibold text-foreground">I'm New Here</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                See what NextStep does for students and create your account.
+              </p>
+            </div>
+            <div className="mt-2 flex items-center gap-1 text-sm font-medium text-accent">
+              Get started <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </div>
+          </motion.button>
+
+          <motion.button
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.35 }}
+            whileHover={{ scale: 1.02, y: -4 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={goReturningStudent}
+            className="group flex flex-col items-center gap-4 rounded-xl border bg-card p-8 shadow-sm transition-shadow hover:shadow-lg"
+          >
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-muted text-foreground transition-colors group-hover:bg-foreground group-hover:text-background">
+              <LogIn className="h-8 w-8" />
+            </div>
+            <div className="text-center">
+              <h2 className="text-xl font-semibold text-foreground">Welcome Back — Log In</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Sign in to your student account.
+              </p>
+            </div>
+            <div className="mt-2 flex items-center gap-1 text-sm font-medium text-foreground opacity-0 transition-opacity group-hover:opacity-100">
+              Sign in <ArrowRight className="h-4 w-4" />
+            </div>
+          </motion.button>
+        </div>
       </div>
 
       <motion.div
