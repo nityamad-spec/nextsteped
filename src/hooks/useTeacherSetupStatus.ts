@@ -44,14 +44,15 @@ export function useTeacherSetupStatus() {
           return;
         }
 
-        // 2. Course basics — find the teacher's most recent course
-        const { data: course } = await supabase
+        // 2. Course basics — prefer the *active* course (multi-course aware).
+        const activeId = typeof window !== "undefined" ? localStorage.getItem("currentCourseId") : null;
+        let courseQuery = supabase
           .from("courses")
           .select("id, name, course_code, term, graduation_year, lesson_plan_path")
-          .eq("teacher_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .eq("teacher_id", user.id);
+        const { data: course } = activeId
+          ? await courseQuery.eq("id", activeId).maybeSingle()
+          : await courseQuery.order("created_at", { ascending: false }).limit(1).maybeSingle();
         if (
           !course ||
           !course.name?.trim() ||

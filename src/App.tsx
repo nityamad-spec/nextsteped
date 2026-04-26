@@ -11,8 +11,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import Landing from "./pages/Landing";
 import TeacherIntro from "./pages/TeacherIntro";
+import TeacherApplicationForm from "./pages/TeacherApplicationForm";
+import TeacherPendingApproval from "./pages/TeacherPendingApproval";
 import StudentIntro from "./pages/StudentIntro";
 import Auth from "./pages/Auth";
+import NewCoursePage from "./pages/teacher/NewCoursePage";
 import TeacherLayout from "./layouts/TeacherLayout";
 import StudentLayout from "./layouts/StudentLayout";
 import TeacherOnboarding from "./pages/teacher/TeacherOnboarding";
@@ -107,7 +110,11 @@ function TeacherRedirect() {
     );
   }
 
-  if (!hasCourse) return <Navigate to="/teacher/onboarding" replace />;
+  // Approved teachers no longer go through TeacherOnboarding — their profile
+  // was filled in during the application flow and copied over by the
+  // approve-teacher edge function. If they have no course yet, send them
+  // to the new course creation page (first-course flag).
+  if (!hasCourse) return <Navigate to="/teacher/courses/new?first=1" replace />;
   // Setup-incomplete professors are forced into Course Setup on every login.
   if (!isComplete) return <Navigate to="/teacher/setup" replace />;
   return <Navigate to="/teacher/courses/dashboard" replace />;
@@ -177,13 +184,15 @@ const App = () => (
               <Route path="/" element={<Landing />} />
               <Route path="/auth" element={<AuthRedirect />} />
               <Route path="/intro/teacher" element={<TeacherIntro />} />
+              <Route path="/intro/teacher/profile" element={<TeacherApplicationForm />} />
+              <Route path="/intro/teacher/pending" element={<TeacherPendingApproval />} />
               <Route path="/intro/student" element={<StudentIntro />} />
               <Route path="/reset-password" element={<ResetPassword />} />
 
               {/* Teacher onboarding (single-page, no layout) */}
               <Route path="/teacher" element={<ProtectedRoute><TeacherRedirect /></ProtectedRoute>} />
               <Route path="/teacher/onboarding" element={<ProtectedRoute><TeacherOnboarding /></ProtectedRoute>} />
-
+              <Route path="/teacher/courses/new" element={<ProtectedRoute><NewCoursePage /></ProtectedRoute>} />
               {/* Teacher dashboard + setup modules (all share TeacherLayout) */}
               <Route element={<ProtectedRoute><TeacherLayout /></ProtectedRoute>}>
                 <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
