@@ -63,6 +63,12 @@ type WeekPlan = {
   locked: boolean;
 };
 
+type ScheduleSnapshot = {
+  total_weeks: number | null;
+  midterm_week: number | null;
+  final_week: number | null;
+};
+
 type LessonPlanDraft = {
   weeks?: WeekPlan[];
   expandedWeeks?: string[];
@@ -70,6 +76,7 @@ type LessonPlanDraft = {
   publishTimestamp?: string | null;
   overallOutcomes?: string;
   gapMode?: boolean;
+  lastGeneratedSchedule?: ScheduleSnapshot | null;
 };
 
 const makeId = () => `i_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -192,7 +199,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     }
   }, [courseId, toast]);
 
-  const [phase, setPhase] = useState<"generating" | "plan">("generating");
+  const [phase, setPhase] = useState<"idle" | "generating" | "plan">("idle");
   const [genError, setGenError] = useState<string | null>(null);
   const [noConceptsError, setNoConceptsError] = useState(false);
   const [genElapsed, setGenElapsed] = useState(0);
@@ -206,6 +213,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [gapMode, setGapMode] = useState<boolean>(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishConfirmed, setPublishConfirmed] = useState(false);
+  const [lastGeneratedSchedule, setLastGeneratedSchedule] = useState<ScheduleSnapshot | null>(null);
 
   // edit states
   const [editingOverviewId, setEditingOverviewId] = useState<string | null>(null);
@@ -238,6 +246,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     if (draft.publishTimestamp !== undefined) setPublishTimestamp(draft.publishTimestamp ?? null);
     if (typeof draft.overallOutcomes === "string") setOverallOutcomes(draft.overallOutcomes);
     if (typeof draft.gapMode === "boolean") setGapMode(draft.gapMode);
+    if (draft.lastGeneratedSchedule !== undefined) setLastGeneratedSchedule(draft.lastGeneratedSchedule ?? null);
   }, []);
 
   useEffect(() => {
@@ -263,7 +272,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   // ─── Persist draft ───
   useEffect(() => {
     if (!user || restoringDraft) return;
-    const draft: LessonPlanDraft = { weeks, expandedWeeks, published, publishTimestamp, overallOutcomes, gapMode };
+    const draft: LessonPlanDraft = { weeks, expandedWeeks, published, publishTimestamp, overallOutcomes, gapMode, lastGeneratedSchedule };
     const serialized = JSON.stringify(draft);
     localStorage.setItem(draftLocalKey, serialized);
     if (!draftStoragePath || weeks.length === 0) return;
@@ -279,7 +288,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       }
     }, 600);
     return () => window.clearTimeout(t);
-  }, [weeks, expandedWeeks, published, publishTimestamp, overallOutcomes, gapMode, user, restoringDraft, draftLocalKey, draftStoragePath, courseId]);
+  }, [weeks, expandedWeeks, published, publishTimestamp, overallOutcomes, gapMode, lastGeneratedSchedule, user, restoringDraft, draftLocalKey, draftStoragePath, courseId]);
 
   // ─── Generation ───
   const runGeneration = useCallback(async () => {
@@ -287,6 +296,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       setGenError("No course selected. Please complete course setup first.");
       return;
     }
+    setPhase("generating");
     setGenError(null);
     setNoConceptsError(false);
     setGenStep(0);
@@ -340,6 +350,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       setExpandedWeeks(generated.length > 0 ? [generated[0].id] : []);
       setOverallOutcomes(typeof data.overall_course_learning_outcomes === "string" ? data.overall_course_learning_outcomes : "");
       setGapMode(false);
+      setLastGeneratedSchedule({ total_weeks: totalWeeks, midterm_week: midtermWeek, final_week: finalWeek });
       setGenStep(2);
       setTimeout(() => setPhase("plan"), 500);
     } catch (err: any) {
@@ -348,24 +359,14 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       console.error("Lesson plan generation failed:", err);
       setGenError(err?.message || "Failed to generate lesson plan");
     }
-  }, [courseId]);
+  }, [courseId, totalWeeks, midtermWeek, finalWeek]);
 
-  useEffect(() => {
-    if (restoringDraft) return;
-    if (resolvingCourse) return;
-    if (!scheduleLoaded) return;
-    if (!user) return;
-    if (phase !== "generating") return;
-    if (weeks.length > 0) { setPhase("plan"); return; }
-    if (!courseId) {
-      setGenError("No course found yet. Start by uploading materials in Course Materials, then return here.");
-      return;
-    }
-    if (!totalWeeks) {
-      return;
-    }
-    runGeneration();
-  }, [phase, weeks.length, restoringDraft, runGeneration, user, resolvingCourse, courseId, scheduleLoaded, totalWeeks]);
+  // Schedule completeness + change detection
+  const scheduleComplete = !!(totalWeeks && midtermWeek && finalWeek);
+  const scheduleChanged = !lastGeneratedSchedule
+    || lastGeneratedSchedule.total_weeks !== totalWeeks
+    || lastGeneratedSchedule.midterm_week !== midtermWeek
+    || lastGeneratedSchedule.final_week !== finalWeek;
 
   // ─── Week handlers ───
   const toggleWeek = (id: string) =>
@@ -545,26 +546,33 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     );
   }
 
-  if (phase === "generating") {
-    // If schedule is loaded but Total Weeks isn't set yet, prompt the teacher to set it
-    if (scheduleLoaded && !totalWeeks) {
-      return (
-        <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
-          <Card className="w-full max-w-[560px] p-6 space-y-5">
-            {!embedded && (
-              <Button variant="outline" size="sm" onClick={() => navigate("/teacher/setup")} className="gap-2 self-start">
-                <ArrowLeft className="h-4 w-4" /> Back to Course Setup
-              </Button>
-            )}
-            <div className="space-y-1">
-              <h1 className="font-heading text-xl font-bold">Set your course schedule</h1>
-              <p className="text-sm text-muted-foreground">
-                Tell us how long the course runs and which weeks are exam weeks. We'll distribute your approved concepts across the remaining teaching weeks in learning order.
-              </p>
+  // ─── IDLE PHASE: schedule form + Generate button (no plan yet) ───
+  if (phase === "idle") {
+    return (
+      <div className="flex min-h-screen items-start justify-center bg-background px-4 py-8">
+        <div className="w-full max-w-[640px] space-y-5">
+          {!embedded && (
+            <Button variant="outline" size="sm" onClick={() => navigate("/teacher/setup")} className="gap-2">
+              <ArrowLeft className="h-4 w-4" /> Back to Course Setup
+            </Button>
+          )}
+          <div className="text-center space-y-2">
+            <h1 className="font-heading text-2xl font-bold">
+              AI <span className="text-primary">Lesson Plan</span>
+            </h1>
+            <p className="text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">
+              Set your course schedule below, then click Generate Lesson Plan. We'll distribute your approved concepts across teaching weeks in learning order.
+            </p>
+          </div>
+
+          <Card className="p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-primary" />
+              <p className="text-sm font-semibold">Course Schedule</p>
             </div>
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <Label className="text-sm">Total Weeks</Label>
+                <Label className="text-xs">Total Weeks <span className="text-destructive">*</span></Label>
                 <Input
                   type="number"
                   min={4}
@@ -574,29 +582,82 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                     const v = parseInt(e.target.value, 10);
                     if (Number.isFinite(v) && v >= 4 && v <= 24) {
                       setTotalWeeks(v);
-                      persistSchedule({ total_weeks: v });
+                      const patch: any = { total_weeks: v };
+                      if (midtermWeek && midtermWeek > v) { setMidtermWeek(null); patch.midterm_week = null; }
+                      if (finalWeek && finalWeek > v) { setFinalWeek(null); patch.final_week = null; }
+                      persistSchedule(patch);
                     } else if (e.target.value === "") {
                       setTotalWeeks(null);
                     }
                   }}
                   placeholder="e.g. 16"
-                  className="mt-1"
+                  className="mt-1 h-9"
                 />
-                <p className="text-[11px] text-muted-foreground mt-1">Between 4 and 24 weeks.</p>
+                <p className="text-[11px] text-muted-foreground mt-1">4–24 weeks</p>
+              </div>
+              <div>
+                <Label className="text-xs">Midterm Week <span className="text-destructive">*</span></Label>
+                <Select
+                  value={midtermWeek ? String(midtermWeek) : ""}
+                  onValueChange={(v) => {
+                    const next = parseInt(v, 10);
+                    setMidtermWeek(next);
+                    persistSchedule({ midterm_week: next });
+                  }}
+                  disabled={!totalWeeks}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select week" /></SelectTrigger>
+                  <SelectContent>
+                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
+                      .filter(n => n !== finalWeek)
+                      .map(n => (
+                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Final Week <span className="text-destructive">*</span></Label>
+                <Select
+                  value={finalWeek ? String(finalWeek) : ""}
+                  onValueChange={(v) => {
+                    const next = parseInt(v, 10);
+                    setFinalWeek(next);
+                    persistSchedule({ final_week: next });
+                  }}
+                  disabled={!totalWeeks}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select week" /></SelectTrigger>
+                  <SelectContent>
+                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
+                      .filter(n => n !== midtermWeek)
+                      .map(n => (
+                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <Button
               className="w-full"
-              disabled={!totalWeeks}
-              onClick={() => { /* effect picks up totalWeeks change */ }}
+              disabled={!scheduleComplete || !courseId}
+              onClick={runGeneration}
             >
-              Continue
+              <Sparkles className="mr-2 h-4 w-4" />
+              Generate Lesson Plan
             </Button>
+            {!scheduleComplete && (
+              <p className="text-[11px] text-muted-foreground text-center">
+                Fill in Total Weeks, Midterm Week, and Final Week to enable generation.
+              </p>
+            )}
           </Card>
         </div>
-      );
-    }
+      </div>
+    );
+  }
 
+  if (phase === "generating") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
         <div className="w-full max-w-[640px] text-center space-y-8">
@@ -803,9 +864,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowRegenerateConfirm(true)}
-                  disabled={!totalWeeks}
+                  disabled={!scheduleComplete || !scheduleChanged}
+                  title={!scheduleChanged ? "Schedule hasn't changed since last generation" : undefined}
                 >
-                  <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Regenerate plan with these settings
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Update Plan
                 </Button>
               </div>
             </div>
@@ -838,8 +900,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             variant="outline"
             size="sm"
             onClick={() => setShowRegenerateConfirm(true)}
+            disabled={!scheduleComplete || !scheduleChanged}
+            title={!scheduleChanged ? "Update the Course Schedule above to enable" : undefined}
           >
-            <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Regenerate
+            <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Update Plan
           </Button>
         </div>
 
@@ -1216,13 +1280,13 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         </DialogContent>
       </Dialog>
 
-      {/* Regenerate confirm */}
+      {/* Update Plan confirm */}
       <Dialog open={showRegenerateConfirm} onOpenChange={setShowRegenerateConfirm}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Regenerate lesson plan?</DialogTitle>
+            <DialogTitle>Update lesson plan?</DialogTitle>
             <DialogDescription>
-              This will replace your current weeks and any edits with a fresh distribution based on the schedule above and your approved concepts. This cannot be undone.
+              This will replace your current weeks and any edits with a fresh distribution based on the updated schedule and your approved concepts. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1233,10 +1297,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                 setWeeksRaw([]);
                 setExpandedWeeks([]);
                 localStorage.removeItem(draftLocalKey);
-                setPhase("generating");
+                runGeneration();
               }}
             >
-              Regenerate
+              Update Plan
             </Button>
           </DialogFooter>
         </DialogContent>
