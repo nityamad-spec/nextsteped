@@ -864,9 +864,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowRegenerateConfirm(true)}
-                  disabled={!totalWeeks}
+                  disabled={!scheduleComplete || !scheduleChanged}
+                  title={!scheduleChanged ? "Schedule hasn't changed since last generation" : undefined}
                 >
-                  <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Regenerate plan with these settings
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Update Plan
                 </Button>
               </div>
             </div>
