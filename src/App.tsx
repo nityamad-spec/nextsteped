@@ -75,25 +75,24 @@ function TeacherRedirect() {
   const { user, loading: authLoading } = useAuth();
   const [checking, setChecking] = useState(true);
   const [hasCourse, setHasCourse] = useState(false);
+  const [needsPassword, setNeedsPassword] = useState(false);
   const { loading: setupLoading, isComplete } = useTeacherSetupStatus();
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      // No user resolved (bypass signin may have failed). Send to onboarding.
       setHasCourse(false);
       setChecking(false);
       return;
     }
-    supabase
-      .from("courses")
-      .select("id")
-      .eq("teacher_id", user.id)
-      .limit(1)
-      .then(({ data }) => {
-        setHasCourse(!!(data && data.length > 0));
-        setChecking(false);
-      });
+    Promise.all([
+      supabase.from("courses").select("id").eq("teacher_id", user.id).limit(1),
+      supabase.from("profiles").select("needs_password_setup").eq("id", user.id).maybeSingle(),
+    ]).then(([coursesRes, profileRes]) => {
+      setHasCourse(!!(coursesRes.data && coursesRes.data.length > 0));
+      setNeedsPassword(!!profileRes.data?.needs_password_setup);
+      setChecking(false);
+    });
   }, [user, authLoading]);
 
   // Safety net: never hang on Loading… for more than 4s.
@@ -110,6 +109,8 @@ function TeacherRedirect() {
     );
   }
 
+  // First-time invited professors must set a password before doing anything else.
+  if (needsPassword) return <Navigate to="/reset-password" replace />;
   // Approved teachers no longer go through TeacherOnboarding — their profile
   // was filled in during the application flow and copied over by the
   // approve-teacher edge function. If they have no course yet, send them
