@@ -989,9 +989,13 @@ export type Database = {
           assigned_course_id: string | null
           assignment_type: string | null
           created_at: string
+          department: string | null
+          designation: string | null
           email: string
           id: string
+          institution: string | null
           name: string
+          rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           status: string
@@ -1001,9 +1005,13 @@ export type Database = {
           assigned_course_id?: string | null
           assignment_type?: string | null
           created_at?: string
+          department?: string | null
+          designation?: string | null
           email: string
           id?: string
+          institution?: string | null
           name: string
+          rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
@@ -1013,9 +1021,13 @@ export type Database = {
           assigned_course_id?: string | null
           assignment_type?: string | null
           created_at?: string
+          department?: string | null
+          designation?: string | null
           email?: string
           id?: string
+          institution?: string | null
           name?: string
+          rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string

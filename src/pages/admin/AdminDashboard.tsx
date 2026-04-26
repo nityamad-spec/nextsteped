@@ -27,6 +27,10 @@ interface TeacherApplication {
   admin_notes: string | null;
   created_at: string;
   reviewed_at: string | null;
+  institution?: string | null;
+  department?: string | null;
+  designation?: string | null;
+  rejection_reason?: string | null;
 }
 
 interface Course {
@@ -46,6 +50,7 @@ const AdminDashboard = () => {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedCourses, setSelectedCourses] = useState<Record<string, string>>({});
   const [selectedRoles, setSelectedRoles] = useState<Record<string, AssignmentRole>>({});
+  const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
   const [teacherSignupsEnabled, setTeacherSignupsEnabled] = useState(true);
   const [togglingEnrollment, setTogglingEnrollment] = useState<string | null>(null);
   const [wipeDialogOpen, setWipeDialogOpen] = useState(false);
@@ -136,7 +141,13 @@ const AdminDashboard = () => {
       }
 
       const { data, error } = await supabase.functions.invoke("approve-teacher", {
-        body: { applicationId, action, assignmentType: action === "approve" ? role : undefined, courseId },
+        body: {
+          applicationId,
+          action,
+          assignmentType: action === "approve" ? role : undefined,
+          courseId,
+          rejectionReason: action === "reject" ? (rejectReasons[applicationId] || null) : undefined,
+        },
       });
 
       if (error) throw error;
@@ -268,6 +279,29 @@ const AdminDashboard = () => {
                     Applied {new Date(app.created_at).toLocaleDateString()}
                   </p>
 
+                  {(app.institution || app.department || app.designation) && (
+                    <div className="grid gap-2 rounded-lg border bg-muted/30 p-3 text-xs sm:grid-cols-3">
+                      {app.institution && (
+                        <div>
+                          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Institution</p>
+                          <p className="mt-0.5 text-foreground">{app.institution}</p>
+                        </div>
+                      )}
+                      {app.department && (
+                        <div>
+                          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Department</p>
+                          <p className="mt-0.5 text-foreground">{app.department}</p>
+                        </div>
+                      )}
+                      {app.designation && (
+                        <div>
+                          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Designation</p>
+                          <p className="mt-0.5 text-foreground">{app.designation}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="space-y-3">
                     <label className="text-sm font-medium">Assignment Role</label>
                     <RadioGroup
@@ -367,9 +401,22 @@ const AdminDashboard = () => {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Reject {app.name}?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            This will reject the application from <strong>{app.email}</strong>. This action cannot be undone.
+                            This will reject the application from <strong>{app.email}</strong>. You can include an optional reason that will be saved with the application.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
+                        <div className="space-y-2 py-2">
+                          <Label htmlFor={`${app.id}-reason`} className="text-xs">
+                            Reason (optional)
+                          </Label>
+                          <Input
+                            id={`${app.id}-reason`}
+                            placeholder="e.g. Could not verify institutional affiliation"
+                            value={rejectReasons[app.id] || ""}
+                            onChange={(e) =>
+                              setRejectReasons((prev) => ({ ...prev, [app.id]: e.target.value }))
+                            }
+                          />
+                        </div>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
                           <AlertDialogAction
