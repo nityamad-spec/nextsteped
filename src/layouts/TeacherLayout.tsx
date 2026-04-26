@@ -61,12 +61,12 @@ const TeacherLayout = () => {
   if (isMobile) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
-        <header className="flex items-center justify-between border-b px-4 py-3">
-          <div>
+        <header className="flex flex-col gap-2 border-b px-4 py-3">
+          <div className="flex items-center justify-between">
             <h1 className="font-heading text-lg font-bold">Next<span className="text-primary">Step</span></h1>
-            {currentCourse && <p className="text-xs text-muted-foreground">{currentCourse.name}</p>}
+            <button onClick={handleLogout} className="text-muted-foreground"><LogOut className="h-5 w-5" /></button>
           </div>
-          <button onClick={handleLogout} className="text-muted-foreground"><LogOut className="h-5 w-5" /></button>
+          <CourseSwitcher />
         </header>
         <main className="flex-1 overflow-auto">
           <Outlet />
