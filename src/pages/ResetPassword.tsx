@@ -13,16 +13,43 @@ const ResetPassword = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [isRecovery, setIsRecovery] = useState(false);
+  const [mode, setMode] = useState<"recovery" | "invite" | "waiting">("waiting");
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Detect recovery event from auth state change
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    // Detect recovery (forgot password) or invite (first-time approved professor)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "PASSWORD_RECOVERY") {
-        setIsRecovery(true);
+        setMode("recovery");
+        return;
+      }
+      if (event === "SIGNED_IN" && session?.user) {
+        // Check if this user was just invited and needs to set a password
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("needs_password_setup")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        if (profile?.needs_password_setup) {
+          setMode("invite");
+        }
       }
     });
+
+    // Also handle case where session already exists on page load
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("needs_password_setup")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        if (profile?.needs_password_setup) {
+          setMode("invite");
+        }
+      }
+    });
+
     return () => subscription.unsubscribe();
   }, []);
 
@@ -40,12 +67,39 @@ const ResetPassword = () => {
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
       toast.error(error.message);
+      setLoading(false);
+      return;
+    }
+
+    // If this was an invite flow, clear the flag and route them into the app
+    if (mode === "invite") {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from("profiles")
+          .update({ needs_password_setup: false })
+          .eq("id", user.id);
+      }
+      toast.success("Password set! Welcome to NextStep.");
+      navigate("/teacher");
     } else {
       toast.success("Password updated successfully!");
       navigate("/auth");
     }
     setLoading(false);
   };
+
+  const isInvite = mode === "invite";
+  const title = isInvite ? "Set Your Password" : "Reset Password";
+  const subtitle = isInvite
+    ? "Welcome! Choose a password to finish setting up your account."
+    : "Set your new password";
+  const description =
+    mode === "waiting"
+      ? "Waiting for password recovery link verification…"
+      : isInvite
+        ? "Pick a password you'll remember — you'll use it every time you log in."
+        : "Enter your new password below.";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -54,24 +108,20 @@ const ResetPassword = () => {
           <h1 className="font-heading text-4xl font-bold tracking-tight text-foreground">
             Next<span className="text-primary">Step</span>
           </h1>
-          <p className="mt-2 text-muted-foreground">Set your new password</p>
+          <p className="mt-2 text-muted-foreground">{subtitle}</p>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <KeyRound className="h-5 w-5" /> Reset Password
+              <KeyRound className="h-5 w-5" /> {title}
             </CardTitle>
-            <CardDescription>
-              {isRecovery
-                ? "Enter your new password below."
-                : "Waiting for password recovery link verification…"}
-            </CardDescription>
+            <CardDescription>{description}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="new-password">New Password</Label>
+                <Label htmlFor="new-password">{isInvite ? "Password" : "New Password"}</Label>
                 <div className="relative">
                   <Input
                     id="new-password"
@@ -103,8 +153,8 @@ const ResetPassword = () => {
                   minLength={6}
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Updating…" : "Update Password"}
+              <Button type="submit" className="w-full" disabled={loading || mode === "waiting"}>
+                {loading ? "Saving…" : isInvite ? "Set Password & Continue" : "Update Password"}
               </Button>
             </form>
           </CardContent>
