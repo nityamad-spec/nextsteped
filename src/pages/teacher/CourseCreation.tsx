@@ -296,6 +296,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       setGenError("No course selected. Please complete course setup first.");
       return;
     }
+    setPhase("generating");
     setGenError(null);
     setNoConceptsError(false);
     setGenStep(0);
@@ -349,6 +350,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       setExpandedWeeks(generated.length > 0 ? [generated[0].id] : []);
       setOverallOutcomes(typeof data.overall_course_learning_outcomes === "string" ? data.overall_course_learning_outcomes : "");
       setGapMode(false);
+      setLastGeneratedSchedule({ total_weeks: totalWeeks, midterm_week: midtermWeek, final_week: finalWeek });
       setGenStep(2);
       setTimeout(() => setPhase("plan"), 500);
     } catch (err: any) {
@@ -357,24 +359,14 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       console.error("Lesson plan generation failed:", err);
       setGenError(err?.message || "Failed to generate lesson plan");
     }
-  }, [courseId]);
+  }, [courseId, totalWeeks, midtermWeek, finalWeek]);
 
-  useEffect(() => {
-    if (restoringDraft) return;
-    if (resolvingCourse) return;
-    if (!scheduleLoaded) return;
-    if (!user) return;
-    if (phase !== "generating") return;
-    if (weeks.length > 0) { setPhase("plan"); return; }
-    if (!courseId) {
-      setGenError("No course found yet. Start by uploading materials in Course Materials, then return here.");
-      return;
-    }
-    if (!totalWeeks) {
-      return;
-    }
-    runGeneration();
-  }, [phase, weeks.length, restoringDraft, runGeneration, user, resolvingCourse, courseId, scheduleLoaded, totalWeeks]);
+  // Schedule completeness + change detection
+  const scheduleComplete = !!(totalWeeks && midtermWeek && finalWeek);
+  const scheduleChanged = !lastGeneratedSchedule
+    || lastGeneratedSchedule.total_weeks !== totalWeeks
+    || lastGeneratedSchedule.midterm_week !== midtermWeek
+    || lastGeneratedSchedule.final_week !== finalWeek;
 
   // ─── Week handlers ───
   const toggleWeek = (id: string) =>
