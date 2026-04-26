@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -39,6 +39,8 @@ const DiagnosticQuiz = () => {
   const { studentProfile, setStudentProfile, setDiagnosticComplete } = useApp();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const courseParam = searchParams.get("course");
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [textAnswer, setTextAnswer] = useState("");
@@ -53,26 +55,37 @@ const DiagnosticQuiz = () => {
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [questionIds, setQuestionIds] = useState<string[]>([]);
   const [initialized, setInitialized] = useState(false);
+  const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
 
   useEffect(() => {
     const init = async () => {
       if (!user || initialized) return;
       setInitialized(true);
 
-      const { data: enrollment } = await supabase
-        .from("enrollments")
-        .select("course_id")
-        .eq("student_id", user.id)
-        .limit(1)
-        .maybeSingle();
+      // Resolve target course: URL param > localStorage > newest enrollment.
+      let courseId = courseParam || localStorage.getItem("enrolledCourseId");
 
-      const courseId = enrollment?.course_id;
+      if (!courseId) {
+        const { data: enrollment } = await supabase
+          .from("enrollments")
+          .select("course_id")
+          .eq("student_id", user.id)
+          .order("enrolled_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        courseId = enrollment?.course_id || null;
+      }
 
       if (!courseId) {
         setQuestions([]);
         setPhase("intro");
         return;
       }
+
+      setActiveCourseId(courseId);
+      localStorage.setItem("enrolledCourseId", courseId);
+      // Persist as the active course so the dashboard lands on it.
+      await supabase.from("profiles").update({ active_course_id: courseId }).eq("id", user.id);
 
       const { data: existing } = await supabase
         .from("diagnostic_results")
