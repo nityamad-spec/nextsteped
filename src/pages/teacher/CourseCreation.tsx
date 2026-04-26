@@ -246,6 +246,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     if (draft.publishTimestamp !== undefined) setPublishTimestamp(draft.publishTimestamp ?? null);
     if (typeof draft.overallOutcomes === "string") setOverallOutcomes(draft.overallOutcomes);
     if (typeof draft.gapMode === "boolean") setGapMode(draft.gapMode);
+    if (draft.lastGeneratedSchedule !== undefined) setLastGeneratedSchedule(draft.lastGeneratedSchedule ?? null);
   }, []);
 
   useEffect(() => {
