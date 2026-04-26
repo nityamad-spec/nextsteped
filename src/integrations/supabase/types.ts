@@ -821,6 +821,7 @@ export type Database = {
           institution: string | null
           learner_level: string | null
           name: string
+          needs_password_setup: boolean
           role: string
           roll_number: string | null
           university_id: string | null
@@ -838,6 +839,7 @@ export type Database = {
           institution?: string | null
           learner_level?: string | null
           name: string
+          needs_password_setup?: boolean
           role: string
           roll_number?: string | null
           university_id?: string | null
@@ -855,6 +857,7 @@ export type Database = {
           institution?: string | null
           learner_level?: string | null
           name?: string
+          needs_password_setup?: boolean
           role?: string
           roll_number?: string | null
           university_id?: string | null
