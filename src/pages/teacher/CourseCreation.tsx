@@ -199,7 +199,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     }
   }, [courseId, toast]);
 
-  const [phase, setPhase] = useState<"generating" | "plan">("generating");
+  const [phase, setPhase] = useState<"idle" | "generating" | "plan">("idle");
   const [genError, setGenError] = useState<string | null>(null);
   const [noConceptsError, setNoConceptsError] = useState(false);
   const [genElapsed, setGenElapsed] = useState(0);
@@ -213,6 +213,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [gapMode, setGapMode] = useState<boolean>(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishConfirmed, setPublishConfirmed] = useState(false);
+  const [lastGeneratedSchedule, setLastGeneratedSchedule] = useState<ScheduleSnapshot | null>(null);
 
   // edit states
   const [editingOverviewId, setEditingOverviewId] = useState<string | null>(null);
