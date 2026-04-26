@@ -97,10 +97,14 @@ Deno.serve(async (req) => {
     }
 
     if (action === "approve") {
+      // Determine the redirect URL for the invite link from the caller's origin
+      const origin = req.headers.get("origin") ?? req.headers.get("referer")?.replace(/\/$/, "") ?? "";
+      const redirectTo = origin ? `${origin}/reset-password` : undefined;
+
       // Invite user — this creates the account AND sends an invite email
       const { data: newUser, error: createError } = await adminClient.auth.admin.inviteUserByEmail(
         application.email,
-        { data: { name: application.name, role: "teacher" } }
+        { data: { name: application.name, role: "teacher" }, redirectTo }
       );
 
       if (createError) throw createError;
