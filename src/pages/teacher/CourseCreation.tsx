@@ -63,6 +63,12 @@ type WeekPlan = {
   locked: boolean;
 };
 
+type ScheduleSnapshot = {
+  total_weeks: number | null;
+  midterm_week: number | null;
+  final_week: number | null;
+};
+
 type LessonPlanDraft = {
   weeks?: WeekPlan[];
   expandedWeeks?: string[];
@@ -70,6 +76,7 @@ type LessonPlanDraft = {
   publishTimestamp?: string | null;
   overallOutcomes?: string;
   gapMode?: boolean;
+  lastGeneratedSchedule?: ScheduleSnapshot | null;
 };
 
 const makeId = () => `i_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
