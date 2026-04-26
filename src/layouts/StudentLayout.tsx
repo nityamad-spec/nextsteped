@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { Home, MessageSquare, LogOut, MessageSquareHeart } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
+import StudentCourseSwitcher from "@/components/StudentCourseSwitcher";
+import AddCourseDialog from "@/components/AddCourseDialog";
 
 const studentNav = [
   { title: "Home", path: "/student/home", icon: Home },
@@ -12,11 +15,11 @@ const studentNav = [
 ];
 
 const StudentLayout = () => {
-  const { currentCourse, studentProfile, resetAll } = useApp();
+  const { studentProfile, resetAll } = useApp();
   const { signOut } = useAuth();
-  const courseName = currentCourse?.name || "Course";
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const [addCourseOpen, setAddCourseOpen] = useState(false);
 
   const handleLogout = async () => {
     await signOut();
@@ -27,10 +30,12 @@ const StudentLayout = () => {
   if (isMobile) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
-        <header className="flex items-center justify-between border-b px-4 py-3">
-          <div>
+        <header className="flex items-center justify-between gap-3 border-b px-4 py-3">
+          <div className="min-w-0 flex-1">
             <h1 className="font-heading text-lg font-bold">Next<span className="text-primary">Step</span></h1>
-            <p className="text-xs text-muted-foreground">{courseName}</p>
+            <div className="mt-1">
+              <StudentCourseSwitcher onAddCourse={() => setAddCourseOpen(true)} />
+            </div>
           </div>
           <button onClick={handleLogout} className="text-muted-foreground"><LogOut className="h-5 w-5" /></button>
         </header>
@@ -51,6 +56,7 @@ const StudentLayout = () => {
             </NavLink>
           ))}
         </nav>
+        <AddCourseDialog open={addCourseOpen} onOpenChange={setAddCourseOpen} />
       </div>
     );
   }
@@ -61,7 +67,9 @@ const StudentLayout = () => {
         <div className="border-b p-4">
           <h1 className="font-heading text-xl font-bold">Next<span className="text-primary">Step</span></h1>
           <p className="mt-0.5 text-xs text-muted-foreground">Student View</p>
-          <p className="mt-1 text-xs font-medium text-primary">{courseName}</p>
+          <div className="mt-3">
+            <StudentCourseSwitcher onAddCourse={() => setAddCourseOpen(true)} />
+          </div>
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
@@ -97,6 +105,8 @@ const StudentLayout = () => {
       <main className="flex-1 overflow-auto">
         <Outlet />
       </main>
+
+      <AddCourseDialog open={addCourseOpen} onOpenChange={setAddCourseOpen} />
     </div>
   );
 };
