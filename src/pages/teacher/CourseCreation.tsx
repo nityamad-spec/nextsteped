@@ -546,26 +546,33 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     );
   }
 
-  if (phase === "generating") {
-    // If schedule is loaded but Total Weeks isn't set yet, prompt the teacher to set it
-    if (scheduleLoaded && !totalWeeks) {
-      return (
-        <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
-          <Card className="w-full max-w-[560px] p-6 space-y-5">
-            {!embedded && (
-              <Button variant="outline" size="sm" onClick={() => navigate("/teacher/setup")} className="gap-2 self-start">
-                <ArrowLeft className="h-4 w-4" /> Back to Course Setup
-              </Button>
-            )}
-            <div className="space-y-1">
-              <h1 className="font-heading text-xl font-bold">Set your course schedule</h1>
-              <p className="text-sm text-muted-foreground">
-                Tell us how long the course runs and which weeks are exam weeks. We'll distribute your approved concepts across the remaining teaching weeks in learning order.
-              </p>
+  // ─── IDLE PHASE: schedule form + Generate button (no plan yet) ───
+  if (phase === "idle") {
+    return (
+      <div className="flex min-h-screen items-start justify-center bg-background px-4 py-8">
+        <div className="w-full max-w-[640px] space-y-5">
+          {!embedded && (
+            <Button variant="outline" size="sm" onClick={() => navigate("/teacher/setup")} className="gap-2">
+              <ArrowLeft className="h-4 w-4" /> Back to Course Setup
+            </Button>
+          )}
+          <div className="text-center space-y-2">
+            <h1 className="font-heading text-2xl font-bold">
+              AI <span className="text-primary">Lesson Plan</span>
+            </h1>
+            <p className="text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">
+              Set your course schedule below, then click Generate Lesson Plan. We'll distribute your approved concepts across teaching weeks in learning order.
+            </p>
+          </div>
+
+          <Card className="p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-primary" />
+              <p className="text-sm font-semibold">Course Schedule</p>
             </div>
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <Label className="text-sm">Total Weeks</Label>
+                <Label className="text-xs">Total Weeks <span className="text-destructive">*</span></Label>
                 <Input
                   type="number"
                   min={4}
@@ -575,29 +582,82 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                     const v = parseInt(e.target.value, 10);
                     if (Number.isFinite(v) && v >= 4 && v <= 24) {
                       setTotalWeeks(v);
-                      persistSchedule({ total_weeks: v });
+                      const patch: any = { total_weeks: v };
+                      if (midtermWeek && midtermWeek > v) { setMidtermWeek(null); patch.midterm_week = null; }
+                      if (finalWeek && finalWeek > v) { setFinalWeek(null); patch.final_week = null; }
+                      persistSchedule(patch);
                     } else if (e.target.value === "") {
                       setTotalWeeks(null);
                     }
                   }}
                   placeholder="e.g. 16"
-                  className="mt-1"
+                  className="mt-1 h-9"
                 />
-                <p className="text-[11px] text-muted-foreground mt-1">Between 4 and 24 weeks.</p>
+                <p className="text-[11px] text-muted-foreground mt-1">4–24 weeks</p>
+              </div>
+              <div>
+                <Label className="text-xs">Midterm Week <span className="text-destructive">*</span></Label>
+                <Select
+                  value={midtermWeek ? String(midtermWeek) : ""}
+                  onValueChange={(v) => {
+                    const next = parseInt(v, 10);
+                    setMidtermWeek(next);
+                    persistSchedule({ midterm_week: next });
+                  }}
+                  disabled={!totalWeeks}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select week" /></SelectTrigger>
+                  <SelectContent>
+                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
+                      .filter(n => n !== finalWeek)
+                      .map(n => (
+                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Final Week <span className="text-destructive">*</span></Label>
+                <Select
+                  value={finalWeek ? String(finalWeek) : ""}
+                  onValueChange={(v) => {
+                    const next = parseInt(v, 10);
+                    setFinalWeek(next);
+                    persistSchedule({ final_week: next });
+                  }}
+                  disabled={!totalWeeks}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select week" /></SelectTrigger>
+                  <SelectContent>
+                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
+                      .filter(n => n !== midtermWeek)
+                      .map(n => (
+                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <Button
               className="w-full"
-              disabled={!totalWeeks}
-              onClick={() => { /* effect picks up totalWeeks change */ }}
+              disabled={!scheduleComplete || !courseId}
+              onClick={runGeneration}
             >
-              Continue
+              <Sparkles className="mr-2 h-4 w-4" />
+              Generate Lesson Plan
             </Button>
+            {!scheduleComplete && (
+              <p className="text-[11px] text-muted-foreground text-center">
+                Fill in Total Weeks, Midterm Week, and Final Week to enable generation.
+              </p>
+            )}
           </Card>
         </div>
-      );
-    }
+      </div>
+    );
+  }
 
+  if (phase === "generating") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
         <div className="w-full max-w-[640px] text-center space-y-8">
