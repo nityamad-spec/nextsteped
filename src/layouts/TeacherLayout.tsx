@@ -7,6 +7,7 @@ import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTeacherSetupStatus } from "@/hooks/useTeacherSetupStatus";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import CourseSwitcher from "@/components/CourseSwitcher";
 
 interface NavItem {
   title: string;
@@ -108,12 +109,12 @@ const TeacherLayout = () => {
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="flex w-60 flex-col border-r bg-sidebar">
-        <div className="border-b p-4">
-          <h1 className="font-heading text-xl font-bold">Next<span className="text-primary">Step</span></h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">Professor View</p>
-          {currentCourse && (
-            <p className="mt-1 text-xs font-medium text-primary">{currentCourse.name}</p>
-          )}
+        <div className="border-b p-4 space-y-3">
+          <div>
+            <h1 className="font-heading text-xl font-bold">Next<span className="text-primary">Step</span></h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">Professor View</p>
+          </div>
+          <CourseSwitcher />
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
