@@ -96,8 +96,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let timeout: ReturnType<typeof setTimeout> | null = null;
 
+    // Skip auto-bypass on routes that need the user's own session
+    // (invite/recovery flows, e.g. teachers/students setting their initial password).
+    const path = typeof window !== "undefined" ? window.location.pathname : "";
+    const skipBypass = path.startsWith("/reset-password");
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session && AUTH_BYPASS) {
+      if (!session && AUTH_BYPASS && !skipBypass) {
         // Don't arm the safety timeout while the bypass sign-in is in-flight —
         // otherwise `loading` flips to false before `user` is populated and
         // consumers (e.g. TeacherOnboarding) see authLoading=false && user=null
@@ -114,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Safety timeout — only used when there's no bypass to wait on.
-    if (!AUTH_BYPASS) {
+    if (!AUTH_BYPASS || skipBypass) {
       timeout = setTimeout(() => {
         setLoading(false);
       }, 3000);
