@@ -21,10 +21,24 @@ const StudentOnboarding = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // If a returning student lands here, send them through the redirect flow
+  // If a user with an existing *student* profile lands here, send them back to
+  // the student dashboard. Don't bounce on every signed-in user — otherwise the
+  // bypass-admin (or any non-student auth user) creates a redirect loop with
+  // StudentRedirect, which itself sends profile-less users to /student/onboarding.
   useEffect(() => {
-    if (authLoading) return;
-    if (user) navigate("/student", { replace: true });
+    if (authLoading || !user) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (!cancelled && data?.role === "student") {
+        navigate("/student", { replace: true });
+      }
+    })();
+    return () => { cancelled = true; };
   }, [user, authLoading, navigate]);
 
   // Form state
