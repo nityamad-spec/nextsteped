@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Safety timeout — only used when there's no bypass to wait on.
-    if (!AUTH_BYPASS) {
+    if (!AUTH_BYPASS || skipBypass) {
       timeout = setTimeout(() => {
         setLoading(false);
       }, 3000);
