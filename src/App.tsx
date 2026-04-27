@@ -134,9 +134,11 @@ function StudentRedirect() {
     );
   }
 
-  // Sync DB state to local context
-  if (hasProfile) setStudentOnboarded(true);
-  if (hasDiagnostic) setDiagnosticComplete(true);
+  // Sync DB state to local context (in effect to avoid render-phase setState loops)
+  useEffect(() => {
+    if (hasProfile) setStudentOnboarded(true);
+    if (hasDiagnostic) setDiagnosticComplete(true);
+  }, [hasProfile, hasDiagnostic, setStudentOnboarded, setDiagnosticComplete]);
 
   // Profile is the only onboarding gate; enrollment is optional and can happen later.
   if (!hasProfile) return <Navigate to="/student/onboarding" replace />;
