@@ -81,14 +81,6 @@ const Landing = () => {
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12">
-      {user && (
-        <div className="absolute right-6 top-6">
-          <Button variant="outline" size="sm" onClick={signOut} className="gap-2">
-            <LogOut className="h-4 w-4" />
-            Sign Out
-          </Button>
-        </div>
-      )}
 
       <motion.div
         initial={{ opacity: 0, y: -20 }}
