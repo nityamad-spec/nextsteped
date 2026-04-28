@@ -518,6 +518,39 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!previewFile} onOpenChange={(open) => { if (!open) closePreview(); }}>
+        <DialogContent className="max-w-4xl w-[95vw] h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="p-4 border-b shrink-0">
+            <DialogTitle className="truncate pr-8">{previewFile?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto bg-muted/30">
+            {previewLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : previewText !== null ? (
+              <pre className="p-4 text-xs whitespace-pre-wrap font-mono">{previewText}</pre>
+            ) : previewUrl && previewMime === "application/pdf" ? (
+              <iframe src={previewUrl} className="w-full h-full" title={previewFile?.name} />
+            ) : previewUrl && previewMime.startsWith("image/") ? (
+              <div className="flex items-center justify-center h-full p-4">
+                <img src={previewUrl} alt={previewFile?.name} className="max-w-full max-h-full object-contain" />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-6">
+                <FileText className="h-12 w-12 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">Preview not available for this file type.</p>
+                {previewUrl && (
+                  <a href={previewUrl} download={previewFile?.name} className="text-sm text-primary hover:underline">
+                    Download to view
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
