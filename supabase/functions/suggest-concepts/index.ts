@@ -70,7 +70,7 @@ serve(async (req) => {
     let syllabusJson: any = null;
     const candidatePaths = [
       course?.syllabus_json_path,
-      course?.teacher_id ? `${course.teacher_id}/syllabus/approved-syllabus.json` : null,
+      `${courseId}/syllabus/approved-syllabus.json`,
     ].filter(Boolean) as string[];
 
     for (const p of candidatePaths) {
