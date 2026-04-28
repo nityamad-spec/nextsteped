@@ -197,7 +197,7 @@ const CourseStatusBanner = () => {
             {isDraft && (
               <Button
                 size="sm"
-                disabled={busy || !isOwner}
+                disabled={busy || !canManage}
                 onClick={() =>
                   update(
                     { published: true, enrollment_open: true },
@@ -223,7 +223,7 @@ const CourseStatusBanner = () => {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={busy || !isOwner}
+                  disabled={busy || !canManage}
                   onClick={() =>
                     update({ enrollment_open: false }, "Enrollment closed for new students.")
                   }
@@ -236,7 +236,7 @@ const CourseStatusBanner = () => {
             {isLiveClosed && (
               <Button
                 size="sm"
-                disabled={busy || !isOwner}
+                disabled={busy || !canManage}
                 onClick={() =>
                   update({ enrollment_open: true }, "Enrollment reopened.")
                 }
@@ -245,9 +245,9 @@ const CourseStatusBanner = () => {
                 Reopen enrollment
               </Button>
             )}
-            {!isOwner && (
+            {!canManage && (
               <span className="text-[11px] text-muted-foreground italic">
-                Only the course owner can change these settings.
+                You don't have permission to change these settings.
               </span>
             )}
           </div>

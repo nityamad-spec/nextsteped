@@ -117,7 +117,7 @@ const CourseDashboard = () => {
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                You can view and edit every stage of the course pipeline alongside the owner. Only the owner can publish the course or manage collaborators.
+                You can view and edit every stage of the course pipeline alongside the owner, including publishing the course and managing enrollment. Only the owner can manage collaborators.
               </p>
               <div className="mt-3">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">
