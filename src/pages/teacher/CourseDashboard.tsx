@@ -48,6 +48,32 @@ const CourseDashboard = () => {
   const [coursePublished, setCoursePublished] = useState<boolean | null>(null);
   const [hoveredConcept, setHoveredConcept] = useState<string | null>(null);
   const [expandedConcept, setExpandedConcept] = useState<string | null>(null);
+  const [teacherRole, setTeacherRole] = useState<"owner" | "collaborator" | null>(null);
+
+  useEffect(() => {
+    if (!user || !courseId) { setTeacherRole(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data: course } = await supabase
+        .from("courses")
+        .select("teacher_id")
+        .eq("id", courseId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (course?.teacher_id === user.id) { setTeacherRole("owner"); return; }
+      const { data: membership } = await supabase
+        .from("course_teachers")
+        .select("role")
+        .eq("course_id", courseId)
+        .eq("teacher_id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (membership?.role === "owner") setTeacherRole("owner");
+      else if (membership) setTeacherRole("collaborator");
+      else setTeacherRole(null);
+    })();
+    return () => { cancelled = true; };
+  }, [user, courseId]);
 
   // Semester progress (mock)
   const totalWeeks = 16;
