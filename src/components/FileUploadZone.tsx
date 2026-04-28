@@ -417,7 +417,21 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
               className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
             >
               <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="flex-1 truncate">{f.name}</span>
+              {folderType === "syllabus" ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void openPreview(f);
+                  }}
+                  className="flex-1 truncate text-left hover:underline hover:text-primary transition-colors"
+                  title="Preview file"
+                >
+                  {f.name}
+                </button>
+              ) : (
+                <span className="flex-1 truncate">{f.name}</span>
+              )}
               {folderType === "syllabus" && renderParsePill(f.path)}
               {folderType === "syllabus" && parseStatus[f.path] === "failed" && (
                 <button
