@@ -9,10 +9,8 @@ import { resolvePublishedPath, LESSON_PLAN_BUCKET } from "@/lib/lessonPlanPath";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, MessageSquare, Shield, BarChart3, Lightbulb, AlertTriangle, BookOpen, ListChecks, Crown, Handshake } from "lucide-react";
+import { Users, MessageSquare, Shield, BarChart3, Lightbulb, Handshake } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
 import CourseCollaborators from "@/components/CourseCollaborators";
 
 /* ── Concept Exploration Map categories ── */
@@ -37,7 +35,7 @@ const insightsMock = [
 const CourseDashboard = () => {
   const { currentCourse } = useApp();
   const { user } = useAuth();
-  const navigate = useNavigate();
+  // navigate removed: no longer needed after warning banners were removed
   const courseId = useTeacherCourseId();
   const { taSettings } = useTASettings(courseId);
   const courseSections = currentCourse?.sections || [];
@@ -143,34 +141,22 @@ const CourseDashboard = () => {
         </div>
       </div>
 
-      {/* Role Banner — owner vs collaborator + editable sections */}
-      {teacherRole && (
-        <div
-          className={`mb-6 rounded-lg border-2 px-5 py-4 ${
-            teacherRole === "owner"
-              ? "border-primary/30 bg-primary/5"
-              : "border-accent/40 bg-accent/5"
-          }`}
-        >
+      {/* Collaborator Banner — only shown for collaborators */}
+      {teacherRole === "collaborator" && (
+        <div className="mb-6 rounded-lg border-2 border-accent/40 bg-accent/5 px-5 py-4">
           <div className="flex items-start gap-3">
-            {teacherRole === "owner" ? (
-              <Crown className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-            ) : (
-              <Handshake className="h-5 w-5 text-accent mt-0.5 shrink-0" />
-            )}
+            <Handshake className="h-5 w-5 text-accent mt-0.5 shrink-0" />
             <div className="flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-sm font-semibold text-foreground">
-                  You are {teacherRole === "owner" ? "the Owner" : "a Collaborator"} on this course
+                  You are a Collaborator on this course
                 </p>
-                <Badge variant={teacherRole === "owner" ? "default" : "secondary"} className="text-[10px] uppercase tracking-wide">
-                  {teacherRole}
+                <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                  collaborator
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {teacherRole === "owner"
-                  ? "You have full control over this course, including publishing, enrollment, and managing collaborators."
-                  : "You can view and edit every stage of the course pipeline alongside the owner. Only the owner can publish the course or manage collaborators."}
+                You can view and edit every stage of the course pipeline alongside the owner. Only the owner can publish the course or manage collaborators.
               </p>
               <div className="mt-3">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">
@@ -186,7 +172,6 @@ const CourseDashboard = () => {
                     "Exam Mode",
                     "AI TA Settings",
                     "Content Library",
-                    ...(teacherRole === "owner" ? ["Enrollment & Publishing", "Collaborators"] : []),
                   ].map((s) => (
                     <Badge key={s} variant="outline" className="text-[11px] font-normal">
                       {s}
@@ -195,52 +180,6 @@ const CourseDashboard = () => {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Setup CTA removed: TeacherLayout already blocks access until setup is complete. */}
-
-      {/* Course Not Published Banner */}
-      {setupComplete === true && coursePublished === false && (
-        <div className="mb-6 flex items-start gap-3 rounded-lg border-2 border-primary/30 bg-primary/10 px-5 py-4">
-          <AlertTriangle className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-foreground">Publish your course so students can enroll</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Your setup is complete — the last step is publishing the course so students can join with your enrollment code.
-            </p>
-            <Button
-              variant="default"
-              size="sm"
-              className="mt-3 gap-2"
-              onClick={() => navigate("/teacher/setup")}
-            >
-              <ListChecks className="h-4 w-4" />
-              Go to Course Setup
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Lesson Plan Not Published Banner */}
-      {lessonPlanPublished === false && (
-        <div className="mb-6 flex items-start gap-3 rounded-lg border-2 border-amber-500/30 bg-amber-500/10 px-5 py-4">
-          <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-foreground">Your lesson plan hasn't been published to students yet</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Students won't see the lesson plan until you publish it. You can keep making edits at any time, and control which weeks are visible to students — perfect for revealing content week by week as you finalize each section. Publish when you're ready from <strong>Lesson Plan & Resources</strong>.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3 gap-2"
-              onClick={() => navigate("/teacher/courses/content")}
-            >
-              <BookOpen className="h-4 w-4" />
-              Go to Lesson Plan & Resources
-            </Button>
           </div>
         </div>
       )}
