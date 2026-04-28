@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { CheckCircle, XCircle, UserPlus, Users, Clock, BookOpen, Crown, PlusCircle, Settings, Calculator, AlertTriangle, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, UserPlus, Users, Clock, BookOpen, Crown, PlusCircle, Settings, Calculator, AlertTriangle, Loader2, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import CostCalculator from "@/components/admin/CostCalculator";
 
@@ -56,6 +56,24 @@ const AdminDashboard = () => {
   const [wipeDialogOpen, setWipeDialogOpen] = useState(false);
   const [wipeConfirmText, setWipeConfirmText] = useState("");
   const [wiping, setWiping] = useState(false);
+
+  const [resendingId, setResendingId] = useState<string | null>(null);
+
+  const handleResendInvite = async (app: TeacherApplication) => {
+    setResendingId(app.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("resend-teacher-invite", {
+        body: { applicationId: app.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Verification email resent to ${app.email}`);
+    } catch (err: any) {
+      toast.error("Failed to resend email", { description: err?.message ?? "Unknown error" });
+    } finally {
+      setResendingId(null);
+    }
+  };
 
   const handleWipeCourses = async () => {
     setWiping(true);
@@ -452,7 +470,21 @@ const AdminDashboard = () => {
                       <CardTitle className="text-lg">{app.name}</CardTitle>
                       <CardDescription>{app.email}</CardDescription>
                     </div>
-                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300">Approved</Badge>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleResendInvite(app)}
+                        disabled={resendingId === app.id}
+                      >
+                        {resendingId === app.id ? (
+                          <><Loader2 className="h-4 w-4 animate-spin" />Sending…</>
+                        ) : (
+                          <><Mail className="h-4 w-4" />Resend email</>
+                        )}
+                      </Button>
+                      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300">Approved</Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
