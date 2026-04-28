@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Users, MessageSquare, Shield, BarChart3, Lightbulb, Handshake } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import CourseCollaborators from "@/components/CourseCollaborators";
+import CourseStatusBanner from "@/components/CourseStatusBanner";
 
 /* ── Concept Exploration Map categories ── */
 const conceptMasteryMock = [
@@ -97,6 +98,9 @@ const CourseDashboard = () => {
           <p className="text-xs text-muted-foreground">All student data is anonymized to protect privacy and encourage authentic engagement with the Teaching Assistant.</p>
         </div>
       </div>
+
+      {/* Course publish & enrollment status */}
+      <CourseStatusBanner />
 
       {/* Collaborator Banner — only shown for collaborators */}
       {isCollaborator && (

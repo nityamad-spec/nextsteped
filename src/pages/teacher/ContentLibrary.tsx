@@ -9,6 +9,7 @@ import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import FileUploadZone from "@/components/FileUploadZone";
 import { toast } from "sonner";
 import CourseCreation from "@/pages/teacher/CourseCreation";
+import CourseStatusBanner from "@/components/CourseStatusBanner";
 
 interface StoredFile {
   id: string;
@@ -160,6 +161,8 @@ const ContentLibrary = () => {
         <h1 className="font-heading text-3xl font-bold">Lesson Plan & Resources</h1>
         <p className="text-muted-foreground">Your published lesson plan and all course materials in one place. Edits here go live to students and the AI Teaching Assistant when you re-publish.</p>
       </div>
+
+      <CourseStatusBanner />
 
       <Tabs defaultValue="lesson-plan" className="space-y-6">
         <TabsList>

@@ -56,7 +56,17 @@ const PublishEnrollment = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
+    const courseId = currentCourse?.id;
+    if (courseId) {
+      const { error } = await supabase
+        .from("courses")
+        .update({ published: true, enrollment_open: true })
+        .eq("id", courseId);
+      if (error) {
+        console.error("Failed to publish course:", error);
+      }
+    }
     setTeacherOnboarded(true);
     navigate("/teacher/courses/dashboard");
   };
