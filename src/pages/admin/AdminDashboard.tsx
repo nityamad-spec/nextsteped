@@ -57,6 +57,24 @@ const AdminDashboard = () => {
   const [wipeConfirmText, setWipeConfirmText] = useState("");
   const [wiping, setWiping] = useState(false);
 
+  const [resendingId, setResendingId] = useState<string | null>(null);
+
+  const handleResendInvite = async (app: TeacherApplication) => {
+    setResendingId(app.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("resend-teacher-invite", {
+        body: { applicationId: app.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Verification email resent to ${app.email}`);
+    } catch (err: any) {
+      toast.error("Failed to resend email", { description: err?.message ?? "Unknown error" });
+    } finally {
+      setResendingId(null);
+    }
+  };
+
   const handleWipeCourses = async () => {
     setWiping(true);
     try {
