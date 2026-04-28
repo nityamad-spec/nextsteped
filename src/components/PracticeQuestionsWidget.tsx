@@ -38,7 +38,6 @@ interface PracticeQuestionsWidgetProps {
     courseName: string;
     objectives: string[];
     concepts: string[];
-    teacherId: string;
   } | null;
   enrolledCourseId?: string | null;
   studentId?: string | null;
