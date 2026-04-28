@@ -78,6 +78,11 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const [deleteTarget, setDeleteTarget] = useState<UploadedFile | null>(null);
   // Per-file parse status keyed by storage_path. Only used for syllabus uploads.
   const [parseStatus, setParseStatus] = useState<Record<string, ParseStatus>>({});
+  const [previewFile, setPreviewFile] = useState<UploadedFile | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewText, setPreviewText] = useState<string | null>(null);
+  const [previewMime, setPreviewMime] = useState<string>("");
 
   const handleSelect = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
