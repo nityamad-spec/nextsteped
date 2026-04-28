@@ -470,7 +470,21 @@ const AdminDashboard = () => {
                       <CardTitle className="text-lg">{app.name}</CardTitle>
                       <CardDescription>{app.email}</CardDescription>
                     </div>
-                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300">Approved</Badge>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleResendInvite(app)}
+                        disabled={resendingId === app.id}
+                      >
+                        {resendingId === app.id ? (
+                          <><Loader2 className="h-4 w-4 animate-spin" />Sending…</>
+                        ) : (
+                          <><Mail className="h-4 w-4" />Resend email</>
+                        )}
+                      </Button>
+                      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300">Approved</Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
