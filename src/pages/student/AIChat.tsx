@@ -101,7 +101,7 @@ const AIChat = () => {
     if (!enrolledCourseId) return;
     const fetchContext = async () => {
       const [courseRes, conceptsRes] = await Promise.all([
-        supabase.from("courses").select("name, objectives, teacher_id").eq("id", enrolledCourseId).maybeSingle(),
+        supabase.from("courses").select("name, objectives").eq("id", enrolledCourseId).maybeSingle(),
         supabase.from("concepts").select("concept_code").eq("course_id", enrolledCourseId),
       ]);
       if (courseRes.data) {
@@ -109,7 +109,6 @@ const AIChat = () => {
           courseName: courseRes.data.name,
           objectives: (courseRes.data.objectives as string[]) || [],
           concepts: (conceptsRes.data || []).map((c: any) => c.concept_code),
-          teacherId: courseRes.data.teacher_id,
         });
       }
     };
