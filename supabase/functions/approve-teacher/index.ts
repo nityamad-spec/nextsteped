@@ -187,6 +187,12 @@ Deno.serve(async (req) => {
             role: "owner",
           });
         if (newOwnerError) throw newOwnerError;
+
+        // Pre-select this course for the new owner
+        await adminClient
+          .from("profiles")
+          .update({ active_course_id: courseId })
+          .eq("id", newUser.user.id);
       }
       // assignmentType === "new_course" requires no additional action — teacher creates their own course later
 
