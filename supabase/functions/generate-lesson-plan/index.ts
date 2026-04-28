@@ -117,8 +117,7 @@ serve(async (req) => {
     const { data: files } = await supabaseAdmin
       .from("course_material_files")
       .select("file_name, storage_path, folder_type")
-      .eq("teacher_id", course.teacher_id)
-      .or(`course_id.eq.${courseId},course_id.is.null`)
+      .eq("course_id", courseId)
       .order("created_at", { ascending: false });
 
     const syllabusFiles = (files || []).filter((f) => f.folder_type === "syllabus");

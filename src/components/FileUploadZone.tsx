@@ -28,10 +28,14 @@ interface FileUploadZoneProps {
   accept: string;
   files: UploadedFile[];
   onFilesChange: (files: UploadedFile[]) => void;
-  /** If provided, metadata rows are inserted into course_material_files */
+  /** Course this upload belongs to. Required to insert course_material_files
+   *  rows, drive syllabus parsing, and write the parsed JSON to a path the
+   *  course-membership storage RLS allows. */
+  courseId?: string | null;
+  /** Required when courseId is set: the uid that gets stamped onto
+   *  course_material_files.teacher_id (audit trail of who uploaded). */
   teacherId?: string;
   folderType?: string;
-  courseId?: string | null;
 }
 
 function formatSize(bytes: number) {
@@ -60,7 +64,7 @@ async function fileToBase64(file: File): Promise<string> {
   return btoa(binary);
 }
 
-const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, folderType, courseId }: FileUploadZoneProps) => {
+const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, teacherId, folderType }: FileUploadZoneProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [pending, setPending] = useState<File[]>([]);
@@ -93,8 +97,9 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
 
   /**
    * Fire-and-forget syllabus parsing. Calls parse-syllabus edge function,
-   * writes JSON to {teacherId}/syllabus/approved-syllabus.json, and updates
-   * courses.syllabus_json_path on the latest course for this teacher.
+   * writes JSON to {courseId}/syllabus/approved-syllabus.json, and updates
+   * courses.syllabus_json_path. Requires courseId — without it we cannot
+   * write to a path the course-membership storage RLS allows.
    *
    * Source can be either an in-memory File (fresh upload) or a storage path
    * (retry after failure — file downloaded from bucket and re-encoded).
@@ -102,7 +107,12 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
   const parseSyllabusInBackground = async (
     source: { file: File; storagePath: string } | { storagePath: string; fileName: string }
   ) => {
-    if (!teacherId) return;
+    if (!courseId) {
+      // Without a course we have nowhere to put the parsed JSON.
+      // CourseMaterials.handleNext() creates the course row on Next click,
+      // and re-running parse from there will pick up the new courseId.
+      return;
+    }
     const storagePath = source.storagePath;
     setParseStatus((prev) => ({ ...prev, [storagePath]: "parsing" }));
     try {
@@ -128,7 +138,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
       const syllabusJson = (data as any)?.syllabus;
       if (!syllabusJson) throw new Error("Empty parser response");
 
-      const jsonPath = `${teacherId}/syllabus/approved-syllabus.json`;
+      const jsonPath = `${courseId}/syllabus/approved-syllabus.json`;
       const blob = new Blob([JSON.stringify(syllabusJson, null, 2)], {
         type: "application/json",
       });
@@ -137,26 +147,10 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
         .upload(jsonPath, blob, { upsert: true, contentType: "application/json" });
       if (uploadErr) throw new Error(uploadErr.message);
 
-      // Resolve active course id: prefer prop → fall back to latest course for teacher.
-      let activeCourseId: string | null = courseId ?? null;
-      if (!activeCourseId) {
-        const { data: latest } = await supabase
-          .from("courses")
-          .select("id")
-          .eq("teacher_id", teacherId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        activeCourseId = latest?.id ?? null;
-      }
-      if (activeCourseId) {
-        await supabase
-          .from("courses")
-          .update({ syllabus_json_path: jsonPath })
-          .eq("id", activeCourseId);
-      }
-      // If no course exists yet, CourseMaterials.handleNext() will back-fill
-      // syllabus_json_path on the lazily-created course row.
+      await supabase
+        .from("courses")
+        .update({ syllabus_json_path: jsonPath })
+        .eq("id", courseId);
 
       setParseStatus((prev) => ({ ...prev, [storagePath]: "parsed" }));
     } catch (err) {
@@ -252,26 +246,13 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, teacherId, f
     onFilesChange(remaining);
 
     // If this was the last syllabus file, clear the parsed JSON + course pointer.
-    if (folderType === "syllabus" && teacherId && remaining.length === 0) {
-      const jsonPath = `${teacherId}/syllabus/approved-syllabus.json`;
+    if (folderType === "syllabus" && courseId && remaining.length === 0) {
+      const jsonPath = `${courseId}/syllabus/approved-syllabus.json`;
       await supabase.storage.from("course-materials").remove([jsonPath]).catch(() => {});
-      let activeCourseId: string | null = courseId ?? null;
-      if (!activeCourseId) {
-        const { data: latest } = await supabase
-          .from("courses")
-          .select("id")
-          .eq("teacher_id", teacherId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        activeCourseId = latest?.id ?? null;
-      }
-      if (activeCourseId) {
-        await supabase
-          .from("courses")
-          .update({ syllabus_json_path: null })
-          .eq("id", activeCourseId);
-      }
+      await supabase
+        .from("courses")
+        .update({ syllabus_json_path: null })
+        .eq("id", courseId);
     }
 
     setParseStatus((prev) => {

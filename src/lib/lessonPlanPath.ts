@@ -1,42 +1,46 @@
 // Centralized helper for resolving the storage paths of lesson plan JSON files.
 //
-// Storage paths are recorded in the `courses` table:
-//   - `lesson_plan_path`        → published plan JSON path
-//   - `lesson_plan_draft_path`  → draft plan JSON path
+// Storage paths are course-scoped: every file lives under
+//   {courseId}/lesson-plan/{published|draft}-plan(-v2).json
+// so collaborators (not just the course owner) can read and write them
+// under the course-membership storage RLS policies.
+//
+// Path columns recorded on the `courses` table:
+//   - `lesson_plan_path`         → published plan JSON path
+//   - `lesson_plan_draft_path`   → draft plan JSON path
 //   - `lesson_plan_published_at` → timestamp of last publish
 //
-// For courses where these columns are still null (e.g. plans saved before this
-// feature shipped), we fall back to the legacy hardcoded path
-// `${teacherId}/lesson-plan/{published|draft}-plan(-v2).json`. Lazy upgrade
-// happens automatically the next time the plan is saved/published.
+// For courses where these columns are still null we fall back to deriving
+// the canonical path from the course id. The path is upgraded lazily on
+// the next save/publish.
 
 import { supabase } from "@/integrations/supabase/client";
 
 export const LESSON_PLAN_BUCKET = "course-materials";
 
-export const legacyPublishedPath = (teacherId: string) =>
-  `${teacherId}/lesson-plan/published-plan.json`;
+export const canonicalPublishedPath = (courseId: string) =>
+  `${courseId}/lesson-plan/published-plan.json`;
 
-export const legacyDraftPath = (teacherId: string) =>
-  `${teacherId}/lesson-plan/draft-plan-v2.json`;
+export const canonicalDraftPath = (courseId: string) =>
+  `${courseId}/lesson-plan/draft-plan-v2.json`;
 
 export const resolvePublishedPath = (
   course: { lesson_plan_path?: string | null } | null | undefined,
-  teacherId: string,
-): string => course?.lesson_plan_path || legacyPublishedPath(teacherId);
+  courseId: string,
+): string => course?.lesson_plan_path || canonicalPublishedPath(courseId);
 
 export const resolveDraftPath = (
   course: { lesson_plan_draft_path?: string | null } | null | undefined,
-  teacherId: string,
-): string => course?.lesson_plan_draft_path || legacyDraftPath(teacherId);
+  courseId: string,
+): string => course?.lesson_plan_draft_path || canonicalDraftPath(courseId);
 
 /**
- * Fetch the stored published plan path for a course (or fall back to legacy).
- * Returns the path plus the publish timestamp when available.
+ * Fetch the stored published plan path for a course (or fall back to the
+ * canonical course-scoped path). Returns the path plus the publish
+ * timestamp when available.
  */
 export const fetchPublishedPath = async (
   courseId: string,
-  teacherId: string,
 ): Promise<{ path: string; publishedAt: string | null }> => {
   const { data } = await supabase
     .from("courses")
@@ -44,7 +48,7 @@ export const fetchPublishedPath = async (
     .eq("id", courseId)
     .maybeSingle();
   return {
-    path: resolvePublishedPath(data, teacherId),
+    path: resolvePublishedPath(data, courseId),
     publishedAt: data?.lesson_plan_published_at ?? null,
   };
 };

@@ -79,14 +79,14 @@ async function getCacheVersion(
 
 async function fetchSyllabusContext(
   supabaseAdmin: any,
-  teacherId: string
+  courseId: string
 ): Promise<string> {
-  const version = await getCacheVersion(supabaseAdmin, "syllabus", teacherId);
-  return cached(`syllabus:${teacherId}:v${version}`, TTL_SYLLABUS_MS, async () => {
+  const version = await getCacheVersion(supabaseAdmin, "syllabus", courseId);
+  return cached(`syllabus:${courseId}:v${version}`, TTL_SYLLABUS_MS, async () => {
     try {
       const { data, error } = await supabaseAdmin.storage
         .from("course-materials")
-        .download(`${teacherId}/syllabus/approved-syllabus.json`);
+        .download(`${courseId}/syllabus/approved-syllabus.json`);
       if (error || !data) return "";
 
       const text = await data.text();
@@ -373,7 +373,7 @@ You are collaborative, practical, and focused on helping the professor make thei
 
     // ---- RAG: Retrieve course context ----
     let ragContext = "";
-    if (courseId && teacherId && (studentId || mode === "teacher")) {
+    if (courseId && (studentId || mode === "teacher")) {
       const supabaseUrl = Deno.env.get("SUPABASE_URL");
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -384,7 +384,7 @@ You are collaborative, practical, and focused on helping the professor make thei
           messages?.[messages.length - 1]?.content || "";
 
         const ragPromises: Promise<string>[] = [
-            fetchSyllabusContext(supabaseAdmin, teacherId),
+            fetchSyllabusContext(supabaseAdmin, courseId),
             fetchConceptsContext(supabaseAdmin, courseId),
             fetchQuestionBankContext(supabaseAdmin, courseId, latestUserMessage),
         ];

@@ -25,7 +25,8 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  legacyPublishedPath,
+  canonicalPublishedPath,
+  canonicalDraftPath,
   recordPublishedPath,
   recordDraftPathIfMissing,
   LESSON_PLAN_BUCKET,
@@ -101,7 +102,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [courseId, setCourseId] = useState<string | null>(initialCourseId);
   const [resolvingCourse, setResolvingCourse] = useState(!initialCourseId);
   const draftLocalKey = `lessonPlanDraftV2:${courseId || user?.id || "default"}`;
-  const draftStoragePath = user ? `${user.id}/lesson-plan/draft-plan-v2.json` : null;
+  const draftStoragePath = courseId ? canonicalDraftPath(courseId) : null;
 
   // ─── Course schedule settings (Total Weeks / Midterm / Final) ───
   const [totalWeeks, setTotalWeeks] = useState<number | null>(null);
@@ -509,18 +510,18 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     setPublishTimestamp(new Date().toLocaleString());
     setShowPublishModal(false);
     setPublishConfirmed(false);
-    if (user) {
+    if (user && courseId) {
       try {
         const payload = { weeks, overall_course_learning_outcomes: overallOutcomes };
         const planJson = JSON.stringify(payload, null, 2);
         const blob = new Blob([planJson], { type: "application/json" });
         const file = new File([blob], "published-plan.json", { type: "application/json" });
-        const publishedPath = legacyPublishedPath(user.id);
+        const publishedPath = canonicalPublishedPath(courseId);
         await supabase.storage
           .from(LESSON_PLAN_BUCKET)
           .upload(publishedPath, file, { upsert: true, cacheControl: "0" });
         // Record path + publish timestamp on the course row (best-effort).
-        if (courseId) await recordPublishedPath(courseId, publishedPath);
+        await recordPublishedPath(courseId, publishedPath);
       } catch (err) {
         console.error("Failed to save published plan:", err);
       }
