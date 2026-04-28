@@ -17,6 +17,18 @@ const ResetPassword = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // 1. Detect recovery directly from the URL hash (Supabase puts type=recovery there).
+    //    This avoids racing the PASSWORD_RECOVERY auth event, which may fire before
+    //    our listener is registered.
+    try {
+      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      if (hash.get("type") === "recovery") {
+        setMode("recovery");
+      }
+    } catch {
+      /* ignore */
+    }
+
     // Detect recovery (forgot password) or invite (first-time approved teacher / new student)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "PASSWORD_RECOVERY") {
@@ -47,7 +59,10 @@ const ResetPassword = () => {
           .maybeSingle();
         if (profile?.needs_password_setup) {
           setMode("invite");
+          return;
         }
+        // Authenticated session with no invite markers → treat as recovery.
+        setMode((prev) => (prev === "waiting" ? "recovery" : prev));
       }
     });
 
@@ -74,11 +89,27 @@ const ResetPassword = () => {
         .maybeSingle();
       if (profile?.needs_password_setup) {
         setMode("invite");
+        return;
       }
+      // Session exists but no invite markers → this is a recovery flow.
+      setMode((prev) => (prev === "waiting" ? "recovery" : prev));
     });
 
-    return () => subscription.unsubscribe();
+    // Safety net: if nothing flipped mode within 1.5s but we have a session,
+    // assume recovery so the form becomes usable.
+    const safetyTimer = window.setTimeout(async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setMode((prev) => (prev === "waiting" ? "recovery" : prev));
+      }
+    }, 1500);
+
+    return () => {
+      subscription.unsubscribe();
+      window.clearTimeout(safetyTimer);
+    };
   }, []);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
