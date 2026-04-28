@@ -45,14 +45,38 @@ export function useTeacherSetupStatus() {
         }
 
         // 2. Course basics — prefer the *active* course (multi-course aware).
+        // Resolve via course id only; RLS already restricts visibility to
+        // owners + collaborators (via is_course_member).
         const activeId = typeof window !== "undefined" ? localStorage.getItem("currentCourseId") : null;
-        let courseQuery = supabase
-          .from("courses")
-          .select("id, name, course_code, term, graduation_year, lesson_plan_path")
-          .eq("teacher_id", user.id);
-        const { data: course } = activeId
-          ? await courseQuery.eq("id", activeId).maybeSingle()
-          : await courseQuery.order("created_at", { ascending: false }).limit(1).maybeSingle();
+        let course: any = null;
+        if (activeId) {
+          const res = await supabase
+            .from("courses")
+            .select("id, name, course_code, term, graduation_year, lesson_plan_path, teacher_id")
+            .eq("id", activeId)
+            .maybeSingle();
+          course = res.data;
+        }
+        if (!course) {
+          // Fallback: most recently updated course this teacher OWNS.
+          const res = await supabase
+            .from("courses")
+            .select("id, name, course_code, term, graduation_year, lesson_plan_path, teacher_id")
+            .eq("teacher_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          course = res.data;
+        }
+
+        // Collaborators (non-owners) are never gated by setup completeness —
+        // the owner is responsible for initial setup; collaborators come in
+        // to edit an already-running course.
+        if (course && course.teacher_id !== user.id) {
+          if (!cancelled) { setIsComplete(true); setLoading(false); }
+          return;
+        }
+
         if (
           !course ||
           !course.name?.trim() ||
