@@ -321,14 +321,14 @@ const AIChat = () => {
 
   /** Fetch visible lesson plan topics based on course progress + professor visibility settings */
   const fetchVisibleTopics = async (): Promise<string[]> => {
-    if (!enrolledCourseId || !courseContext?.teacherId) return [];
+    if (!enrolledCourseId) return [];
     try {
       const { data: courseRow } = await supabase
         .from("courses")
         .select("start_date, lesson_plan_path")
         .eq("id", enrolledCourseId)
         .maybeSingle();
-      const planPath = resolvePublishedPath(courseRow, courseContext.teacherId);
+      const planPath = resolvePublishedPath(courseRow, enrolledCourseId);
       const planRes = await supabase.storage
         .from(LESSON_PLAN_BUCKET)
         .download(`${planPath}?t=${Date.now()}`);
