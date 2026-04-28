@@ -14,12 +14,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 interface UploadedFile {
   name: string;
@@ -78,11 +72,6 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const [deleteTarget, setDeleteTarget] = useState<UploadedFile | null>(null);
   // Per-file parse status keyed by storage_path. Only used for syllabus uploads.
   const [parseStatus, setParseStatus] = useState<Record<string, ParseStatus>>({});
-  const [previewFile, setPreviewFile] = useState<UploadedFile | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewText, setPreviewText] = useState<string | null>(null);
-  const [previewMime, setPreviewMime] = useState<string>("");
 
   const handleSelect = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
@@ -299,42 +288,6 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     );
   };
 
-  const openPreview = async (file: UploadedFile) => {
-    setPreviewFile(file);
-    setPreviewLoading(true);
-    setPreviewUrl(null);
-    setPreviewText(null);
-    setPreviewMime("");
-    try {
-      const { data, error } = await supabase.storage
-        .from("course-materials")
-        .download(file.path);
-      if (error || !data) throw new Error(error?.message || "Download failed");
-      const ext = file.name.split(".").pop()?.toLowerCase() || "";
-      const mime = data.type || (ext === "pdf" ? "application/pdf" : ext === "txt" ? "text/plain" : "");
-      setPreviewMime(mime);
-      if (mime.startsWith("text/") || ext === "txt" || ext === "csv" || ext === "md") {
-        setPreviewText(await data.text());
-      } else {
-        const blob = new Blob([data], { type: mime || "application/octet-stream" });
-        setPreviewUrl(URL.createObjectURL(blob));
-      }
-    } catch (err) {
-      toast.error("Failed to load preview");
-      setPreviewFile(null);
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
-
-  const closePreview = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setPreviewText(null);
-    setPreviewMime("");
-    setPreviewFile(null);
-  };
-
   return (
     <div className="space-y-3">
       <input
@@ -453,21 +406,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
               className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
             >
               <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-              {folderType === "syllabus" ? (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void openPreview(f);
-                  }}
-                  className="flex-1 truncate text-left hover:underline hover:text-primary transition-colors"
-                  title="Preview file"
-                >
-                  {f.name}
-                </button>
-              ) : (
-                <span className="flex-1 truncate">{f.name}</span>
-              )}
+              <span className="flex-1 truncate">{f.name}</span>
               {folderType === "syllabus" && renderParsePill(f.path)}
               {folderType === "syllabus" && parseStatus[f.path] === "failed" && (
                 <button
@@ -518,39 +457,6 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <Dialog open={!!previewFile} onOpenChange={(open) => { if (!open) closePreview(); }}>
-        <DialogContent className="max-w-4xl w-[95vw] h-[85vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="p-4 border-b shrink-0">
-            <DialogTitle className="truncate pr-8">{previewFile?.name}</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-auto bg-muted/30">
-            {previewLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : previewText !== null ? (
-              <pre className="p-4 text-xs whitespace-pre-wrap font-mono">{previewText}</pre>
-            ) : previewUrl && previewMime === "application/pdf" ? (
-              <iframe src={previewUrl} className="w-full h-full" title={previewFile?.name} />
-            ) : previewUrl && previewMime.startsWith("image/") ? (
-              <div className="flex items-center justify-center h-full p-4">
-                <img src={previewUrl} alt={previewFile?.name} className="max-w-full max-h-full object-contain" />
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-6">
-                <FileText className="h-12 w-12 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">Preview not available for this file type.</p>
-                {previewUrl && (
-                  <a href={previewUrl} download={previewFile?.name} className="text-sm text-primary hover:underline">
-                    Download to view
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
