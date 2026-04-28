@@ -55,6 +55,7 @@ import ResetPassword from "./pages/ResetPassword";
 import ContentLibrary from "./pages/teacher/ContentLibrary";
 import TeacherChat from "./pages/teacher/TeacherChat";
 import { AUTH_BYPASS } from "@/lib/authBypass";
+import SessionBanner from "@/components/SessionBanner";
 
 const queryClient = new QueryClient();
 
