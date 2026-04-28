@@ -3,9 +3,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { useTASettings } from "@/hooks/useTASettings";
-import { useTeacherSetupStatus } from "@/hooks/useTeacherSetupStatus";
 import { supabase } from "@/integrations/supabase/client";
-import { resolvePublishedPath, LESSON_PLAN_BUCKET } from "@/lib/lessonPlanPath";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -35,21 +33,18 @@ const insightsMock = [
 const CourseDashboard = () => {
   const { currentCourse } = useApp();
   const { user } = useAuth();
-  // navigate removed: no longer needed after warning banners were removed
   const courseId = useTeacherCourseId();
   const { taSettings } = useTASettings(courseId);
   const courseSections = currentCourse?.sections || [];
   const [selectedSection, setSelectedSection] = useState<string>("all");
-  const [lessonPlanPublished, setLessonPlanPublished] = useState<boolean | null>(null);
-  const { loading: setupLoading, isComplete: setupIsComplete } = useTeacherSetupStatus();
-  const setupComplete: boolean | null = setupLoading ? null : setupIsComplete;
-  const [coursePublished, setCoursePublished] = useState<boolean | null>(null);
   const [hoveredConcept, setHoveredConcept] = useState<string | null>(null);
   const [expandedConcept, setExpandedConcept] = useState<string | null>(null);
-  const [teacherRole, setTeacherRole] = useState<"owner" | "collaborator" | null>(null);
+  const [isCollaborator, setIsCollaborator] = useState(false);
 
+  // Only need to know if the signed-in teacher is a collaborator (not the owner)
+  // — owners get no banner, collaborators get the Handshake badge.
   useEffect(() => {
-    if (!user || !courseId) { setTeacherRole(null); return; }
+    if (!user || !courseId) { setIsCollaborator(false); return; }
     let cancelled = false;
     (async () => {
       const { data: course } = await supabase
@@ -58,7 +53,7 @@ const CourseDashboard = () => {
         .eq("id", courseId)
         .maybeSingle();
       if (cancelled) return;
-      if (course?.teacher_id === user.id) { setTeacherRole("owner"); return; }
+      if (course?.teacher_id === user.id) { setIsCollaborator(false); return; }
       const { data: membership } = await supabase
         .from("course_teachers")
         .select("role")
@@ -66,9 +61,7 @@ const CourseDashboard = () => {
         .eq("teacher_id", user.id)
         .maybeSingle();
       if (cancelled) return;
-      if (membership?.role === "owner") setTeacherRole("owner");
-      else if (membership) setTeacherRole("collaborator");
-      else setTeacherRole(null);
+      setIsCollaborator(!!membership && membership.role !== "owner");
     })();
     return () => { cancelled = true; };
   }, [user, courseId]);
@@ -77,42 +70,6 @@ const CourseDashboard = () => {
   const totalWeeks = 16;
   const currentWeek = 6;
   const progressPct = Math.round((currentWeek / totalWeeks) * 100);
-
-  useEffect(() => {
-    if (!user) return;
-    const checkPlan = async () => {
-      let publishedPath = `${user.id}/lesson-plan/published-plan.json`;
-      if (courseId) {
-        const { data: courseRow } = await supabase
-          .from("courses")
-          .select("lesson_plan_path")
-          .eq("id", courseId)
-          .maybeSingle();
-        publishedPath = resolvePublishedPath(courseRow, user.id);
-      }
-      const { data } = await supabase.storage
-        .from(LESSON_PLAN_BUCKET)
-        .download(`${publishedPath}?t=${Date.now()}`);
-      setLessonPlanPublished(!!data);
-    };
-    checkPlan();
-  }, [user, courseId]);
-
-  // Setup completeness is sourced from useTeacherSetupStatus (same gate the
-  // sidebar uses), so the banner disappears the moment the nav unlocks.
-
-  useEffect(() => {
-    if (!courseId) { setCoursePublished(null); return; }
-    const checkPublished = async () => {
-      const { data } = await supabase
-        .from("courses")
-        .select("published")
-        .eq("id", courseId)
-        .maybeSingle();
-      setCoursePublished(!!data?.published);
-    };
-    checkPublished();
-  }, [courseId]);
 
 
   return (
@@ -142,7 +99,7 @@ const CourseDashboard = () => {
       </div>
 
       {/* Collaborator Banner — only shown for collaborators */}
-      {teacherRole === "collaborator" && (
+      {isCollaborator && (
         <div className="mb-6 rounded-lg border-2 border-accent/40 bg-accent/5 px-5 py-4">
           <div className="flex items-start gap-3">
             <Handshake className="h-5 w-5 text-accent mt-0.5 shrink-0" />
