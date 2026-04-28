@@ -1,8 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
-import { BookOpen, HelpCircle, LogOut, Library, MessageSquare, ListChecks, Lock } from "lucide-react";
+import { BookOpen, HelpCircle, Library, MessageSquare, ListChecks, Lock } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
-import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTeacherSetupStatus } from "@/hooks/useTeacherSetupStatus";
@@ -32,8 +31,7 @@ const ALWAYS_OPEN_PATHS = [
 ];
 
 const TeacherLayout = () => {
-  const { currentCourse, resetAll } = useApp();
-  const { signOut } = useAuth();
+  const { currentCourse } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -49,12 +47,6 @@ const TeacherLayout = () => {
     if (!allowed) navigate("/teacher/setup", { replace: true });
   }, [setupLoading, setupComplete, location.pathname, navigate]);
 
-  const handleLogout = async () => {
-    await signOut();
-    resetAll();
-    navigate("/");
-  };
-
   const isLocked = (item: NavItem) => !item.alwaysUnlocked && !setupComplete;
 
 
@@ -64,7 +56,6 @@ const TeacherLayout = () => {
         <header className="flex flex-col gap-2 border-b px-4 py-3">
           <div className="flex items-center justify-between">
             <h1 className="font-heading text-lg font-bold">Next<span className="text-primary">Step</span></h1>
-            <button onClick={handleLogout} className="text-muted-foreground"><LogOut className="h-5 w-5" /></button>
           </div>
           <CourseSwitcher />
         </header>
@@ -152,12 +143,6 @@ const TeacherLayout = () => {
           })}
         </nav>
 
-        <div className="border-t p-3 space-y-1">
-          <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent">
-            <LogOut className="h-4 w-4" />
-            Sign Out
-          </button>
-        </div>
       </aside>
 
       <main className="flex-1 overflow-auto">
