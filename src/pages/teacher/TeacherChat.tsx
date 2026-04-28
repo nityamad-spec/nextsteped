@@ -132,7 +132,6 @@ const TeacherChat = () => {
           messages: historyMessages,
           mode: "teacher",
           courseId: courseId || undefined,
-          teacherId: user?.id || undefined,
         }),
       });
 

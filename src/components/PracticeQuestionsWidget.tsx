@@ -38,7 +38,6 @@ interface PracticeQuestionsWidgetProps {
     courseName: string;
     objectives: string[];
     concepts: string[];
-    teacherId: string;
   } | null;
   enrolledCourseId?: string | null;
   studentId?: string | null;
@@ -113,7 +112,6 @@ Return ONLY a JSON array (no markdown fencing, no extra text) of question object
           mode: "learning",
           studySystemPrompt: systemPrompt,
           courseId: enrolledCourseId || undefined,
-          teacherId: courseContext?.teacherId || undefined,
           studentId: studentId || undefined,
         }),
       });

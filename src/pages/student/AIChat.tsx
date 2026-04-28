@@ -64,7 +64,7 @@ const AIChat = () => {
   const lastSendTime = useRef<number>(0);
 
   // Course context for relevance classification
-  const [courseContext, setCourseContext] = useState<{ courseName: string; objectives: string[]; concepts: string[]; teacherId: string } | null>(null);
+  const [courseContext, setCourseContext] = useState<{ courseName: string; objectives: string[]; concepts: string[] } | null>(null);
 
   // Assessment state
   const [assessmentActive, setAssessmentActive] = useState(false);
@@ -101,7 +101,7 @@ const AIChat = () => {
     if (!enrolledCourseId) return;
     const fetchContext = async () => {
       const [courseRes, conceptsRes] = await Promise.all([
-        supabase.from("courses").select("name, objectives, teacher_id").eq("id", enrolledCourseId).maybeSingle(),
+        supabase.from("courses").select("name, objectives").eq("id", enrolledCourseId).maybeSingle(),
         supabase.from("concepts").select("concept_code").eq("course_id", enrolledCourseId),
       ]);
       if (courseRes.data) {
@@ -109,7 +109,6 @@ const AIChat = () => {
           courseName: courseRes.data.name,
           objectives: (courseRes.data.objectives as string[]) || [],
           concepts: (conceptsRes.data || []).map((c: any) => c.concept_code),
-          teacherId: courseRes.data.teacher_id,
         });
       }
     };
@@ -322,14 +321,14 @@ const AIChat = () => {
 
   /** Fetch visible lesson plan topics based on course progress + professor visibility settings */
   const fetchVisibleTopics = async (): Promise<string[]> => {
-    if (!enrolledCourseId || !courseContext?.teacherId) return [];
+    if (!enrolledCourseId) return [];
     try {
       const { data: courseRow } = await supabase
         .from("courses")
         .select("start_date, lesson_plan_path")
         .eq("id", enrolledCourseId)
         .maybeSingle();
-      const planPath = resolvePublishedPath(courseRow, courseContext.teacherId);
+      const planPath = resolvePublishedPath(courseRow, enrolledCourseId);
       const planRes = await supabase.storage
         .from(LESSON_PLAN_BUCKET)
         .download(`${planPath}?t=${Date.now()}`);
@@ -624,7 +623,6 @@ const AIChat = () => {
           examSystemPrompt: taSettings.examSystemPrompt,
           ...(relevanceContext ? { relevanceContext } : {}),
           courseId: enrolledCourseId || undefined,
-          teacherId: courseContext?.teacherId || undefined,
           studentId: user?.id || undefined,
         }),
       });

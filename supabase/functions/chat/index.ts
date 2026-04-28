@@ -294,7 +294,6 @@ serve(async (req) => {
       examSystemPrompt,
       relevanceContext,
       courseId,
-      teacherId,
       studentId,
     } = await req.json();
 
