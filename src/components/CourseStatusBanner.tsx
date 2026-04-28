@@ -31,6 +31,7 @@ const CourseStatusBanner = () => {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isCollaborator, setIsCollaborator] = useState(false);
 
   useEffect(() => {
     if (!courseId) return;
@@ -44,18 +45,32 @@ const CourseStatusBanner = () => {
         .maybeSingle();
       if (cancelled) return;
       setCourse(data as CourseRow | null);
+
+      // Check collaborator membership for non-owners
+      if (data && user && data.teacher_id !== user.id) {
+        const { data: membership } = await supabase
+          .from("course_teachers")
+          .select("id")
+          .eq("course_id", courseId)
+          .eq("teacher_id", user.id)
+          .maybeSingle();
+        if (!cancelled) setIsCollaborator(!!membership);
+      } else {
+        if (!cancelled) setIsCollaborator(false);
+      }
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [courseId]);
+  }, [courseId, user]);
 
   if (loading || !course) return null;
 
   const isOwner = user?.id === course.teacher_id;
+  const canManage = isOwner || isCollaborator;
 
   const update = async (patch: Partial<Pick<CourseRow, "published" | "enrollment_open">>, successMsg: string) => {
-    if (!isOwner) {
-      toast.error("Only the course owner can change publish or enrollment settings.");
+    if (!canManage) {
+      toast.error("You don't have permission to change publish or enrollment settings.");
       return;
     }
     setBusy(true);
@@ -68,6 +83,7 @@ const CourseStatusBanner = () => {
     }
     setBusy(false);
   };
+
 
   const copyCode = () => {
     if (!course.enrollment_code) return;
@@ -181,7 +197,7 @@ const CourseStatusBanner = () => {
             {isDraft && (
               <Button
                 size="sm"
-                disabled={busy || !isOwner}
+                disabled={busy || !canManage}
                 onClick={() =>
                   update(
                     { published: true, enrollment_open: true },
@@ -207,7 +223,7 @@ const CourseStatusBanner = () => {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={busy || !isOwner}
+                  disabled={busy || !canManage}
                   onClick={() =>
                     update({ enrollment_open: false }, "Enrollment closed for new students.")
                   }
@@ -220,7 +236,7 @@ const CourseStatusBanner = () => {
             {isLiveClosed && (
               <Button
                 size="sm"
-                disabled={busy || !isOwner}
+                disabled={busy || !canManage}
                 onClick={() =>
                   update({ enrollment_open: true }, "Enrollment reopened.")
                 }
@@ -229,9 +245,9 @@ const CourseStatusBanner = () => {
                 Reopen enrollment
               </Button>
             )}
-            {!isOwner && (
+            {!canManage && (
               <span className="text-[11px] text-muted-foreground italic">
-                Only the course owner can change these settings.
+                You don't have permission to change these settings.
               </span>
             )}
           </div>
