@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { CheckCircle, XCircle, UserPlus, Users, Clock, BookOpen, Crown, PlusCircle, Settings, Calculator, AlertTriangle, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, UserPlus, Users, Clock, BookOpen, Crown, PlusCircle, Settings, Calculator, AlertTriangle, Loader2, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import CostCalculator from "@/components/admin/CostCalculator";
 
