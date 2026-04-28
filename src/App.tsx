@@ -77,6 +77,7 @@ function TeacherRedirect() {
   const { user, loading: authLoading } = useAuth();
   const [checking, setChecking] = useState(true);
   const [hasCourse, setHasCourse] = useState(false);
+  const [isCollaboratorOnly, setIsCollaboratorOnly] = useState(false);
   const [needsPassword, setNeedsPassword] = useState(false);
   const { loading: setupLoading, isComplete } = useTeacherSetupStatus();
 
@@ -88,11 +89,28 @@ function TeacherRedirect() {
       return;
     }
     Promise.all([
-      supabase.from("courses").select("id").eq("teacher_id", user.id).limit(1),
-      supabase.from("profiles").select("needs_password_setup").eq("id", user.id).maybeSingle(),
-    ]).then(([coursesRes, profileRes]) => {
-      setHasCourse(!!(coursesRes.data && coursesRes.data.length > 0));
+      supabase.from("courses").select("id").eq("teacher_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("course_teachers").select("course_id").eq("teacher_id", user.id),
+      supabase.from("profiles").select("needs_password_setup, active_course_id").eq("id", user.id).maybeSingle(),
+    ]).then(([ownedRes, collabRes, profileRes]) => {
+      const owned = ownedRes.data ?? [];
+      const collab = collabRes.data ?? [];
+      const collabOnly = owned.length === 0 && collab.length > 0;
+      setIsCollaboratorOnly(collabOnly);
+      setHasCourse(owned.length > 0 || collab.length > 0);
       setNeedsPassword(!!profileRes.data?.needs_password_setup);
+
+      // Pre-select the right course in localStorage so all teacher hooks
+      // resolve to it immediately on first sign-in.
+      const preferred =
+        profileRes.data?.active_course_id ||
+        owned[0]?.id ||
+        collab[0]?.course_id ||
+        null;
+      if (preferred && typeof window !== "undefined") {
+        localStorage.setItem("currentCourseId", preferred);
+      }
+
       setChecking(false);
     });
   }, [user, authLoading]);
@@ -118,7 +136,10 @@ function TeacherRedirect() {
   // approve-teacher edge function. If they have no course yet, send them
   // to the new course creation page (first-course flag).
   if (!hasCourse) return <Navigate to="/teacher/courses/new?first=1" replace />;
-  // Setup-incomplete professors are forced into Course Setup on every login.
+  // Collaborators on an existing course always go straight to its dashboard —
+  // they should never be gated by the owner's setup pipeline.
+  if (isCollaboratorOnly) return <Navigate to="/teacher/courses/dashboard" replace />;
+  // Setup-incomplete owners are forced into Course Setup on every login.
   if (!isComplete) return <Navigate to="/teacher/setup" replace />;
   return <Navigate to="/teacher/courses/dashboard" replace />;
 }
