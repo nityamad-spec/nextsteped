@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, ClipboardList, ArrowLeft } from "lucide-react";
+import { FileText, ClipboardList, ArrowLeft, Loader2 } from "lucide-react";
 import FileUploadZone from "@/components/FileUploadZone";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,21 +23,90 @@ const CourseMaterials = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const courseId =
+  const initialCourseId =
     (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
 
+  const [courseId, setCourseId] = useState<string | null>(initialCourseId);
+  const [resolvingCourse, setResolvingCourse] = useState(true);
   const [syllabusFiles, setSyllabusFiles] = useState<UploadedFile[]>([]);
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
 
+  // Storage paths are course-scoped, so we must have a course row before any
+  // upload is allowed. Resolve (or eagerly create) one on mount.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      setResolvingCourse(true);
+
+      // 1. Validate any cached course id
+      if (courseId) {
+        const { data } = await supabase
+          .from("courses")
+          .select("id")
+          .eq("id", courseId)
+          .maybeSingle();
+        if (cancelled) return;
+        if (data?.id) { setResolvingCourse(false); return; }
+        localStorage.removeItem("currentCourseId");
+        setCourseId(null);
+      }
+
+      // 2. Reuse the teacher's most recent owned course
+      const { data: existing } = await supabase
+        .from("courses")
+        .select("id")
+        .eq("teacher_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      if (existing?.id) {
+        setCourseId(existing.id);
+        localStorage.setItem("currentCourseId", existing.id);
+        setResolvingCourse(false);
+        return;
+      }
+
+      // 3. Create a draft course so uploads have a courseId-scoped folder.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("name, department")
+        .eq("id", user.id)
+        .maybeSingle();
+      const draftName = profile?.department
+        ? `${profile.department} Course (Draft)`
+        : "Untitled Course (Draft)";
+      const { data: created, error: createErr } = await supabase
+        .from("courses")
+        .insert({
+          teacher_id: user.id,
+          name: draftName,
+          term: "First Semester",
+        })
+        .select("id")
+        .single();
+      if (cancelled) return;
+      if (createErr || !created) {
+        console.error("Failed to create draft course:", createErr);
+        setResolvingCourse(false);
+        return;
+      }
+      setCourseId(created.id);
+      localStorage.setItem("currentCourseId", created.id);
+      setResolvingCourse(false);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   useEffect(() => {
     const fetchFiles = async () => {
-      if (!user) return;
-      let query = supabase
+      if (!user || !courseId) return;
+      const { data } = await supabase
         .from("course_material_files")
         .select("file_name, file_size, storage_path, folder_type")
-        .eq("teacher_id", user.id);
-      if (courseId) query = query.eq("course_id", courseId);
-      const { data } = await query;
+        .eq("course_id", courseId);
       if (data) {
         const mapFile = (f: { file_name: string; file_size: number; storage_path: string }) => ({
           name: f.file_name, size: f.file_size, path: f.storage_path,
@@ -50,14 +119,14 @@ const CourseMaterials = () => {
   }, [user, courseId]);
 
   const handleNext = async () => {
-    if (!user) return;
-    let activeCourseId = courseId;
+    if (!user || !courseId) return;
 
-    // If a syllabus has been uploaded, the background parser writes JSON to
-    // {uid}/syllabus/approved-syllabus.json. Back-fill courses.syllabus_json_path
-    // for lazily-created courses so downstream concept extraction can read it.
+    // Background syllabus parser writes JSON to {courseId}/syllabus/approved-syllabus.json
+    // and updates courses.syllabus_json_path itself. We only need to flip the
+    // boolean flags here for downstream UI; if the parser hasn't finished,
+    // fall back to the canonical path so concept extraction still has a target.
     const expectedSyllabusJsonPath =
-      syllabusFiles.length > 0 ? `${user.id}/syllabus/approved-syllabus.json` : null;
+      syllabusFiles.length > 0 ? `${courseId}/syllabus/approved-syllabus.json` : null;
 
     const courseFields: {
       syllabus_uploaded: boolean;
@@ -68,64 +137,17 @@ const CourseMaterials = () => {
       materials_uploaded: lessonPlanFiles.length > 0,
     };
 
-    if (activeCourseId) {
-      // Only set syllabus_json_path if not already set by the background parser
-      // (the parser already updates this field when it resolves a course id).
-      if (expectedSyllabusJsonPath) {
-        const { data: existing } = await supabase
-          .from("courses")
-          .select("syllabus_json_path")
-          .eq("id", activeCourseId)
-          .maybeSingle();
-        if (!existing?.syllabus_json_path) {
-          courseFields.syllabus_json_path = expectedSyllabusJsonPath;
-        }
-      }
-      await supabase.from("courses").update(courseFields).eq("id", activeCourseId);
-    } else {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("name, department")
-        .eq("id", user.id)
+    if (expectedSyllabusJsonPath) {
+      const { data: existing } = await supabase
+        .from("courses")
+        .select("syllabus_json_path")
+        .eq("id", courseId)
         .maybeSingle();
-
-      const draftName = profile?.department
-        ? `${profile.department} Course (Draft)`
-        : "Untitled Course (Draft)";
-
-      if (expectedSyllabusJsonPath) {
+      if (!existing?.syllabus_json_path) {
         courseFields.syllabus_json_path = expectedSyllabusJsonPath;
       }
-
-      const { data: created, error: createErr } = await supabase
-        .from("courses")
-        .insert({
-          teacher_id: user.id,
-          name: draftName,
-          term: "First Semester",
-          ...courseFields,
-        })
-        .select("id")
-        .single();
-
-      if (createErr || !created) {
-        console.error("Failed to create draft course:", createErr);
-        return;
-      }
-      activeCourseId = created.id;
-      localStorage.setItem("currentCourseId", activeCourseId);
     }
-
-    const allPaths = [
-      ...syllabusFiles.map((f) => f.path),
-      ...lessonPlanFiles.map((f) => f.path),
-    ];
-    if (allPaths.length > 0) {
-      await supabase
-        .from("course_material_files")
-        .update({ course_id: activeCourseId })
-        .in("storage_path", allPaths);
-    }
+    await supabase.from("courses").update(courseFields).eq("id", courseId);
   };
 
   const canContinue = syllabusFiles.length > 0;
@@ -160,18 +182,19 @@ const CourseMaterials = () => {
             <p className="text-xs text-muted-foreground mb-3">
               <strong>Accepted:</strong> PDF, DOCX
             </p>
-            {user ? (
+            {user && courseId ? (
               <FileUploadZone
-                folderPath={`${user.id}/syllabus`}
+                folderPath={`${courseId}/syllabus`}
                 accept={SYLLABUS_ACCEPT}
                 files={syllabusFiles}
                 onFilesChange={setSyllabusFiles}
+                courseId={courseId}
                 teacherId={user.id}
                 folderType="syllabus"
-                courseId={courseId}
               />
             ) : (
-              <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+              <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                {resolvingCourse && <Loader2 className="h-4 w-4 animate-spin" />}
                 Preparing upload area…
               </div>
             )}
@@ -201,18 +224,19 @@ const CourseMaterials = () => {
             <p className="text-xs text-muted-foreground mb-3">
               <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images.
             </p>
-            {user ? (
+            {user && courseId ? (
               <FileUploadZone
-                folderPath={`${user.id}/lesson-plans`}
+                folderPath={`${courseId}/lesson-plans`}
                 accept={MATERIALS_ACCEPT}
                 files={lessonPlanFiles}
                 onFilesChange={setLessonPlanFiles}
+                courseId={courseId}
                 teacherId={user.id}
                 folderType="lesson-plans"
-                courseId={courseId}
               />
             ) : (
-              <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+              <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                {resolvingCourse && <Loader2 className="h-4 w-4 animate-spin" />}
                 Preparing upload area…
               </div>
             )}
