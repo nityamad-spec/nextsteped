@@ -96,14 +96,17 @@ const CourseSetup = () => {
         enrollment: "Not Started",
       };
 
-      // Card 1 (Upload): Complete only if at least one syllabus file actually exists.
-      const { data: syllabusFiles } = await supabase
-        .from("course_material_files")
-        .select("id")
-        .eq("teacher_id", user.id)
-        .eq("folder_type", "syllabus")
-        .limit(1);
-      if (syllabusFiles && syllabusFiles.length > 0) {
+      // Card 1 (Upload): Complete only if the parsed syllabus JSON exists for the course.
+      let syllabusJsonExists = false;
+      if (courseId) {
+        const { data: courseRow } = await supabase
+          .from("courses")
+          .select("syllabus_json_path")
+          .eq("id", courseId)
+          .maybeSingle();
+        syllabusJsonExists = !!(courseRow?.syllabus_json_path && courseRow.syllabus_json_path.trim().length > 0);
+      }
+      if (syllabusJsonExists) {
         next.upload = "Complete";
       } else if (opened.upload) {
         next.upload = "In Progress";
