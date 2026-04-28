@@ -1,7 +1,5 @@
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { LogOut, Shield, LayoutDashboard, BookOpen, GraduationCap, Users } from "lucide-react";
+import { Outlet } from "react-router-dom";
+import { Shield, LayoutDashboard, BookOpen, GraduationCap, Users } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -54,14 +52,6 @@ function AdminSidebar() {
 }
 
 const AdminLayout = () => {
-  const { signOut } = useAuth();
-  const navigate = useNavigate();
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/");
-  };
-
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -76,10 +66,6 @@ const AdminLayout = () => {
                   Next<span className="text-primary">Step</span> Admin
                 </h1>
               </div>
-              <Button variant="outline" size="sm" onClick={handleSignOut} className="gap-2">
-                <LogOut className="h-4 w-4" />
-                Sign Out
-              </Button>
             </div>
           </header>
           <main className="flex-1 p-6">
