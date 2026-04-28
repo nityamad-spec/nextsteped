@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   resolvePublishedPath,
   recordPublishedPath,
-  legacyPublishedPath,
+  canonicalPublishedPath,
   LESSON_PLAN_BUCKET,
 } from "@/lib/lessonPlanPath";
 import { Card } from "@/components/ui/card";
@@ -141,15 +141,17 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
     const load = async () => {
       if (!user) return;
       try {
-        let publishedPath = legacyPublishedPath(user.id);
-        if (courseId) {
-          const { data: courseRow } = await supabase
-            .from("courses")
-            .select("lesson_plan_path")
-            .eq("id", courseId)
-            .maybeSingle();
-          publishedPath = resolvePublishedPath(courseRow, user.id);
+        if (!courseId) {
+          setDays(defaultPlan.map(d => ({ ...d, description: "" })));
+          setLoading(false);
+          return;
         }
+        const { data: courseRow } = await supabase
+          .from("courses")
+          .select("lesson_plan_path")
+          .eq("id", courseId)
+          .maybeSingle();
+        const publishedPath = resolvePublishedPath(courseRow, courseId);
         const { data } = await supabase.storage
           .from(LESSON_PLAN_BUCKET)
           .download(`${publishedPath}?t=${Date.now()}`);
@@ -183,6 +185,10 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
 
   const savePlan = async () => {
     if (!user) return;
+    if (!courseId) {
+      toast({ title: "No course selected", description: "Cannot save plan without a course context.", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
       // Clear isNew flags before saving
@@ -192,13 +198,13 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
       }));
       const blob = new Blob([JSON.stringify(cleanDays, null, 2)], { type: "application/json" });
       const file = new File([blob], "published-plan.json", { type: "application/json" });
-      const publishedPath = legacyPublishedPath(user.id);
+      const publishedPath = canonicalPublishedPath(courseId);
       const { error } = await supabase.storage
         .from(LESSON_PLAN_BUCKET)
         .upload(publishedPath, file, { upsert: true, cacheControl: "0" });
       if (error) throw error;
       // Record path + publish timestamp on the course row (best-effort).
-      if (courseId) await recordPublishedPath(courseId, publishedPath);
+      await recordPublishedPath(courseId, publishedPath);
       setDays(cleanDays);
       setHasChanges(false);
       toast({ title: "Plan saved", description: "Your lesson plan has been saved successfully." });

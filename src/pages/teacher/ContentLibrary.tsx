@@ -35,15 +35,13 @@ const ContentLibrary = () => {
   const [uploadingFolder, setUploadingFolder] = useState<string | null>(null);
 
   const fetchFiles = async () => {
-    if (!user) return;
+    if (!user || !courseId) { setLoading(false); return; }
     setLoading(true);
-    let query = supabase
+    const { data, error } = await supabase
       .from("course_material_files")
       .select("*")
-      .eq("teacher_id", user.id)
+      .eq("course_id", courseId)
       .order("created_at", { ascending: false });
-    if (courseId) query = query.eq("course_id", courseId);
-    const { data, error } = await query;
     if (error) console.error("Error fetching files:", error);
     else setFiles(data || []);
     setLoading(false);
@@ -73,8 +71,8 @@ const ContentLibrary = () => {
   };
 
   const handleDownloadSyllabus = async () => {
-    if (!user) return;
-    const { data, error } = await supabase.storage.from("course-materials").download(`${user.id}/syllabus/approved-syllabus.json`);
+    if (!courseId) return;
+    const { data, error } = await supabase.storage.from("course-materials").download(`${courseId}/syllabus/approved-syllabus.json`);
     if (error || !data) { toast.error("No approved syllabus found to download"); return; }
     const text = await data.text();
     const blob = new Blob([text], { type: "application/json" });
@@ -104,15 +102,15 @@ const ContentLibrary = () => {
           </Button>
         </div>
 
-        {isUploading && user && (
+        {isUploading && user && courseId && (
           <FileUploadZone
-            folderPath={`${user.id}/${folderType}`}
+            folderPath={`${courseId}/${folderType}`}
             accept={UPLOAD_ACCEPT}
             files={folderFiles.map(f => ({ name: f.file_name, size: f.file_size, path: f.storage_path }))}
             onFilesChange={() => { fetchFiles(); setUploadingFolder(null); }}
+            courseId={courseId}
             teacherId={user.id}
             folderType={folderType}
-            courseId={courseId}
           />
         )}
 
