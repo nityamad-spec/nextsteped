@@ -1,7 +1,5 @@
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { LogOut, Shield, LayoutDashboard, BookOpen, GraduationCap, Users } from "lucide-react";
+import { Outlet } from "react-router-dom";
+import { Shield, LayoutDashboard, BookOpen, GraduationCap, Users } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
