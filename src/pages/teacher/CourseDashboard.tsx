@@ -101,7 +101,7 @@ const CourseDashboard = () => {
       </div>
 
       {/* Collaborator Banner — only shown for collaborators */}
-      {teacherRole === "collaborator" && (
+      {isCollaborator && (
         <div className="mb-6 rounded-lg border-2 border-accent/40 bg-accent/5 px-5 py-4">
           <div className="flex items-start gap-3">
             <Handshake className="h-5 w-5 text-accent mt-0.5 shrink-0" />
