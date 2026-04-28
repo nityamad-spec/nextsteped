@@ -35,7 +35,7 @@ const insightsMock = [
 const CourseDashboard = () => {
   const { currentCourse } = useApp();
   const { user } = useAuth();
-  const navigate = useNavigate();
+  // navigate removed: no longer needed after warning banners were removed
   const courseId = useTeacherCourseId();
   const { taSettings } = useTASettings(courseId);
   const courseSections = currentCourse?.sections || [];
