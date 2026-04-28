@@ -192,6 +192,7 @@ const App = () => (
       <AuthProvider>
         <AppProvider>
           <BrowserRouter>
+            <SessionBanner />
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/auth" element={<AuthRedirect />} />
