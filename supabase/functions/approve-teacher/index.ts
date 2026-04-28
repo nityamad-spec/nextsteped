@@ -136,6 +136,12 @@ Deno.serve(async (req) => {
           });
         if (ctError) throw ctError;
 
+        // Pre-select this course so first sign-in lands on its dashboard
+        await adminClient
+          .from("profiles")
+          .update({ active_course_id: courseId })
+          .eq("id", newUser.user.id);
+
       } else if (assignmentType === "owner_swap" && courseId) {
         // Get current course owner
         const { data: course, error: courseError } = await adminClient
