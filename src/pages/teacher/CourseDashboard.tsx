@@ -143,6 +143,62 @@ const CourseDashboard = () => {
         </div>
       </div>
 
+      {/* Role Banner — owner vs collaborator + editable sections */}
+      {teacherRole && (
+        <div
+          className={`mb-6 rounded-lg border-2 px-5 py-4 ${
+            teacherRole === "owner"
+              ? "border-primary/30 bg-primary/5"
+              : "border-accent/40 bg-accent/5"
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            {teacherRole === "owner" ? (
+              <Crown className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+            ) : (
+              <Handshake className="h-5 w-5 text-accent mt-0.5 shrink-0" />
+            )}
+            <div className="flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-semibold text-foreground">
+                  You are {teacherRole === "owner" ? "the Owner" : "a Collaborator"} on this course
+                </p>
+                <Badge variant={teacherRole === "owner" ? "default" : "secondary"} className="text-[10px] uppercase tracking-wide">
+                  {teacherRole}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {teacherRole === "owner"
+                  ? "You have full control over this course, including publishing, enrollment, and managing collaborators."
+                  : "You can view and edit every stage of the course pipeline alongside the owner. Only the owner can publish the course or manage collaborators."}
+              </p>
+              <div className="mt-3">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Sections you can edit
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    "Course Setup",
+                    "Course Materials",
+                    "Concepts",
+                    "Lesson Plan",
+                    "Diagnostic Questions",
+                    "Exam Mode",
+                    "AI TA Settings",
+                    "Content Library",
+                    ...(teacherRole === "owner" ? ["Enrollment & Publishing", "Collaborators"] : []),
+                  ].map((s) => (
+                    <Badge key={s} variant="outline" className="text-[11px] font-normal">
+                      {s}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Setup CTA removed: TeacherLayout already blocks access until setup is complete. */}
 
       {/* Course Not Published Banner */}
