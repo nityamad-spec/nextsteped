@@ -64,7 +64,7 @@ const AIChat = () => {
   const lastSendTime = useRef<number>(0);
 
   // Course context for relevance classification
-  const [courseContext, setCourseContext] = useState<{ courseName: string; objectives: string[]; concepts: string[]; teacherId: string } | null>(null);
+  const [courseContext, setCourseContext] = useState<{ courseName: string; objectives: string[]; concepts: string[] } | null>(null);
 
   // Assessment state
   const [assessmentActive, setAssessmentActive] = useState(false);
