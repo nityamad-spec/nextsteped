@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { Home, MessageSquare, LogOut, MessageSquareHeart } from "lucide-react";
+import { Home, MessageSquare, MessageSquareHeart } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
-import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
 import StudentCourseSwitcher from "@/components/StudentCourseSwitcher";
@@ -15,17 +14,9 @@ const studentNav = [
 ];
 
 const StudentLayout = () => {
-  const { studentProfile, resetAll } = useApp();
-  const { signOut } = useAuth();
-  const navigate = useNavigate();
+  const { studentProfile } = useApp();
   const isMobile = useIsMobile();
   const [addCourseOpen, setAddCourseOpen] = useState(false);
-
-  const handleLogout = async () => {
-    await signOut();
-    resetAll();
-    navigate("/");
-  };
 
   if (isMobile) {
     return (
@@ -37,7 +28,6 @@ const StudentLayout = () => {
               <StudentCourseSwitcher onAddCourse={() => setAddCourseOpen(true)} />
             </div>
           </div>
-          <button onClick={handleLogout} className="text-muted-foreground"><LogOut className="h-5 w-5" /></button>
         </header>
         <main className="flex-1 overflow-auto">
           <Outlet />
@@ -94,12 +84,6 @@ const StudentLayout = () => {
           </div>
         )}
 
-        <div className="border-t p-3">
-          <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent">
-            <LogOut className="h-4 w-4" />
-            Sign Out
-          </button>
-        </div>
       </aside>
 
       <main className="flex-1 overflow-auto">
