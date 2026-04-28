@@ -299,7 +299,43 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     );
   };
 
-  return (
+  const openPreview = async (file: UploadedFile) => {
+    setPreviewFile(file);
+    setPreviewLoading(true);
+    setPreviewUrl(null);
+    setPreviewText(null);
+    setPreviewMime("");
+    try {
+      const { data, error } = await supabase.storage
+        .from("course-materials")
+        .download(file.path);
+      if (error || !data) throw new Error(error?.message || "Download failed");
+      const ext = file.name.split(".").pop()?.toLowerCase() || "";
+      const mime = data.type || (ext === "pdf" ? "application/pdf" : ext === "txt" ? "text/plain" : "");
+      setPreviewMime(mime);
+      if (mime.startsWith("text/") || ext === "txt" || ext === "csv" || ext === "md") {
+        setPreviewText(await data.text());
+      } else {
+        const blob = new Blob([data], { type: mime || "application/octet-stream" });
+        setPreviewUrl(URL.createObjectURL(blob));
+      }
+    } catch (err) {
+      toast.error("Failed to load preview");
+      setPreviewFile(null);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const closePreview = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setPreviewText(null);
+    setPreviewMime("");
+    setPreviewFile(null);
+  };
+
+
     <div className="space-y-3">
       <input
         ref={inputRef}
