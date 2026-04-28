@@ -1,31 +1,25 @@
 ## Goal
 
-Remove the auto admin sign-in on `/` so the landing page always loads signed-out. Normal Supabase session persistence (across reloads within the same browser session, until sign-out) remains untouched.
+Add a thin sticky header banner that's visible across the app showing auth status (Signed in / Signed out), the user's email, their role, and a Sign out button when signed in.
 
-## Root Cause
+## Changes
 
-`src/lib/authBypass.ts` exports `AUTH_BYPASS = true`. On every load, `AuthContext` sees no session and auto-signs-in the seeded admin (`admin@nextstep.ai`). It also makes `ProtectedRoute` a no-op.
+**1. New `src/components/SessionBanner.tsx`**
+- Reads `user` and `loading` from `useAuth()`.
+- When signed in, fetches `role` from `profiles` table by user id (via `useEffect` on user change). Falls back to user metadata if no profile row.
+- Renders a slim sticky bar at top: `sticky top-0 z-50`, semantic `bg-background/80 backdrop-blur` with `border-b`.
+- Left side:
+  - Loading: "Checking session…"
+  - Signed in: green dot + "Signed in as <email>" + role `Badge` (capitalized: student / teacher / admin)
+  - Signed out: muted dot + "Signed out"
+- Right side (only when signed in): ghost `Button` with `LogOut` icon → calls `signOut()` then `navigate("/", { replace: true })`.
 
-## Change
+**2. `src/App.tsx`**
+- Import `SessionBanner`.
+- Mount it inside `<BrowserRouter>` directly above `<Routes>` so it appears on every route (including Landing, auth, dashboards) and can use `useNavigate`.
 
-**1. `src/lib/authBypass.ts`** — flip the flag:
-```ts
-export const AUTH_BYPASS = false;
-```
+## Notes
 
-That single change:
-- Stops the auto admin sign-in in `AuthContext` (the `if (!session && AUTH_BYPASS)` branch is skipped).
-- Re-enables real gating in `ProtectedRoute` (`src/App.tsx`) so protected routes require a session.
-- Leaves Supabase's default session persistence intact — once a user signs in, their session is stored in localStorage and restored automatically on reload via `supabase.auth.getSession()` and the `onAuthStateChange` listener already wired up in `AuthContext`. They stay signed in until they explicitly sign out or the refresh token expires.
-- Landing page bypass-redirect logic in `src/pages/Landing.tsx` becomes inert (guarded by `AUTH_BYPASS &&`).
-
-## Out of Scope
-
-- No changes to `AuthContext` logic, `ProtectedRoute`, or sign-in/sign-up flows.
-- The `BYPASS_ADMIN_EMAIL/PASSWORD` constants and the bypass code paths stay in place (dormant) so the flag can be flipped back on later if needed for debugging.
-
-## Verification
-
-- Load `/` while signed out → Landing page renders, no auto-redirect to admin dashboard.
-- Sign in as any user → redirected per role, refresh page → still signed in (session persisted).
-- Click sign out → returned to `/` signed out, refresh → stays signed out.
+- Uses semantic design tokens (`bg-background`, `text-muted-foreground`, `border-b`) — no hardcoded colors except the small status dot.
+- Banner is 40px tall (`h-10`) and sticky so it doesn't disrupt existing layouts; existing pages remain scrollable underneath.
+- No backend changes; reads existing `profiles.role` column already used elsewhere (`useStudentStatus`).
