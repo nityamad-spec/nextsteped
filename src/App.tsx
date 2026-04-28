@@ -127,6 +127,12 @@ function StudentRedirect() {
   const { loading, hasProfile, hasEnrollment, hasDiagnostic, activeCourseId } = useStudentStatus();
   const { setStudentOnboarded, setDiagnosticComplete } = useApp();
 
+  // Sync DB state to local context (in effect to avoid render-phase setState loops)
+  useEffect(() => {
+    if (hasProfile) setStudentOnboarded(true);
+    if (hasDiagnostic) setDiagnosticComplete(true);
+  }, [hasProfile, hasDiagnostic, setStudentOnboarded, setDiagnosticComplete]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -134,12 +140,6 @@ function StudentRedirect() {
       </div>
     );
   }
-
-  // Sync DB state to local context (in effect to avoid render-phase setState loops)
-  useEffect(() => {
-    if (hasProfile) setStudentOnboarded(true);
-    if (hasDiagnostic) setDiagnosticComplete(true);
-  }, [hasProfile, hasDiagnostic, setStudentOnboarded, setDiagnosticComplete]);
 
   // Profile is the only onboarding gate; enrollment is optional and can happen later.
   if (!hasProfile) return <Navigate to="/student/onboarding" replace />;
