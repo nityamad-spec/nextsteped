@@ -18,7 +18,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { supabase } from "@/integrations/supabase/client";
-import { resolvePublishedPath, LESSON_PLAN_BUCKET } from "@/lib/lessonPlanPath";
+// lesson plan completion is derived from the courses row, not storage
 import { fetchStepProgress, markStepOpened } from "@/lib/setupProgress";
 
 type Status = "Not Started" | "In Progress" | "Complete";
@@ -112,29 +112,26 @@ const CourseSetup = () => {
         next.upload = "In Progress";
       }
 
-      // Card 2 (Lesson Plan): Complete ONLY if the teacher has explicitly published the plan.
-      // We do NOT treat a draft as In Progress unless the teacher actually opened the module.
-      try {
-        // Look up the path from the courses row (falls back to legacy path).
-        let publishedPath = `${user.id}/lesson-plan/published-plan.json`;
-        if (courseId) {
-          const { data: courseRow } = await supabase
-            .from("courses")
-            .select("lesson_plan_path")
-            .eq("id", courseId)
-            .maybeSingle();
-          publishedPath = resolvePublishedPath(courseRow, user.id);
-        }
-        const { data: published } = await supabase.storage
-          .from(LESSON_PLAN_BUCKET)
-          .download(publishedPath);
-        if (published) {
-          next["lesson-plan"] = "Complete";
-        } else if (opened["lesson-plan"]) {
-          next["lesson-plan"] = "In Progress";
-        }
-      } catch {
-        if (opened["lesson-plan"]) next["lesson-plan"] = "In Progress";
+      // Card 3 (Lesson Plan): Complete ONLY if the teacher has explicitly published the plan.
+      // Use the authoritative DB column `lesson_plan_published_at` (readable by both
+      // owners and collaborators via course RLS) instead of attempting a storage download,
+      // which fails for collaborators because storage RLS scopes reads to the owner's folder.
+      let lessonPlanPublished = false;
+      if (courseId) {
+        const { data: planRow } = await supabase
+          .from("courses")
+          .select("lesson_plan_published_at, lesson_plan_path")
+          .eq("id", courseId)
+          .maybeSingle();
+        lessonPlanPublished = !!(
+          planRow?.lesson_plan_published_at ||
+          (planRow?.lesson_plan_path && planRow.lesson_plan_path.trim().length > 0)
+        );
+      }
+      if (lessonPlanPublished) {
+        next["lesson-plan"] = "Complete";
+      } else if (opened["lesson-plan"]) {
+        next["lesson-plan"] = "In Progress";
       }
 
       if (courseId) {
