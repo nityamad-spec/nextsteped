@@ -335,7 +335,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     setPreviewFile(null);
   };
 
-
+  return (
     <div className="space-y-3">
       <input
         ref={inputRef}
