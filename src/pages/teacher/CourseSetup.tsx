@@ -175,6 +175,16 @@ const CourseSetup = () => {
       if (completed.enrollment) next.enrollment = "Complete";
       else if (opened.enrollment) next.enrollment = "In Progress";
 
+      // Enforce prerequisite chain so downstream badges never outpace upstream steps.
+      // Mirrors the locking logic in `isCardLocked` so the visible status matches.
+      if (next.upload !== "Complete") {
+        next["concept-review"] = "Not Started";
+        next["lesson-plan"] = "Not Started";
+      }
+      if (next["concept-review"] !== "Complete") {
+        next["lesson-plan"] = "Not Started";
+      }
+
       setStatuses(next);
       setLoading(false);
     };
