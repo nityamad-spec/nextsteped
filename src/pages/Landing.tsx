@@ -96,118 +96,107 @@ const Landing = () => {
         </p>
       </motion.div>
 
-      {/* Professor — two clearly differentiated paths */}
-      <div className="w-full max-w-4xl">
-        <p className="mb-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          For Professors
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <motion.button
-            initial={{ opacity: 0, x: -30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.15 }}
-            whileHover={{ scale: 1.02, y: -4 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={goNewProfessor}
-            className="group relative flex flex-col items-center gap-4 overflow-hidden rounded-xl border-2 border-primary/30 bg-gradient-to-br from-primary/5 to-primary/[0.02] p-8 shadow-sm transition-shadow hover:shadow-lg"
-          >
-            <div className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
-              <Sparkles className="h-3 w-3" /> New
+      {/* Two role cards: Professors & Students, each with two actions */}
+      <div className="grid w-full max-w-4xl gap-6 sm:grid-cols-2">
+        {/* Professors */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          className="group flex flex-col rounded-2xl border-2 border-primary/20 bg-gradient-to-br from-primary/[0.04] to-transparent p-6 shadow-sm transition-shadow hover:shadow-lg sm:p-8"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <BookOpen className="h-6 w-6" />
             </div>
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-transform group-hover:scale-110">
-              <BookOpen className="h-8 w-8" />
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">For Professors</h2>
+              <p className="text-xs text-muted-foreground">Design courses & track students</p>
             </div>
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-foreground">I'm New Here</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                See what NextStep does for professors and create your account.
-              </p>
-            </div>
-            <div className="mt-2 flex items-center gap-1 text-sm font-medium text-primary">
-              Get started <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </div>
-          </motion.button>
+          </div>
 
-          <motion.button
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            whileHover={{ scale: 1.02, y: -4 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={goReturningProfessor}
-            className="group flex flex-col items-center gap-4 rounded-xl border bg-card p-8 shadow-sm transition-shadow hover:shadow-lg"
-          >
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-muted text-foreground transition-colors group-hover:bg-foreground group-hover:text-background">
-              <LogIn className="h-8 w-8" />
-            </div>
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-foreground">Welcome Back — Log In</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Sign in to your approved professor account.
-              </p>
-            </div>
-            <div className="mt-2 flex items-center gap-1 text-sm font-medium text-foreground opacity-0 transition-opacity group-hover:opacity-100">
-              Sign in <ArrowRight className="h-4 w-4" />
-            </div>
-          </motion.button>
-        </div>
-      </div>
+          <div className="mt-6 flex flex-col gap-3">
+            <button
+              onClick={goNewProfessor}
+              className="group/btn relative flex items-center justify-between gap-3 rounded-xl border-2 border-primary/30 bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-foreground">I'm New Here</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary">
+                    <Sparkles className="h-2.5 w-2.5" /> New
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Create your professor account</p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-primary transition-transform group-hover/btn:translate-x-0.5" />
+            </button>
 
-      {/* Student — two clearly differentiated paths */}
-      <div className="mt-10 w-full max-w-4xl">
-        <p className="mb-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          For Students
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <motion.button
-            initial={{ opacity: 0, x: -30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            whileHover={{ scale: 1.02, y: -4 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={goNewStudent}
-            className="group relative flex flex-col items-center gap-4 overflow-hidden rounded-xl border-2 border-accent/30 bg-gradient-to-br from-accent/5 to-accent/[0.02] p-8 shadow-sm transition-shadow hover:shadow-lg"
-          >
-            <div className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
-              <Sparkles className="h-3 w-3" /> New
-            </div>
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-accent text-accent-foreground transition-transform group-hover:scale-110">
-              <GraduationCap className="h-8 w-8" />
-            </div>
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-foreground">I'm New Here</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                See what NextStep does for students and create your account.
-              </p>
-            </div>
-            <div className="mt-2 flex items-center gap-1 text-sm font-medium text-accent">
-              Get started <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </div>
-          </motion.button>
+            <button
+              onClick={goReturningProfessor}
+              className="group/btn flex items-center justify-between gap-3 rounded-xl border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-md"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <LogIn className="h-3.5 w-3.5 text-foreground" />
+                  <span className="text-sm font-semibold text-foreground">Welcome Back — Log In</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Sign in to your approved account</p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-foreground transition-transform group-hover/btn:translate-x-0.5" />
+            </button>
+          </div>
+        </motion.div>
 
-          <motion.button
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.35 }}
-            whileHover={{ scale: 1.02, y: -4 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={goReturningStudent}
-            className="group flex flex-col items-center gap-4 rounded-xl border bg-card p-8 shadow-sm transition-shadow hover:shadow-lg"
-          >
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-muted text-foreground transition-colors group-hover:bg-foreground group-hover:text-background">
-              <LogIn className="h-8 w-8" />
+        {/* Students */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.25 }}
+          className="group flex flex-col rounded-2xl border-2 border-accent/20 bg-gradient-to-br from-accent/[0.04] to-transparent p-6 shadow-sm transition-shadow hover:shadow-lg sm:p-8"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+              <GraduationCap className="h-6 w-6" />
             </div>
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-foreground">Welcome Back — Log In</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Sign in to your student account.
-              </p>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">For Students</h2>
+              <p className="text-xs text-muted-foreground">Learn, practice & ace exams</p>
             </div>
-            <div className="mt-2 flex items-center gap-1 text-sm font-medium text-foreground opacity-0 transition-opacity group-hover:opacity-100">
-              Sign in <ArrowRight className="h-4 w-4" />
-            </div>
-          </motion.button>
-        </div>
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3">
+            <button
+              onClick={goNewStudent}
+              className="group/btn relative flex items-center justify-between gap-3 rounded-xl border-2 border-accent/30 bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-md"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-foreground">I'm New Here</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-accent">
+                    <Sparkles className="h-2.5 w-2.5" /> New
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Create your student account</p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-accent transition-transform group-hover/btn:translate-x-0.5" />
+            </button>
+
+            <button
+              onClick={goReturningStudent}
+              className="group/btn flex items-center justify-between gap-3 rounded-xl border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-md"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <LogIn className="h-3.5 w-3.5 text-foreground" />
+                  <span className="text-sm font-semibold text-foreground">Welcome Back — Log In</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Sign in to your student account</p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-foreground transition-transform group-hover/btn:translate-x-0.5" />
+            </button>
+          </div>
+        </motion.div>
       </div>
 
       <motion.div
