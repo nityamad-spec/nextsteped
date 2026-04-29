@@ -6,6 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Globe,
   Lock,
   AlertTriangle,
@@ -13,6 +24,7 @@ import {
   Copy,
   Check,
   Loader2,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -244,6 +256,38 @@ const CourseStatusBanner = () => {
                 {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Globe className="h-4 w-4 mr-2" />}
                 Reopen enrollment
               </Button>
+            )}
+            {/* Unpublish — hides course from students entirely */}
+            {course.published && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="ghost" disabled={busy || !canManage}>
+                    <EyeOff className="h-4 w-4 mr-2" />
+                    Unpublish
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Unpublish this course?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      The course will return to Draft. Students who already enrolled will lose access until you publish again, and no new students can join. Existing data, materials, and enrollments are preserved.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() =>
+                        update(
+                          { published: false, enrollment_open: false },
+                          "Course unpublished. Students can no longer access it.",
+                        )
+                      }
+                    >
+                      Unpublish course
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
             {!canManage && (
               <span className="text-[11px] text-muted-foreground italic">
