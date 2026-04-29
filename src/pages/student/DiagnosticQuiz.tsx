@@ -158,7 +158,15 @@ const DiagnosticQuiz = () => {
   const question = questions[currentQ];
   const isShortAnswer = question?.format === "short_answer";
   const hasAnswer = isShortAnswer ? textAnswer.trim().length > 0 : selected !== null;
-  const canProceed = hasAnswer && confidence !== null;
+  const canProceed = hasAnswer;
+
+  // Auto-initialize confidence to "Somewhat Confident" once the student has answered,
+  // so the slider position reflects a real selection and Next is enabled.
+  useEffect(() => {
+    if (hasAnswer && confidence === null) {
+      setConfidence(50);
+    }
+  }, [hasAnswer, confidence]);
 
   const handleAnswer = async () => {
     if (!canProceed) return;
@@ -359,16 +367,16 @@ const DiagnosticQuiz = () => {
               {hasAnswer && (
                 <div className="mt-4 border-t pt-4">
                   <p className="mb-3 text-xs font-medium text-muted-foreground">
-                    How confident are you in your answer? <span className="text-destructive">*</span>
+                    How confident are you in your answer?
                   </p>
                   <div className="px-2">
                     <Slider
-                      value={confidence !== null ? [confidence] : [50]}
+                      value={[confidence ?? 50]}
                       onValueChange={(val) => setConfidence(val[0])}
                       min={0}
                       max={100}
                       step={50}
-                      className={cn("mb-2", confidence === null && "opacity-40")}
+                      className="mb-2"
                     />
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Just Guessing</span>
@@ -376,15 +384,9 @@ const DiagnosticQuiz = () => {
                       <span>Very Confident</span>
                     </div>
                   </div>
-                  {confidence === null ? (
-                    <p className="mt-2 text-center text-sm font-medium text-muted-foreground italic">
-                      Please select your confidence level
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-center text-sm font-medium text-primary">
-                      {confidenceLabels[confidence] || "Somewhat Confident"}
-                    </p>
-                  )}
+                  <p className="mt-2 text-center text-sm font-medium text-primary">
+                    {confidenceLabels[confidence ?? 50] || "Somewhat Confident"}
+                  </p>
                 </div>
               )}
             </motion.div>
