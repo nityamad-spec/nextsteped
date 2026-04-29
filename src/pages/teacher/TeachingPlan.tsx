@@ -237,6 +237,19 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
       }
       // Record path + publish timestamp on the course row (best-effort).
       await recordPublishedPath(courseId, publishedPath);
+      // Mirror per-week metadata into DB so RLS can hide locked weeks from students.
+      await upsertPublishedWeeks(
+        courseId,
+        cleanDays.map((d: any) => ({
+          week_number: d.day,
+          week_name: d.topic || `Week ${d.day}`,
+          overview: d.description || "",
+          is_exam_week: !!d.is_exam_week,
+          locked: !!d.locked,
+          concepts: [],
+          resources: d.resources || [],
+        })),
+      );
       setDays(cleanDays);
       setHasChanges(false);
       toast({ title: "Plan saved", description: "Your lesson plan has been saved successfully." });
