@@ -10,6 +10,7 @@ import {
   LESSON_PLAN_BUCKET,
 } from "@/lib/lessonPlanPath";
 import { normalizeLessonPlan } from "@/lib/lessonPlanShape";
+import { upsertPublishedWeeks, setWeekLocked } from "@/lib/lessonPlanWeeks";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
