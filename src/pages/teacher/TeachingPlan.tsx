@@ -154,7 +154,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
         const publishedPath = resolvePublishedPath(courseRow, courseId);
         const { data } = await supabase.storage
           .from(LESSON_PLAN_BUCKET)
-          .download(`${publishedPath}?t=${Date.now()}`);
+          .download(publishedPath);
         if (data) {
           const parsed = JSON.parse(await data.text());
           if (Array.isArray(parsed) && parsed.length > 0) {
