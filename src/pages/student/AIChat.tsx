@@ -16,8 +16,6 @@ import ExamHistory from "@/components/ExamHistory";
 import ExamPrepPanel, { ExamCustomSettings } from "@/components/ExamPrepPanel";
 import { getQuizQuestions, getExamQuestions, Question } from "@/data/questionBank";
 import { supabase } from "@/integrations/supabase/client";
-import { resolvePublishedPath, LESSON_PLAN_BUCKET } from "@/lib/lessonPlanPath";
-import { normalizeLessonPlan } from "@/lib/lessonPlanShape";
 import { seededShuffle } from "@/lib/seededShuffle";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
