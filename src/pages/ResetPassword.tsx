@@ -134,38 +134,42 @@ const ResetPassword = () => {
       return;
     }
 
-    if (mode === "invite") {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        // Student invite path: pending_signups row exists → materialize profile + enrollment
-        const email = user.email?.toLowerCase();
-        if (email) {
-          const { data: pending } = await supabase
-            .from("pending_signups")
-            .select("id")
-            .eq("email", email)
-            .is("consumed_at", null)
-            .maybeSingle();
-          if (pending) {
-            try {
-              const { data, error: completeErr } = await supabase.functions.invoke(
-                "complete-student-signup",
-                { body: {} },
-              );
-              if (completeErr) throw completeErr;
-              const courseId = (data as any)?.course_id;
-              toast.success("Account ready! Let's get started.");
-              navigate(courseId ? `/student/diagnostic?course=${courseId}` : "/student");
-              setLoading(false);
-              return;
-            } catch (err: any) {
-              toast.error(err.message || "Couldn't finish setting up your account.");
-              setLoading(false);
-              return;
-            }
-          }
+    // Always check for a pending student signup, regardless of detected mode.
+    // This protects against invite-vs-recovery misdetection (e.g. when the
+    // hash carries type=invite but mode fell back to "recovery").
+    const { data: { user } } = await supabase.auth.getUser();
+    const email = user?.email?.toLowerCase();
+    if (user && email) {
+      const { data: pending } = await supabase
+        .from("pending_signups")
+        .select("id")
+        .eq("email", email)
+        .is("consumed_at", null)
+        .maybeSingle();
+
+      if (pending) {
+        try {
+          const { data, error: completeErr } = await supabase.functions.invoke(
+            "complete-student-signup",
+            { body: {} },
+          );
+          if (completeErr) throw completeErr;
+          const courseId = (data as any)?.course_id;
+          toast.success("Account ready! Let's get started.");
+          navigate(courseId ? `/student/diagnostic?course=${courseId}` : "/student");
+          setLoading(false);
+          return;
+        } catch (err: any) {
+          toast.error(err.message || "Couldn't finish setting up your account.");
+          setLoading(false);
+          return;
         }
-        // Teacher invite path
+      }
+    }
+
+    if (mode === "invite") {
+      // Teacher invite path (no pending row → not a student)
+      if (user) {
         await supabase
           .from("profiles")
           .update({ needs_password_setup: false })
