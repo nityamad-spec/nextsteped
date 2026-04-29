@@ -10,6 +10,7 @@ import {
   LESSON_PLAN_BUCKET,
 } from "@/lib/lessonPlanPath";
 import { normalizeLessonPlan } from "@/lib/lessonPlanShape";
+import { upsertPublishedWeeks, setWeekLocked } from "@/lib/lessonPlanWeeks";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -236,6 +237,19 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
       }
       // Record path + publish timestamp on the course row (best-effort).
       await recordPublishedPath(courseId, publishedPath);
+      // Mirror per-week metadata into DB so RLS can hide locked weeks from students.
+      await upsertPublishedWeeks(
+        courseId,
+        cleanDays.map((d: any) => ({
+          week_number: d.day,
+          week_name: d.topic || `Week ${d.day}`,
+          overview: d.description || "",
+          is_exam_week: !!d.is_exam_week,
+          locked: !!d.locked,
+          concepts: [],
+          resources: d.resources || [],
+        })),
+      );
       setDays(cleanDays);
       setHasChanges(false);
       toast({ title: "Plan saved", description: "Your lesson plan has been saved successfully." });
@@ -271,15 +285,22 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
   };
 
   const toggleLock = (dayId: string) => {
-    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, locked: !d.locked } : d));
     const day = days.find(d => d.id === dayId);
+    if (!day) return;
+    const newLocked = !day.locked;
+    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, locked: newLocked } : d));
     toast({
-      title: day?.locked ? "Now visible to students" : "Hidden from students",
-      description: day?.locked
-        ? `Week ${day.day} content is now visible to students`
-        : `Week ${day?.day} content is now hidden from students`,
+      title: newLocked ? "Hidden from students" : "Now visible to students",
+      description: newLocked
+        ? `Week ${day.day} content is now hidden from students`
+        : `Week ${day.day} content is now visible to students`,
     });
     markChanged();
+    if (courseId) {
+      setWeekLocked(courseId, day.day, newLocked).catch((err) => {
+        console.warn("Failed to persist week lock:", err);
+      });
+    }
   };
 
   const deleteDay = (id: string) => {

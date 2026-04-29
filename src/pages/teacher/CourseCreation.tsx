@@ -31,6 +31,7 @@ import {
   recordDraftPathIfMissing,
   LESSON_PLAN_BUCKET,
 } from "@/lib/lessonPlanPath";
+import { upsertPublishedWeeks, setWeekLocked } from "@/lib/lessonPlanWeeks";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -270,6 +271,45 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     return () => { cancelled = true; };
   }, [user, draftLocalKey, draftStoragePath, applyDraft]);
 
+  // Backfill: if this course was published before lesson_plan_weeks existed,
+  // mirror the loaded weeks into the table so student RLS visibility works.
+  // Runs at most once per course load when DB has zero rows.
+  const [backfilled, setBackfilled] = useState(false);
+  useEffect(() => {
+    if (!courseId || restoringDraft || backfilled) return;
+    if (!published || weeks.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { count } = await supabase
+          .from("lesson_plan_weeks")
+          .select("week_number", { count: "exact", head: true })
+          .eq("course_id", courseId);
+        if (cancelled) return;
+        if ((count ?? 0) === 0) {
+          await upsertPublishedWeeks(
+            courseId,
+            weeks.map((w) => ({
+              week_number: w.week,
+              week_name: w.week_name,
+              overview: w.overview,
+              is_exam_week: w.is_exam_week,
+              locked: w.locked,
+              concepts: w.concepts,
+              resources: w.resources,
+            })),
+            overallOutcomes,
+          );
+        }
+      } catch (e) {
+        console.warn("Lesson plan backfill failed:", e);
+      } finally {
+        if (!cancelled) setBackfilled(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [courseId, restoringDraft, backfilled, published, weeks, overallOutcomes]);
+
   // ─── Persist draft ───
   useEffect(() => {
     if (!user || restoringDraft) return;
@@ -375,11 +415,19 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
 
   const toggleLock = (id: string) => {
     const w = weeks.find(x => x.id === id);
-    setWeeks(prev => prev.map(x => x.id === id ? { ...x, locked: !x.locked } : x));
+    if (!w) return;
+    const newLocked = !w.locked;
+    setWeeks(prev => prev.map(x => x.id === id ? { ...x, locked: newLocked } : x));
     toast({
-      title: w?.locked ? "Now visible to students" : "Hidden from students",
-      description: `Week ${w?.week} ${w?.locked ? "is now visible" : "is now hidden"}.`,
+      title: newLocked ? "Hidden from students" : "Now visible to students",
+      description: `Week ${w.week} ${newLocked ? "is now hidden" : "is now visible"}.`,
     });
+    // Persist immediately so student visibility flips without a republish.
+    if (courseId) {
+      setWeekLocked(courseId, w.week, newLocked).catch((err) => {
+        console.warn("Failed to persist week lock:", err);
+      });
+    }
   };
 
   const deleteWeek = (id: string) => {
@@ -527,6 +575,21 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         JSON.parse(await verify.data.text());
         // Record path + publish timestamp on the course row (best-effort).
         await recordPublishedPath(courseId, publishedPath);
+        // Source of truth for student visibility: per-week rows in DB
+        // (RLS hides locked + future weeks from students automatically).
+        await upsertPublishedWeeks(
+          courseId,
+          weeks.map((w) => ({
+            week_number: w.week,
+            week_name: w.week_name,
+            overview: w.overview,
+            is_exam_week: w.is_exam_week,
+            locked: w.locked,
+            concepts: w.concepts,
+            resources: w.resources,
+          })),
+          overallOutcomes,
+        );
       } catch (err: any) {
         console.error("Failed to save published plan:", err);
         toast({

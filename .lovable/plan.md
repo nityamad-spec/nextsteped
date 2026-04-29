@@ -1,97 +1,134 @@
-# Fix: Lesson Plan Invisible to Students — Schema Mismatch Between Publish and Read
+## Goal
 
-## Root cause (verified against live data + network logs)
+Persist each lesson-plan week's visibility (`locked` / `is_exam_week`) to the database, and enforce server-side that students can only read **visible** weeks. Today the lock state lives only in the published JSON in storage and is filtered client-side in `StudentHome.tsx` / `AIChat.tsx` — a curious student could fetch the raw `published-plan.json` and see every week, including locked ones the professor hasn't released yet.
 
-Storage and RLS are fine. The teacher's republish at `2026-04-29 01:02:09Z` succeeded — the network panel shows `GET .../published-plan.json` returning **HTTP 200** with valid JSON, and the student is correctly enrolled in course `808605a6...`. The student's UI still says "Lesson plan not yet available" because of a **JSON shape mismatch**.
+## Root cause of current leak
 
-Two different code paths publish to the same `published-plan.json` slot with two different schemas:
+- `published-plan.json` contains every week with `locked: true/false` baked in.
+- Storage RLS lets enrolled students read the whole file.
+- The "hide locked weeks" rule is enforced **only in React** (`isWeekVisible` in `StudentHome.tsx` line 74; `visibleDays` filter in `AIChat.tsx` line 351). Anyone with the URL or browser devtools sees the full plan.
 
-| Publisher | File shape | Field names |
-|---|---|---|
-| `src/pages/teacher/CourseCreation.tsx` (AI lesson-plan flow, line ~515) | `{ "weeks": [...], "overall_course_learning_outcomes": "..." }` | `week`, `week_name`, `overview`, `concepts[]`, `resources[]`, `is_exam_week`, `locked` |
-| `src/pages/teacher/TeachingPlan.tsx` (manual editor, line ~199) | `[ ... ]` (top-level array) | `day`, `topic`, `description`, `resources[]` |
+## Proposed architecture
 
-The student reader (`src/pages/student/StudentHome.tsx`, line 126):
-```ts
-const parsed = JSON.parse(await data.text());
-if (Array.isArray(parsed) && parsed.length > 0) { /* render */ }
-```
-fails the `Array.isArray` check on the new shape, falls through, and sets `lessonPlanPublished = false`.
+Move week metadata into a relational table the database can filter by RLS, and serve students a **view** that already excludes hidden weeks. Storage continues to hold the full plan for teachers; students never read the raw JSON anymore.
 
-The most recent file in storage for the affected course was written by the AI flow (`{weeks: [...]}`), so the student silently sees the empty state. The AI Chat's `fetchVisibleTopics` has the same bug.
+### 1. New table: `lesson_plan_weeks`
 
-## Fix
+One row per week per course. Fields needed for both the listing UI and the visibility rule:
 
-Introduce one canonical normalizer and apply it everywhere a lesson plan JSON is read. Stop writing two incompatible shapes; converge on the AI shape (it's the richer one and is what the teacher dashboard already uses).
-
-### 1. New helper: `src/lib/lessonPlanShape.ts`
-
-Pure function `normalizeLessonPlan(parsed: unknown): NormalizedWeek[]` that accepts either shape and returns a uniform array consumed by the student UI:
-
-```ts
-type NormalizedWeek = {
-  id: string;
-  day: number;            // week number (kept name for back-compat with current renderer)
-  topic: string;          // week_name OR legacy topic
-  description: string;    // overview OR legacy description
-  is_exam_week: boolean;
-  locked: boolean;
-  concepts: { id: string; name: string; brief_description?: string }[];
-  resources: { id: string; type: string; title: string; description?: string; url?: string; concept?: string; action?: string }[];
-};
+```text
+id              uuid pk
+course_id       uuid not null
+week_number     int  not null     -- 1..total_weeks
+week_name       text not null
+overview        text
+is_exam_week    bool not null default false
+locked          bool not null default true     -- professor toggle
+concepts        jsonb not null default '[]'    -- [{id,name,brief_description}]
+resources       jsonb not null default '[]'    -- [{id,type,title,description,url}]
+created_at      timestamptz default now()
+updated_at      timestamptz default now()
+unique (course_id, week_number)
 ```
 
-Logic:
-- If `Array.isArray(parsed)` → assume legacy `{day, topic, description, resources}` shape, map straight through (concepts derived from `resources[].concept` distinct values when absent).
-- Else if `parsed?.weeks` is an array → map AI shape: `day = w.week`, `topic = w.week_name || \`Week ${w.week}\``, `description = w.overview || ""`, carry `is_exam_week`, default `locked = w.locked ?? false`.
-- Else → return `[]`.
+Plus a helper column on `courses`:
+```text
+lesson_plan_overall_outcomes  text   -- replaces the same field in the JSON for student-facing reads
+```
 
-Also export `extractOverallOutcomes(parsed): string` so the "Learning Outcomes" panel can fall back to the AI's `overall_course_learning_outcomes` when per-week outcomes are absent.
+### 2. RLS policies
 
-### 2. `src/pages/student/StudentHome.tsx`
+```text
+-- Teachers / collaborators: full CRUD on weeks of courses they own
+policy "Teachers manage own weeks"
+  for all using (is_course_member(course_id, auth.uid()))
+  with check (is_course_member(course_id, auth.uid()));
 
-- Replace lines 126–133 with:
-  ```ts
-  const parsed = JSON.parse(await data.text());
-  const normalized = normalizeLessonPlan(parsed);
-  if (normalized.length > 0) {
-    setLessonPlanPublished(true);
-    setLessonPlanError(false);
-    setLessonPlan(normalized.filter((d) => isWeekVisible(d, computedWeek)));
-    setPlanLoading(false);
-    return;
-  }
-  ```
-- The renderer already keys off `dp.day`, `dp.topic`, `dp.resources[]`, etc., so once normalization happens it just works. The "Learning Outcomes" regex on `dp.description` will harmlessly produce empty outcomes for AI-shape entries that store outcomes elsewhere — acceptable for this fix; richer per-week outcomes can come later if needed.
-- Remove the unused `course.teacher_id` argument from `resolvePublishedPath(course, course.teacher_id)` on line 112 — it should be `resolvePublishedPath(course, enrolledCourseId)`. Today it works only because `course.lesson_plan_path` is set, but if the column is ever cleared this would build a path under the teacher's UUID and 404. Pure correctness cleanup.
+-- Students: read ONLY visible weeks of courses they're enrolled in
+-- "Visible" = not locked OR auto-revealed by current course week.
+policy "Students read visible weeks"
+  for select using (
+    exists (
+      select 1 from enrollments e
+      join courses c on c.id = e.course_id
+      where e.course_id = lesson_plan_weeks.course_id
+        and e.student_id = auth.uid()
+        and (
+          locked = false
+          or (
+            c.start_date is not null
+            and week_number <= greatest(
+              1,
+              least(
+                coalesce(c.total_weeks, 16),
+                floor(extract(epoch from (now() - c.start_date)) / (7*24*3600))::int + 1
+              )
+            )
+          )
+        )
+    )
+  );
+```
 
-### 3. `src/pages/student/AIChat.tsx`
+The auto-reveal math is the same one currently in `StudentHome.tsx` line 109 — moved into SQL so the database, not the client, decides what a student sees. Locked weeks past the current course week simply don't appear in the result set.
 
-`fetchVisibleTopics` does the same `Array.isArray` check. Wrap the parsed JSON with `normalizeLessonPlan` and treat the returned array as the source of truth for visible topics. This makes exam-mode topic constraints work on AI-generated plans.
+### 3. Publish flow rewrite (`src/pages/teacher/CourseCreation.tsx` `handlePublish`)
 
-### 4. `src/pages/teacher/TeachingPlan.tsx`
+In addition to writing `published-plan.json` (kept for backwards-compat / teacher reads), upsert one row per week into `lesson_plan_weeks`:
 
-- On load (around line 160), pipe the downloaded JSON through `normalizeLessonPlan` so the manual editor can open AI-generated plans without resetting to `defaultPlan`. Today it silently throws away AI plans because the shape check fails.
-- On save (line 199), keep writing the legacy array — but ALSO recognize that downstream consumers (now via the normalizer) handle either shape, so manual edits no longer break AI-generated content.
-- (Out of scope for this fix: full convergence on a single write shape; tracked as a follow-up so the editor can round-trip AI-generated plans 1:1.)
+```text
+1. Delete existing rows for this course_id (clean slate)
+2. Insert weeks.map(w => ({course_id, week_number: w.week, week_name, overview,
+                          is_exam_week, locked, concepts, resources}))
+3. Update courses.lesson_plan_overall_outcomes = overallOutcomes
+4. Update courses.lesson_plan_published_at = now()
+```
 
-### 5. No DB or storage changes
+Wrap in a single batch; if it fails, surface the same "Publish failed" toast that already exists.
 
-The course row, RLS policies, and storage objects are correct. No migration is needed — the next page load with the new normalizer will render the existing `{weeks: [...]}` file.
+### 4. Lock toggle persistence
 
-## Verification
+`toggleLock` in `CourseCreation.tsx` (line 376) currently only mutates local state. Add an `update lesson_plan_weeks set locked = !locked where course_id=... and week_number=...` call so visibility flips for students immediately, without requiring a full republish. Same pattern for `TeachingPlan.tsx` `toggleLock` (line 274) once that editor is wired to the table.
 
-1. Reload `/student/home` as `akashsinha.ai@gmail.com` → "Lesson Plan" card shows 16 weeks expanded under Week 1, with concepts and resources from the AI-generated plan.
-2. Hard refresh AI Chat in exam mode → visible-topic constraint includes Week 1 concepts (Python Data Types, Variables and Expressions).
-3. As the teacher, open Teaching Plan → editor populates from the existing AI plan instead of the default Python template.
-4. Re-save from the manual editor → student page still renders (legacy array shape now passes through the same normalizer).
+### 5. Student reads (`src/pages/student/StudentHome.tsx`, `src/pages/student/AIChat.tsx`)
+
+Replace the storage download + JSON parse + client-side filter with:
+
+```ts
+const { data: weeks } = await supabase
+  .from("lesson_plan_weeks")
+  .select("week_number, week_name, overview, is_exam_week, concepts, resources")
+  .eq("course_id", enrolledCourseId)
+  .order("week_number");
+```
+
+The RLS policy guarantees `weeks` already excludes locked/future weeks. Map these rows through the existing `NormalizedWeek` shape so the renderer is unchanged. Drop `isWeekVisible` and the storage download path entirely from the student code.
+
+`AIChat.tsx` `fetchVisibleTopics` does the same thing — query the table, take the returned weeks as the source of truth for exam-mode topic constraints. Now a student literally cannot see (and therefore cannot ask the AI about) topics from locked weeks.
+
+### 6. Backfill for already-published courses
+
+The migration includes a one-shot SQL that copies existing `published-plan.json` rows into `lesson_plan_weeks` is **not** doable from SQL (storage isn't queryable from Postgres). Instead, on first teacher visit to `CourseCreation` after this ships, detect "course has `lesson_plan_path` but zero rows in `lesson_plan_weeks`" and run the publish-time upsert silently from the loaded JSON. Ship a banner on the teacher view explaining: "We've upgraded lesson-plan visibility — your existing plan has been migrated."
 
 ## Files
 
-- New: `src/lib/lessonPlanShape.ts`
-- Edited: `src/pages/student/StudentHome.tsx`, `src/pages/student/AIChat.tsx`, `src/pages/teacher/TeachingPlan.tsx`
+- New migration: `lesson_plan_weeks` table + RLS + `lesson_plan_overall_outcomes` column on `courses`
+- Edited: `src/pages/teacher/CourseCreation.tsx` (publish writes table; `toggleLock` persists; backfill on load)
+- Edited: `src/pages/teacher/TeachingPlan.tsx` (publish + toggleLock mirror to table)
+- Edited: `src/pages/student/StudentHome.tsx` (read from table, drop storage download + `isWeekVisible`)
+- Edited: `src/pages/student/AIChat.tsx` (`fetchVisibleTopics` reads from table)
+- New helper: `src/lib/lessonPlanWeeks.ts` with `upsertPublishedWeeks(courseId, weeks)` and `setWeekLocked(courseId, weekNumber, locked)` to keep both editors DRY
 
 ## Out of scope
 
-- Unifying the two writer formats into one canonical shape (worth doing next; this fix makes both readable so the bug is gone immediately).
-- Per-week learning-outcomes rendering for AI plans — current renderer parses outcomes out of the legacy `description` field; the AI shape stores them differently. Tracked separately.
+- Removing `published-plan.json` writes entirely. Kept for now so teacher tooling and `course_material_files` indexing don't break; can be deprecated in a follow-up once nothing reads it.
+- Per-resource locking inside a week (still all-or-nothing per week, matching current UX).
+- Making the AI Chat backend (`supabase/functions/chat`) aware of the table — current relevance filter is client-side; tracked separately.
+
+## Verification
+
+1. As teacher: lock Week 3, save → row in `lesson_plan_weeks` shows `locked=true`. Open `/student/home` as enrolled student → Week 3 missing entirely from network response.
+2. Hit the table directly from the student JWT (`supabase.from('lesson_plan_weeks').select('*').eq('course_id', ...)`) → only unlocked + auto-revealed weeks return; RLS denies the rest.
+3. Set `courses.start_date` to 4 weeks ago → Weeks 1–4 auto-reveal even if `locked=true`.
+4. AI Chat exam mode: ask about a topic from a locked future week → falls outside `visibleTopics`, gets refused.
+5. Re-publish from teacher → table reflects edits within one round-trip; no stale locked rows survive.
