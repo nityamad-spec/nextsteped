@@ -454,6 +454,62 @@ const AdminCourses = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!deleteCourse}
+        onOpenChange={(o) => { if (!o) { setDeleteCourse(null); setDeleteConfirm(""); } }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete course</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This will permanently delete <strong>{deleteCourse?.name}</strong>
+                  {deleteCourse?.course_code ? ` (${deleteCourse.course_code})` : ""}, including all
+                  enrollments, lesson plan, assessments, materials, results, chat history, and feedback.
+                  This cannot be undone.
+                </p>
+                <div className="rounded-md bg-muted/40 p-3 text-xs space-y-1">
+                  <div className="font-medium text-foreground">Will be removed</div>
+                  {deleteImpact ? (
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-muted-foreground">
+                      <div>Enrollments: <span className="text-foreground">{deleteImpact.enrollments}</span></div>
+                      <div>Collaborators: <span className="text-foreground">{deleteImpact.collaborators}</span></div>
+                      <div>Assessment questions: <span className="text-foreground">{deleteImpact.assessments}</span></div>
+                      <div>Lesson plan weeks: <span className="text-foreground">{deleteImpact.weeks}</span></div>
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground">Loading…</div>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="delete-course-confirm" className="text-xs">
+                    Type <code className="text-foreground">{deleteCourse?.name}</code> to confirm
+                  </Label>
+                  <Input
+                    id="delete-course-confirm"
+                    value={deleteConfirm}
+                    onChange={(e) => setDeleteConfirm(e.target.value)}
+                    autoComplete="off"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting || deleteConfirm.trim() !== (deleteCourse?.name ?? "").trim()}
+              onClick={(e) => { e.preventDefault(); handleDelete(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting…" : "Delete course"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
