@@ -81,15 +81,27 @@ const StudentHome = () => {
   useEffect(() => {
     const loadPlan = async () => {
       if (!enrolledCourseId) { setPlanLoading(false); return; }
+      let publishedAt: string | null = null;
       try {
         const { data: course } = await supabase
           .from("courses")
-          .select("teacher_id, start_date, total_weeks, lesson_plan_path")
+          .select("teacher_id, start_date, total_weeks, lesson_plan_path, lesson_plan_published_at")
           .eq("id", enrolledCourseId)
           .maybeSingle();
         if (!course?.teacher_id) { setPlanLoading(false); return; }
         if (course.start_date) setCourseStartDate(course.start_date);
         if (course.total_weeks) setTotalWeeks(course.total_weeks);
+        publishedAt = course.lesson_plan_published_at ?? null;
+
+        // If the professor has never published, render the "not yet available" state
+        // without attempting a download (avoids a guaranteed 404).
+        if (!publishedAt && !course.lesson_plan_path) {
+          setLessonPlanPublished(false);
+          setLessonPlanError(false);
+          setLessonPlan([]);
+          setPlanLoading(false);
+          return;
+        }
 
         // Compute current week from course start_date
         const weeks = course.total_weeks || 16;
@@ -98,19 +110,31 @@ const StudentHome = () => {
           : 999; // If no start_date, show all unlocked
 
         const planPath = resolvePublishedPath(course, course.teacher_id);
-        const { data } = await supabase.storage
+        const { data, error: dlError } = await supabase.storage
           .from(LESSON_PLAN_BUCKET)
-          .download(`${planPath}?t=${Date.now()}`);
-        if (data) {
-          const parsed = JSON.parse(await data.text());
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setLessonPlanPublished(true);
-            setLessonPlan(parsed.filter((d: any) => isWeekVisible(d, computedWeek)));
-            setPlanLoading(false);
-            return;
-          }
+          .download(planPath);
+        if (dlError || !data) {
+          // Publish row exists but the file isn't retrievable — surface a transient
+          // error message instead of pretending nothing was published.
+          console.error("Lesson plan download failed:", dlError);
+          setLessonPlanPublished(false);
+          setLessonPlanError(true);
+          setLessonPlan([]);
+          setPlanLoading(false);
+          return;
         }
-      } catch {}
+        const parsed = JSON.parse(await data.text());
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setLessonPlanPublished(true);
+          setLessonPlanError(false);
+          setLessonPlan(parsed.filter((d: any) => isWeekVisible(d, computedWeek)));
+          setPlanLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Lesson plan load error:", err);
+        setLessonPlanError(Boolean(publishedAt));
+      }
       setLessonPlanPublished(false);
       setLessonPlan([]);
       setPlanLoading(false);
