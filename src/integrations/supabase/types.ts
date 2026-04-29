@@ -527,6 +527,7 @@ export type Database = {
           graduation_year: string[] | null
           id: string
           lesson_plan_draft_path: string | null
+          lesson_plan_overall_outcomes: string | null
           lesson_plan_path: string | null
           lesson_plan_published_at: string | null
           materials_uploaded: boolean
@@ -556,6 +557,7 @@ export type Database = {
           graduation_year?: string[] | null
           id?: string
           lesson_plan_draft_path?: string | null
+          lesson_plan_overall_outcomes?: string | null
           lesson_plan_path?: string | null
           lesson_plan_published_at?: string | null
           materials_uploaded?: boolean
@@ -585,6 +587,7 @@ export type Database = {
           graduation_year?: string[] | null
           id?: string
           lesson_plan_draft_path?: string | null
+          lesson_plan_overall_outcomes?: string | null
           lesson_plan_path?: string | null
           lesson_plan_published_at?: string | null
           materials_uploaded?: boolean
@@ -807,6 +810,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      lesson_plan_weeks: {
+        Row: {
+          concepts: Json
+          course_id: string
+          created_at: string
+          id: string
+          is_exam_week: boolean
+          locked: boolean
+          overview: string
+          resources: Json
+          updated_at: string
+          week_name: string
+          week_number: number
+        }
+        Insert: {
+          concepts?: Json
+          course_id: string
+          created_at?: string
+          id?: string
+          is_exam_week?: boolean
+          locked?: boolean
+          overview?: string
+          resources?: Json
+          updated_at?: string
+          week_name?: string
+          week_number: number
+        }
+        Update: {
+          concepts?: Json
+          course_id?: string
+          created_at?: string
+          id?: string
+          is_exam_week?: boolean
+          locked?: boolean
+          overview?: string
+          resources?: Json
+          updated_at?: string
+          week_name?: string
+          week_number?: number
+        }
+        Relationships: []
       }
       pending_signups: {
         Row: {
