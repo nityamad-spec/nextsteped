@@ -320,43 +320,28 @@ const AIChat = () => {
     setShowHistory(false);
   };
 
-  /** Fetch visible lesson plan topics based on course progress + professor visibility settings */
+  /** Fetch visible lesson plan topics from DB. RLS already filters out
+   *  locked + future weeks for students, so anything we receive is fair game. */
   const fetchVisibleTopics = async (): Promise<string[]> => {
     if (!enrolledCourseId) return [];
     try {
-      const { data: courseRow } = await supabase
-        .from("courses")
-        .select("start_date, lesson_plan_path")
-        .eq("id", enrolledCourseId)
-        .maybeSingle();
-      const planPath = resolvePublishedPath(courseRow, enrolledCourseId);
-      const planRes = await supabase.storage
-        .from(LESSON_PLAN_BUCKET)
-        .download(planPath);
-      if (planRes.error || !planRes.data) {
-        if (planRes.error) console.warn("Lesson plan download failed in AIChat:", planRes.error);
-        return [];
-      }
-      const parsed = JSON.parse(await planRes.data.text());
-      const plan = normalizeLessonPlan(parsed);
-      if (plan.length === 0) return [];
+      const { data: rows, error } = await supabase
+        .from("lesson_plan_weeks")
+        .select("week_name, concepts, resources")
+        .eq("course_id", enrolledCourseId)
+        .order("week_number");
+      if (error || !rows) return [];
 
-      // Compute current week from course start_date
-      const startDate = courseRow?.start_date;
-      const courseCurrentWeek = startDate
-        ? Math.max(1, Math.floor((Date.now() - new Date(startDate).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1)
-        : 999;
-
-      // A week is visible if unlocked by professor OR auto-revealed by date
-      const visibleDays = plan.filter((d) => !d.locked || d.day <= courseCurrentWeek);
       const topics = new Set<string>();
-      for (const day of visibleDays) {
-        if (day.topic) topics.add(day.topic);
-        for (const c of day.concepts) {
-          if (c.name) topics.add(c.name);
+      for (const row of rows as any[]) {
+        if (row.week_name) topics.add(row.week_name);
+        const concepts = Array.isArray(row.concepts) ? row.concepts : [];
+        for (const c of concepts) {
+          if (c?.name) topics.add(String(c.name));
         }
-        for (const r of day.resources) {
-          if (r.concept) topics.add(r.concept);
+        const resources = Array.isArray(row.resources) ? row.resources : [];
+        for (const r of resources) {
+          if (r?.concept) topics.add(String(r.concept));
         }
       }
       return Array.from(topics);
