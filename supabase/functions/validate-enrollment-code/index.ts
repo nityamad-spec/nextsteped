@@ -47,13 +47,13 @@ Deno.serve(async (req) => {
     }
     if (!course.published) {
       return new Response(
-        JSON.stringify({ valid: false, error: "This course isn't open to students yet." }),
+        JSON.stringify({ valid: false, error: "Your instructor hasn't published this course yet. Please ask them to publish it from their dashboard." }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
     if (!course.enrollment_open) {
       return new Response(
-        JSON.stringify({ valid: false, error: "Enrollment is closed for this course." }),
+        JSON.stringify({ valid: false, error: "Enrollment is closed for this course. Please contact your instructor to reopen it." }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
