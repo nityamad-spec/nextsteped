@@ -376,11 +376,19 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
 
   const toggleLock = (id: string) => {
     const w = weeks.find(x => x.id === id);
-    setWeeks(prev => prev.map(x => x.id === id ? { ...x, locked: !x.locked } : x));
+    if (!w) return;
+    const newLocked = !w.locked;
+    setWeeks(prev => prev.map(x => x.id === id ? { ...x, locked: newLocked } : x));
     toast({
-      title: w?.locked ? "Now visible to students" : "Hidden from students",
-      description: `Week ${w?.week} ${w?.locked ? "is now visible" : "is now hidden"}.`,
+      title: newLocked ? "Hidden from students" : "Now visible to students",
+      description: `Week ${w.week} ${newLocked ? "is now hidden" : "is now visible"}.`,
     });
+    // Persist immediately so student visibility flips without a republish.
+    if (courseId) {
+      setWeekLocked(courseId, w.week, newLocked).catch((err) => {
+        console.warn("Failed to persist week lock:", err);
+      });
+    }
   };
 
   const deleteWeek = (id: string) => {
