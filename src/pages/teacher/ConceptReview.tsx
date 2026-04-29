@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ArrowRight, Plus, X, Loader2, Sparkles, Check, RefreshCw, Info, ListOrdered } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, X, Loader2, Sparkles, Check, RefreshCw, Info, ListOrdered, Lightbulb, Pencil, Briefcase, Layers, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { bumpCacheVersion } from "@/lib/cacheVersion";
 
@@ -25,6 +25,13 @@ interface Suggestion {
   unit_title?: string;
 }
 
+type RecCategory = "industry" | "foundational" | "gap";
+interface Recommendation {
+  name: string;
+  rationale: string;
+  category: RecCategory;
+}
+
 const ConceptReview = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -40,6 +47,12 @@ const ConceptReview = () => {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [suggestionsRequested, setSuggestionsRequested] = useState(false);
   const [addingUnitKey, setAddingUnitKey] = useState<string | null>(null);
+
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [loadingRecs, setLoadingRecs] = useState(false);
+  const [recsRequested, setRecsRequested] = useState(false);
+  const [editingRecName, setEditingRecName] = useState<string | null>(null);
+  const [editingRecValue, setEditingRecValue] = useState("");
 
   const fetchConcepts = async () => {
     if (!courseId) return;
