@@ -4,7 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, MoreHorizontal, ArrowRightLeft, Check, ChevronsUpDown } from "lucide-react";
+import { BookOpen, MoreHorizontal, ArrowRightLeft, Check, ChevronsUpDown, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -72,6 +74,12 @@ const AdminCourses = () => {
     assessments: number;
     weeks: number;
   } | null>(null);
+
+  // Delete dialog state
+  const [deleteCourse, setDeleteCourse] = useState<CourseRow | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteImpact, setDeleteImpact] = useState<typeof impact>(null);
 
   const loadCourses = async () => {
     const { data: coursesData } = await supabase
@@ -197,6 +205,44 @@ const AdminCourses = () => {
     }
   };
 
+  const openDelete = async (course: CourseRow) => {
+    setDeleteCourse(course);
+    setDeleteConfirm("");
+    setDeleteImpact(null);
+    const [enr, ct, aq, wk] = await Promise.all([
+      supabase.from("enrollments").select("id", { count: "exact", head: true }).eq("course_id", course.id),
+      supabase.from("course_teachers").select("id", { count: "exact", head: true }).eq("course_id", course.id),
+      supabase.from("assessment_questions").select("id", { count: "exact", head: true }).eq("course_id", course.id),
+      supabase.from("lesson_plan_weeks").select("id", { count: "exact", head: true }).eq("course_id", course.id),
+    ]);
+    setDeleteImpact({
+      enrollments: enr.count || 0,
+      collaborators: ct.count || 0,
+      assessments: aq.count || 0,
+      weeks: wk.count || 0,
+    });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteCourse) return;
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-course", {
+        body: { course_id: deleteCourse.id },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setCourses((prev) => prev.filter((c) => c.id !== deleteCourse.id));
+      toast.success(`Deleted "${deleteCourse.name}"`);
+      setDeleteCourse(null);
+      setDeleteConfirm("");
+    } catch (e: any) {
+      toast.error(e?.message || "Delete failed");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading)
     return (
       <div className="space-y-4">
@@ -269,6 +315,13 @@ const AdminCourses = () => {
                           <DropdownMenuItem onClick={() => openTransfer(c)}>
                             <ArrowRightLeft className="mr-2 h-4 w-4" />
                             Transfer ownership
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => openDelete(c)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete course
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -401,6 +454,62 @@ const AdminCourses = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!deleteCourse}
+        onOpenChange={(o) => { if (!o) { setDeleteCourse(null); setDeleteConfirm(""); } }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete course</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This will permanently delete <strong>{deleteCourse?.name}</strong>
+                  {deleteCourse?.course_code ? ` (${deleteCourse.course_code})` : ""}, including all
+                  enrollments, lesson plan, assessments, materials, results, chat history, and feedback.
+                  This cannot be undone.
+                </p>
+                <div className="rounded-md bg-muted/40 p-3 text-xs space-y-1">
+                  <div className="font-medium text-foreground">Will be removed</div>
+                  {deleteImpact ? (
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-muted-foreground">
+                      <div>Enrollments: <span className="text-foreground">{deleteImpact.enrollments}</span></div>
+                      <div>Collaborators: <span className="text-foreground">{deleteImpact.collaborators}</span></div>
+                      <div>Assessment questions: <span className="text-foreground">{deleteImpact.assessments}</span></div>
+                      <div>Lesson plan weeks: <span className="text-foreground">{deleteImpact.weeks}</span></div>
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground">Loading…</div>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="delete-course-confirm" className="text-xs">
+                    Type <code className="text-foreground">{deleteCourse?.name}</code> to confirm
+                  </Label>
+                  <Input
+                    id="delete-course-confirm"
+                    value={deleteConfirm}
+                    onChange={(e) => setDeleteConfirm(e.target.value)}
+                    autoComplete="off"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting || deleteConfirm.trim() !== (deleteCourse?.name ?? "").trim()}
+              onClick={(e) => { e.preventDefault(); handleDelete(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting…" : "Delete course"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
