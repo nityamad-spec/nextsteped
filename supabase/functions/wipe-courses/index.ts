@@ -124,6 +124,16 @@ Deno.serve(async (req) => {
       counts["teacher_applications_cleared"] = count ?? 0;
     }
 
+    // Clear pending_signups (FK to courses)
+    {
+      const { count, error } = await admin
+        .from("pending_signups")
+        .delete({ count: "exact" })
+        .not("id", "is", null);
+      if (error) throw new Error(`pending_signups: ${error.message}`);
+      counts["pending_signups"] = count ?? 0;
+    }
+
     // Finally, courses
     await wipeAll("courses");
 
