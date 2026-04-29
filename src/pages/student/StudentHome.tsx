@@ -262,8 +262,17 @@ const StudentHome = () => {
             ) : !lessonPlanPublished ? (
               <div className="text-center py-6 space-y-1">
                 <BookOpen className="h-8 w-8 mx-auto text-muted-foreground/40" />
-                <p className="text-sm font-medium text-muted-foreground">Lesson plan not yet available</p>
-                <p className="text-xs text-muted-foreground">Your professor hasn't published the lesson plan yet. You're currently on Week {currentWeek} of {totalWeeks}.</p>
+                {lessonPlanError ? (
+                  <>
+                    <p className="text-sm font-medium text-muted-foreground">Lesson plan is being updated</p>
+                    <p className="text-xs text-muted-foreground">Please refresh in a moment. If this keeps showing, let your professor know.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium text-muted-foreground">Lesson plan not yet available</p>
+                    <p className="text-xs text-muted-foreground">Your professor hasn't published the lesson plan yet. You're currently on Week {currentWeek} of {totalWeeks}.</p>
+                  </>
+                )}
               </div>
             ) : lessonPlan.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No weeks are visible yet — check back soon</p>
