@@ -75,6 +75,12 @@ const AdminCourses = () => {
     weeks: number;
   } | null>(null);
 
+  // Delete dialog state
+  const [deleteCourse, setDeleteCourse] = useState<CourseRow | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteImpact, setDeleteImpact] = useState<typeof impact>(null);
+
   const loadCourses = async () => {
     const { data: coursesData } = await supabase
       .from("courses")
