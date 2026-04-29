@@ -87,6 +87,8 @@ const DiagnosticQuiz = () => {
       // Persist as the active course so the dashboard lands on it.
       await supabase.from("profiles").update({ active_course_id: courseId }).eq("id", user.id);
 
+      const progressKey = `diagnosticProgress:${user.id}:${courseId}`;
+
       const { data: existing } = await supabase
         .from("diagnostic_results")
         .select("id")
@@ -95,6 +97,7 @@ const DiagnosticQuiz = () => {
         .maybeSingle();
 
       if (existing) {
+        try { localStorage.removeItem(progressKey); } catch {}
         setDiagnosticComplete(true);
         navigate("/student/home", { replace: true });
         return;
@@ -150,6 +153,52 @@ const DiagnosticQuiz = () => {
       // Seeded shuffle — same student+course always gets same order
       const shuffled = seededShuffle(mapped, user.id + courseId);
       setQuestions(shuffled);
+
+      // Try to restore in-progress quiz state from localStorage
+      try {
+        const raw = localStorage.getItem(progressKey);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          const validShape =
+            saved &&
+            saved.v === 1 &&
+            Array.isArray(saved.questionIds) &&
+            Array.isArray(saved.answers) &&
+            Array.isArray(saved.textAnswers) &&
+            Array.isArray(saved.confidences) &&
+            Array.isArray(saved.questionTimes) &&
+            typeof saved.currentQ === "number";
+
+          // Sanity check: saved committed question ids must be a prefix of the
+          // freshly shuffled order, and currentQ must be within bounds.
+          const orderMatches =
+            validShape &&
+            saved.questionIds.every((id: string, i: number) => shuffled[i]?.id === id) &&
+            saved.currentQ >= 0 &&
+            saved.currentQ < shuffled.length &&
+            saved.currentQ === saved.questionIds.length;
+
+          if (orderMatches) {
+            setCurrentQ(saved.currentQ);
+            setAnswers(saved.answers);
+            setTextAnswers(saved.textAnswers);
+            setConfidences(saved.confidences);
+            setQuestionTimes(saved.questionTimes);
+            setQuestionIds(saved.questionIds);
+            setSelected(typeof saved.selected === "number" ? saved.selected : null);
+            setTextAnswer(typeof saved.textAnswer === "string" ? saved.textAnswer : "");
+            setConfidence(typeof saved.confidence === "number" ? saved.confidence : null);
+            setQuestionStartTime(typeof saved.questionStartTime === "number" ? saved.questionStartTime : Date.now());
+            setPhase("quiz");
+            return;
+          } else {
+            localStorage.removeItem(progressKey);
+          }
+        }
+      } catch {
+        try { localStorage.removeItem(progressKey); } catch {}
+      }
+
       setPhase("intro");
     };
     init();
@@ -167,6 +216,32 @@ const DiagnosticQuiz = () => {
       setConfidence(50);
     }
   }, [hasAnswer, confidence]);
+
+  // Persist in-progress quiz state so a refresh resumes at the same place.
+  useEffect(() => {
+    if (!user || !activeCourseId || phase !== "quiz") return;
+    const payload = {
+      v: 1 as const,
+      phase: "quiz" as const,
+      currentQ,
+      answers,
+      textAnswers,
+      confidences,
+      questionTimes,
+      questionIds,
+      selected,
+      textAnswer,
+      confidence,
+      questionStartTime,
+      savedAt: Date.now(),
+    };
+    try {
+      localStorage.setItem(
+        `diagnosticProgress:${user.id}:${activeCourseId}`,
+        JSON.stringify(payload),
+      );
+    } catch {}
+  }, [user, activeCourseId, phase, currentQ, answers, textAnswers, confidences, questionTimes, questionIds, selected, textAnswer, confidence, questionStartTime]);
 
   const handleAnswer = async () => {
     if (!canProceed) return;
@@ -235,6 +310,10 @@ const DiagnosticQuiz = () => {
         });
         await supabase.from("profiles").update({ learner_level: level }).eq("id", user.id);
         setSaving(false);
+      }
+
+      if (user && activeCourseId) {
+        try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {}
       }
 
       setPhase("result");
@@ -391,7 +470,7 @@ const DiagnosticQuiz = () => {
               )}
             </motion.div>
             <div className="mt-4 flex justify-between">
-              <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; const prevConfidence = confidences[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setConfidence(prevConfidence ?? null); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { navigate("/student/onboarding"); } }}>
+              <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; const prevConfidence = confidences[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setConfidence(prevConfidence ?? null); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { if (user && activeCourseId) { try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {} } navigate("/student/onboarding"); } }}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
               <Button onClick={handleAnswer} disabled={!canProceed}>
