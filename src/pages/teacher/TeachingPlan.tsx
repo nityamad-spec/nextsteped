@@ -203,6 +203,17 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
         .from(LESSON_PLAN_BUCKET)
         .upload(publishedPath, file, { upsert: true, cacheControl: "0" });
       if (error) throw error;
+      // Verify the upload is actually retrievable. Storage occasionally accepts an
+      // upload but loses the backing blob, leaving an unreadable file. We re-download
+      // and re-parse before recording the publish so a broken file never becomes the
+      // source of truth for students.
+      const verify = await supabase.storage.from(LESSON_PLAN_BUCKET).download(publishedPath);
+      if (!verify.data) throw new Error("Publish verification failed: file is not retrievable. Please try again.");
+      try {
+        JSON.parse(await verify.data.text());
+      } catch {
+        throw new Error("Publish verification failed: stored file is corrupted. Please try again.");
+      }
       // Record path + publish timestamp on the course row (best-effort).
       await recordPublishedPath(courseId, publishedPath);
       setDays(cleanDays);
