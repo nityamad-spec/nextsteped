@@ -86,7 +86,7 @@ const StudentHome = () => {
       try {
         const { data: course } = await supabase
           .from("courses")
-          .select("teacher_id, start_date, total_weeks, lesson_plan_path, lesson_plan_published_at")
+          .select("teacher_id, start_date, total_weeks, lesson_plan_published_at")
           .eq("id", enrolledCourseId)
           .maybeSingle();
         if (!course?.teacher_id) { setPlanLoading(false); return; }
@@ -94,9 +94,25 @@ const StudentHome = () => {
         if (course.total_weeks) setTotalWeeks(course.total_weeks);
         publishedAt = course.lesson_plan_published_at ?? null;
 
-        // If the professor has never published, render the "not yet available" state
-        // without attempting a download (avoids a guaranteed 404).
-        if (!publishedAt && !course.lesson_plan_path) {
+        // Read visible weeks directly from the database. RLS hides locked +
+        // future weeks automatically — students literally cannot see them.
+        const { data: rows, error: rowsError } = await supabase
+          .from("lesson_plan_weeks")
+          .select("week_number, week_name, overview, is_exam_week, concepts, resources")
+          .eq("course_id", enrolledCourseId)
+          .order("week_number");
+
+        if (rowsError) {
+          console.error("Lesson plan load error:", rowsError);
+          setLessonPlanPublished(false);
+          setLessonPlanError(Boolean(publishedAt));
+          setLessonPlan([]);
+          setPlanLoading(false);
+          return;
+        }
+
+        if (!publishedAt && (!rows || rows.length === 0)) {
+          // Professor has never published.
           setLessonPlanPublished(false);
           setLessonPlanError(false);
           setLessonPlan([]);
@@ -104,35 +120,51 @@ const StudentHome = () => {
           return;
         }
 
-        // Compute current week from course start_date
-        const weeks = course.total_weeks || 16;
-        const computedWeek = course.start_date
-          ? Math.max(1, Math.min(weeks, Math.floor((Date.now() - new Date(course.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1))
-          : 999; // If no start_date, show all unlocked
+        // Map DB rows to the shape the existing renderer expects.
+        const mapped = (rows || []).map((r: any) => {
+          const conceptList = Array.isArray(r.concepts) ? r.concepts : [];
+          const conceptNames: string[] = conceptList
+            .map((c: any) => c?.name)
+            .filter((n: any) => typeof n === "string" && n.length > 0);
+          const resources = (Array.isArray(r.resources) ? r.resources : []).map((res: any, i: number) => ({
+            id: String(res?.id ?? `r_${r.week_number}_${i}`),
+            type: String(res?.type ?? "resource"),
+            title: String(res?.title ?? ""),
+            description: res?.description ? String(res.description) : undefined,
+            url: res?.url ? String(res.url) : undefined,
+            concept: res?.concept ? String(res.concept) : (conceptNames[0] || "General"),
+            action: res?.action ? String(res.action) : (res?.description ? String(res.description) : undefined),
+          }));
+          return {
+            id: `w_${r.week_number}`,
+            day: r.week_number,
+            topic: r.week_name || `Week ${r.week_number}`,
+            description: r.overview || "",
+            is_exam_week: !!r.is_exam_week,
+            locked: false, // RLS already filtered — anything we received is visible
+            concepts: conceptList.map((c: any, i: number) => ({
+              id: String(c?.id ?? `c_${r.week_number}_${i}`),
+              name: String(c?.name ?? ""),
+              brief_description: c?.brief_description ? String(c.brief_description) : undefined,
+            })),
+            resources,
+          };
+        });
 
-        const planPath = resolvePublishedPath(course, enrolledCourseId);
-        const { data, error: dlError } = await supabase.storage
-          .from(LESSON_PLAN_BUCKET)
-          .download(planPath);
-        if (dlError || !data) {
-          // Publish row exists but the file isn't retrievable — surface a transient
-          // error message instead of pretending nothing was published.
-          console.error("Lesson plan download failed:", dlError);
-          setLessonPlanPublished(false);
-          setLessonPlanError(true);
-          setLessonPlan([]);
-          setPlanLoading(false);
-          return;
-        }
-        const parsed = JSON.parse(await data.text());
-        const normalized = normalizeLessonPlan(parsed);
-        if (normalized.length > 0) {
+        if (mapped.length > 0) {
           setLessonPlanPublished(true);
           setLessonPlanError(false);
-          setLessonPlan(normalized.filter((d) => isWeekVisible(d, computedWeek)));
+          setLessonPlan(mapped);
           setPlanLoading(false);
           return;
         }
+
+        // Published but no visible weeks yet (e.g. all locked + before start_date)
+        setLessonPlanPublished(true);
+        setLessonPlanError(false);
+        setLessonPlan([]);
+        setPlanLoading(false);
+        return;
       } catch (err) {
         console.error("Lesson plan load error:", err);
         setLessonPlanError(Boolean(publishedAt));
