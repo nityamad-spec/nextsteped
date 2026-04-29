@@ -86,11 +86,18 @@ const CourseStatusBanner = () => {
       return;
     }
     setBusy(true);
-    const { error } = await supabase.from("courses").update(patch).eq("id", course.id);
+    const { data, error } = await supabase
+      .from("courses")
+      .update(patch)
+      .eq("id", course.id)
+      .select("id, published, enrollment_open, enrollment_code, teacher_id")
+      .maybeSingle();
     if (error) {
       toast.error(error.message);
+    } else if (!data) {
+      toast.error("Update was blocked. You may not have permission to change this course.");
     } else {
-      setCourse({ ...course, ...patch });
+      setCourse(data as CourseRow);
       toast.success(successMsg);
     }
     setBusy(false);
