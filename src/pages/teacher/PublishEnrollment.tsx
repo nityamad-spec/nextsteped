@@ -59,12 +59,20 @@ const PublishEnrollment = () => {
   const handleFinish = async () => {
     const courseId = currentCourse?.id;
     if (courseId) {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("courses")
         .update({ published: true, enrollment_open: true })
-        .eq("id", courseId);
-      if (error) {
+        .eq("id", courseId)
+        .select("id, published, enrollment_open")
+        .maybeSingle();
+      if (error || !data || !data.published) {
         console.error("Failed to publish course:", error);
+        const { toast } = await import("sonner");
+        toast.error(
+          error?.message ||
+            "Couldn't publish the course. You may not have permission, or the course owner needs to publish it.",
+        );
+        return;
       }
     }
     setTeacherOnboarded(true);
