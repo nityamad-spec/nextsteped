@@ -22,8 +22,13 @@ const ResetPassword = () => {
     //    our listener is registered.
     try {
       const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-      if (hash.get("type") === "recovery") {
+      const hashType = hash.get("type");
+      if (hashType === "recovery") {
         setMode("recovery");
+      } else if (hashType === "invite" || hashType === "signup") {
+        // Supabase invite-by-email links arrive with type=invite (or signup).
+        // These are first-time password setups, not recoveries.
+        setMode("invite");
       }
     } catch {
       /* ignore */
