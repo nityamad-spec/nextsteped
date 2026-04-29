@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ArrowRight, Plus, X, Loader2, Sparkles, Check, RefreshCw, Info, ListOrdered } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, X, Loader2, Sparkles, Check, RefreshCw, Info, ListOrdered, Lightbulb, Pencil, Briefcase, Layers, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { bumpCacheVersion } from "@/lib/cacheVersion";
 
@@ -25,6 +25,13 @@ interface Suggestion {
   unit_title?: string;
 }
 
+type RecCategory = "industry" | "foundational" | "gap";
+interface Recommendation {
+  name: string;
+  rationale: string;
+  category: RecCategory;
+}
+
 const ConceptReview = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -40,6 +47,12 @@ const ConceptReview = () => {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [suggestionsRequested, setSuggestionsRequested] = useState(false);
   const [addingUnitKey, setAddingUnitKey] = useState<string | null>(null);
+
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [loadingRecs, setLoadingRecs] = useState(false);
+  const [recsRequested, setRecsRequested] = useState(false);
+  const [editingRecName, setEditingRecName] = useState<string | null>(null);
+  const [editingRecValue, setEditingRecValue] = useState("");
 
   const fetchConcepts = async () => {
     if (!courseId) return;
@@ -155,6 +168,81 @@ const ConceptReview = () => {
   const handleDismissSuggestion = (s: Suggestion) => {
     setSuggestions((prev) => prev.filter((x) => x.name !== s.name));
   };
+
+  const fetchRecommendations = async () => {
+    if (!courseId) return;
+    setLoadingRecs(true);
+    setRecsRequested(true);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "recommend-additional-concepts",
+        {
+          body: {
+            courseId,
+            existingConcepts: concepts.map((c) => c.concept_code),
+          },
+        },
+      );
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const incoming: Recommendation[] = Array.isArray(data?.recommendations)
+        ? data.recommendations
+        : [];
+      const existingLc = new Set(
+        concepts.map((c) => c.concept_code.trim().toLowerCase()),
+      );
+      setRecommendations(
+        incoming.filter((r) => !existingLc.has(r.name.trim().toLowerCase())),
+      );
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to fetch recommendations");
+      setRecommendations([]);
+    } finally {
+      setLoadingRecs(false);
+    }
+  };
+
+  const handleApproveRecommendation = async (r: Recommendation) => {
+    if (!courseId) return;
+    const { data, error } = await supabase
+      .from("concepts")
+      .insert({ concept_code: r.name, weight: 0, course_id: courseId })
+      .select("*")
+      .single();
+    if (error) {
+      toast.error("Failed to add: " + error.message);
+      return;
+    }
+    if (data) {
+      setConcepts((prev) => [...prev, data]);
+      setRecommendations((prev) => prev.filter((x) => x.name !== r.name));
+      bumpCacheVersion("concepts", courseId);
+    }
+  };
+
+  const handleDismissRecommendation = (r: Recommendation) => {
+    setRecommendations((prev) => prev.filter((x) => x.name !== r.name));
+  };
+
+  const startEditRec = (r: Recommendation) => {
+    setEditingRecName(r.name);
+    setEditingRecValue(r.name);
+  };
+
+  const cancelEditRec = () => {
+    setEditingRecName(null);
+    setEditingRecValue("");
+  };
+
+  const saveEditRec = (r: Recommendation) => {
+    const next = editingRecValue.trim();
+    if (!next) return;
+    setRecommendations((prev) =>
+      prev.map((x) => (x.name === r.name ? { ...x, name: next } : x)),
+    );
+    cancelEditRec();
+  };
+
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("concepts").delete().eq("id", id);
@@ -333,6 +421,131 @@ const ConceptReview = () => {
                     </div>
                   ));
                 })()}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Additional Concept Recommendations */}
+        <Card className="border-dashed">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Lightbulb className="h-5 w-5 text-primary" /> Additional Concept Recommendations
+            </CardTitle>
+            <CardDescription>
+              Concepts that weren't in your syllabus but may be worth covering — including industry-alignment topics employers commonly look for, foundational prerequisites, and general gaps. Approve, edit, or dismiss each. Approved recommendations flow into your final concept list and lesson plan.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                Recommendations are generated based on your course objectives, syllabus, and currently confirmed concepts.
+              </p>
+              <Button
+                onClick={fetchRecommendations}
+                disabled={loadingRecs}
+                size="sm"
+                className="shrink-0"
+              >
+                {loadingRecs ? (
+                  <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Generating…</>
+                ) : recsRequested ? (
+                  <><RefreshCw className="h-4 w-4 mr-2" /> Re-generate</>
+                ) : (
+                  <><Lightbulb className="h-4 w-4 mr-2" /> Generate Recommendations</>
+                )}
+              </Button>
+            </div>
+
+            {!recsRequested && !loadingRecs ? (
+              <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                Click "Generate Recommendations" to surface additional concepts that may strengthen your course.
+              </div>
+            ) : loadingRecs ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              </div>
+            ) : recommendations.length === 0 ? (
+              <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                No additional recommendations right now. Your confirmed list looks well-rounded.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {recommendations.map((r) => {
+                  const isEditing = editingRecName === r.name;
+                  const catMeta =
+                    r.category === "industry"
+                      ? { label: "Industry", Icon: Briefcase, cls: "border-primary/30 text-primary" }
+                      : r.category === "foundational"
+                      ? { label: "Foundational", Icon: Layers, cls: "border-warning/40 text-warning" }
+                      : { label: "Gap", Icon: AlertCircle, cls: "border-muted-foreground/40 text-muted-foreground" };
+                  const CatIcon = catMeta.Icon;
+                  return (
+                    <div
+                      key={r.name}
+                      className="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3 flex items-start gap-3"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {isEditing ? (
+                            <Input
+                              autoFocus
+                              value={editingRecValue}
+                              onChange={(e) => setEditingRecValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  saveEditRec(r);
+                                } else if (e.key === "Escape") {
+                                  cancelEditRec();
+                                }
+                              }}
+                              className="h-7 text-sm max-w-xs"
+                            />
+                          ) : (
+                            <p className="text-sm font-semibold">{r.name}</p>
+                          )}
+                          <Badge variant="outline" className={`text-[10px] gap-0.5 ${catMeta.cls}`}>
+                            <CatIcon className="h-2.5 w-2.5" /> {catMeta.label}
+                          </Badge>
+                        </div>
+                        {r.rationale && (
+                          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{r.rationale}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isEditing ? (
+                          <>
+                            <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => saveEditRec(r)}>
+                              Save
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEditRec}>
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => handleApproveRecommendation(r)}>
+                              <Check className="h-3 w-3 mr-1" /> Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => startEditRec(r)}
+                              title="Edit name"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => handleDismissRecommendation(r)}>
+                              Dismiss
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
