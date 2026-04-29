@@ -169,6 +169,81 @@ const ConceptReview = () => {
     setSuggestions((prev) => prev.filter((x) => x.name !== s.name));
   };
 
+  const fetchRecommendations = async () => {
+    if (!courseId) return;
+    setLoadingRecs(true);
+    setRecsRequested(true);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "recommend-additional-concepts",
+        {
+          body: {
+            courseId,
+            existingConcepts: concepts.map((c) => c.concept_code),
+          },
+        },
+      );
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const incoming: Recommendation[] = Array.isArray(data?.recommendations)
+        ? data.recommendations
+        : [];
+      const existingLc = new Set(
+        concepts.map((c) => c.concept_code.trim().toLowerCase()),
+      );
+      setRecommendations(
+        incoming.filter((r) => !existingLc.has(r.name.trim().toLowerCase())),
+      );
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to fetch recommendations");
+      setRecommendations([]);
+    } finally {
+      setLoadingRecs(false);
+    }
+  };
+
+  const handleApproveRecommendation = async (r: Recommendation) => {
+    if (!courseId) return;
+    const { data, error } = await supabase
+      .from("concepts")
+      .insert({ concept_code: r.name, weight: 0, course_id: courseId })
+      .select("*")
+      .single();
+    if (error) {
+      toast.error("Failed to add: " + error.message);
+      return;
+    }
+    if (data) {
+      setConcepts((prev) => [...prev, data]);
+      setRecommendations((prev) => prev.filter((x) => x.name !== r.name));
+      bumpCacheVersion("concepts", courseId);
+    }
+  };
+
+  const handleDismissRecommendation = (r: Recommendation) => {
+    setRecommendations((prev) => prev.filter((x) => x.name !== r.name));
+  };
+
+  const startEditRec = (r: Recommendation) => {
+    setEditingRecName(r.name);
+    setEditingRecValue(r.name);
+  };
+
+  const cancelEditRec = () => {
+    setEditingRecName(null);
+    setEditingRecValue("");
+  };
+
+  const saveEditRec = (r: Recommendation) => {
+    const next = editingRecValue.trim();
+    if (!next) return;
+    setRecommendations((prev) =>
+      prev.map((x) => (x.name === r.name ? { ...x, name: next } : x)),
+    );
+    cancelEditRec();
+  };
+
+
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("concepts").delete().eq("id", id);
     if (error) {
