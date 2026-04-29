@@ -11,27 +11,41 @@ const corsHeaders = {
 type SyllabusUnit = {
   unit_number?: number | string;
   number?: number | string;
+  week?: number | string;
+  chapter?: number | string;
   title?: string;
   name?: string;
   topics?: (string | { name?: string; title?: string })[];
   subtopics?: (string | { name?: string; title?: string })[];
+  items?: (string | { name?: string; title?: string })[];
   description?: string;
 };
 
-function normalizeUnits(syllabus: any): { unit_number: number; unit_title: string; topics: string[] }[] {
+function pickUnitArray(syllabus: any): SyllabusUnit[] {
   if (!syllabus) return [];
-  const raw: SyllabusUnit[] = Array.isArray(syllabus.units)
-    ? syllabus.units
-    : Array.isArray(syllabus.modules)
-    ? syllabus.modules
-    : [];
+  // Top-level array
+  if (Array.isArray(syllabus)) return syllabus as SyllabusUnit[];
+  // Common keys
+  for (const k of ["units", "modules", "chapters", "sections", "weeks", "topics"]) {
+    if (Array.isArray(syllabus[k])) return syllabus[k] as SyllabusUnit[];
+  }
+  // Nested under syllabus.*
+  if (syllabus.syllabus && typeof syllabus.syllabus === "object") {
+    for (const k of ["units", "modules", "chapters", "sections", "weeks", "topics"]) {
+      if (Array.isArray(syllabus.syllabus[k])) return syllabus.syllabus[k] as SyllabusUnit[];
+    }
+  }
+  return [];
+}
 
+function normalizeUnits(syllabus: any): { unit_number: number; unit_title: string; topics: string[] }[] {
+  const raw = pickUnitArray(syllabus);
   return raw
     .map((u, idx) => {
-      const numRaw = u.unit_number ?? u.number ?? idx + 1;
+      const numRaw = u.unit_number ?? u.number ?? u.week ?? u.chapter ?? idx + 1;
       const num = typeof numRaw === "string" ? parseInt(numRaw, 10) || idx + 1 : Number(numRaw) || idx + 1;
       const title = (u.title || u.name || `Unit ${num}`).toString().trim();
-      const topicSrc = (u.topics || u.subtopics || []) as any[];
+      const topicSrc = (u.topics || u.subtopics || u.items || []) as any[];
       const topics = topicSrc
         .map((t) => (typeof t === "string" ? t : t?.name || t?.title || ""))
         .map((s) => (s || "").toString().trim())
@@ -66,31 +80,79 @@ serve(async (req) => {
       .eq("id", courseId)
       .maybeSingle();
 
-    // Load syllabus JSON (the source of truth for unit ordering)
-    let syllabusJson: any = null;
-    const candidatePaths = [
-      course?.syllabus_json_path,
-      `${courseId}/syllabus/approved-syllabus.json`,
-    ].filter(Boolean) as string[];
+    // Build candidate paths: explicit pointer + hardcoded fallback + scan storage
+    const candidatePaths: string[] = [];
+    if (course?.syllabus_json_path) candidatePaths.push(course.syllabus_json_path);
+    candidatePaths.push(`${courseId}/syllabus/approved-syllabus.json`);
 
+    // Also discover any .json files in the course's syllabus folder
+    try {
+      const { data: listed } = await admin.storage
+        .from("course-materials")
+        .list(`${courseId}/syllabus`, { limit: 100, sortBy: { column: "updated_at", order: "desc" } });
+      if (Array.isArray(listed)) {
+        for (const f of listed) {
+          if (f?.name && f.name.toLowerCase().endsWith(".json")) {
+            const p = `${courseId}/syllabus/${f.name}`;
+            if (!candidatePaths.includes(p)) candidatePaths.push(p);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("storage list failed", e);
+    }
+
+    console.log("suggest-concepts: courseId=", courseId, "candidatePaths=", candidatePaths);
+
+    let syllabusJson: any = null;
+    let matchedPath: string | null = null;
     for (const p of candidatePaths) {
       try {
         const { data: blob } = await admin.storage.from("course-materials").download(p);
         if (blob) {
           const txt = await blob.text();
           syllabusJson = JSON.parse(txt);
+          matchedPath = p;
           break;
         }
       } catch (e) {
-        console.warn("syllabus fetch failed for", p, e);
+        // file likely missing — continue
       }
     }
 
+    console.log("suggest-concepts: matchedPath=", matchedPath);
+
+    if (!syllabusJson) {
+      return new Response(
+        JSON.stringify({
+          suggestions: [],
+          units: [],
+          reason: "no_syllabus_file",
+          warning:
+            "No parsed syllabus JSON was found in storage. Re-upload your syllabus on the Syllabus Review step so it can be parsed.",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const units = normalizeUnits(syllabusJson);
+    console.log("suggest-concepts: unitsFound=", units.length);
+
+    if (units.length === 0) {
+      return new Response(
+        JSON.stringify({
+          suggestions: [],
+          units: [],
+          reason: "unrecognized_shape",
+          warning:
+            "Found a syllabus file but could not detect any units in it. Re-upload the syllabus so it parses into structured units.",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const existingList = (existingConcepts as string[]).map((c) => `- ${c}`).join("\n");
 
-    // Build unit context block for the model
     const unitsBlock = units
       .map(
         (u) =>
@@ -119,20 +181,9 @@ ${existingList || "(none yet)"}
 
 Syllabus units (in learning order — preserve this order in your output):
 
-${unitsBlock || "(no structured units found in syllabus)"}
+${unitsBlock}
 
 Extract concepts unit by unit, in sequence, with no overlap.`;
-
-    if (units.length === 0) {
-      return new Response(
-        JSON.stringify({
-          suggestions: [],
-          units: [],
-          warning: "No structured units found in approved-syllabus.json. Re-upload the syllabus so it parses into units.",
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
 
     const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -224,7 +275,6 @@ Extract concepts unit by unit, in sequence, with no overlap.`;
       console.error("Failed to parse tool call:", e);
     }
 
-    // Enforce no-overlap and existing-concept dedup server-side
     const existingLc = new Set((existingConcepts as string[]).map((c) => c.trim().toLowerCase()));
     const seen = new Set<string>();
     const cleanUnits: UnitOut[] = parsedUnits
@@ -242,7 +292,6 @@ Extract concepts unit by unit, in sequence, with no overlap.`;
       })
       .filter((u) => u.concepts.length > 0);
 
-    // Flatten for backward-compatible suggestions array (in unit order)
     const suggestions = cleanUnits.flatMap((u) =>
       u.concepts.map((c) => ({
         name: c.name,
@@ -252,7 +301,19 @@ Extract concepts unit by unit, in sequence, with no overlap.`;
       })),
     );
 
-    return new Response(JSON.stringify({ suggestions, units: cleanUnits }), {
+    const totalRaw = parsedUnits.reduce((n, u) => n + (u.concepts?.length || 0), 0);
+    const responseBody: any = { suggestions, units: cleanUnits, reason: "ok" };
+    if (suggestions.length === 0 && totalRaw > 0) {
+      responseBody.reason = "all_dedup";
+      responseBody.warning =
+        "All extracted concepts were already in your confirmed list — nothing new to add.";
+    } else if (suggestions.length === 0) {
+      responseBody.reason = "empty_ai_output";
+      responseBody.warning =
+        "The AI did not return any concepts for this syllabus. Try re-running, or check that your syllabus has detailed topics per unit.";
+    }
+
+    return new Response(JSON.stringify(responseBody), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
