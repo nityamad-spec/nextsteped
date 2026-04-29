@@ -1,97 +1,95 @@
-# Persist Diagnostic Quiz Progress Across Refreshes
+# Fix: Lesson Plan Invisible to Students Despite Being "Published"
 
-## Problem
+## Root cause
 
-If a student refreshes the page (or accidentally navigates away and back) during the diagnostic quiz, all in-progress answers, the current question index, the in-progress text/MCQ selection, and the confidence value are lost. They have to start over from question 1.
+The student "Lesson plan not yet available" message is **not** a UI gating bug — the lesson plan storage object is genuinely unreadable.
 
-## Goal
+For the affected course (`808605a6-6871-4201-8295-3b86728aa679`):
 
-Persist quiz progress per `(student, course)` to `localStorage` so that on reload, the student resumes exactly where they left off — same question index, same prior answers/confidences/timings, and any partially entered current-question response.
+- `courses.lesson_plan_path = '808605a6.../lesson-plan/published-plan.json'`
+- `courses.lesson_plan_published_at = 2026-04-26 04:17:34Z`
+- `storage.objects` row exists with `size=24465`, version `e4635af3-...`
+- Storage list (`/object/list/...`) returns the file with `httpStatusCode:200` metadata.
+- But `GET /storage/v1/object/course-materials/.../published-plan.json` returns **HTTP 400 → "404 Not found"** even with the service role key. The signed URL also 404s.
+- The companion `draft-plan-v2.json` in the same folder downloads cleanly (HTTP 200).
 
-Backend storage is intentionally not used: the diagnostic submits a single `diagnostic_results` row only when the quiz is finished. Per-question persistence is purely client-side and disposable, so `localStorage` is the right tool and avoids extra DB writes.
+So the storage row references a backing object/version that no longer exists. The `StudentHome.tsx` loader hits the silent `try/catch`, sets `lessonPlanPublished=false`, and renders the "not yet available" empty state.
 
-## Approach
+The teacher doesn't notice because their `TeachingPlan` editor falls back to the in-memory `defaultPlan` on the same download error and they edit/save the **draft** path, which works.
 
-All changes live in `src/pages/student/DiagnosticQuiz.tsx`.
+There are also two contributing weaknesses worth fixing while we're here:
 
-### 1. Storage key
+1. The publish path (`TeachingPlan.savePlan`, `CourseCreation` finalize) only checks `upload`'s synchronous error. It does not re-read the file to confirm the bytes are actually retrievable. So a corrupted/lost upload silently looks like success.
+2. The student loader treats every download failure as "professor hasn't published yet", masking real errors.
 
-Use a per-student, per-course key:
+## Fix
 
-```
-diagnosticProgress:{userId}:{courseId}
-```
+### 1. Heal the corrupted course immediately (one-off data migration)
 
-This isolates progress so switching course or user never cross-contaminates state.
+Add a SQL migration that:
 
-### 2. Saved shape
+- Drops the dangling `storage.objects` row for `course-materials/808605a6.../lesson-plan/published-plan.json` (the metadata pointing to a missing blob).
+- Clears `lesson_plan_path` and `lesson_plan_published_at` on that course so the publish state is honest.
 
-```ts
-type SavedProgress = {
-  v: 1;                          // schema version for forward-compat
-  phase: "quiz";                 // only persist while actively taking the quiz
-  currentQ: number;
-  answers: number[];             // committed MCQ/T-F answers (one per finished Q)
-  textAnswers: string[];         // committed short-answer text (one per finished Q)
-  confidences: number[];         // committed confidence per finished Q
-  questionTimes: number[];       // committed elapsed time per finished Q
-  questionIds: string[];         // committed question ids (for ordering integrity)
-  selected: number | null;       // in-progress MCQ/T-F selection on current Q
-  textAnswer: string;            // in-progress short-answer text on current Q
-  confidence: number | null;     // in-progress confidence on current Q
-  questionStartTime: number;     // so timing stays roughly accurate after reload
-  savedAt: number;
-};
-```
+After this migration the student page will still say "not yet available", but it will be consistent with reality. The teacher can then re-publish, and step 2 below will make sure the next publish is verified end-to-end.
 
-### 3. Restore on init
+We are not auto-copying the draft into the published slot from SQL because storage.objects rows are unsafe to forge by hand (the version → S3 path mapping is internal). The teacher's republish using the existing UI is the correct way.
 
-After the questions are fetched and shuffled (and before falling through to `setPhase("intro")`):
+### 2. Make publish self-verifying (`src/pages/teacher/TeachingPlan.tsx` → `savePlan`, and the equivalent finalize block in `src/pages/teacher/CourseCreation.tsx`)
 
-- Read `localStorage[diagnosticProgress:{user.id}:{courseId}]`.
-- If present and `questionIds` is a prefix of the freshly shuffled question id order (sanity check that the question set hasn't changed), restore all fields and call `setPhase("quiz")` instead of `"intro"`.
-- If the saved data is corrupt, mismatched, or for a different question set, ignore it and remove the key.
-
-The seeded shuffle already guarantees the same student gets the same order for the same course, so the prefix check will normally pass.
-
-### 4. Save on changes
-
-Add an effect that runs whenever any of the persisted fields change AND `phase === "quiz"` and we have an `activeCourseId` and `user`:
+After `storage.upload(...)` succeeds:
 
 ```ts
-useEffect(() => {
-  if (!user || !activeCourseId || phase !== "quiz") return;
-  const payload: SavedProgress = { v: 1, phase, currentQ, answers, textAnswers,
-    confidences, questionTimes, questionIds, selected, textAnswer, confidence,
-    questionStartTime, savedAt: Date.now() };
-  try {
-    localStorage.setItem(`diagnosticProgress:${user.id}:${activeCourseId}`,
-      JSON.stringify(payload));
-  } catch {}
-}, [user, activeCourseId, phase, currentQ, answers, textAnswers, confidences,
-    questionTimes, questionIds, selected, textAnswer, confidence,
-    questionStartTime]);
+// Sanity-check the upload — re-download immediately and validate JSON parses.
+const verify = await supabase.storage.from(LESSON_PLAN_BUCKET).download(publishedPath);
+if (!verify.data) throw new Error("Publish verification failed: file is not retrievable.");
+const verifyText = await verify.data.text();
+JSON.parse(verifyText); // throws if truncated/corrupted
 ```
 
-### 5. Clear on completion / abandonment
+If verification throws:
 
-Remove the saved key in three places:
+- Surface a destructive toast with the verify error.
+- Skip `recordPublishedPath` (don't mark a broken file as the source of truth).
 
-- After the final-question `diagnostic_results` insert succeeds (right before `setPhase("result")`).
-- In the early-return branch where an existing `diagnostic_results` row was found for the student/course (already-completed safety cleanup).
-- In the Back-button handler when `currentQ === 0` (i.e. the student backs out to `/student/onboarding`).
+This catches the exact failure mode that caused this bug: the upload reports success, but the resulting object can't be served.
 
-### 6. Preserve existing behavior
+### 3. Make the student loader more honest (`src/pages/student/StudentHome.tsx`)
 
-- Auto-confidence init effect (`setConfidence(50)` once `hasAnswer` is true) is unchanged.
-- Seeded-shuffle order is unchanged, so resume order matches.
-- Question timing on the current question restarts from the saved `questionStartTime`; on the next-question transition it continues to use `Date.now()` exactly like today.
+Today the loader bundles three different states under "not yet available":
 
-## Files to edit
+- Course has no `lesson_plan_path` (truly unpublished — current message is right).
+- Download succeeded but the JSON parsed to an empty array (truly unpublished).
+- Download failed / threw / returned no data while `lesson_plan_published_at` is set (this case is what's happening now).
 
-- `src/pages/student/DiagnosticQuiz.tsx`
+Change the `useEffect` so it explicitly reads `lesson_plan_published_at` along with the path. Then:
+
+- If the column is `null` → show today's "Lesson plan not yet available" message.
+- If the column is set but the download failed → show "We're updating the lesson plan — please refresh in a moment. If this persists, let your professor know." The full original error is logged to `console.error` for debugging.
+- If the download succeeded with a non-empty array → render normally.
+
+Same change in `src/pages/student/AIChat.tsx` `fetchVisibleTopics` is unnecessary — empty array is a fine default for visible-topic constraint, but add a `console.warn` on download failure so future occurrences are debuggable from the network/console panel.
+
+### 4. (Optional cleanup) drop the `?t=${Date.now()}` cache-buster from `download` calls
+
+The Supabase Storage object endpoint returns `cacheControl: "max-age=0"` for these JSON files, so the cache-buster does nothing useful and just creates a non-canonical URL string in client logs. Strip it from `StudentHome.tsx`, `AIChat.tsx`, and `TeachingPlan.tsx`. (Behavior unchanged; just cleaner traces.)
+
+## Files
+
+- New migration `supabase/migrations/{ts}_heal_corrupt_published_lesson_plan.sql` — delete dangling `storage.objects` row + clear `courses.lesson_plan_path`/`published_at` for the affected course.
+- `src/pages/teacher/TeachingPlan.tsx` — verify after publish.
+- `src/pages/teacher/CourseCreation.tsx` — verify after publish (same pattern in the publish block at ~line 518–524).
+- `src/pages/student/StudentHome.tsx` — distinguish "never published" vs "publish corrupted/in-flight"; remove `?t=` cache buster.
+- `src/pages/student/AIChat.tsx` — add a `console.warn` and remove `?t=` cache buster.
 
 ## Out of scope
 
-- No DB schema changes. No edge function changes. No new tables.
-- No cross-device resume (localStorage is per-browser by design — acceptable for a one-time diagnostic).
+- No schema changes to `courses` or new tables.
+- No change to storage RLS policies — the existing `Enrolled students can read course-materials` policy already permits the read.
+- Cross-device or background-sync of the lesson plan — students still need to refresh after a republish.
+
+## Verification plan after implementation
+
+1. Run migration → confirm `courses.lesson_plan_path` and `lesson_plan_published_at` are cleared for the affected course; confirm the storage.objects row for that path is gone.
+2. As the professor, open Teaching Plan, click Save/Publish → confirm verification succeeds and the toast is the normal success toast; confirm the new file downloads with HTTP 200 via a quick curl.
+3. As the student, refresh `/student/home` → lesson plan now renders.
