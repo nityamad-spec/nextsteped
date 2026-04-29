@@ -145,8 +145,12 @@ function TeacherRedirect() {
 }
 
 function StudentRedirect() {
+  const { user } = useAuth();
   const { loading, hasProfile, hasEnrollment, hasDiagnostic, activeCourseId } = useStudentStatus();
   const { setStudentOnboarded, setDiagnosticComplete } = useApp();
+  const [healing, setHealing] = useState(false);
+  const [healedCourseId, setHealedCourseId] = useState<string | null>(null);
+  const [healFailed, setHealFailed] = useState(false);
 
   // Sync DB state to local context (in effect to avoid render-phase setState loops)
   useEffect(() => {
@@ -154,12 +158,56 @@ function StudentRedirect() {
     if (hasDiagnostic) setDiagnosticComplete(true);
   }, [hasProfile, hasDiagnostic, setStudentOnboarded, setDiagnosticComplete]);
 
-  if (loading) {
+  // Self-heal: if the signed-in user has no profile but a pending_signups row exists,
+  // they got stranded by the invite flow. Materialize their account now.
+  useEffect(() => {
+    if (loading || hasProfile || healing || healFailed || healedCourseId || !user) return;
+    const email = user.email?.toLowerCase();
+    if (!email) return;
+    let cancelled = false;
+    const heal = async () => {
+      setHealing(true);
+      try {
+        const { data: pending } = await supabase
+          .from("pending_signups")
+          .select("id")
+          .eq("email", email)
+          .is("consumed_at", null)
+          .maybeSingle();
+        if (cancelled) return;
+        if (!pending) {
+          setHealFailed(true);
+          return;
+        }
+        const { data, error } = await supabase.functions.invoke("complete-student-signup", { body: {} });
+        if (cancelled) return;
+        if (error) {
+          setHealFailed(true);
+          return;
+        }
+        const courseId = (data as any)?.course_id ?? null;
+        setHealedCourseId(courseId);
+      } catch {
+        if (!cancelled) setHealFailed(true);
+      } finally {
+        if (!cancelled) setHealing(false);
+      }
+    };
+    heal();
+    return () => { cancelled = true; };
+  }, [loading, hasProfile, user, healing, healFailed, healedCourseId]);
+
+  if (loading || healing) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-muted-foreground">Loading...</div>
       </div>
     );
+  }
+
+  // If we just healed a stuck account, send them to their diagnostic.
+  if (healedCourseId) {
+    return <Navigate to={`/student/diagnostic?course=${healedCourseId}`} replace />;
   }
 
   // Profile is the only onboarding gate; enrollment is optional and can happen later.
