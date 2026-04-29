@@ -87,6 +87,8 @@ const DiagnosticQuiz = () => {
       // Persist as the active course so the dashboard lands on it.
       await supabase.from("profiles").update({ active_course_id: courseId }).eq("id", user.id);
 
+      const progressKey = `diagnosticProgress:${user.id}:${courseId}`;
+
       const { data: existing } = await supabase
         .from("diagnostic_results")
         .select("id")
@@ -95,6 +97,7 @@ const DiagnosticQuiz = () => {
         .maybeSingle();
 
       if (existing) {
+        try { localStorage.removeItem(progressKey); } catch {}
         setDiagnosticComplete(true);
         navigate("/student/home", { replace: true });
         return;
@@ -150,6 +153,52 @@ const DiagnosticQuiz = () => {
       // Seeded shuffle — same student+course always gets same order
       const shuffled = seededShuffle(mapped, user.id + courseId);
       setQuestions(shuffled);
+
+      // Try to restore in-progress quiz state from localStorage
+      try {
+        const raw = localStorage.getItem(progressKey);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          const validShape =
+            saved &&
+            saved.v === 1 &&
+            Array.isArray(saved.questionIds) &&
+            Array.isArray(saved.answers) &&
+            Array.isArray(saved.textAnswers) &&
+            Array.isArray(saved.confidences) &&
+            Array.isArray(saved.questionTimes) &&
+            typeof saved.currentQ === "number";
+
+          // Sanity check: saved committed question ids must be a prefix of the
+          // freshly shuffled order, and currentQ must be within bounds.
+          const orderMatches =
+            validShape &&
+            saved.questionIds.every((id: string, i: number) => shuffled[i]?.id === id) &&
+            saved.currentQ >= 0 &&
+            saved.currentQ < shuffled.length &&
+            saved.currentQ === saved.questionIds.length;
+
+          if (orderMatches) {
+            setCurrentQ(saved.currentQ);
+            setAnswers(saved.answers);
+            setTextAnswers(saved.textAnswers);
+            setConfidences(saved.confidences);
+            setQuestionTimes(saved.questionTimes);
+            setQuestionIds(saved.questionIds);
+            setSelected(typeof saved.selected === "number" ? saved.selected : null);
+            setTextAnswer(typeof saved.textAnswer === "string" ? saved.textAnswer : "");
+            setConfidence(typeof saved.confidence === "number" ? saved.confidence : null);
+            setQuestionStartTime(typeof saved.questionStartTime === "number" ? saved.questionStartTime : Date.now());
+            setPhase("quiz");
+            return;
+          } else {
+            localStorage.removeItem(progressKey);
+          }
+        }
+      } catch {
+        try { localStorage.removeItem(progressKey); } catch {}
+      }
+
       setPhase("intro");
     };
     init();
