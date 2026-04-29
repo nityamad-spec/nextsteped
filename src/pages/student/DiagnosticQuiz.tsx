@@ -312,6 +312,10 @@ const DiagnosticQuiz = () => {
         setSaving(false);
       }
 
+      if (user && activeCourseId) {
+        try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {}
+      }
+
       setPhase("result");
     }
   };
