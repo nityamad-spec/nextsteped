@@ -9,6 +9,7 @@ import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { resolvePublishedPath, LESSON_PLAN_BUCKET } from "@/lib/lessonPlanPath";
+import { normalizeLessonPlan } from "@/lib/lessonPlanShape";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -109,7 +110,7 @@ const StudentHome = () => {
           ? Math.max(1, Math.min(weeks, Math.floor((Date.now() - new Date(course.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1))
           : 999; // If no start_date, show all unlocked
 
-        const planPath = resolvePublishedPath(course, course.teacher_id);
+        const planPath = resolvePublishedPath(course, enrolledCourseId);
         const { data, error: dlError } = await supabase.storage
           .from(LESSON_PLAN_BUCKET)
           .download(planPath);
@@ -124,10 +125,11 @@ const StudentHome = () => {
           return;
         }
         const parsed = JSON.parse(await data.text());
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        const normalized = normalizeLessonPlan(parsed);
+        if (normalized.length > 0) {
           setLessonPlanPublished(true);
           setLessonPlanError(false);
-          setLessonPlan(parsed.filter((d: any) => isWeekVisible(d, computedWeek)));
+          setLessonPlan(normalized.filter((d) => isWeekVisible(d, computedWeek)));
           setPlanLoading(false);
           return;
         }

@@ -9,6 +9,7 @@ import {
   canonicalPublishedPath,
   LESSON_PLAN_BUCKET,
 } from "@/lib/lessonPlanPath";
+import { normalizeLessonPlan } from "@/lib/lessonPlanShape";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -157,8 +158,27 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
           .download(publishedPath);
         if (data) {
           const parsed = JSON.parse(await data.text());
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setDays(parsed);
+          // Accept either the legacy array shape or the AI generator's
+          // { weeks: [...] } object shape — normalize before hydrating state.
+          const normalized = normalizeLessonPlan(parsed);
+          if (normalized.length > 0) {
+            const hydrated: DayPlan[] = normalized.map((w) => ({
+              id: w.id,
+              day: w.day,
+              dates: `Week ${w.day}`,
+              topic: w.topic,
+              description: w.description,
+              weightage: 0,
+              locked: w.locked,
+              resources: w.resources.map((r) => ({
+                id: r.id,
+                title: r.title,
+                action: r.action || r.description || "",
+                type: (r.type as Resource["type"]) || "article",
+                concept: r.concept,
+              })),
+            }));
+            setDays(hydrated);
             setLoading(false);
             return;
           }
