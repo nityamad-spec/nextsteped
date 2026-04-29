@@ -62,6 +62,7 @@ const StudentHome = () => {
     : 1;
   const progressPct = Math.round((currentWeek / totalWeeks) * 100);
   const [lessonPlanPublished, setLessonPlanPublished] = useState(false);
+  const [lessonPlanError, setLessonPlanError] = useState(false);
 
   // Lesson plan
   const [lessonPlan, setLessonPlan] = useState<any[]>([]);
