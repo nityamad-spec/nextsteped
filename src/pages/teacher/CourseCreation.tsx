@@ -536,6 +536,21 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         JSON.parse(await verify.data.text());
         // Record path + publish timestamp on the course row (best-effort).
         await recordPublishedPath(courseId, publishedPath);
+        // Source of truth for student visibility: per-week rows in DB
+        // (RLS hides locked + future weeks from students automatically).
+        await upsertPublishedWeeks(
+          courseId,
+          weeks.map((w) => ({
+            week_number: w.week,
+            week_name: w.week_name,
+            overview: w.overview,
+            is_exam_week: w.is_exam_week,
+            locked: w.locked,
+            concepts: w.concepts,
+            resources: w.resources,
+          })),
+          overallOutcomes,
+        );
       } catch (err: any) {
         console.error("Failed to save published plan:", err);
         toast({
