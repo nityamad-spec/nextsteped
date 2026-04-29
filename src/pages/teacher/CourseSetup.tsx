@@ -85,7 +85,7 @@ const CourseSetup = () => {
     if (!user) return;
     const fetchStatuses = async () => {
       setLoading(true);
-      const { opened, completed } = await fetchStepProgress(user.id);
+      const { opened, completed } = await fetchStepProgress(user.id, courseId);
       const next: Record<string, Status> = {
         upload: "Not Started",
         "concept-review": "Not Started",
@@ -210,7 +210,7 @@ const CourseSetup = () => {
     setStatuses((prev) =>
       prev[cardId] === "Complete" ? prev : { ...prev, [cardId]: "In Progress" }
     );
-    void markStepOpened(user.id, cardId);
+    void markStepOpened(user.id, cardId, courseId);
     navigate(path);
   };
 
