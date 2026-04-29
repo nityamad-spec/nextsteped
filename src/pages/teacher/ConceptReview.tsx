@@ -426,6 +426,131 @@ const ConceptReview = () => {
           </CardContent>
         </Card>
 
+        {/* Additional Concept Recommendations */}
+        <Card className="border-dashed">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Lightbulb className="h-5 w-5 text-primary" /> Additional Concept Recommendations
+            </CardTitle>
+            <CardDescription>
+              Concepts that weren't in your syllabus but may be worth covering — including industry-alignment topics employers commonly look for, foundational prerequisites, and general gaps. Approve, edit, or dismiss each. Approved recommendations flow into your final concept list and lesson plan.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                Recommendations are generated based on your course objectives, syllabus, and currently confirmed concepts.
+              </p>
+              <Button
+                onClick={fetchRecommendations}
+                disabled={loadingRecs}
+                size="sm"
+                className="shrink-0"
+              >
+                {loadingRecs ? (
+                  <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Generating…</>
+                ) : recsRequested ? (
+                  <><RefreshCw className="h-4 w-4 mr-2" /> Re-generate</>
+                ) : (
+                  <><Lightbulb className="h-4 w-4 mr-2" /> Generate Recommendations</>
+                )}
+              </Button>
+            </div>
+
+            {!recsRequested && !loadingRecs ? (
+              <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                Click "Generate Recommendations" to surface additional concepts that may strengthen your course.
+              </div>
+            ) : loadingRecs ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              </div>
+            ) : recommendations.length === 0 ? (
+              <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                No additional recommendations right now. Your confirmed list looks well-rounded.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {recommendations.map((r) => {
+                  const isEditing = editingRecName === r.name;
+                  const catMeta =
+                    r.category === "industry"
+                      ? { label: "Industry", Icon: Briefcase, cls: "border-primary/30 text-primary" }
+                      : r.category === "foundational"
+                      ? { label: "Foundational", Icon: Layers, cls: "border-warning/40 text-warning" }
+                      : { label: "Gap", Icon: AlertCircle, cls: "border-muted-foreground/40 text-muted-foreground" };
+                  const CatIcon = catMeta.Icon;
+                  return (
+                    <div
+                      key={r.name}
+                      className="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3 flex items-start gap-3"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {isEditing ? (
+                            <Input
+                              autoFocus
+                              value={editingRecValue}
+                              onChange={(e) => setEditingRecValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  saveEditRec(r);
+                                } else if (e.key === "Escape") {
+                                  cancelEditRec();
+                                }
+                              }}
+                              className="h-7 text-sm max-w-xs"
+                            />
+                          ) : (
+                            <p className="text-sm font-semibold">{r.name}</p>
+                          )}
+                          <Badge variant="outline" className={`text-[10px] gap-0.5 ${catMeta.cls}`}>
+                            <CatIcon className="h-2.5 w-2.5" /> {catMeta.label}
+                          </Badge>
+                        </div>
+                        {r.rationale && (
+                          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{r.rationale}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isEditing ? (
+                          <>
+                            <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => saveEditRec(r)}>
+                              Save
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEditRec}>
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => handleApproveRecommendation(r)}>
+                              <Check className="h-3 w-3 mr-1" /> Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => startEditRec(r)}
+                              title="Edit name"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => handleDismissRecommendation(r)}>
+                              Dismiss
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Confirmed concepts */}
         <Card>
           <CardHeader>
