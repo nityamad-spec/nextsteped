@@ -10,8 +10,8 @@ export type WeekUpsertInput = {
   overview: string;
   is_exam_week: boolean;
   locked: boolean;
-  concepts: unknown[];
-  resources: unknown[];
+  concepts: any[];
+  resources: any[];
 };
 
 /**
