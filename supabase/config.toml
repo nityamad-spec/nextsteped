@@ -1,1 +1,4 @@
 project_id = "qqzrjaizioapwzoprvio"
+
+[functions.complete-student-signup]
+verify_jwt = true
