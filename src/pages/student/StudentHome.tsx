@@ -68,15 +68,6 @@ const StudentHome = () => {
   const [planLoading, setPlanLoading] = useState(true);
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
 
-  /** Determine visibility: a week is visible if professor unlocked it OR if course date has passed that week */
-  const isWeekVisible = (day: any, courseCurrentWeek: number) => {
-    // Professor manually unlocked it
-    if (!day.locked) return true;
-    // Auto-reveal: week number <= current course week
-    if (day.day <= courseCurrentWeek) return true;
-    return false;
-  };
-
   useEffect(() => {
     const loadPlan = async () => {
       if (!enrolledCourseId) { setPlanLoading(false); return; }
