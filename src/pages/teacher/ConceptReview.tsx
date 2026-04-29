@@ -92,7 +92,13 @@ const ConceptReview = () => {
       if (data?.error) throw new Error(data.error);
       const incoming: Suggestion[] = Array.isArray(data?.suggestions) ? data.suggestions : [];
       const existingLc = new Set(concepts.map((c) => c.concept_code.trim().toLowerCase()));
-      setSuggestions(incoming.filter((s) => !existingLc.has(s.name.trim().toLowerCase())));
+      const filtered = incoming.filter((s) => !existingLc.has(s.name.trim().toLowerCase()));
+      setSuggestions(filtered);
+      if (filtered.length === 0 && data?.warning) {
+        toast.warning(data.warning);
+      } else if (data?.reason && data.reason !== "ok" && data?.warning) {
+        toast.warning(data.warning);
+      }
     } catch (e: any) {
       toast.error(e?.message || "Failed to fetch suggestions");
       setSuggestions([]);
