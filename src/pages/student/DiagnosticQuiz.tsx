@@ -217,6 +217,32 @@ const DiagnosticQuiz = () => {
     }
   }, [hasAnswer, confidence]);
 
+  // Persist in-progress quiz state so a refresh resumes at the same place.
+  useEffect(() => {
+    if (!user || !activeCourseId || phase !== "quiz") return;
+    const payload = {
+      v: 1 as const,
+      phase: "quiz" as const,
+      currentQ,
+      answers,
+      textAnswers,
+      confidences,
+      questionTimes,
+      questionIds,
+      selected,
+      textAnswer,
+      confidence,
+      questionStartTime,
+      savedAt: Date.now(),
+    };
+    try {
+      localStorage.setItem(
+        `diagnosticProgress:${user.id}:${activeCourseId}`,
+        JSON.stringify(payload),
+      );
+    } catch {}
+  }, [user, activeCourseId, phase, currentQ, answers, textAnswers, confidences, questionTimes, questionIds, selected, textAnswer, confidence, questionStartTime]);
+
   const handleAnswer = async () => {
     if (!canProceed) return;
     const elapsed = Date.now() - questionStartTime;
