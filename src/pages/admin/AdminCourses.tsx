@@ -205,7 +205,43 @@ const AdminCourses = () => {
     }
   };
 
-  if (loading)
+  const openDelete = async (course: CourseRow) => {
+    setDeleteCourse(course);
+    setDeleteConfirm("");
+    setDeleteImpact(null);
+    const [enr, ct, aq, wk] = await Promise.all([
+      supabase.from("enrollments").select("id", { count: "exact", head: true }).eq("course_id", course.id),
+      supabase.from("course_teachers").select("id", { count: "exact", head: true }).eq("course_id", course.id),
+      supabase.from("assessment_questions").select("id", { count: "exact", head: true }).eq("course_id", course.id),
+      supabase.from("lesson_plan_weeks").select("id", { count: "exact", head: true }).eq("course_id", course.id),
+    ]);
+    setDeleteImpact({
+      enrollments: enr.count || 0,
+      collaborators: ct.count || 0,
+      assessments: aq.count || 0,
+      weeks: wk.count || 0,
+    });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteCourse) return;
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-course", {
+        body: { course_id: deleteCourse.id },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setCourses((prev) => prev.filter((c) => c.id !== deleteCourse.id));
+      toast.success(`Deleted "${deleteCourse.name}"`);
+      setDeleteCourse(null);
+      setDeleteConfirm("");
+    } catch (e: any) {
+      toast.error(e?.message || "Delete failed");
+    } finally {
+      setDeleting(false);
+    }
+  };
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
