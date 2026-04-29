@@ -62,6 +62,7 @@ const StudentHome = () => {
     : 1;
   const progressPct = Math.round((currentWeek / totalWeeks) * 100);
   const [lessonPlanPublished, setLessonPlanPublished] = useState(false);
+  const [lessonPlanError, setLessonPlanError] = useState(false);
 
   // Lesson plan
   const [lessonPlan, setLessonPlan] = useState<any[]>([]);
@@ -80,15 +81,27 @@ const StudentHome = () => {
   useEffect(() => {
     const loadPlan = async () => {
       if (!enrolledCourseId) { setPlanLoading(false); return; }
+      let publishedAt: string | null = null;
       try {
         const { data: course } = await supabase
           .from("courses")
-          .select("teacher_id, start_date, total_weeks, lesson_plan_path")
+          .select("teacher_id, start_date, total_weeks, lesson_plan_path, lesson_plan_published_at")
           .eq("id", enrolledCourseId)
           .maybeSingle();
         if (!course?.teacher_id) { setPlanLoading(false); return; }
         if (course.start_date) setCourseStartDate(course.start_date);
         if (course.total_weeks) setTotalWeeks(course.total_weeks);
+        publishedAt = course.lesson_plan_published_at ?? null;
+
+        // If the professor has never published, render the "not yet available" state
+        // without attempting a download (avoids a guaranteed 404).
+        if (!publishedAt && !course.lesson_plan_path) {
+          setLessonPlanPublished(false);
+          setLessonPlanError(false);
+          setLessonPlan([]);
+          setPlanLoading(false);
+          return;
+        }
 
         // Compute current week from course start_date
         const weeks = course.total_weeks || 16;
@@ -97,19 +110,31 @@ const StudentHome = () => {
           : 999; // If no start_date, show all unlocked
 
         const planPath = resolvePublishedPath(course, course.teacher_id);
-        const { data } = await supabase.storage
+        const { data, error: dlError } = await supabase.storage
           .from(LESSON_PLAN_BUCKET)
-          .download(`${planPath}?t=${Date.now()}`);
-        if (data) {
-          const parsed = JSON.parse(await data.text());
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setLessonPlanPublished(true);
-            setLessonPlan(parsed.filter((d: any) => isWeekVisible(d, computedWeek)));
-            setPlanLoading(false);
-            return;
-          }
+          .download(planPath);
+        if (dlError || !data) {
+          // Publish row exists but the file isn't retrievable — surface a transient
+          // error message instead of pretending nothing was published.
+          console.error("Lesson plan download failed:", dlError);
+          setLessonPlanPublished(false);
+          setLessonPlanError(true);
+          setLessonPlan([]);
+          setPlanLoading(false);
+          return;
         }
-      } catch {}
+        const parsed = JSON.parse(await data.text());
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setLessonPlanPublished(true);
+          setLessonPlanError(false);
+          setLessonPlan(parsed.filter((d: any) => isWeekVisible(d, computedWeek)));
+          setPlanLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Lesson plan load error:", err);
+        setLessonPlanError(Boolean(publishedAt));
+      }
       setLessonPlanPublished(false);
       setLessonPlan([]);
       setPlanLoading(false);
@@ -237,8 +262,17 @@ const StudentHome = () => {
             ) : !lessonPlanPublished ? (
               <div className="text-center py-6 space-y-1">
                 <BookOpen className="h-8 w-8 mx-auto text-muted-foreground/40" />
-                <p className="text-sm font-medium text-muted-foreground">Lesson plan not yet available</p>
-                <p className="text-xs text-muted-foreground">Your professor hasn't published the lesson plan yet. You're currently on Week {currentWeek} of {totalWeeks}.</p>
+                {lessonPlanError ? (
+                  <>
+                    <p className="text-sm font-medium text-muted-foreground">Lesson plan is being updated</p>
+                    <p className="text-xs text-muted-foreground">Please refresh in a moment. If this keeps showing, let your professor know.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium text-muted-foreground">Lesson plan not yet available</p>
+                    <p className="text-xs text-muted-foreground">Your professor hasn't published the lesson plan yet. You're currently on Week {currentWeek} of {totalWeeks}.</p>
+                  </>
+                )}
               </div>
             ) : lessonPlan.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No weeks are visible yet — check back soon</p>

@@ -331,8 +331,11 @@ const AIChat = () => {
       const planPath = resolvePublishedPath(courseRow, enrolledCourseId);
       const planRes = await supabase.storage
         .from(LESSON_PLAN_BUCKET)
-        .download(`${planPath}?t=${Date.now()}`);
-      if (!planRes.data) return [];
+        .download(planPath);
+      if (planRes.error || !planRes.data) {
+        if (planRes.error) console.warn("Lesson plan download failed in AIChat:", planRes.error);
+        return [];
+      }
       const plan = JSON.parse(await planRes.data.text());
       if (!Array.isArray(plan)) return [];
 

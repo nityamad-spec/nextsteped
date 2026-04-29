@@ -517,13 +517,24 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         const blob = new Blob([planJson], { type: "application/json" });
         const file = new File([blob], "published-plan.json", { type: "application/json" });
         const publishedPath = canonicalPublishedPath(courseId);
-        await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from(LESSON_PLAN_BUCKET)
           .upload(publishedPath, file, { upsert: true, cacheControl: "0" });
+        if (uploadError) throw uploadError;
+        // Verify the upload is actually retrievable before recording the publish.
+        const verify = await supabase.storage.from(LESSON_PLAN_BUCKET).download(publishedPath);
+        if (!verify.data) throw new Error("Publish verification failed: file is not retrievable.");
+        JSON.parse(await verify.data.text());
         // Record path + publish timestamp on the course row (best-effort).
         await recordPublishedPath(courseId, publishedPath);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to save published plan:", err);
+        toast({
+          title: "Publish failed",
+          description: err?.message || "We couldn't confirm the lesson plan was saved. Please try publishing again.",
+          variant: "destructive",
+        });
+        return;
       }
     }
     toast({ title: "Lesson plan published", description: embedded ? "Changes are now live for students and the AI Teaching Assistant." : "You can keep editing future weeks anytime — just re-publish to push updates." });
