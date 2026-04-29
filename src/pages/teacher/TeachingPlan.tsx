@@ -285,15 +285,22 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
   };
 
   const toggleLock = (dayId: string) => {
-    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, locked: !d.locked } : d));
     const day = days.find(d => d.id === dayId);
+    if (!day) return;
+    const newLocked = !day.locked;
+    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, locked: newLocked } : d));
     toast({
-      title: day?.locked ? "Now visible to students" : "Hidden from students",
-      description: day?.locked
-        ? `Week ${day.day} content is now visible to students`
-        : `Week ${day?.day} content is now hidden from students`,
+      title: newLocked ? "Hidden from students" : "Now visible to students",
+      description: newLocked
+        ? `Week ${day.day} content is now hidden from students`
+        : `Week ${day.day} content is now visible to students`,
     });
     markChanged();
+    if (courseId) {
+      setWeekLocked(courseId, day.day, newLocked).catch((err) => {
+        console.warn("Failed to persist week lock:", err);
+      });
+    }
   };
 
   const deleteDay = (id: string) => {
