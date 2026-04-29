@@ -1,95 +1,97 @@
-# Fix: Lesson Plan Invisible to Students Despite Being "Published"
+# Fix: Lesson Plan Invisible to Students — Schema Mismatch Between Publish and Read
 
-## Root cause
+## Root cause (verified against live data + network logs)
 
-The student "Lesson plan not yet available" message is **not** a UI gating bug — the lesson plan storage object is genuinely unreadable.
+Storage and RLS are fine. The teacher's republish at `2026-04-29 01:02:09Z` succeeded — the network panel shows `GET .../published-plan.json` returning **HTTP 200** with valid JSON, and the student is correctly enrolled in course `808605a6...`. The student's UI still says "Lesson plan not yet available" because of a **JSON shape mismatch**.
 
-For the affected course (`808605a6-6871-4201-8295-3b86728aa679`):
+Two different code paths publish to the same `published-plan.json` slot with two different schemas:
 
-- `courses.lesson_plan_path = '808605a6.../lesson-plan/published-plan.json'`
-- `courses.lesson_plan_published_at = 2026-04-26 04:17:34Z`
-- `storage.objects` row exists with `size=24465`, version `e4635af3-...`
-- Storage list (`/object/list/...`) returns the file with `httpStatusCode:200` metadata.
-- But `GET /storage/v1/object/course-materials/.../published-plan.json` returns **HTTP 400 → "404 Not found"** even with the service role key. The signed URL also 404s.
-- The companion `draft-plan-v2.json` in the same folder downloads cleanly (HTTP 200).
+| Publisher | File shape | Field names |
+|---|---|---|
+| `src/pages/teacher/CourseCreation.tsx` (AI lesson-plan flow, line ~515) | `{ "weeks": [...], "overall_course_learning_outcomes": "..." }` | `week`, `week_name`, `overview`, `concepts[]`, `resources[]`, `is_exam_week`, `locked` |
+| `src/pages/teacher/TeachingPlan.tsx` (manual editor, line ~199) | `[ ... ]` (top-level array) | `day`, `topic`, `description`, `resources[]` |
 
-So the storage row references a backing object/version that no longer exists. The `StudentHome.tsx` loader hits the silent `try/catch`, sets `lessonPlanPublished=false`, and renders the "not yet available" empty state.
+The student reader (`src/pages/student/StudentHome.tsx`, line 126):
+```ts
+const parsed = JSON.parse(await data.text());
+if (Array.isArray(parsed) && parsed.length > 0) { /* render */ }
+```
+fails the `Array.isArray` check on the new shape, falls through, and sets `lessonPlanPublished = false`.
 
-The teacher doesn't notice because their `TeachingPlan` editor falls back to the in-memory `defaultPlan` on the same download error and they edit/save the **draft** path, which works.
-
-There are also two contributing weaknesses worth fixing while we're here:
-
-1. The publish path (`TeachingPlan.savePlan`, `CourseCreation` finalize) only checks `upload`'s synchronous error. It does not re-read the file to confirm the bytes are actually retrievable. So a corrupted/lost upload silently looks like success.
-2. The student loader treats every download failure as "professor hasn't published yet", masking real errors.
+The most recent file in storage for the affected course was written by the AI flow (`{weeks: [...]}`), so the student silently sees the empty state. The AI Chat's `fetchVisibleTopics` has the same bug.
 
 ## Fix
 
-### 1. Heal the corrupted course immediately (one-off data migration)
+Introduce one canonical normalizer and apply it everywhere a lesson plan JSON is read. Stop writing two incompatible shapes; converge on the AI shape (it's the richer one and is what the teacher dashboard already uses).
 
-Add a SQL migration that:
+### 1. New helper: `src/lib/lessonPlanShape.ts`
 
-- Drops the dangling `storage.objects` row for `course-materials/808605a6.../lesson-plan/published-plan.json` (the metadata pointing to a missing blob).
-- Clears `lesson_plan_path` and `lesson_plan_published_at` on that course so the publish state is honest.
-
-After this migration the student page will still say "not yet available", but it will be consistent with reality. The teacher can then re-publish, and step 2 below will make sure the next publish is verified end-to-end.
-
-We are not auto-copying the draft into the published slot from SQL because storage.objects rows are unsafe to forge by hand (the version → S3 path mapping is internal). The teacher's republish using the existing UI is the correct way.
-
-### 2. Make publish self-verifying (`src/pages/teacher/TeachingPlan.tsx` → `savePlan`, and the equivalent finalize block in `src/pages/teacher/CourseCreation.tsx`)
-
-After `storage.upload(...)` succeeds:
+Pure function `normalizeLessonPlan(parsed: unknown): NormalizedWeek[]` that accepts either shape and returns a uniform array consumed by the student UI:
 
 ```ts
-// Sanity-check the upload — re-download immediately and validate JSON parses.
-const verify = await supabase.storage.from(LESSON_PLAN_BUCKET).download(publishedPath);
-if (!verify.data) throw new Error("Publish verification failed: file is not retrievable.");
-const verifyText = await verify.data.text();
-JSON.parse(verifyText); // throws if truncated/corrupted
+type NormalizedWeek = {
+  id: string;
+  day: number;            // week number (kept name for back-compat with current renderer)
+  topic: string;          // week_name OR legacy topic
+  description: string;    // overview OR legacy description
+  is_exam_week: boolean;
+  locked: boolean;
+  concepts: { id: string; name: string; brief_description?: string }[];
+  resources: { id: string; type: string; title: string; description?: string; url?: string; concept?: string; action?: string }[];
+};
 ```
 
-If verification throws:
+Logic:
+- If `Array.isArray(parsed)` → assume legacy `{day, topic, description, resources}` shape, map straight through (concepts derived from `resources[].concept` distinct values when absent).
+- Else if `parsed?.weeks` is an array → map AI shape: `day = w.week`, `topic = w.week_name || \`Week ${w.week}\``, `description = w.overview || ""`, carry `is_exam_week`, default `locked = w.locked ?? false`.
+- Else → return `[]`.
 
-- Surface a destructive toast with the verify error.
-- Skip `recordPublishedPath` (don't mark a broken file as the source of truth).
+Also export `extractOverallOutcomes(parsed): string` so the "Learning Outcomes" panel can fall back to the AI's `overall_course_learning_outcomes` when per-week outcomes are absent.
 
-This catches the exact failure mode that caused this bug: the upload reports success, but the resulting object can't be served.
+### 2. `src/pages/student/StudentHome.tsx`
 
-### 3. Make the student loader more honest (`src/pages/student/StudentHome.tsx`)
+- Replace lines 126–133 with:
+  ```ts
+  const parsed = JSON.parse(await data.text());
+  const normalized = normalizeLessonPlan(parsed);
+  if (normalized.length > 0) {
+    setLessonPlanPublished(true);
+    setLessonPlanError(false);
+    setLessonPlan(normalized.filter((d) => isWeekVisible(d, computedWeek)));
+    setPlanLoading(false);
+    return;
+  }
+  ```
+- The renderer already keys off `dp.day`, `dp.topic`, `dp.resources[]`, etc., so once normalization happens it just works. The "Learning Outcomes" regex on `dp.description` will harmlessly produce empty outcomes for AI-shape entries that store outcomes elsewhere — acceptable for this fix; richer per-week outcomes can come later if needed.
+- Remove the unused `course.teacher_id` argument from `resolvePublishedPath(course, course.teacher_id)` on line 112 — it should be `resolvePublishedPath(course, enrolledCourseId)`. Today it works only because `course.lesson_plan_path` is set, but if the column is ever cleared this would build a path under the teacher's UUID and 404. Pure correctness cleanup.
 
-Today the loader bundles three different states under "not yet available":
+### 3. `src/pages/student/AIChat.tsx`
 
-- Course has no `lesson_plan_path` (truly unpublished — current message is right).
-- Download succeeded but the JSON parsed to an empty array (truly unpublished).
-- Download failed / threw / returned no data while `lesson_plan_published_at` is set (this case is what's happening now).
+`fetchVisibleTopics` does the same `Array.isArray` check. Wrap the parsed JSON with `normalizeLessonPlan` and treat the returned array as the source of truth for visible topics. This makes exam-mode topic constraints work on AI-generated plans.
 
-Change the `useEffect` so it explicitly reads `lesson_plan_published_at` along with the path. Then:
+### 4. `src/pages/teacher/TeachingPlan.tsx`
 
-- If the column is `null` → show today's "Lesson plan not yet available" message.
-- If the column is set but the download failed → show "We're updating the lesson plan — please refresh in a moment. If this persists, let your professor know." The full original error is logged to `console.error` for debugging.
-- If the download succeeded with a non-empty array → render normally.
+- On load (around line 160), pipe the downloaded JSON through `normalizeLessonPlan` so the manual editor can open AI-generated plans without resetting to `defaultPlan`. Today it silently throws away AI plans because the shape check fails.
+- On save (line 199), keep writing the legacy array — but ALSO recognize that downstream consumers (now via the normalizer) handle either shape, so manual edits no longer break AI-generated content.
+- (Out of scope for this fix: full convergence on a single write shape; tracked as a follow-up so the editor can round-trip AI-generated plans 1:1.)
 
-Same change in `src/pages/student/AIChat.tsx` `fetchVisibleTopics` is unnecessary — empty array is a fine default for visible-topic constraint, but add a `console.warn` on download failure so future occurrences are debuggable from the network/console panel.
+### 5. No DB or storage changes
 
-### 4. (Optional cleanup) drop the `?t=${Date.now()}` cache-buster from `download` calls
+The course row, RLS policies, and storage objects are correct. No migration is needed — the next page load with the new normalizer will render the existing `{weeks: [...]}` file.
 
-The Supabase Storage object endpoint returns `cacheControl: "max-age=0"` for these JSON files, so the cache-buster does nothing useful and just creates a non-canonical URL string in client logs. Strip it from `StudentHome.tsx`, `AIChat.tsx`, and `TeachingPlan.tsx`. (Behavior unchanged; just cleaner traces.)
+## Verification
+
+1. Reload `/student/home` as `akashsinha.ai@gmail.com` → "Lesson Plan" card shows 16 weeks expanded under Week 1, with concepts and resources from the AI-generated plan.
+2. Hard refresh AI Chat in exam mode → visible-topic constraint includes Week 1 concepts (Python Data Types, Variables and Expressions).
+3. As the teacher, open Teaching Plan → editor populates from the existing AI plan instead of the default Python template.
+4. Re-save from the manual editor → student page still renders (legacy array shape now passes through the same normalizer).
 
 ## Files
 
-- New migration `supabase/migrations/{ts}_heal_corrupt_published_lesson_plan.sql` — delete dangling `storage.objects` row + clear `courses.lesson_plan_path`/`published_at` for the affected course.
-- `src/pages/teacher/TeachingPlan.tsx` — verify after publish.
-- `src/pages/teacher/CourseCreation.tsx` — verify after publish (same pattern in the publish block at ~line 518–524).
-- `src/pages/student/StudentHome.tsx` — distinguish "never published" vs "publish corrupted/in-flight"; remove `?t=` cache buster.
-- `src/pages/student/AIChat.tsx` — add a `console.warn` and remove `?t=` cache buster.
+- New: `src/lib/lessonPlanShape.ts`
+- Edited: `src/pages/student/StudentHome.tsx`, `src/pages/student/AIChat.tsx`, `src/pages/teacher/TeachingPlan.tsx`
 
 ## Out of scope
 
-- No schema changes to `courses` or new tables.
-- No change to storage RLS policies — the existing `Enrolled students can read course-materials` policy already permits the read.
-- Cross-device or background-sync of the lesson plan — students still need to refresh after a republish.
-
-## Verification plan after implementation
-
-1. Run migration → confirm `courses.lesson_plan_path` and `lesson_plan_published_at` are cleared for the affected course; confirm the storage.objects row for that path is gone.
-2. As the professor, open Teaching Plan, click Save/Publish → confirm verification succeeds and the toast is the normal success toast; confirm the new file downloads with HTTP 200 via a quick curl.
-3. As the student, refresh `/student/home` → lesson plan now renders.
+- Unifying the two writer formats into one canonical shape (worth doing next; this fix makes both readable so the bug is gone immediately).
+- Per-week learning-outcomes rendering for AI plans — current renderer parses outcomes out of the legacy `description` field; the AI shape stores them differently. Tracked separately.
