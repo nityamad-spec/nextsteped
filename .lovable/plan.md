@@ -1,134 +1,82 @@
-## Goal
 
-Persist each lesson-plan week's visibility (`locked` / `is_exam_week`) to the database, and enforce server-side that students can only read **visible** weeks. Today the lock state lives only in the published JSON in storage and is filtered client-side in `StudentHome.tsx` / `AIChat.tsx` — a curious student could fetch the raw `published-plan.json` and see every week, including locked ones the professor hasn't released yet.
+## Part 1 — Fix: Steps 5 & 7 incorrectly show "Complete" on a new/switched course
 
-## Root cause of current leak
+### Root cause
+The `teacher_setup_progress` table is keyed only by `(teacher_id, step_id)` — there is no `course_id`. Steps that derive their status from course-scoped DB rows (Upload, Concept Review, Lesson Plan, Diagnostic, Exam Mode) already reset correctly per course, but two steps don't:
 
-- `published-plan.json` contains every week with `locked: true/false` baked in.
-- Storage RLS lets enrolled students read the whole file.
-- The "hide locked weeks" rule is enforced **only in React** (`isWeekVisible` in `StudentHome.tsx` line 74; `visibleDays` filter in `AIChat.tsx` line 351). Anyone with the URL or browser devtools sees the full plan.
+- **Step 5 — AI Assistant Settings**: marks `Complete` from `completed["ai-settings"]` in `teacher_setup_progress` (a teacher-wide flag), with a fallback to `course_ta_settings.custom_study_prompt`.
+- **Step 7 — Enrollment & Course Settings**: marks `Complete` purely from `completed.enrollment` in `teacher_setup_progress` (teacher-wide). No course-scoped signal.
 
-## Proposed architecture
+So when a professor adds a new course or switches courses, those two stay "Complete" because the row from the previous course's session is still there.
 
-Move week metadata into a relational table the database can filter by RLS, and serve students a **view** that already excludes hidden weeks. Storage continues to hold the full plan for teachers; students never read the raw JSON anymore.
+### Fix — make setup progress course-scoped
 
-### 1. New table: `lesson_plan_weeks`
+1. **Migration** — add `course_id uuid` to `teacher_setup_progress`, drop the old `(teacher_id, step_id)` unique constraint, add a new unique on `(teacher_id, course_id, step_id)`. Delete existing rows (stale by definition) so the gate recomputes cleanly. RLS stays teacher-scoped.
 
-One row per week per course. Fields needed for both the listing UI and the visibility rule:
+2. **`src/lib/setupProgress.ts`** — add `courseId` parameter to `fetchStepProgress`, `markStepOpened`, `markStepCompleted`. Filter/upsert on `(teacher_id, course_id, step_id)`.
 
-```text
-id              uuid pk
-course_id       uuid not null
-week_number     int  not null     -- 1..total_weeks
-week_name       text not null
-overview        text
-is_exam_week    bool not null default false
-locked          bool not null default true     -- professor toggle
-concepts        jsonb not null default '[]'    -- [{id,name,brief_description}]
-resources       jsonb not null default '[]'    -- [{id,type,title,description,url}]
-created_at      timestamptz default now()
-updated_at      timestamptz default now()
-unique (course_id, week_number)
-```
+3. **`src/pages/teacher/CourseSetup.tsx`** — pass `courseId` into the helpers. If no `courseId` yet, treat all steps as "Not Started".
 
-Plus a helper column on `courses`:
-```text
-lesson_plan_overall_outcomes  text   -- replaces the same field in the JSON for student-facing reads
-```
+4. **Other call sites** — update to pass current `courseId`:
+   - `src/pages/teacher/AIAssistantAndSettings.tsx`
+   - `src/pages/teacher/EnrollmentSettings.tsx`
+   - `src/layouts/StudentLayout.tsx` (only if it actually calls these helpers in a teacher context — verify)
 
-### 2. RLS policies
+5. Step 5 keeps the OR with `course_ta_settings.custom_study_prompt` (already course-scoped). Step 7 keeps the explicit `markStepCompleted` write inside `EnrollmentSettings` save handler — now course-scoped via the migration.
 
-```text
--- Teachers / collaborators: full CRUD on weeks of courses they own
-policy "Teachers manage own weeks"
-  for all using (is_course_member(course_id, auth.uid()))
-  with check (is_course_member(course_id, auth.uid()));
+### Result
+Each course has independent progress badges. Adding/switching courses shows all 7 steps as "Not Started" until that course's own data/flags say otherwise.
 
--- Students: read ONLY visible weeks of courses they're enrolled in
--- "Visible" = not locked OR auto-revealed by current course week.
-policy "Students read visible weeks"
-  for select using (
-    exists (
-      select 1 from enrollments e
-      join courses c on c.id = e.course_id
-      where e.course_id = lesson_plan_weeks.course_id
-        and e.student_id = auth.uid()
-        and (
-          locked = false
-          or (
-            c.start_date is not null
-            and week_number <= greatest(
-              1,
-              least(
-                coalesce(c.total_weeks, 16),
-                floor(extract(epoch from (now() - c.start_date)) / (7*24*3600))::int + 1
-              )
-            )
-          )
-        )
-    )
-  );
-```
+---
 
-The auto-reveal math is the same one currently in `StudentHome.tsx` line 109 — moved into SQL so the database, not the client, decides what a student sees. Locked weeks past the current course week simply don't appear in the result set.
+## Part 2 — Concept Review: add "Additional Concept Recommendations" section
 
-### 3. Publish flow rewrite (`src/pages/teacher/CourseCreation.tsx` `handlePublish`)
+### Goal
+Below "Extracted Concepts", add a new **"Additional Concept Recommendations"** section. It surfaces concepts that weren't extracted from the syllabus but are relevant to the course — both **industry-alignment** recommendations and **generally missing** concepts the syllabus didn't cover. Professor can approve / edit / dismiss each. Approved ones flow into `concepts` (same flow as Extracted), so they automatically feed lesson-plan generation.
 
-In addition to writing `published-plan.json` (kept for backwards-compat / teacher reads), upsert one row per week into `lesson_plan_weeks`:
+### UI changes — `src/pages/teacher/ConceptReview.tsx`
 
-```text
-1. Delete existing rows for this course_id (clean slate)
-2. Insert weeks.map(w => ({course_id, week_number: w.week, week_name, overview,
-                          is_exam_week, locked, concepts, resources}))
-3. Update courses.lesson_plan_overall_outcomes = overallOutcomes
-4. Update courses.lesson_plan_published_at = now()
-```
+1. New state: `recommendations: Recommendation[]`, `loadingRecs`, `recsRequested`, `editingRecName: string | null`, `editingRecValue: string`.
+2. New type: `Recommendation = { name: string; rationale: string; category: "industry" | "foundational" | "gap" }`.
+3. New section card placed **between** "Extracted Concepts" and "Confirmed Concepts":
+   - Header: "Additional Concept Recommendations" with a `Sparkles` icon.
+   - Description: "Concepts that weren't in your syllabus but may be worth covering — including industry-alignment topics employers commonly look for and any general gaps. Approve, edit, or dismiss each."
+   - Primary button: **"Generate Recommendations"** → "Re-generate Recommendations" once requested.
+   - Each recommendation card: name + small category chip (Industry / Foundational / Gap) + rationale. Actions: **Approve** (insert to `concepts`), **Edit** (inline rename input + Save/Cancel), **Dismiss**.
+4. Existing "Continue" CTA logic unchanged — requires ≥1 confirmed concept. Approved recommendations land in `concepts` and feed lesson-plan generation automatically.
 
-Wrap in a single batch; if it fails, surface the same "Publish failed" toast that already exists.
+### Edge function — new `supabase/functions/recommend-additional-concepts/index.ts`
 
-### 4. Lock toggle persistence
+- Inputs: `{ courseId, existingConcepts: string[] }`.
+- Loads course (`name`, `course_code`, `objectives`) + parsed syllabus JSON (same loader as `suggest-concepts`).
+- Calls Lovable AI Gateway with `google/gemini-2.5-pro` using a tool call schema returning `{ recommendations: [{ name, rationale, category }] }` where `category ∈ {"industry","foundational","gap"}`.
+- System prompt focuses on **what's missing** vs. syllabus + existing concepts: "Suggest 5–10 concepts NOT already present that would strengthen this course. Mix three flavors: (a) industry-alignment topics employers expect graduates to know, (b) foundational prerequisites the syllabus assumes but doesn't teach, (c) general gaps in coverage. Each rationale is 1 sentence. Skip anything already in the existing list (case-insensitive)."
+- Server-side dedup against `existingConcepts`.
+- Standard 429/402 handling, mirrors `suggest-concepts/index.ts` shape.
 
-`toggleLock` in `CourseCreation.tsx` (line 376) currently only mutates local state. Add an `update lesson_plan_weeks set locked = !locked where course_id=... and week_number=...` call so visibility flips for students immediately, without requiring a full republish. Same pattern for `TeachingPlan.tsx` `toggleLock` (line 274) once that editor is wired to the table.
+No `supabase/config.toml` changes needed.
 
-### 5. Student reads (`src/pages/student/StudentHome.tsx`, `src/pages/student/AIChat.tsx`)
+### Why this is safe
+- Approved recommendations write to the existing `concepts` table — no schema change, and `generate-lesson-plan` already consumes that table, so all approved/final concepts flow into the lesson plan automatically.
+- Dismissed/edited-but-not-approved recommendations are never persisted — they live only in component state.
 
-Replace the storage download + JSON parse + client-side filter with:
+---
 
-```ts
-const { data: weeks } = await supabase
-  .from("lesson_plan_weeks")
-  .select("week_number, week_name, overview, is_exam_week, concepts, resources")
-  .eq("course_id", enrolledCourseId)
-  .order("week_number");
-```
+## Files to change
 
-The RLS policy guarantees `weeks` already excludes locked/future weeks. Map these rows through the existing `NormalizedWeek` shape so the renderer is unchanged. Drop `isWeekVisible` and the storage download path entirely from the student code.
+**Migrations**
+- `supabase/migrations/<new>_scope_teacher_setup_progress_per_course.sql`
 
-`AIChat.tsx` `fetchVisibleTopics` does the same thing — query the table, take the returned weeks as the source of truth for exam-mode topic constraints. Now a student literally cannot see (and therefore cannot ask the AI about) topics from locked weeks.
+**Edited**
+- `src/lib/setupProgress.ts`
+- `src/pages/teacher/CourseSetup.tsx`
+- `src/pages/teacher/AIAssistantAndSettings.tsx`
+- `src/pages/teacher/EnrollmentSettings.tsx`
+- `src/layouts/StudentLayout.tsx` (only if it uses these helpers)
+- `src/pages/teacher/ConceptReview.tsx`
 
-### 6. Backfill for already-published courses
+**Created**
+- `supabase/functions/recommend-additional-concepts/index.ts`
 
-The migration includes a one-shot SQL that copies existing `published-plan.json` rows into `lesson_plan_weeks` is **not** doable from SQL (storage isn't queryable from Postgres). Instead, on first teacher visit to `CourseCreation` after this ships, detect "course has `lesson_plan_path` but zero rows in `lesson_plan_weeks`" and run the publish-time upsert silently from the loaded JSON. Ship a banner on the teacher view explaining: "We've upgraded lesson-plan visibility — your existing plan has been migrated."
-
-## Files
-
-- New migration: `lesson_plan_weeks` table + RLS + `lesson_plan_overall_outcomes` column on `courses`
-- Edited: `src/pages/teacher/CourseCreation.tsx` (publish writes table; `toggleLock` persists; backfill on load)
-- Edited: `src/pages/teacher/TeachingPlan.tsx` (publish + toggleLock mirror to table)
-- Edited: `src/pages/student/StudentHome.tsx` (read from table, drop storage download + `isWeekVisible`)
-- Edited: `src/pages/student/AIChat.tsx` (`fetchVisibleTopics` reads from table)
-- New helper: `src/lib/lessonPlanWeeks.ts` with `upsertPublishedWeeks(courseId, weeks)` and `setWeekLocked(courseId, weekNumber, locked)` to keep both editors DRY
-
-## Out of scope
-
-- Removing `published-plan.json` writes entirely. Kept for now so teacher tooling and `course_material_files` indexing don't break; can be deprecated in a follow-up once nothing reads it.
-- Per-resource locking inside a week (still all-or-nothing per week, matching current UX).
-- Making the AI Chat backend (`supabase/functions/chat`) aware of the table — current relevance filter is client-side; tracked separately.
-
-## Verification
-
-1. As teacher: lock Week 3, save → row in `lesson_plan_weeks` shows `locked=true`. Open `/student/home` as enrolled student → Week 3 missing entirely from network response.
-2. Hit the table directly from the student JWT (`supabase.from('lesson_plan_weeks').select('*').eq('course_id', ...)`) → only unlocked + auto-revealed weeks return; RLS denies the rest.
-3. Set `courses.start_date` to 4 weeks ago → Weeks 1–4 auto-reveal even if `locked=true`.
-4. AI Chat exam mode: ask about a topic from a locked future week → falls outside `visibleTopics`, gets refused.
-5. Re-publish from teacher → table reflects edits within one round-trip; no stale locked rows survive.
+**Memory updates**
+- Update `mem://ux/teacher-setup-flow.md`: (a) `teacher_setup_progress` is now per-course, (b) Concept Review now has an "Additional Concept Recommendations" section after Extracted Concepts.
