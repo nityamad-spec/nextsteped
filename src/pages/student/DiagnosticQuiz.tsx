@@ -367,13 +367,6 @@ const DiagnosticQuiz = () => {
               {hasAnswer && (
                 <div className="mt-4 border-t pt-4">
                   <p className="mb-3 text-xs font-medium text-muted-foreground">
-                    How confident are you in your answer? <span className="text-destructive">*</span>
-                  </p>
-                  <div className="px-2">
-                    <Slider
-                      value={confidence !== null ? [confidence] : [50]}
-                <div className="mt-4 border-t pt-4">
-                  <p className="mb-3 text-xs font-medium text-muted-foreground">
                     How confident are you in your answer?
                   </p>
                   <div className="px-2">
