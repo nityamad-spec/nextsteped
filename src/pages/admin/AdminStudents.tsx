@@ -4,7 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, MoreHorizontal, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 
 interface StudentRow {
   id: string;
@@ -20,6 +26,10 @@ interface StudentRow {
 const AdminStudents = () => {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [target, setTarget] = useState<StudentRow | null>(null);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetch = async () => {
@@ -55,7 +65,27 @@ const AdminStudents = () => {
     fetch();
   }, []);
 
+  const handleDelete = async () => {
+    if (!target) return;
+    setDeleting(true);
+    const { data, error } = await supabase.functions.invoke("delete-user", {
+      body: { user_id: target.id, role: "student" },
+    });
+    setDeleting(false);
+    if (error || (data as any)?.error) {
+      toast({ title: "Delete failed", description: (data as any)?.error || error?.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Student deleted", description: `${target.name} has been removed.` });
+    setStudents(prev => prev.filter(s => s.id !== target.id));
+    setTarget(null);
+    setConfirmText("");
+  };
+
   if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
+
+  const expectedConfirm = (target?.email || target?.name || "").trim();
+  const confirmOk = confirmText.trim().toLowerCase() === expectedConfirm.toLowerCase() && expectedConfirm.length > 0;
 
   return (
     <div className="space-y-6">
@@ -81,6 +111,7 @@ const AdminStudents = () => {
                   <TableHead>Course</TableHead>
                   <TableHead>Level</TableHead>
                   <TableHead>Joined</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -98,6 +129,23 @@ const AdminStudents = () => {
                     <TableCell className="text-muted-foreground text-sm">
                       {new Date(s.created_at).toLocaleDateString()}
                     </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => { setTarget(s); setConfirmText(""); }}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" /> Delete user
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -105,6 +153,45 @@ const AdminStudents = () => {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!target} onOpenChange={(o) => { if (!o) { setTarget(null); setConfirmText(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete student</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  This will permanently delete <strong>{target?.name}</strong>{target?.email ? ` (${target.email})` : ""},
+                  including their enrollments, assessment results, diagnostic results, feedback, and chat history.
+                  This cannot be undone.
+                </p>
+                <div className="pt-2">
+                  <Label htmlFor="confirm" className="text-xs">
+                    Type <code className="text-foreground">{expectedConfirm}</code> to confirm
+                  </Label>
+                  <Input
+                    id="confirm"
+                    value={confirmText}
+                    onChange={(e) => setConfirmText(e.target.value)}
+                    autoComplete="off"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!confirmOk || deleting}
+              onClick={(e) => { e.preventDefault(); handleDelete(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
