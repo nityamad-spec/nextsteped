@@ -271,6 +271,45 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     return () => { cancelled = true; };
   }, [user, draftLocalKey, draftStoragePath, applyDraft]);
 
+  // Backfill: if this course was published before lesson_plan_weeks existed,
+  // mirror the loaded weeks into the table so student RLS visibility works.
+  // Runs at most once per course load when DB has zero rows.
+  const [backfilled, setBackfilled] = useState(false);
+  useEffect(() => {
+    if (!courseId || restoringDraft || backfilled) return;
+    if (!published || weeks.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { count } = await supabase
+          .from("lesson_plan_weeks")
+          .select("week_number", { count: "exact", head: true })
+          .eq("course_id", courseId);
+        if (cancelled) return;
+        if ((count ?? 0) === 0) {
+          await upsertPublishedWeeks(
+            courseId,
+            weeks.map((w) => ({
+              week_number: w.week,
+              week_name: w.week_name,
+              overview: w.overview,
+              is_exam_week: w.is_exam_week,
+              locked: w.locked,
+              concepts: w.concepts,
+              resources: w.resources,
+            })),
+            overallOutcomes,
+          );
+        }
+      } catch (e) {
+        console.warn("Lesson plan backfill failed:", e);
+      } finally {
+        if (!cancelled) setBackfilled(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [courseId, restoringDraft, backfilled, published, weeks, overallOutcomes]);
+
   // ─── Persist draft ───
   useEffect(() => {
     if (!user || restoringDraft) return;
