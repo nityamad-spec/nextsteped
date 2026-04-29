@@ -17,6 +17,7 @@ import ExamPrepPanel, { ExamCustomSettings } from "@/components/ExamPrepPanel";
 import { getQuizQuestions, getExamQuestions, Question } from "@/data/questionBank";
 import { supabase } from "@/integrations/supabase/client";
 import { resolvePublishedPath, LESSON_PLAN_BUCKET } from "@/lib/lessonPlanPath";
+import { normalizeLessonPlan } from "@/lib/lessonPlanShape";
 import { seededShuffle } from "@/lib/seededShuffle";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -336,8 +337,9 @@ const AIChat = () => {
         if (planRes.error) console.warn("Lesson plan download failed in AIChat:", planRes.error);
         return [];
       }
-      const plan = JSON.parse(await planRes.data.text());
-      if (!Array.isArray(plan)) return [];
+      const parsed = JSON.parse(await planRes.data.text());
+      const plan = normalizeLessonPlan(parsed);
+      if (plan.length === 0) return [];
 
       // Compute current week from course start_date
       const startDate = courseRow?.start_date;
@@ -346,11 +348,14 @@ const AIChat = () => {
         : 999;
 
       // A week is visible if unlocked by professor OR auto-revealed by date
-      const visibleDays = plan.filter((d: any) => !d.locked || d.day <= courseCurrentWeek);
+      const visibleDays = plan.filter((d) => !d.locked || d.day <= courseCurrentWeek);
       const topics = new Set<string>();
       for (const day of visibleDays) {
         if (day.topic) topics.add(day.topic);
-        for (const r of (day.resources || [])) {
+        for (const c of day.concepts) {
+          if (c.name) topics.add(c.name);
+        }
+        for (const r of day.resources) {
           if (r.concept) topics.add(r.concept);
         }
       }
