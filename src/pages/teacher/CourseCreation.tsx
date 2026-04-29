@@ -31,6 +31,7 @@ import {
   recordDraftPathIfMissing,
   LESSON_PLAN_BUCKET,
 } from "@/lib/lessonPlanPath";
+import { upsertPublishedWeeks, setWeekLocked } from "@/lib/lessonPlanWeeks";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
