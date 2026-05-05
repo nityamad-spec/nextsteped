@@ -1,39 +1,45 @@
-# Fix: `teacher_setup_progress.completed_at` not persisted reliably
+# Logging + Admin Debug Screen for `markStepCompleted`
 
-## Root cause (not RLS)
+Adds an audit trail for every `markStep*` attempt and an admin-only screen to verify writes and inspect SQL/RLS errors when persistence fails.
 
-DB inspection confirms RLS works — completed rows exist for a previously-completed course. The real issue is that today only `ai-settings` and `enrollment` call `markStepCompleted` from their own pages. The other five auto-derived steps rely on the backfill loop inside `CourseSetup.tsx`, which fires **only when the teacher revisits `/teacher/setup`**. A teacher who proceeds linearly through Next buttons / sidebar nav never triggers it, so `completed_at` stays `NULL` even when the underlying tables (`courses.syllabus_json_path`, `concepts`, `lesson_plan_published_at`, `diagnostic_questions`, `course_ta_settings`) say the step is done.
+## 1. New table `public.setup_progress_log` (migration)
 
-## Fix
+Append-only audit log. Stores attempt outcome plus the Postgres error code/message/details when the upsert is rejected (e.g. RLS denial).
 
-Mark each step complete at the exact moment its source-of-truth is written. The existing backfill in `CourseSetup.tsx` stays as a safety net.
+Columns: `id`, `teacher_id`, `course_id` (nullable), `step_id`, `action` (`mark_opened` | `mark_completed`), `success` (bool), `error_code`, `error_message`, `error_details`, `context` (jsonb), `created_at`.
 
-### 1. `upload` — `src/components/FileUploadZone.tsx`
-In `parseSyllabusInBackground`, immediately after the successful `courses.update({ syllabus_json_path })` (line 150-153), call:
-```ts
-if (user?.id) void markStepCompleted(user.id, "upload", courseId);
-```
-(Add `markStepCompleted` import and use existing `useAuth()` to get `user`.)
+Indexes on `(teacher_id, created_at desc)`, `(created_at desc)`, and a partial index on failures.
 
-### 2. `concept-review` — `src/pages/teacher/ConceptReview.tsx`
-In the handler that confirms/saves concepts (the path that inserts the first concept row), call `markStepCompleted(user.id, "concept-review", courseId)` after the successful insert. Also add it to `ConceptManagement.tsx`'s save path so manual edits keep it accurate.
+RLS:
+- Teachers: `INSERT` and `SELECT` rows where `auth.uid() = teacher_id` (so failure logs from RLS-blocked writes still get recorded under the actor).
+- Admins: full access via existing `public.is_admin(auth.uid())`.
 
-### 3. `lesson-plan` — `src/pages/teacher/TeachingPlan.tsx`
-In the publish handler (the one that writes `lesson_plan_published_at` / `lesson_plan_path`), call `markStepCompleted(user.id, "lesson-plan", courseId)` after the successful publish.
+## 2. Update `src/lib/setupProgress.ts`
 
-### 4. `diagnostic` — `src/pages/teacher/DiagnosticQuestionsSetup.tsx`
-After the save handler that inserts `diagnostic_questions` rows succeeds, call `markStepCompleted(user.id, "diagnostic", courseId)`.
+Wrap `markStepOpened` and `markStepCompleted` with:
+1. `console.info` on success / `console.warn` on failure (tagged `[setupProgress]`).
+2. Re-read the row after the upsert (`select … where teacher_id+course_id+step_id`) to detect silent RLS swallows where the upsert returns no error but no row appears.
+3. Insert one row into `setup_progress_log` per attempt with the captured Supabase error fields (`code`, `message`, `details`) or a synthetic "row not found after upsert" message when verification fails. Log insert is wrapped in try/catch — logging never throws.
 
-### 5. `exam-mode` — `src/pages/teacher/ExamMode.tsx`
-After the save handler that toggles `course_ta_settings.exam_enabled` or `exam_approved` succeeds, call `markStepCompleted(user.id, "exam-mode", courseId)`.
+API surface unchanged; all existing call sites work without modification.
 
-All calls are fire-and-forget (`void`), match the existing pattern in `AIAssistantAndSettings.tsx` / `EnrollmentSettings.tsx`, and remain idempotent thanks to the `(teacher_id, course_id, step_id)` unique upsert in `markStepCompleted`.
+## 3. New page `src/pages/admin/AdminSetupDebug.tsx`
 
-## Why not change the backfill instead
+Admin-only screen with:
+- Three KPI cards: successful writes, failed writes, total persisted rows (last 200 each).
+- Filter input (by teacher_id / course_id / step / error text) + "Failures only" toggle.
+- Two tabs:
+  - **Audit Log** — table over `setup_progress_log`: time, action, step, teacher (truncated), course (truncated), OK/FAIL badge, error code + message + details.
+  - **Persisted Rows** — table over `teacher_setup_progress`: teacher, course, step, `opened_at`, `completed_at` (NULL highlighted in muted text, present highlighted in primary).
+- Refresh button.
 
-Backfill would still require the teacher to revisit `/teacher/setup`. Writing at the source-of-truth moment guarantees the column is accurate the instant the work is done, regardless of navigation order. The existing backfill loop stays as a safety net for legacy rows and edge cases.
+## 4. Wire route + nav
+
+- `src/App.tsx`: add route `<Route path="setup-debug" element={<AdminSetupDebug />} />` under the existing `/admin` `AdminLayout` group.
+- `src/layouts/AdminLayout.tsx`: append nav item `{ title: "Setup Debug", url: "/admin/setup-debug", icon: Bug }` to `navItems`.
 
 ## Out of scope
-- No schema changes, no RLS changes (verified working).
-- No changes to `ai-settings` / `enrollment` (already correct).
-- No SQL backfill migration (existing CourseSetup loop handles legacy rows on next visit).
+
+- No changes to call sites of `markStepCompleted` (already wired in step pages).
+- No retention policy / log pruning (acceptable initially; can be added later as a cron-based delete of rows >30 days).
+- Logging is best-effort and asynchronous — it never blocks the original write or surfaces toasts to teachers.
