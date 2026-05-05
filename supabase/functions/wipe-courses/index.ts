@@ -134,6 +134,16 @@ Deno.serve(async (req) => {
       counts["pending_signups"] = count ?? 0;
     }
 
+    // Clear active_course_id on profiles before deleting courses
+    {
+      const { count, error } = await admin
+        .from("profiles")
+        .update({ active_course_id: null }, { count: "exact" })
+        .not("active_course_id", "is", null);
+      if (error) throw new Error(`profiles.active_course_id: ${error.message}`);
+      counts["profiles_active_course_cleared"] = count ?? 0;
+    }
+
     // Finally, courses
     await wipeAll("courses");
 
