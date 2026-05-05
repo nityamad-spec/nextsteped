@@ -1131,6 +1131,7 @@ export type Database = {
           reviewed_at: string | null
           reviewed_by: string | null
           status: string
+          university_id: string | null
         }
         Insert: {
           admin_notes?: string | null
@@ -1147,6 +1148,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          university_id?: string | null
         }
         Update: {
           admin_notes?: string | null
@@ -1163,6 +1165,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          university_id?: string | null
         }
         Relationships: [
           {
@@ -1170,6 +1173,13 @@ export type Database = {
             columns: ["assigned_course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_applications_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
             referencedColumns: ["id"]
           },
         ]
