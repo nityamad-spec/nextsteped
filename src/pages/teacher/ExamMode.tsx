@@ -175,6 +175,9 @@ const ExamMode = () => {
         examManualQuestions,
         examManualCount,
       });
+      if ((examApproved || examEnabled) && user?.id && courseId) {
+        void markStepCompleted(user.id, "exam-mode", courseId);
+      }
     } catch {
       toast.error("Failed to save exam settings. Please try again.");
       throw new Error("save failed");
