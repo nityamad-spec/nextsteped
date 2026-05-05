@@ -1,5 +1,5 @@
 import { Outlet } from "react-router-dom";
-import { Shield, LayoutDashboard, BookOpen, GraduationCap, Users, Bug } from "lucide-react";
+import { Shield, LayoutDashboard, BookOpen, GraduationCap, Users, Bug, GitBranch } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
