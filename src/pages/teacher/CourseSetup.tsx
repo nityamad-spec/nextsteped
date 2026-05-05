@@ -19,7 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { supabase } from "@/integrations/supabase/client";
 // lesson plan completion is derived from the courses row, not storage
-import { fetchStepProgress, markStepOpened } from "@/lib/setupProgress";
+import { fetchStepProgress, markStepOpened, markStepCompleted } from "@/lib/setupProgress";
 
 type Status = "Not Started" | "In Progress" | "Complete";
 
@@ -183,6 +183,17 @@ const CourseSetup = () => {
       }
       if (next["concept-review"] !== "Complete") {
         next["lesson-plan"] = "Not Started";
+      }
+
+      // Backfill `completed_at` in teacher_setup_progress for any auto-derived
+      // step now Complete but not yet persisted. Fire-and-forget.
+      if (courseId) {
+        const AUTO_COMPLETE_STEPS = ["upload", "concept-review", "lesson-plan", "diagnostic", "exam-mode"];
+        for (const stepId of AUTO_COMPLETE_STEPS) {
+          if (next[stepId] === "Complete" && !completed[stepId]) {
+            void markStepCompleted(user.id, stepId, courseId);
+          }
+        }
       }
 
       setStatuses(next);
