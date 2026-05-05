@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { availableDepartments } from "@/data/mockData";
 import { supabase } from "@/integrations/supabase/client";
+import { UniversityCombobox } from "@/components/UniversityCombobox";
 import { toast } from "sonner";
 
 /**
@@ -28,6 +29,7 @@ const TeacherApplicationForm = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [institution, setInstitution] = useState("");
+  const [universityId, setUniversityId] = useState<string | null>(null);
   const [department, setDepartment] = useState("");
   const [designation, setDesignation] = useState("");
 
@@ -51,6 +53,7 @@ const TeacherApplicationForm = () => {
     name.trim() &&
     email.trim() &&
     institution.trim() &&
+    universityId &&
     department &&
     designation.trim();
 
@@ -73,6 +76,7 @@ const TeacherApplicationForm = () => {
         name: name.trim(),
         email: trimmedEmail,
         institution: institution.trim(),
+        university_id: universityId,
         department,
         designation: designation.trim(),
       } as any);
@@ -170,12 +174,13 @@ const TeacherApplicationForm = () => {
 
                   <div className="space-y-2">
                     <Label htmlFor="institution">Institution Name</Label>
-                    <Input
-                      id="institution"
-                      placeholder="e.g. Indian Institute of Technology, Delhi"
-                      value={institution}
-                      onChange={(e) => setInstitution(e.target.value)}
-                      required
+                    <UniversityCombobox
+                      valueId={universityId}
+                      valueName={institution}
+                      onChange={({ id, name }) => {
+                        setUniversityId(id);
+                        setInstitution(name);
+                      }}
                     />
                   </div>
 
