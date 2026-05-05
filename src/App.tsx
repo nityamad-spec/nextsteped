@@ -52,6 +52,7 @@ import AdminCourses from "./pages/admin/AdminCourses";
 import AdminStudents from "./pages/admin/AdminStudents";
 import AdminTeachers from "./pages/admin/AdminTeachers";
 import AdminSetupDebug from "./pages/admin/AdminSetupDebug";
+import AdminSetupTrace from "./pages/admin/AdminSetupTrace";
 import ResetPassword from "./pages/ResetPassword";
 import ContentLibrary from "./pages/teacher/ContentLibrary";
 import TeacherChat from "./pages/teacher/TeacherChat";
