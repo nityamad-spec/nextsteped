@@ -76,6 +76,7 @@ const TeacherApplicationForm = () => {
         name: name.trim(),
         email: trimmedEmail,
         institution: institution.trim(),
+        university_id: universityId,
         department,
         designation: designation.trim(),
       } as any);
