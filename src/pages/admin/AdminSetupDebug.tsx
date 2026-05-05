@@ -170,8 +170,12 @@ const AdminSetupDebug = () => {
                     const reqId: string = ctx.request_id ?? "";
                     const isOpen = !!expanded[r.id];
                     return (
-                      <FragmentRow key={r.id}>
-                        <tr className="border-b last:border-0 align-top">
+                      <FragmentRow key={r.id} id={r.id} ctx={ctx} reqId={reqId} isOpen={isOpen} toggle={toggle} r={r} />
+                    );
+                  })}
+                  {/* placeholder removed below */}
+                  {false && (
+                    <tr>
                           <td className="py-2 pr-1">
                             <button
                               onClick={() => toggle(r.id)}
