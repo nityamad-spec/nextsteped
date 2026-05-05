@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ArrowRight, Plus, X, Loader2, Sparkles, Check, RefreshCw, Info, ListOrdered, Lightbulb, Pencil, Briefcase, Layers, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { bumpCacheVersion } from "@/lib/cacheVersion";
+import { markStepCompleted } from "@/lib/setupProgress";
 
 interface Concept {
   id: string;
@@ -266,6 +267,7 @@ const ConceptReview = () => {
       toast.error("Please confirm at least one concept before continuing.");
       return;
     }
+    if (user?.id && courseId) void markStepCompleted(user.id, "concept-review", courseId);
     navigate("/teacher/setup/lesson-plan");
   };
 

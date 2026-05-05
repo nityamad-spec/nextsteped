@@ -4,6 +4,7 @@ import { useTASettings } from "@/hooks/useTASettings";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { markStepCompleted } from "@/lib/setupProgress";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -174,6 +175,9 @@ const ExamMode = () => {
         examManualQuestions,
         examManualCount,
       });
+      if ((examApproved || examEnabled) && user?.id && courseId) {
+        void markStepCompleted(user.id, "exam-mode", courseId);
+      }
     } catch {
       toast.error("Failed to save exam settings. Please try again.");
       throw new Error("save failed");

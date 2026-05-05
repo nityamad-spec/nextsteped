@@ -4,6 +4,7 @@ import { Upload, Check, X, FileText, Loader2, Trash2, RefreshCw } from "lucide-r
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { markStepCompleted } from "@/lib/setupProgress";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -151,6 +152,8 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         .from("courses")
         .update({ syllabus_json_path: jsonPath })
         .eq("id", courseId);
+
+      if (teacherId) void markStepCompleted(teacherId, "upload", courseId);
 
       setParseStatus((prev) => ({ ...prev, [storagePath]: "parsed" }));
     } catch (err) {

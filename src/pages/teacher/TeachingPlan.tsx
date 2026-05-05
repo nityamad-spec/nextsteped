@@ -11,6 +11,7 @@ import {
 } from "@/lib/lessonPlanPath";
 import { normalizeLessonPlan } from "@/lib/lessonPlanShape";
 import { upsertPublishedWeeks, setWeekLocked } from "@/lib/lessonPlanWeeks";
+import { markStepCompleted } from "@/lib/setupProgress";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -420,6 +421,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
 
   const handlePublish = async () => {
     await savePlan();
+    if (user?.id && courseId) void markStepCompleted(user.id, "lesson-plan", courseId);
     setShowPublishModal(false);
     setPublishChecklist({ days: false, resources: false });
     toast({ title: "Plan published", description: "Students can now see the updated lesson plan." });

@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
+import { markStepCompleted } from "@/lib/setupProgress";
 
 interface DiagnosticQuestion {
   id: string;
@@ -98,6 +99,9 @@ const DiagnosticQuestionsSetup = () => {
         .eq("course_id", courseId)
         .order("difficulty_estimate");
       if (refreshed) setQuestions(refreshed);
+      if (refreshed && refreshed.length > 0 && user?.id) {
+        void markStepCompleted(user.id, "diagnostic", courseId);
+      }
 
       toast({
         title: "Question bank generated",
