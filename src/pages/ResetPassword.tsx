@@ -102,11 +102,8 @@ const ResetPassword = () => {
 
     // Safety net: if nothing flipped mode within 1.5s but we have a session,
     // assume recovery so the form becomes usable.
-    const safetyTimer = window.setTimeout(async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setMode((prev) => (prev === "waiting" ? "recovery" : prev));
-      }
+    const safetyTimer = window.setTimeout(() => {
+      setMode((prev) => (prev === "waiting" ? "recovery" : prev));
     }, 1500);
 
     return () => {
