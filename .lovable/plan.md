@@ -1,45 +1,37 @@
-# Logging + Admin Debug Screen for `markStepCompleted`
+## Goal
+1. On `/teacher/setup/upload`, disable **Next: Review Concepts** until the uploaded syllabus has been parsed AND the resulting JSON has been written to the `course-materials` storage bucket.
+2. On `/teacher/setup`, ensure the **Concept Review** card stays locked until the syllabus JSON is safely persisted in storage.
 
-Adds an audit trail for every `markStep*` attempt and an admin-only screen to verify writes and inspect SQL/RLS errors when persistence fails.
+## Current state
+- `FileUploadZone` already tracks per-file `parseStatus` (`parsing | parsed | failed`) internally, uploads JSON to `{courseId}/syllabus/approved-syllabus.json`, and updates `courses.syllabus_json_path` only after the JSON upload succeeds.
+- `CourseMaterials.tsx` enables Next as soon as `syllabusFiles.length > 0` — it does NOT wait for parsing.
+- `CourseSetup.tsx` already locks Concept Review until `statuses.upload === "Complete"`, and "Complete" is derived from `courses.syllabus_json_path` being non-empty. So requirement (2) is functionally enforced today, but it relies on the JSON upload succeeding before the user can return to `/teacher/setup`. We will harden this so the lock state is unambiguous and reflects storage truth, not just the DB pointer.
 
-## 1. New table `public.setup_progress_log` (migration)
+## Changes
 
-Append-only audit log. Stores attempt outcome plus the Postgres error code/message/details when the upsert is rejected (e.g. RLS denial).
+### 1. `src/components/FileUploadZone.tsx`
+- Add an optional prop `onParseStatusChange?: (statuses: Record<string, ParseStatus>) => void`.
+- Call it inside every `setParseStatus` update (via a `useEffect` on `parseStatus`) so the parent gets a live view.
+- On mount, when `folderType === "syllabus"` and `files` already has entries, seed `parseStatus` to `"parsed"` for each existing file IF `courses.syllabus_json_path` is set for the current course (so a page reload doesn't make Next look disabled forever).
 
-Columns: `id`, `teacher_id`, `course_id` (nullable), `step_id`, `action` (`mark_opened` | `mark_completed`), `success` (bool), `error_code`, `error_message`, `error_details`, `context` (jsonb), `created_at`.
+### 2. `src/pages/teacher/CourseMaterials.tsx`
+- Add local state `syllabusParsed: boolean`.
+- On mount (after `courseId` resolves), query `courses.syllabus_json_path`; if non-empty AND the object actually exists in the `course-materials` bucket (lightweight `storage.from(...).list(folder, { search: "approved-syllabus.json" })`), set `syllabusParsed = true`.
+- Pass `onParseStatusChange` into the syllabus `<FileUploadZone>`. Update `syllabusParsed` to true once any status flips to `"parsed"`; set false if all uploaded syllabus files are still parsing/failed.
+- Change `canContinue` from `syllabusFiles.length > 0` to `syllabusFiles.length > 0 && syllabusParsed`.
+- Replace the single helper line with two states:
+  - "Please upload your syllabus to continue." (no files)
+  - "Parsing your syllabus… this usually takes 10–30 seconds. The Next button will enable when it's ready." (files uploaded, not yet parsed)
+  - "Syllabus parsing failed. Use Retry on the file above before continuing." (all parses failed)
+- Disable the Next button accordingly via existing `nextDisabled` prop on `SetupModuleNav`.
 
-Indexes on `(teacher_id, created_at desc)`, `(created_at desc)`, and a partial index on failures.
+### 3. `src/pages/teacher/CourseSetup.tsx`
+Keep the existing logic (status from `syllabus_json_path`), but harden:
+- Additionally verify the JSON object exists in storage by calling `supabase.storage.from("course-materials").list("{courseId}/syllabus", { search: "approved-syllabus.json", limit: 1 })`. Only mark `upload = "Complete"` if BOTH the DB pointer and the storage object are present. This guarantees Concept Review cannot unlock based on a stale/incorrect DB pointer.
+- Keep the existing `isCardLocked("concept-review")` rule (`statuses.upload !== "Complete"`).
 
-RLS:
-- Teachers: `INSERT` and `SELECT` rows where `auth.uid() = teacher_id` (so failure logs from RLS-blocked writes still get recorded under the actor).
-- Admins: full access via existing `public.is_admin(auth.uid())`.
-
-## 2. Update `src/lib/setupProgress.ts`
-
-Wrap `markStepOpened` and `markStepCompleted` with:
-1. `console.info` on success / `console.warn` on failure (tagged `[setupProgress]`).
-2. Re-read the row after the upsert (`select … where teacher_id+course_id+step_id`) to detect silent RLS swallows where the upsert returns no error but no row appears.
-3. Insert one row into `setup_progress_log` per attempt with the captured Supabase error fields (`code`, `message`, `details`) or a synthetic "row not found after upsert" message when verification fails. Log insert is wrapped in try/catch — logging never throws.
-
-API surface unchanged; all existing call sites work without modification.
-
-## 3. New page `src/pages/admin/AdminSetupDebug.tsx`
-
-Admin-only screen with:
-- Three KPI cards: successful writes, failed writes, total persisted rows (last 200 each).
-- Filter input (by teacher_id / course_id / step / error text) + "Failures only" toggle.
-- Two tabs:
-  - **Audit Log** — table over `setup_progress_log`: time, action, step, teacher (truncated), course (truncated), OK/FAIL badge, error code + message + details.
-  - **Persisted Rows** — table over `teacher_setup_progress`: teacher, course, step, `opened_at`, `completed_at` (NULL highlighted in muted text, present highlighted in primary).
-- Refresh button.
-
-## 4. Wire route + nav
-
-- `src/App.tsx`: add route `<Route path="setup-debug" element={<AdminSetupDebug />} />` under the existing `/admin` `AdminLayout` group.
-- `src/layouts/AdminLayout.tsx`: append nav item `{ title: "Setup Debug", url: "/admin/setup-debug", icon: Bug }` to `navItems`.
-
-## Out of scope
-
-- No changes to call sites of `markStepCompleted` (already wired in step pages).
-- No retention policy / log pruning (acceptable initially; can be added later as a cron-based delete of rows >30 days).
-- Logging is best-effort and asynchronous — it never blocks the original write or surfaces toasts to teachers.
+## Acceptance
+- Upload a syllabus → Next stays disabled with "Parsing…" copy → flips to enabled within seconds once the parsed JSON lands in the bucket.
+- Refresh `/teacher/setup/upload` after a successful prior parse → Next is enabled immediately.
+- Navigate to `/teacher/setup` while parse is still in flight → Concept Review card shows Locked with the existing "Upload your syllabus in Step 1 to unlock this." message; unlocks once the JSON is in the bucket.
+- Parse failure → Next remains disabled and Retry surfaces in the file row (existing behavior preserved).

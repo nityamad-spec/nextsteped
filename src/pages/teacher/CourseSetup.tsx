@@ -96,7 +96,8 @@ const CourseSetup = () => {
         enrollment: "Not Started",
       };
 
-      // Card 1 (Upload): Complete only if the parsed syllabus JSON exists for the course.
+      // Card 1 (Upload): Complete only if the parsed syllabus JSON is BOTH
+      // pointed to by the courses row AND actually present in storage.
       let syllabusJsonExists = false;
       if (courseId) {
         const { data: courseRow } = await supabase
@@ -104,7 +105,13 @@ const CourseSetup = () => {
           .select("syllabus_json_path")
           .eq("id", courseId)
           .maybeSingle();
-        syllabusJsonExists = !!(courseRow?.syllabus_json_path && courseRow.syllabus_json_path.trim().length > 0);
+        const pointer = courseRow?.syllabus_json_path?.trim();
+        if (pointer) {
+          const { data: listed } = await supabase.storage
+            .from("course-materials")
+            .list(`${courseId}/syllabus`, { search: "approved-syllabus.json", limit: 1 });
+          syllabusJsonExists = !!listed && listed.some((f) => f.name === "approved-syllabus.json");
+        }
       }
       if (syllabusJsonExists) {
         next.upload = "Complete";

@@ -30,6 +30,8 @@ const CourseMaterials = () => {
   const [resolvingCourse, setResolvingCourse] = useState(true);
   const [syllabusFiles, setSyllabusFiles] = useState<UploadedFile[]>([]);
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
+  const [syllabusParseStatus, setSyllabusParseStatus] = useState<Record<string, "parsing" | "parsed" | "failed">>({});
+  const [syllabusJsonInStorage, setSyllabusJsonInStorage] = useState(false);
 
   // Storage paths are course-scoped, so we must have a course row before any
   // upload is allowed. Resolve (or eagerly create) one on mount.
@@ -118,6 +120,21 @@ const CourseMaterials = () => {
     fetchFiles();
   }, [user, courseId]);
 
+  // Verify the parsed syllabus JSON exists in storage. Re-runs when parse
+  // statuses change so a fresh parse flips the gate without a reload.
+  useEffect(() => {
+    if (!courseId) { setSyllabusJsonInStorage(false); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.storage
+        .from("course-materials")
+        .list(`${courseId}/syllabus`, { search: "approved-syllabus.json", limit: 1 });
+      if (cancelled) return;
+      setSyllabusJsonInStorage(!!data && data.some((f) => f.name === "approved-syllabus.json"));
+    })();
+    return () => { cancelled = true; };
+  }, [courseId, syllabusParseStatus]);
+
   const handleNext = async () => {
     if (!user || !courseId) return;
 
@@ -150,7 +167,11 @@ const CourseMaterials = () => {
     await supabase.from("courses").update(courseFields).eq("id", courseId);
   };
 
-  const canContinue = syllabusFiles.length > 0;
+  const hasSyllabus = syllabusFiles.length > 0;
+  const syllabusStatuses = syllabusFiles.map((f) => syllabusParseStatus[f.path]);
+  const anyParsed = syllabusStatuses.some((s) => s === "parsed");
+  const allFailed = hasSyllabus && syllabusStatuses.every((s) => s === "failed");
+  const canContinue = hasSyllabus && (anyParsed || syllabusJsonInStorage);
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-8">
@@ -191,6 +212,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="syllabus"
+                onParseStatusChange={setSyllabusParseStatus}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
@@ -243,9 +265,19 @@ const CourseMaterials = () => {
           </CardContent>
         </Card>
 
-        {!canContinue && (
+        {!hasSyllabus && (
           <p className="text-xs text-destructive text-center">
             Please upload your syllabus to continue.
+          </p>
+        )}
+        {hasSyllabus && !canContinue && !allFailed && (
+          <p className="text-xs text-muted-foreground text-center">
+            Parsing your syllabus… this usually takes 10–30 seconds. The Next button will enable when it's ready.
+          </p>
+        )}
+        {allFailed && (
+          <p className="text-xs text-destructive text-center">
+            Syllabus parsing failed. Use Retry on the file above before continuing.
           </p>
         )}
 
