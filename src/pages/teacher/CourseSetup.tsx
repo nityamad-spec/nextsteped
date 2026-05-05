@@ -185,6 +185,17 @@ const CourseSetup = () => {
         next["lesson-plan"] = "Not Started";
       }
 
+      // Backfill `completed_at` in teacher_setup_progress for any auto-derived
+      // step now Complete but not yet persisted. Fire-and-forget.
+      if (courseId) {
+        const AUTO_COMPLETE_STEPS = ["upload", "concept-review", "lesson-plan", "diagnostic", "exam-mode"];
+        for (const stepId of AUTO_COMPLETE_STEPS) {
+          if (next[stepId] === "Complete" && !completed[stepId]) {
+            void markStepCompleted(user.id, stepId, courseId);
+          }
+        }
+      }
+
       setStatuses(next);
       setLoading(false);
     };
