@@ -266,9 +266,19 @@ const CourseMaterials = () => {
           </CardContent>
         </Card>
 
-        {!canContinue && (
+        {!hasSyllabus && (
           <p className="text-xs text-destructive text-center">
             Please upload your syllabus to continue.
+          </p>
+        )}
+        {hasSyllabus && !canContinue && !allFailed && (
+          <p className="text-xs text-muted-foreground text-center">
+            Parsing your syllabus… this usually takes 10–30 seconds. The Next button will enable when it's ready.
+          </p>
+        )}
+        {allFailed && (
+          <p className="text-xs text-destructive text-center">
+            Syllabus parsing failed. Use Retry on the file above before continuing.
           </p>
         )}
 
