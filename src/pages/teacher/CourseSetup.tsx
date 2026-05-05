@@ -19,7 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { supabase } from "@/integrations/supabase/client";
 // lesson plan completion is derived from the courses row, not storage
-import { fetchStepProgress, markStepOpened } from "@/lib/setupProgress";
+import { fetchStepProgress, markStepOpened, markStepCompleted } from "@/lib/setupProgress";
 
 type Status = "Not Started" | "In Progress" | "Complete";
 
