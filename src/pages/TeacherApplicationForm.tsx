@@ -29,6 +29,7 @@ const TeacherApplicationForm = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [institution, setInstitution] = useState("");
+  const [universityId, setUniversityId] = useState<string | null>(null);
   const [department, setDepartment] = useState("");
   const [designation, setDesignation] = useState("");
 
