@@ -36,6 +36,8 @@ const AdminSetupDebug = () => {
   const [filter, setFilter] = useState("");
   const [onlyFailures, setOnlyFailures] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const toggle = (id: string) => setExpanded((e) => ({ ...e, [id]: !e[id] }));
 
   const load = async () => {
     setLoading(true);
