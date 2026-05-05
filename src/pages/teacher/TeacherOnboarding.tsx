@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UniversityCombobox } from "@/components/UniversityCombobox";
 import { ArrowRight, User, BookOpen, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,6 +27,7 @@ const TeacherOnboarding = () => {
   // Profile
   const [name, setName] = useState("");
   const [institution, setInstitution] = useState("");
+  const [universityId, setUniversityId] = useState<string | null>(null);
   const [department, setDepartment] = useState("");
   const [designation, setDesignation] = useState("");
 
@@ -82,7 +84,7 @@ const TeacherOnboarding = () => {
         const [profileRes, storedRes] = await Promise.all([
           supabase
             .from("profiles")
-            .select("name, department, institution, designation, role")
+            .select("name, department, institution, university_id, designation, role")
             .eq("id", user.id)
             .maybeSingle(),
           storedCourseQuery,
@@ -112,6 +114,17 @@ const TeacherOnboarding = () => {
           if (profileRes.data.department) setDepartment(profileRes.data.department);
           if ((profileRes.data as any).institution) setInstitution((profileRes.data as any).institution);
           if ((profileRes.data as any).designation) setDesignation((profileRes.data as any).designation);
+          const uniId = (profileRes.data as any).university_id as string | null;
+          if (uniId) {
+            setUniversityId(uniId);
+            // Resolve the name so the combobox shows it without opening.
+            const { data: uni } = await supabase
+              .from("universities")
+              .select("name")
+              .eq("id", uniId)
+              .maybeSingle();
+            if (!cancelled && uni?.name) setInstitution(uni.name);
+          }
         }
 
         if (courseData) {
@@ -143,6 +156,7 @@ const TeacherOnboarding = () => {
   const isValid =
     name.trim() &&
     institution.trim() &&
+    universityId &&
     department &&
     designation.trim() &&
     courseName.trim() &&
@@ -167,6 +181,7 @@ const TeacherOnboarding = () => {
         name,
         department,
         institution,
+        university_id: universityId,
         designation,
         email: user.email || "",
       };
@@ -309,7 +324,19 @@ const TeacherOnboarding = () => {
 
               <div className="space-y-2">
                 <Label>Institution Name</Label>
-                <Input placeholder="e.g. Indian Institute of Technology, Delhi" value={institution} onChange={(e) => setInstitution(e.target.value)} />
+                <UniversityCombobox
+                  valueId={universityId}
+                  valueName={institution}
+                  onChange={({ id, name }) => {
+                    setUniversityId(id);
+                    setInstitution(name);
+                  }}
+                />
+                {institution && !universityId && (
+                  <p className="text-xs text-muted-foreground">
+                    Please re-select your institution from the list.
+                  </p>
+                )}
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
