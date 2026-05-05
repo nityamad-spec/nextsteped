@@ -65,12 +65,15 @@ const AdminSetupDebug = () => {
 
   const filteredLogs = logs.filter((r) => {
     if (onlyFailures && r.success) return false;
+    const ctx = r.context || {};
     return (
       matchesFilter(r.teacher_id) ||
       matchesFilter(r.course_id ?? "") ||
       matchesFilter(r.step_id) ||
       matchesFilter(r.error_message ?? "") ||
-      matchesFilter(r.error_code ?? "")
+      matchesFilter(r.error_code ?? "") ||
+      matchesFilter(String(ctx.request_id ?? "")) ||
+      matchesFilter(JSON.stringify(ctx.caller ?? {}))
     );
   });
 
