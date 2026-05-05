@@ -170,7 +170,6 @@ const CourseMaterials = () => {
   const hasSyllabus = syllabusFiles.length > 0;
   const syllabusStatuses = syllabusFiles.map((f) => syllabusParseStatus[f.path]);
   const anyParsed = syllabusStatuses.some((s) => s === "parsed");
-  const anyParsing = syllabusStatuses.some((s) => s === "parsing" || s === undefined);
   const allFailed = hasSyllabus && syllabusStatuses.every((s) => s === "failed");
   const canContinue = hasSyllabus && (anyParsed || syllabusJsonInStorage);
 
