@@ -99,6 +99,9 @@ const DiagnosticQuestionsSetup = () => {
         .eq("course_id", courseId)
         .order("difficulty_estimate");
       if (refreshed) setQuestions(refreshed);
+      if (refreshed && refreshed.length > 0 && user?.id) {
+        void markStepCompleted(user.id, "diagnostic", courseId);
+      }
 
       toast({
         title: "Question bank generated",
