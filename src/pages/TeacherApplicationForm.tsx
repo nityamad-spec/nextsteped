@@ -53,6 +53,7 @@ const TeacherApplicationForm = () => {
     name.trim() &&
     email.trim() &&
     institution.trim() &&
+    universityId &&
     department &&
     designation.trim();
 
