@@ -152,47 +152,97 @@ const AdminSetupDebug = () => {
               <table className="w-full text-xs">
                 <thead className="text-left text-muted-foreground border-b">
                   <tr>
+                    <th className="py-2 pr-3 w-6"></th>
                     <th className="py-2 pr-3">Time</th>
                     <th className="py-2 pr-3">Action</th>
                     <th className="py-2 pr-3">Step</th>
                     <th className="py-2 pr-3">Teacher</th>
                     <th className="py-2 pr-3">Course</th>
+                    <th className="py-2 pr-3">Request</th>
+                    <th className="py-2 pr-3">ms</th>
                     <th className="py-2 pr-3">Result</th>
                     <th className="py-2 pr-3">Error</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredLogs.map((r) => (
-                    <tr key={r.id} className="border-b last:border-0 align-top">
-                      <td className="py-2 pr-3 whitespace-nowrap font-mono">
-                        {new Date(r.created_at).toLocaleString()}
-                      </td>
-                      <td className="py-2 pr-3 font-mono">{r.action}</td>
-                      <td className="py-2 pr-3 font-mono">{r.step_id}</td>
-                      <td className="py-2 pr-3 font-mono text-muted-foreground">{r.teacher_id.slice(0, 8)}…</td>
-                      <td className="py-2 pr-3 font-mono text-muted-foreground">
-                        {r.course_id ? `${r.course_id.slice(0, 8)}…` : "—"}
-                      </td>
-                      <td className="py-2 pr-3">
-                        {r.success ? (
-                          <Badge variant="outline" className="gap-1 border-primary/40 text-primary bg-primary/5">
-                            <Check className="h-3 w-3" /> OK
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="gap-1 border-destructive/40 text-destructive bg-destructive/5">
-                            <AlertCircle className="h-3 w-3" /> FAIL
-                          </Badge>
+                  {filteredLogs.map((r) => {
+                    const ctx: any = r.context || {};
+                    const reqId: string = ctx.request_id ?? "";
+                    const isOpen = !!expanded[r.id];
+                    return (
+                      <>
+                        <tr key={r.id} className="border-b last:border-0 align-top">
+                          <td className="py-2 pr-1">
+                            <button
+                              onClick={() => toggle(r.id)}
+                              className="text-muted-foreground hover:text-foreground"
+                              aria-label="Toggle context"
+                            >
+                              {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                            </button>
+                          </td>
+                          <td className="py-2 pr-3 whitespace-nowrap font-mono">
+                            {new Date(r.created_at).toLocaleString()}
+                          </td>
+                          <td className="py-2 pr-3 font-mono">{r.action}</td>
+                          <td className="py-2 pr-3 font-mono">{r.step_id}</td>
+                          <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.teacher_id}>{r.teacher_id.slice(0, 8)}…</td>
+                          <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.course_id ?? ""}>
+                            {r.course_id ? `${r.course_id.slice(0, 8)}…` : "—"}
+                          </td>
+                          <td className="py-2 pr-3 font-mono text-muted-foreground" title={reqId}>
+                            {reqId ? `${String(reqId).slice(0, 8)}…` : "—"}
+                          </td>
+                          <td className="py-2 pr-3 font-mono text-muted-foreground">
+                            {typeof ctx.duration_ms === "number" ? ctx.duration_ms : "—"}
+                          </td>
+                          <td className="py-2 pr-3">
+                            {r.success ? (
+                              <Badge variant="outline" className="gap-1 border-primary/40 text-primary bg-primary/5">
+                                <Check className="h-3 w-3" /> OK
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="gap-1 border-destructive/40 text-destructive bg-destructive/5">
+                                <AlertCircle className="h-3 w-3" /> FAIL
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="py-2 pr-3 max-w-md">
+                            {r.error_code && <div className="font-mono text-destructive">{r.error_code}</div>}
+                            {r.error_message && <div>{r.error_message}</div>}
+                            {r.error_details && <div className="text-muted-foreground">{r.error_details}</div>}
+                          </td>
+                        </tr>
+                        {isOpen && (
+                          <tr key={`${r.id}-ctx`} className="border-b bg-muted/30">
+                            <td></td>
+                            <td colSpan={9} className="py-2 pr-3">
+                              <div className="grid gap-2 md:grid-cols-2">
+                                <div>
+                                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Payload</div>
+                                  <pre className="text-[11px] bg-background border rounded p-2 overflow-x-auto">{JSON.stringify(ctx.payload ?? {}, null, 2)}</pre>
+                                </div>
+                                <div>
+                                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Caller context</div>
+                                  <pre className="text-[11px] bg-background border rounded p-2 overflow-x-auto">{JSON.stringify(ctx.caller ?? {}, null, 2)}</pre>
+                                </div>
+                                <div>
+                                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Verified row</div>
+                                  <pre className="text-[11px] bg-background border rounded p-2 overflow-x-auto">{JSON.stringify(ctx.verified_row ?? null, null, 2)}</pre>
+                                </div>
+                                <div>
+                                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Client</div>
+                                  <pre className="text-[11px] bg-background border rounded p-2 overflow-x-auto">{JSON.stringify(ctx.client ?? {}, null, 2)}</pre>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="py-2 pr-3 max-w-md">
-                        {r.error_code && <div className="font-mono text-destructive">{r.error_code}</div>}
-                        {r.error_message && <div>{r.error_message}</div>}
-                        {r.error_details && <div className="text-muted-foreground">{r.error_details}</div>}
-                      </td>
-                    </tr>
-                  ))}
+                      </>
+                    );
+                  })}
                   {filteredLogs.length === 0 && (
-                    <tr><td colSpan={7} className="py-6 text-center text-muted-foreground">No log entries.</td></tr>
+                    <tr><td colSpan={10} className="py-6 text-center text-muted-foreground">No log entries.</td></tr>
                   )}
                 </tbody>
               </table>
