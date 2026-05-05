@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { availableDepartments } from "@/data/mockData";
 import { supabase } from "@/integrations/supabase/client";
+import { UniversityCombobox } from "@/components/UniversityCombobox";
 import { toast } from "sonner";
 
 /**
