@@ -114,6 +114,17 @@ const TeacherOnboarding = () => {
           if (profileRes.data.department) setDepartment(profileRes.data.department);
           if ((profileRes.data as any).institution) setInstitution((profileRes.data as any).institution);
           if ((profileRes.data as any).designation) setDesignation((profileRes.data as any).designation);
+          const uniId = (profileRes.data as any).university_id as string | null;
+          if (uniId) {
+            setUniversityId(uniId);
+            // Resolve the name so the combobox shows it without opening.
+            const { data: uni } = await supabase
+              .from("universities")
+              .select("name")
+              .eq("id", uniId)
+              .maybeSingle();
+            if (!cancelled && uni?.name) setInstitution(uni.name);
+          }
         }
 
         if (courseData) {
