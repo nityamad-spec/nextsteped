@@ -174,12 +174,13 @@ const TeacherApplicationForm = () => {
 
                   <div className="space-y-2">
                     <Label htmlFor="institution">Institution Name</Label>
-                    <Input
-                      id="institution"
-                      placeholder="e.g. Indian Institute of Technology, Delhi"
-                      value={institution}
-                      onChange={(e) => setInstitution(e.target.value)}
-                      required
+                    <UniversityCombobox
+                      valueId={universityId}
+                      valueName={institution}
+                      onChange={({ id, name }) => {
+                        setUniversityId(id);
+                        setInstitution(name);
+                      }}
                     />
                   </div>
 
