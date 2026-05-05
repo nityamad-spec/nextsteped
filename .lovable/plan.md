@@ -1,46 +1,39 @@
-# Fix: `completed_at` never set for auto-detected complete steps
+# Fix: `teacher_setup_progress.completed_at` not persisted reliably
 
-## Problem
+## Root cause (not RLS)
 
-`teacher_setup_progress.completed_at` stays `NULL` for steps that the Course Setup UI shows as **Complete**. The UI derives completion from other tables (e.g. `courses.syllabus_json_path`, `concepts`, `courses.lesson_plan_published_at`, `diagnostic_questions`, `course_ta_settings`), but nothing writes that derived "done" state back to `teacher_setup_progress`. Confirmed via DB: rows for the active course have `completed_at = NULL` even though their steps render as Complete.
-
-Only `enrollment` and `ai-settings` rely on the explicit `markStepCompleted` flag today; every other step is computed on the fly and never persisted.
+DB inspection confirms RLS works — completed rows exist for a previously-completed course. The real issue is that today only `ai-settings` and `enrollment` call `markStepCompleted` from their own pages. The other five auto-derived steps rely on the backfill loop inside `CourseSetup.tsx`, which fires **only when the teacher revisits `/teacher/setup`**. A teacher who proceeds linearly through Next buttons / sidebar nav never triggers it, so `completed_at` stays `NULL` even when the underlying tables (`courses.syllabus_json_path`, `concepts`, `lesson_plan_published_at`, `diagnostic_questions`, `course_ta_settings`) say the step is done.
 
 ## Fix
 
-Persist completion the moment `CourseSetup.tsx` decides a step is Complete. This both backfills existing rows and keeps the column accurate going forward — no migration needed.
+Mark each step complete at the exact moment its source-of-truth is written. The existing backfill in `CourseSetup.tsx` stays as a safety net.
 
-### Change in `src/pages/teacher/CourseSetup.tsx`
-
-Inside the `fetchStatuses` effect, after the `next` map is fully built (and after the prerequisite-chain enforcement block), iterate over the auto-derived steps and persist completion for any that are now Complete but were not previously marked completed in `teacher_setup_progress`:
-
+### 1. `upload` — `src/components/FileUploadZone.tsx`
+In `parseSyllabusInBackground`, immediately after the successful `courses.update({ syllabus_json_path })` (line 150-153), call:
 ```ts
-const AUTO_COMPLETE_STEPS = [
-  "upload",
-  "concept-review",
-  "lesson-plan",
-  "diagnostic",
-  "exam-mode",
-  // ai-settings & enrollment are already handled via explicit markStepCompleted
-];
-
-if (user && courseId) {
-  for (const stepId of AUTO_COMPLETE_STEPS) {
-    if (next[stepId] === "Complete" && !completed[stepId]) {
-      void markStepCompleted(user.id, stepId, courseId);
-    }
-  }
-}
+if (user?.id) void markStepCompleted(user.id, "upload", courseId);
 ```
+(Add `markStepCompleted` import and use existing `useAuth()` to get `user`.)
 
-`markStepCompleted` already upserts on `(teacher_id, course_id, step_id)` and stamps `completed_at = now()`, so existing rows get backfilled on the next visit to `/teacher/setup` and new ones are created if missing. Fire-and-forget is fine — UI state is already correct from the derived check.
+### 2. `concept-review` — `src/pages/teacher/ConceptReview.tsx`
+In the handler that confirms/saves concepts (the path that inserts the first concept row), call `markStepCompleted(user.id, "concept-review", courseId)` after the successful insert. Also add it to `ConceptManagement.tsx`'s save path so manual edits keep it accurate.
 
-### Why not a SQL backfill migration
+### 3. `lesson-plan` — `src/pages/teacher/TeachingPlan.tsx`
+In the publish handler (the one that writes `lesson_plan_published_at` / `lesson_plan_path`), call `markStepCompleted(user.id, "lesson-plan", courseId)` after the successful publish.
 
-The truth lives in many tables and depends on per-course logic (e.g. `lesson_plan_published_at` OR `lesson_plan_path` non-empty, syllabus path non-empty, ≥1 row in `concepts`/`diagnostic_questions`, TA settings flags). Replicating all of that in SQL is brittle; running the same derivation through the existing TS code on first load is simpler and self-healing. Each professor's rows get fixed automatically the next time they open Course Setup.
+### 4. `diagnostic` — `src/pages/teacher/DiagnosticQuestionsSetup.tsx`
+After the save handler that inserts `diagnostic_questions` rows succeeds, call `markStepCompleted(user.id, "diagnostic", courseId)`.
+
+### 5. `exam-mode` — `src/pages/teacher/ExamMode.tsx`
+After the save handler that toggles `course_ta_settings.exam_enabled` or `exam_approved` succeeds, call `markStepCompleted(user.id, "exam-mode", courseId)`.
+
+All calls are fire-and-forget (`void`), match the existing pattern in `AIAssistantAndSettings.tsx` / `EnrollmentSettings.tsx`, and remain idempotent thanks to the `(teacher_id, course_id, step_id)` unique upsert in `markStepCompleted`.
+
+## Why not change the backfill instead
+
+Backfill would still require the teacher to revisit `/teacher/setup`. Writing at the source-of-truth moment guarantees the column is accurate the instant the work is done, regardless of navigation order. The existing backfill loop stays as a safety net for legacy rows and edge cases.
 
 ## Out of scope
-
-- No schema changes.
-- No edits to individual step pages — they already update the underlying source-of-truth tables; `CourseSetup` will reconcile `completed_at` on next visit.
-- `ai-settings` and `enrollment` keep their existing explicit completion paths.
+- No schema changes, no RLS changes (verified working).
+- No changes to `ai-settings` / `enrollment` (already correct).
+- No SQL backfill migration (existing CourseSetup loop handles legacy rows on next visit).
