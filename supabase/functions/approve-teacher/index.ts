@@ -117,6 +117,7 @@ Deno.serve(async (req) => {
           role: "teacher",
           email: application.email,
           institution: application.institution ?? null,
+          university_id: application.university_id ?? null,
           department: application.department ?? null,
           designation: application.designation ?? null,
           needs_password_setup: true,
