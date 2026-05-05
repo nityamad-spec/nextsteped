@@ -1,56 +1,38 @@
-# Delete Course Action on /admin/courses
+## Goal
+Replace the free-text "Institution Name" input on `/intro/teacher/profile` with a searchable, DB-backed combobox that reads from the `universities` table and stores the selected university's id on `profiles.university_id`.
 
-Add a destructive "Delete course" action to the actions dropdown on `/admin/courses`. Removes the course and every dependent row across the schema.
+## Current state
+- `profiles.university_id uuid` already exists (currently unused for teachers).
+- `profiles.institution text` is what TeacherOnboarding writes today.
+- `universities` table exists with `id`, `name`; RLS allows authenticated SELECT and INSERT.
+- No FK constraint exists from `profiles.university_id` → `universities.id` yet.
 
-## What gets built
+## Changes
 
-### 1. New edge function: `supabase/functions/delete-course/index.ts`
+### 1. Database (migration)
+- Add FK: `profiles.university_id` → `universities(id) ON DELETE SET NULL`.
+- (No data backfill — existing teachers keep their free-text `institution` value; `university_id` stays null until they re-save.)
 
-**Auth**: same pattern as `delete-user` / `wipe-courses` — JWT via `getClaims`, caller must have `profiles.role = 'admin'`.
+### 2. New component: `src/components/UniversityCombobox.tsx`
+A Popover + cmdk (`Command`) searchable select (same pattern shadcn uses — both `popover.tsx` and `command.tsx` are already in the project).
+- Props: `value: { id: string|null; name: string }`, `onChange(value)`.
+- On open: fetch all universities (`select id, name order by name`); cache in component state.
+- Filter client-side as the user types.
+- If no match, show a "Create '<query>'" item that inserts into `universities` and selects the new row.
+- Display the selected university name in the trigger button.
 
-**Body**: `{ course_id: string }`.
+### 3. `src/pages/teacher/TeacherOnboarding.tsx`
+- Replace the `<Input>` for Institution Name with `<UniversityCombobox>`.
+- Track `universityId` + `universityName` in state.
+- Hydration: when loading the existing profile, also select `university_id`; if set, look up its name; else fall back to existing `institution` text (display-only, user must pick to save a new id).
+- `isValid` requires `universityId` to be set.
+- On save, write both `university_id: universityId` and `institution: universityName` to `profiles` (keep `institution` populated for backward compatibility with code that already reads it).
 
-**Deletion order** (mirrors per-course slice of `wipe-courses`, no FK cascades except `pending_signups → courses`):
+### 4. No other files need changes
+- `src/integrations/supabase/types.ts` regenerates automatically.
+- Admin pages that display teachers continue to show `institution` text — no change needed.
 
-1. `assessment_results` where `course_id`
-2. `assessment_questions` where `course_id`
-3. `diagnostic_results` where `course_id`
-4. `diagnostic_questions` where `course_id`
-5. `concepts` where `course_id`
-6. `course_ta_settings` where `course_id`
-7. `lesson_plan_weeks` where `course_id`
-8. `course_material_files` where `course_id` — also remove associated `course-materials` storage objects
-9. `course_teachers` where `course_id`
-10. `enrollments` where `course_id`
-11. `chat_sessions` where `course_id` (and their `chat_messages`)
-12. `student_feedback` where `course_id`
-13. `teacher_setup_progress` where `course_id`
-14. Null `teacher_applications.assigned_course_id` / `assignment_type` where it points here
-15. `pending_signups` where `course_id` (the FK from the earlier wipe-courses bug)
-16. `cache_versions` where `scope='course' AND scope_id=course_id`
-17. Null `profiles.active_course_id` where it points here
-18. `courses` row
-
-Returns `{ ok: true, deleted: { table: count, … } }`.
-
-### 2. UI: `src/pages/admin/AdminCourses.tsx`
-
-- Add **Delete course** (red, `Trash2` icon) below "Transfer ownership" in the existing actions `DropdownMenu`.
-- Opens a confirmation `AlertDialog` showing:
-  - Course name + code, current owner, and the impact summary already loaded (enrollments, collaborators, assessment questions, lesson plan weeks).
-  - Warning that this is irreversible and removes all materials, results, chat history, and feedback.
-  - Required confirmation: type the course name to enable the Delete button.
-- On confirm, calls `supabase.functions.invoke('delete-course', { body: { course_id } })`, toasts the result, and removes the row from local state.
-
-## Risks & dependencies
-
-- **Irreversible.** Hard delete of all course-scoped student work (results, chat, feedback) and uploaded materials. Typed-name confirmation is the guard.
-- **Active users**: anyone currently viewing the course will see errors until they refresh; clearing `profiles.active_course_id` and bumping no longer needed since the row is gone. Their `useEnrolledCourseId` / `useTeacherCourseId` hooks will fall back to another course or "no course" state.
-- **Storage**: only objects referenced in `course_material_files.storage_path` are removed. If there are stray uploads not tracked in that table they will remain (consistent with current `wipe-courses` behavior).
-- **Pending signups**: deleted (matches the FK constraint that previously broke `wipe-courses`).
-- **Teacher applications** that targeted this course are kept but have their assignment cleared.
-
-## Files
-
-- New: `supabase/functions/delete-course/index.ts`
-- Edit: `src/pages/admin/AdminCourses.tsx`
+## Technical notes
+- Use the existing `supabase` client; both reads and the create-new insert work under current RLS (`Anyone can view universities`, `Authenticated users can insert universities`).
+- Case-insensitive duplicate guard before insert (`ilike` exact match) to avoid near-duplicates like "MIT" vs "mit".
+- Trim whitespace on create.
