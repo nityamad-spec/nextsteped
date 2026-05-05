@@ -181,6 +181,7 @@ const TeacherOnboarding = () => {
         name,
         department,
         institution,
+        university_id: universityId,
         designation,
         email: user.email || "",
       };
