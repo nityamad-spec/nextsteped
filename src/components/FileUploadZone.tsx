@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Upload, Check, X, FileText, Loader2, Trash2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -37,6 +37,8 @@ interface FileUploadZoneProps {
    *  course_material_files.teacher_id (audit trail of who uploaded). */
   teacherId?: string;
   folderType?: string;
+  /** Notify parent of per-file parse status changes (syllabus only). */
+  onParseStatusChange?: (statuses: Record<string, ParseStatus>) => void;
 }
 
 function formatSize(bytes: number) {
@@ -65,7 +67,7 @@ async function fileToBase64(file: File): Promise<string> {
   return btoa(binary);
 }
 
-const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, teacherId, folderType }: FileUploadZoneProps) => {
+const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, teacherId, folderType, onParseStatusChange }: FileUploadZoneProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [pending, setPending] = useState<File[]>([]);
@@ -73,6 +75,35 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const [deleteTarget, setDeleteTarget] = useState<UploadedFile | null>(null);
   // Per-file parse status keyed by storage_path. Only used for syllabus uploads.
   const [parseStatus, setParseStatus] = useState<Record<string, ParseStatus>>({});
+
+  // Bubble parse status to parent so it can gate Next button.
+  useEffect(() => {
+    onParseStatusChange?.(parseStatus);
+  }, [parseStatus, onParseStatusChange]);
+
+  // On mount (and when files/courseId change), seed parseStatus to "parsed"
+  // for existing syllabus files when the parsed JSON pointer is present, so a
+  // page reload doesn't make Next look perpetually disabled.
+  useEffect(() => {
+    if (folderType !== "syllabus" || !courseId || files.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("courses")
+        .select("syllabus_json_path")
+        .eq("id", courseId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (data?.syllabus_json_path && data.syllabus_json_path.trim().length > 0) {
+        setParseStatus((prev) => {
+          const next = { ...prev };
+          for (const f of files) if (!next[f.path]) next[f.path] = "parsed";
+          return next;
+        });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [folderType, courseId, files]);
 
   const handleSelect = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
