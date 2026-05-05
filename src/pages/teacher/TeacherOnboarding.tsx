@@ -324,7 +324,19 @@ const TeacherOnboarding = () => {
 
               <div className="space-y-2">
                 <Label>Institution Name</Label>
-                <Input placeholder="e.g. Indian Institute of Technology, Delhi" value={institution} onChange={(e) => setInstitution(e.target.value)} />
+                <UniversityCombobox
+                  valueId={universityId}
+                  valueName={institution}
+                  onChange={({ id, name }) => {
+                    setUniversityId(id);
+                    setInstitution(name);
+                  }}
+                />
+                {institution && !universityId && (
+                  <p className="text-xs text-muted-foreground">
+                    Please re-select your institution from the list.
+                  </p>
+                )}
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
