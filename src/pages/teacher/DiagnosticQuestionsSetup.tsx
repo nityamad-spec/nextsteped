@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
+import { markStepCompleted } from "@/lib/setupProgress";
 
 interface DiagnosticQuestion {
   id: string;
