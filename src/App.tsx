@@ -317,6 +317,7 @@ const App = () => (
                 <Route path="students" element={<AdminStudents />} />
                 <Route path="teachers" element={<AdminTeachers />} />
                 <Route path="setup-debug" element={<AdminSetupDebug />} />
+                <Route path="setup-trace" element={<AdminSetupTrace />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
