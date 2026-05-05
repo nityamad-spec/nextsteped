@@ -21,6 +21,7 @@ const navItems = [
   { title: "Students", url: "/admin/students", icon: GraduationCap },
   { title: "Teachers", url: "/admin/teachers", icon: Users },
   { title: "Setup Debug", url: "/admin/setup-debug", icon: Bug },
+  { title: "Setup Trace", url: "/admin/setup-trace", icon: GitBranch },
 ];
 
 function AdminSidebar() {
