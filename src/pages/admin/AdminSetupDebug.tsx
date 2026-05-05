@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { RefreshCw, Check, AlertCircle } from "lucide-react";
+import { RefreshCw, Check, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
 
 interface LogRow {
   id: string;
@@ -36,6 +36,8 @@ const AdminSetupDebug = () => {
   const [filter, setFilter] = useState("");
   const [onlyFailures, setOnlyFailures] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const toggle = (id: string) => setExpanded((e) => ({ ...e, [id]: !e[id] }));
 
   const load = async () => {
     setLoading(true);
@@ -63,12 +65,15 @@ const AdminSetupDebug = () => {
 
   const filteredLogs = logs.filter((r) => {
     if (onlyFailures && r.success) return false;
+    const ctx = r.context || {};
     return (
       matchesFilter(r.teacher_id) ||
       matchesFilter(r.course_id ?? "") ||
       matchesFilter(r.step_id) ||
       matchesFilter(r.error_message ?? "") ||
-      matchesFilter(r.error_code ?? "")
+      matchesFilter(r.error_code ?? "") ||
+      matchesFilter(String(ctx.request_id ?? "")) ||
+      matchesFilter(JSON.stringify(ctx.caller ?? {}))
     );
   });
 
@@ -96,29 +101,23 @@ const AdminSetupDebug = () => {
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground">Successful writes (last 200)</div>
-            <div className="text-2xl font-bold text-primary">{successCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground">Failed writes</div>
-            <div className={`text-2xl font-bold ${failureCount > 0 ? "text-destructive" : ""}`}>{failureCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground">Persisted progress rows</div>
-            <div className="text-2xl font-bold">{progress.length}</div>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="p-4">
+          <div className="text-xs text-muted-foreground">Successful writes (last 200)</div>
+          <div className="text-2xl font-bold text-primary">{successCount}</div>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <div className="text-xs text-muted-foreground">Failed writes</div>
+          <div className={`text-2xl font-bold ${failureCount > 0 ? "text-destructive" : ""}`}>{failureCount}</div>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <div className="text-xs text-muted-foreground">Persisted progress rows</div>
+          <div className="text-2xl font-bold">{progress.length}</div>
+        </CardContent></Card>
       </div>
 
       <div className="flex gap-2 items-center">
         <Input
-          placeholder="Filter by teacher_id / course_id / step / error…"
+          placeholder="Filter by teacher_id / course_id / step / error / request_id / caller…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           className="max-w-md"
@@ -147,47 +146,97 @@ const AdminSetupDebug = () => {
               <table className="w-full text-xs">
                 <thead className="text-left text-muted-foreground border-b">
                   <tr>
+                    <th className="py-2 pr-3 w-6"></th>
                     <th className="py-2 pr-3">Time</th>
                     <th className="py-2 pr-3">Action</th>
                     <th className="py-2 pr-3">Step</th>
                     <th className="py-2 pr-3">Teacher</th>
                     <th className="py-2 pr-3">Course</th>
+                    <th className="py-2 pr-3">Request</th>
+                    <th className="py-2 pr-3">ms</th>
                     <th className="py-2 pr-3">Result</th>
                     <th className="py-2 pr-3">Error</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredLogs.map((r) => (
-                    <tr key={r.id} className="border-b last:border-0 align-top">
-                      <td className="py-2 pr-3 whitespace-nowrap font-mono">
-                        {new Date(r.created_at).toLocaleString()}
-                      </td>
-                      <td className="py-2 pr-3 font-mono">{r.action}</td>
-                      <td className="py-2 pr-3 font-mono">{r.step_id}</td>
-                      <td className="py-2 pr-3 font-mono text-muted-foreground">{r.teacher_id.slice(0, 8)}…</td>
-                      <td className="py-2 pr-3 font-mono text-muted-foreground">
-                        {r.course_id ? `${r.course_id.slice(0, 8)}…` : "—"}
-                      </td>
-                      <td className="py-2 pr-3">
-                        {r.success ? (
-                          <Badge variant="outline" className="gap-1 border-primary/40 text-primary bg-primary/5">
-                            <Check className="h-3 w-3" /> OK
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="gap-1 border-destructive/40 text-destructive bg-destructive/5">
-                            <AlertCircle className="h-3 w-3" /> FAIL
-                          </Badge>
+                  {filteredLogs.map((r) => {
+                    const ctx: any = r.context || {};
+                    const reqId: string = ctx.request_id ?? "";
+                    const isOpen = !!expanded[r.id];
+                    return (
+                      <Fragment key={r.id}>
+                        <tr className="border-b last:border-0 align-top">
+                          <td className="py-2 pr-1">
+                            <button
+                              onClick={() => toggle(r.id)}
+                              className="text-muted-foreground hover:text-foreground"
+                              aria-label="Toggle context"
+                            >
+                              {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                            </button>
+                          </td>
+                          <td className="py-2 pr-3 whitespace-nowrap font-mono">
+                            {new Date(r.created_at).toLocaleString()}
+                          </td>
+                          <td className="py-2 pr-3 font-mono">{r.action}</td>
+                          <td className="py-2 pr-3 font-mono">{r.step_id}</td>
+                          <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.teacher_id}>{r.teacher_id.slice(0, 8)}…</td>
+                          <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.course_id ?? ""}>
+                            {r.course_id ? `${r.course_id.slice(0, 8)}…` : "—"}
+                          </td>
+                          <td className="py-2 pr-3 font-mono text-muted-foreground" title={reqId}>
+                            {reqId ? `${String(reqId).slice(0, 8)}…` : "—"}
+                          </td>
+                          <td className="py-2 pr-3 font-mono text-muted-foreground">
+                            {typeof ctx.duration_ms === "number" ? ctx.duration_ms : "—"}
+                          </td>
+                          <td className="py-2 pr-3">
+                            {r.success ? (
+                              <Badge variant="outline" className="gap-1 border-primary/40 text-primary bg-primary/5">
+                                <Check className="h-3 w-3" /> OK
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="gap-1 border-destructive/40 text-destructive bg-destructive/5">
+                                <AlertCircle className="h-3 w-3" /> FAIL
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="py-2 pr-3 max-w-md">
+                            {r.error_code && <div className="font-mono text-destructive">{r.error_code}</div>}
+                            {r.error_message && <div>{r.error_message}</div>}
+                            {r.error_details && <div className="text-muted-foreground">{r.error_details}</div>}
+                          </td>
+                        </tr>
+                        {isOpen && (
+                          <tr className="border-b bg-muted/30">
+                            <td></td>
+                            <td colSpan={9} className="py-2 pr-3">
+                              <div className="grid gap-2 md:grid-cols-2">
+                                <div>
+                                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Payload</div>
+                                  <pre className="text-[11px] bg-background border rounded p-2 overflow-x-auto">{JSON.stringify(ctx.payload ?? {}, null, 2)}</pre>
+                                </div>
+                                <div>
+                                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Caller context</div>
+                                  <pre className="text-[11px] bg-background border rounded p-2 overflow-x-auto">{JSON.stringify(ctx.caller ?? {}, null, 2)}</pre>
+                                </div>
+                                <div>
+                                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Verified row</div>
+                                  <pre className="text-[11px] bg-background border rounded p-2 overflow-x-auto">{JSON.stringify(ctx.verified_row ?? null, null, 2)}</pre>
+                                </div>
+                                <div>
+                                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Client</div>
+                                  <pre className="text-[11px] bg-background border rounded p-2 overflow-x-auto">{JSON.stringify(ctx.client ?? {}, null, 2)}</pre>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="py-2 pr-3 max-w-md">
-                        {r.error_code && <div className="font-mono text-destructive">{r.error_code}</div>}
-                        {r.error_message && <div>{r.error_message}</div>}
-                        {r.error_details && <div className="text-muted-foreground">{r.error_details}</div>}
-                      </td>
-                    </tr>
-                  ))}
+                      </Fragment>
+                    );
+                  })}
                   {filteredLogs.length === 0 && (
-                    <tr><td colSpan={7} className="py-6 text-center text-muted-foreground">No log entries.</td></tr>
+                    <tr><td colSpan={10} className="py-6 text-center text-muted-foreground">No log entries.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -214,8 +263,8 @@ const AdminSetupDebug = () => {
                 <tbody>
                   {filteredProgress.map((r, i) => (
                     <tr key={i} className="border-b last:border-0">
-                      <td className="py-2 pr-3 font-mono text-muted-foreground">{r.teacher_id.slice(0, 8)}…</td>
-                      <td className="py-2 pr-3 font-mono text-muted-foreground">
+                      <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.teacher_id}>{r.teacher_id.slice(0, 8)}…</td>
+                      <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.course_id ?? ""}>
                         {r.course_id ? `${r.course_id.slice(0, 8)}…` : "—"}
                       </td>
                       <td className="py-2 pr-3 font-mono">{r.step_id}</td>

@@ -191,7 +191,7 @@ const CourseSetup = () => {
         const AUTO_COMPLETE_STEPS = ["upload", "concept-review", "lesson-plan", "diagnostic", "exam-mode"];
         for (const stepId of AUTO_COMPLETE_STEPS) {
           if (next[stepId] === "Complete" && !completed[stepId]) {
-            void markStepCompleted(user.id, stepId, courseId);
+            void markStepCompleted(user.id, stepId, courseId, { source: "CourseSetup.backfill" });
           }
         }
       }
@@ -221,7 +221,7 @@ const CourseSetup = () => {
     setStatuses((prev) =>
       prev[cardId] === "Complete" ? prev : { ...prev, [cardId]: "In Progress" }
     );
-    void markStepOpened(user.id, cardId, courseId);
+    void markStepOpened(user.id, cardId, courseId, { source: "CourseSetup.openCard" });
     navigate(path);
   };
 

@@ -421,7 +421,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
 
   const handlePublish = async () => {
     await savePlan();
-    if (user?.id && courseId) void markStepCompleted(user.id, "lesson-plan", courseId);
+    if (user?.id && courseId) void markStepCompleted(user.id, "lesson-plan", courseId, { source: "TeachingPlan.handlePublish" });
     setShowPublishModal(false);
     setPublishChecklist({ days: false, resources: false });
     toast({ title: "Plan published", description: "Students can now see the updated lesson plan." });

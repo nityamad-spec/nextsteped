@@ -75,7 +75,7 @@ const EnrollmentSettings = () => {
           if (error) throw error;
         }
       }
-      if (user?.id) await markStepCompleted(user.id, "enrollment", id || courseId);
+      if (user?.id) await markStepCompleted(user.id, "enrollment", id || courseId, { source: "EnrollmentSettings.save" });
       toast.success("Enrollment settings saved");
     } catch {
       toast.error("Failed to save settings. Please try again.");
