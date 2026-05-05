@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -101,29 +101,23 @@ const AdminSetupDebug = () => {
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground">Successful writes (last 200)</div>
-            <div className="text-2xl font-bold text-primary">{successCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground">Failed writes</div>
-            <div className={`text-2xl font-bold ${failureCount > 0 ? "text-destructive" : ""}`}>{failureCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground">Persisted progress rows</div>
-            <div className="text-2xl font-bold">{progress.length}</div>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="p-4">
+          <div className="text-xs text-muted-foreground">Successful writes (last 200)</div>
+          <div className="text-2xl font-bold text-primary">{successCount}</div>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <div className="text-xs text-muted-foreground">Failed writes</div>
+          <div className={`text-2xl font-bold ${failureCount > 0 ? "text-destructive" : ""}`}>{failureCount}</div>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <div className="text-xs text-muted-foreground">Persisted progress rows</div>
+          <div className="text-2xl font-bold">{progress.length}</div>
+        </CardContent></Card>
       </div>
 
       <div className="flex gap-2 items-center">
         <Input
-          placeholder="Filter by teacher_id / course_id / step / error…"
+          placeholder="Filter by teacher_id / course_id / step / error / request_id / caller…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           className="max-w-md"
@@ -170,12 +164,8 @@ const AdminSetupDebug = () => {
                     const reqId: string = ctx.request_id ?? "";
                     const isOpen = !!expanded[r.id];
                     return (
-                      <FragmentRow key={r.id} id={r.id} ctx={ctx} reqId={reqId} isOpen={isOpen} toggle={toggle} r={r} />
-                    );
-                  })}
-                  {/* placeholder removed below */}
-                  {false && (
-                    <tr>
+                      <Fragment key={r.id}>
+                        <tr className="border-b last:border-0 align-top">
                           <td className="py-2 pr-1">
                             <button
                               onClick={() => toggle(r.id)}
@@ -218,7 +208,7 @@ const AdminSetupDebug = () => {
                           </td>
                         </tr>
                         {isOpen && (
-                          <tr key={`${r.id}-ctx`} className="border-b bg-muted/30">
+                          <tr className="border-b bg-muted/30">
                             <td></td>
                             <td colSpan={9} className="py-2 pr-3">
                               <div className="grid gap-2 md:grid-cols-2">
@@ -242,7 +232,7 @@ const AdminSetupDebug = () => {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                   {filteredLogs.length === 0 && (
@@ -273,8 +263,8 @@ const AdminSetupDebug = () => {
                 <tbody>
                   {filteredProgress.map((r, i) => (
                     <tr key={i} className="border-b last:border-0">
-                      <td className="py-2 pr-3 font-mono text-muted-foreground">{r.teacher_id.slice(0, 8)}…</td>
-                      <td className="py-2 pr-3 font-mono text-muted-foreground">
+                      <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.teacher_id}>{r.teacher_id.slice(0, 8)}…</td>
+                      <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.course_id ?? ""}>
                         {r.course_id ? `${r.course_id.slice(0, 8)}…` : "—"}
                       </td>
                       <td className="py-2 pr-3 font-mono">{r.step_id}</td>
