@@ -84,7 +84,7 @@ const TeacherOnboarding = () => {
         const [profileRes, storedRes] = await Promise.all([
           supabase
             .from("profiles")
-            .select("name, department, institution, designation, role")
+            .select("name, department, institution, university_id, designation, role")
             .eq("id", user.id)
             .maybeSingle(),
           storedCourseQuery,
