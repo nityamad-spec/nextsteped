@@ -1016,6 +1016,48 @@ export type Database = {
           },
         ]
       }
+      setup_progress_log: {
+        Row: {
+          action: string
+          context: Json
+          course_id: string | null
+          created_at: string
+          error_code: string | null
+          error_details: string | null
+          error_message: string | null
+          id: string
+          step_id: string
+          success: boolean
+          teacher_id: string
+        }
+        Insert: {
+          action: string
+          context?: Json
+          course_id?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_details?: string | null
+          error_message?: string | null
+          id?: string
+          step_id: string
+          success: boolean
+          teacher_id: string
+        }
+        Update: {
+          action?: string
+          context?: Json
+          course_id?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_details?: string | null
+          error_message?: string | null
+          id?: string
+          step_id?: string
+          success?: boolean
+          teacher_id?: string
+        }
+        Relationships: []
+      }
       signin_attempts: {
         Row: {
           attempted_at: string
