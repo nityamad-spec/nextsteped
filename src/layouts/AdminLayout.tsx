@@ -1,5 +1,5 @@
 import { Outlet } from "react-router-dom";
-import { Shield, LayoutDashboard, BookOpen, GraduationCap, Users, Bug } from "lucide-react";
+import { Shield, LayoutDashboard, BookOpen, GraduationCap, Users, Bug, GitBranch } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +21,7 @@ const navItems = [
   { title: "Students", url: "/admin/students", icon: GraduationCap },
   { title: "Teachers", url: "/admin/teachers", icon: Users },
   { title: "Setup Debug", url: "/admin/setup-debug", icon: Bug },
+  { title: "Setup Trace", url: "/admin/setup-trace", icon: GitBranch },
 ];
 
 function AdminSidebar() {
