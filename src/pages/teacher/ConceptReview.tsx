@@ -267,6 +267,7 @@ const ConceptReview = () => {
       toast.error("Please confirm at least one concept before continuing.");
       return;
     }
+    if (user?.id && courseId) void markStepCompleted(user.id, "concept-review", courseId);
     navigate("/teacher/setup/lesson-plan");
   };
 
