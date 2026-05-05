@@ -156,6 +156,7 @@ const TeacherOnboarding = () => {
   const isValid =
     name.trim() &&
     institution.trim() &&
+    universityId &&
     department &&
     designation.trim() &&
     courseName.trim() &&
