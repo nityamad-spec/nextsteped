@@ -120,6 +120,21 @@ const CourseMaterials = () => {
     fetchFiles();
   }, [user, courseId]);
 
+  // Verify the parsed syllabus JSON exists in storage. Re-runs when parse
+  // statuses change so a fresh parse flips the gate without a reload.
+  useEffect(() => {
+    if (!courseId) { setSyllabusJsonInStorage(false); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.storage
+        .from("course-materials")
+        .list(`${courseId}/syllabus`, { search: "approved-syllabus.json", limit: 1 });
+      if (cancelled) return;
+      setSyllabusJsonInStorage(!!data && data.some((f) => f.name === "approved-syllabus.json"));
+    })();
+    return () => { cancelled = true; };
+  }, [courseId, syllabusParseStatus]);
+
   const handleNext = async () => {
     if (!user || !courseId) return;
 
@@ -152,7 +167,12 @@ const CourseMaterials = () => {
     await supabase.from("courses").update(courseFields).eq("id", courseId);
   };
 
-  const canContinue = syllabusFiles.length > 0;
+  const hasSyllabus = syllabusFiles.length > 0;
+  const syllabusStatuses = syllabusFiles.map((f) => syllabusParseStatus[f.path]);
+  const anyParsed = syllabusStatuses.some((s) => s === "parsed");
+  const anyParsing = syllabusStatuses.some((s) => s === "parsing" || s === undefined);
+  const allFailed = hasSyllabus && syllabusStatuses.every((s) => s === "failed");
+  const canContinue = hasSyllabus && (anyParsed || syllabusJsonInStorage);
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-8">
@@ -193,6 +213,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="syllabus"
+                onParseStatusChange={setSyllabusParseStatus}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
