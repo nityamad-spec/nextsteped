@@ -28,7 +28,7 @@ const AIAssistantAndSettings = () => {
   const handleSaveAll = async () => {
     try {
       await saveTASettings({ ...taSettings, customStudyPrompt });
-      if (user?.id) await markStepCompleted(user.id, "ai-settings", courseId);
+      if (user?.id) await markStepCompleted(user.id, "ai-settings", courseId, { source: "AIAssistantAndSettings.save" });
       toast.success("Settings saved");
     } catch {
       toast.error("Failed to save settings. Please try again.");
