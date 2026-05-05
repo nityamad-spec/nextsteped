@@ -153,6 +153,8 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         .update({ syllabus_json_path: jsonPath })
         .eq("id", courseId);
 
+      if (teacherId) void markStepCompleted(teacherId, "upload", courseId);
+
       setParseStatus((prev) => ({ ...prev, [storagePath]: "parsed" }));
     } catch (err) {
       console.warn("Syllabus parse failed:", err);
