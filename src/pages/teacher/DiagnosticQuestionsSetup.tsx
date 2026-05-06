@@ -94,7 +94,29 @@ const DiagnosticQuestionsSetup = () => {
       const { data, error } = await supabase.functions.invoke("generate-diagnostic-questions", {
         body: { courseId },
       });
-      if (error) throw error;
+
+      // Edge function returned non-2xx (e.g. 422 partial)
+      if (error) {
+        const ctx: any = (error as any).context;
+        let body: any = null;
+        try {
+          if (ctx?.json) body = await ctx.json();
+          else if (ctx?.text) body = JSON.parse(await ctx.text());
+        } catch { /* ignore */ }
+        if (body?.breakdown) {
+          const short = body.breakdown
+            .filter((b: any) => b.accepted < b.requested)
+            .map((b: any) => `${b.tier}: ${b.accepted}/${b.requested}`)
+            .join(", ");
+          toast({
+            title: "Generation incomplete",
+            description: `Some tiers fell short (${short}). Existing questions were not changed. Try regenerating.`,
+            variant: "destructive",
+          });
+          return;
+        }
+        throw error;
+      }
       if (data?.error) throw new Error(data.error);
 
       // Refetch
@@ -104,13 +126,18 @@ const DiagnosticQuestionsSetup = () => {
         .eq("course_id", courseId)
         .order("difficulty_estimate");
       if (refreshed) setQuestions(refreshed);
-      if (refreshed && refreshed.length > 0 && user?.id) {
+      if (refreshed && refreshed.length === 20 && user?.id) {
         void markStepCompleted(user.id, "diagnostic", courseId);
       }
 
+      const attemptsSummary = Array.isArray(data?.breakdown)
+        ? data.breakdown.map((b: any) => `${b.tier[0].toUpperCase()}:${b.attempts}`).join(" ")
+        : "";
       toast({
         title: "Question bank generated",
-        description: data?.message || "Diagnostic questions are ready to review.",
+        description: data?.message
+          ? `${data.message}${attemptsSummary ? ` (attempts ${attemptsSummary})` : ""}`
+          : "Diagnostic questions are ready to review.",
       });
     } catch (e: any) {
       toast({
