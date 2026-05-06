@@ -36,7 +36,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { workshopPlan as defaultPlan } from "@/data/workshopPlan";
+// `workshopPlan` was removed as the empty-state fallback — we now render an
+// explicit empty state when no plan exists rather than seeding bogus content.
 
 type Resource = {
   id: string;
@@ -149,7 +150,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
       setLoading(true);
       try {
         if (!courseId) {
-          setDays(defaultPlan.map(d => ({ ...d, description: "" })));
+          setDays([]);
           setLoading(false);
           return;
         }
@@ -191,7 +192,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
           }
         }
       } catch { /* no saved plan */ }
-      setDays(defaultPlan.map(d => ({ ...d, description: "" })));
+      setDays([]);
       setHasChanges(false);
       setLoading(false);
     };
@@ -809,6 +810,17 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
         </TabsContent>
 
         <TabsContent value="plan" className="space-y-4">
+          {days.length === 0 ? (
+            <Card className="p-10 text-center space-y-3">
+              <FileText className="h-10 w-10 text-muted-foreground mx-auto" />
+              <div>
+                <h3 className="text-base font-semibold">No lesson plan yet</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+                  Upload a syllabus and lesson-plan document in course setup, then generate weeks here. Existing data was cleared.
+                </p>
+              </div>
+            </Card>
+          ) : (
           <Reorder.Group axis="y" values={days} onReorder={(newOrder) => { setDays(newOrder.map((d, i) => ({ ...d, day: i + 1 }))); markChanged(); }}>
             <div className="space-y-4">
               {days.map((dp) => {
@@ -999,6 +1011,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
               })}
             </div>
           </Reorder.Group>
+          )}
 
           <Button variant="outline" onClick={addDay} className="w-full border-dashed h-11">
             <Plus className="mr-2 h-4 w-4" /> Add Week
