@@ -419,6 +419,23 @@ const ConceptReview = () => {
                               <span className="text-xs font-medium text-foreground truncate">
                                 {g.unit_title || ""}
                               </span>
+                              {g.unit_number != null && unitCoverage[g.unit_number] && unitCoverage[g.unit_number].total > 0 && (
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[10px] shrink-0 ${
+                                    unitCoverage[g.unit_number].covered === unitCoverage[g.unit_number].total
+                                      ? "border-green-500/40 text-green-600"
+                                      : "border-amber-500/40 text-amber-600"
+                                  }`}
+                                  title={
+                                    unitCoverage[g.unit_number].missing.length
+                                      ? `Missing: ${unitCoverage[g.unit_number].missing.join("; ")}`
+                                      : "All topics covered"
+                                  }
+                                >
+                                  Covers {unitCoverage[g.unit_number].covered}/{unitCoverage[g.unit_number].total} topics
+                                </Badge>
+                              )}
                             </>
                           ) : (
                             <span className="text-xs font-medium text-muted-foreground">Other</span>
