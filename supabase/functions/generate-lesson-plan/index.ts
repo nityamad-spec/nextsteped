@@ -725,21 +725,74 @@ ${assignmentBlock}`;
       });
     }
 
-    // Defensive coverage check
-    const assignedSet = new Set<string>();
-    for (const w of normalized) for (const c of w.concepts) assignedSet.add(c.name);
-    const unassigned = orderedConceptNames.filter((n) => !assignedSet.has(n));
-    if (unassigned.length > 0) {
-      for (let i = normalized.length - 1; i >= 0; i--) {
-        if (!normalized[i].is_exam_week) {
-          for (const name of unassigned) {
-            normalized[i].concepts.push({ name, brief_description: "", ai_suggested: false });
-          }
-          break;
+    // ─── Validator: enforce uniqueness + full coverage ───
+    const keyOf2 = (s: string) => s.trim().toLowerCase();
+    const canonicalByKey = new Map<string, string>();
+    for (const n of orderedConceptNames) canonicalByKey.set(keyOf2(n), n);
+
+    const duplicateConceptsRemoved: string[] = [];
+    const seenGlobal = new Map<string, number>(); // key -> first week number
+    for (const w of normalized) {
+      if (w.is_exam_week) continue;
+      const seenInWeek = new Set<string>();
+      const kept: any[] = [];
+      for (const c of w.concepts) {
+        const k = keyOf2(c.name);
+        if (!k) continue;
+        if (seenInWeek.has(k)) {
+          duplicateConceptsRemoved.push(`${c.name} (Week ${w.week} intra-week dup)`);
+          continue;
         }
+        if (seenGlobal.has(k)) {
+          duplicateConceptsRemoved.push(`${c.name} (Week ${w.week}; already in Week ${seenGlobal.get(k)})`);
+          continue;
+        }
+        // canonicalize spelling
+        const canonical = canonicalByKey.get(k) || c.name;
+        kept.push({ ...c, name: canonical });
+        seenInWeek.add(k);
+        seenGlobal.set(k, w.week);
       }
-      warnings.push(`Repaired missing concepts: ${unassigned.join(", ")}`);
+      w.concepts = kept;
     }
+
+    const repairedMissingConcepts: string[] = [];
+    const missing = orderedConceptNames.filter((n) => !seenGlobal.has(keyOf2(n)));
+    for (const name of missing) {
+      // pick teaching week with fewest concepts; ties → earliest
+      const candidates = normalized
+        .map((w, i) => ({ w, i }))
+        .filter(({ w }) => !w.is_exam_week);
+      if (candidates.length === 0) break;
+      candidates.sort((a, b) => a.w.concepts.length - b.w.concepts.length || a.w.week - b.w.week);
+      const target = candidates[0].w;
+      target.concepts.push({ name, brief_description: "", ai_suggested: false });
+      seenGlobal.set(keyOf2(name), target.week);
+      repairedMissingConcepts.push(`${name} → Week ${target.week}`);
+    }
+
+    const finalSet = new Set<string>();
+    let dupAfter = false;
+    for (const w of normalized) {
+      for (const c of w.concepts) {
+        const k = keyOf2(c.name);
+        if (finalSet.has(k)) dupAfter = true;
+        finalSet.add(k);
+      }
+    }
+    const allCovered = orderedConceptNames.every((n) => finalSet.has(keyOf2(n)));
+    const invariantsHeld = !dupAfter && allCovered;
+    if (!invariantsHeld) {
+      warnings.push(`Invariant check failed (covered=${allCovered}, no_dups=${!dupAfter}).`);
+    }
+    if (duplicateConceptsRemoved.length) {
+      warnings.push(`Removed ${duplicateConceptsRemoved.length} duplicate concept(s).`);
+    }
+    if (repairedMissingConcepts.length) {
+      warnings.push(`Repaired ${repairedMissingConcepts.length} missing concept(s).`);
+    }
+
+    const unassigned = orderedConceptNames.filter((n) => !finalSet.has(keyOf2(n)));
 
     // NOTE: We intentionally do NOT modify the concepts table here.
     // The Concept Review step is the sole source of truth for concepts.
