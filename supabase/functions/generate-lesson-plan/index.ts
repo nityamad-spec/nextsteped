@@ -521,11 +521,17 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
       .map((w, i) => (w.is_exam ? -1 : i))
       .filter((i) => i >= 0);
 
+    const keyOf = (s: string) => s.trim().toLowerCase();
+    const globalAssigned = new Set<string>(); // lowercased keys across all weeks
+    const weekHas = (wIdx: number, name: string) =>
+      weekAssign[wIdx].concept_names.some((n) => keyOf(n) === keyOf(name));
+
     let twPtr = 0; // index into teachingWeekIdxs
     let weekRemaining = sessionsPerWeek;
     for (let ci = 0; ci < N; ci++) {
       let need = slots[ci];
       const name = orderedConceptNames[ci];
+      const k = keyOf(name);
       while (need > 0 && twPtr < teachingWeekIdxs.length) {
         const wIdx = teachingWeekIdxs[twPtr];
         if (weekRemaining <= 0) {
@@ -534,9 +540,10 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
           continue;
         }
         const take = Math.min(need, weekRemaining);
-        // Add concept name to this week (avoid dup if already pushed for spans)
-        if (weekAssign[wIdx].concept_names[weekAssign[wIdx].concept_names.length - 1] !== name) {
+        // Add concept name only if not already present anywhere (cross-week dedup)
+        if (!globalAssigned.has(k) && !weekHas(wIdx, name)) {
           weekAssign[wIdx].concept_names.push(name);
+          globalAssigned.add(k);
         }
         weekAssign[wIdx].slots_used += take;
         weekRemaining -= take;
@@ -546,14 +553,21 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
           weekRemaining = sessionsPerWeek;
         }
       }
-      // If we ran out of teaching weeks, force into the final teaching week (defensive)
-      if (need > 0 && teachingWeekIdxs.length > 0) {
-        const last = teachingWeekIdxs[teachingWeekIdxs.length - 1];
-        if (weekAssign[last].concept_names[weekAssign[last].concept_names.length - 1] !== name) {
-          weekAssign[last].concept_names.push(name);
+      // Overflow: if concept still hasn't been placed anywhere, pick the
+      // teaching week with the lowest slots_used that doesn't already contain it.
+      if (need > 0 && !globalAssigned.has(k) && teachingWeekIdxs.length > 0) {
+        const candidates = teachingWeekIdxs
+          .filter((i) => !weekHas(i, name))
+          .sort((a, b) => weekAssign[a].slots_used - weekAssign[b].slots_used);
+        if (candidates.length > 0) {
+          const target = candidates[0];
+          weekAssign[target].concept_names.push(name);
+          weekAssign[target].slots_used += need;
+          globalAssigned.add(k);
+          warnings.push(`Overflow: ${name} placed in Week ${weekAssign[target].week} (lightest load).`);
+        } else {
+          warnings.push(`Overflow: could not place ${name} (no eligible week).`);
         }
-        weekAssign[last].slots_used += need;
-        warnings.push(`Overflow: ${name} pushed into last teaching week.`);
       }
     }
 
@@ -575,6 +589,7 @@ Tone: factual, pedagogical, realistic. Do not over-promise mastery. Avoid repeti
 
 For exam weeks: week_name="" and overview="Exam week — review prior content." and resources=[].
 You CANNOT change which concepts go in which week. Output exactly ${totalWeeks} week entries with the same week numbers.
+Each concept name appears in exactly one week. Do not echo or rehash concept names from other weeks inside this week's overview text.
 
 Return ONLY via the provided tool.`;
 
@@ -710,21 +725,74 @@ ${assignmentBlock}`;
       });
     }
 
-    // Defensive coverage check
-    const assignedSet = new Set<string>();
-    for (const w of normalized) for (const c of w.concepts) assignedSet.add(c.name);
-    const unassigned = orderedConceptNames.filter((n) => !assignedSet.has(n));
-    if (unassigned.length > 0) {
-      for (let i = normalized.length - 1; i >= 0; i--) {
-        if (!normalized[i].is_exam_week) {
-          for (const name of unassigned) {
-            normalized[i].concepts.push({ name, brief_description: "", ai_suggested: false });
-          }
-          break;
+    // ─── Validator: enforce uniqueness + full coverage ───
+    const keyOf2 = (s: string) => s.trim().toLowerCase();
+    const canonicalByKey = new Map<string, string>();
+    for (const n of orderedConceptNames) canonicalByKey.set(keyOf2(n), n);
+
+    const duplicateConceptsRemoved: string[] = [];
+    const seenGlobal = new Map<string, number>(); // key -> first week number
+    for (const w of normalized) {
+      if (w.is_exam_week) continue;
+      const seenInWeek = new Set<string>();
+      const kept: any[] = [];
+      for (const c of w.concepts) {
+        const k = keyOf2(c.name);
+        if (!k) continue;
+        if (seenInWeek.has(k)) {
+          duplicateConceptsRemoved.push(`${c.name} (Week ${w.week} intra-week dup)`);
+          continue;
         }
+        if (seenGlobal.has(k)) {
+          duplicateConceptsRemoved.push(`${c.name} (Week ${w.week}; already in Week ${seenGlobal.get(k)})`);
+          continue;
+        }
+        // canonicalize spelling
+        const canonical = canonicalByKey.get(k) || c.name;
+        kept.push({ ...c, name: canonical });
+        seenInWeek.add(k);
+        seenGlobal.set(k, w.week);
       }
-      warnings.push(`Repaired missing concepts: ${unassigned.join(", ")}`);
+      w.concepts = kept;
     }
+
+    const repairedMissingConcepts: string[] = [];
+    const missing = orderedConceptNames.filter((n) => !seenGlobal.has(keyOf2(n)));
+    for (const name of missing) {
+      // pick teaching week with fewest concepts; ties → earliest
+      const candidates = normalized
+        .map((w, i) => ({ w, i }))
+        .filter(({ w }) => !w.is_exam_week);
+      if (candidates.length === 0) break;
+      candidates.sort((a, b) => a.w.concepts.length - b.w.concepts.length || a.w.week - b.w.week);
+      const target = candidates[0].w;
+      target.concepts.push({ name, brief_description: "", ai_suggested: false });
+      seenGlobal.set(keyOf2(name), target.week);
+      repairedMissingConcepts.push(`${name} → Week ${target.week}`);
+    }
+
+    const finalSet = new Set<string>();
+    let dupAfter = false;
+    for (const w of normalized) {
+      for (const c of w.concepts) {
+        const k = keyOf2(c.name);
+        if (finalSet.has(k)) dupAfter = true;
+        finalSet.add(k);
+      }
+    }
+    const allCovered = orderedConceptNames.every((n) => finalSet.has(keyOf2(n)));
+    const invariantsHeld = !dupAfter && allCovered;
+    if (!invariantsHeld) {
+      warnings.push(`Invariant check failed (covered=${allCovered}, no_dups=${!dupAfter}).`);
+    }
+    if (duplicateConceptsRemoved.length) {
+      warnings.push(`Removed ${duplicateConceptsRemoved.length} duplicate concept(s).`);
+    }
+    if (repairedMissingConcepts.length) {
+      warnings.push(`Repaired ${repairedMissingConcepts.length} missing concept(s).`);
+    }
+
+    const unassigned = orderedConceptNames.filter((n) => !finalSet.has(keyOf2(n)));
 
     // NOTE: We intentionally do NOT modify the concepts table here.
     // The Concept Review step is the sole source of truth for concepts.
@@ -742,6 +810,9 @@ ${assignmentBlock}`;
           totalSessions,
           approvedConceptsCount: orderedConceptNames.length,
           unassignedConcepts: unassigned,
+          duplicateConceptsRemoved,
+          repairedMissingConcepts,
+          invariantsHeld,
           warnings,
           orderVerification,
           allocation: orderedConceptNames.map((name, i) => ({
