@@ -59,6 +59,15 @@ const ConceptReview = () => {
   const [editingRecName, setEditingRecName] = useState<string | null>(null);
   const [editingRecValue, setEditingRecValue] = useState("");
 
+  // Editable weight (percent) keyed by concept name
+  const [weights, setWeights] = useState<Record<string, number>>({});
+  const setWeight = (name: string, pct: number) => {
+    const clamped = Math.max(0, Math.min(100, Math.round(pct) || 0));
+    setWeights((prev) => ({ ...prev, [name]: clamped }));
+  };
+  const getWeight = (name: string, fallback?: number) =>
+    weights[name] ?? (typeof fallback === "number" ? fallback : 0);
+
   const fetchConcepts = async () => {
     if (!courseId) return;
     const { data, error } = await supabase
