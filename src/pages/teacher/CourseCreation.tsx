@@ -607,9 +607,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
 
   // ─── Generation phase UI ───
   const genSteps = [
-    { label: "Loading approved concepts", desc: "Fetching the concepts you confirmed in Concept Review" },
-    { label: "Estimating teaching duration", desc: "Gauging depth and complexity of each concept" },
-    { label: "Distributing across weeks", desc: "Placing concepts into weeks in learning order" },
+    { label: "Estimating concept effort", desc: "AI gauges complexity and time-to-mastery for each concept" },
+    { label: "Distributing across weeks", desc: "Balancing weeks by teacher weight and estimated effort" },
+    { label: "Authoring week details", desc: "Writing titles, overviews, and resources per week" },
   ];
 
   if (restoringDraft) {
