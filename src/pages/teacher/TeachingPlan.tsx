@@ -1011,6 +1011,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
               })}
             </div>
           </Reorder.Group>
+          )}
 
           <Button variant="outline" onClick={addDay} className="w-full border-dashed h-11">
             <Plus className="mr-2 h-4 w-4" /> Add Week
