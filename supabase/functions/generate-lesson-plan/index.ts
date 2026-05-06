@@ -810,6 +810,9 @@ ${assignmentBlock}`;
           totalSessions,
           approvedConceptsCount: orderedConceptNames.length,
           unassignedConcepts: unassigned,
+          duplicateConceptsRemoved,
+          repairedMissingConcepts,
+          invariantsHeld,
           warnings,
           orderVerification,
           allocation: orderedConceptNames.map((name, i) => ({
