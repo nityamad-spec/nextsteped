@@ -615,7 +615,7 @@ Deno.serve(async (req) => {
     }
     // Compute total quota per unit across 4 tiers
     for (const spec of TIER_SPEC) {
-      const q = computeTierQuota(units, spec.count);
+      const q = computeTierQuota(units, spec.count, `${course.name}:${spec.tier}:summary`);
       for (const unit of units) {
         const key = unit.weekNumber == null ? "unassigned" : `w${unit.weekNumber}`;
         for (const c of unit.concepts) unitCounts[key].quotaSum += q[c.code] || 0;
