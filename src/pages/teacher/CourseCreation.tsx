@@ -607,9 +607,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
 
   // ─── Generation phase UI ───
   const genSteps = [
-    { label: "Loading approved concepts", desc: "Fetching the concepts you confirmed in Concept Review" },
-    { label: "Estimating teaching duration", desc: "Gauging depth and complexity of each concept" },
-    { label: "Distributing across weeks", desc: "Placing concepts into weeks in learning order" },
+    { label: "Estimating concept effort", desc: "AI gauges complexity and time-to-mastery for each concept" },
+    { label: "Distributing across weeks", desc: "Balancing weeks by teacher weight and estimated effort" },
+    { label: "Authoring week details", desc: "Writing titles, overviews, and resources per week" },
   ];
 
   if (restoringDraft) {
@@ -739,10 +739,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         <div className="w-full max-w-[640px] text-center space-y-8">
           <div>
             <h1 className="font-heading text-2xl font-bold">Generating your lesson plan</h1>
-            <p className="text-sm text-muted-foreground mt-2">Usually takes 30–90 seconds.</p>
+            <p className="text-sm text-muted-foreground mt-2">Usually takes 60–150 seconds.</p>
           </div>
           {(() => {
-            const eta = 60;
+            const eta = 90;
             const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
             const pct = genError
               ? Math.min(92, (genElapsed / eta) * 90)
@@ -759,6 +759,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                     : over
                     ? `Taking longer than usual… (${fmt(genElapsed)})`
                     : `Elapsed ${fmt(genElapsed)} · Est. ~${eta}s`}
+                </p>
+                <p className="text-[11px] text-muted-foreground/80">
+                  Using teacher-set weights and AI-estimated complexity to balance the schedule.
                 </p>
               </div>
             );
@@ -800,7 +803,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               </div>
             </div>
           )}
-          {!genError && genElapsed > 90 && (
+          {!genError && genElapsed > 150 && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3">
               <p className="text-sm font-medium">This is taking longer than usual.</p>
               <div className="flex justify-center gap-2">
