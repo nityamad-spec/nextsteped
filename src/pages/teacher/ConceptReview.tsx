@@ -561,9 +561,26 @@ const ConceptReview = () => {
                           <Badge variant="outline" className={`text-[10px] gap-0.5 ${catMeta.cls}`}>
                             <CatIcon className="h-2.5 w-2.5" /> {catMeta.label}
                           </Badge>
+                          <div className="flex items-center gap-1 ml-auto sm:ml-0">
+                            <span className="text-[10px] text-muted-foreground">Weight</span>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={getWeight(r.name, r.weight_pct)}
+                              onChange={(e) => setWeight(r.name, parseInt(e.target.value, 10))}
+                              className="h-6 w-14 px-1.5 text-xs"
+                            />
+                            <span className="text-[10px] text-muted-foreground">%</span>
+                          </div>
                         </div>
                         {r.rationale && (
                           <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{r.rationale}</p>
+                        )}
+                        {r.weight_rationale && (
+                          <p className="text-[11px] text-muted-foreground/80 mt-0.5 italic leading-relaxed">
+                            Why this weight: {r.weight_rationale}
+                          </p>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
