@@ -266,6 +266,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
         throw new Error(`AI gateway error ${r.status}`);
       }
       const j = await r.json();
+      console.log("[effort LLM] usage:", JSON.stringify(j.usage || {}), "finish_reason:", j.choices?.[0]?.finish_reason);
       const tc = j.choices?.[0]?.message?.tool_calls?.[0];
       if (!tc?.function?.arguments) throw new Error("No effort tool call");
       return JSON.parse(tc.function.arguments).concepts as any[];
