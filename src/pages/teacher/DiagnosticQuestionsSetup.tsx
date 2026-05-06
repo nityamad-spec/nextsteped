@@ -55,6 +55,7 @@ const DiagnosticQuestionsSetup = () => {
   const [conceptCount, setConceptCount] = useState(0);
   const [adaptiveFilter, setAdaptiveFilter] = useState<string>("Easy");
   const [elapsed, setElapsed] = useState(0);
+  const [distribution, setDistribution] = useState<Array<{ unit: string; count: number; quota: number }>>([]);
 
   const TIERS = ["Standard", "Easy", "Medium", "Hard"] as const;
   const ESTIMATED_SECONDS = 75; // Gemini Pro: 4 parallel tiers + validation, ~60-90s typical
