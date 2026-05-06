@@ -219,7 +219,12 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-2.5-pro",
+          temperature: 0.2,
+          top_p: 0.9,
+          max_tokens: 8192,
+          seed: 42,
+          reasoning: { effort: "high" },
           messages: [
             { role: "system", content: effortSystem },
             { role: "user", content: effortUser },
