@@ -50,14 +50,44 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let courseId: string | undefined;
   try {
-    const { courseId } = await req.json();
-    if (!courseId) {
-      return new Response(JSON.stringify({ error: "courseId is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const body = await req.json();
+    courseId = body?.courseId;
+  } catch {
+    /* handled below */
+  }
+
+  const sseHeaders = {
+    ...corsHeaders,
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache, no-transform",
+    "X-Accel-Buffering": "no",
+    Connection: "keep-alive",
+  };
+
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const emit = (event: Record<string, unknown>) => {
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        } catch {
+          /* controller closed */
+        }
+      };
+      const heartbeat = setInterval(() => emit({ type: "heartbeat", ts: Date.now() }), 15000);
+      const finish = () => {
+        clearInterval(heartbeat);
+        try { controller.close(); } catch { /* already closed */ }
+      };
+
+      try {
+        if (!courseId) {
+          emit({ type: "error", message: "courseId is required", code: "BAD_REQUEST" });
+          return finish();
+        }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
