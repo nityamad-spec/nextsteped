@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { markStepCompleted } from "@/lib/setupProgress";
+import { emitWipe } from "@/lib/wipeEvents";
 import {
   AlertDialog,
   AlertDialogAction,
