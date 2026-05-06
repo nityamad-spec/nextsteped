@@ -524,6 +524,26 @@ const DiagnosticQuestionsSetup = () => {
 
             <div className="border-t" />
 
+            {/* Distribution by Unit */}
+            {distribution.length > 0 && (
+              <>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Distribution by Unit</p>
+                  <p className="text-xs text-muted-foreground">
+                    Questions are distributed across units in proportion to concept weights set on the Concepts page.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {distribution.map((d) => (
+                      <Badge key={d.unit} variant="outline" className="text-xs">
+                        {d.unit}: {d.count}{d.quota ? ` / ${d.quota}` : ""}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                <div className="border-t" />
+              </>
+            )}
+
             {/* Concept Coverage */}
             <div className="space-y-3">
               <p className="text-sm font-medium">Concept Coverage</p>
