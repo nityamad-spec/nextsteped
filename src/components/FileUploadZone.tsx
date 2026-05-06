@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { markStepCompleted } from "@/lib/setupProgress";
+import { emitWipe } from "@/lib/wipeEvents";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -443,6 +444,9 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         delete next[file.path];
         return next;
       });
+      if (courseId) {
+        emitWipe({ courseId, scopes: ["all"] });
+      }
       toast.success("Syllabus and generated data wiped");
     } catch (e: any) {
       clearInterval(progressTimer);
