@@ -359,7 +359,12 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
     const existingLc = new Set((existingConcepts as string[]).map((c) => c.trim().toLowerCase()));
     const seen = new Set<string>();
     const cleanUnits: UnitOut[] = parsedUnits
-      .sort((a, b) => (a.unit_number || 0) - (b.unit_number || 0))
+      .sort((a, b) => {
+        const an = a.unit_number || 0;
+        const bn = b.unit_number || 0;
+        if (an !== bn) return an - bn;
+        return norm(a.unit_title || "").localeCompare(norm(b.unit_title || ""));
+      })
       .map((u) => {
         const concepts = (u.concepts || []).filter((c) => {
           const key = (c?.name || "").trim().toLowerCase();
@@ -373,28 +378,37 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
       })
       .filter((u) => u.concepts.length > 0);
 
-    // Reorder concepts within each unit to match syllabus topic order.
-    // For each concept, find the smallest topic index in unit.topics matched by any covers_topics entry.
+    // Reorder concepts within each unit to match syllabus topic order — fully deterministic.
+    // Sort key per concept: (firstIdx, coverageSignature, -matchCount, normalizedName).
+    // Unmatched concepts go to the end, sorted by normalized name only.
     const unitTopicsByNum = new Map<number, string[]>();
     for (const u of units) unitTopicsByNum.set(u.unit_number, u.topics);
     for (const u of cleanUnits) {
       const topics = unitTopicsByNum.get(u.unit_number) || [];
       if (topics.length === 0 || u.concepts.length <= 1) continue;
-      const indexed = u.concepts.map((c, origIdx) => {
-        let firstIdx = Number.MAX_SAFE_INTEGER;
+      const indexed = u.concepts.map((c) => {
         const covers = (c.covers_topics || []).concat(c.name ? [c.name] : []);
-        for (const cov of covers) {
-          for (let i = 0; i < topics.length; i++) {
-            if (i >= firstIdx) break;
-            if (topicCoveredBy(topics[i], [cov])) {
-              firstIdx = i;
-              break;
-            }
-          }
+        const matched: number[] = [];
+        // Iterate topics in order, independent of covers_topics ordering.
+        for (let i = 0; i < topics.length; i++) {
+          if (topicCoveredBy(topics[i], covers)) matched.push(i);
         }
-        return { c, origIdx, firstIdx };
+        const firstIdx = matched.length ? matched[0] : Number.MAX_SAFE_INTEGER;
+        return { c, firstIdx, matched, nameKey: norm(c.name || "") };
       });
-      indexed.sort((a, b) => a.firstIdx - b.firstIdx || a.origIdx - b.origIdx);
+      indexed.sort((a, b) => {
+        if (a.firstIdx !== b.firstIdx) return a.firstIdx - b.firstIdx;
+        // Lexicographic compare on full coverage signature.
+        const len = Math.min(a.matched.length, b.matched.length);
+        for (let i = 0; i < len; i++) {
+          if (a.matched[i] !== b.matched[i]) return a.matched[i] - b.matched[i];
+        }
+        if (a.matched.length !== b.matched.length) {
+          // More-specific (more matches) first at same prefix.
+          return b.matched.length - a.matched.length;
+        }
+        return a.nameKey.localeCompare(b.nameKey);
+      });
       u.concepts = indexed.map((x) => x.c);
     }
 
