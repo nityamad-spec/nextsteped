@@ -171,7 +171,16 @@ Deno.serve(async (req) => {
       const { count, error } = await admin
         .from("lesson_plan_weeks").delete({ count: "exact" }).eq("course_id", courseId);
       if (error) throw new Error(`lesson_plan_weeks delete failed: ${error.message}`);
-      const paths = [lessonPlanPath, lessonPlanDraftPath].filter(Boolean) as string[];
+      // Always include the canonical storage paths in addition to whatever is
+      // recorded on the course row. The teacher UI falls back to the canonical
+      // path when the column is null, so leaving those files behind would
+      // resurrect a "stale" plan after wipe.
+      const canonicalPublished = `${courseId}/lesson-plan/published-plan.json`;
+      const canonicalDraft = `${courseId}/lesson-plan/draft-plan-v2.json`;
+      const paths = Array.from(new Set(
+        [lessonPlanPath, lessonPlanDraftPath, canonicalPublished, canonicalDraft]
+          .filter(Boolean) as string[],
+      ));
       let removedFiles = 0;
       if (paths.length > 0) {
         const { error: rmErr } = await admin.storage.from("course-materials").remove(paths);
@@ -180,7 +189,7 @@ Deno.serve(async (req) => {
         }
         removedFiles = paths.length;
       }
-      return { lesson_plan_weeks: count ?? 0, removedFiles };
+      return { lesson_plan_weeks: count ?? 0, removedFiles, paths };
     });
 
     await runStep("diagnostic_questions", async () => {
