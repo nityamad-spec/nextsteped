@@ -441,15 +441,17 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         ref={inputRef}
         type="file"
         accept={accept}
-        multiple
+        multiple={maxFiles !== 1}
         className="hidden"
         onChange={(e) => handleSelect(e.target.files)}
       />
 
       {/* Drop / select zone */}
       <div
-        onClick={() => !uploading && inputRef.current?.click()}
-        className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
+        onClick={() => !uploading && !atCapacity && inputRef.current?.click()}
+        className={`flex flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
+          atCapacity ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+        } ${
           files.length > 0
             ? "border-primary/50 bg-primary/5"
             : "border-muted hover:border-primary/30 hover:bg-muted/50"
@@ -459,6 +461,13 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
           <>
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
             <span className="text-sm text-muted-foreground">Uploading…</span>
+          </>
+        ) : atCapacity ? (
+          <>
+            <Check className="h-6 w-6 text-primary" />
+            <span className="text-sm font-medium text-primary">
+              {maxFiles === 1 ? "Syllabus uploaded — delete it to replace" : `Maximum of ${maxFiles} files reached`}
+            </span>
           </>
         ) : files.length > 0 ? (
           <>
@@ -470,7 +479,9 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         ) : (
           <>
             <Upload className="h-6 w-6 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Click to select files</span>
+            <span className="text-sm text-muted-foreground">
+              {maxFiles === 1 ? "Click to select your syllabus file" : "Click to select files"}
+            </span>
           </>
         )}
       </div>
