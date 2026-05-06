@@ -225,12 +225,12 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 6000)
           method: "POST",
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: "google/gemini-2.5-pro",
+            model: "google/gemini-2.5-flash",
             temperature: 0.1,
             top_p: 0.9,
             max_tokens: 4096,
             seed: 42,
-            reasoning: { effort: "high" },
+            reasoning: { effort: "low" },
             messages: [
               { role: "system", content: verifySystem },
               { role: "user", content: verifyUser },
@@ -374,12 +374,12 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
+          model: "google/gemini-2.5-flash",
           temperature: 0.2,
           top_p: 0.9,
           max_tokens: 8192,
           seed: 42,
-          reasoning: { effort: "high" },
+          reasoning: { effort: "low" },
           messages: [
             { role: "system", content: effortSystem },
             { role: "user", content: effortUser },
@@ -610,7 +610,7 @@ ${assignmentBlock}`;
         seed: 42,
         frequency_penalty: 0.2,
         presence_penalty: 0.1,
-        reasoning: { effort: "high" },
+        reasoning: { effort: "low" },
         messages: [
           { role: "system", content: authorSystem },
           { role: "user", content: authorUser },
