@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Upload, Check, X, FileText, Loader2, Trash2, RefreshCw } from "lucide-react";
+import { Upload, Check, X, FileText, Loader2, Trash2, RefreshCw, AlertTriangle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -75,6 +77,23 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const [deleteTarget, setDeleteTarget] = useState<UploadedFile | null>(null);
   // Per-file parse status keyed by storage_path. Only used for syllabus uploads.
   const [parseStatus, setParseStatus] = useState<Record<string, ParseStatus>>({});
+
+  // Cascade-wipe progress state (only used when deleting the last syllabus file)
+  const WIPE_STEPS: Array<{ id: string; label: string; weightMs: number }> = [
+    { id: "syllabus_file", label: "Removing syllabus file", weightMs: 1000 },
+    { id: "syllabus_json", label: "Clearing parsed syllabus", weightMs: 1000 },
+    { id: "concepts", label: "Deleting concepts", weightMs: 2000 },
+    { id: "lesson_plan", label: "Deleting lesson plan", weightMs: 2000 },
+    { id: "diagnostic_questions", label: "Deleting diagnostic questions", weightMs: 2000 },
+    { id: "course_flags", label: "Resetting course flags & cache", weightMs: 1000 },
+    { id: "setup_progress", label: "Resetting downstream setup progress", weightMs: 1000 },
+  ];
+  type WipeStatus = "idle" | "running" | "done" | "failed";
+  const [wipeOpen, setWipeOpen] = useState(false);
+  const [wipeStatuses, setWipeStatuses] = useState<Record<string, WipeStatus>>({});
+  const [wipeElapsed, setWipeElapsed] = useState(0);
+  const [wipeFinished, setWipeFinished] = useState(false);
+  const [wipeError, setWipeError] = useState<string | null>(null);
 
   // Bubble parse status to parent so it can gate Next button.
   useEffect(() => {
@@ -256,46 +275,122 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     }
   };
 
-  const performDelete = async () => {
-    const file = deleteTarget;
-    if (!file) return;
-    const { error } = await supabase.storage
-      .from("course-materials")
-      .remove([file.path]);
+  const isLastSyllabusDelete = (file: UploadedFile) =>
+    folderType === "syllabus" && !!courseId && files.filter((f) => f.path !== file.path).length === 0;
 
+  const runCascadeWipe = async (file: UploadedFile) => {
+    setWipeOpen(true);
+    setWipeFinished(false);
+    setWipeError(null);
+    setWipeElapsed(0);
+    const init: Record<string, WipeStatus> = {};
+    for (const s of WIPE_STEPS) init[s.id] = "idle";
+    setWipeStatuses(init);
+
+    const startedAt = Date.now();
+    const tick = setInterval(() => setWipeElapsed(Date.now() - startedAt), 200);
+
+    // Drive predicted step progression locally on the weight timeline.
+    const cumulative: Array<{ id: string; doneAt: number }> = [];
+    let acc = 0;
+    for (const s of WIPE_STEPS) { acc += s.weightMs; cumulative.push({ id: s.id, doneAt: acc }); }
+    let currentIdx = 0;
+    setWipeStatuses((prev) => ({ ...prev, [WIPE_STEPS[0].id]: "running" }));
+    const progressTimer = setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      while (currentIdx < cumulative.length && elapsed >= cumulative[currentIdx].doneAt) {
+        const id = cumulative[currentIdx].id;
+        setWipeStatuses((prev) => ({ ...prev, [id]: "done" }));
+        currentIdx++;
+        if (currentIdx < cumulative.length) {
+          const nextId = cumulative[currentIdx].id;
+          setWipeStatuses((prev) => ({ ...prev, [nextId]: "running" }));
+        }
+      }
+    }, 150);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("wipe-syllabus-cascade", {
+        body: { courseId, syllabusStoragePath: file.path },
+      });
+      clearInterval(progressTimer);
+      clearInterval(tick);
+
+      if (error || (data && (data as any).error)) {
+        const failedStep = (data as any)?.stepId as string | undefined;
+        const msg = (error?.message || (data as any)?.error || "Wipe failed") as string;
+        setWipeStatuses((prev) => {
+          const next = { ...prev };
+          if (failedStep) next[failedStep] = "failed";
+          // mark earlier as done, later as idle
+          let seenFailed = false;
+          for (const s of WIPE_STEPS) {
+            if (s.id === failedStep) { seenFailed = true; continue; }
+            if (!seenFailed) next[s.id] = "done";
+            else if (next[s.id] !== "failed") next[s.id] = "idle";
+          }
+          return next;
+        });
+        setWipeError(msg);
+        setWipeFinished(true);
+        toast.error(`Failed: ${msg}`);
+        return;
+      }
+
+      // success — mark all done
+      setWipeStatuses(() => {
+        const next: Record<string, WipeStatus> = {};
+        for (const s of WIPE_STEPS) next[s.id] = "done";
+        return next;
+      });
+      setWipeFinished(true);
+
+      // Update local UI state
+      const remaining = files.filter((f) => f.path !== file.path);
+      onFilesChange(remaining);
+      setParseStatus((prev) => {
+        const next = { ...prev };
+        delete next[file.path];
+        return next;
+      });
+      toast.success("Syllabus and generated data wiped");
+    } catch (e: any) {
+      clearInterval(progressTimer);
+      clearInterval(tick);
+      setWipeError(e?.message ?? "Unknown error");
+      setWipeFinished(true);
+      toast.error(`Failed: ${e?.message ?? "Unknown error"}`);
+    }
+  };
+
+  const performSimpleDelete = async (file: UploadedFile) => {
+    const { error } = await supabase.storage.from("course-materials").remove([file.path]);
     if (error) {
       toast.error(`Failed to remove ${file.name}`);
-      setDeleteTarget(null);
       return;
     }
-
     if (teacherId && folderType) {
-      await supabase
-        .from("course_material_files")
-        .delete()
-        .eq("storage_path", file.path);
+      await supabase.from("course_material_files").delete().eq("storage_path", file.path);
     }
-
     const remaining = files.filter((f) => f.path !== file.path);
     onFilesChange(remaining);
-
-    // If this was the last syllabus file, clear the parsed JSON + course pointer.
-    if (folderType === "syllabus" && courseId && remaining.length === 0) {
-      const jsonPath = `${courseId}/syllabus/approved-syllabus.json`;
-      await supabase.storage.from("course-materials").remove([jsonPath]).catch(() => {});
-      await supabase
-        .from("courses")
-        .update({ syllabus_json_path: null })
-        .eq("id", courseId);
-    }
-
     setParseStatus((prev) => {
       const next = { ...prev };
       delete next[file.path];
       return next;
     });
     toast.success(`Removed "${file.name}"`);
+  };
+
+  const performDelete = async () => {
+    const file = deleteTarget;
+    if (!file) return;
     setDeleteTarget(null);
+    if (isLastSyllabusDelete(file)) {
+      await runCascadeWipe(file);
+    } else {
+      await performSimpleDelete(file);
+    }
   };
 
   const renderParsePill = (filePath: string) => {
@@ -475,10 +570,38 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this document?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete <span className="font-medium text-foreground">{deleteTarget?.name}</span>? This will remove it from your course materials and may affect concept mapping.
-            </AlertDialogDescription>
+            {deleteTarget && isLastSyllabusDelete(deleteTarget) ? (
+              <>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Delete syllabus and all generated content?
+                </AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2 text-sm">
+                    <p>
+                      Deleting <span className="font-medium text-foreground">{deleteTarget.name}</span> will also wipe everything generated from it:
+                    </p>
+                    <ul className="list-disc list-inside text-muted-foreground">
+                      <li>Parsed syllabus JSON</li>
+                      <li>Extracted &amp; confirmed concepts</li>
+                      <li>Lesson plan weeks</li>
+                      <li>Diagnostic questions &amp; assessment questions</li>
+                      <li>Downstream setup step progress (concepts, lesson plan, diagnostic, AI assistant, exam mode, enrollment)</li>
+                    </ul>
+                    <p className="text-xs text-muted-foreground">
+                      Your uploaded "Past Course Materials" are not affected.
+                    </p>
+                  </div>
+                </AlertDialogDescription>
+              </>
+            ) : (
+              <>
+                <AlertDialogTitle>Delete this document?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete <span className="font-medium text-foreground">{deleteTarget?.name}</span>? This will remove it from your course materials and may affect concept mapping.
+                </AlertDialogDescription>
+              </>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -486,11 +609,71 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
               onClick={performDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {deleteTarget && isLastSyllabusDelete(deleteTarget) ? "Delete and wipe generated data" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Cascade wipe progress */}
+      <Dialog open={wipeOpen} onOpenChange={(open) => { if (!open && wipeFinished) setWipeOpen(false); }}>
+        <DialogContent onInteractOutside={(e) => { if (!wipeFinished) e.preventDefault(); }}>
+          <DialogHeader>
+            <DialogTitle>Wiping syllabus &amp; generated content</DialogTitle>
+            <DialogDescription>
+              {wipeFinished
+                ? wipeError
+                  ? "Some steps failed. Check the list below."
+                  : "All done."
+                : "Please don't close this window. This usually takes about 10 seconds."}
+            </DialogDescription>
+          </DialogHeader>
+          {(() => {
+            const totalMs = WIPE_STEPS.reduce((s, x) => s + x.weightMs, 0);
+            const doneCount = WIPE_STEPS.filter((s) => wipeStatuses[s.id] === "done").length;
+            const pct = Math.min(100, Math.round((doneCount / WIPE_STEPS.length) * 100));
+            const remainingMs = Math.max(0, totalMs - wipeElapsed);
+            return (
+              <div className="space-y-3">
+                <Progress value={wipeFinished ? 100 : pct} />
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{wipeFinished ? "Complete" : `~${Math.ceil(remainingMs / 1000)}s remaining`}</span>
+                  <span>{doneCount}/{WIPE_STEPS.length}</span>
+                </div>
+                <ul className="space-y-1.5">
+                  {WIPE_STEPS.map((s) => {
+                    const st = wipeStatuses[s.id] ?? "idle";
+                    return (
+                      <li key={s.id} className="flex items-center gap-2 text-sm">
+                        {st === "done" && <Check className="h-4 w-4 text-primary" />}
+                        {st === "running" && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                        {st === "failed" && <X className="h-4 w-4 text-destructive" />}
+                        {st === "idle" && <span className="h-4 w-4 rounded-full border border-muted-foreground/30" />}
+                        <span className={st === "failed" ? "text-destructive" : st === "idle" ? "text-muted-foreground" : ""}>
+                          {s.label}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {wipeError && (
+                  <p className="text-xs text-destructive">{wipeError}</p>
+                )}
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setWipeOpen(false)}
+              disabled={!wipeFinished}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
