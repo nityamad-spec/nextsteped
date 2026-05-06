@@ -108,6 +108,13 @@ const ConceptReview = () => {
       const existingLc = new Set(concepts.map((c) => c.concept_code.trim().toLowerCase()));
       const filtered = incoming.filter((s) => !existingLc.has(s.name.trim().toLowerCase()));
       setSuggestions(filtered);
+      setWeights((prev) => {
+        const next = { ...prev };
+        for (const s of filtered) {
+          if (typeof s.weight_pct === "number") next[s.name] = s.weight_pct;
+        }
+        return next;
+      });
       if (filtered.length === 0 && data?.warning) {
         toast.warning(data.warning);
       } else if (data?.reason && data.reason !== "ok" && data?.warning) {
@@ -142,9 +149,10 @@ const ConceptReview = () => {
 
   const handleAddSuggestion = async (s: Suggestion) => {
     if (!courseId) return;
+    const pct = getWeight(s.name, s.weight_pct);
     const { data, error } = await supabase
       .from("concepts")
-      .insert({ concept_code: s.name, weight: 0, course_id: courseId })
+      .insert({ concept_code: s.name, weight: pct / 100, course_id: courseId })
       .select("*")
       .single();
     if (error) {
@@ -163,7 +171,7 @@ const ConceptReview = () => {
     setAddingUnitKey(unitKey);
     const rows = items.map((s) => ({
       concept_code: s.name,
-      weight: 0,
+      weight: getWeight(s.name, s.weight_pct) / 100,
       course_id: courseId,
     }));
     const { data, error } = await supabase
@@ -214,6 +222,15 @@ const ConceptReview = () => {
       setRecommendations(
         incoming.filter((r) => !existingLc.has(r.name.trim().toLowerCase())),
       );
+      const filteredRecs = incoming.filter((r) => !existingLc.has(r.name.trim().toLowerCase()));
+      setRecommendations(filteredRecs);
+      setWeights((prev) => {
+        const next = { ...prev };
+        for (const r of filteredRecs) {
+          if (typeof r.weight_pct === "number") next[r.name] = r.weight_pct;
+        }
+        return next;
+      });
     } catch (e: any) {
       toast.error(e?.message || "Failed to fetch recommendations");
       setRecommendations([]);
