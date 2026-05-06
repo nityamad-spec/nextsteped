@@ -57,7 +57,7 @@ const DiagnosticQuestionsSetup = () => {
   const [elapsed, setElapsed] = useState(0);
 
   const TIERS = ["Standard", "Easy", "Medium", "Hard"] as const;
-  const ESTIMATED_SECONDS = 45; // typical end-to-end for 4 parallel tiers + validation
+  const ESTIMATED_SECONDS = 75; // Gemini Pro: 4 parallel tiers + validation, ~60-90s typical
 
   // Tick the elapsed timer while generating
   useEffect(() => {
