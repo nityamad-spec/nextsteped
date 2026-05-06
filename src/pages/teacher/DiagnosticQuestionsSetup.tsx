@@ -54,6 +54,34 @@ const DiagnosticQuestionsSetup = () => {
   const [generating, setGenerating] = useState(false);
   const [conceptCount, setConceptCount] = useState(0);
   const [adaptiveFilter, setAdaptiveFilter] = useState<string>("Easy");
+  const [elapsed, setElapsed] = useState(0);
+
+  const TIERS = ["Standard", "Easy", "Medium", "Hard"] as const;
+  const ESTIMATED_SECONDS = 45; // typical end-to-end for 4 parallel tiers + validation
+
+  // Tick the elapsed timer while generating
+  useEffect(() => {
+    if (!generating) { setElapsed(0); return; }
+    const start = Date.now();
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 250);
+    return () => clearInterval(id);
+  }, [generating]);
+
+  // Per-tier simulated status: tiers run in parallel on the server, so we ramp
+  // each one toward "validating" then "done" based on elapsed time.
+  const tierStatus = (idx: number): { label: string; pct: number } => {
+    const phase = ESTIMATED_SECONDS / 3; // generate / validate / finalize
+    const offset = idx * 1.5; // small stagger so it feels alive
+    const t = Math.max(0, elapsed - offset);
+    if (t < phase) return { label: "Generating questions…", pct: Math.min(40, (t / phase) * 40) };
+    if (t < phase * 2) return { label: "Validating MCQs…", pct: 40 + Math.min(40, ((t - phase) / phase) * 40) };
+    if (t < ESTIMATED_SECONDS) return { label: "Finalizing…", pct: 80 + Math.min(15, ((t - phase * 2) / phase) * 15) };
+    return { label: "Waiting for server…", pct: 95 };
+  };
+
+  const overallPct = Math.min(95, (elapsed / ESTIMATED_SECONDS) * 95);
+  const etaSeconds = Math.max(0, ESTIMATED_SECONDS - elapsed);
+
 
   useEffect(() => {
     const fetchData = async () => {
