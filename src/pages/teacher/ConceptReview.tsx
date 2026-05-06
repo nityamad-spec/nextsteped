@@ -7,10 +7,41 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, ArrowRight, Plus, X, Loader2, Sparkles, Check, RefreshCw, Info, ListOrdered, Lightbulb, Pencil, Briefcase, Layers, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { bumpCacheVersion } from "@/lib/cacheVersion";
 import { markStepCompleted } from "@/lib/setupProgress";
+
+function fmt(s: number) {
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r.toString().padStart(2, "0")}`;
+}
+
+function ProgressWithETA({ etaSeconds, label }: { etaSeconds: number; label: string }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const pct = Math.min(92, (elapsed / etaSeconds) * 90);
+  const over = elapsed > etaSeconds;
+  return (
+    <div className="rounded-lg border bg-muted/20 p-4 space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        <span>{label}</span>
+      </div>
+      <Progress value={pct} className="h-2" />
+      <p className="text-xs text-muted-foreground">
+        {over
+          ? `Taking longer than usual… (${fmt(elapsed)})`
+          : `Elapsed ${fmt(elapsed)} · Est. ~${etaSeconds}s`}
+      </p>
+    </div>
+  );
+}
 
 interface Concept {
   id: string;
@@ -382,9 +413,10 @@ const ConceptReview = () => {
                 Click "Identify Concepts" above to extract concepts from your materials.
               </div>
             ) : loadingSuggestions ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              </div>
+              <ProgressWithETA
+                etaSeconds={45}
+                label="Scanning materials and extracting concepts per unit…"
+              />
             ) : suggestions.length === 0 ? (
               <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
                 No additional concepts to extract. Your confirmed list looks complete.
@@ -542,9 +574,10 @@ const ConceptReview = () => {
                 Click "Generate Recommendations" to surface additional concepts that may strengthen your course.
               </div>
             ) : loadingRecs ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              </div>
+              <ProgressWithETA
+                etaSeconds={20}
+                label="Reviewing your syllabus and confirmed concepts for gaps…"
+              />
             ) : recommendations.length === 0 ? (
               <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
                 No additional recommendations right now. Your confirmed list looks well-rounded.
