@@ -373,6 +373,31 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
       })
       .filter((u) => u.concepts.length > 0);
 
+    // Reorder concepts within each unit to match syllabus topic order.
+    // For each concept, find the smallest topic index in unit.topics matched by any covers_topics entry.
+    const unitTopicsByNum = new Map<number, string[]>();
+    for (const u of units) unitTopicsByNum.set(u.unit_number, u.topics);
+    for (const u of cleanUnits) {
+      const topics = unitTopicsByNum.get(u.unit_number) || [];
+      if (topics.length === 0 || u.concepts.length <= 1) continue;
+      const indexed = u.concepts.map((c, origIdx) => {
+        let firstIdx = Number.MAX_SAFE_INTEGER;
+        const covers = (c.covers_topics || []).concat(c.name ? [c.name] : []);
+        for (const cov of covers) {
+          for (let i = 0; i < topics.length; i++) {
+            if (i >= firstIdx) break;
+            if (topicCoveredBy(topics[i], [cov])) {
+              firstIdx = i;
+              break;
+            }
+          }
+        }
+        return { c, origIdx, firstIdx };
+      });
+      indexed.sort((a, b) => a.firstIdx - b.firstIdx || a.origIdx - b.origIdx);
+      u.concepts = indexed.map((x) => x.c);
+    }
+
     // Build per-unit coverage summary using verbatim syllabus topics
     const coverageByUnit = new Map<number, { covered: number; total: number; missing: string[] }>();
     for (const u of units) {
