@@ -305,6 +305,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     setPending([]);
     setConfirmed(false);
     setUploading(false);
+    if (folderType === "syllabus") setUploadStartedAt(null);
 
     // Kick off background parsing for syllabus files. Non-blocking.
     for (const { file, path } of syllabusToParse) {
