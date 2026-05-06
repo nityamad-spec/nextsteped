@@ -210,6 +210,7 @@ serve(async (req) => {
 
     const warnings: string[] = [];
 
+    emit({ type: "phase", step: "verify", message: "Verifying concept order against syllabus…" });
     // ─── STEP 0: LLM call — verify concept order against the syllabus ───
     const originalOrderForVerification = [...orderedConceptNames];
     let orderVerification: any = {
