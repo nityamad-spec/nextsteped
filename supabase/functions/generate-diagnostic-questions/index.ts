@@ -674,13 +674,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    const distributionByUnit = Object.values(unitCounts)
+    const unitAgg: Record<string, { weekNumber: number | null; weekName: string; count: number }> = {};
+    for (const unit of units) {
+      const key = unit.weekNumber == null ? "unassigned" : `w${unit.weekNumber}`;
+      unitAgg[key] = { weekNumber: unit.weekNumber, weekName: unit.weekName, count: 0 };
+    }
+    for (const t of tierResults) {
+      for (const [code, n] of Object.entries(t.distribution)) {
+        const info = conceptByCode[code];
+        if (!info) continue;
+        const key = info.weekNumber == null ? "unassigned" : `w${info.weekNumber}`;
+        if (unitAgg[key]) unitAgg[key].count += n;
+      }
+    }
+    const distributionByUnit = Object.values(unitAgg)
       .filter((u) => u.count > 0)
       .map((u) => ({
         unit: u.weekNumber != null ? `Unit ${u.weekNumber} — ${u.weekName}` : u.weekName,
         weekNumber: u.weekNumber,
         count: u.count,
-        quota: u.quotaSum,
       }))
       .sort((a, b) => {
         if (a.weekNumber == null && b.weekNumber == null) return 0;
@@ -688,6 +700,7 @@ Deno.serve(async (req) => {
         if (b.weekNumber == null) return -1;
         return a.weekNumber - b.weekNumber;
       });
+
 
     return new Response(
       JSON.stringify({
