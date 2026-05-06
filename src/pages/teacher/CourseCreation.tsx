@@ -115,6 +115,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
   const [showRegenFromScratchConfirm, setShowRegenFromScratchConfirm] = useState(false);
   const [regeneratingWeekId, setRegeneratingWeekId] = useState<string | null>(null);
+  const [confirmRegenWeekId, setConfirmRegenWeekId] = useState<string | null>(null);
 
   // ─── Auto-recover / validate course (handles missing or stale localStorage IDs) ───
   useEffect(() => {
