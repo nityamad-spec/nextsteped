@@ -97,6 +97,8 @@ serve(async (req) => {
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    emit({ type: "phase", step: "load", message: "Loading course & concepts…" });
+
     // 1. Fetch course metadata (incl exam weeks)
     const { data: course, error: courseError } = await supabaseAdmin
       .from("courses")
@@ -105,10 +107,8 @@ serve(async (req) => {
       .single();
 
     if (courseError || !course) {
-      return new Response(JSON.stringify({ error: "Course not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      emit({ type: "error", message: "Course not found", code: "NOT_FOUND" });
+      return finish();
     }
 
     const totalWeeks = course.total_weeks || 16;
@@ -127,14 +127,10 @@ serve(async (req) => {
     }
 
     if (!conceptRows || conceptRows.length === 0) {
-      return new Response(
-        JSON.stringify({
-          error: "No confirmed concepts. Complete Concept Review first.",
-          code: "NO_CONCEPTS",
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      emit({ type: "error", message: "No confirmed concepts. Complete Concept Review first.", code: "NO_CONCEPTS" });
+      return finish();
     }
+    emit({ type: "log", message: `Loaded ${conceptRows.length} approved concepts.` });
 
     const orderedConceptNames: string[] = conceptRows.map((c: any) => String(c.concept_code).trim());
     const teacherWeights: number[] = conceptRows.map((c: any) => {
