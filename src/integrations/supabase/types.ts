@@ -1056,7 +1056,15 @@ export type Database = {
           success?: boolean
           teacher_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "setup_progress_log_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       signin_attempts: {
         Row: {
@@ -1257,7 +1265,15 @@ export type Database = {
           teacher_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "teacher_setup_progress_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       universities: {
         Row: {
