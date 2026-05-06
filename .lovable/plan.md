@@ -1,53 +1,48 @@
-## Problem
-
-In `supabase/functions/generate-diagnostic-questions/index.ts`, `computeTierQuota` calls `hamiltonAllocate(units.map(u => u.weight), 5)`. Because teacher weights are all 0 today, every unit ends up with equal weight, so the largest-remainder method ties on every fractional remainder. Ties are broken by array index, and units are sorted by `week_number` ascending — so weeks 1–5 always win every tier, and weeks 6–16 never receive a question.
-
 ## Goal
 
-For each tier, the 5 slots should land on a **random sample of 5 weeks** (when there are more weeks than slots), instead of always the first 5. Across all 4 tiers (20 questions) this naturally spreads coverage over the whole semester. Real teacher-set weights, when present, should still bias the sampling.
+Have both concept suggestion edge functions return a suggested **weight** (with rationale) for every concept, and surface those weights in `/teacher/setup/concept-review` so the professor can review/adjust before approving. Approved weights are persisted to `concepts.weight` (already 0–1 numeric in DB).
 
-## Design
+## Weighting model
 
-### Weighted-random unit selection (replaces the front of `computeTierQuota`)
+- **Extracted Concepts** (`suggest-concepts`): AI returns an integer `weight_pct` (1–100) per concept such that **the sum across all extracted concepts ≈ 100%** (full-course normalization). The rationale already exists; we add a separate one-line `weight_rationale` explaining why this concept gets its share (breadth, depth, foundational role, time-on-task, etc.).
+- **Additional Recommendations** (`recommend-additional-concepts`): AI returns `weight_pct` (1–10) per concept — these are supplementary and are not expected to sum to 100. Same `weight_rationale` field.
+- Server-side clamps: `weight_pct` coerced into 1–100 (extracted) / 1–15 (recs); falls back to a sensible default (e.g. `Math.round(100/N)` or `5`) if missing.
+- DB stays unchanged: insert as `weight = weight_pct / 100` (matches the existing 0–1 scale used by `ConceptManagement.tsx`).
 
-When `units.length > totalSlots` (e.g. 16 weeks, 5 slots):
+## Edge function changes
 
-1. Draw `totalSlots` units **without replacement**, with each unit's draw probability proportional to `unit.weight`. Use the standard weighted-reservoir trick: for each unit compute `key = rand() ** (1 / weight)` and take the top `totalSlots` keys. With uniform weights this collapses to a plain random sample; with non-uniform teacher weights, heavier units are more likely to be chosen.
-2. Each selected unit gets exactly 1 slot for that tier. (No need to call Hamilton at the unit level in the over-supply case.)
-3. Within each selected unit, keep the existing concept-level allocation (Hamilton on concept weights, capped at 1 per concept).
+### `supabase/functions/suggest-concepts/index.ts`
+- Extend the tool schema's per-concept object with `weight_pct: integer` and `weight_rationale: string` (both required).
+- Update `systemPrompt` with explicit weighting instructions: integer percent, full set sums to ~100, weight reflects relative teaching emphasis (breadth × depth × foundational importance), per-unit weights should roughly track unit breadth.
+- After parsing, normalize: if the sum deviates >5% from 100, scale proportionally and re-round (largest-remainder).
+- Carry `weight_pct` and `weight_rationale` through to the flat `suggestions` array returned to the client.
 
-When `units.length <= totalSlots` (small courses):
+### `supabase/functions/recommend-additional-concepts/index.ts`
+- Extend the tool schema with `weight_pct: integer` (1–15) and `weight_rationale: string`.
+- Update `systemPrompt` to instruct the model to assign a small supplementary weight per recommendation reflecting how much course time it deserves if added.
+- Pass both fields through in the cleaned `recommendations` payload.
 
-- Keep current behavior: run Hamilton across all units so every unit gets ≥1 slot and the remainder is distributed by weight.
+## Frontend changes — `src/pages/teacher/ConceptReview.tsx`
 
-### Per-tier seeding
-
-Seed the RNG with `${courseId}:${tier}:${Date.now()}` so:
-- Each of the 4 tiers picks a (likely) different set of 5 weeks → over 20 questions, most weeks get coverage.
-- Re-running generation produces a fresh random pick (teachers regenerating won't get the same five weeks again).
-
-If we'd rather make it reproducible per course, drop `Date.now()` and use just `${courseId}:${tier}`. Default in this plan: include `Date.now()` for fresh randomness on each click.
-
-Reuse the existing `mulberry32` PRNG style from `src/lib/seededShuffle.ts` (port the small helper into the edge function — edge functions can't import from `src/`).
-
-### No other changes
-
-- `hamiltonAllocate` stays as-is (still used inside each unit and in the small-course branch).
-- Prompt formatting, validation, sanity-check, retry loop, UI distribution card — all unchanged. The "Distribution by Unit" card will now show different weeks each time.
-
-## Files to edit
-
-- `supabase/functions/generate-diagnostic-questions/index.ts` — add a small seeded-RNG helper, add `pickUnitsWeighted(units, k, rng)`, branch inside `computeTierQuota`, thread a per-tier seed from `runTier`.
-
-## Validation
-
-- `supabase--curl_edge_functions` against the global-economics course (16 weeks). Expect each tier's `distributionByUnit` to feature a different set of 5 weeks; across the full 20-question response, expect ≥10 distinct weeks represented (vs. 5 today).
-- Re-run a second time → distribution should change (confirms randomness).
-- Run on a small course with only 3 weeks → each tier still hits all 3 weeks (confirms small-course branch still works).
-- Set non-zero weights on a few concepts via the Concepts page → those weeks should appear more often than zero-weight weeks across tiers.
+- Extend `Suggestion` and `Recommendation` interfaces with `weight_pct?: number` and `weight_rationale?: string`.
+- Local editable state per card: `Map<conceptName, number>` storing the current `weight_pct` (initialized from AI response, editable by the teacher via a small number input, e.g. 1–100 with `%` suffix).
+- Render in each suggestion / recommendation card:
+  - A "Suggested weight" pill (`<Badge>` with `Scale` / `Percent` icon) showing the editable `weight_pct` next to the existing rationale.
+  - Below the existing rationale, a smaller muted line: `Why this weight: {weight_rationale}`.
+- Update insert calls to use the edited weight:
+  - `handleAddSuggestion`, `handleAddAllInUnit`, `handleApproveRecommendation` → insert `weight: weight_pct / 100` instead of the hard-coded `0`.
+  - Manual add (`handleAddManual`) keeps `weight: 0` (no AI suggestion exists for it).
+- "Add All in Unit" uses each item's current edited weight.
+- `Confirmed Concepts` list adds a small `{Math.round(c.weight * 100)}%` badge next to the concept name so the teacher can see what was saved (read-only here; full editing remains on `/teacher/concepts`).
 
 ## Out of scope
 
-- Changing the 20/5 split, Bloom distribution, or the per-concept cap.
-- Surfacing the seed to the UI.
-- Schema changes.
+- No DB schema changes (`concepts.weight` already exists).
+- No changes to `ConceptManagement.tsx` editor.
+- No changes to diagnostic generation — it already consumes `weight` from the `concepts` table, so it benefits automatically once non-zero weights are saved.
+
+## Files touched
+
+- `supabase/functions/suggest-concepts/index.ts`
+- `supabase/functions/recommend-additional-concepts/index.ts`
+- `src/pages/teacher/ConceptReview.tsx`

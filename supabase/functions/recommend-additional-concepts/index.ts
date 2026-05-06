@@ -109,7 +109,9 @@ STRICT RULES:
 - NEVER suggest a concept that is already a topic in the syllabus units below (case-insensitive).
 - Concept names: 2–6 words, concise, distinct, and teachable as a standalone lesson item.
 - Each rationale: ONE sentence explaining why this concept matters (industry relevance, foundational role, or specific gap it fills).
-- Be specific to this course's subject area — do not output generic advice.`;
+- Be specific to this course's subject area — do not output generic advice.
+- WEIGHTING: For every recommendation, include an integer "weight_pct" (1–15) representing the share of total course time it would deserve if added (small because these are supplementary). Use the lower end (1–4) for narrow add-ons, mid (5–9) for substantial topics, upper (10–15) only for major missing pillars.
+- WEIGHT RATIONALE: For every recommendation, include a one-sentence "weight_rationale" explaining the suggested weight.`;
 
     const userPrompt = `Course: ${course?.name || "Untitled"} (${course?.course_code || "n/a"})
 Stated objectives: ${(course?.objectives || []).join("; ") || "n/a"}
@@ -158,8 +160,10 @@ Suggest additional concepts to recommend.`;
                             type: "string",
                             enum: ["industry", "foundational", "gap"],
                           },
+                          weight_pct: { type: "integer", minimum: 1, maximum: 15 },
+                          weight_rationale: { type: "string" },
                         },
-                        required: ["name", "rationale", "category"],
+                        required: ["name", "rationale", "category", "weight_pct", "weight_rationale"],
                         additionalProperties: false,
                       },
                     },
@@ -208,7 +212,7 @@ Suggest additional concepts to recommend.`;
     const aiData = await aiResp.json();
     const toolCall = aiData?.choices?.[0]?.message?.tool_calls?.[0];
 
-    type Rec = { name: string; rationale: string; category: string };
+    type Rec = { name: string; rationale: string; category: string; weight_pct?: number; weight_rationale?: string };
     let recs: Rec[] = [];
     try {
       const args = toolCall?.function?.arguments
@@ -231,6 +235,8 @@ Suggest additional concepts to recommend.`;
         category: ["industry", "foundational", "gap"].includes(r?.category)
           ? r.category
           : "gap",
+        weight_pct: Math.max(1, Math.min(15, Math.round(Number(r?.weight_pct) || 5))),
+        weight_rationale: (r?.weight_rationale || "").trim(),
       }))
       .filter((r) => {
         if (!r.name) return false;

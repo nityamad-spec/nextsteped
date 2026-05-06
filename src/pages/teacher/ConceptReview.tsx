@@ -24,6 +24,8 @@ interface Suggestion {
   rationale: string;
   unit_number?: number;
   unit_title?: string;
+  weight_pct?: number;
+  weight_rationale?: string;
 }
 
 type RecCategory = "industry" | "foundational" | "gap";
@@ -31,6 +33,8 @@ interface Recommendation {
   name: string;
   rationale: string;
   category: RecCategory;
+  weight_pct?: number;
+  weight_rationale?: string;
 }
 
 const ConceptReview = () => {
@@ -54,6 +58,15 @@ const ConceptReview = () => {
   const [recsRequested, setRecsRequested] = useState(false);
   const [editingRecName, setEditingRecName] = useState<string | null>(null);
   const [editingRecValue, setEditingRecValue] = useState("");
+
+  // Editable weight (percent) keyed by concept name
+  const [weights, setWeights] = useState<Record<string, number>>({});
+  const setWeight = (name: string, pct: number) => {
+    const clamped = Math.max(0, Math.min(100, Math.round(pct) || 0));
+    setWeights((prev) => ({ ...prev, [name]: clamped }));
+  };
+  const getWeight = (name: string, fallback?: number) =>
+    weights[name] ?? (typeof fallback === "number" ? fallback : 0);
 
   const fetchConcepts = async () => {
     if (!courseId) return;
@@ -95,6 +108,13 @@ const ConceptReview = () => {
       const existingLc = new Set(concepts.map((c) => c.concept_code.trim().toLowerCase()));
       const filtered = incoming.filter((s) => !existingLc.has(s.name.trim().toLowerCase()));
       setSuggestions(filtered);
+      setWeights((prev) => {
+        const next = { ...prev };
+        for (const s of filtered) {
+          if (typeof s.weight_pct === "number") next[s.name] = s.weight_pct;
+        }
+        return next;
+      });
       if (filtered.length === 0 && data?.warning) {
         toast.warning(data.warning);
       } else if (data?.reason && data.reason !== "ok" && data?.warning) {
@@ -129,9 +149,10 @@ const ConceptReview = () => {
 
   const handleAddSuggestion = async (s: Suggestion) => {
     if (!courseId) return;
+    const pct = getWeight(s.name, s.weight_pct);
     const { data, error } = await supabase
       .from("concepts")
-      .insert({ concept_code: s.name, weight: 0, course_id: courseId })
+      .insert({ concept_code: s.name, weight: pct / 100, course_id: courseId })
       .select("*")
       .single();
     if (error) {
@@ -150,7 +171,7 @@ const ConceptReview = () => {
     setAddingUnitKey(unitKey);
     const rows = items.map((s) => ({
       concept_code: s.name,
-      weight: 0,
+      weight: getWeight(s.name, s.weight_pct) / 100,
       course_id: courseId,
     }));
     const { data, error } = await supabase
@@ -198,9 +219,15 @@ const ConceptReview = () => {
       const existingLc = new Set(
         concepts.map((c) => c.concept_code.trim().toLowerCase()),
       );
-      setRecommendations(
-        incoming.filter((r) => !existingLc.has(r.name.trim().toLowerCase())),
-      );
+      const filteredRecs = incoming.filter((r) => !existingLc.has(r.name.trim().toLowerCase()));
+      setRecommendations(filteredRecs);
+      setWeights((prev) => {
+        const next = { ...prev };
+        for (const r of filteredRecs) {
+          if (typeof r.weight_pct === "number") next[r.name] = r.weight_pct;
+        }
+        return next;
+      });
     } catch (e: any) {
       toast.error(e?.message || "Failed to fetch recommendations");
       setRecommendations([]);
@@ -211,9 +238,10 @@ const ConceptReview = () => {
 
   const handleApproveRecommendation = async (r: Recommendation) => {
     if (!courseId) return;
+    const pct = getWeight(r.name, r.weight_pct);
     const { data, error } = await supabase
       .from("concepts")
-      .insert({ concept_code: r.name, weight: 0, course_id: courseId })
+      .insert({ concept_code: r.name, weight: pct / 100, course_id: courseId })
       .select("*")
       .single();
     if (error) {
@@ -411,9 +439,26 @@ const ConceptReview = () => {
                               <Badge variant="outline" className="text-[10px] gap-0.5 border-primary/30 text-primary">
                                 <Sparkles className="h-2.5 w-2.5" /> Extracted
                               </Badge>
+                              <div className="flex items-center gap-1 ml-auto sm:ml-0">
+                                <span className="text-[10px] text-muted-foreground">Weight</span>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={getWeight(s.name, s.weight_pct)}
+                                  onChange={(e) => setWeight(s.name, parseInt(e.target.value, 10))}
+                                  className="h-6 w-14 px-1.5 text-xs"
+                                />
+                                <span className="text-[10px] text-muted-foreground">%</span>
+                              </div>
                             </div>
                             {s.rationale && (
                               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{s.rationale}</p>
+                            )}
+                            {s.weight_rationale && (
+                              <p className="text-[11px] text-muted-foreground/80 mt-0.5 italic leading-relaxed">
+                                Why this weight: {s.weight_rationale}
+                              </p>
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
@@ -516,9 +561,26 @@ const ConceptReview = () => {
                           <Badge variant="outline" className={`text-[10px] gap-0.5 ${catMeta.cls}`}>
                             <CatIcon className="h-2.5 w-2.5" /> {catMeta.label}
                           </Badge>
+                          <div className="flex items-center gap-1 ml-auto sm:ml-0">
+                            <span className="text-[10px] text-muted-foreground">Weight</span>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={getWeight(r.name, r.weight_pct)}
+                              onChange={(e) => setWeight(r.name, parseInt(e.target.value, 10))}
+                              className="h-6 w-14 px-1.5 text-xs"
+                            />
+                            <span className="text-[10px] text-muted-foreground">%</span>
+                          </div>
                         </div>
                         {r.rationale && (
                           <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{r.rationale}</p>
+                        )}
+                        {r.weight_rationale && (
+                          <p className="text-[11px] text-muted-foreground/80 mt-0.5 italic leading-relaxed">
+                            Why this weight: {r.weight_rationale}
+                          </p>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -598,6 +660,9 @@ const ConceptReview = () => {
                         {idx + 1}
                       </span>
                       <span className="text-sm font-medium truncate">{c.concept_code}</span>
+                      <Badge variant="secondary" className="text-[10px] shrink-0 tabular-nums">
+                        {Math.round(Number(c.weight) * 100)}%
+                      </Badge>
                     </div>
                     {confirmDeleteId === c.id ? (
                       <div className="flex items-center gap-1 shrink-0">
