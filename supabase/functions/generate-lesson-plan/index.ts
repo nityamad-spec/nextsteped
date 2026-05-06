@@ -434,6 +434,13 @@ ${assignmentBlock}`;
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "google/gemini-2.5-pro",
+        temperature: 0.5,
+        top_p: 0.9,
+        max_tokens: 16384,
+        seed: 42,
+        frequency_penalty: 0.2,
+        presence_penalty: 0.1,
+        reasoning: { effort: "high" },
         messages: [
           { role: "system", content: authorSystem },
           { role: "user", content: authorUser },
