@@ -570,10 +570,38 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this document?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete <span className="font-medium text-foreground">{deleteTarget?.name}</span>? This will remove it from your course materials and may affect concept mapping.
-            </AlertDialogDescription>
+            {deleteTarget && isLastSyllabusDelete(deleteTarget) ? (
+              <>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Delete syllabus and all generated content?
+                </AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2 text-sm">
+                    <p>
+                      Deleting <span className="font-medium text-foreground">{deleteTarget.name}</span> will also wipe everything generated from it:
+                    </p>
+                    <ul className="list-disc list-inside text-muted-foreground">
+                      <li>Parsed syllabus JSON</li>
+                      <li>Extracted &amp; confirmed concepts</li>
+                      <li>Lesson plan weeks</li>
+                      <li>Diagnostic questions &amp; assessment questions</li>
+                      <li>Downstream setup step progress (concepts, lesson plan, diagnostic, AI assistant, exam mode, enrollment)</li>
+                    </ul>
+                    <p className="text-xs text-muted-foreground">
+                      Your uploaded "Past Course Materials" are not affected.
+                    </p>
+                  </div>
+                </AlertDialogDescription>
+              </>
+            ) : (
+              <>
+                <AlertDialogTitle>Delete this document?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete <span className="font-medium text-foreground">{deleteTarget?.name}</span>? This will remove it from your course materials and may affect concept mapping.
+                </AlertDialogDescription>
+              </>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -581,11 +609,71 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
               onClick={performDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {deleteTarget && isLastSyllabusDelete(deleteTarget) ? "Delete and wipe generated data" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Cascade wipe progress */}
+      <Dialog open={wipeOpen} onOpenChange={(open) => { if (!open && wipeFinished) setWipeOpen(false); }}>
+        <DialogContent onInteractOutside={(e) => { if (!wipeFinished) e.preventDefault(); }}>
+          <DialogHeader>
+            <DialogTitle>Wiping syllabus &amp; generated content</DialogTitle>
+            <DialogDescription>
+              {wipeFinished
+                ? wipeError
+                  ? "Some steps failed. Check the list below."
+                  : "All done."
+                : "Please don't close this window. This usually takes about 10 seconds."}
+            </DialogDescription>
+          </DialogHeader>
+          {(() => {
+            const totalMs = WIPE_STEPS.reduce((s, x) => s + x.weightMs, 0);
+            const doneCount = WIPE_STEPS.filter((s) => wipeStatuses[s.id] === "done").length;
+            const pct = Math.min(100, Math.round((doneCount / WIPE_STEPS.length) * 100));
+            const remainingMs = Math.max(0, totalMs - wipeElapsed);
+            return (
+              <div className="space-y-3">
+                <Progress value={wipeFinished ? 100 : pct} />
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{wipeFinished ? "Complete" : `~${Math.ceil(remainingMs / 1000)}s remaining`}</span>
+                  <span>{doneCount}/{WIPE_STEPS.length}</span>
+                </div>
+                <ul className="space-y-1.5">
+                  {WIPE_STEPS.map((s) => {
+                    const st = wipeStatuses[s.id] ?? "idle";
+                    return (
+                      <li key={s.id} className="flex items-center gap-2 text-sm">
+                        {st === "done" && <Check className="h-4 w-4 text-primary" />}
+                        {st === "running" && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                        {st === "failed" && <X className="h-4 w-4 text-destructive" />}
+                        {st === "idle" && <span className="h-4 w-4 rounded-full border border-muted-foreground/30" />}
+                        <span className={st === "failed" ? "text-destructive" : st === "idle" ? "text-muted-foreground" : ""}>
+                          {s.label}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {wipeError && (
+                  <p className="text-xs text-destructive">{wipeError}</p>
+                )}
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setWipeOpen(false)}
+              disabled={!wipeFinished}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
