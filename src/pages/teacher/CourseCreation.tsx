@@ -210,6 +210,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [noConceptsError, setNoConceptsError] = useState(false);
   const [genElapsed, setGenElapsed] = useState(0);
   const [genStep, setGenStep] = useState(0);
+  const [genLogs, setGenLogs] = useState<{ ts: number; level: "info" | "warning"; message: string }[]>([]);
   const [weeks, setWeeksRaw] = useState<WeekPlan[]>([]);
   const [expandedWeeks, setExpandedWeeks] = useState<string[]>([]);
   const [restoringDraft, setRestoringDraft] = useState(true);
