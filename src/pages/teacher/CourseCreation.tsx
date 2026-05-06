@@ -1003,7 +1003,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               variant="outline"
               size="sm"
               onClick={() => setShowRegenFromScratchConfirm(true)}
-              disabled={!courseId || phase === "generating"}
+              disabled={!courseId}
             >
               <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Regenerate Plan
             </Button>
