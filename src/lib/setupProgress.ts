@@ -209,3 +209,33 @@ export const markStepCompleted = async (
     error: verified ? undefined : { message: "row not found / completed_at NULL after upsert (RLS or trigger swallow?)" },
   });
 };
+
+/**
+ * Clear `completed_at` for a step (e.g., when underlying data was removed).
+ * Keeps the row so `opened_at` history is preserved.
+ */
+export const clearStepCompleted = async (
+  uid: string,
+  stepId: string,
+  courseId: string | null,
+  callerContext?: MarkContext,
+) => {
+  if (!courseId) return;
+  const requestId = newRequestId();
+  const start = performance?.now?.() ?? Date.now();
+  const { error } = await supabase
+    .from("teacher_setup_progress")
+    .update({ completed_at: null, updated_at: new Date().toISOString() })
+    .eq("teacher_id", uid)
+    .eq("course_id", courseId)
+    .eq("step_id", stepId);
+  void logAttempt({
+    uid, courseId, stepId, action: "mark_completed",
+    success: !error,
+    requestId,
+    durationMs: Math.round(((performance?.now?.() ?? Date.now()) - start)),
+    payload: { cleared: true },
+    callerContext,
+    error: error ? { code: (error as any).code, message: error.message, details: (error as any).details } : undefined,
+  });
+};

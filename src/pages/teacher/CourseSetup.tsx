@@ -19,7 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { supabase } from "@/integrations/supabase/client";
 // lesson plan completion is derived from the courses row, not storage
-import { fetchStepProgress, markStepOpened, markStepCompleted } from "@/lib/setupProgress";
+import { fetchStepProgress, markStepOpened, markStepCompleted, clearStepCompleted } from "@/lib/setupProgress";
 
 type Status = "Not Started" | "In Progress" | "Complete";
 
@@ -162,14 +162,13 @@ const CourseSetup = () => {
         if (cr && cr.length > 0) next["concept-review"] = "Complete";
         else if (opened["concept-review"]) next["concept-review"] = "In Progress";
 
-        // Card 4 (Diagnostic): Complete only if questions exist for the course.
-        const { data: dq } = await supabase
+        // Card 4 (Diagnostic): Complete only when the full 20-question bank exists.
+        const { count: dqCount } = await supabase
           .from("diagnostic_questions")
-          .select("id")
-          .eq("course_id", courseId)
-          .limit(1);
-        if (dq && dq.length > 0) next.diagnostic = "Complete";
-        else if (opened.diagnostic) next.diagnostic = "In Progress";
+          .select("id", { count: "exact", head: true })
+          .eq("course_id", courseId);
+        if ((dqCount ?? 0) >= 20) next.diagnostic = "Complete";
+        else if ((dqCount ?? 0) > 0 || opened.diagnostic) next.diagnostic = "In Progress";
 
         // Cards 5 & 6 (TA settings)
         const { data: ta } = await supabase
@@ -203,13 +202,15 @@ const CourseSetup = () => {
         next["lesson-plan"] = "Not Started";
       }
 
-      // Backfill `completed_at` in teacher_setup_progress for any auto-derived
-      // step now Complete but not yet persisted. Fire-and-forget.
+      // Backfill or clear `completed_at` in teacher_setup_progress to keep the
+      // persisted state in sync with the derived status. Fire-and-forget.
       if (courseId) {
         const AUTO_COMPLETE_STEPS = ["upload", "concept-review", "lesson-plan", "diagnostic", "exam-mode"];
         for (const stepId of AUTO_COMPLETE_STEPS) {
           if (next[stepId] === "Complete" && !completed[stepId]) {
             void markStepCompleted(user.id, stepId, courseId, { source: "CourseSetup.backfill" });
+          } else if (next[stepId] !== "Complete" && completed[stepId]) {
+            void clearStepCompleted(user.id, stepId, courseId, { source: "CourseSetup.backfill.clear" });
           }
         }
       }

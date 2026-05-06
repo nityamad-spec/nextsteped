@@ -32,7 +32,8 @@ const TIER_SPEC: TierSpec[] = [
 ];
 
 const MAX_ATTEMPTS = 3;
-const MODEL = "google/gemini-2.5-flash";
+const MODEL = "google/gemini-2.5-pro";
+const DIFFICULTY_BAND = 0.15;
 
 interface ValidatedQuestion extends GeneratedQuestion {
   format: "mcq";
@@ -67,22 +68,36 @@ function validateMcq(
   const matches = opts.filter((o) => o === answer);
   if (matches.length !== 1) return { ok: false, reason: "answer not in options" };
 
-  const topic = typeof q.topic === "string" ? q.topic.trim() : "";
-  if (!topic || !(topic in conceptByCode)) {
+  // Topic resolution: trim + case-insensitive match against canonical concept codes.
+  const rawTopic = typeof q.topic === "string" ? q.topic.trim() : "";
+  if (!rawTopic) return { ok: false, reason: "empty topic" };
+  let canonicalTopic: string | null = null;
+  if (rawTopic in conceptByCode) {
+    canonicalTopic = rawTopic;
+  } else {
+    const lower = rawTopic.toLowerCase();
+    for (const code of Object.keys(conceptByCode)) {
+      if (code.toLowerCase() === lower) { canonicalTopic = code; break; }
+    }
+  }
+  if (!canonicalTopic || !conceptByCode[canonicalTopic]) {
     return { ok: false, reason: "topic not in concept list" };
   }
 
   let diff = Number(q.difficulty_estimate);
   if (!Number.isFinite(diff)) return { ok: false, reason: "difficulty not numeric" };
   diff = Math.max(0, Math.min(1, diff));
-  if (diff < spec.difficulty - 0.2 || diff > spec.difficulty + 0.2) {
-    return { ok: false, reason: `difficulty ${diff.toFixed(2)} outside band` };
+  if (diff < spec.difficulty - DIFFICULTY_BAND || diff > spec.difficulty + DIFFICULTY_BAND) {
+    return { ok: false, reason: `difficulty ${diff.toFixed(2)} outside ±${DIFFICULTY_BAND} band` };
   }
 
   const bloom = Math.round(Number(q.bloom_level));
   if (!Number.isInteger(bloom) || bloom < 1 || bloom > 6) {
     return { ok: false, reason: "bloom_level out of range" };
   }
+  // Sanity-check bloom alignment with tier
+  if (spec.tier === "easy" && bloom > 4) return { ok: false, reason: `bloom ${bloom} too high for easy tier` };
+  if (spec.tier === "hard" && bloom < 3) return { ok: false, reason: `bloom ${bloom} too low for hard tier` };
 
   const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
   if (!explanation) return { ok: false, reason: "empty explanation" };
@@ -97,7 +112,7 @@ function validateMcq(
       difficulty_estimate: diff,
       bloom_level: bloom,
       explanation,
-      topic,
+      topic: canonicalTopic,
     },
   };
 }
@@ -142,7 +157,7 @@ STRICT RULES:
     },
     body: JSON.stringify({
       model: MODEL,
-      temperature: 0.4,
+      temperature: 0.3,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `Generate ${needed} ${spec.tier} tier MCQ diagnostic questions now.` },
@@ -352,22 +367,33 @@ Deno.serve(async (req) => {
       );
     }
 
-    // All tiers complete — persist
+    // All tiers complete — defense-in-depth: re-validate and ensure concept_id mapping.
     const rows: any[] = [];
     let counter = 1;
     for (const t of tierResults) {
+      const spec = TIER_SPEC.find((s) => s.tier === t.tier)!;
       for (const q of t.accepted) {
+        const recheck = validateMcq(q, spec, conceptByCode);
+        if (!recheck.ok) {
+          console.warn("pre-insert revalidation dropped row:", recheck.reason);
+          continue;
+        }
+        const conceptId = conceptByCode[recheck.normalized.topic];
+        if (!conceptId) {
+          console.warn("pre-insert: missing concept_id for topic", recheck.normalized.topic);
+          continue;
+        }
         rows.push({
           item_code: `${course.course_code || "Q"}-${t.tier.toUpperCase()}-${String(counter).padStart(3, "0")}`,
-          content_text: q.content_text,
-          format: q.format,
-          options: q.options,
-          answer: q.answer,
-          difficulty_estimate: q.difficulty_estimate,
-          bloom_level: q.bloom_level,
-          explanation: q.explanation,
-          topic: q.topic,
-          concept_id: conceptByCode[q.topic],
+          content_text: recheck.normalized.content_text,
+          format: recheck.normalized.format,
+          options: recheck.normalized.options,
+          answer: recheck.normalized.answer,
+          difficulty_estimate: recheck.normalized.difficulty_estimate,
+          bloom_level: recheck.normalized.bloom_level,
+          explanation: recheck.normalized.explanation,
+          topic: recheck.normalized.topic,
+          concept_id: conceptId,
           course_id: course.id,
           teacher_id: course.teacher_id,
           in_test: true,
@@ -377,9 +403,33 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (rows.length !== 20) {
+      return new Response(
+        JSON.stringify({
+          error: "Pre-insert revalidation reduced row count below 20.",
+          finalCount: rows.length,
+          breakdown,
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     await admin.from("diagnostic_questions").delete().eq("course_id", course.id);
     const { error: insertErr } = await admin.from("diagnostic_questions").insert(rows);
     if (insertErr) throw insertErr;
+
+    // Sanity: no orphan rows
+    const { count: orphanCount } = await admin
+      .from("diagnostic_questions")
+      .select("id", { count: "exact", head: true })
+      .eq("course_id", course.id)
+      .is("concept_id", null);
+    if ((orphanCount ?? 0) > 0) {
+      return new Response(
+        JSON.stringify({ error: `Inserted ${orphanCount} orphan rows (concept_id null). Aborting.` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     return new Response(
       JSON.stringify({

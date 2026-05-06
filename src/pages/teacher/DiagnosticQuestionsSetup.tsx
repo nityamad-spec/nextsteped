@@ -57,7 +57,7 @@ const DiagnosticQuestionsSetup = () => {
   const [elapsed, setElapsed] = useState(0);
 
   const TIERS = ["Standard", "Easy", "Medium", "Hard"] as const;
-  const ESTIMATED_SECONDS = 45; // typical end-to-end for 4 parallel tiers + validation
+  const ESTIMATED_SECONDS = 75; // Gemini Pro: 4 parallel tiers + validation, ~60-90s typical
 
   // Tick the elapsed timer while generating
   useEffect(() => {
@@ -155,7 +155,25 @@ const DiagnosticQuestionsSetup = () => {
         .eq("course_id", courseId)
         .order("difficulty_estimate");
       if (refreshed) setQuestions(refreshed);
-      if (refreshed && refreshed.length === 20 && user?.id) {
+      // Strict gating: 20 total AND 5 in each tier band before marking complete.
+      const tierCounts = (refreshed || []).reduce(
+        (acc: Record<string, number>, q: any) => {
+          const code = (q.item_code || "").toUpperCase();
+          const tier = code.includes("-STANDARD-") ? "standard"
+            : code.includes("-EASY-") ? "easy"
+            : code.includes("-MEDIUM-") ? "medium"
+            : code.includes("-HARD-") ? "hard" : "other";
+          acc[tier] = (acc[tier] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+      const allTiersFull =
+        tierCounts.standard === 5 &&
+        tierCounts.easy === 5 &&
+        tierCounts.medium === 5 &&
+        tierCounts.hard === 5;
+      if (refreshed && refreshed.length === 20 && allTiersFull && user?.id) {
         void markStepCompleted(user.id, "diagnostic", courseId);
       }
 
@@ -418,6 +436,7 @@ const DiagnosticQuestionsSetup = () => {
                 </div>
                 <p className="text-[11px] text-muted-foreground">
                   All four tiers run in parallel. Each tier retries up to 3 times until 5 valid MCQs pass semantic validation.
+                  Using high-quality model (Gemini 2.5 Pro) — generation may take ~60–90s.
                 </p>
               </div>
             )}
