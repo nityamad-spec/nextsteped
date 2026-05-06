@@ -1183,7 +1183,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                             <Select value={editResourceType} onValueChange={(v) => setEditResourceType(v as Resource["type"])}>
                                               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                                               <SelectContent>
-                                                <SelectItem value="coding-exercise">Coding Exercise</SelectItem>
+                                                <SelectItem value="coding-exercise">Industry Exercise</SelectItem>
                                                 <SelectItem value="article">Article</SelectItem>
                                               </SelectContent>
                                             </Select>
@@ -1218,7 +1218,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                         <div className="flex-1 min-w-0">
                                           <div className="flex items-center gap-2 flex-wrap">
                                             <Badge variant="outline" className="text-[9px] px-1.5 py-0">
-                                              {r.type === "coding-exercise" ? "Coding Exercise" : "Article"}
+                                              {r.type === "coding-exercise" ? "Industry Exercise" : "Article"}
                                             </Badge>
                                             {r.url ? (
                                               <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold hover:underline text-primary inline-flex items-center gap-1">
