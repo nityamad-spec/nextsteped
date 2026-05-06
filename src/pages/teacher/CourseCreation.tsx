@@ -1183,7 +1183,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                             <Select value={editResourceType} onValueChange={(v) => setEditResourceType(v as Resource["type"])}>
                                               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                                               <SelectContent>
-                                                <SelectItem value="coding-exercise">Coding Exercise</SelectItem>
+                                                <SelectItem value="coding-exercise">Industry Exercise</SelectItem>
                                                 <SelectItem value="article">Article</SelectItem>
                                               </SelectContent>
                                             </Select>
