@@ -367,22 +367,33 @@ Deno.serve(async (req) => {
       );
     }
 
-    // All tiers complete — persist
+    // All tiers complete — defense-in-depth: re-validate and ensure concept_id mapping.
     const rows: any[] = [];
     let counter = 1;
     for (const t of tierResults) {
+      const spec = TIER_SPEC.find((s) => s.tier === t.tier)!;
       for (const q of t.accepted) {
+        const recheck = validateMcq(q, spec, conceptByCode);
+        if (!recheck.ok) {
+          console.warn("pre-insert revalidation dropped row:", recheck.reason);
+          continue;
+        }
+        const conceptId = conceptByCode[recheck.normalized.topic];
+        if (!conceptId) {
+          console.warn("pre-insert: missing concept_id for topic", recheck.normalized.topic);
+          continue;
+        }
         rows.push({
           item_code: `${course.course_code || "Q"}-${t.tier.toUpperCase()}-${String(counter).padStart(3, "0")}`,
-          content_text: q.content_text,
-          format: q.format,
-          options: q.options,
-          answer: q.answer,
-          difficulty_estimate: q.difficulty_estimate,
-          bloom_level: q.bloom_level,
-          explanation: q.explanation,
-          topic: q.topic,
-          concept_id: conceptByCode[q.topic],
+          content_text: recheck.normalized.content_text,
+          format: recheck.normalized.format,
+          options: recheck.normalized.options,
+          answer: recheck.normalized.answer,
+          difficulty_estimate: recheck.normalized.difficulty_estimate,
+          bloom_level: recheck.normalized.bloom_level,
+          explanation: recheck.normalized.explanation,
+          topic: recheck.normalized.topic,
+          concept_id: conceptId,
           course_id: course.id,
           teacher_id: course.teacher_id,
           in_test: true,
@@ -392,9 +403,33 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (rows.length !== 20) {
+      return new Response(
+        JSON.stringify({
+          error: "Pre-insert revalidation reduced row count below 20.",
+          finalCount: rows.length,
+          breakdown,
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     await admin.from("diagnostic_questions").delete().eq("course_id", course.id);
     const { error: insertErr } = await admin.from("diagnostic_questions").insert(rows);
     if (insertErr) throw insertErr;
+
+    // Sanity: no orphan rows
+    const { count: orphanCount } = await admin
+      .from("diagnostic_questions")
+      .select("id", { count: "exact", head: true })
+      .eq("course_id", course.id)
+      .is("concept_id", null);
+    if ((orphanCount ?? 0) > 0) {
+      return new Response(
+        JSON.stringify({ error: `Inserted ${orphanCount} orphan rows (concept_id null). Aborting.` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     return new Response(
       JSON.stringify({
