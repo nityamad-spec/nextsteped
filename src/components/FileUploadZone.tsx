@@ -444,6 +444,9 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         delete next[file.path];
         return next;
       });
+      if (courseId) {
+        emitWipe({ courseId, scopes: ["all"] });
+      }
       toast.success("Syllabus and generated data wiped");
     } catch (e: any) {
       clearInterval(progressTimer);
