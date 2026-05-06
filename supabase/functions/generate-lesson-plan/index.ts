@@ -521,11 +521,17 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
       .map((w, i) => (w.is_exam ? -1 : i))
       .filter((i) => i >= 0);
 
+    const keyOf = (s: string) => s.trim().toLowerCase();
+    const globalAssigned = new Set<string>(); // lowercased keys across all weeks
+    const weekHas = (wIdx: number, name: string) =>
+      weekAssign[wIdx].concept_names.some((n) => keyOf(n) === keyOf(name));
+
     let twPtr = 0; // index into teachingWeekIdxs
     let weekRemaining = sessionsPerWeek;
     for (let ci = 0; ci < N; ci++) {
       let need = slots[ci];
       const name = orderedConceptNames[ci];
+      const k = keyOf(name);
       while (need > 0 && twPtr < teachingWeekIdxs.length) {
         const wIdx = teachingWeekIdxs[twPtr];
         if (weekRemaining <= 0) {
@@ -534,9 +540,10 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
           continue;
         }
         const take = Math.min(need, weekRemaining);
-        // Add concept name to this week (avoid dup if already pushed for spans)
-        if (weekAssign[wIdx].concept_names[weekAssign[wIdx].concept_names.length - 1] !== name) {
+        // Add concept name only if not already present anywhere (cross-week dedup)
+        if (!globalAssigned.has(k) && !weekHas(wIdx, name)) {
           weekAssign[wIdx].concept_names.push(name);
+          globalAssigned.add(k);
         }
         weekAssign[wIdx].slots_used += take;
         weekRemaining -= take;
@@ -546,14 +553,21 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
           weekRemaining = sessionsPerWeek;
         }
       }
-      // If we ran out of teaching weeks, force into the final teaching week (defensive)
-      if (need > 0 && teachingWeekIdxs.length > 0) {
-        const last = teachingWeekIdxs[teachingWeekIdxs.length - 1];
-        if (weekAssign[last].concept_names[weekAssign[last].concept_names.length - 1] !== name) {
-          weekAssign[last].concept_names.push(name);
+      // Overflow: if concept still hasn't been placed anywhere, pick the
+      // teaching week with the lowest slots_used that doesn't already contain it.
+      if (need > 0 && !globalAssigned.has(k) && teachingWeekIdxs.length > 0) {
+        const candidates = teachingWeekIdxs
+          .filter((i) => !weekHas(i, name))
+          .sort((a, b) => weekAssign[a].slots_used - weekAssign[b].slots_used);
+        if (candidates.length > 0) {
+          const target = candidates[0];
+          weekAssign[target].concept_names.push(name);
+          weekAssign[target].slots_used += need;
+          globalAssigned.add(k);
+          warnings.push(`Overflow: ${name} placed in Week ${weekAssign[target].week} (lightest load).`);
+        } else {
+          warnings.push(`Overflow: could not place ${name} (no eligible week).`);
         }
-        weekAssign[last].slots_used += need;
-        warnings.push(`Overflow: ${name} pushed into last teaching week.`);
       }
     }
 

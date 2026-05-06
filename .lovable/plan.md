@@ -1,79 +1,65 @@
-## Goal
+## Problems observed
 
-Add an independent LLM call ("Step 0 — Order Verification") that re-orders the approved concepts to match the pedagogical order implied by the syllabus document, BEFORE the existing effort-estimation and weekly distribution steps. The teacher-approved concept set is preserved exactly (no add/drop); only sequence may change.
+1. **Missing concepts** — some approved concepts never appear in any week of the generated plan.
+2. **Duplicated topics** — the same concept name shows up in more than one week (or twice in a single week).
 
-## Where it fits
+## Root causes in `supabase/functions/generate-lesson-plan/index.ts`
 
-In `supabase/functions/generate-lesson-plan/index.ts`, between current step 2 (load concepts) and current step "STEP 1: LLM call A — estimate per-concept effort". The reordered list then flows into all downstream code unchanged (effort, allocator, week authoring).
+1. **Allocator overflow path** (lines ~549–557): when a concept still has remaining `need` after `twPtr` runs out of teaching weeks, it is force-pushed into the *last* teaching week. The dedup guard there only checks the *last* item in that week, so if the concept was already added to an earlier week and then re-pushed at the end, we get a cross-week duplicate.
+2. **Defensive repair** (lines ~713–727): all `unassigned` concepts are dumped into a single trailing week with no global dedup, no even distribution, and no guard against a near-duplicate already present in another week.
+3. **No global uniqueness invariant** — nothing in the pipeline asserts "each approved concept appears in exactly one week." The LLM authoring step is locked out of changing concepts, so any duplication/omission introduced by the allocator silently ships to the UI.
+4. **Case/whitespace drift** — the allocator compares names with strict `!==`. Two approved concepts that differ only in surrounding whitespace or casing (rare but possible after the order-verification remap) can dodge dedup checks.
+
+## Fix plan (single file: `supabase/functions/generate-lesson-plan/index.ts`)
+
+### A. Make the allocator dedup-safe
+
+- Maintain a module-local `globalAssigned = new Set<string>()` keyed by `name.trim().toLowerCase()` while pouring concepts into weeks.
+- Before pushing a concept name into `weekAssign[wIdx].concept_names`, check both:
+  - it is not already the last item of that week (existing check), AND
+  - its lowercase key is not already in `globalAssigned` from a *different* week.
+- If `globalAssigned` already has the name, do NOT re-push; just consume the remaining `slots_used` budget on that week without adding the label again. (Slots are a pacing budget; the topic is already taught.)
+- Replace the "force into last teaching week" overflow branch with: pick the teaching week with the lowest `slots_used` that does not already contain this concept; if none exists, drop the extra slots and emit a warning.
+
+### B. Replace the blunt repair step with a structured validator
+
+After Step 4 produces `normalized`, run one validator pass that enforces TWO invariants and emits warnings instead of silent fixes:
 
 ```text
-load concepts (creation order)
-  └── NEW: LLM Call 0 — verify_concept_order(syllabus, concepts) ──► canonicalOrderedConceptNames
-        └── STEP 1 effort estimation (uses new order)
-              └── allocator (uses new order)
-                    └── STEP 2 author weeks
+invariant 1: union(week.concepts.name) == orderedConceptNames (set equality)
+invariant 2: no name appears in concepts[] of more than one week
+invariant 3: no name appears twice within the same week
 ```
 
-## LLM Call 0 — design
+Algorithm:
 
-- **Model:** `google/gemini-2.5-pro` (consistent with current Step 1/2; reasoning-heavy, structured output)
-- **Tool calling** (no JSON parsing of free text). Tool name: `verify_concept_order`
-- **Inputs in prompt:**
-  - Course name/term/objectives (light context)
-  - Approved concept list (current order, names exactly as stored)
-  - Syllabus context (existing `syllabusContext`, capped ~10k chars)
-  - Lesson-plan doc excerpts (existing `lessonPlanExcerpts`, capped ~6k chars) — used only as secondary signal
-- **Tool schema (returned):**
-  ```json
-  {
-    "ordered_concepts": [
-      { "name": "<exact input name>", "rationale": "<≤15 words why this position>" }
-    ],
-    "changed": true,
-    "notes": "1–3 sentence summary of any reordering decisions or 'order already matches syllabus.'"
-  }
-  ```
-- **System rules (strict):**
-  - MUST return exactly the same set of names as input (no add, no drop, no rename, case-preserved).
-  - Order MUST reflect syllabus sequence first, lesson-plan docs second; teacher's current order is a tiebreaker only.
-  - Honor explicit prerequisites stated in the syllabus.
-  - If syllabus is silent or absent, return original order with `changed: false`.
-- **Temperature:** 0.1, `seed: 42`, `reasoning: { effort: "high" }`, `max_tokens: 4096`.
+1. Walk `normalized` once and de-duplicate within and across weeks (keep first occurrence, drop later ones). Push warning per removed dup: `"Removed duplicate concept '<name>' from Week N (already in Week M)."`
+2. Compute `missing = orderedConceptNames - seenSet`.
+3. For each missing concept, append it to the teaching week with the fewest concepts (ties broken by earliest week). Push warning: `"Repaired missing concept '<name>' into Week N."`
+4. Re-assert invariants; if anything still fails, surface it in `meta.warnings` so the front end shows it.
 
-## Validation & safety net
+Use lowercased trimmed keys for all comparisons; canonicalize back via `conceptNameLookup` so the displayed spelling stays consistent.
 
-After the call, validate the result before adopting it:
-1. Build `Set` of input names (case-insensitive). Reject result if returned set ≠ input set OR length differs.
-2. Map each returned `name` back to its canonical input spelling via existing `conceptNameLookup`.
-3. On any validation failure, log a warning, keep the original order, and append a `warnings` entry: `"Order verification rejected (shape mismatch); kept original order."`
-4. On AI 429/402, fall back to original order (do NOT block the whole generation) and add a warning. Generation always proceeds.
-5. If `syllabusContext` is empty, skip the call entirely (no signal to verify against) and add a warning: `"No syllabus text available; kept teacher-approved order."`
+### C. Tighten the locked-assignment prompt to the author LLM
 
-## Code changes (single file)
+Add a single explicit rule to the `authorSystem` prompt: "Each concept name appears in exactly one week. Do not echo concept names from other weeks in this week's `overview`." This reduces visible duplication in the rendered overview text even though the structural fix above is what guarantees correctness.
 
-**File:** `supabase/functions/generate-lesson-plan/index.ts`
+### D. Surface counts in `meta` for traceability
 
-1. After line ~118 (`conceptNameLookup` built), add a new `// ─── STEP 0: Order verification ───` block:
-   - Build prompt + tool schema described above.
-   - `callOrderLLM()` helper mirroring `callEffortLLM()` shape.
-   - Try once, retry once on shape mismatch, then fall back.
-   - If accepted, reassign `orderedConceptNames` AND reorder `teacherWeights` in lockstep so weight↔name alignment is preserved.
-   - Push a meta entry: `orderVerification: { changed, notes, originalOrder, newOrder, accepted }`.
-2. Move file/syllabus loading (current section "3.") ABOVE the new Step 0 so `syllabusContext` exists when needed. (Effort step already depends on it, so no behavior change for downstream.)
-3. Extend the response `meta` payload with `orderVerification` so the front end (and logs) can show what happened.
+Extend the `meta` payload with:
 
-## Front-end impact
+- `meta.duplicateConceptsRemoved: string[]`
+- `meta.repairedMissingConcepts: string[]`
+- `meta.invariantsHeld: boolean`
 
-None required for this slice. The reorder is invisible to the teacher except through the resulting weekly distribution. We can optionally surface `meta.orderVerification.notes` later as a small info chip on the Lesson Plan page, but that's out of scope here.
+These are already-warned items, but having them as structured fields lets us assert in future debugging without grepping warnings.
 
 ## Out of scope
 
-- Persisting the new order back into the `concepts` table (kept ephemeral, per current architecture where Concept Review is the source of truth for set membership; ordering for the plan is plan-local).
-- Asking teacher to confirm the reorder before generation (could be a future enhancement; current flow stays one-click).
-- Changes to per-week regenerate or to Concept Review screen.
+- Front-end rendering changes in `CourseCreation.tsx` / `lessonPlanShape.ts` — once the edge function emits a clean, deduped, fully-covering structure, the existing UI renders correctly.
+- Per-week regenerate (`regenerate-lesson-plan-week`) — that endpoint receives the locked concept list from the client, so it already cannot duplicate or drop concepts.
+- Persisting changes to the `concepts` table.
 
-## Risks / mitigations
+## Files to edit
 
-- **Hallucinated/renamed concept** → strict set-equality check + canonical name remap; reject and fall back.
-- **Extra latency** (one more `gemini-2.5-pro` call with high reasoning) → acceptable; user already accepted "maximum quality without considering cost." Logged via `usage` like the other calls.
-- **Weight misalignment after reorder** → reorder both arrays in the same loop, unit-trace logged in `meta`.
+- `supabase/functions/generate-lesson-plan/index.ts` (allocator overflow branch + new validator + prompt nudge + meta fields)
