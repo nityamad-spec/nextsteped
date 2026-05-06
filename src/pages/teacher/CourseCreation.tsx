@@ -405,6 +405,55 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     }
   }, [courseId, totalWeeks, midtermWeek, finalWeek]);
 
+  // ─── Regenerate a single week (preserves concept assignments) ───
+  const regenerateWeek = useCallback(async (weekId: string) => {
+    if (!courseId) return;
+    const target = weeks.find(w => w.id === weekId);
+    if (!target) return;
+    setRegeneratingWeekId(weekId);
+    try {
+      const { data, error } = await supabase.functions.invoke("regenerate-lesson-plan-week", {
+        body: {
+          courseId,
+          week: target.week,
+          is_exam_week: target.is_exam_week,
+          exam_type: target.exam_type,
+          concept_names: target.concepts.map(c => c.name),
+          context_weeks: weeks.map(w => ({
+            week: w.week,
+            week_name: w.week_name,
+            concept_names: w.concepts.map(c => c.name),
+          })),
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setWeeks(prev => prev.map(w => w.id !== weekId ? w : ({
+        ...w,
+        week_name: typeof data.week_name === "string" ? data.week_name : w.week_name,
+        overview: typeof data.overview === "string" ? data.overview : w.overview,
+        resources: Array.isArray(data.resources) ? data.resources.map((r: any) => ({
+          id: makeId(),
+          type: r.type === "article" ? "article" : "coding-exercise",
+          title: r.title || "Untitled",
+          description: r.description || "",
+          url: r.url || undefined,
+          ai_suggested: true,
+        })) : w.resources,
+      })));
+      toast({ title: "Week regenerated", description: `Week ${target.week} content refreshed.` });
+    } catch (err: any) {
+      console.error("Regenerate week failed:", err);
+      toast({
+        title: "Could not regenerate week",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setRegeneratingWeekId(null);
+    }
+  }, [courseId, weeks, toast]);
+
   // Schedule completeness + change detection
   const scheduleComplete = !!(totalWeeks && midtermWeek && finalWeek);
   const scheduleChanged = !lastGeneratedSchedule
