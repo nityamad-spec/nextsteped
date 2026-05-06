@@ -610,7 +610,7 @@ ${assignmentBlock}`;
         seed: 42,
         frequency_penalty: 0.2,
         presence_penalty: 0.1,
-        reasoning: { effort: "high" },
+        reasoning: { effort: "low" },
         messages: [
           { role: "system", content: authorSystem },
           { role: "user", content: authorUser },
