@@ -694,14 +694,12 @@ ${assignmentBlock}`;
 
     if (!authorResp.ok) {
       if (authorResp.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again shortly." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        emit({ type: "error", code: "429", message: "Rate limit exceeded. Try again shortly." });
+        return finish();
       }
       if (authorResp.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Add funds in Settings > Workspace > Usage." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        emit({ type: "error", code: "402", message: "AI credits exhausted. Add funds in Settings > Workspace > Usage." });
+        return finish();
       }
       const errText = await authorResp.text();
       console.error("author AI error:", authorResp.status, errText);
