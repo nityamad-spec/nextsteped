@@ -13,6 +13,36 @@ import { toast } from "sonner";
 import { bumpCacheVersion } from "@/lib/cacheVersion";
 import { markStepCompleted } from "@/lib/setupProgress";
 
+function fmt(s: number) {
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r.toString().padStart(2, "0")}`;
+}
+
+function ProgressWithETA({ etaSeconds, label }: { etaSeconds: number; label: string }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const pct = Math.min(92, (elapsed / etaSeconds) * 90);
+  const over = elapsed > etaSeconds;
+  return (
+    <div className="rounded-lg border bg-muted/20 p-4 space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        <span>{label}</span>
+      </div>
+      <Progress value={pct} className="h-2" />
+      <p className="text-xs text-muted-foreground">
+        {over
+          ? `Taking longer than usual… (${fmt(elapsed)})`
+          : `Elapsed ${fmt(elapsed)} · Est. ~${etaSeconds}s`}
+      </p>
+    </div>
+  );
+}
+
 interface Concept {
   id: string;
   concept_code: string;
