@@ -107,6 +107,10 @@ serve(async (req) => {
     }
 
     const orderedConceptNames: string[] = conceptRows.map((c: any) => String(c.concept_code).trim());
+    const teacherWeights: number[] = conceptRows.map((c: any) => {
+      const w = Number(c.weight);
+      return Number.isFinite(w) && w > 0 ? w : 0;
+    });
     // Lookup map for case-insensitive name resolution
     const conceptNameLookup = new Map<string, string>();
     for (const name of orderedConceptNames) {
