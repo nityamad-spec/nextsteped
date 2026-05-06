@@ -171,9 +171,10 @@ STRICT RULES:
 4. Ground every concept in the unit's listed topics — do not invent concepts unrelated to the syllabus.
 5. Concept names must be concise (2–6 words), distinct, and teachable as a standalone lesson item.
 6. SKIP any concept already in the existing confirmed list (case-insensitive).
-7. Aim for 3–8 concepts per unit depending on unit breadth.
-8. WEIGHTING: For every concept, include an integer "weight_pct" (1–100) representing its share of total course teaching emphasis (breadth × depth × foundational importance × time-on-task). The sum of weight_pct across ALL concepts in ALL units MUST be approximately 100. Per-unit totals should roughly track unit breadth — heavier units get a larger combined share.
-9. WEIGHT RATIONALE: For every concept, include a one-sentence "weight_rationale" explaining why it deserves that share (e.g. "foundational prerequisite reused throughout the course", "narrow applied topic", "broad multi-week treatment").`;
+7. COVERAGE (CRITICAL): EVERY topic listed under a unit MUST be represented by at least one concept in that same unit. Multiple closely-related topics MAY be merged under a single concept, but no listed topic may be silently dropped. Aim for 3–10 concepts per unit depending on unit breadth — err on the side of MORE concepts rather than dropping topics.
+8. TOPIC MAPPING: For every concept, include "covers_topics" — an array of the verbatim topic strings (copied exactly from this unit's listed topics) that this concept teaches. Every topic in the unit must appear in at least one concept's covers_topics array.
+9. WEIGHTING: For every concept, include an integer "weight_pct" (1–100) representing its share of total course teaching emphasis (breadth × depth × foundational importance × time-on-task). The sum of weight_pct across ALL concepts in ALL units MUST be approximately 100. Per-unit totals should roughly track unit breadth.
+10. WEIGHT RATIONALE: For every concept, include a one-sentence "weight_rationale" explaining why it deserves that share (e.g. "foundational prerequisite reused throughout the course", "narrow applied topic", "broad multi-week treatment").`;
 
     const userPrompt = `Course: ${course?.name || "Untitled"} (${course?.course_code || "n/a"})
 Objectives: ${(course?.objectives || []).join("; ") || "n/a"}
