@@ -36,7 +36,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { workshopPlan as defaultPlan } from "@/data/workshopPlan";
+// `workshopPlan` was removed as the empty-state fallback — we now render an
+// explicit empty state when no plan exists rather than seeding bogus content.
 
 type Resource = {
   id: string;
