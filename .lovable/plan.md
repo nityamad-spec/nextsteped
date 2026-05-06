@@ -1,70 +1,61 @@
-## Goal
+## Problem
 
-When a teacher deletes a syllabus file in `/teacher/setup/upload`, warn them that everything generated from it (parsed syllabus JSON, concepts, lesson plan, diagnostic questions, plus dependent caches and per-course setup progress) will also be wiped. On confirm, run the cascade and show a step-by-step progress UI with an estimated time.
+Two issues observed:
 
-## UX
+1. `lesson_plan_weeks` currently has rows for course IDs that no longer exist in `courses` (`2eb56e1d…`, `808605a6…`). These are orphans from past course deletions — the `wipe-courses` / `delete-course` paths didn't clean them up, and there is no FK to enforce it.
+2. The cascade-wipe on syllabus delete relies entirely on the edge function deleting from each table by `course_id`. If any step fails silently or the function isn't invoked (e.g. user dismissed dialog, network drop after partial run), child rows are stranded.
 
-In `FileUploadZone.tsx`, when `folderType === "syllabus"` and the file being deleted is the last syllabus file for the course, change the existing `AlertDialog`:
+Root cause: course-scoped child tables have **no foreign key** to `courses(id)`. Inspecting the schema dump confirms `concepts`, `lesson_plan_weeks`, `diagnostic_questions`, `assessment_questions`, `course_material_files`, `course_ta_settings`, `course_teachers`, `enrollments`, `teacher_setup_progress`, etc. all reference `course_id` as a plain `uuid` with no FK constraint.
 
-- Title: "Delete syllabus and all generated content?"
-- Body: lists what will be wiped (parsed syllabus JSON, extracted/confirmed concepts, lesson plan weeks, diagnostic questions, related caches, completion of downstream setup steps). Notes that uploaded "Past materials" are NOT affected.
-- Confirm button label: "Delete and wipe generated data".
+## Fix
 
-If there are still other syllabus files left after this delete, fall back to the current simple confirm copy (no cascade).
+### 1. Migration: add FKs with `ON DELETE CASCADE`
 
-After confirm, replace the dialog body with a `WipeProgressPanel`:
+Add a foreign key from each course-scoped child table to `courses(id) ON DELETE CASCADE`. This makes the database the source of truth — deleting a course (or wiping its data through any path) reliably removes children.
 
-- A list of steps, each with idle/running/done/failed icon (Loader2 / Check / X).
-- A `Progress` bar (existing `@/components/ui/progress`) driven by completed-step count.
-- A live "Estimated time remaining: ~Ns" counter computed from per-step weights (see Technical), counting down each second.
-- Buttons disabled until all steps resolve; then a single "Close" button. Toast success/failure at the end.
+Tables to constrain (all FK `course_id → courses(id) ON DELETE CASCADE`):
 
-Steps shown to the user (in order):
-1. Removing syllabus file
-2. Clearing parsed syllabus JSON
-3. Deleting concepts
-4. Deleting lesson plan weeks
-5. Deleting diagnostic questions
-6. Resetting course flags & cache
-7. Resetting downstream setup progress
+- `lesson_plan_weeks`
+- `concepts`
+- `diagnostic_questions`
+- `assessment_questions`
+- `assessment_results`
+- `diagnostic_results`
+- `course_material_files`
+- `course_ta_settings`
+- `course_teachers`
+- `enrollments`
+- `teacher_setup_progress`
+- `chat_sessions` (nullable course_id → use `ON DELETE SET NULL`)
+- `student_feedback` (nullable → `SET NULL`)
+- `pending_signups` (nullable → `SET NULL`)
 
-## Technical
+For each: drop any pre-existing constraint of same name (idempotent), then `ALTER TABLE … ADD CONSTRAINT … FOREIGN KEY (course_id) REFERENCES public.courses(id) ON DELETE CASCADE` (or `SET NULL` for nullable cases).
 
-### New edge function: `wipe-syllabus-cascade`
+### 2. Pre-migration cleanup of existing orphans
 
-Path: `supabase/functions/wipe-syllabus-cascade/index.ts`. Standard CORS, validates JWT via `getClaims` (same pattern as `wipe-courses`), then:
+Before adding the FKs (which would otherwise fail), delete orphan rows where `course_id` does not exist in `courses`:
 
-1. Verify caller is course member (`is_course_member(course_id, user_id)` via service-role select on `courses` + `course_teachers`) — reject 403 otherwise.
-2. Accept body `{ courseId: string, syllabusStoragePath: string }` (validated with Zod).
-3. Execute steps sequentially, returning `{ ok, deleted: { ... }, durations: { stepId: ms } }`. Each step is wrapped in try/catch; on first failure, return 500 with the step id and message so the UI can mark it failed.
+```sql
+DELETE FROM lesson_plan_weeks WHERE course_id NOT IN (SELECT id FROM courses);
+-- repeat for each table above
+```
 
-Step list (server-side, mirrors UI step list):
-- `syllabus_file`: `storage.remove([syllabusStoragePath])` and `delete from course_material_files where storage_path = $1`.
-- `syllabus_json`: `storage.remove(["{courseId}/syllabus/approved-syllabus.json"])` (ignore not-found).
-- `concepts`: `delete from concepts where course_id = $1`. Also `delete from assessment_questions where course_id = $1` (they reference concept topics) — keep this scoped to teacher-owned content; out of scope for student `assessment_results` (those stay for analytics).
-- `lesson_plan`: `delete from lesson_plan_weeks where course_id = $1`; also `storage.remove` of `lesson_plan_path` and `lesson_plan_draft_path` if set.
-- `diagnostic_questions`: `delete from diagnostic_questions where course_id = $1`.
-- `course_flags`: update `courses` set `syllabus_uploaded=false, syllabus_json_path=null, lesson_plan_path=null, lesson_plan_draft_path=null, lesson_plan_published_at=null, lesson_plan_overall_outcomes=null, published=false`. Then `bump_cache_version('course', courseId)`.
-- `setup_progress`: delete rows from `teacher_setup_progress` where `course_id = $1` and `step_id in ('concept-review','lesson-plan','diagnostic','ai-assistant','exam-mode','enrollment')` (keep `upload` so the user can immediately see step 1 still completed for the file they just removed — but since we just removed it, also delete `upload`). Net: delete all rows for this course.
+For nullable-course tables (`chat_sessions`, `student_feedback`, `pending_signups`), set the dangling `course_id` to NULL instead of deleting rows.
 
-Out of scope (explicitly NOT touched): `enrollments`, `assessment_results`, `diagnostic_results`, `chat_*`, `student_feedback`, `course_ta_settings`, "Past Course Materials" files in `lesson-plans/` folder.
+### 3. No application code changes required
 
-Estimated per-step weights (used both for progress bar and ETA in the UI): syllabus_file 1s, syllabus_json 1s, concepts 2s, lesson_plan 2s, diagnostic_questions 2s, course_flags 1s, setup_progress 1s. Total ~10s.
+The cascade-wipe edge function (`wipe-syllabus-cascade`) and `delete-course` keep working as today; the FKs are an extra safety net so a partial failure or future code path can't leave orphans.
 
-### Frontend wiring (`FileUploadZone.tsx`)
+### Verification
 
-- New state: `wipeOpen`, `wipeSteps` (array of `{id,label,status,startedAt?}`), `wipeStartedAt`.
-- Replace the inner body of the existing `AlertDialog` for syllabus-cascade case. Keep the simple confirm dialog for non-cascade deletes.
-- `performDelete` for syllabus-with-cascade case calls `supabase.functions.invoke("wipe-syllabus-cascade", { body: { courseId, syllabusStoragePath: file.path } })`. Because the function runs sequentially server-side and returns once, the UI cannot show real-time per-step status from a single invoke. Approach: drive the UI clock locally using the per-step weights — mark steps `running`→`done` on the predicted timeline while the request is in flight; when the response returns, reconcile (any step the server marked failed flips to failed, remaining steps jump to done). This keeps the function simple (no streaming) and matches the "estimated time" framing the user asked for.
-- On success: clear file from local state (same as today), clear `parseStatus`, toast success, navigate stays on the same page (downstream steps will re-lock automatically because their gating reads `concepts`/`lesson_plan_weeks`).
-- On failure: toast error with which step failed; leave file list refreshed from a re-fetch so UI stays consistent.
+After migration:
+- `SELECT count(*) FROM lesson_plan_weeks WHERE course_id NOT IN (SELECT id FROM courses)` → 0
+- Manually delete a test course → confirm related rows in all child tables disappear automatically.
+- Re-run the syllabus cascade wipe → confirm `lesson_plan_weeks` empties.
 
-### Files to add / edit
+### Out of scope
 
-- ADD `supabase/functions/wipe-syllabus-cascade/index.ts`
-- EDIT `src/components/FileUploadZone.tsx` (dialog copy, new progress panel component inline, new invoke path for syllabus cascade)
-- No DB migration needed — all changes are deletes against existing tables.
-
-### Memory update
-
-Append a note to `mem://ux/teacher-setup-flow` documenting the cascade behavior so future changes to downstream steps remember to add themselves to the wipe list.
+- No UI changes.
+- No edge function changes.
+- Storage objects (`course-materials/{courseId}/…`) are not covered by FK cascade and remain the edge function's responsibility — already handled in `wipe-syllabus-cascade` and `delete-course`.
