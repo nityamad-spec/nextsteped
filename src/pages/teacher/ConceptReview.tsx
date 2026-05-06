@@ -574,9 +574,10 @@ const ConceptReview = () => {
                 Click "Generate Recommendations" to surface additional concepts that may strengthen your course.
               </div>
             ) : loadingRecs ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              </div>
+              <ProgressWithETA
+                etaSeconds={20}
+                label="Reviewing your syllabus and confirmed concepts for gaps…"
+              />
             ) : recommendations.length === 0 ? (
               <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
                 No additional recommendations right now. Your confirmed list looks well-rounded.
