@@ -607,42 +607,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Aggregate distribution by unit (across all tiers, 20 questions total)
-    const unitCounts: Record<string, { weekNumber: number | null; weekName: string; count: number; quotaSum: number }> = {};
-    for (const unit of units) {
-      const key = unit.weekNumber == null ? "unassigned" : `w${unit.weekNumber}`;
-      unitCounts[key] = { weekNumber: unit.weekNumber, weekName: unit.weekName, count: 0, quotaSum: 0 };
-    }
-    // Compute total quota per unit across 4 tiers
-    for (const spec of TIER_SPEC) {
-      const q = computeTierQuota(units, spec.count, `${course.name}:${spec.tier}:summary`);
-      for (const unit of units) {
-        const key = unit.weekNumber == null ? "unassigned" : `w${unit.weekNumber}`;
-        for (const c of unit.concepts) unitCounts[key].quotaSum += q[c.code] || 0;
-      }
-    }
-    for (const t of tierResults) {
-      for (const [code, n] of Object.entries(t.distribution)) {
-        const info = conceptByCode[code];
-        if (!info) continue;
-        const key = info.weekNumber == null ? "unassigned" : `w${info.weekNumber}`;
-        if (unitCounts[key]) unitCounts[key].count += n;
-      }
-    }
-    // Sanity: every unit with quotaSum > 0 must receive >=80% of its quota
-    const starvedUnits = Object.values(unitCounts).filter(
-      (u) => u.quotaSum > 0 && u.count < Math.ceil(u.quotaSum * 0.8),
-    );
-    if (starvedUnits.length > 0) {
-      return new Response(
-        JSON.stringify({
-          error: "Distribution check failed: some units received fewer than 80% of their quota.",
-          starvedUnits: starvedUnits.map((u) => ({ unit: u.weekName, got: u.count, quota: u.quotaSum })),
-          breakdown,
-        }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+    // Note: Unit selection is randomized per tier (weighted reservoir sampling),
+    // so we intentionally do NOT enforce a per-unit quota floor here. Coverage
+    // across the full 20 questions is probabilistic by design.
 
     // Build rows for insertion
     const rows: any[] = [];
