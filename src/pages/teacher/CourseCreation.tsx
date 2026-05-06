@@ -1115,7 +1115,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                             variant="ghost"
                             size="sm"
                             disabled={regeneratingWeekId === w.id || w.is_exam_week}
-                            onClick={(e) => { e.stopPropagation(); regenerateWeek(w.id); }}
+                            onClick={(e) => { e.stopPropagation(); setConfirmRegenWeekId(w.id); }}
                             className="h-7 px-2 text-xs gap-1"
                             title={w.is_exam_week ? "Exam week — nothing to regenerate" : "Regenerate this week's title, overview & resources"}
                           >
