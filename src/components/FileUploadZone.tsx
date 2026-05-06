@@ -192,6 +192,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     }
     const storagePath = source.storagePath;
     setParseStatus((prev) => ({ ...prev, [storagePath]: "parsing" }));
+    setParseStartedAt((prev) => ({ ...prev, [storagePath]: Date.now() }));
     try {
       let fileBase64: string;
       let fileName: string;
