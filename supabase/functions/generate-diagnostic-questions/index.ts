@@ -32,7 +32,8 @@ const TIER_SPEC: TierSpec[] = [
 ];
 
 const MAX_ATTEMPTS = 3;
-const MODEL = "google/gemini-2.5-flash";
+const MODEL = "google/gemini-2.5-pro";
+const DIFFICULTY_BAND = 0.15;
 
 interface ValidatedQuestion extends GeneratedQuestion {
   format: "mcq";
