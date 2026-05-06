@@ -413,9 +413,10 @@ const ConceptReview = () => {
                 Click "Identify Concepts" above to extract concepts from your materials.
               </div>
             ) : loadingSuggestions ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              </div>
+              <ProgressWithETA
+                etaSeconds={45}
+                label="Scanning materials and extracting concepts per unit…"
+              />
             ) : suggestions.length === 0 ? (
               <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
                 No additional concepts to extract. Your confirmed list looks complete.
