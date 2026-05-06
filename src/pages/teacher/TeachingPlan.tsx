@@ -12,6 +12,7 @@ import {
 import { normalizeLessonPlan } from "@/lib/lessonPlanShape";
 import { upsertPublishedWeeks, setWeekLocked } from "@/lib/lessonPlanWeeks";
 import { markStepCompleted } from "@/lib/setupProgress";
+import { subscribeWipe } from "@/lib/wipeEvents";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
