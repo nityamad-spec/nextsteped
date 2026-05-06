@@ -739,10 +739,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         <div className="w-full max-w-[640px] text-center space-y-8">
           <div>
             <h1 className="font-heading text-2xl font-bold">Generating your lesson plan</h1>
-            <p className="text-sm text-muted-foreground mt-2">Usually takes 30–90 seconds.</p>
+            <p className="text-sm text-muted-foreground mt-2">Usually takes 60–150 seconds.</p>
           </div>
           {(() => {
-            const eta = 60;
+            const eta = 90;
             const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
             const pct = genError
               ? Math.min(92, (genElapsed / eta) * 90)
@@ -759,6 +759,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                     : over
                     ? `Taking longer than usual… (${fmt(genElapsed)})`
                     : `Elapsed ${fmt(genElapsed)} · Est. ~${eta}s`}
+                </p>
+                <p className="text-[11px] text-muted-foreground/80">
+                  Using teacher-set weights and AI-estimated complexity to balance the schedule.
                 </p>
               </div>
             );
