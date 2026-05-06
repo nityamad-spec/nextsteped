@@ -436,6 +436,7 @@ const DiagnosticQuestionsSetup = () => {
                 </div>
                 <p className="text-[11px] text-muted-foreground">
                   All four tiers run in parallel. Each tier retries up to 3 times until 5 valid MCQs pass semantic validation.
+                  Using high-quality model (Gemini 2.5 Pro) — generation may take ~60–90s.
                 </p>
               </div>
             )}
