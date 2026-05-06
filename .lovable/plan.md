@@ -1,38 +1,37 @@
-# Add Progress Indicator with Estimated Time on Concept Review
+# Add Progress Bar + ETA on Lesson Plan Generation
 
-Add a determinate-looking progress bar with a live elapsed/estimated-time readout while the two AI calls on `/teacher/setup/concept-review` are running:
+The `/teacher/setup/lesson-plan` route renders `CourseCreation.tsx`. Its `phase === "generating"` view already shows a 3-step checklist and tracks `genElapsed` (seconds), but there's no progress bar and no estimated-time readout shown to the teacher.
 
-1. **Identify Concepts** (`suggest-concepts` edge function) — typically slower, often retries on under-coverage. Estimate ~45s.
-2. **Generate Additional Recommendations** (`recommend-additional-concepts`) — single shot, lighter. Estimate ~20s.
+Add a progress bar with live elapsed/ETA copy that mirrors the pattern just added on `/teacher/setup/concept-review`.
 
-## UI behavior
+## UI
 
-While loading, replace the current bare spinner blocks with a progress card containing:
+In the generating-phase block (around lines 735–760), under the existing "Usually takes 30–90 seconds." subtitle, insert:
 
-- A short status line (e.g. "Identifying concepts from your materials…" / "Generating supplementary recommendations…").
-- A `<Progress>` bar that fills based on elapsed/estimated time (asymptotic, capped at ~92% so it never visually "completes" before the response returns).
-- A subtext line: `Elapsed 0:12 · Est. ~45s` updating every second.
-- If elapsed exceeds the estimate, swap copy to `Taking longer than usual… (0:48)` and keep the bar near 92%.
-- On completion, fade out and render the existing results list.
+- A `<Progress>` bar that fills asymptotically based on elapsed time vs. an ETA of **60s** (mid-point of the existing 30–90s range), capped at ~92% so it never appears "done" before the API returns. On success (`setGenStep(2)` then `setPhase("plan")`), briefly show 100% before the view swaps.
+- A subtext line directly under the bar:
+  - Normal: `Elapsed 0:24 · Est. ~60s`
+  - Once `genElapsed > 60`: `Taking longer than usual… (1:12)`
+  - The existing `genElapsed > 90` warning block stays as-is.
 
-The Identify Concepts trigger button keeps its existing inline `Identifying…` spinner; the new progress card lives in the Extracted Concepts card body (replacing the centered spinner) and in the Additional Recommendations card body.
+The 3 step cards (`genSteps`) remain unchanged below the bar for granular feedback.
 
 ## Technical
 
 Files:
-- `src/pages/teacher/ConceptReview.tsx` — only file changed.
+- `src/pages/teacher/CourseCreation.tsx` — only file changed.
 
 Implementation:
-- Add a small local `ProgressWithETA` component (in-file) that takes `{ etaSeconds, label }`, manages its own `setInterval` ticking elapsed seconds, and computes:
-  - `pct = Math.min(92, (elapsed / eta) * 90)` for a smooth ease toward ~90%.
-  - When `elapsed > eta`: show "Taking longer than usual…".
-- Use it in two places:
-  - Extracted Concepts card body, replacing the `loadingSuggestions` spinner block (lines ~384–387). `etaSeconds={45}`, label "Scanning materials and extracting concepts per unit…".
-  - Additional Recommendations card body, replacing the `loadingRecs` spinner block (lines ~544–547). `etaSeconds={20}`, label "Reviewing your syllabus and confirmed concepts for gaps…".
-- Use the existing `Progress` component from `@/components/ui/progress` (already in project).
-- No edge function changes, no schema changes.
+- Import `Progress` from `@/components/ui/progress`.
+- Add a small helper `fmt(s)` → `m:ss` (local to this file).
+- Compute `pct`:
+  - While generating and no error: `Math.min(92, (genElapsed / 60) * 90)`.
+  - When `genStep === 2` (success path right before `setPhase("plan")`): force `100`.
+  - When `genError` is set: keep current pct, render bar in muted state.
+- Render `<Progress value={pct} className="h-2" />` plus the elapsed/ETA paragraph between the heading block and the `genSteps` list.
+- Reuse existing `genElapsed` timer; no new state needed beyond a derived `pct` value.
 
 Out of scope:
-- Real server-side progress streaming (edge functions don't emit progress events).
-- Changes to the trigger buttons' inline spinners.
-- Any other page or component.
+- Edge function changes (no streaming progress available from `generate-lesson-plan`).
+- The `restoringDraft` and "AI Suggest" per-week flows (those are separate spinners on `TeachingPlan.tsx`).
+- Any change to the existing `genSteps` checklist or the 90s "taking longer" warning.
