@@ -87,6 +87,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     { id: "diagnostic_questions", label: "Deleting diagnostic questions", weightMs: 2000 },
     { id: "course_flags", label: "Resetting course flags & cache", weightMs: 1000 },
     { id: "setup_progress", label: "Resetting downstream setup progress", weightMs: 1000 },
+    { id: "verify", label: "Verifying all data was removed", weightMs: 800 },
   ];
   type WipeStatus = "idle" | "running" | "done" | "failed";
   const [wipeOpen, setWipeOpen] = useState(false);

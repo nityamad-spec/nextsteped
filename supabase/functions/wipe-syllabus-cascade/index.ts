@@ -150,7 +150,49 @@ Deno.serve(async (req) => {
       deleted.teacher_setup_progress = count ?? 0;
     });
 
-    return json({ ok: true, deleted, durations }, 200);
+    // Verification: confirm all derived data is gone
+    const verification: Record<string, { remaining: number; ok: boolean }> = {};
+    const verifyTable = async (key: string, table: string) => {
+      const { count, error } = await admin
+        .from(table)
+        .select("id", { count: "exact", head: true })
+        .eq("course_id", courseId);
+      if (error) throw new Error(`verify ${table}: ${error.message}`);
+      verification[key] = { remaining: count ?? 0, ok: (count ?? 0) === 0 };
+    };
+    await verifyTable("concepts", "concepts");
+    await verifyTable("lesson_plan_weeks", "lesson_plan_weeks");
+    await verifyTable("diagnostic_questions", "diagnostic_questions");
+    await verifyTable("assessment_questions", "assessment_questions");
+    await verifyTable("course_material_files", "course_material_files");
+    await verifyTable("teacher_setup_progress", "teacher_setup_progress");
+
+    // Verify syllabus JSON file no longer in storage
+    const { data: jsonList } = await admin.storage
+      .from("course-materials")
+      .list(`${courseId}/syllabus`, { search: "approved-syllabus.json", limit: 1 });
+    const jsonRemains = !!jsonList && jsonList.some((f: any) => f.name === "approved-syllabus.json");
+    verification["syllabus_json"] = { remaining: jsonRemains ? 1 : 0, ok: !jsonRemains };
+
+    // Verify courses row flags reset
+    const { data: courseAfter } = await admin
+      .from("courses")
+      .select("syllabus_json_path, syllabus_uploaded, lesson_plan_path, lesson_plan_published_at")
+      .eq("id", courseId)
+      .maybeSingle();
+    const flagsClean = !!courseAfter
+      && !courseAfter.syllabus_json_path
+      && !courseAfter.syllabus_uploaded
+      && !courseAfter.lesson_plan_path
+      && !courseAfter.lesson_plan_published_at;
+    verification["course_flags"] = { remaining: flagsClean ? 0 : 1, ok: flagsClean };
+
+    const verifyOk = Object.values(verification).every((v) => v.ok);
+    if (!verifyOk) {
+      return json({ ok: false, deleted, durations, verification, stepId: "verify", error: "Verification failed: some records remain" }, 500);
+    }
+
+    return json({ ok: true, deleted, durations, verification }, 200);
   } catch (err: any) {
     if (err?.stepId) {
       return json({ error: err.message, stepId: err.stepId }, 500);
