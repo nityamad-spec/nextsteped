@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
-  Brain, Info, Loader2, BookOpen, Trash2, Sparkles, ArrowLeft, Check,
+  Brain, Info, Loader2, BookOpen, Trash2, Sparkles, ArrowLeft, Check, Clock,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -53,6 +54,34 @@ const DiagnosticQuestionsSetup = () => {
   const [generating, setGenerating] = useState(false);
   const [conceptCount, setConceptCount] = useState(0);
   const [adaptiveFilter, setAdaptiveFilter] = useState<string>("Easy");
+  const [elapsed, setElapsed] = useState(0);
+
+  const TIERS = ["Standard", "Easy", "Medium", "Hard"] as const;
+  const ESTIMATED_SECONDS = 45; // typical end-to-end for 4 parallel tiers + validation
+
+  // Tick the elapsed timer while generating
+  useEffect(() => {
+    if (!generating) { setElapsed(0); return; }
+    const start = Date.now();
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 250);
+    return () => clearInterval(id);
+  }, [generating]);
+
+  // Per-tier simulated status: tiers run in parallel on the server, so we ramp
+  // each one toward "validating" then "done" based on elapsed time.
+  const tierStatus = (idx: number): { label: string; pct: number } => {
+    const phase = ESTIMATED_SECONDS / 3; // generate / validate / finalize
+    const offset = idx * 1.5; // small stagger so it feels alive
+    const t = Math.max(0, elapsed - offset);
+    if (t < phase) return { label: "Generating questions…", pct: Math.min(40, (t / phase) * 40) };
+    if (t < phase * 2) return { label: "Validating MCQs…", pct: 40 + Math.min(40, ((t - phase) / phase) * 40) };
+    if (t < ESTIMATED_SECONDS) return { label: "Finalizing…", pct: 80 + Math.min(15, ((t - phase * 2) / phase) * 15) };
+    return { label: "Waiting for server…", pct: 95 };
+  };
+
+  const overallPct = Math.min(95, (elapsed / ESTIMATED_SECONDS) * 95);
+  const etaSeconds = Math.max(0, ESTIMATED_SECONDS - elapsed);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -356,6 +385,44 @@ const DiagnosticQuestionsSetup = () => {
             )}
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Live generation progress */}
+            {generating && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <p className="text-sm font-medium">Generating diagnostic question bank…</p>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    <span>
+                      {elapsed}s elapsed · ~{etaSeconds}s remaining
+                    </span>
+                  </div>
+                </div>
+                <Progress value={overallPct} className="h-2" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {TIERS.map((tier, i) => {
+                    const s = tierStatus(i);
+                    return (
+                      <div key={tier} className="rounded-md border bg-background/60 px-3 py-2">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-medium">{tier} tier</span>
+                          <span className="text-[10px] text-muted-foreground">{Math.round(s.pct)}%</span>
+                        </div>
+                        <Progress value={s.pct} className="h-1.5" />
+                        <p className="text-[10px] text-muted-foreground mt-1">{s.label}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  All four tiers run in parallel. Each tier retries up to 3 times until 5 valid MCQs pass semantic validation.
+                </p>
+              </div>
+            )}
+
+
             {/* Stats */}
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-lg border bg-muted/20 p-3 text-center">
