@@ -115,6 +115,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
   const [showRegenFromScratchConfirm, setShowRegenFromScratchConfirm] = useState(false);
   const [regeneratingWeekId, setRegeneratingWeekId] = useState<string | null>(null);
+  const [confirmRegenWeekId, setConfirmRegenWeekId] = useState<string | null>(null);
 
   // ─── Auto-recover / validate course (handles missing or stale localStorage IDs) ───
   useEffect(() => {
@@ -1114,7 +1115,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                             variant="ghost"
                             size="sm"
                             disabled={regeneratingWeekId === w.id || w.is_exam_week}
-                            onClick={(e) => { e.stopPropagation(); regenerateWeek(w.id); }}
+                            onClick={(e) => { e.stopPropagation(); setConfirmRegenWeekId(w.id); }}
                             className="h-7 px-2 text-xs gap-1"
                             title={w.is_exam_week ? "Exam week — nothing to regenerate" : "Regenerate this week's title, overview & resources"}
                           >
@@ -1503,6 +1504,29 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               }}
             >
               Regenerate Plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!confirmRegenWeekId} onOpenChange={(o) => !o && setConfirmRegenWeekId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Regenerate this week?</DialogTitle>
+            <DialogDescription>
+              Only the week's <strong>title</strong>, <strong>overview</strong>, and <strong>resources</strong> will be replaced with a fresh AI draft. The assigned <strong>concepts stay locked</strong> and won't change. Any manual edits to title, overview, or resources for this week will be overwritten.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmRegenWeekId(null)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                const id = confirmRegenWeekId;
+                setConfirmRegenWeekId(null);
+                if (id) regenerateWeek(id);
+              }}
+            >
+              Regenerate Week
             </Button>
           </DialogFooter>
         </DialogContent>
