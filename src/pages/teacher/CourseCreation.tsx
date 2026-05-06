@@ -803,7 +803,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               </div>
             </div>
           )}
-          {!genError && genElapsed > 90 && (
+          {!genError && genElapsed > 150 && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3">
               <p className="text-sm font-medium">This is taking longer than usual.</p>
               <div className="flex justify-center gap-2">
