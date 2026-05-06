@@ -4,6 +4,15 @@ description: Lesson plan AI output format and generation gating. Generation is n
 type: feature
 ---
 
+## Multi-step generation pipeline (weight + complexity aware)
+
+`generate-lesson-plan` runs a 3-step pipeline (no longer a single LLM call):
+1. **LLM A — estimate effort**: Gemini 2.5 flash returns per-concept `complexity (1-5)` and `estimated_sessions (0.5-3)`. Strict tool-call schema; defaults to `complexity=3, sessions=1` for any concept the model drops, plus a warning.
+2. **Deterministic allocator (TS)**: blends teacher `concepts.weight` and AI `estimated_sessions` (`α=0.6` favors teacher weight) into demand, distributes session slots via largest-remainder rounding with `slots_i ≥ 1` guarantee, then pours concepts in approved order across teaching weeks (skipping exam weeks). When `concepts > totalSessions`, packs multiple per session and warns.
+3. **LLM B — author weeks**: Gemini 2.5 pro receives the LOCKED week→concepts assignment and only writes `week_name`, `overview`, `resources`, and `overall_course_learning_outcomes`. Concepts are NOT in its output schema, so it cannot drop or invent them.
+
+Response includes `meta.allocation` (per-concept weight, complexity, est. sessions, allocated slots) and `meta.warnings`. Total runtime ~60–150s (frontend ETA = 90s).
+
 `generate-lesson-plan` edge function emits per-week:
 - `week_name` (3–6 word theme), `overview` (1–2 sentences)
 - `concepts[]` (Topics Covered) — 2–5 items; last 1–2 surface as "Key Concepts to Include"
