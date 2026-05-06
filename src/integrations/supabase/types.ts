@@ -764,6 +764,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "diagnostic_results_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "diagnostic_results_student_id_fkey"
             columns: ["student_id"]
             isOneToOne: false
@@ -851,7 +858,15 @@ export type Database = {
           week_name?: string
           week_number?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "lesson_plan_weeks_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pending_signups: {
         Row: {
