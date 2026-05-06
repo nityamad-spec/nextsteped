@@ -364,6 +364,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 6000)
       }
     }
 
+    emit({ type: "phase", step: "estimate", message: "Estimating per-concept complexity…" });
     // ─── STEP 1: LLM call A — estimate per-concept mastery effort ───
     const conceptListBlock = orderedConceptNames
       .map((n, i) => `${i + 1}. ${n} (teacher_weight=${teacherWeights[i].toFixed(3)})`)
