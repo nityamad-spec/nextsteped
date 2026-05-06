@@ -575,7 +575,46 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         </div>
       )}
 
-      {/* Existing files list */}
+      {/* Syllabus upload + parse progress */}
+      {folderType === "syllabus" && (() => {
+        const parsingPath = Object.keys(parseStatus).find((p) => parseStatus[p] === "parsing");
+        const isUploading = uploading && uploadStartedAt !== null;
+        if (!isUploading && !parsingPath) return null;
+
+        let phase: "uploading" | "parsing" = isUploading ? "uploading" : "parsing";
+        let elapsed = 0;
+        let estTotal = 0;
+        if (phase === "uploading" && uploadStartedAt) {
+          elapsed = now - uploadStartedAt;
+          estTotal = UPLOAD_EST_MS;
+        } else if (parsingPath) {
+          elapsed = now - (parseStartedAt[parsingPath] ?? now);
+          estTotal = PARSE_EST_MS;
+        }
+        const pct = Math.min(95, Math.round((elapsed / estTotal) * 100));
+        const remaining = Math.max(1, Math.ceil((estTotal - elapsed) / 1000));
+
+        return (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span className="font-medium text-foreground">
+                {phase === "uploading" ? "Uploading syllabus…" : "Parsing syllabus into structured JSON…"}
+              </span>
+            </div>
+            <Progress value={pct} className="h-2" />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {phase === "uploading"
+                  ? "Step 1 of 2: secure upload"
+                  : "Step 2 of 2: AI extraction (objectives, units, outcomes, books)"}
+              </span>
+              <span>~{remaining}s remaining</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {files.length > 0 && (
         <div className="space-y-1.5 pt-1">
           {files.map((f) => (
