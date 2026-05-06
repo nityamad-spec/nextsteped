@@ -196,6 +196,9 @@ RULES:
 - complexity: integer 1 (trivial) to 5 (very hard).
 - estimated_sessions: number from 0.5 to 3.0 in steps of 0.5 (sessions of ${course.session_length_minutes || 60} min each).
 - Do not add or drop concepts. Do not invent new ones.
+- Calibrate estimated_sessions to an AVERAGE undergraduate student (not a top-quartile learner). Account for prerequisite chaining, cognitive load, and common misconceptions.
+- Be conservative — under-estimating mastery time is the most common failure of generated plans. When in doubt, round up.
+- Provide a brief, factual rationale grounded in the syllabus/lesson-plan signals; do not speculate beyond them.
 Return ONLY via the provided tool.`;
 
     const effortUser = `COURSE: ${course.name} (${course.term})
