@@ -86,7 +86,21 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
 
   // Estimated durations (ms) for the syllabus upload + parse pipeline.
   const UPLOAD_EST_MS = 4000;
-  const PARSE_EST_MS = 25000;
+
+  // AI parsing sub-steps shown to the user. The parser returns one JSON blob,
+  // so we drive these on a weighted local timeline and snap them all to "done"
+  // once the real response lands. Weights = expected ms for ETA only.
+  type SubStatus = "idle" | "running" | "done" | "failed";
+  const PARSE_SUBSTEPS: Array<{ id: string; label: string; weightMs: number }> = [
+    { id: "objectives",    label: "Extracting learning objectives",       weightMs: 4000 },
+    { id: "modules",       label: "Identifying modules & units",          weightMs: 6000 },
+    { id: "concepts",      label: "Mapping concepts & topics",            weightMs: 6000 },
+    { id: "prerequisites", label: "Detecting prerequisites & references", weightMs: 5000 },
+    { id: "questions",     label: "Drafting diagnostic question seeds",   weightMs: 4000 },
+  ];
+  const PARSE_EST_MS = PARSE_SUBSTEPS.reduce((s, x) => s + x.weightMs, 0);
+  // Per-file substep statuses: { [storagePath]: { [stepId]: SubStatus } }
+  const [parseSubsteps, setParseSubsteps] = useState<Record<string, Record<string, SubStatus>>>({});
 
   // Cascade-wipe progress state (only used when deleting the last syllabus file)
   const WIPE_STEPS: Array<{ id: string; label: string; weightMs: number }> = [
