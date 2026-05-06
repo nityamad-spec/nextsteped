@@ -1113,6 +1113,21 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                           <Button
                             variant="ghost"
                             size="sm"
+                            disabled={regeneratingWeekId === w.id || w.is_exam_week}
+                            onClick={(e) => { e.stopPropagation(); regenerateWeek(w.id); }}
+                            className="h-7 px-2 text-xs gap-1"
+                            title={w.is_exam_week ? "Exam week — nothing to regenerate" : "Regenerate this week's title, overview & resources"}
+                          >
+                            {regeneratingWeekId === w.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-3 w-3" />
+                            )}
+                            <span className="hidden sm:inline">Regenerate</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={(e) => { e.stopPropagation(); toggleLock(w.id); }}
                             className="h-7 px-2"
                           >
