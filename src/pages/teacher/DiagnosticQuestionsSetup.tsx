@@ -156,6 +156,7 @@ const DiagnosticQuestionsSetup = () => {
         .eq("course_id", courseId)
         .order("difficulty_estimate");
       if (refreshed) setQuestions(refreshed);
+      if (Array.isArray(data?.distributionByUnit)) setDistribution(data.distributionByUnit);
       // Strict gating: 20 total AND 5 in each tier band before marking complete.
       const tierCounts = (refreshed || []).reduce(
         (acc: Record<string, number>, q: any) => {
