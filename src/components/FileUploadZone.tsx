@@ -86,7 +86,21 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
 
   // Estimated durations (ms) for the syllabus upload + parse pipeline.
   const UPLOAD_EST_MS = 4000;
-  const PARSE_EST_MS = 25000;
+
+  // AI parsing sub-steps shown to the user. The parser returns one JSON blob,
+  // so we drive these on a weighted local timeline and snap them all to "done"
+  // once the real response lands. Weights = expected ms for ETA only.
+  type SubStatus = "idle" | "running" | "done" | "failed";
+  const PARSE_SUBSTEPS: Array<{ id: string; label: string; weightMs: number }> = [
+    { id: "objectives",    label: "Extracting learning objectives",       weightMs: 4000 },
+    { id: "modules",       label: "Identifying modules & units",          weightMs: 6000 },
+    { id: "concepts",      label: "Mapping concepts & topics",            weightMs: 6000 },
+    { id: "prerequisites", label: "Detecting prerequisites & references", weightMs: 5000 },
+    { id: "questions",     label: "Drafting diagnostic question seeds",   weightMs: 4000 },
+  ];
+  const PARSE_EST_MS = PARSE_SUBSTEPS.reduce((s, x) => s + x.weightMs, 0);
+  // Per-file substep statuses: { [storagePath]: { [stepId]: SubStatus } }
+  const [parseSubsteps, setParseSubsteps] = useState<Record<string, Record<string, SubStatus>>>({});
 
   // Cascade-wipe progress state (only used when deleting the last syllabus file)
   const WIPE_STEPS: Array<{ id: string; label: string; weightMs: number }> = [
@@ -201,7 +215,30 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     }
     const storagePath = source.storagePath;
     setParseStatus((prev) => ({ ...prev, [storagePath]: "parsing" }));
-    setParseStartedAt((prev) => ({ ...prev, [storagePath]: Date.now() }));
+    const startedAt = Date.now();
+    setParseStartedAt((prev) => ({ ...prev, [storagePath]: startedAt }));
+    // Initialize substeps: first running, rest idle.
+    const initSub: Record<string, SubStatus> = {};
+    PARSE_SUBSTEPS.forEach((s, i) => { initSub[s.id] = i === 0 ? "running" : "idle"; });
+    setParseSubsteps((prev) => ({ ...prev, [storagePath]: initSub }));
+    // Walk substeps forward on the weighted timeline. Stops when the parser
+    // returns (success path snaps all to done; failure marks current as failed).
+    const cumulative: Array<{ id: string; doneAt: number }> = [];
+    let acc = 0;
+    for (const s of PARSE_SUBSTEPS) { acc += s.weightMs; cumulative.push({ id: s.id, doneAt: acc }); }
+    let curIdx = 0;
+    const subTimer = setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      while (curIdx < cumulative.length - 1 && elapsed >= cumulative[curIdx].doneAt) {
+        const doneId = cumulative[curIdx].id;
+        const nextId = cumulative[curIdx + 1].id;
+        setParseSubsteps((prev) => {
+          const cur = prev[storagePath] ?? {};
+          return { ...prev, [storagePath]: { ...cur, [doneId]: "done", [nextId]: "running" } };
+        });
+        curIdx++;
+      }
+    }, 200);
     try {
       let fileBase64: string;
       let fileName: string;
@@ -241,9 +278,24 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
 
       if (teacherId) void markStepCompleted(teacherId, "upload", courseId, { source: "FileUploadZone.uploadComplete" });
 
+      clearInterval(subTimer);
+      setParseSubsteps((prev) => {
+        const all: Record<string, SubStatus> = {};
+        for (const s of PARSE_SUBSTEPS) all[s.id] = "done";
+        return { ...prev, [storagePath]: all };
+      });
       setParseStatus((prev) => ({ ...prev, [storagePath]: "parsed" }));
     } catch (err) {
       console.warn("Syllabus parse failed:", err);
+      clearInterval(subTimer);
+      setParseSubsteps((prev) => {
+        const cur = { ...(prev[storagePath] ?? {}) };
+        // Mark whichever step was running as failed; leave done as done.
+        for (const s of PARSE_SUBSTEPS) {
+          if (cur[s.id] === "running") cur[s.id] = "failed";
+        }
+        return { ...prev, [storagePath]: cur };
+      });
       setParseStatus((prev) => ({ ...prev, [storagePath]: "failed" }));
     }
   };
@@ -591,7 +643,11 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
           elapsed = now - (parseStartedAt[parsingPath] ?? now);
           estTotal = PARSE_EST_MS;
         }
-        const pct = Math.min(95, Math.round((elapsed / estTotal) * 100));
+        const subs = parsingPath ? (parseSubsteps[parsingPath] ?? {}) : {};
+        const doneSubs = PARSE_SUBSTEPS.filter((s) => subs[s.id] === "done").length;
+        const pct = phase === "parsing"
+          ? Math.min(95, Math.round((doneSubs / PARSE_SUBSTEPS.length) * 100) || Math.round((elapsed / estTotal) * 100))
+          : Math.min(95, Math.round((elapsed / estTotal) * 100));
         const remaining = Math.max(1, Math.ceil((estTotal - elapsed) / 1000));
 
         return (
@@ -607,10 +663,28 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
               <span>
                 {phase === "uploading"
                   ? "Step 1 of 2: secure upload"
-                  : "Step 2 of 2: AI extraction (objectives, units, outcomes, books)"}
+                  : `Step 2 of 2: AI extraction (${doneSubs}/${PARSE_SUBSTEPS.length})`}
               </span>
               <span>~{remaining}s remaining</span>
             </div>
+            {phase === "parsing" && (
+              <ul className="space-y-1 pt-1">
+                {PARSE_SUBSTEPS.map((s) => {
+                  const st = subs[s.id] ?? "idle";
+                  return (
+                    <li key={s.id} className="flex items-center gap-2 text-xs">
+                      {st === "done" && <Check className="h-3.5 w-3.5 text-primary" />}
+                      {st === "running" && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
+                      {st === "failed" && <X className="h-3.5 w-3.5 text-destructive" />}
+                      {st === "idle" && <span className="h-3.5 w-3.5 rounded-full border border-muted-foreground/30" />}
+                      <span className={st === "failed" ? "text-destructive" : st === "idle" ? "text-muted-foreground" : "text-foreground"}>
+                        {s.label}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         );
       })()}
