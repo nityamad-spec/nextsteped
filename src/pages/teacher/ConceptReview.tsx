@@ -24,6 +24,8 @@ interface Suggestion {
   rationale: string;
   unit_number?: number;
   unit_title?: string;
+  weight_pct?: number;
+  weight_rationale?: string;
 }
 
 type RecCategory = "industry" | "foundational" | "gap";
@@ -31,6 +33,8 @@ interface Recommendation {
   name: string;
   rationale: string;
   category: RecCategory;
+  weight_pct?: number;
+  weight_rationale?: string;
 }
 
 const ConceptReview = () => {
