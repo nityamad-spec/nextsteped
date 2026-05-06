@@ -741,6 +741,28 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             <h1 className="font-heading text-2xl font-bold">Generating your lesson plan</h1>
             <p className="text-sm text-muted-foreground mt-2">Usually takes 30–90 seconds.</p>
           </div>
+          {(() => {
+            const eta = 60;
+            const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+            const pct = genError
+              ? Math.min(92, (genElapsed / eta) * 90)
+              : genStep >= 2
+              ? 100
+              : Math.min(92, (genElapsed / eta) * 90);
+            const over = genElapsed > eta;
+            return (
+              <div className="space-y-2">
+                <Progress value={pct} className="h-2" />
+                <p className="text-xs text-muted-foreground">
+                  {genError
+                    ? `Stopped at ${fmt(genElapsed)}`
+                    : over
+                    ? `Taking longer than usual… (${fmt(genElapsed)})`
+                    : `Elapsed ${fmt(genElapsed)} · Est. ~${eta}s`}
+                </p>
+              </div>
+            );
+          })()}
           <div className="space-y-3">
             {genSteps.map((step, i) => (
               <div key={i} className={`flex items-center gap-4 rounded-lg border p-4 transition-colors ${
