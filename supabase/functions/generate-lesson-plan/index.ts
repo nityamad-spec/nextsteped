@@ -589,6 +589,7 @@ Tone: factual, pedagogical, realistic. Do not over-promise mastery. Avoid repeti
 
 For exam weeks: week_name="" and overview="Exam week — review prior content." and resources=[].
 You CANNOT change which concepts go in which week. Output exactly ${totalWeeks} week entries with the same week numbers.
+Each concept name appears in exactly one week. Do not echo or rehash concept names from other weeks inside this week's overview text.
 
 Return ONLY via the provided tool.`;
 
