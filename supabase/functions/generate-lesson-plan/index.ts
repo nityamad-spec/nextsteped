@@ -726,6 +726,7 @@ ${assignmentBlock}`;
       return [...exercises, ...articles];
     };
 
+    emit({ type: "phase", step: "validate", message: "Verifying coverage & deduping…" });
     // ─── STEP 4: Merge locked assignment + authored metadata, validate, persist ───
     const normalized: any[] = [];
     for (const wa of weekAssign) {
