@@ -196,6 +196,9 @@ RULES:
 - complexity: integer 1 (trivial) to 5 (very hard).
 - estimated_sessions: number from 0.5 to 3.0 in steps of 0.5 (sessions of ${course.session_length_minutes || 60} min each).
 - Do not add or drop concepts. Do not invent new ones.
+- Calibrate estimated_sessions to an AVERAGE undergraduate student (not a top-quartile learner). Account for prerequisite chaining, cognitive load, and common misconceptions.
+- Be conservative — under-estimating mastery time is the most common failure of generated plans. When in doubt, round up.
+- Provide a brief, factual rationale grounded in the syllabus/lesson-plan signals; do not speculate beyond them.
 Return ONLY via the provided tool.`;
 
     const effortUser = `COURSE: ${course.name} (${course.term})
@@ -216,7 +219,12 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-2.5-pro",
+          temperature: 0.2,
+          top_p: 0.9,
+          max_tokens: 8192,
+          seed: 42,
+          reasoning: { effort: "high" },
           messages: [
             { role: "system", content: effortSystem },
             { role: "user", content: effortUser },
@@ -258,6 +266,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
         throw new Error(`AI gateway error ${r.status}`);
       }
       const j = await r.json();
+      console.log("[effort LLM] usage:", JSON.stringify(j.usage || {}), "finish_reason:", j.choices?.[0]?.finish_reason);
       const tc = j.choices?.[0]?.message?.tool_calls?.[0];
       if (!tc?.function?.arguments) throw new Error("No effort tool call");
       return JSON.parse(tc.function.arguments).concepts as any[];
@@ -403,9 +412,11 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
 
 You will be given EXACTLY ${totalWeeks} weeks with their assigned concepts already locked. Your job is ONLY to write:
 - week_name (3–6 word title) for each non-exam week
-- overview (1–2 sentence summary) for each non-exam week, grounded in the assigned concepts
-- 1 coding-exercise + 1–2 article resources per non-exam week, tied to those concepts (articles must be real, recent, with working https URLs)
-- one short paragraph (3–5 sentences) of overall course learning outcomes
+- overview (3–5 sentences) for each non-exam week, grounded strictly in the assigned concepts. Cover: (1) what the average student will be able to do by the end of the week, (2) how it builds on prior weeks, (3) the most common misconception or stumbling block to watch for.
+- 1 coding-exercise + 1–2 article resources per non-exam week, tied to those concepts. Articles must be REAL, well-known, freely accessible (e.g. official Python docs, Real Python, MDN, official framework docs) with working https URLs. If you are not certain a URL exists, OMIT the url field rather than inventing one.
+- one short paragraph (3–5 sentences) of overall course learning outcomes, calibrated to an average undergraduate.
+
+Tone: factual, pedagogical, realistic. Do not over-promise mastery. Avoid repetitive phrasing across weeks.
 
 For exam weeks: week_name="" and overview="Exam week — review prior content." and resources=[].
 You CANNOT change which concepts go in which week. Output exactly ${totalWeeks} week entries with the same week numbers.
@@ -423,6 +434,13 @@ ${assignmentBlock}`;
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "google/gemini-2.5-pro",
+        temperature: 0.5,
+        top_p: 0.9,
+        max_tokens: 16384,
+        seed: 42,
+        frequency_penalty: 0.2,
+        presence_penalty: 0.1,
+        reasoning: { effort: "high" },
         messages: [
           { role: "system", content: authorSystem },
           { role: "user", content: authorUser },
@@ -491,6 +509,7 @@ ${assignmentBlock}`;
     }
 
     const authorData = await authorResp.json();
+    console.log("[author LLM] usage:", JSON.stringify(authorData.usage || {}), "finish_reason:", authorData.choices?.[0]?.finish_reason);
     const authorTC = authorData.choices?.[0]?.message?.tool_calls?.[0];
     if (!authorTC?.function?.arguments) throw new Error("AI did not return week authoring");
     const authored = JSON.parse(authorTC.function.arguments);
