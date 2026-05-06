@@ -127,15 +127,30 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     return () => { cancelled = true; };
   }, [folderType, courseId, files]);
 
+  const atCapacity = typeof maxFiles === "number" && files.length + pending.length >= maxFiles;
+  const remainingSlots = typeof maxFiles === "number"
+    ? Math.max(0, maxFiles - files.length - pending.length)
+    : Infinity;
+
   const handleSelect = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
+    if (typeof maxFiles === "number" && remainingSlots <= 0) {
+      toast.error(`Only ${maxFiles} file${maxFiles === 1 ? "" : "s"} allowed. Remove the existing one first.`);
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
     const valid: File[] = [];
+    let dropped = 0;
     for (const file of Array.from(fileList)) {
       if (file.size > 10 * 1024 * 1024) {
         toast.error(`${file.name} exceeds 10 MB limit`);
         continue;
       }
+      if (valid.length >= remainingSlots) { dropped++; continue; }
       valid.push(file);
+    }
+    if (dropped > 0) {
+      toast.error(`Only ${maxFiles} file${maxFiles === 1 ? "" : "s"} allowed; ignored ${dropped} extra.`);
     }
     if (valid.length > 0) {
       setPending((prev) => [...prev, ...valid]);
