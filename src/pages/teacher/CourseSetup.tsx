@@ -83,6 +83,17 @@ const CourseSetup = () => {
 
   useEffect(() => {
     if (!user) return;
+    // Reset to "Not Started" whenever the active course changes so we never
+    // briefly show stale badges from a previous course.
+    setStatuses({
+      upload: "Not Started",
+      "concept-review": "Not Started",
+      "lesson-plan": "Not Started",
+      diagnostic: "Not Started",
+      "ai-settings": "Not Started",
+      "exam-mode": "Not Started",
+      enrollment: "Not Started",
+    });
     const fetchStatuses = async () => {
       setLoading(true);
       const { opened, completed } = await fetchStepProgress(user.id, courseId);

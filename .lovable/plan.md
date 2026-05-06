@@ -1,37 +1,59 @@
-## Goal
-1. On `/teacher/setup/upload`, disable **Next: Review Concepts** until the uploaded syllabus has been parsed AND the resulting JSON has been written to the `course-materials` storage bucket.
-2. On `/teacher/setup`, ensure the **Concept Review** card stays locked until the syllabus JSON is safely persisted in storage.
+## Diagnosis
 
-## Current state
-- `FileUploadZone` already tracks per-file `parseStatus` (`parsing | parsed | failed`) internally, uploads JSON to `{courseId}/syllabus/approved-syllabus.json`, and updates `courses.syllabus_json_path` only after the JSON upload succeeds.
-- `CourseMaterials.tsx` enables Next as soon as `syllabusFiles.length > 0` — it does NOT wait for parsing.
-- `CourseSetup.tsx` already locks Concept Review until `statuses.upload === "Complete"`, and "Complete" is derived from `courses.syllabus_json_path` being non-empty. So requirement (2) is functionally enforced today, but it relies on the JSON upload succeeding before the user can return to `/teacher/setup`. We will harden this so the lock state is unambiguous and reflects storage truth, not just the DB pointer.
+The status shown on `/teacher/setup` (Upload = In Progress, Concept Review = Not Started/Locked, all others Locked) is **inaccurate** for "global economics".
 
-## Changes
+### Actual ground truth in the database
 
-### 1. `src/components/FileUploadZone.tsx`
-- Add an optional prop `onParseStatusChange?: (statuses: Record<string, ParseStatus>) => void`.
-- Call it inside every `setParseStatus` update (via a `useEffect` on `parseStatus`) so the parent gets a live view.
-- On mount, when `folderType === "syllabus"` and `files` already has entries, seed `parseStatus` to `"parsed"` for each existing file IF `courses.syllabus_json_path` is set for the current course (so a page reload doesn't make Next look disabled forever).
+Course `global economics` (`fde21ef0-44a7-4b73-a08c-2b2220f79ee7`, code `GECO`, owner `teacher.nextstep@gmail.com`):
 
-### 2. `src/pages/teacher/CourseMaterials.tsx`
-- Add local state `syllabusParsed: boolean`.
-- On mount (after `courseId` resolves), query `courses.syllabus_json_path`; if non-empty AND the object actually exists in the `course-materials` bucket (lightweight `storage.from(...).list(folder, { search: "approved-syllabus.json" })`), set `syllabusParsed = true`.
-- Pass `onParseStatusChange` into the syllabus `<FileUploadZone>`. Update `syllabusParsed` to true once any status flips to `"parsed"`; set false if all uploaded syllabus files are still parsing/failed.
-- Change `canContinue` from `syllabusFiles.length > 0` to `syllabusFiles.length > 0 && syllabusParsed`.
-- Replace the single helper line with two states:
-  - "Please upload your syllabus to continue." (no files)
-  - "Parsing your syllabus… this usually takes 10–30 seconds. The Next button will enable when it's ready." (files uploaded, not yet parsed)
-  - "Syllabus parsing failed. Use Retry on the file above before continuing." (all parses failed)
-- Disable the Next button accordingly via existing `nextDisabled` prop on `SetupModuleNav`.
+| Step | Real state | Should display |
+|---|---|---|
+| Upload Course Materials | `syllabus_json_path` set + `approved-syllabus.json` present in bucket + `teacher_setup_progress.upload.completed_at` 2026-05-05 16:33 | **Complete** |
+| Concept Review | 78 rows in `concepts` + completed_at 2026-05-05 16:36 | **Complete** |
+| Generate Lesson Plan | `lesson_plan_published_at` 2026-05-06 09:19, `published-plan.json` in bucket, completed_at 2026-05-06 09:19 | **Complete** |
+| Approve Diagnostic Quiz | 0 rows in `diagnostic_questions` | Not Started |
+| AI Assistant Settings | no row in `course_ta_settings` | Not Started |
+| Exam Mode | no row in `course_ta_settings` | Not Started |
+| Enrollment | no completed flag | Not Started |
 
-### 3. `src/pages/teacher/CourseSetup.tsx`
-Keep the existing logic (status from `syllabus_json_path`), but harden:
-- Additionally verify the JSON object exists in storage by calling `supabase.storage.from("course-materials").list("{courseId}/syllabus", { search: "approved-syllabus.json", limit: 1 })`. Only mark `upload = "Complete"` if BOTH the DB pointer and the storage object are present. This guarantees Concept Review cannot unlock based on a stale/incorrect DB pointer.
-- Keep the existing `isCardLocked("concept-review")` rule (`statuses.upload !== "Complete"`).
+### Root cause
 
-## Acceptance
-- Upload a syllabus → Next stays disabled with "Parsing…" copy → flips to enabled within seconds once the parsed JSON lands in the bucket.
-- Refresh `/teacher/setup/upload` after a successful prior parse → Next is enabled immediately.
-- Navigate to `/teacher/setup` while parse is still in flight → Concept Review card shows Locked with the existing "Upload your syllabus in Step 1 to unlock this." message; unlocks once the JSON is in the bucket.
-- Parse failure → Next remains disabled and Retry surfaces in the file row (existing behavior preserved).
+`useTeacherCourseId` reads `localStorage.currentCourseId` and never validates that the id still resolves to a course the teacher can access. There is a stale id in `teacher_setup_progress` for `d63e04bf-581a-40a8-bed8-a8d7c8b3ffb1` (no longer in `courses` — deleted course), and the session's `currentCourseId` is almost certainly that ghost id (or another stale one). When `CourseSetup` runs:
+
+1. `fetchStepProgress(uid, ghostId)` returns `{ opened: { upload: true } }` (the orphan row).
+2. The syllabus check `courses.select(syllabus_json_path).eq(id, ghostId)` returns no row → `syllabusJsonExists = false` → Upload = "In Progress".
+3. Concept/lesson/diagnostic queries all key off the ghost id → empty → everything downstream locked.
+
+So the Course Setup page is rendering for a deleted course, not for "global economics". The `CourseSwitcher` header still reads "global economics" because its persisted `currentCourse` object can be out of sync with the localStorage id, OR the active course is actually a third deleted entry. Either way, **the gate is the unvalidated id**.
+
+## Plan
+
+### 1. `src/hooks/useTeacherCourseId.ts` — validate the active id before returning it
+
+- After computing the candidate id (from `currentCourse?.id` or `localStorage.currentCourseId`), run a lightweight `courses.select("id").eq("id", candidate).maybeSingle()`.
+- If no row comes back (deleted, RLS-hidden, or wrong tenant), clear `localStorage.currentCourseId`, clear AppContext `currentCourse`, and fall through to the existing recovery query (owned course → collaborator course).
+- Only return an id once it has been confirmed to exist for this user.
+- Cache the validation result in a ref so we don't refetch on every render.
+
+### 2. `src/contexts/AppContext.tsx` — keep persisted course in sync on logout/course-delete
+
+- Already clears on logout. Add: when `useTeacherCourseId` reports the id is stale, expose a setter path it can call (or simply have the hook call `setCurrentCourse(null)` directly, which it already imports).
+
+### 3. Defensive cleanup in `CourseSetup.tsx`
+
+- Before running the status fetch, guard `if (!courseId) { setLoading(false); return; }` — already present, but ensure we don't render stale `statuses` from a previous course when `courseId` flips. Reset `statuses` to all "Not Started" at the top of the effect so the transition from ghost-id → real-id doesn't briefly show wrong badges.
+
+### 4. One-off DB hygiene (migration)
+
+- Delete `teacher_setup_progress` rows whose `course_id` no longer exists in `courses`:
+  ```sql
+  DELETE FROM public.teacher_setup_progress tsp
+  WHERE NOT EXISTS (SELECT 1 FROM public.courses c WHERE c.id = tsp.course_id);
+  ```
+- Add an FK `teacher_setup_progress.course_id → courses(id) ON DELETE CASCADE` so future course deletions clean up automatically. Same for `setup_progress_log.course_id` (nullable, `ON DELETE SET NULL` to preserve audit trail).
+
+### Acceptance
+
+- After fix, navigating to `/teacher/setup` while "global economics" is active shows Upload, Concept Review, and Generate Lesson Plan as **Complete**; Diagnostic / AI Settings / Exam Mode / Enrollment as **Not Started** (unlocked from Diagnostic onward per the existing chain).
+- A user whose `localStorage.currentCourseId` points at a deleted course is silently migrated to their first owned/collaborator course on next page load.
+- Deleting a course in future cleans related `teacher_setup_progress` rows via FK cascade.
