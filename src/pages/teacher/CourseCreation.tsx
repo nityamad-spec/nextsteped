@@ -20,7 +20,7 @@ import {
   Check, X, ArrowRight, ArrowLeft, Sparkles, Loader2,
   ChevronDown, ChevronUp, Pencil, GripVertical,
   Plus, Trash2, FileText, BookOpen, Code2, ExternalLink,
-  GraduationCap, Eye, EyeOff, Info, Library,
+  GraduationCap, Eye, EyeOff, Info, Library, RefreshCw,
 } from "lucide-react";
 // SetupProgressBar removed — using top-left "Back to Course Setup" button instead.
 import { useAuth } from "@/contexts/AuthContext";
@@ -113,6 +113,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [scheduleLoaded, setScheduleLoaded] = useState(false);
   const [scheduleExpanded, setScheduleExpanded] = useState(true);
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
+  const [showRegenFromScratchConfirm, setShowRegenFromScratchConfirm] = useState(false);
 
   // ─── Auto-recover / validate course (handles missing or stale localStorage IDs) ───
   useEffect(() => {
@@ -997,15 +998,25 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
 
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Weekly Breakdown</h2>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowRegenerateConfirm(true)}
-            disabled={!scheduleComplete || !scheduleChanged}
-            title={!scheduleChanged ? "Update the Course Schedule above to enable" : undefined}
-          >
-            <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Update Plan
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRegenFromScratchConfirm(true)}
+              disabled={!courseId}
+            >
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Regenerate Plan
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRegenerateConfirm(true)}
+              disabled={!scheduleComplete || !scheduleChanged}
+              title={!scheduleChanged ? "Update the Course Schedule above to enable" : undefined}
+            >
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Update Plan
+            </Button>
+          </div>
         </div>
 
         {/* Week Cards */}
@@ -1402,6 +1413,31 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               }}
             >
               Update Plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showRegenFromScratchConfirm} onOpenChange={setShowRegenFromScratchConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Regenerate lesson plan?</DialogTitle>
+            <DialogDescription>
+              This will discard the current weeks and any edits and produce a fresh AI-generated plan from your approved concepts. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowRegenFromScratchConfirm(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                setShowRegenFromScratchConfirm(false);
+                setWeeksRaw([]);
+                setExpandedWeeks([]);
+                localStorage.removeItem(draftLocalKey);
+                runGeneration();
+              }}
+            >
+              Regenerate Plan
             </Button>
           </DialogFooter>
         </DialogContent>
