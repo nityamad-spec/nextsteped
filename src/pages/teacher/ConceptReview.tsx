@@ -219,9 +219,6 @@ const ConceptReview = () => {
       const existingLc = new Set(
         concepts.map((c) => c.concept_code.trim().toLowerCase()),
       );
-      setRecommendations(
-        incoming.filter((r) => !existingLc.has(r.name.trim().toLowerCase())),
-      );
       const filteredRecs = incoming.filter((r) => !existingLc.has(r.name.trim().toLowerCase()));
       setRecommendations(filteredRecs);
       setWeights((prev) => {
@@ -241,9 +238,10 @@ const ConceptReview = () => {
 
   const handleApproveRecommendation = async (r: Recommendation) => {
     if (!courseId) return;
+    const pct = getWeight(r.name, r.weight_pct);
     const { data, error } = await supabase
       .from("concepts")
-      .insert({ concept_code: r.name, weight: 0, course_id: courseId })
+      .insert({ concept_code: r.name, weight: pct / 100, course_id: courseId })
       .select("*")
       .single();
     if (error) {
