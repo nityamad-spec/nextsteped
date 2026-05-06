@@ -49,6 +49,7 @@ const ConceptReview = () => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [unitCoverage, setUnitCoverage] = useState<Record<number, { covered: number; total: number; missing: string[] }>>({});
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [suggestionsRequested, setSuggestionsRequested] = useState(false);
   const [addingUnitKey, setAddingUnitKey] = useState<string | null>(null);
@@ -108,6 +109,15 @@ const ConceptReview = () => {
       const existingLc = new Set(concepts.map((c) => c.concept_code.trim().toLowerCase()));
       const filtered = incoming.filter((s) => !existingLc.has(s.name.trim().toLowerCase()));
       setSuggestions(filtered);
+      const cov: Record<number, { covered: number; total: number; missing: string[] }> = {};
+      if (Array.isArray(data?.units)) {
+        for (const u of data.units) {
+          if (u && typeof u.unit_number === "number" && u.coverage) {
+            cov[u.unit_number] = u.coverage;
+          }
+        }
+      }
+      setUnitCoverage(cov);
       setWeights((prev) => {
         const next = { ...prev };
         for (const s of filtered) {
@@ -409,6 +419,23 @@ const ConceptReview = () => {
                               <span className="text-xs font-medium text-foreground truncate">
                                 {g.unit_title || ""}
                               </span>
+                              {g.unit_number != null && unitCoverage[g.unit_number] && unitCoverage[g.unit_number].total > 0 && (
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[10px] shrink-0 ${
+                                    unitCoverage[g.unit_number].covered === unitCoverage[g.unit_number].total
+                                      ? "border-green-500/40 text-green-600"
+                                      : "border-amber-500/40 text-amber-600"
+                                  }`}
+                                  title={
+                                    unitCoverage[g.unit_number].missing.length
+                                      ? `Missing: ${unitCoverage[g.unit_number].missing.join("; ")}`
+                                      : "All topics covered"
+                                  }
+                                >
+                                  Covers {unitCoverage[g.unit_number].covered}/{unitCoverage[g.unit_number].total} topics
+                                </Badge>
+                              )}
                             </>
                           ) : (
                             <span className="text-xs font-medium text-muted-foreground">Other</span>

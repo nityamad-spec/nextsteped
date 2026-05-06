@@ -171,11 +171,21 @@ STRICT RULES:
 4. Ground every concept in the unit's listed topics — do not invent concepts unrelated to the syllabus.
 5. Concept names must be concise (2–6 words), distinct, and teachable as a standalone lesson item.
 6. SKIP any concept already in the existing confirmed list (case-insensitive).
-7. Aim for 3–8 concepts per unit depending on unit breadth.
-8. WEIGHTING: For every concept, include an integer "weight_pct" (1–100) representing its share of total course teaching emphasis (breadth × depth × foundational importance × time-on-task). The sum of weight_pct across ALL concepts in ALL units MUST be approximately 100. Per-unit totals should roughly track unit breadth — heavier units get a larger combined share.
-9. WEIGHT RATIONALE: For every concept, include a one-sentence "weight_rationale" explaining why it deserves that share (e.g. "foundational prerequisite reused throughout the course", "narrow applied topic", "broad multi-week treatment").`;
+7. COVERAGE (CRITICAL): EVERY topic listed under a unit MUST be represented by at least one concept in that same unit. Multiple closely-related topics MAY be merged under a single concept, but no listed topic may be silently dropped. Aim for 3–10 concepts per unit depending on unit breadth — err on the side of MORE concepts rather than dropping topics.
+8. TOPIC MAPPING: For every concept, include "covers_topics" — an array of the verbatim topic strings (copied exactly from this unit's listed topics) that this concept teaches. Every topic in the unit must appear in at least one concept's covers_topics array.
+9. WEIGHTING: For every concept, include an integer "weight_pct" (1–100) representing its share of total course teaching emphasis (breadth × depth × foundational importance × time-on-task). The sum of weight_pct across ALL concepts in ALL units MUST be approximately 100. Per-unit totals should roughly track unit breadth.
+10. WEIGHT RATIONALE: For every concept, include a one-sentence "weight_rationale" explaining why it deserves that share (e.g. "foundational prerequisite reused throughout the course", "narrow applied topic", "broad multi-week treatment").`;
 
-    const userPrompt = `Course: ${course?.name || "Untitled"} (${course?.course_code || "n/a"})
+
+
+    type ConceptOut = { name: string; rationale: string; weight_pct?: number; weight_rationale?: string; covers_topics?: string[] };
+    type UnitOut = { unit_number: number; unit_title: string; concepts: ConceptOut[] };
+
+    async function callAi(unitsForCall: { unit_number: number; unit_title: string; topics: string[] }[], retryNote = ""): Promise<{ parsedUnits: UnitOut[]; finishReason: string | undefined; rawLen: number }> {
+      const block = unitsForCall
+        .map((u) => `Unit ${u.unit_number}: ${u.unit_title}\n  Topics: ${u.topics.length ? u.topics.join("; ") : "(none listed)"}`)
+        .join("\n\n");
+      const prompt = `Course: ${course?.name || "Untitled"} (${course?.course_code || "n/a"})
 Objectives: ${(course?.objectives || []).join("; ") || "n/a"}
 
 Existing confirmed concepts (DO NOT repeat any of these):
@@ -183,100 +193,167 @@ ${existingList || "(none yet)"}
 
 Syllabus units (in learning order — preserve this order in your output):
 
-${unitsBlock}
+${block}
 
-Extract concepts unit by unit, in sequence, with no overlap.`;
+${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Every listed topic must be covered."}`;
 
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "extract_unit_concepts",
-              description:
-                "Return concepts grouped by syllabus unit, in unit order, with no concept repeated across units.",
-              parameters: {
-                type: "object",
-                properties: {
-                  units: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        unit_number: { type: "integer" },
-                        unit_title: { type: "string" },
-                        concepts: {
-                          type: "array",
-                          items: {
-                            type: "object",
-                            properties: {
-                              name: { type: "string" },
-                              rationale: { type: "string" },
-                              weight_pct: { type: "integer", minimum: 1, maximum: 100 },
-                              weight_rationale: { type: "string" },
+      const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-pro",
+          temperature: 0.2,
+          max_tokens: 12000,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: prompt },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "extract_unit_concepts",
+                description: "Return concepts grouped by syllabus unit, in unit order, with no concept repeated across units. Every topic listed in a unit must be covered by at least one concept's covers_topics.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    units: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          unit_number: { type: "integer" },
+                          unit_title: { type: "string" },
+                          concepts: {
+                            type: "array",
+                            items: {
+                              type: "object",
+                              properties: {
+                                name: { type: "string" },
+                                rationale: { type: "string" },
+                                weight_pct: { type: "integer", minimum: 1, maximum: 100 },
+                                weight_rationale: { type: "string" },
+                                covers_topics: {
+                                  type: "array",
+                                  items: { type: "string" },
+                                  description: "Verbatim topic strings from this unit that this concept teaches.",
+                                },
+                              },
+                              required: ["name", "rationale", "weight_pct", "weight_rationale", "covers_topics"],
+                              additionalProperties: false,
                             },
-                            required: ["name", "rationale", "weight_pct", "weight_rationale"],
-                            additionalProperties: false,
                           },
                         },
+                        required: ["unit_number", "unit_title", "concepts"],
+                        additionalProperties: false,
                       },
-                      required: ["unit_number", "unit_title", "concepts"],
-                      additionalProperties: false,
                     },
                   },
+                  required: ["units"],
+                  additionalProperties: false,
                 },
-                required: ["units"],
-                additionalProperties: false,
               },
             },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "extract_unit_concepts" } },
-      }),
-    });
-
-    if (!aiResp.ok) {
-      if (aiResp.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again shortly." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (aiResp.status === 402) {
-        return new Response(JSON.stringify({ error: "Lovable AI credits required." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await aiResp.text();
-      console.error("AI gateway error:", aiResp.status, t);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+          ],
+          tool_choice: { type: "function", function: { name: "extract_unit_concepts" } },
+        }),
       });
+
+      if (!aiResp.ok) {
+        const t = await aiResp.text();
+        const err: any = new Error(`AI gateway error ${aiResp.status}: ${t}`);
+        err.status = aiResp.status;
+        throw err;
+      }
+      const aiData = await aiResp.json();
+      const choice = aiData?.choices?.[0];
+      const finishReason = choice?.finish_reason;
+      const toolCall = choice?.message?.tool_calls?.[0];
+      const rawArgs = toolCall?.function?.arguments || "";
+      let parsedUnits: UnitOut[] = [];
+      try {
+        const args = rawArgs ? JSON.parse(rawArgs) : {};
+        if (Array.isArray(args.units)) parsedUnits = args.units;
+      } catch (e) {
+        console.error("Failed to parse tool call. finish_reason=", finishReason, "rawLen=", rawArgs.length, "err=", e);
+      }
+      return { parsedUnits, finishReason, rawLen: rawArgs.length };
     }
 
-    const aiData = await aiResp.json();
-    const toolCall = aiData?.choices?.[0]?.message?.tool_calls?.[0];
+    // Helpers for coverage check
+    const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    function topicCoveredBy(topic: string, covered: string[]): boolean {
+      const t = norm(topic);
+      if (!t) return true;
+      for (const c of covered) {
+        const cn = norm(c);
+        if (!cn) continue;
+        if (cn === t || cn.includes(t) || t.includes(cn)) return true;
+      }
+      return false;
+    }
 
-    type UnitOut = { unit_number: number; unit_title: string; concepts: { name: string; rationale: string; weight_pct?: number; weight_rationale?: string }[] };
-    let parsedUnits: UnitOut[] = [];
+    // ---- Initial call ----
+    let firstResult;
     try {
-      const args = toolCall?.function?.arguments ? JSON.parse(toolCall.function.arguments) : {};
-      if (Array.isArray(args.units)) parsedUnits = args.units;
-    } catch (e) {
-      console.error("Failed to parse tool call:", e);
+      firstResult = await callAi(units);
+    } catch (e: any) {
+      if (e?.status === 429) {
+        return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again shortly." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      if (e?.status === 402) {
+        return new Response(JSON.stringify({ error: "Lovable AI credits required." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      console.error("AI call failed:", e);
+      return new Response(JSON.stringify({ error: "AI gateway error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    let parsedUnits = firstResult.parsedUnits;
+    console.log("suggest-concepts: first call finish_reason=", firstResult.finishReason, "units returned=", parsedUnits.length);
+
+    // ---- Coverage check + targeted retry ----
+    const byUnitNum = new Map<number, UnitOut>();
+    for (const u of parsedUnits) byUnitNum.set(u.unit_number, u);
+
+    const underCovered: { unit_number: number; unit_title: string; topics: string[] }[] = [];
+    for (const u of units) {
+      const got = byUnitNum.get(u.unit_number);
+      const covered: string[] = [];
+      if (got) for (const c of got.concepts || []) covered.push(...(c.covers_topics || []), c.name || "");
+      const missing = u.topics.filter((t) => !topicCoveredBy(t, covered));
+      const ratio = u.topics.length === 0 ? 1 : (u.topics.length - missing.length) / u.topics.length;
+      if (u.topics.length > 0 && (ratio < 0.85 || !got || (got.concepts?.length || 0) === 0)) {
+        underCovered.push({ unit_number: u.unit_number, unit_title: u.unit_title, topics: missing.length ? missing : u.topics });
+      }
+    }
+
+    const shouldRetry = underCovered.length > 0 || firstResult.finishReason === "length";
+    if (shouldRetry) {
+      console.log("suggest-concepts: retrying for under-covered units:", underCovered.map((u) => `U${u.unit_number}(${u.topics.length})`).join(","));
+      try {
+        const retryNote = "These units are under-covered — produce concepts that cover EVERY listed topic below. Do not repeat concept names already produced.";
+        const retryUnits = underCovered.length > 0 ? underCovered : units;
+        const retry = await callAi(retryUnits, retryNote);
+        // Merge: prefer retry concepts for those units; otherwise keep existing
+        const retryByUnit = new Map<number, UnitOut>();
+        for (const u of retry.parsedUnits) retryByUnit.set(u.unit_number, u);
+        const merged: UnitOut[] = [];
+        const allUnitNums = new Set<number>([...byUnitNum.keys(), ...retryByUnit.keys()]);
+        for (const n of allUnitNums) {
+          const a = byUnitNum.get(n);
+          const b = retryByUnit.get(n);
+          if (a && b) {
+            const seen = new Set((a.concepts || []).map((c) => (c.name || "").toLowerCase()));
+            const extra = (b.concepts || []).filter((c) => !seen.has((c.name || "").toLowerCase()));
+            merged.push({ unit_number: n, unit_title: a.unit_title || b.unit_title, concepts: [...(a.concepts || []), ...extra] });
+          } else {
+            merged.push((a || b)!);
+          }
+        }
+        parsedUnits = merged;
+      } catch (e) {
+        console.warn("suggest-concepts: retry failed (non-fatal)", e);
+      }
     }
 
     const existingLc = new Set((existingConcepts as string[]).map((c) => c.trim().toLowerCase()));
@@ -296,6 +373,16 @@ Extract concepts unit by unit, in sequence, with no overlap.`;
       })
       .filter((u) => u.concepts.length > 0);
 
+    // Build per-unit coverage summary using verbatim syllabus topics
+    const coverageByUnit = new Map<number, { covered: number; total: number; missing: string[] }>();
+    for (const u of units) {
+      const got = cleanUnits.find((x) => x.unit_number === u.unit_number);
+      const coveredArr: string[] = [];
+      if (got) for (const c of got.concepts) coveredArr.push(...(c.covers_topics || []), c.name);
+      const missing = u.topics.filter((t) => !topicCoveredBy(t, coveredArr));
+      coverageByUnit.set(u.unit_number, { covered: u.topics.length - missing.length, total: u.topics.length, missing });
+    }
+
     // Flatten with weights, then normalize so weight_pct sums to ~100 (largest-remainder)
     const flat = cleanUnits.flatMap((u) =>
       u.concepts.map((c) => ({
@@ -310,12 +397,10 @@ Extract concepts unit by unit, in sequence, with no overlap.`;
     const totalW = flat.reduce((s, x) => s + x.weight_pct, 0);
     if (flat.length > 0) {
       if (totalW === 0) {
-        // Fallback: even split
         const base = Math.floor(100 / flat.length);
         let rem = 100 - base * flat.length;
         flat.forEach((x, i) => (x.weight_pct = base + (i < rem ? 1 : 0)));
       } else if (Math.abs(totalW - 100) > 5) {
-        // Largest-remainder rescale to 100
         const scaled = flat.map((x) => (x.weight_pct * 100) / totalW);
         const floors = scaled.map((v) => Math.max(1, Math.floor(v)));
         let assigned = floors.reduce((s, v) => s + v, 0);
@@ -333,16 +418,19 @@ Extract concepts unit by unit, in sequence, with no overlap.`;
     }
     const suggestions = flat;
 
+    const unitsWithCoverage = cleanUnits.map((u) => ({
+      ...u,
+      coverage: coverageByUnit.get(u.unit_number) || { covered: 0, total: 0, missing: [] },
+    }));
+
     const totalRaw = parsedUnits.reduce((n, u) => n + (u.concepts?.length || 0), 0);
-    const responseBody: any = { suggestions, units: cleanUnits, reason: "ok" };
+    const responseBody: any = { suggestions, units: unitsWithCoverage, reason: "ok" };
     if (suggestions.length === 0 && totalRaw > 0) {
       responseBody.reason = "all_dedup";
-      responseBody.warning =
-        "All extracted concepts were already in your confirmed list — nothing new to add.";
+      responseBody.warning = "All extracted concepts were already in your confirmed list — nothing new to add.";
     } else if (suggestions.length === 0) {
       responseBody.reason = "empty_ai_output";
-      responseBody.warning =
-        "The AI did not return any concepts for this syllabus. Try re-running, or check that your syllabus has detailed topics per unit.";
+      responseBody.warning = "The AI did not return any concepts for this syllabus. Try re-running, or check that your syllabus has detailed topics per unit.";
     }
 
     return new Response(JSON.stringify(responseBody), {
