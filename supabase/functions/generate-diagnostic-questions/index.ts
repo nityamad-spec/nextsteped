@@ -164,10 +164,54 @@ function hamiltonAllocate(weights: number[], total: number): number[] {
   return result;
 }
 
+// Seeded PRNG (mulberry32) for reproducible randomization within a tier.
+function hashString(str: string): number {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h) + str.charCodeAt(i);
+    h |= 0;
+  }
+  return h >>> 0;
+}
+function mulberry32(seed: number) {
+  let s = seed;
+  return () => {
+    s |= 0;
+    s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Weighted reservoir sampling without replacement: returns indices of `k`
+// chosen units. Probability of selection is proportional to weight; with
+// uniform weights this is a uniform random sample.
+function pickUnitsWeighted(units: UnitInfo[], k: number, rng: () => number): number[] {
+  const keys = units.map((u, i) => {
+    const w = u.weight > 0 ? u.weight : 1e-9;
+    const r = Math.max(rng(), 1e-12);
+    return { i, key: Math.pow(r, 1 / w) };
+  });
+  keys.sort((a, b) => b.key - a.key);
+  return keys.slice(0, k).map((x) => x.i);
+}
+
 // Compute per-tier quota: Map<conceptCode, count>
-function computeTierQuota(units: UnitInfo[], totalSlots: number): Record<string, number> {
-  // 1) allocate slots across units by aggregate weight
-  const unitSlots = hamiltonAllocate(units.map((u) => u.weight), totalSlots);
+function computeTierQuota(units: UnitInfo[], totalSlots: number, seed: string): Record<string, number> {
+  // 1) allocate slots across units. When there are more units than slots,
+  // pick a random sample of units (weighted by aggregate weight) so we don't
+  // always cover the same first-N weeks. Otherwise fall back to Hamilton so
+  // every unit gets at least one slot.
+  const rng = mulberry32(hashString(seed));
+  let unitSlots: number[];
+  if (units.length > totalSlots) {
+    unitSlots = new Array(units.length).fill(0);
+    const picked = pickUnitsWeighted(units, totalSlots, rng);
+    for (const i of picked) unitSlots[i] = 1;
+  } else {
+    unitSlots = hamiltonAllocate(units.map((u) => u.weight), totalSlots);
+  }
 
   const quota: Record<string, number> = {};
   units.forEach((unit, ui) => {
@@ -343,7 +387,8 @@ async function runTier(
   conceptByCode: Record<string, ConceptInfo>,
   lovableKey: string,
 ): Promise<TierResult> {
-  const quota = computeTierQuota(units, spec.count);
+  const seed = `${courseName}:${spec.tier}:${Date.now()}:${Math.random()}`;
+  const quota = computeTierQuota(units, spec.count, seed);
   const quotaBlock = formatQuotaForPrompt(units, quota);
 
   const accepted: ValidatedQuestion[] = [];

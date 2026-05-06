@@ -1,114 +1,53 @@
-## Current behavior
+## Problem
 
-In `supabase/functions/generate-diagnostic-questions/index.ts`:
-
-- All concepts for the course are loaded (`select id, concept_code, weight from concepts where course_id = ...`) and passed to Gemini as a flat comma-separated string.
-- The model freely picks any concept_code per question. Validation only checks the topic exists in the list — there is no quota per concept or per unit.
-- `concepts.weight` exists but is **0 for every row** in the DB (unused). Concepts have no `unit_id` / `week_id` column either; the lesson-plan ↔ concept link lives in `lesson_plan_weeks.concepts` (a JSONB array of `{id, name, ...}` where `id` is a `lesson_plan_weeks` internal id, not a `concepts.id`).
-- Empirical result on the global-economics course: 78 concepts, only ~14 received any question, top concept got 3, most got 0.
-
-So today there is **no enforcement of distribution across units or weights**. The model concentrates on a handful of "interesting" concepts.
+In `supabase/functions/generate-diagnostic-questions/index.ts`, `computeTierQuota` calls `hamiltonAllocate(units.map(u => u.weight), 5)`. Because teacher weights are all 0 today, every unit ends up with equal weight, so the largest-remainder method ties on every fractional remainder. Ties are broken by array index, and units are sorted by `week_number` ascending — so weeks 1–5 always win every tier, and weeks 6–16 never receive a question.
 
 ## Goal
 
-Distribute the 20 diagnostic questions (5 per tier) across the course's units (weeks of the lesson plan) and respect concept weights, with a hard server-side check that no single unit/concept dominates.
+For each tier, the 5 slots should land on a **random sample of 5 weeks** (when there are more weeks than slots), instead of always the first 5. Across all 4 tiers (20 questions) this naturally spreads coverage over the whole semester. Real teacher-set weights, when present, should still bias the sampling.
 
 ## Design
 
-### 1. Build a weighted concept→unit map
+### Weighted-random unit selection (replaces the front of `computeTierQuota`)
 
-At the start of the request, in addition to loading `concepts`, also load `lesson_plan_weeks` for the course and build:
+When `units.length > totalSlots` (e.g. 16 weeks, 5 slots):
 
-```ts
-type ConceptInfo = {
-  id: string;
-  code: string;
-  weight: number;          // from concepts.weight, or fallback
-  weekNumber: number | null; // resolved by name match against lesson_plan_weeks.concepts[].name
-  weekName: string | null;
-};
-```
+1. Draw `totalSlots` units **without replacement**, with each unit's draw probability proportional to `unit.weight`. Use the standard weighted-reservoir trick: for each unit compute `key = rand() ** (1 / weight)` and take the top `totalSlots` keys. With uniform weights this collapses to a plain random sample; with non-uniform teacher weights, heavier units are more likely to be chosen.
+2. Each selected unit gets exactly 1 slot for that tier. (No need to call Hamilton at the unit level in the over-supply case.)
+3. Within each selected unit, keep the existing concept-level allocation (Hamilton on concept weights, capped at 1 per concept).
 
-Resolution:
-- For each `lesson_plan_weeks` row, walk `concepts` JSONB array, take each `name`, and case-insensitively match against `concepts.concept_code`. Tag the concept with that week.
-- Concepts not appearing in any week get `weekNumber = null` (treated as a synthetic "Unassigned" unit).
+When `units.length <= totalSlots` (small courses):
 
-Weight fallback: since all `weight` values are 0 today, treat 0 as "uniform" — every concept in a unit gets weight `1 / nConceptsInUnit`. Once teachers set real weights via the Concepts page, those override the fallback.
+- Keep current behavior: run Hamilton across all units so every unit gets ≥1 slot and the remainder is distributed by weight.
 
-### 2. Compute a per-tier quota
+### Per-tier seeding
 
-For each tier (5 questions), distribute the 5 slots across units proportional to the unit's aggregate weight (sum of concept weights in that unit, normalized to 1 across the course).
+Seed the RNG with `${courseId}:${tier}:${Date.now()}` so:
+- Each of the 4 tiers picks a (likely) different set of 5 weeks → over 20 questions, most weeks get coverage.
+- Re-running generation produces a fresh random pick (teachers regenerating won't get the same five weeks again).
 
-Algorithm: largest-remainder method (Hamilton) to avoid rounding loss — guarantees the slots sum exactly to 5 per tier.
+If we'd rather make it reproducible per course, drop `Date.now()` and use just `${courseId}:${tier}`. Default in this plan: include `Date.now()` for fresh randomness on each click.
 
-Within each unit's allotment, distribute slots to concepts proportional to per-concept weight (also Hamilton). Cap at 1 question per concept per tier when the unit has more concepts than slots; only allow a second question on the same concept if every other concept in that unit already has one.
+Reuse the existing `mulberry32` PRNG style from `src/lib/seededShuffle.ts` (port the small helper into the edge function — edge functions can't import from `src/`).
 
-Output: a `Map<conceptCode, slotsForThisTier>` per tier — the model's exact target.
+### No other changes
 
-Edge cases:
-- Course with <5 units → some units get >1 slot per tier (Hamilton handles).
-- Course with >5 units in a tier → only top-5-weighted units get a slot that tier; rotate across tiers so over 4 tiers (20 questions) every unit with weight >0 receives at least one question if possible.
-- 0 concepts in a course → fail fast (already handled).
-
-### 3. Pass quota to the LLM and enforce on validation
-
-In `callGateway`:
-- Replace the flat `conceptList` string with a structured per-unit block:
-  ```
-  Unit 1 — Foundations of Global Financial Stability (target: 2 questions)
-    - Defining Macro-Financial Stability (target: 1)
-    - Globalization and Financial Integration (target: 1)
-  Unit 2 — Exchange Rates and Early Crises (target: 1)
-    - Exchange Rate Determination (target: 1)
-  ...
-  ```
-- Add a strict instruction: "Each question's `topic` MUST be one of the listed concept_codes. Generate exactly the target count for each concept. Do not exceed the target for any concept."
-
-In `runTier`, after collecting candidates, run a **post-validation distribution check**:
-- Build `acceptedByCode` count.
-- If any concept is over-quota, drop the surplus rows (keep first N).
-- If under-quota, fall through to the existing retry loop with a `retryHint` listing the missing concept_codes and how many of each are still needed.
-
-### 4. Final pre-insert sanity check
-
-Before the bulk insert, assert:
-- `accepted.length === 20` (already enforced).
-- For each concept_code, `count <= quota * tolerance` where tolerance allows ±0 by default (strict). If violated → 422 with breakdown.
-- For each unit, `count >= ceil(unitTotalQuota * 0.8)` to catch the case where one unit is silently starved.
-
-If checks fail → return 422 with `breakdown.distribution` so the UI can show which units / concepts came up short.
-
-### 5. UI
-
-`src/pages/teacher/DiagnosticQuestionsSetup.tsx`:
-- After successful generation, show a small "Distribution by Unit" summary card listing `Unit N (X questions)` so the teacher sees the spread.
-- Add a single sentence in the footer: "Questions are distributed across units in proportion to concept weights set on the Concepts page."
-- On 422 with `breakdown.distribution`, surface the under-filled units in the toast + breakdown panel.
-
-Optional (not required for this plan): button on Concepts page to "Auto-balance weights to equal" since 0-weights are everywhere today.
-
-## Out of scope
-
-- Schema changes (no `concepts.unit_id` column added — we resolve via `lesson_plan_weeks.concepts` JSONB).
-- Editing teacher weights from the Diagnostic page.
-- Changing the 20-question total or 5-per-tier split.
-- Bloom-level distribution (already loosely enforced).
+- `hamiltonAllocate` stays as-is (still used inside each unit and in the small-course branch).
+- Prompt formatting, validation, sanity-check, retry loop, UI distribution card — all unchanged. The "Distribution by Unit" card will now show different weeks each time.
 
 ## Files to edit
 
-- `supabase/functions/generate-diagnostic-questions/index.ts` — concept loading, quota computation, prompt restructure, validation tightening, sanity check.
-- `src/pages/teacher/DiagnosticQuestionsSetup.tsx` — distribution summary, error surfacing, footer copy.
+- `supabase/functions/generate-diagnostic-questions/index.ts` — add a small seeded-RNG helper, add `pickUnitsWeighted(units, k, rng)`, branch inside `computeTierQuota`, thread a per-tier seed from `runTier`.
 
 ## Validation
 
-- Run `supabase--curl_edge_functions` against the global-economics course (16 weeks, 78 concepts).
-- Expect: 20 rows, ≤4 questions per unit, every unit with concept weight >0 represented, no concept appearing more than 2 times across the full diagnostic.
-- `supabase--read_query`:
-  ```sql
-  select week_number, count(*)
-  from diagnostic_questions dq
-  join concepts c on c.id = dq.concept_id
-  -- join via lesson_plan_weeks resolution helper or a temp CTE
-  group by week_number order by week_number;
-  ```
-- Force a course where one unit has weight 0 → confirm zero questions land on it.
+- `supabase--curl_edge_functions` against the global-economics course (16 weeks). Expect each tier's `distributionByUnit` to feature a different set of 5 weeks; across the full 20-question response, expect ≥10 distinct weeks represented (vs. 5 today).
+- Re-run a second time → distribution should change (confirms randomness).
+- Run on a small course with only 3 weeks → each tier still hits all 3 weeks (confirms small-course branch still works).
+- Set non-zero weights on a few concepts via the Concepts page → those weeks should appear more often than zero-weight weeks across tiers.
+
+## Out of scope
+
+- Changing the 20/5 split, Bloom distribution, or the per-concept cap.
+- Surfacing the seed to the UI.
+- Schema changes.
