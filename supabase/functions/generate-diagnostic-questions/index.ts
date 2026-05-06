@@ -157,7 +157,7 @@ STRICT RULES:
     },
     body: JSON.stringify({
       model: MODEL,
-      temperature: 0.4,
+      temperature: 0.3,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `Generate ${needed} ${spec.tier} tier MCQ diagnostic questions now.` },
