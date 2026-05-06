@@ -275,46 +275,122 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     }
   };
 
-  const performDelete = async () => {
-    const file = deleteTarget;
-    if (!file) return;
-    const { error } = await supabase.storage
-      .from("course-materials")
-      .remove([file.path]);
+  const isLastSyllabusDelete = (file: UploadedFile) =>
+    folderType === "syllabus" && !!courseId && files.filter((f) => f.path !== file.path).length === 0;
 
+  const runCascadeWipe = async (file: UploadedFile) => {
+    setWipeOpen(true);
+    setWipeFinished(false);
+    setWipeError(null);
+    setWipeElapsed(0);
+    const init: Record<string, WipeStatus> = {};
+    for (const s of WIPE_STEPS) init[s.id] = "idle";
+    setWipeStatuses(init);
+
+    const startedAt = Date.now();
+    const tick = setInterval(() => setWipeElapsed(Date.now() - startedAt), 200);
+
+    // Drive predicted step progression locally on the weight timeline.
+    const cumulative: Array<{ id: string; doneAt: number }> = [];
+    let acc = 0;
+    for (const s of WIPE_STEPS) { acc += s.weightMs; cumulative.push({ id: s.id, doneAt: acc }); }
+    let currentIdx = 0;
+    setWipeStatuses((prev) => ({ ...prev, [WIPE_STEPS[0].id]: "running" }));
+    const progressTimer = setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      while (currentIdx < cumulative.length && elapsed >= cumulative[currentIdx].doneAt) {
+        const id = cumulative[currentIdx].id;
+        setWipeStatuses((prev) => ({ ...prev, [id]: "done" }));
+        currentIdx++;
+        if (currentIdx < cumulative.length) {
+          const nextId = cumulative[currentIdx].id;
+          setWipeStatuses((prev) => ({ ...prev, [nextId]: "running" }));
+        }
+      }
+    }, 150);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("wipe-syllabus-cascade", {
+        body: { courseId, syllabusStoragePath: file.path },
+      });
+      clearInterval(progressTimer);
+      clearInterval(tick);
+
+      if (error || (data && (data as any).error)) {
+        const failedStep = (data as any)?.stepId as string | undefined;
+        const msg = (error?.message || (data as any)?.error || "Wipe failed") as string;
+        setWipeStatuses((prev) => {
+          const next = { ...prev };
+          if (failedStep) next[failedStep] = "failed";
+          // mark earlier as done, later as idle
+          let seenFailed = false;
+          for (const s of WIPE_STEPS) {
+            if (s.id === failedStep) { seenFailed = true; continue; }
+            if (!seenFailed) next[s.id] = "done";
+            else if (next[s.id] !== "failed") next[s.id] = "idle";
+          }
+          return next;
+        });
+        setWipeError(msg);
+        setWipeFinished(true);
+        toast.error(`Failed: ${msg}`);
+        return;
+      }
+
+      // success — mark all done
+      setWipeStatuses(() => {
+        const next: Record<string, WipeStatus> = {};
+        for (const s of WIPE_STEPS) next[s.id] = "done";
+        return next;
+      });
+      setWipeFinished(true);
+
+      // Update local UI state
+      const remaining = files.filter((f) => f.path !== file.path);
+      onFilesChange(remaining);
+      setParseStatus((prev) => {
+        const next = { ...prev };
+        delete next[file.path];
+        return next;
+      });
+      toast.success("Syllabus and generated data wiped");
+    } catch (e: any) {
+      clearInterval(progressTimer);
+      clearInterval(tick);
+      setWipeError(e?.message ?? "Unknown error");
+      setWipeFinished(true);
+      toast.error(`Failed: ${e?.message ?? "Unknown error"}`);
+    }
+  };
+
+  const performSimpleDelete = async (file: UploadedFile) => {
+    const { error } = await supabase.storage.from("course-materials").remove([file.path]);
     if (error) {
       toast.error(`Failed to remove ${file.name}`);
-      setDeleteTarget(null);
       return;
     }
-
     if (teacherId && folderType) {
-      await supabase
-        .from("course_material_files")
-        .delete()
-        .eq("storage_path", file.path);
+      await supabase.from("course_material_files").delete().eq("storage_path", file.path);
     }
-
     const remaining = files.filter((f) => f.path !== file.path);
     onFilesChange(remaining);
-
-    // If this was the last syllabus file, clear the parsed JSON + course pointer.
-    if (folderType === "syllabus" && courseId && remaining.length === 0) {
-      const jsonPath = `${courseId}/syllabus/approved-syllabus.json`;
-      await supabase.storage.from("course-materials").remove([jsonPath]).catch(() => {});
-      await supabase
-        .from("courses")
-        .update({ syllabus_json_path: null })
-        .eq("id", courseId);
-    }
-
     setParseStatus((prev) => {
       const next = { ...prev };
       delete next[file.path];
       return next;
     });
     toast.success(`Removed "${file.name}"`);
+  };
+
+  const performDelete = async () => {
+    const file = deleteTarget;
+    if (!file) return;
     setDeleteTarget(null);
+    if (isLastSyllabusDelete(file)) {
+      await runCascadeWipe(file);
+    } else {
+      await performSimpleDelete(file);
+    }
   };
 
   const renderParsePill = (filePath: string) => {
