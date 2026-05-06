@@ -1508,6 +1508,29 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!confirmRegenWeekId} onOpenChange={(o) => !o && setConfirmRegenWeekId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Regenerate this week?</DialogTitle>
+            <DialogDescription>
+              Only the week's <strong>title</strong>, <strong>overview</strong>, and <strong>resources</strong> will be replaced with a fresh AI draft. The assigned <strong>concepts stay locked</strong> and won't change. Any manual edits to title, overview, or resources for this week will be overwritten.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmRegenWeekId(null)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                const id = confirmRegenWeekId;
+                setConfirmRegenWeekId(null);
+                if (id) regenerateWeek(id);
+              }}
+            >
+              Regenerate Week
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
