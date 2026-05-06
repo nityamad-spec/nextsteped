@@ -109,6 +109,15 @@ const ConceptReview = () => {
       const existingLc = new Set(concepts.map((c) => c.concept_code.trim().toLowerCase()));
       const filtered = incoming.filter((s) => !existingLc.has(s.name.trim().toLowerCase()));
       setSuggestions(filtered);
+      const cov: Record<number, { covered: number; total: number; missing: string[] }> = {};
+      if (Array.isArray(data?.units)) {
+        for (const u of data.units) {
+          if (u && typeof u.unit_number === "number" && u.coverage) {
+            cov[u.unit_number] = u.coverage;
+          }
+        }
+      }
+      setUnitCoverage(cov);
       setWeights((prev) => {
         const next = { ...prev };
         for (const s of filtered) {
