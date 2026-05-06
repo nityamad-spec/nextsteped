@@ -274,7 +274,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
 
     // Try once, retry on shape mismatch, then fall back to defaults for missing
     let effortByName = new Map<string, { complexity: number; estimated_sessions: number }>();
-    const warnings: string[] = [];
+    // (warnings array declared earlier near step 0)
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const arr = await callEffortLLM();
