@@ -387,7 +387,8 @@ async function runTier(
   conceptByCode: Record<string, ConceptInfo>,
   lovableKey: string,
 ): Promise<TierResult> {
-  const quota = computeTierQuota(units, spec.count);
+  const seed = `${courseName}:${spec.tier}:${Date.now()}:${Math.random()}`;
+  const quota = computeTierQuota(units, spec.count, seed);
   const quotaBlock = formatQuotaForPrompt(units, quota);
 
   const accepted: ValidatedQuestion[] = [];
