@@ -79,6 +79,14 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const [deleteTarget, setDeleteTarget] = useState<UploadedFile | null>(null);
   // Per-file parse status keyed by storage_path. Only used for syllabus uploads.
   const [parseStatus, setParseStatus] = useState<Record<string, ParseStatus>>({});
+  // Track start time per storage_path so we can show elapsed/remaining estimate.
+  const [parseStartedAt, setParseStartedAt] = useState<Record<string, number>>({});
+  const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  // Estimated durations (ms) for the syllabus upload + parse pipeline.
+  const UPLOAD_EST_MS = 4000;
+  const PARSE_EST_MS = 25000;
 
   // Cascade-wipe progress state (only used when deleting the last syllabus file)
   const WIPE_STEPS: Array<{ id: string; label: string; weightMs: number }> = [
@@ -102,6 +110,15 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   useEffect(() => {
     onParseStatusChange?.(parseStatus);
   }, [parseStatus, onParseStatusChange]);
+
+  // Tick `now` every 250ms while any syllabus operation is in flight, so the
+  // progress bar + ETA stay live without re-rendering when nothing's happening.
+  useEffect(() => {
+    const anyParsing = Object.values(parseStatus).some((s) => s === "parsing");
+    if (!uploading && !anyParsing && uploadStartedAt === null) return;
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [uploading, parseStatus, uploadStartedAt]);
 
   // On mount (and when files/courseId change), seed parseStatus to "parsed"
   // for existing syllabus files when the parsed JSON pointer is present, so a
@@ -184,6 +201,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     }
     const storagePath = source.storagePath;
     setParseStatus((prev) => ({ ...prev, [storagePath]: "parsing" }));
+    setParseStartedAt((prev) => ({ ...prev, [storagePath]: Date.now() }));
     try {
       let fileBase64: string;
       let fileName: string;
@@ -237,6 +255,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const handleConfirmedUpload = async () => {
     if (pending.length === 0 || !confirmed) return;
     setUploading(true);
+    if (folderType === "syllabus") setUploadStartedAt(Date.now());
 
     // Ensure we have a fresh session token before uploading
     const { error: refreshError } = await supabase.auth.refreshSession();
@@ -286,6 +305,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     setPending([]);
     setConfirmed(false);
     setUploading(false);
+    if (folderType === "syllabus") setUploadStartedAt(null);
 
     // Kick off background parsing for syllabus files. Non-blocking.
     for (const { file, path } of syllabusToParse) {
@@ -555,7 +575,46 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         </div>
       )}
 
-      {/* Existing files list */}
+      {/* Syllabus upload + parse progress */}
+      {folderType === "syllabus" && (() => {
+        const parsingPath = Object.keys(parseStatus).find((p) => parseStatus[p] === "parsing");
+        const isUploading = uploading && uploadStartedAt !== null;
+        if (!isUploading && !parsingPath) return null;
+
+        let phase: "uploading" | "parsing" = isUploading ? "uploading" : "parsing";
+        let elapsed = 0;
+        let estTotal = 0;
+        if (phase === "uploading" && uploadStartedAt) {
+          elapsed = now - uploadStartedAt;
+          estTotal = UPLOAD_EST_MS;
+        } else if (parsingPath) {
+          elapsed = now - (parseStartedAt[parsingPath] ?? now);
+          estTotal = PARSE_EST_MS;
+        }
+        const pct = Math.min(95, Math.round((elapsed / estTotal) * 100));
+        const remaining = Math.max(1, Math.ceil((estTotal - elapsed) / 1000));
+
+        return (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span className="font-medium text-foreground">
+                {phase === "uploading" ? "Uploading syllabus…" : "Parsing syllabus into structured JSON…"}
+              </span>
+            </div>
+            <Progress value={pct} className="h-2" />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {phase === "uploading"
+                  ? "Step 1 of 2: secure upload"
+                  : "Step 2 of 2: AI extraction (objectives, units, outcomes, books)"}
+              </span>
+              <span>~{remaining}s remaining</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {files.length > 0 && (
         <div className="space-y-1.5 pt-1">
           {files.map((f) => (
