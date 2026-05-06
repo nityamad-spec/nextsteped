@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.diagnostic_questions_validate_topic() FROM PUBLIC, anon, authenticated;
