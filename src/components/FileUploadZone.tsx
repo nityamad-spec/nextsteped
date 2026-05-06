@@ -278,9 +278,24 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
 
       if (teacherId) void markStepCompleted(teacherId, "upload", courseId, { source: "FileUploadZone.uploadComplete" });
 
+      clearInterval(subTimer);
+      setParseSubsteps((prev) => {
+        const all: Record<string, SubStatus> = {};
+        for (const s of PARSE_SUBSTEPS) all[s.id] = "done";
+        return { ...prev, [storagePath]: all };
+      });
       setParseStatus((prev) => ({ ...prev, [storagePath]: "parsed" }));
     } catch (err) {
       console.warn("Syllabus parse failed:", err);
+      clearInterval(subTimer);
+      setParseSubsteps((prev) => {
+        const cur = { ...(prev[storagePath] ?? {}) };
+        // Mark whichever step was running as failed; leave done as done.
+        for (const s of PARSE_SUBSTEPS) {
+          if (cur[s.id] === "running") cur[s.id] = "failed";
+        }
+        return { ...prev, [storagePath]: cur };
+      });
       setParseStatus((prev) => ({ ...prev, [storagePath]: "failed" }));
     }
   };
