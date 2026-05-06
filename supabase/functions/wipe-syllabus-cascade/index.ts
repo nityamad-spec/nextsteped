@@ -189,7 +189,7 @@ Deno.serve(async (req) => {
 
     const verifyOk = Object.values(verification).every((v) => v.ok);
     if (!verifyOk) {
-      return json({ ok: false, deleted, durations, verification, error: "Verification failed: some records remain" }, 500);
+      return json({ ok: false, deleted, durations, verification, stepId: "verify", error: "Verification failed: some records remain" }, 500);
     }
 
     return json({ ok: true, deleted, durations, verification }, 200);
