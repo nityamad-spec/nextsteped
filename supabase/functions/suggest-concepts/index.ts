@@ -359,7 +359,12 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
     const existingLc = new Set((existingConcepts as string[]).map((c) => c.trim().toLowerCase()));
     const seen = new Set<string>();
     const cleanUnits: UnitOut[] = parsedUnits
-      .sort((a, b) => (a.unit_number || 0) - (b.unit_number || 0))
+      .sort((a, b) => {
+        const an = a.unit_number || 0;
+        const bn = b.unit_number || 0;
+        if (an !== bn) return an - bn;
+        return norm(a.unit_title || "").localeCompare(norm(b.unit_title || ""));
+      })
       .map((u) => {
         const concepts = (u.concepts || []).filter((c) => {
           const key = (c?.name || "").trim().toLowerCase();
