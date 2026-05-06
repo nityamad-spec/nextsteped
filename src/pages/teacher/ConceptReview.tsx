@@ -660,6 +660,9 @@ const ConceptReview = () => {
                         {idx + 1}
                       </span>
                       <span className="text-sm font-medium truncate">{c.concept_code}</span>
+                      <Badge variant="secondary" className="text-[10px] shrink-0 tabular-nums">
+                        {Math.round(Number(c.weight) * 100)}%
+                      </Badge>
                     </div>
                     {confirmDeleteId === c.id ? (
                       <div className="flex items-center gap-1 shrink-0">
