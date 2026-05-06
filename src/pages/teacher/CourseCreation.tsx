@@ -210,6 +210,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [noConceptsError, setNoConceptsError] = useState(false);
   const [genElapsed, setGenElapsed] = useState(0);
   const [genStep, setGenStep] = useState(0);
+  const [genLogs, setGenLogs] = useState<{ ts: number; level: "info" | "warning"; message: string }[]>([]);
   const [weeks, setWeeksRaw] = useState<WeekPlan[]>([]);
   const [expandedWeeks, setExpandedWeeks] = useState<string[]>([]);
   const [restoringDraft, setRestoringDraft] = useState(true);
@@ -346,23 +347,80 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     setNoConceptsError(false);
     setGenStep(0);
     setGenElapsed(0);
-    const stepTimer = setInterval(() => setGenStep(s => Math.min(s + 1, 2)), 8000);
+    setGenLogs([]);
     const elapsedTimer = setInterval(() => setGenElapsed(e => e + 1), 1000);
+
+    const phaseOrder = ["load", "verify", "estimate", "allocate", "author", "validate"];
+    const stepIndex = (key: string) => {
+      const i = phaseOrder.indexOf(key);
+      return i < 0 ? 0 : i;
+    };
+
+    const pushLog = (level: "info" | "warning", message: string) => {
+      setGenLogs(prev => [...prev.slice(-19), { ts: Date.now(), level, message }]);
+    };
+
+    let donePayload: any = null;
+
     try {
-      const { data, error } = await supabase.functions.invoke("generate-lesson-plan", {
-        body: { courseId },
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-lesson-plan`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ courseId }),
       });
-      clearInterval(stepTimer);
-      clearInterval(elapsedTimer);
-      if (error) throw error;
-      if (data?.error) {
-        if (data?.code === "NO_CONCEPTS") {
-          setNoConceptsError(true);
-          setGenError(data.error);
-          return;
-        }
-        throw new Error(data.error);
+
+      if (!resp.ok || !resp.body) {
+        throw new Error(`Function returned ${resp.status}`);
       }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || "";
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data:")) continue;
+          const json = line.slice(5).trim();
+          if (!json) continue;
+          let event: any;
+          try { event = JSON.parse(json); } catch { continue; }
+
+          if (event.type === "phase") {
+            setGenStep(stepIndex(event.step));
+            if (event.message) pushLog("info", event.message);
+          } else if (event.type === "log") {
+            if (event.message) pushLog("info", event.message);
+          } else if (event.type === "warning") {
+            if (event.message) pushLog("warning", event.message);
+          } else if (event.type === "heartbeat") {
+            /* keepalive */
+          } else if (event.type === "error") {
+            if (event.code === "NO_CONCEPTS") setNoConceptsError(true);
+            throw new Error(event.message || "Generation failed");
+          } else if (event.type === "done") {
+            donePayload = event.payload;
+          }
+        }
+      }
+
+      clearInterval(elapsedTimer);
+      if (!donePayload) throw new Error("Stream ended without a result");
+      const data = donePayload;
       if (!Array.isArray(data?.weeks) || data.weeks.length === 0) {
         throw new Error("AI returned no weeks. Please try regenerating.");
       }
@@ -396,10 +454,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       setOverallOutcomes(typeof data.overall_course_learning_outcomes === "string" ? data.overall_course_learning_outcomes : "");
       setGapMode(false);
       setLastGeneratedSchedule({ total_weeks: totalWeeks, midterm_week: midtermWeek, final_week: finalWeek });
-      setGenStep(2);
+      setGenStep(genSteps.length);
       setTimeout(() => setPhase("plan"), 500);
     } catch (err: any) {
-      clearInterval(stepTimer);
       clearInterval(elapsedTimer);
       console.error("Lesson plan generation failed:", err);
       setGenError(err?.message || "Failed to generate lesson plan");
@@ -659,9 +716,12 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
 
   // ─── Generation phase UI ───
   const genSteps = [
-    { label: "Estimating concept effort", desc: "AI gauges complexity and time-to-mastery for each concept" },
-    { label: "Distributing across weeks", desc: "Balancing weeks by teacher weight and estimated effort" },
-    { label: "Authoring week details", desc: "Writing titles, overviews, and resources per week" },
+    { key: "load", label: "Loading concepts", desc: "Fetching approved concepts and course materials" },
+    { key: "verify", label: "Verifying order", desc: "Cross-checking concept sequence against the syllabus" },
+    { key: "estimate", label: "Estimating effort", desc: "AI gauges complexity and time-to-mastery per concept" },
+    { key: "allocate", label: "Distributing across weeks", desc: "Balancing weeks by teacher weight and estimated effort" },
+    { key: "author", label: "Authoring week details", desc: "Writing titles, overviews, and resources per week" },
+    { key: "validate", label: "Verifying coverage", desc: "Deduping and ensuring every concept is placed" },
   ];
 
   if (restoringDraft) {
@@ -835,6 +895,18 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               </div>
             ))}
           </div>
+          {genLogs.length > 0 && (
+            <div className="rounded-lg border border-border bg-muted/30 p-3 text-left max-h-40 overflow-y-auto">
+              <p className="text-[11px] font-medium text-muted-foreground mb-1.5">Live activity</p>
+              <ul className="space-y-1">
+                {genLogs.slice(-8).map((log, i) => (
+                  <li key={i} className={`text-[11px] leading-snug ${log.level === "warning" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                    <span className="opacity-60">›</span> {log.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {genError && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3 text-left">
               <p className="text-sm font-medium text-destructive">

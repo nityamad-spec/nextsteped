@@ -50,14 +50,44 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let courseId: string | undefined;
   try {
-    const { courseId } = await req.json();
-    if (!courseId) {
-      return new Response(JSON.stringify({ error: "courseId is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const body = await req.json();
+    courseId = body?.courseId;
+  } catch {
+    /* handled below */
+  }
+
+  const sseHeaders = {
+    ...corsHeaders,
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache, no-transform",
+    "X-Accel-Buffering": "no",
+    Connection: "keep-alive",
+  };
+
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const emit = (event: Record<string, unknown>) => {
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        } catch {
+          /* controller closed */
+        }
+      };
+      const heartbeat = setInterval(() => emit({ type: "heartbeat", ts: Date.now() }), 15000);
+      const finish = () => {
+        clearInterval(heartbeat);
+        try { controller.close(); } catch { /* already closed */ }
+      };
+
+      try {
+        if (!courseId) {
+          emit({ type: "error", message: "courseId is required", code: "BAD_REQUEST" });
+          return finish();
+        }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -67,6 +97,8 @@ serve(async (req) => {
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    emit({ type: "phase", step: "load", message: "Loading course & concepts…" });
+
     // 1. Fetch course metadata (incl exam weeks)
     const { data: course, error: courseError } = await supabaseAdmin
       .from("courses")
@@ -75,10 +107,8 @@ serve(async (req) => {
       .single();
 
     if (courseError || !course) {
-      return new Response(JSON.stringify({ error: "Course not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      emit({ type: "error", message: "Course not found", code: "NOT_FOUND" });
+      return finish();
     }
 
     const totalWeeks = course.total_weeks || 16;
@@ -97,14 +127,10 @@ serve(async (req) => {
     }
 
     if (!conceptRows || conceptRows.length === 0) {
-      return new Response(
-        JSON.stringify({
-          error: "No confirmed concepts. Complete Concept Review first.",
-          code: "NO_CONCEPTS",
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      emit({ type: "error", message: "No confirmed concepts. Complete Concept Review first.", code: "NO_CONCEPTS" });
+      return finish();
     }
+    emit({ type: "log", message: `Loaded ${conceptRows.length} approved concepts.` });
 
     const orderedConceptNames: string[] = conceptRows.map((c: any) => String(c.concept_code).trim());
     const teacherWeights: number[] = conceptRows.map((c: any) => {
@@ -184,6 +210,7 @@ serve(async (req) => {
 
     const warnings: string[] = [];
 
+    emit({ type: "phase", step: "verify", message: "Verifying concept order against syllabus…" });
     // ─── STEP 0: LLM call — verify concept order against the syllabus ───
     const originalOrderForVerification = [...orderedConceptNames];
     let orderVerification: any = {
@@ -337,6 +364,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 6000)
       }
     }
 
+    emit({ type: "phase", step: "estimate", message: "Estimating per-concept complexity…" });
     // ─── STEP 1: LLM call A — estimate per-concept mastery effort ───
     const conceptListBlock = orderedConceptNames
       .map((n, i) => `${i + 1}. ${n} (teacher_weight=${teacherWeights[i].toFixed(3)})`)
@@ -447,14 +475,14 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
       } catch (e: any) {
         if (String(e?.message).startsWith("AI_")) {
           const code = e.message.split("_")[1];
-          return new Response(
-            JSON.stringify({
-              error: code === "429"
-                ? "Rate limit exceeded. Try again shortly."
-                : "AI credits exhausted. Add funds in Settings > Workspace > Usage.",
-            }),
-            { status: Number(code), headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
+          emit({
+            type: "error",
+            code,
+            message: code === "429"
+              ? "Rate limit exceeded. Try again shortly."
+              : "AI credits exhausted. Add funds in Settings > Workspace > Usage.",
+          });
+          return finish();
         }
         console.error("effort LLM attempt failed:", e);
       }
@@ -469,6 +497,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
     const estimatedSessions = orderedConceptNames.map((n) => effortByName.get(n)!.estimated_sessions);
     const complexityArr = orderedConceptNames.map((n) => effortByName.get(n)!.complexity);
 
+    emit({ type: "phase", step: "allocate", message: "Distributing concepts across weeks…" });
     // ─── STEP 2: Deterministic allocator ───
     // Blend teacher_weight + estimated_sessions into a demand vector, allocate session slots.
     const ALPHA = 0.6;
@@ -571,6 +600,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
       }
     }
 
+    emit({ type: "phase", step: "author", message: "Authoring weekly themes & resources…" });
     // ─── STEP 3: LLM call B — author week metadata for the locked assignment ───
     const assignmentBlock = weekAssign.map((w) => {
       if (w.is_exam) return `Week ${w.week}: ${w.exam_type === "midterm" ? "MIDTERM" : "FINAL"} EXAM (no concepts)`;
@@ -664,14 +694,12 @@ ${assignmentBlock}`;
 
     if (!authorResp.ok) {
       if (authorResp.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again shortly." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        emit({ type: "error", code: "429", message: "Rate limit exceeded. Try again shortly." });
+        return finish();
       }
       if (authorResp.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Add funds in Settings > Workspace > Usage." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        emit({ type: "error", code: "402", message: "AI credits exhausted. Add funds in Settings > Workspace > Usage." });
+        return finish();
       }
       const errText = await authorResp.text();
       console.error("author AI error:", authorResp.status, errText);
@@ -698,6 +726,7 @@ ${assignmentBlock}`;
       return [...exercises, ...articles];
     };
 
+    emit({ type: "phase", step: "validate", message: "Verifying coverage & deduping…" });
     // ─── STEP 4: Merge locked assignment + authored metadata, validate, persist ───
     const normalized: any[] = [];
     for (const wa of weekAssign) {
@@ -797,8 +826,10 @@ ${assignmentBlock}`;
     // NOTE: We intentionally do NOT modify the concepts table here.
     // The Concept Review step is the sole source of truth for concepts.
 
-    return new Response(
-      JSON.stringify({
+    for (const w of warnings) emit({ type: "warning", message: w });
+    emit({
+      type: "done",
+      payload: {
         weeks: normalized,
         overall_course_learning_outcomes: overallOutcomes,
         meta: {
@@ -827,14 +858,16 @@ ${assignmentBlock}`;
           materialFilesAvailable: materialFiles.length,
           syllabusContextLoaded: !!syllabusContext,
         },
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  } catch (error) {
-    console.error("generate-lesson-plan error:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  }
+      },
+    });
+    return finish();
+      } catch (error) {
+        console.error("generate-lesson-plan error:", error);
+        emit({ type: "error", message: error instanceof Error ? error.message : "Unknown error" });
+        return finish();
+      }
+    },
+  });
+
+  return new Response(stream, { headers: sseHeaders });
 });
