@@ -150,7 +150,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
       setLoading(true);
       try {
         if (!courseId) {
-          setDays(defaultPlan.map(d => ({ ...d, description: "" })));
+          setDays([]);
           setLoading(false);
           return;
         }
