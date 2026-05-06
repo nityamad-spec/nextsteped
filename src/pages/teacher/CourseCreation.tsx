@@ -895,6 +895,18 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               </div>
             ))}
           </div>
+          {genLogs.length > 0 && (
+            <div className="rounded-lg border border-border bg-muted/30 p-3 text-left max-h-40 overflow-y-auto">
+              <p className="text-[11px] font-medium text-muted-foreground mb-1.5">Live activity</p>
+              <ul className="space-y-1">
+                {genLogs.slice(-8).map((log, i) => (
+                  <li key={i} className={`text-[11px] leading-snug ${log.level === "warning" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                    <span className="opacity-60">›</span> {log.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {genError && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3 text-left">
               <p className="text-sm font-medium text-destructive">
