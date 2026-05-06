@@ -68,22 +68,36 @@ function validateMcq(
   const matches = opts.filter((o) => o === answer);
   if (matches.length !== 1) return { ok: false, reason: "answer not in options" };
 
-  const topic = typeof q.topic === "string" ? q.topic.trim() : "";
-  if (!topic || !(topic in conceptByCode)) {
+  // Topic resolution: trim + case-insensitive match against canonical concept codes.
+  const rawTopic = typeof q.topic === "string" ? q.topic.trim() : "";
+  if (!rawTopic) return { ok: false, reason: "empty topic" };
+  let canonicalTopic: string | null = null;
+  if (rawTopic in conceptByCode) {
+    canonicalTopic = rawTopic;
+  } else {
+    const lower = rawTopic.toLowerCase();
+    for (const code of Object.keys(conceptByCode)) {
+      if (code.toLowerCase() === lower) { canonicalTopic = code; break; }
+    }
+  }
+  if (!canonicalTopic || !conceptByCode[canonicalTopic]) {
     return { ok: false, reason: "topic not in concept list" };
   }
 
   let diff = Number(q.difficulty_estimate);
   if (!Number.isFinite(diff)) return { ok: false, reason: "difficulty not numeric" };
   diff = Math.max(0, Math.min(1, diff));
-  if (diff < spec.difficulty - 0.2 || diff > spec.difficulty + 0.2) {
-    return { ok: false, reason: `difficulty ${diff.toFixed(2)} outside band` };
+  if (diff < spec.difficulty - DIFFICULTY_BAND || diff > spec.difficulty + DIFFICULTY_BAND) {
+    return { ok: false, reason: `difficulty ${diff.toFixed(2)} outside ±${DIFFICULTY_BAND} band` };
   }
 
   const bloom = Math.round(Number(q.bloom_level));
   if (!Number.isInteger(bloom) || bloom < 1 || bloom > 6) {
     return { ok: false, reason: "bloom_level out of range" };
   }
+  // Sanity-check bloom alignment with tier
+  if (spec.tier === "easy" && bloom > 4) return { ok: false, reason: `bloom ${bloom} too high for easy tier` };
+  if (spec.tier === "hard" && bloom < 3) return { ok: false, reason: `bloom ${bloom} too low for hard tier` };
 
   const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
   if (!explanation) return { ok: false, reason: "empty explanation" };
@@ -98,7 +112,7 @@ function validateMcq(
       difficulty_estimate: diff,
       bloom_level: bloom,
       explanation,
-      topic,
+      topic: canonicalTopic,
     },
   };
 }
