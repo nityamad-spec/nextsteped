@@ -171,7 +171,9 @@ STRICT RULES:
 4. Ground every concept in the unit's listed topics — do not invent concepts unrelated to the syllabus.
 5. Concept names must be concise (2–6 words), distinct, and teachable as a standalone lesson item.
 6. SKIP any concept already in the existing confirmed list (case-insensitive).
-7. Aim for 3–8 concepts per unit depending on unit breadth.`;
+7. Aim for 3–8 concepts per unit depending on unit breadth.
+8. WEIGHTING: For every concept, include an integer "weight_pct" (1–100) representing its share of total course teaching emphasis (breadth × depth × foundational importance × time-on-task). The sum of weight_pct across ALL concepts in ALL units MUST be approximately 100. Per-unit totals should roughly track unit breadth — heavier units get a larger combined share.
+9. WEIGHT RATIONALE: For every concept, include a one-sentence "weight_rationale" explaining why it deserves that share (e.g. "foundational prerequisite reused throughout the course", "narrow applied topic", "broad multi-week treatment").`;
 
     const userPrompt = `Course: ${course?.name || "Untitled"} (${course?.course_code || "n/a"})
 Objectives: ${(course?.objectives || []).join("; ") || "n/a"}
@@ -221,8 +223,10 @@ Extract concepts unit by unit, in sequence, with no overlap.`;
                             properties: {
                               name: { type: "string" },
                               rationale: { type: "string" },
+                              weight_pct: { type: "integer", minimum: 1, maximum: 100 },
+                              weight_rationale: { type: "string" },
                             },
-                            required: ["name", "rationale"],
+                            required: ["name", "rationale", "weight_pct", "weight_rationale"],
                             additionalProperties: false,
                           },
                         },
@@ -266,7 +270,7 @@ Extract concepts unit by unit, in sequence, with no overlap.`;
     const aiData = await aiResp.json();
     const toolCall = aiData?.choices?.[0]?.message?.tool_calls?.[0];
 
-    type UnitOut = { unit_number: number; unit_title: string; concepts: { name: string; rationale: string }[] };
+    type UnitOut = { unit_number: number; unit_title: string; concepts: { name: string; rationale: string; weight_pct?: number; weight_rationale?: string }[] };
     let parsedUnits: UnitOut[] = [];
     try {
       const args = toolCall?.function?.arguments ? JSON.parse(toolCall.function.arguments) : {};
@@ -292,14 +296,42 @@ Extract concepts unit by unit, in sequence, with no overlap.`;
       })
       .filter((u) => u.concepts.length > 0);
 
-    const suggestions = cleanUnits.flatMap((u) =>
+    // Flatten with weights, then normalize so weight_pct sums to ~100 (largest-remainder)
+    const flat = cleanUnits.flatMap((u) =>
       u.concepts.map((c) => ({
         name: c.name,
         rationale: c.rationale,
+        weight_pct: Math.max(1, Math.min(100, Math.round(Number(c.weight_pct) || 0))),
+        weight_rationale: (c.weight_rationale || "").trim(),
         unit_number: u.unit_number,
         unit_title: u.unit_title,
       })),
     );
+    const totalW = flat.reduce((s, x) => s + x.weight_pct, 0);
+    if (flat.length > 0) {
+      if (totalW === 0) {
+        // Fallback: even split
+        const base = Math.floor(100 / flat.length);
+        let rem = 100 - base * flat.length;
+        flat.forEach((x, i) => (x.weight_pct = base + (i < rem ? 1 : 0)));
+      } else if (Math.abs(totalW - 100) > 5) {
+        // Largest-remainder rescale to 100
+        const scaled = flat.map((x) => (x.weight_pct * 100) / totalW);
+        const floors = scaled.map((v) => Math.max(1, Math.floor(v)));
+        let assigned = floors.reduce((s, v) => s + v, 0);
+        const remainders = scaled
+          .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+          .sort((a, b) => b.frac - a.frac);
+        let k = 0;
+        while (assigned < 100 && k < remainders.length) {
+          floors[remainders[k].i] += 1;
+          assigned += 1;
+          k += 1;
+        }
+        flat.forEach((x, i) => (x.weight_pct = floors[i]));
+      }
+    }
+    const suggestions = flat;
 
     const totalRaw = parsedUnits.reduce((n, u) => n + (u.concepts?.length || 0), 0);
     const responseBody: any = { suggestions, units: cleanUnits, reason: "ok" };
