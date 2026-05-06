@@ -79,6 +79,14 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const [deleteTarget, setDeleteTarget] = useState<UploadedFile | null>(null);
   // Per-file parse status keyed by storage_path. Only used for syllabus uploads.
   const [parseStatus, setParseStatus] = useState<Record<string, ParseStatus>>({});
+  // Track start time per storage_path so we can show elapsed/remaining estimate.
+  const [parseStartedAt, setParseStartedAt] = useState<Record<string, number>>({});
+  const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  // Estimated durations (ms) for the syllabus upload + parse pipeline.
+  const UPLOAD_EST_MS = 4000;
+  const PARSE_EST_MS = 25000;
 
   // Cascade-wipe progress state (only used when deleting the last syllabus file)
   const WIPE_STEPS: Array<{ id: string; label: string; weightMs: number }> = [
