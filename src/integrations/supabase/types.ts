@@ -639,7 +639,7 @@ export type Database = {
           answer: string
           bloom_justification: string | null
           bloom_level: number
-          concept_id: string | null
+          concept_id: string
           content_text: string
           course_id: string
           created_at: string
@@ -660,7 +660,7 @@ export type Database = {
           answer: string
           bloom_justification?: string | null
           bloom_level?: number
-          concept_id?: string | null
+          concept_id: string
           content_text: string
           course_id: string
           created_at?: string
@@ -681,7 +681,7 @@ export type Database = {
           answer?: string
           bloom_justification?: string | null
           bloom_level?: number
-          concept_id?: string | null
+          concept_id?: string
           content_text?: string
           course_id?: string
           created_at?: string
