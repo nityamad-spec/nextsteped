@@ -509,6 +509,7 @@ ${assignmentBlock}`;
     }
 
     const authorData = await authorResp.json();
+    console.log("[author LLM] usage:", JSON.stringify(authorData.usage || {}), "finish_reason:", authorData.choices?.[0]?.finish_reason);
     const authorTC = authorData.choices?.[0]?.message?.tool_calls?.[0];
     if (!authorTC?.function?.arguments) throw new Error("AI did not return week authoring");
     const authored = JSON.parse(authorTC.function.arguments);
