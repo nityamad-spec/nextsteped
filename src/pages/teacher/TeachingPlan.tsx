@@ -141,9 +141,12 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
 
   const markChanged = () => setHasChanges(true);
 
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     const load = async () => {
       if (!user) return;
+      setLoading(true);
       try {
         if (!courseId) {
           setDays(defaultPlan.map(d => ({ ...d, description: "" })));
@@ -156,9 +159,10 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
           .eq("id", courseId)
           .maybeSingle();
         const publishedPath = resolvePublishedPath(courseRow, courseId);
+        // Cache-bust storage so a wipe is immediately visible.
         const { data } = await supabase.storage
           .from(LESSON_PLAN_BUCKET)
-          .download(publishedPath);
+          .download(`${publishedPath}?t=${Date.now()}`);
         if (data) {
           const parsed = JSON.parse(await data.text());
           // Accept either the legacy array shape or the AI generator's
@@ -188,10 +192,20 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
         }
       } catch { /* no saved plan */ }
       setDays(defaultPlan.map(d => ({ ...d, description: "" })));
+      setHasChanges(false);
       setLoading(false);
     };
     load();
-  }, [user, courseId]);
+  }, [user, courseId, reloadKey]);
+
+  // Re-fetch plan when the syllabus cascade wipe fires for this course.
+  useEffect(() => {
+    if (!courseId) return;
+    return subscribeWipe((detail) => {
+      if (detail.courseId !== courseId) return;
+      setReloadKey((k) => k + 1);
+    });
+  }, [courseId]);
 
   // Fetch course start_date to compute auto-reveal week
   useEffect(() => {
