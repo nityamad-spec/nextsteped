@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Upload, Check, X, FileText, Loader2, Trash2, RefreshCw } from "lucide-react";
+import { Upload, Check, X, FileText, Loader2, Trash2, RefreshCw, AlertTriangle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
