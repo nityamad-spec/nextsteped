@@ -55,6 +55,7 @@ const DiagnosticQuestionsSetup = () => {
   const [conceptCount, setConceptCount] = useState(0);
   const [adaptiveFilter, setAdaptiveFilter] = useState<string>("Easy");
   const [elapsed, setElapsed] = useState(0);
+  const [distribution, setDistribution] = useState<Array<{ unit: string; count: number; quota: number }>>([]);
 
   const TIERS = ["Standard", "Easy", "Medium", "Hard"] as const;
   const ESTIMATED_SECONDS = 75; // Gemini Pro: 4 parallel tiers + validation, ~60-90s typical
@@ -155,6 +156,7 @@ const DiagnosticQuestionsSetup = () => {
         .eq("course_id", courseId)
         .order("difficulty_estimate");
       if (refreshed) setQuestions(refreshed);
+      if (Array.isArray(data?.distributionByUnit)) setDistribution(data.distributionByUnit);
       // Strict gating: 20 total AND 5 in each tier band before marking complete.
       const tierCounts = (refreshed || []).reduce(
         (acc: Record<string, number>, q: any) => {
@@ -521,6 +523,26 @@ const DiagnosticQuestionsSetup = () => {
             </div>
 
             <div className="border-t" />
+
+            {/* Distribution by Unit */}
+            {distribution.length > 0 && (
+              <>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Distribution by Unit</p>
+                  <p className="text-xs text-muted-foreground">
+                    Questions are distributed across units in proportion to concept weights set on the Concepts page.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {distribution.map((d) => (
+                      <Badge key={d.unit} variant="outline" className="text-xs">
+                        {d.unit}: {d.count}{d.quota ? ` / ${d.quota}` : ""}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                <div className="border-t" />
+              </>
+            )}
 
             {/* Concept Coverage */}
             <div className="space-y-3">
