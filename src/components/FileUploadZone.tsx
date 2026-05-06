@@ -39,6 +39,8 @@ interface FileUploadZoneProps {
    *  course_material_files.teacher_id (audit trail of who uploaded). */
   teacherId?: string;
   folderType?: string;
+  /** Hard cap on total uploaded files (existing + new). Default unlimited. */
+  maxFiles?: number;
   /** Notify parent of per-file parse status changes (syllabus only). */
   onParseStatusChange?: (statuses: Record<string, ParseStatus>) => void;
 }
