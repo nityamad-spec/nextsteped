@@ -49,6 +49,7 @@ const ConceptReview = () => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [unitCoverage, setUnitCoverage] = useState<Record<number, { covered: number; total: number; missing: string[] }>>({});
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [suggestionsRequested, setSuggestionsRequested] = useState(false);
   const [addingUnitKey, setAddingUnitKey] = useState<string | null>(null);
