@@ -659,9 +659,12 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
 
   // ─── Generation phase UI ───
   const genSteps = [
-    { label: "Estimating concept effort", desc: "AI gauges complexity and time-to-mastery for each concept" },
-    { label: "Distributing across weeks", desc: "Balancing weeks by teacher weight and estimated effort" },
-    { label: "Authoring week details", desc: "Writing titles, overviews, and resources per week" },
+    { key: "load", label: "Loading concepts", desc: "Fetching approved concepts and course materials" },
+    { key: "verify", label: "Verifying order", desc: "Cross-checking concept sequence against the syllabus" },
+    { key: "estimate", label: "Estimating effort", desc: "AI gauges complexity and time-to-mastery per concept" },
+    { key: "allocate", label: "Distributing across weeks", desc: "Balancing weeks by teacher weight and estimated effort" },
+    { key: "author", label: "Authoring week details", desc: "Writing titles, overviews, and resources per week" },
+    { key: "validate", label: "Verifying coverage", desc: "Deduping and ensuring every concept is placed" },
   ];
 
   if (restoringDraft) {
