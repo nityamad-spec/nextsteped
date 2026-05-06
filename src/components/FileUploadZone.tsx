@@ -78,6 +78,23 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   // Per-file parse status keyed by storage_path. Only used for syllabus uploads.
   const [parseStatus, setParseStatus] = useState<Record<string, ParseStatus>>({});
 
+  // Cascade-wipe progress state (only used when deleting the last syllabus file)
+  const WIPE_STEPS: Array<{ id: string; label: string; weightMs: number }> = [
+    { id: "syllabus_file", label: "Removing syllabus file", weightMs: 1000 },
+    { id: "syllabus_json", label: "Clearing parsed syllabus", weightMs: 1000 },
+    { id: "concepts", label: "Deleting concepts", weightMs: 2000 },
+    { id: "lesson_plan", label: "Deleting lesson plan", weightMs: 2000 },
+    { id: "diagnostic_questions", label: "Deleting diagnostic questions", weightMs: 2000 },
+    { id: "course_flags", label: "Resetting course flags & cache", weightMs: 1000 },
+    { id: "setup_progress", label: "Resetting downstream setup progress", weightMs: 1000 },
+  ];
+  type WipeStatus = "idle" | "running" | "done" | "failed";
+  const [wipeOpen, setWipeOpen] = useState(false);
+  const [wipeStatuses, setWipeStatuses] = useState<Record<string, WipeStatus>>({});
+  const [wipeElapsed, setWipeElapsed] = useState(0);
+  const [wipeFinished, setWipeFinished] = useState(false);
+  const [wipeError, setWipeError] = useState<string | null>(null);
+
   // Bubble parse status to parent so it can gate Next button.
   useEffect(() => {
     onParseStatusChange?.(parseStatus);
