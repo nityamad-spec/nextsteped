@@ -810,6 +810,17 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
         </TabsContent>
 
         <TabsContent value="plan" className="space-y-4">
+          {days.length === 0 ? (
+            <Card className="p-10 text-center space-y-3">
+              <FileText className="h-10 w-10 text-muted-foreground mx-auto" />
+              <div>
+                <h3 className="text-base font-semibold">No lesson plan yet</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+                  Upload a syllabus and lesson-plan document in course setup, then generate weeks here. Existing data was cleared.
+                </p>
+              </div>
+            </Card>
+          ) : (
           <Reorder.Group axis="y" values={days} onReorder={(newOrder) => { setDays(newOrder.map((d, i) => ({ ...d, day: i + 1 }))); markChanged(); }}>
             <div className="space-y-4">
               {days.map((dp) => {
