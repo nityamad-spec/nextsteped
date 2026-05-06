@@ -215,7 +215,30 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     }
     const storagePath = source.storagePath;
     setParseStatus((prev) => ({ ...prev, [storagePath]: "parsing" }));
-    setParseStartedAt((prev) => ({ ...prev, [storagePath]: Date.now() }));
+    const startedAt = Date.now();
+    setParseStartedAt((prev) => ({ ...prev, [storagePath]: startedAt }));
+    // Initialize substeps: first running, rest idle.
+    const initSub: Record<string, SubStatus> = {};
+    PARSE_SUBSTEPS.forEach((s, i) => { initSub[s.id] = i === 0 ? "running" : "idle"; });
+    setParseSubsteps((prev) => ({ ...prev, [storagePath]: initSub }));
+    // Walk substeps forward on the weighted timeline. Stops when the parser
+    // returns (success path snaps all to done; failure marks current as failed).
+    const cumulative: Array<{ id: string; doneAt: number }> = [];
+    let acc = 0;
+    for (const s of PARSE_SUBSTEPS) { acc += s.weightMs; cumulative.push({ id: s.id, doneAt: acc }); }
+    let curIdx = 0;
+    const subTimer = setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      while (curIdx < cumulative.length - 1 && elapsed >= cumulative[curIdx].doneAt) {
+        const doneId = cumulative[curIdx].id;
+        const nextId = cumulative[curIdx + 1].id;
+        setParseSubsteps((prev) => {
+          const cur = prev[storagePath] ?? {};
+          return { ...prev, [storagePath]: { ...cur, [doneId]: "done", [nextId]: "running" } };
+        });
+        curIdx++;
+      }
+    }, 200);
     try {
       let fileBase64: string;
       let fileName: string;
