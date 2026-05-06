@@ -176,17 +176,7 @@ STRICT RULES:
 9. WEIGHTING: For every concept, include an integer "weight_pct" (1–100) representing its share of total course teaching emphasis (breadth × depth × foundational importance × time-on-task). The sum of weight_pct across ALL concepts in ALL units MUST be approximately 100. Per-unit totals should roughly track unit breadth.
 10. WEIGHT RATIONALE: For every concept, include a one-sentence "weight_rationale" explaining why it deserves that share (e.g. "foundational prerequisite reused throughout the course", "narrow applied topic", "broad multi-week treatment").`;
 
-    const userPrompt = `Course: ${course?.name || "Untitled"} (${course?.course_code || "n/a"})
-Objectives: ${(course?.objectives || []).join("; ") || "n/a"}
 
-Existing confirmed concepts (DO NOT repeat any of these):
-${existingList || "(none yet)"}
-
-Syllabus units (in learning order — preserve this order in your output):
-
-${unitsBlock}
-
-Extract concepts unit by unit, in sequence, with no overlap. Make sure EVERY listed topic in EVERY unit is covered by at least one concept (use the covers_topics field to prove it).`;
 
     type ConceptOut = { name: string; rationale: string; weight_pct?: number; weight_rationale?: string; covers_topics?: string[] };
     type UnitOut = { unit_number: number; unit_title: string; concepts: ConceptOut[] };
