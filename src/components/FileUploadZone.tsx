@@ -111,6 +111,15 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     onParseStatusChange?.(parseStatus);
   }, [parseStatus, onParseStatusChange]);
 
+  // Tick `now` every 250ms while any syllabus operation is in flight, so the
+  // progress bar + ETA stay live without re-rendering when nothing's happening.
+  useEffect(() => {
+    const anyParsing = Object.values(parseStatus).some((s) => s === "parsing");
+    if (!uploading && !anyParsing && uploadStartedAt === null) return;
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [uploading, parseStatus, uploadStartedAt]);
+
   // On mount (and when files/courseId change), seed parseStatus to "parsed"
   // for existing syllabus files when the parsed JSON pointer is present, so a
   // page reload doesn't make Next look perpetually disabled.
