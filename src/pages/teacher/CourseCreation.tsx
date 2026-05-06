@@ -1417,6 +1417,31 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={showRegenFromScratchConfirm} onOpenChange={setShowRegenFromScratchConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Regenerate lesson plan?</DialogTitle>
+            <DialogDescription>
+              This will discard the current weeks and any edits and produce a fresh AI-generated plan from your approved concepts. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowRegenFromScratchConfirm(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                setShowRegenFromScratchConfirm(false);
+                setWeeksRaw([]);
+                setExpandedWeeks([]);
+                localStorage.removeItem(draftLocalKey);
+                runGeneration();
+              }}
+            >
+              Regenerate Plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
