@@ -600,6 +600,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
       }
     }
 
+    emit({ type: "phase", step: "author", message: "Authoring weekly themes & resources…" });
     // ─── STEP 3: LLM call B — author week metadata for the locked assignment ───
     const assignmentBlock = weekAssign.map((w) => {
       if (w.is_exam) return `Week ${w.week}: ${w.exam_type === "midterm" ? "MIDTERM" : "FINAL"} EXAM (no concepts)`;
