@@ -497,6 +497,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
     const estimatedSessions = orderedConceptNames.map((n) => effortByName.get(n)!.estimated_sessions);
     const complexityArr = orderedConceptNames.map((n) => effortByName.get(n)!.complexity);
 
+    emit({ type: "phase", step: "allocate", message: "Distributing concepts across weeks…" });
     // ─── STEP 2: Deterministic allocator ───
     // Blend teacher_weight + estimated_sessions into a demand vector, allocate session slots.
     const ALPHA = 0.6;
