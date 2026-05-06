@@ -826,8 +826,10 @@ ${assignmentBlock}`;
     // NOTE: We intentionally do NOT modify the concepts table here.
     // The Concept Review step is the sole source of truth for concepts.
 
-    return new Response(
-      JSON.stringify({
+    for (const w of warnings) emit({ type: "warning", message: w });
+    emit({
+      type: "done",
+      payload: {
         weeks: normalized,
         overall_course_learning_outcomes: overallOutcomes,
         meta: {
@@ -856,14 +858,16 @@ ${assignmentBlock}`;
           materialFilesAvailable: materialFiles.length,
           syllabusContextLoaded: !!syllabusContext,
         },
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  } catch (error) {
-    console.error("generate-lesson-plan error:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  }
+      },
+    });
+    return finish();
+      } catch (error) {
+        console.error("generate-lesson-plan error:", error);
+        emit({ type: "error", message: error instanceof Error ? error.message : "Unknown error" });
+        return finish();
+      }
+    },
+  });
+
+  return new Response(stream, { headers: sseHeaders });
 });
