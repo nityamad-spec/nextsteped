@@ -192,7 +192,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
           }
         }
       } catch { /* no saved plan */ }
-      setDays(defaultPlan.map(d => ({ ...d, description: "" })));
+      setDays([]);
       setHasChanges(false);
       setLoading(false);
     };
