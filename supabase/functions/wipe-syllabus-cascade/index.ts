@@ -138,7 +138,7 @@ Deno.serve(async (req) => {
         })
         .eq("id", courseId);
       if (error) throw new Error(error.message);
-      await admin.rpc("bump_cache_version", { _scope: "course", _scope_id: courseId }).catch(() => {});
+      try { await admin.rpc("bump_cache_version", { _scope: "course", _scope_id: courseId }); } catch (_) { /* ignore */ }
     });
 
     await runStep("setup_progress", async () => {
