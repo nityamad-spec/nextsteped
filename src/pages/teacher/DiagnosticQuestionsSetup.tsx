@@ -155,7 +155,25 @@ const DiagnosticQuestionsSetup = () => {
         .eq("course_id", courseId)
         .order("difficulty_estimate");
       if (refreshed) setQuestions(refreshed);
-      if (refreshed && refreshed.length === 20 && user?.id) {
+      // Strict gating: 20 total AND 5 in each tier band before marking complete.
+      const tierCounts = (refreshed || []).reduce(
+        (acc: Record<string, number>, q: any) => {
+          const code = (q.item_code || "").toUpperCase();
+          const tier = code.includes("-STANDARD-") ? "standard"
+            : code.includes("-EASY-") ? "easy"
+            : code.includes("-MEDIUM-") ? "medium"
+            : code.includes("-HARD-") ? "hard" : "other";
+          acc[tier] = (acc[tier] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+      const allTiersFull =
+        tierCounts.standard === 5 &&
+        tierCounts.easy === 5 &&
+        tierCounts.medium === 5 &&
+        tierCounts.hard === 5;
+      if (refreshed && refreshed.length === 20 && allTiersFull && user?.id) {
         void markStepCompleted(user.id, "diagnostic", courseId);
       }
 
