@@ -743,6 +743,7 @@ ${assignmentBlock}`;
           approvedConceptsCount: orderedConceptNames.length,
           unassignedConcepts: unassigned,
           warnings,
+          orderVerification,
           allocation: orderedConceptNames.map((name, i) => ({
             name,
             teacher_weight: teacherWeights[i],
