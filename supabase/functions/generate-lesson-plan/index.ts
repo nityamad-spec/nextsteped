@@ -475,14 +475,14 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
       } catch (e: any) {
         if (String(e?.message).startsWith("AI_")) {
           const code = e.message.split("_")[1];
-          return new Response(
-            JSON.stringify({
-              error: code === "429"
-                ? "Rate limit exceeded. Try again shortly."
-                : "AI credits exhausted. Add funds in Settings > Workspace > Usage.",
-            }),
-            { status: Number(code), headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
+          emit({
+            type: "error",
+            code,
+            message: code === "429"
+              ? "Rate limit exceeded. Try again shortly."
+              : "AI credits exhausted. Add funds in Settings > Workspace > Usage.",
+          });
+          return finish();
         }
         console.error("effort LLM attempt failed:", e);
       }
