@@ -643,7 +643,11 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
           elapsed = now - (parseStartedAt[parsingPath] ?? now);
           estTotal = PARSE_EST_MS;
         }
-        const pct = Math.min(95, Math.round((elapsed / estTotal) * 100));
+        const subs = parsingPath ? (parseSubsteps[parsingPath] ?? {}) : {};
+        const doneSubs = PARSE_SUBSTEPS.filter((s) => subs[s.id] === "done").length;
+        const pct = phase === "parsing"
+          ? Math.min(95, Math.round((doneSubs / PARSE_SUBSTEPS.length) * 100) || Math.round((elapsed / estTotal) * 100))
+          : Math.min(95, Math.round((elapsed / estTotal) * 100));
         const remaining = Math.max(1, Math.ceil((estTotal - elapsed) / 1000));
 
         return (
@@ -659,10 +663,28 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
               <span>
                 {phase === "uploading"
                   ? "Step 1 of 2: secure upload"
-                  : "Step 2 of 2: AI extraction (objectives, units, outcomes, books)"}
+                  : `Step 2 of 2: AI extraction (${doneSubs}/${PARSE_SUBSTEPS.length})`}
               </span>
               <span>~{remaining}s remaining</span>
             </div>
+            {phase === "parsing" && (
+              <ul className="space-y-1 pt-1">
+                {PARSE_SUBSTEPS.map((s) => {
+                  const st = subs[s.id] ?? "idle";
+                  return (
+                    <li key={s.id} className="flex items-center gap-2 text-xs">
+                      {st === "done" && <Check className="h-3.5 w-3.5 text-primary" />}
+                      {st === "running" && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
+                      {st === "failed" && <X className="h-3.5 w-3.5 text-destructive" />}
+                      {st === "idle" && <span className="h-3.5 w-3.5 rounded-full border border-muted-foreground/30" />}
+                      <span className={st === "failed" ? "text-destructive" : st === "idle" ? "text-muted-foreground" : "text-foreground"}>
+                        {s.label}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         );
       })()}
