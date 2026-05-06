@@ -212,6 +212,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="syllabus"
+                maxFiles={1}
                 onParseStatusChange={setSyllabusParseStatus}
               />
             ) : (
