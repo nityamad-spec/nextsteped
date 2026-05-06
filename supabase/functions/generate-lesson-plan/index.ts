@@ -412,9 +412,11 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
 
 You will be given EXACTLY ${totalWeeks} weeks with their assigned concepts already locked. Your job is ONLY to write:
 - week_name (3–6 word title) for each non-exam week
-- overview (1–2 sentence summary) for each non-exam week, grounded in the assigned concepts
-- 1 coding-exercise + 1–2 article resources per non-exam week, tied to those concepts (articles must be real, recent, with working https URLs)
-- one short paragraph (3–5 sentences) of overall course learning outcomes
+- overview (3–5 sentences) for each non-exam week, grounded strictly in the assigned concepts. Cover: (1) what the average student will be able to do by the end of the week, (2) how it builds on prior weeks, (3) the most common misconception or stumbling block to watch for.
+- 1 coding-exercise + 1–2 article resources per non-exam week, tied to those concepts. Articles must be REAL, well-known, freely accessible (e.g. official Python docs, Real Python, MDN, official framework docs) with working https URLs. If you are not certain a URL exists, OMIT the url field rather than inventing one.
+- one short paragraph (3–5 sentences) of overall course learning outcomes, calibrated to an average undergraduate.
+
+Tone: factual, pedagogical, realistic. Do not over-promise mastery. Avoid repetitive phrasing across weeks.
 
 For exam weeks: week_name="" and overview="Exam week — review prior content." and resources=[].
 You CANNOT change which concepts go in which week. Output exactly ${totalWeeks} week entries with the same week numbers.
