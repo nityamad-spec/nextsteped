@@ -255,6 +255,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const handleConfirmedUpload = async () => {
     if (pending.length === 0 || !confirmed) return;
     setUploading(true);
+    if (folderType === "syllabus") setUploadStartedAt(Date.now());
 
     // Ensure we have a fresh session token before uploading
     const { error: refreshError } = await supabase.auth.refreshSession();
