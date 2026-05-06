@@ -998,15 +998,25 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
 
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Weekly Breakdown</h2>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowRegenerateConfirm(true)}
-            disabled={!scheduleComplete || !scheduleChanged}
-            title={!scheduleChanged ? "Update the Course Schedule above to enable" : undefined}
-          >
-            <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Update Plan
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRegenFromScratchConfirm(true)}
+              disabled={!courseId || phase === "generating"}
+            >
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Regenerate Plan
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRegenerateConfirm(true)}
+              disabled={!scheduleComplete || !scheduleChanged}
+              title={!scheduleChanged ? "Update the Course Schedule above to enable" : undefined}
+            >
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Update Plan
+            </Button>
+          </div>
         </div>
 
         {/* Week Cards */}
