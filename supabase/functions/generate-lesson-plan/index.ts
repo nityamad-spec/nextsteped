@@ -182,6 +182,161 @@ serve(async (req) => {
       finalWeek ? `- Week ${finalWeek}: FINAL EXAM (no new concepts)` : null,
     ].filter(Boolean).join("\n");
 
+    const warnings: string[] = [];
+
+    // ─── STEP 0: LLM call — verify concept order against the syllabus ───
+    const originalOrderForVerification = [...orderedConceptNames];
+    let orderVerification: any = {
+      changed: false,
+      accepted: false,
+      notes: "",
+      originalOrder: originalOrderForVerification,
+      newOrder: originalOrderForVerification,
+    };
+
+    if (!syllabusContext) {
+      orderVerification.notes = "No syllabus text available; kept teacher-approved order.";
+      warnings.push("No syllabus text available for order verification; kept teacher-approved order.");
+    } else {
+      const verifySystem = `You verify and re-order a set of approved course concepts to match the pedagogical sequence implied by the SYLLABUS.
+
+STRICT RULES:
+- Return EXACTLY the same set of concept names as input — no additions, no deletions, no renames, preserve case and spelling.
+- Order primarily by the syllabus sequence; use lesson-plan docs as a secondary signal; the input order is only a tiebreaker.
+- Honor explicit prerequisites stated in the syllabus.
+- If the syllabus is silent or the current order already matches it, return the original order with changed=false.
+- Provide a short rationale (≤15 words) per concept and a 1–3 sentence overall notes summary.
+Return ONLY via the provided tool.`;
+
+      const verifyUser = `COURSE: ${course.name} (${course.term})
+Objectives: ${(course.objectives || []).join("; ") || "Not specified"}
+
+APPROVED CONCEPTS (current order):
+${orderedConceptNames.map((n, i) => `${i + 1}. ${n}`).join("\n")}
+
+SYLLABUS CONTEXT (primary signal):
+${syllabusContext.slice(0, 10000)}
+
+LESSON PLAN DOCS (secondary signal):
+${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 6000) : "(none)"}`;
+
+      const callOrderLLM = async () => {
+        const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-pro",
+            temperature: 0.1,
+            top_p: 0.9,
+            max_tokens: 4096,
+            seed: 42,
+            reasoning: { effort: "high" },
+            messages: [
+              { role: "system", content: verifySystem },
+              { role: "user", content: verifyUser },
+            ],
+            tools: [{
+              type: "function",
+              function: {
+                name: "verify_concept_order",
+                description: "Return the approved concepts re-ordered to match the syllabus.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    ordered_concepts: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          name: { type: "string" },
+                          rationale: { type: "string" },
+                        },
+                        required: ["name", "rationale"],
+                        additionalProperties: false,
+                      },
+                    },
+                    changed: { type: "boolean" },
+                    notes: { type: "string" },
+                  },
+                  required: ["ordered_concepts", "changed", "notes"],
+                  additionalProperties: false,
+                },
+              },
+            }],
+            tool_choice: { type: "function", function: { name: "verify_concept_order" } },
+          }),
+        });
+        if (!r.ok) {
+          if (r.status === 429 || r.status === 402) throw new Error(`AI_${r.status}`);
+          throw new Error(`AI gateway error ${r.status}`);
+        }
+        const j = await r.json();
+        console.log("[order LLM] usage:", JSON.stringify(j.usage || {}), "finish_reason:", j.choices?.[0]?.finish_reason);
+        const tc = j.choices?.[0]?.message?.tool_calls?.[0];
+        if (!tc?.function?.arguments) throw new Error("No order tool call");
+        return JSON.parse(tc.function.arguments) as {
+          ordered_concepts: { name: string; rationale: string }[];
+          changed: boolean;
+          notes: string;
+        };
+      };
+
+      const inputSet = new Set(originalOrderForVerification.map((n) => n.toLowerCase()));
+      let accepted = false;
+      for (let attempt = 0; attempt < 2 && !accepted; attempt++) {
+        try {
+          const result = await callOrderLLM();
+          const returned = Array.isArray(result?.ordered_concepts) ? result.ordered_concepts : [];
+          if (returned.length !== originalOrderForVerification.length) {
+            console.warn("[order LLM] length mismatch", returned.length, "vs", originalOrderForVerification.length);
+            continue;
+          }
+          const remapped: string[] = [];
+          const seen = new Set<string>();
+          let ok = true;
+          for (const item of returned) {
+            const key = String(item?.name || "").trim().toLowerCase();
+            if (!key || !inputSet.has(key) || seen.has(key)) { ok = false; break; }
+            seen.add(key);
+            const canonical = conceptNameLookup.get(key);
+            if (!canonical) { ok = false; break; }
+            remapped.push(canonical);
+          }
+          if (!ok || remapped.length !== originalOrderForVerification.length) {
+            console.warn("[order LLM] shape mismatch — set differs from input");
+            continue;
+          }
+          // Reorder concepts and weights in lockstep
+          const weightByName = new Map<string, number>();
+          orderedConceptNames.forEach((n, i) => weightByName.set(n, teacherWeights[i]));
+          orderedConceptNames.length = 0;
+          orderedConceptNames.push(...remapped);
+          teacherWeights.length = 0;
+          for (const n of remapped) teacherWeights.push(weightByName.get(n) ?? 0);
+
+          orderVerification = {
+            changed: !!result.changed,
+            accepted: true,
+            notes: typeof result.notes === "string" ? result.notes : "",
+            originalOrder: originalOrderForVerification,
+            newOrder: [...remapped],
+          };
+          accepted = true;
+        } catch (e: any) {
+          if (String(e?.message).startsWith("AI_")) {
+            console.warn("[order LLM] AI error, falling back:", e.message);
+            warnings.push("Order verification skipped (AI rate/credit error); kept teacher-approved order.");
+            break;
+          }
+          console.error("[order LLM] attempt failed:", e);
+        }
+      }
+      if (!accepted && !orderVerification.notes) {
+        orderVerification.notes = "Order verification rejected (shape mismatch); kept original order.";
+        warnings.push("Order verification rejected (shape mismatch); kept original order.");
+      }
+    }
+
     // ─── STEP 1: LLM call A — estimate per-concept mastery effort ───
     const conceptListBlock = orderedConceptNames
       .map((n, i) => `${i + 1}. ${n} (teacher_weight=${teacherWeights[i].toFixed(3)})`)
