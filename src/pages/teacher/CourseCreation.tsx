@@ -1068,6 +1068,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               {totalWeeks && (
                 <span className="text-xs text-muted-foreground">
                   · {totalWeeks} weeks
+                  {sessionsPerWeek ? ` · ${sessionsPerWeek}×/wk` : ""}
+                  {sessionLength ? ` · ${sessionLength} min` : ""}
                   {midtermWeek ? ` · Midterm Wk ${midtermWeek}` : ""}
                   {finalWeek ? ` · Final Wk ${finalWeek}` : ""}
                 </span>
