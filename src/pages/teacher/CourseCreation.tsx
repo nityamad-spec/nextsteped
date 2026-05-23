@@ -70,6 +70,8 @@ type ScheduleSnapshot = {
   total_weeks: number | null;
   midterm_week: number | null;
   final_week: number | null;
+  sessions_per_week: number | null;
+  session_length_minutes: number | null;
 };
 
 type LessonPlanDraft = {
@@ -110,6 +112,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [totalWeeks, setTotalWeeks] = useState<number | null>(null);
   const [midtermWeek, setMidtermWeek] = useState<number | null>(null);
   const [finalWeek, setFinalWeek] = useState<number | null>(null);
+  const [sessionsPerWeek, setSessionsPerWeek] = useState<number | null>(null);
+  const [sessionLength, setSessionLength] = useState<number | null>(null);
   const [scheduleLoaded, setScheduleLoaded] = useState(false);
   const [scheduleExpanded, setScheduleExpanded] = useState(true);
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
@@ -179,25 +183,35 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     (async () => {
       const { data } = await supabase
         .from("courses")
-        .select("total_weeks, midterm_week, final_week")
+        .select("total_weeks, midterm_week, final_week, sessions_per_week, session_length_minutes")
         .eq("id", courseId)
         .maybeSingle();
       if (cancelled) return;
       const tw = data?.total_weeks ?? 16;
       const mw = data?.midterm_week ?? null;
       const fw = data?.final_week ?? null;
+      const spw = (data as any)?.sessions_per_week ?? null;
+      const sl = (data as any)?.session_length_minutes ?? null;
       setTotalWeeks(tw);
       setMidtermWeek(mw);
       setFinalWeek(fw);
+      setSessionsPerWeek(spw);
+      setSessionLength(sl);
       // Auto-expand the schedule card if anything is unset
-      setScheduleExpanded(!data?.total_weeks || (mw == null && fw == null));
+      setScheduleExpanded(!data?.total_weeks || (mw == null && fw == null) || spw == null || sl == null);
       setScheduleLoaded(true);
     })();
     return () => { cancelled = true; };
   }, [courseId]);
 
   // Persist a single schedule field to the courses table
-  const persistSchedule = useCallback(async (patch: { total_weeks?: number; midterm_week?: number | null; final_week?: number | null }) => {
+  const persistSchedule = useCallback(async (patch: {
+    total_weeks?: number;
+    midterm_week?: number | null;
+    final_week?: number | null;
+    sessions_per_week?: number | null;
+    session_length_minutes?: number | null;
+  }) => {
     if (!courseId) return;
     const { error } = await supabase.from("courses").update(patch).eq("id", courseId);
     if (error) {
@@ -453,7 +467,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       setExpandedWeeks(generated.length > 0 ? [generated[0].id] : []);
       setOverallOutcomes(typeof data.overall_course_learning_outcomes === "string" ? data.overall_course_learning_outcomes : "");
       setGapMode(false);
-      setLastGeneratedSchedule({ total_weeks: totalWeeks, midterm_week: midtermWeek, final_week: finalWeek });
+      setLastGeneratedSchedule({ total_weeks: totalWeeks, midterm_week: midtermWeek, final_week: finalWeek, sessions_per_week: sessionsPerWeek, session_length_minutes: sessionLength });
       setGenStep(genSteps.length);
       setTimeout(() => setPhase("plan"), 500);
     } catch (err: any) {
@@ -461,7 +475,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       console.error("Lesson plan generation failed:", err);
       setGenError(err?.message || "Failed to generate lesson plan");
     }
-  }, [courseId, totalWeeks, midtermWeek, finalWeek]);
+  }, [courseId, totalWeeks, midtermWeek, finalWeek, sessionsPerWeek, sessionLength]);
 
   // ─── Regenerate a single week (preserves concept assignments) ───
   const regenerateWeek = useCallback(async (weekId: string) => {
@@ -513,11 +527,13 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   }, [courseId, weeks, toast]);
 
   // Schedule completeness + change detection
-  const scheduleComplete = !!(totalWeeks && midtermWeek && finalWeek);
+  const scheduleComplete = !!(totalWeeks && midtermWeek && finalWeek && sessionsPerWeek && sessionLength);
   const scheduleChanged = !lastGeneratedSchedule
     || lastGeneratedSchedule.total_weeks !== totalWeeks
     || lastGeneratedSchedule.midterm_week !== midtermWeek
-    || lastGeneratedSchedule.final_week !== finalWeek;
+    || lastGeneratedSchedule.final_week !== finalWeek
+    || lastGeneratedSchedule.sessions_per_week !== sessionsPerWeek
+    || lastGeneratedSchedule.session_length_minutes !== sessionLength;
 
   // ─── Week handlers ───
   const toggleWeek = (id: string) =>
@@ -758,7 +774,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               <GraduationCap className="h-4 w-4 text-primary" />
               <p className="text-sm font-semibold">Course Schedule</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <Label className="text-xs">Total Weeks <span className="text-destructive">*</span></Label>
                 <Input
@@ -825,6 +841,49 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label className="text-xs">Classes per Week <span className="text-destructive">*</span></Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={7}
+                  value={sessionsPerWeek ?? ""}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (Number.isFinite(v) && v >= 1 && v <= 7) {
+                      setSessionsPerWeek(v);
+                      persistSchedule({ sessions_per_week: v });
+                    } else if (e.target.value === "") {
+                      setSessionsPerWeek(null);
+                    }
+                  }}
+                  placeholder="e.g. 2"
+                  className="mt-1 h-9"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">1–7 classes/week</p>
+              </div>
+              <div>
+                <Label className="text-xs">Duration per Class (min) <span className="text-destructive">*</span></Label>
+                <Input
+                  type="number"
+                  min={30}
+                  max={180}
+                  step={5}
+                  value={sessionLength ?? ""}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (Number.isFinite(v) && v >= 30 && v <= 180) {
+                      setSessionLength(v);
+                      persistSchedule({ session_length_minutes: v });
+                    } else if (e.target.value === "") {
+                      setSessionLength(null);
+                    }
+                  }}
+                  placeholder="e.g. 60"
+                  className="mt-1 h-9"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">30–180 min</p>
+              </div>
             </div>
             <Button
               className="w-full"
@@ -836,7 +895,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             </Button>
             {!scheduleComplete && (
               <p className="text-[11px] text-muted-foreground text-center">
-                Fill in Total Weeks, Midterm Week, and Final Week to enable generation.
+                Fill in Total Weeks, Classes per Week, Duration, Midterm Week, and Final Week to enable generation.
               </p>
             )}
           </Card>
@@ -1009,6 +1068,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               {totalWeeks && (
                 <span className="text-xs text-muted-foreground">
                   · {totalWeeks} weeks
+                  {sessionsPerWeek ? ` · ${sessionsPerWeek}×/wk` : ""}
+                  {sessionLength ? ` · ${sessionLength} min` : ""}
                   {midtermWeek ? ` · Midterm Wk ${midtermWeek}` : ""}
                   {finalWeek ? ` · Final Wk ${finalWeek}` : ""}
                 </span>
@@ -1017,7 +1078,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             {scheduleExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
           </button>
           {scheduleExpanded && (
-            <div className="border-t px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="border-t px-5 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <Label className="text-xs">Total Weeks</Label>
                 <Input
@@ -1084,7 +1145,48 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="sm:col-span-3 flex justify-end">
+              <div>
+                <Label className="text-xs">Classes per Week</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={7}
+                  value={sessionsPerWeek ?? ""}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (Number.isFinite(v) && v >= 1 && v <= 7) {
+                      setSessionsPerWeek(v);
+                      persistSchedule({ sessions_per_week: v });
+                    } else if (e.target.value === "") {
+                      setSessionsPerWeek(null);
+                    }
+                  }}
+                  className="mt-1 h-9"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">1–7 classes/week</p>
+              </div>
+              <div>
+                <Label className="text-xs">Duration per Class (min)</Label>
+                <Input
+                  type="number"
+                  min={30}
+                  max={180}
+                  step={5}
+                  value={sessionLength ?? ""}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (Number.isFinite(v) && v >= 30 && v <= 180) {
+                      setSessionLength(v);
+                      persistSchedule({ session_length_minutes: v });
+                    } else if (e.target.value === "") {
+                      setSessionLength(null);
+                    }
+                  }}
+                  className="mt-1 h-9"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">30–180 min</p>
+              </div>
+              <div className="sm:col-span-2 lg:col-span-3 flex justify-end">
                 <Button
                   variant="outline"
                   size="sm"
