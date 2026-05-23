@@ -475,7 +475,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       console.error("Lesson plan generation failed:", err);
       setGenError(err?.message || "Failed to generate lesson plan");
     }
-  }, [courseId, totalWeeks, midtermWeek, finalWeek]);
+  }, [courseId, totalWeeks, midtermWeek, finalWeek, sessionsPerWeek, sessionLength]);
 
   // ─── Regenerate a single week (preserves concept assignments) ───
   const regenerateWeek = useCallback(async (weekId: string) => {
