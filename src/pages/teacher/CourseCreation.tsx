@@ -774,7 +774,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               <GraduationCap className="h-4 w-4 text-primary" />
               <p className="text-sm font-semibold">Course Schedule</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <Label className="text-xs">Total Weeks <span className="text-destructive">*</span></Label>
                 <Input
