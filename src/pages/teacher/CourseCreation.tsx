@@ -841,6 +841,49 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label className="text-xs">Classes per Week <span className="text-destructive">*</span></Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={7}
+                  value={sessionsPerWeek ?? ""}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (Number.isFinite(v) && v >= 1 && v <= 7) {
+                      setSessionsPerWeek(v);
+                      persistSchedule({ sessions_per_week: v });
+                    } else if (e.target.value === "") {
+                      setSessionsPerWeek(null);
+                    }
+                  }}
+                  placeholder="e.g. 2"
+                  className="mt-1 h-9"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">1–7 classes/week</p>
+              </div>
+              <div>
+                <Label className="text-xs">Duration per Class (min) <span className="text-destructive">*</span></Label>
+                <Input
+                  type="number"
+                  min={30}
+                  max={180}
+                  step={5}
+                  value={sessionLength ?? ""}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (Number.isFinite(v) && v >= 30 && v <= 180) {
+                      setSessionLength(v);
+                      persistSchedule({ session_length_minutes: v });
+                    } else if (e.target.value === "") {
+                      setSessionLength(null);
+                    }
+                  }}
+                  placeholder="e.g. 60"
+                  className="mt-1 h-9"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">30–180 min</p>
+              </div>
             </div>
             <Button
               className="w-full"
@@ -852,7 +895,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             </Button>
             {!scheduleComplete && (
               <p className="text-[11px] text-muted-foreground text-center">
-                Fill in Total Weeks, Midterm Week, and Final Week to enable generation.
+                Fill in Total Weeks, Classes per Week, Duration, Midterm Week, and Final Week to enable generation.
               </p>
             )}
           </Card>
