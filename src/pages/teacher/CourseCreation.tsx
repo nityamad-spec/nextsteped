@@ -800,48 +800,6 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                 <p className="text-[11px] text-muted-foreground mt-1">4–24 weeks</p>
               </div>
               <div>
-                <Label className="text-xs">Midterm Week <span className="text-destructive">*</span></Label>
-                <Select
-                  value={midtermWeek ? String(midtermWeek) : ""}
-                  onValueChange={(v) => {
-                    const next = parseInt(v, 10);
-                    setMidtermWeek(next);
-                    persistSchedule({ midterm_week: next });
-                  }}
-                  disabled={!totalWeeks}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select week" /></SelectTrigger>
-                  <SelectContent>
-                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
-                      .filter(n => n !== finalWeek)
-                      .map(n => (
-                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Final Week <span className="text-destructive">*</span></Label>
-                <Select
-                  value={finalWeek ? String(finalWeek) : ""}
-                  onValueChange={(v) => {
-                    const next = parseInt(v, 10);
-                    setFinalWeek(next);
-                    persistSchedule({ final_week: next });
-                  }}
-                  disabled={!totalWeeks}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select week" /></SelectTrigger>
-                  <SelectContent>
-                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
-                      .filter(n => n !== midtermWeek)
-                      .map(n => (
-                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
                 <Label className="text-xs">Classes per Week <span className="text-destructive">*</span></Label>
                 <Input
                   type="number"
@@ -883,6 +841,48 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   className="mt-1 h-9"
                 />
                 <p className="text-[11px] text-muted-foreground mt-1">30–180 min</p>
+              </div>
+              <div>
+                <Label className="text-xs">Midterm Week <span className="text-destructive">*</span></Label>
+                <Select
+                  value={midtermWeek ? String(midtermWeek) : ""}
+                  onValueChange={(v) => {
+                    const next = parseInt(v, 10);
+                    setMidtermWeek(next);
+                    persistSchedule({ midterm_week: next });
+                  }}
+                  disabled={!totalWeeks}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select week" /></SelectTrigger>
+                  <SelectContent>
+                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
+                      .filter(n => n !== finalWeek)
+                      .map(n => (
+                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Final Week <span className="text-destructive">*</span></Label>
+                <Select
+                  value={finalWeek ? String(finalWeek) : ""}
+                  onValueChange={(v) => {
+                    const next = parseInt(v, 10);
+                    setFinalWeek(next);
+                    persistSchedule({ final_week: next });
+                  }}
+                  disabled={!totalWeeks}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select week" /></SelectTrigger>
+                  <SelectContent>
+                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
+                      .filter(n => n !== midtermWeek)
+                      .map(n => (
+                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <Button
@@ -1104,6 +1104,47 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                 <p className="text-[11px] text-muted-foreground mt-1">4–24 weeks</p>
               </div>
               <div>
+                <Label className="text-xs">Classes per Week</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={7}
+                  value={sessionsPerWeek ?? ""}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (Number.isFinite(v) && v >= 1 && v <= 7) {
+                      setSessionsPerWeek(v);
+                      persistSchedule({ sessions_per_week: v });
+                    } else if (e.target.value === "") {
+                      setSessionsPerWeek(null);
+                    }
+                  }}
+                  className="mt-1 h-9"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">1–7 classes/week</p>
+              </div>
+              <div>
+                <Label className="text-xs">Duration per Class (min)</Label>
+                <Input
+                  type="number"
+                  min={30}
+                  max={180}
+                  step={5}
+                  value={sessionLength ?? ""}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (Number.isFinite(v) && v >= 30 && v <= 180) {
+                      setSessionLength(v);
+                      persistSchedule({ session_length_minutes: v });
+                    } else if (e.target.value === "") {
+                      setSessionLength(null);
+                    }
+                  }}
+                  className="mt-1 h-9"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">30–180 min</p>
+              </div>
+              <div>
                 <Label className="text-xs">Midterm Week</Label>
                 <Select
                   value={midtermWeek ? String(midtermWeek) : "none"}
@@ -1144,47 +1185,6 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                       ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Classes per Week</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={7}
-                  value={sessionsPerWeek ?? ""}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    if (Number.isFinite(v) && v >= 1 && v <= 7) {
-                      setSessionsPerWeek(v);
-                      persistSchedule({ sessions_per_week: v });
-                    } else if (e.target.value === "") {
-                      setSessionsPerWeek(null);
-                    }
-                  }}
-                  className="mt-1 h-9"
-                />
-                <p className="text-[11px] text-muted-foreground mt-1">1–7 classes/week</p>
-              </div>
-              <div>
-                <Label className="text-xs">Duration per Class (min)</Label>
-                <Input
-                  type="number"
-                  min={30}
-                  max={180}
-                  step={5}
-                  value={sessionLength ?? ""}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    if (Number.isFinite(v) && v >= 30 && v <= 180) {
-                      setSessionLength(v);
-                      persistSchedule({ session_length_minutes: v });
-                    } else if (e.target.value === "") {
-                      setSessionLength(null);
-                    }
-                  }}
-                  className="mt-1 h-9"
-                />
-                <p className="text-[11px] text-muted-foreground mt-1">30–180 min</p>
               </div>
               <div className="sm:col-span-2 lg:col-span-3 flex justify-end">
                 <Button
