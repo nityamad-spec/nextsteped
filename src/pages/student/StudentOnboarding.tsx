@@ -21,10 +21,25 @@ const StudentOnboarding = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // If a returning student lands here, send them through the redirect flow
+  // If a returning student (with a completed profile) lands here, send them
+  // through the redirect flow. Users who are authed but have no profile must
+  // stay on this page — otherwise /student bounces them right back, causing
+  // an infinite Navigate loop.
   useEffect(() => {
-    if (authLoading) return;
-    if (user) navigate("/student", { replace: true });
+    if (authLoading || !user) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, role")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (data && data.role === "student") {
+        navigate("/student", { replace: true });
+      }
+    })();
+    return () => { cancelled = true; };
   }, [user, authLoading, navigate]);
 
   // Form state
