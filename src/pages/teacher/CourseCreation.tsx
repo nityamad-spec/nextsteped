@@ -112,6 +112,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [totalWeeks, setTotalWeeks] = useState<number | null>(null);
   const [midtermWeek, setMidtermWeek] = useState<number | null>(null);
   const [finalWeek, setFinalWeek] = useState<number | null>(null);
+  const [sessionsPerWeek, setSessionsPerWeek] = useState<number | null>(null);
+  const [sessionLength, setSessionLength] = useState<number | null>(null);
   const [scheduleLoaded, setScheduleLoaded] = useState(false);
   const [scheduleExpanded, setScheduleExpanded] = useState(true);
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
