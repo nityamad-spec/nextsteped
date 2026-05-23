@@ -800,48 +800,6 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                 <p className="text-[11px] text-muted-foreground mt-1">4–24 weeks</p>
               </div>
               <div>
-                <Label className="text-xs">Midterm Week <span className="text-destructive">*</span></Label>
-                <Select
-                  value={midtermWeek ? String(midtermWeek) : ""}
-                  onValueChange={(v) => {
-                    const next = parseInt(v, 10);
-                    setMidtermWeek(next);
-                    persistSchedule({ midterm_week: next });
-                  }}
-                  disabled={!totalWeeks}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select week" /></SelectTrigger>
-                  <SelectContent>
-                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
-                      .filter(n => n !== finalWeek)
-                      .map(n => (
-                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Final Week <span className="text-destructive">*</span></Label>
-                <Select
-                  value={finalWeek ? String(finalWeek) : ""}
-                  onValueChange={(v) => {
-                    const next = parseInt(v, 10);
-                    setFinalWeek(next);
-                    persistSchedule({ final_week: next });
-                  }}
-                  disabled={!totalWeeks}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select week" /></SelectTrigger>
-                  <SelectContent>
-                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
-                      .filter(n => n !== midtermWeek)
-                      .map(n => (
-                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
                 <Label className="text-xs">Classes per Week <span className="text-destructive">*</span></Label>
                 <Input
                   type="number"
@@ -883,6 +841,48 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   className="mt-1 h-9"
                 />
                 <p className="text-[11px] text-muted-foreground mt-1">30–180 min</p>
+              </div>
+              <div>
+                <Label className="text-xs">Midterm Week <span className="text-destructive">*</span></Label>
+                <Select
+                  value={midtermWeek ? String(midtermWeek) : ""}
+                  onValueChange={(v) => {
+                    const next = parseInt(v, 10);
+                    setMidtermWeek(next);
+                    persistSchedule({ midterm_week: next });
+                  }}
+                  disabled={!totalWeeks}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select week" /></SelectTrigger>
+                  <SelectContent>
+                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
+                      .filter(n => n !== finalWeek)
+                      .map(n => (
+                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Final Week <span className="text-destructive">*</span></Label>
+                <Select
+                  value={finalWeek ? String(finalWeek) : ""}
+                  onValueChange={(v) => {
+                    const next = parseInt(v, 10);
+                    setFinalWeek(next);
+                    persistSchedule({ final_week: next });
+                  }}
+                  disabled={!totalWeeks}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select week" /></SelectTrigger>
+                  <SelectContent>
+                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
+                      .filter(n => n !== midtermWeek)
+                      .map(n => (
+                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <Button
