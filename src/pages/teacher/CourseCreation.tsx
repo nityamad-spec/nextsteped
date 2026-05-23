@@ -183,25 +183,35 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     (async () => {
       const { data } = await supabase
         .from("courses")
-        .select("total_weeks, midterm_week, final_week")
+        .select("total_weeks, midterm_week, final_week, sessions_per_week, session_length_minutes")
         .eq("id", courseId)
         .maybeSingle();
       if (cancelled) return;
       const tw = data?.total_weeks ?? 16;
       const mw = data?.midterm_week ?? null;
       const fw = data?.final_week ?? null;
+      const spw = (data as any)?.sessions_per_week ?? null;
+      const sl = (data as any)?.session_length_minutes ?? null;
       setTotalWeeks(tw);
       setMidtermWeek(mw);
       setFinalWeek(fw);
+      setSessionsPerWeek(spw);
+      setSessionLength(sl);
       // Auto-expand the schedule card if anything is unset
-      setScheduleExpanded(!data?.total_weeks || (mw == null && fw == null));
+      setScheduleExpanded(!data?.total_weeks || (mw == null && fw == null) || spw == null || sl == null);
       setScheduleLoaded(true);
     })();
     return () => { cancelled = true; };
   }, [courseId]);
 
   // Persist a single schedule field to the courses table
-  const persistSchedule = useCallback(async (patch: { total_weeks?: number; midterm_week?: number | null; final_week?: number | null }) => {
+  const persistSchedule = useCallback(async (patch: {
+    total_weeks?: number;
+    midterm_week?: number | null;
+    final_week?: number | null;
+    sessions_per_week?: number | null;
+    session_length_minutes?: number | null;
+  }) => {
     if (!courseId) return;
     const { error } = await supabase.from("courses").update(patch).eq("id", courseId);
     if (error) {
