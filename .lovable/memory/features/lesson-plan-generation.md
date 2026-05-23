@@ -1,6 +1,6 @@
 ---
 name: lesson-plan-generation
-description: Lesson plan AI output format and generation gating. Generation is now MANUAL — professor must fill Course Schedule (Total Weeks + Midterm + Final, all 3 required) and click "Generate Lesson Plan". After plan exists, "Regenerate" is replaced with "Update Plan" which only enables when schedule has changed since last generation.
+description: Lesson plan AI output format and generation gating. Generation is now MANUAL — professor must fill Course Schedule (Total Weeks, Classes per Week, Duration per Class, Midterm Week, Final Week — all 5 required) and click "Generate Lesson Plan". After plan exists, "Regenerate" is replaced with "Update Plan" which only enables when schedule (including cadence) has changed since last generation.
 type: feature
 ---
 
