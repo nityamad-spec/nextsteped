@@ -1076,7 +1076,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             {scheduleExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
           </button>
           {scheduleExpanded && (
-            <div className="border-t px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="border-t px-5 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <Label className="text-xs">Total Weeks</Label>
                 <Input
