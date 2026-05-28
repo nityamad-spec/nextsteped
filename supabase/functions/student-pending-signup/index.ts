@@ -59,6 +59,39 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
+    // ── Resend branch: just re-send the invite/recovery email ───────────
+    if ("resend" in data && data.resend === true) {
+      const redirectTo = data.origin ? `${data.origin}/reset-password` : undefined;
+      const { data: pending } = await adminClient
+        .from("pending_signups")
+        .select("email, name")
+        .eq("email", email)
+        .is("consumed_at", null)
+        .maybeSingle();
+      if (!pending) {
+        return new Response(
+          JSON.stringify({ error: "No pending signup found for this email. Please start over." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
+        data: { name: pending.name, role: "student", needs_password_setup: true },
+        redirectTo,
+      });
+      if (inviteError) {
+        const { error: linkError } = await adminClient.auth.admin.generateLink({
+          type: "recovery",
+          email,
+          options: { redirectTo },
+        });
+        if (linkError) throw linkError;
+      }
+      return new Response(
+        JSON.stringify({ ok: true, email }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // ── Per-email rate limit ────────────────────────────────────────────
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { count } = await adminClient
