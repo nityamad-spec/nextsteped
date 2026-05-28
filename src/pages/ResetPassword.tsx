@@ -6,21 +6,22 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Eye, EyeOff, KeyRound } from "lucide-react";
+import { Eye, EyeOff, KeyRound, AlertTriangle } from "lucide-react";
 
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<"recovery" | "invite" | "waiting">("waiting");
+  const [mode, setMode] = useState<"recovery" | "invite" | "waiting" | "expired">("waiting");
+  const [hasSession, setHasSession] = useState(false);
   const [completed, setCompleted] = useState(false);
   const navigate = useNavigate();
 
-  // Guard: if the user tries to leave without setting a password, warn them.
-  // On actual unmount without completion, sign out the half-provisioned session
-  // so they can't end up logged-in-but-passwordless (which produces the
-  // "Invalid login credentials" error on the next sign-in attempt).
+  // Warn (but do NOT auto-sign-out) if the user tries to close the tab without
+  // setting a password. Auto-signout-on-unmount was unsafe — under React
+  // StrictMode and fast-refresh the cleanup runs while the component is still
+  // legitimately mounted, killing the invite session before submit.
   useEffect(() => {
     const beforeUnload = (e: BeforeUnloadEvent) => {
       if (!completed && mode === "invite") {
@@ -29,42 +30,34 @@ const ResetPassword = () => {
       }
     };
     window.addEventListener("beforeunload", beforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", beforeUnload);
-      if (!completed && mode === "invite") {
-        // Fire-and-forget; user is leaving anyway.
-        supabase.auth.signOut().catch(() => {});
-      }
-    };
+    return () => window.removeEventListener("beforeunload", beforeUnload);
   }, [completed, mode]);
 
   useEffect(() => {
-    // 1. Detect recovery directly from the URL hash (Supabase puts type=recovery there).
-    //    This avoids racing the PASSWORD_RECOVERY auth event, which may fire before
-    //    our listener is registered.
+    let cancelled = false;
+
+    // 1. Detect recovery/invite directly from the URL hash.
+    let hashType: string | null = null;
     try {
       const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-      const hashType = hash.get("type");
+      hashType = hash.get("type");
       if (hashType === "recovery") {
         setMode("recovery");
       } else if (hashType === "invite" || hashType === "signup") {
-        // Supabase invite-by-email links arrive with type=invite (or signup).
-        // These are first-time password setups, not recoveries.
         setMode("invite");
       }
     } catch {
       /* ignore */
     }
 
-    // Detect recovery (forgot password) or invite (first-time approved teacher / new student)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (cancelled) return;
+      if (session?.user) setHasSession(true);
       if (event === "PASSWORD_RECOVERY") {
         setMode("recovery");
         return;
       }
       if (event === "SIGNED_IN" && session?.user) {
-        // Check pending_signups first — if a row exists for this email, this is a
-        // brand-new student finishing the verification flow.
         const email = session.user.email?.toLowerCase();
         if (email) {
           const { data: pending } = await supabase
@@ -73,29 +66,30 @@ const ResetPassword = () => {
             .eq("email", email)
             .is("consumed_at", null)
             .maybeSingle();
+          if (cancelled) return;
           if (pending) {
             setMode("invite");
             return;
           }
         }
-        // Otherwise, check the existing teacher needs_password_setup flag
         const { data: profile } = await supabase
           .from("profiles")
           .select("needs_password_setup")
           .eq("id", session.user.id)
           .maybeSingle();
+        if (cancelled) return;
         if (profile?.needs_password_setup) {
           setMode("invite");
           return;
         }
-        // Authenticated session with no invite markers → treat as recovery.
         setMode((prev) => (prev === "waiting" ? "recovery" : prev));
       }
     });
 
-    // Also handle case where session already exists on page load
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (cancelled) return;
       if (!session?.user) return;
+      setHasSession(true);
       const email = session.user.email?.toLowerCase();
       if (email) {
         const { data: pending } = await supabase
@@ -104,6 +98,7 @@ const ResetPassword = () => {
           .eq("email", email)
           .is("consumed_at", null)
           .maybeSingle();
+        if (cancelled) return;
         if (pending) {
           setMode("invite");
           return;
@@ -114,21 +109,32 @@ const ResetPassword = () => {
         .select("needs_password_setup")
         .eq("id", session.user.id)
         .maybeSingle();
+      if (cancelled) return;
       if (profile?.needs_password_setup) {
         setMode("invite");
         return;
       }
-      // Session exists but no invite markers → this is a recovery flow.
       setMode((prev) => (prev === "waiting" ? "recovery" : prev));
     });
 
-    // Safety net: if nothing flipped mode within 1.5s but we have a session,
-    // assume recovery so the form becomes usable.
-    const safetyTimer = window.setTimeout(() => {
-      setMode((prev) => (prev === "waiting" ? "recovery" : prev));
-    }, 1500);
+    // Safety net: after 2s, if we still have no session AND no recovery/invite
+    // hash, treat the link as expired/invalid. Otherwise, if a session exists
+    // but mode is still 'waiting', flip to recovery so the form is usable.
+    const safetyTimer = window.setTimeout(async () => {
+      if (cancelled) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
+      const hasHash = hashType === "recovery" || hashType === "invite" || hashType === "signup";
+      if (!session?.user && !hasHash) {
+        setMode("expired");
+      } else if (session?.user) {
+        setHasSession(true);
+        setMode((prev) => (prev === "waiting" ? "recovery" : prev));
+      }
+    }, 2000);
 
     return () => {
+      cancelled = true;
       subscription.unsubscribe();
       window.clearTimeout(safetyTimer);
     };
@@ -145,18 +151,31 @@ const ResetPassword = () => {
       toast.error("Password must be at least 6 characters");
       return;
     }
+
+    // Guard: never call updateUser without a session — it produces the
+    // "Auth session missing!" error.
+    const { data: { session: preCheckSession } } = await supabase.auth.getSession();
+    if (!preCheckSession?.user) {
+      toast.error("Your reset link has expired. Please request a new one.");
+      setMode("expired");
+      return;
+    }
+
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
-      toast.error(error.message);
+      const msg = error.message?.toLowerCase() ?? "";
+      if (msg.includes("auth session missing") || msg.includes("session")) {
+        toast.error("Your reset link has expired. Please request a new one.");
+        setMode("expired");
+      } else {
+        toast.error(error.message);
+      }
       setLoading(false);
       return;
     }
     setCompleted(true);
 
-    // Always check for a pending student signup, regardless of detected mode.
-    // This protects against invite-vs-recovery misdetection (e.g. when the
-    // hash carries type=invite but mode fell back to "recovery").
     const { data: { user } } = await supabase.auth.getUser();
     const email = user?.email?.toLowerCase();
     if (user && email) {
@@ -188,7 +207,6 @@ const ResetPassword = () => {
     }
 
     if (mode === "invite") {
-      // Teacher invite path (no pending row → not a student)
       if (user) {
         await supabase
           .from("profiles")
@@ -205,6 +223,7 @@ const ResetPassword = () => {
   };
 
   const isInvite = mode === "invite";
+  const isExpired = mode === "expired";
   const title = isInvite ? "Set Your Password" : "Reset Password";
   const subtitle = isInvite
     ? "Welcome! Choose a password to finish setting up your account."
@@ -226,59 +245,88 @@ const ResetPassword = () => {
           <p className="mt-2 text-muted-foreground">{subtitle}</p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <KeyRound className="h-5 w-5" /> {title}
-            </CardTitle>
-            <CardDescription>{description}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isInvite && (
-              <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-                You must set a password here before you can sign in. If you close this page without setting one, you'll need to request a new link.
-              </div>
-            )}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="new-password">{isInvite ? "Password" : "New Password"}</Label>
-                <div className="relative">
+        {isExpired ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-500" /> Link expired
+              </CardTitle>
+              <CardDescription>
+                This password reset link is no longer valid, or you opened this page directly.
+                Please request a fresh link to set your password.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" onClick={() => navigate("/auth?role=student")}>
+                Go to sign in
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <KeyRound className="h-5 w-5" /> {title}
+              </CardTitle>
+              <CardDescription>{description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isInvite && (
+                <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                  You must set a password here before you can sign in. If you close this page without setting one, you'll need to request a new link.
+                </div>
+              )}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">{isInvite ? "Password" : "New Password"}</Label>
+                  <div className="relative">
+                    <Input
+                      id="new-password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm Password</Label>
                   <Input
-                    id="new-password"
+                    id="confirm-password"
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                     minLength={6}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm Password</Label>
-                <Input
-                  id="confirm-password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading || mode === "waiting"}>
-                {loading ? "Saving…" : isInvite ? "Set Password & Continue" : "Update Password"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={loading || mode === "waiting" || !hasSession}
+                >
+                  {loading
+                    ? "Saving…"
+                    : !hasSession && mode !== "waiting"
+                      ? "Waiting for session…"
+                      : isInvite
+                        ? "Set Password & Continue"
+                        : "Update Password"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
