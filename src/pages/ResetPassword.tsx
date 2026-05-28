@@ -234,6 +234,11 @@ const ResetPassword = () => {
             <CardDescription>{description}</CardDescription>
           </CardHeader>
           <CardContent>
+            {isInvite && (
+              <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                You must set a password here before you can sign in. If you close this page without setting one, you'll need to request a new link.
+              </div>
+            )}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="new-password">{isInvite ? "Password" : "New Password"}</Label>
