@@ -12,7 +12,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const BodySchema = z.object({
+const FullSchema = z.object({
+  resend: z.literal(false).optional(),
   email: z.string().email().max(255),
   name: z.string().trim().min(1).max(200),
   roll_number: z.string().trim().min(1).max(100),
@@ -23,6 +24,14 @@ const BodySchema = z.object({
   enrollment_code: z.string().trim().min(1).max(50),
   origin: z.string().url().optional(),
 });
+
+const ResendSchema = z.object({
+  resend: z.literal(true),
+  email: z.string().email().max(255),
+  origin: z.string().url().optional(),
+});
+
+const BodySchema = z.union([ResendSchema, FullSchema]);
 
 const MAX_ATTEMPTS_PER_HOUR = 5;
 
@@ -49,6 +58,39 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
+
+    // ── Resend branch: just re-send the invite/recovery email ───────────
+    if ("resend" in data && data.resend === true) {
+      const redirectTo = data.origin ? `${data.origin}/reset-password` : undefined;
+      const { data: pending } = await adminClient
+        .from("pending_signups")
+        .select("email, name")
+        .eq("email", email)
+        .is("consumed_at", null)
+        .maybeSingle();
+      if (!pending) {
+        return new Response(
+          JSON.stringify({ error: "No pending signup found for this email. Please start over." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
+        data: { name: pending.name, role: "student", needs_password_setup: true },
+        redirectTo,
+      });
+      if (inviteError) {
+        const { error: linkError } = await adminClient.auth.admin.generateLink({
+          type: "recovery",
+          email,
+          options: { redirectTo },
+        });
+        if (linkError) throw linkError;
+      }
+      return new Response(
+        JSON.stringify({ ok: true, email }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     // ── Per-email rate limit ────────────────────────────────────────────
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
