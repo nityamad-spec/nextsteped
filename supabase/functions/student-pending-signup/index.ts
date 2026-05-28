@@ -12,7 +12,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const BodySchema = z.object({
+const FullSchema = z.object({
+  resend: z.literal(false).optional(),
   email: z.string().email().max(255),
   name: z.string().trim().min(1).max(200),
   roll_number: z.string().trim().min(1).max(100),
@@ -23,6 +24,14 @@ const BodySchema = z.object({
   enrollment_code: z.string().trim().min(1).max(50),
   origin: z.string().url().optional(),
 });
+
+const ResendSchema = z.object({
+  resend: z.literal(true),
+  email: z.string().email().max(255),
+  origin: z.string().url().optional(),
+});
+
+const BodySchema = z.union([ResendSchema, FullSchema]);
 
 const MAX_ATTEMPTS_PER_HOUR = 5;
 
