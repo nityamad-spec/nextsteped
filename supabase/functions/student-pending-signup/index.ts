@@ -53,11 +53,18 @@ Deno.serve(async (req) => {
     const data = parsed.data;
     const email = data.email.toLowerCase();
 
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { auth: { autoRefreshToken: false, persistSession: false } },
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    // Anon client is used to actually SEND auth emails (resetPasswordForEmail).
+    // admin.generateLink only generates the link, it does NOT send an email.
+    const anonClient = createClient(supabaseUrl, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
 
     // ── Resend branch: just re-send the invite/recovery email ───────────
     if ("resend" in data && data.resend === true) {
@@ -79,18 +86,22 @@ Deno.serve(async (req) => {
         redirectTo,
       });
       if (inviteError) {
-        const { error: linkError } = await adminClient.auth.admin.generateLink({
-          type: "recovery",
-          email,
-          options: { redirectTo },
+        // User already exists in auth → send a recovery email instead.
+        // resetPasswordForEmail actually triggers the email send.
+        const { error: resetError } = await anonClient.auth.resetPasswordForEmail(email, {
+          redirectTo,
         });
-        if (linkError) throw linkError;
+        if (resetError) {
+          console.error("resetPasswordForEmail error:", resetError);
+          throw resetError;
+        }
       }
       return new Response(
         JSON.stringify({ ok: true, email }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
 
     // ── Per-email rate limit ────────────────────────────────────────────
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -176,23 +187,23 @@ Deno.serve(async (req) => {
     });
 
     if (inviteError) {
-      // If user already exists in auth (e.g. re-attempting a verification),
-      // generate a fresh recovery link instead so they get a new email.
+      // If user already exists in auth (e.g. re-attempting verification),
+      // send a recovery email via the anon client. admin.generateLink only
+      // creates a link — it does NOT send an email. resetPasswordForEmail does.
       if (inviteError.message?.toLowerCase().includes("already") || inviteError.message?.toLowerCase().includes("registered")) {
-        const { error: linkError } = await adminClient.auth.admin.generateLink({
-          type: "recovery",
-          email,
-          options: { redirectTo },
+        const { error: resetError } = await anonClient.auth.resetPasswordForEmail(email, {
+          redirectTo,
         });
-        if (linkError) {
-          console.error("generateLink error:", linkError);
-          throw linkError;
+        if (resetError) {
+          console.error("resetPasswordForEmail error:", resetError);
+          throw resetError;
         }
       } else {
         console.error("inviteUserByEmail error:", inviteError);
         throw inviteError;
       }
     }
+
 
     return new Response(
       JSON.stringify({ ok: true, email, course_name: course.name }),
