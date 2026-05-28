@@ -14,7 +14,29 @@ const ResetPassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"recovery" | "invite" | "waiting">("waiting");
+  const [completed, setCompleted] = useState(false);
   const navigate = useNavigate();
+
+  // Guard: if the user tries to leave without setting a password, warn them.
+  // On actual unmount without completion, sign out the half-provisioned session
+  // so they can't end up logged-in-but-passwordless (which produces the
+  // "Invalid login credentials" error on the next sign-in attempt).
+  useEffect(() => {
+    const beforeUnload = (e: BeforeUnloadEvent) => {
+      if (!completed && mode === "invite") {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", beforeUnload);
+      if (!completed && mode === "invite") {
+        // Fire-and-forget; user is leaving anyway.
+        supabase.auth.signOut().catch(() => {});
+      }
+    };
+  }, [completed, mode]);
 
   useEffect(() => {
     // 1. Detect recovery directly from the URL hash (Supabase puts type=recovery there).
@@ -130,6 +152,7 @@ const ResetPassword = () => {
       setLoading(false);
       return;
     }
+    setCompleted(true);
 
     // Always check for a pending student signup, regardless of detected mode.
     // This protects against invite-vs-recovery misdetection (e.g. when the
@@ -211,6 +234,11 @@ const ResetPassword = () => {
             <CardDescription>{description}</CardDescription>
           </CardHeader>
           <CardContent>
+            {isInvite && (
+              <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                You must set a password here before you can sign in. If you close this page without setting one, you'll need to request a new link.
+              </div>
+            )}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="new-password">{isInvite ? "Password" : "New Password"}</Label>
