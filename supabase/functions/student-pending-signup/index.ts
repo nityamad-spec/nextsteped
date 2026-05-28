@@ -53,11 +53,18 @@ Deno.serve(async (req) => {
     const data = parsed.data;
     const email = data.email.toLowerCase();
 
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { auth: { autoRefreshToken: false, persistSession: false } },
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    // Anon client is used to actually SEND auth emails (resetPasswordForEmail).
+    // admin.generateLink only generates the link, it does NOT send an email.
+    const anonClient = createClient(supabaseUrl, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
 
     // ── Resend branch: just re-send the invite/recovery email ───────────
     if ("resend" in data && data.resend === true) {
