@@ -14,7 +14,29 @@ const ResetPassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"recovery" | "invite" | "waiting">("waiting");
+  const [completed, setCompleted] = useState(false);
   const navigate = useNavigate();
+
+  // Guard: if the user tries to leave without setting a password, warn them.
+  // On actual unmount without completion, sign out the half-provisioned session
+  // so they can't end up logged-in-but-passwordless (which produces the
+  // "Invalid login credentials" error on the next sign-in attempt).
+  useEffect(() => {
+    const beforeUnload = (e: BeforeUnloadEvent) => {
+      if (!completed && mode === "invite") {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", beforeUnload);
+      if (!completed && mode === "invite") {
+        // Fire-and-forget; user is leaving anyway.
+        supabase.auth.signOut().catch(() => {});
+      }
+    };
+  }, [completed, mode]);
 
   useEffect(() => {
     // 1. Detect recovery directly from the URL hash (Supabase puts type=recovery there).
