@@ -152,6 +152,7 @@ const ResetPassword = () => {
       setLoading(false);
       return;
     }
+    setCompleted(true);
 
     // Always check for a pending student signup, regardless of detected mode.
     // This protects against invite-vs-recovery misdetection (e.g. when the
