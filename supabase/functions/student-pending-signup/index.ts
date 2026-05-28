@@ -187,23 +187,23 @@ Deno.serve(async (req) => {
     });
 
     if (inviteError) {
-      // If user already exists in auth (e.g. re-attempting a verification),
-      // generate a fresh recovery link instead so they get a new email.
+      // If user already exists in auth (e.g. re-attempting verification),
+      // send a recovery email via the anon client. admin.generateLink only
+      // creates a link — it does NOT send an email. resetPasswordForEmail does.
       if (inviteError.message?.toLowerCase().includes("already") || inviteError.message?.toLowerCase().includes("registered")) {
-        const { error: linkError } = await adminClient.auth.admin.generateLink({
-          type: "recovery",
-          email,
-          options: { redirectTo },
+        const { error: resetError } = await anonClient.auth.resetPasswordForEmail(email, {
+          redirectTo,
         });
-        if (linkError) {
-          console.error("generateLink error:", linkError);
-          throw linkError;
+        if (resetError) {
+          console.error("resetPasswordForEmail error:", resetError);
+          throw resetError;
         }
       } else {
         console.error("inviteUserByEmail error:", inviteError);
         throw inviteError;
       }
     }
+
 
     return new Response(
       JSON.stringify({ ok: true, email, course_name: course.name }),
