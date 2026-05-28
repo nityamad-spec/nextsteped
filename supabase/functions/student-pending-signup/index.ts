@@ -86,18 +86,22 @@ Deno.serve(async (req) => {
         redirectTo,
       });
       if (inviteError) {
-        const { error: linkError } = await adminClient.auth.admin.generateLink({
-          type: "recovery",
-          email,
-          options: { redirectTo },
+        // User already exists in auth → send a recovery email instead.
+        // resetPasswordForEmail actually triggers the email send.
+        const { error: resetError } = await anonClient.auth.resetPasswordForEmail(email, {
+          redirectTo,
         });
-        if (linkError) throw linkError;
+        if (resetError) {
+          console.error("resetPasswordForEmail error:", resetError);
+          throw resetError;
+        }
       }
       return new Response(
         JSON.stringify({ ok: true, email }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
 
     // ── Per-email rate limit ────────────────────────────────────────────
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
