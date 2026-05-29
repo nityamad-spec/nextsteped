@@ -356,37 +356,44 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
       return false;
     }
 
-    // ---- Initial call ----
-    let firstResult;
-    try {
-      firstResult = await callAi(units);
-    } catch (e: any) {
-      if (e?.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again shortly." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (e?.status === 402) {
-        return new Response(JSON.stringify({ error: "Lovable AI credits required." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      console.error("AI call failed:", e);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
-        status: 500,
+    // ---- Initial call: batch units in parallel to avoid 150s edge timeout ----
+    const BATCH_SIZE = 6;
+    const batches: { unit_number: number; unit_title: string; topics: string[] }[][] = [];
+    for (let i = 0; i < units.length; i += BATCH_SIZE) {
+      batches.push(units.slice(i, i + BATCH_SIZE));
+    }
+    console.log("suggest-concepts: dispatching", batches.length, "batches of up to", BATCH_SIZE, "units");
+
+    let parsedUnits: UnitOut[] = [];
+    let anyFinishLength = false;
+    let fatalStatus: number | null = null;
+    const results = await Promise.all(
+      batches.map((b) =>
+        callAi(b).catch((e: any) => {
+          if (e?.status === 429 || e?.status === 402) fatalStatus = e.status;
+          console.warn("suggest-concepts: batch failed", e?.status, e?.message);
+          return { parsedUnits: [] as UnitOut[], finishReason: undefined, rawLen: 0 };
+        }),
+      ),
+    );
+    if (fatalStatus === 429) {
+      return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again shortly." }), {
+        status: 429,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    let parsedUnits = firstResult.parsedUnits;
-    console.log(
-      "suggest-concepts: first call finish_reason=",
-      firstResult.finishReason,
-      "units returned=",
-      parsedUnits.length,
-    );
+    if (fatalStatus === 402) {
+      return new Response(JSON.stringify({ error: "Lovable AI credits required." }), {
+        status: 402,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    for (const r of results) {
+      if (r.finishReason === "length") anyFinishLength = true;
+      parsedUnits.push(...r.parsedUnits);
+    }
+    const firstResult = { parsedUnits, finishReason: anyFinishLength ? "length" : "stop", rawLen: 0 };
+    console.log("suggest-concepts: batched units returned=", parsedUnits.length);
 
     // ---- Coverage check + targeted retry ----
     const byUnitNum = new Map<number, UnitOut>();
