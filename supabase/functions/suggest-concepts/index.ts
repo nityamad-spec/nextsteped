@@ -4,8 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 type SyllabusUnit = {
@@ -162,28 +161,87 @@ serve(async (req) => {
       )
       .join("\n\n");
 
-    const systemPrompt = `You are an expert curriculum designer extracting teachable concepts from a structured syllabus.
+    const systemPrompt = `You are an expert curriculum designer extracting teachable items from a structured syllabus.
 
 STRICT RULES:
-1. Output concepts grouped by unit, in the EXACT same order as the syllabus units (Unit 1 first, then Unit 2, etc.).
-2. Within each unit, order concepts in natural learning sequence — foundational prerequisites first, advanced/applied concepts last.
-3. NO OVERLAP between units: each concept belongs to exactly ONE unit. If a concept logically spans multiple units, place it in the EARLIEST unit where it is introduced, and never repeat it.
-4. Ground every concept in the unit's listed topics — do not invent concepts unrelated to the syllabus.
-5. Concept names must be concise (2–6 words), distinct, and teachable as a standalone lesson item.
-6. SKIP any concept already in the existing confirmed list (case-insensitive).
-7. COVERAGE (CRITICAL): EVERY topic listed under a unit MUST be represented by at least one concept in that same unit. Multiple closely-related topics MAY be merged under a single concept, but no listed topic may be silently dropped. Aim for 3–10 concepts per unit depending on unit breadth — err on the side of MORE concepts rather than dropping topics.
-8. TOPIC MAPPING: For every concept, include "covers_topics" — an array of the verbatim topic strings (copied exactly from this unit's listed topics) that this concept teaches. Every topic in the unit must appear in at least one concept's covers_topics array.
-9. WEIGHTING: For every concept, include an integer "weight_pct" (1–100) representing its share of total course teaching emphasis (breadth × depth × foundational importance × time-on-task). The sum of weight_pct across ALL concepts in ALL units MUST be approximately 100. Per-unit totals should roughly track unit breadth.
-10. WEIGHT RATIONALE: For every concept, include a one-sentence "weight_rationale" explaining why it deserves that share (e.g. "foundational prerequisite reused throughout the course", "narrow applied topic", "broad multi-week treatment").`;
 
+1. Output items grouped by unit, in the EXACT same order as the syllabus units (Unit 1 first, then Unit 2, etc.).
 
+2. Within each unit, order items in natural learning sequence: foundational prerequisites first, advanced or applied items last.
 
-    type ConceptOut = { name: string; rationale: string; weight_pct?: number; weight_rationale?: string; covers_topics?: string[] };
+3. Every item MUST have a "type", one of:
+   - "concept": a theoretical idea taught in the abstract (e.g. "Exchange Rate Determination", "Financial Contagion").
+   - "model": a named analytical framework or accounting identity (e.g. "BB-NN (Salter-Swan) Model", "Balance of Payments Accounting").
+   - "case_study": a specific real-world episode, country event, or dated crisis used to illustrate ideas (e.g. "Tequila Crisis (1994)", "India's 2013 Rupee Crisis"). A case_study is NEVER classified as a concept.
+   - "skill": a measurable competency the student performs (e.g. "Country Risk Assessment", "Forecasting Failures").
+   - "definition": a single defined term whose teaching point is the definition itself (e.g. "Defining Financial Contagion").
+   When in doubt between concept and case_study, ask whether the item names a real, specific, dated event. If yes, it is a case_study.
+
+4. For every item of type "case_study" or "skill" that illustrates or applies another item, include "related_ids": the ids of the concept(s) or model(s) it draws on. A case and the concept it illustrates are SEPARATE items linked through related_ids, never merged into one.
+
+5. NO OVERLAP across units AND no overlap within this run. Each underlying idea belongs to exactly ONE item. Before emitting an item, check it against every item you have ALREADY emitted in this run, not only against the existing confirmed list. If the idea is already present, do not emit it again; instead add the new wording to that existing item's "aliases" and add the unit number to its "source_units".
+
+6. DEDUP BY TEACHING IDENTITY, NOT BY TOPICAL SIMILARITY.
+   The test for merging two items is NOT "do they discuss a similar subject"; it is
+   "would a teacher deliver these as ONE lesson item or as TWO." Apply it as follows:
+
+   MERGE only when the items are the same teaching point worded differently
+   (e.g. "Current Account Deficits" and "Understanding Current Account Imbalances").
+   Choose one concise canonical "name" and put every other wording in "aliases".
+
+   DO NOT MERGE in these cases, even when the wording is very similar:
+   - CONTRAST PAIRS: anything framed as "X vs Y" or naming two sides of a distinction
+     (Nominal vs Real Exchange Rates, Fixed vs Floating, Tradable vs Non-Tradable,
+     Current Account vs Capital Account). These are distinct teaching items.
+   - NEAR-HOMOGRAPHS WITH DIFFERENT TECHNICAL MEANING: terms that look or sound alike
+     but denote different ideas in the field (Systemic Risk vs Systematic Risk;
+     Devaluation vs Depreciation; Hedging vs Speculation). When two terms differ by a
+     technical nuance a domain expert would insist on, keep them separate.
+   - DIFFERENT TYPES: a "concept" and the "case_study" that illustrates it are never the
+     same item; link them via related_ids instead.
+
+   STRUCTURAL CHECK: if two candidate items have NO overlap in their covers_topics
+   (they map to entirely different verbatim syllabus topics), treat that as strong
+   evidence they are DISTINCT and do not merge them. Shared covers_topics is only a
+   hint toward merging and must still pass the one-lesson test above.
+
+   Also skip any item already in the existing confirmed list, judged by the same
+   one-lesson test rather than by exact text match.
+
+7. Item names must be concise (2 to 6 words), distinct, and teachable as a standalone lesson item. Decisively merge closely related topics into a single item rather than splitting them. Do NOT inflate the count: prefer the smallest set of items that still covers every topic. Quality of distinction matters more than quantity.
+
+8. COVERAGE: every topic listed under a unit must be represented by at least one item in that same unit. No listed topic may be silently dropped. Merging related topics under one item is encouraged, as long as each topic appears in some item's covers_topics array.
+
+9. TOPIC MAPPING: for every item include "covers_topics", an array of the verbatim topic strings (copied exactly from this unit's listed topics) that this item teaches.
+
+10. Ground every item in the unit's listed topics. Do not invent items unrelated to the syllabus.
+
+11. WEIGHTING: for every item include an integer "weight_pct" (1 to 100) representing its share of total course teaching emphasis (breadth, depth, foundational importance, time on task). The sum of weight_pct across ALL items in ALL units must be approximately 100. Include a one-sentence "weight_rationale" explaining the share.
+
+OUTPUT FORMAT:
+Return STRICT JSON with one top-level key "items", an array of objects. Each object has:
+  id, name, type, aliases (array, may be empty), related_ids (array, may be empty),
+  source_units (array of integers), covers_topics (array), weight_pct, weight_rationale.
+Output ONLY the JSON. No prose, no markdown fences.`;
+
+    type ConceptOut = {
+      name: string;
+      rationale: string;
+      weight_pct?: number;
+      weight_rationale?: string;
+      covers_topics?: string[];
+    };
     type UnitOut = { unit_number: number; unit_title: string; concepts: ConceptOut[] };
 
-    async function callAi(unitsForCall: { unit_number: number; unit_title: string; topics: string[] }[], retryNote = ""): Promise<{ parsedUnits: UnitOut[]; finishReason: string | undefined; rawLen: number }> {
+    async function callAi(
+      unitsForCall: { unit_number: number; unit_title: string; topics: string[] }[],
+      retryNote = "",
+    ): Promise<{ parsedUnits: UnitOut[]; finishReason: string | undefined; rawLen: number }> {
       const block = unitsForCall
-        .map((u) => `Unit ${u.unit_number}: ${u.unit_title}\n  Topics: ${u.topics.length ? u.topics.join("; ") : "(none listed)"}`)
+        .map(
+          (u) =>
+            `Unit ${u.unit_number}: ${u.unit_title}\n  Topics: ${u.topics.length ? u.topics.join("; ") : "(none listed)"}`,
+        )
         .join("\n\n");
       const prompt = `Course: ${course?.name || "Untitled"} (${course?.course_code || "n/a"})
 Objectives: ${(course?.objectives || []).join("; ") || "n/a"}
@@ -213,7 +271,8 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
               type: "function",
               function: {
                 name: "extract_unit_concepts",
-                description: "Return concepts grouped by syllabus unit, in unit order, with no concept repeated across units. Every topic listed in a unit must be covered by at least one concept's covers_topics.",
+                description:
+                  "Return concepts grouped by syllabus unit, in unit order, with no concept repeated across units. Every topic listed in a unit must be covered by at least one concept's covers_topics.",
                 parameters: {
                   type: "object",
                   properties: {
@@ -281,7 +340,11 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
     }
 
     // Helpers for coverage check
-    const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const norm = (s: string) =>
+      (s || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
     function topicCoveredBy(topic: string, covered: string[]): boolean {
       const t = norm(topic);
       if (!t) return true;
@@ -299,17 +362,31 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
       firstResult = await callAi(units);
     } catch (e: any) {
       if (e?.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again shortly." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again shortly." }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
       if (e?.status === 402) {
-        return new Response(JSON.stringify({ error: "Lovable AI credits required." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return new Response(JSON.stringify({ error: "Lovable AI credits required." }), {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
       console.error("AI call failed:", e);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "AI gateway error" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     let parsedUnits = firstResult.parsedUnits;
-    console.log("suggest-concepts: first call finish_reason=", firstResult.finishReason, "units returned=", parsedUnits.length);
+    console.log(
+      "suggest-concepts: first call finish_reason=",
+      firstResult.finishReason,
+      "units returned=",
+      parsedUnits.length,
+    );
 
     // ---- Coverage check + targeted retry ----
     const byUnitNum = new Map<number, UnitOut>();
@@ -323,15 +400,23 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
       const missing = u.topics.filter((t) => !topicCoveredBy(t, covered));
       const ratio = u.topics.length === 0 ? 1 : (u.topics.length - missing.length) / u.topics.length;
       if (u.topics.length > 0 && (ratio < 0.85 || !got || (got.concepts?.length || 0) === 0)) {
-        underCovered.push({ unit_number: u.unit_number, unit_title: u.unit_title, topics: missing.length ? missing : u.topics });
+        underCovered.push({
+          unit_number: u.unit_number,
+          unit_title: u.unit_title,
+          topics: missing.length ? missing : u.topics,
+        });
       }
     }
 
     const shouldRetry = underCovered.length > 0 || firstResult.finishReason === "length";
     if (shouldRetry) {
-      console.log("suggest-concepts: retrying for under-covered units:", underCovered.map((u) => `U${u.unit_number}(${u.topics.length})`).join(","));
+      console.log(
+        "suggest-concepts: retrying for under-covered units:",
+        underCovered.map((u) => `U${u.unit_number}(${u.topics.length})`).join(","),
+      );
       try {
-        const retryNote = "These units are under-covered — produce concepts that cover EVERY listed topic below. Do not repeat concept names already produced.";
+        const retryNote =
+          "These units are under-covered — produce concepts that cover EVERY listed topic below. Do not repeat concept names already produced.";
         const retryUnits = underCovered.length > 0 ? underCovered : units;
         const retry = await callAi(retryUnits, retryNote);
         // Merge: prefer retry concepts for those units; otherwise keep existing
@@ -345,7 +430,11 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
           if (a && b) {
             const seen = new Set((a.concepts || []).map((c) => (c.name || "").toLowerCase()));
             const extra = (b.concepts || []).filter((c) => !seen.has((c.name || "").toLowerCase()));
-            merged.push({ unit_number: n, unit_title: a.unit_title || b.unit_title, concepts: [...(a.concepts || []), ...extra] });
+            merged.push({
+              unit_number: n,
+              unit_title: a.unit_title || b.unit_title,
+              concepts: [...(a.concepts || []), ...extra],
+            });
           } else {
             merged.push((a || b)!);
           }
@@ -443,9 +532,7 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
         const scaled = flat.map((x) => (x.weight_pct * 100) / totalW);
         const floors = scaled.map((v) => Math.max(1, Math.floor(v)));
         let assigned = floors.reduce((s, v) => s + v, 0);
-        const remainders = scaled
-          .map((v, i) => ({ i, frac: v - Math.floor(v) }))
-          .sort((a, b) => b.frac - a.frac);
+        const remainders = scaled.map((v, i) => ({ i, frac: v - Math.floor(v) })).sort((a, b) => b.frac - a.frac);
         let k = 0;
         while (assigned < 100 && k < remainders.length) {
           floors[remainders[k].i] += 1;
@@ -469,7 +556,8 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
       responseBody.warning = "All extracted concepts were already in your confirmed list — nothing new to add.";
     } else if (suggestions.length === 0) {
       responseBody.reason = "empty_ai_output";
-      responseBody.warning = "The AI did not return any concepts for this syllabus. Try re-running, or check that your syllabus has detailed topics per unit.";
+      responseBody.warning =
+        "The AI did not return any concepts for this syllabus. Try re-running, or check that your syllabus has detailed topics per unit.";
     }
 
     return new Response(JSON.stringify(responseBody), {
