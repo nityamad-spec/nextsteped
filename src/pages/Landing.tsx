@@ -208,9 +208,10 @@ const Landing = () => {
         <p className="text-xs text-muted-foreground">Built for the future of education</p>
         <button
           onClick={() => navigate("/auth?role=admin")}
-          className="text-xs text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+          aria-label="Admin"
+          className="text-xs leading-none text-muted-foreground/20 transition-colors hover:text-muted-foreground/60"
         >
-          Admin Login
+          ·
         </button>
       </motion.div>
     </div>
