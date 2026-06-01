@@ -419,19 +419,72 @@ const ConceptReview = () => {
     if (courseId) bumpCacheVersion("concepts", courseId);
   };
 
+  // Inline edit for a confirmed concept's weight (percent).
+  const [editingWeights, setEditingWeights] = useState<Record<string, string>>({});
+  const [rebalancing, setRebalancing] = useState(false);
+
+  const commitConfirmedWeight = async (id: string) => {
+    const raw = editingWeights[id];
+    if (raw === undefined) return;
+    const pct = Number(raw);
+    if (Number.isNaN(pct) || pct < 0 || pct > 100) {
+      toast.error("Weight must be between 0 and 100");
+      setEditingWeights((prev) => {
+        const { [id]: _, ...rest } = prev;
+        return rest;
+      });
+      return;
+    }
+    const w = pct / 100;
+    const prev = concepts.find((c) => c.id === id);
+    if (!prev || Number(prev.weight) === w) {
+      setEditingWeights((p) => {
+        const { [id]: _, ...rest } = p;
+        return rest;
+      });
+      return;
+    }
+    const { error } = await supabase.from("concepts").update({ weight: w }).eq("id", id);
+    if (error) {
+      toast.error("Failed to update weight: " + error.message);
+      return;
+    }
+    setConcepts((list) => list.map((c) => (c.id === id ? { ...c, weight: w } : c)));
+    setEditingWeights((p) => {
+      const { [id]: _, ...rest } = p;
+      return rest;
+    });
+    if (courseId) bumpCacheVersion("concepts", courseId);
+  };
+
+  const handleAutoBalance = async () => {
+    if (concepts.length === 0) return;
+    setRebalancing(true);
+    try {
+      const rescaled = await normalizeAllToOne(concepts);
+      setConcepts(rescaled);
+      if (courseId) bumpCacheVersion("concepts", courseId);
+      toast.success("Weights rebalanced to 100%");
+    } finally {
+      setRebalancing(false);
+    }
+  };
+
   const totalWeightPct = Math.round(
     concepts.reduce((s, c) => s + Number(c.weight || 0), 0) * 100,
   );
   const weightsBalanced = concepts.length > 0 && totalWeightPct === 100;
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (concepts.length === 0) {
       toast.error("Please confirm at least one concept before continuing.");
       return;
     }
     if (!weightsBalanced) {
-      toast.error(`Concept weights must total 100% (currently ${totalWeightPct}%).`);
-      return;
+      const rescaled = await normalizeAllToOne(concepts);
+      setConcepts(rescaled);
+      if (courseId) bumpCacheVersion("concepts", courseId);
+      toast.success("Weights auto-balanced to 100%");
     }
     if (user?.id && courseId) void markStepCompleted(user.id, "concept-review", courseId);
     navigate("/teacher/setup/lesson-plan");
