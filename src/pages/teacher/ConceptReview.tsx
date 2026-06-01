@@ -419,9 +419,18 @@ const ConceptReview = () => {
     if (courseId) bumpCacheVersion("concepts", courseId);
   };
 
+  const totalWeightPct = Math.round(
+    concepts.reduce((s, c) => s + Number(c.weight || 0), 0) * 100,
+  );
+  const weightsBalanced = concepts.length > 0 && totalWeightPct === 100;
+
   const handleContinue = () => {
     if (concepts.length === 0) {
       toast.error("Please confirm at least one concept before continuing.");
+      return;
+    }
+    if (!weightsBalanced) {
+      toast.error(`Concept weights must total 100% (currently ${totalWeightPct}%).`);
       return;
     }
     if (user?.id && courseId) void markStepCompleted(user.id, "concept-review", courseId);
