@@ -31,6 +31,8 @@ const CourseMaterials = () => {
   const [courseId, setCourseId] = useState<string | null>(initialCourseId);
   const [resolvingCourse, setResolvingCourse] = useState(true);
   const [syllabusFiles, setSyllabusFiles] = useState<UploadedFile[]>([]);
+  const [lessonPlanDocFiles, setLessonPlanDocFiles] = useState<UploadedFile[]>([]);
+  const [youtubeLinkFiles, setYoutubeLinkFiles] = useState<UploadedFile[]>([]);
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
   const [syllabusParseStatus, setSyllabusParseStatus] = useState<Record<string, "parsing" | "parsed" | "failed">>({});
   const [syllabusJsonInStorage, setSyllabusJsonInStorage] = useState(false);
