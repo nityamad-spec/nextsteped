@@ -53,9 +53,11 @@ const CourseMaterials = () => {
   const [reviewItems, setReviewItems] = useState<Array<{
     url: string; kind: string; video_id: string | null;
     already_saved: boolean; selected: boolean;
+    invalid: boolean; invalidReason?: string;
     sourceFileId: string | null; sourceFileName: string;
   }>>([]);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [duplicatesSkipped, setDuplicatesSkipped] = useState(0);
 
   // Storage paths are course-scoped, so we must have a course row before any
   // upload is allowed. Resolve (or eagerly create) one on mount.
