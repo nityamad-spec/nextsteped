@@ -254,9 +254,9 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
+          model: "google/gemini-2.5-flash",
           temperature: 0.2,
-          max_tokens: 12000,
+          max_tokens: 8000,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: prompt },
