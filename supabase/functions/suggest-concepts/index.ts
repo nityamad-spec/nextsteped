@@ -254,9 +254,9 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
+          model: "google/gemini-2.5-flash",
           temperature: 0.2,
-          max_tokens: 12000,
+          max_tokens: 8000,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: prompt },
@@ -352,7 +352,7 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
     }
 
     // ---- Initial call: batch units in parallel to avoid 150s edge timeout ----
-    const BATCH_SIZE = 6;
+    const BATCH_SIZE = 3;
     const batches: { unit_number: number; unit_title: string; topics: string[] }[][] = [];
     for (let i = 0; i < units.length; i += BATCH_SIZE) {
       batches.push(units.slice(i, i + BATCH_SIZE));
