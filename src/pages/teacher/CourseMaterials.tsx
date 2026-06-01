@@ -748,5 +748,10 @@ const CourseMaterials = () => {
               </>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
 
 export default CourseMaterials;
