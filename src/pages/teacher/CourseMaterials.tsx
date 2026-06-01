@@ -37,6 +37,8 @@ const CourseMaterials = () => {
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
   const [syllabusParseStatus, setSyllabusParseStatus] = useState<Record<string, "parsing" | "parsed" | "failed">>({});
   const [syllabusJsonInStorage, setSyllabusJsonInStorage] = useState(false);
+  const [extractedLinks, setExtractedLinks] = useState<Array<{ id: string; url: string; kind: string }>>([]);
+  const [extractingLinks, setExtractingLinks] = useState(false);
 
   // Storage paths are course-scoped, so we must have a course row before any
   // upload is allowed. Resolve (or eagerly create) one on mount.
