@@ -105,9 +105,22 @@ serve(async (req) => {
     }
     const userId = userRes.user.id;
 
-    const { courseId, fileId, storagePath, fileName } = await req.json();
-    if (!courseId || !storagePath) {
-      return new Response(JSON.stringify({ error: "courseId and storagePath required" }), {
+    const body = await req.json();
+    const { courseId, fileId, storagePath, fileName, mode = "extract", links: providedLinks } = body;
+    if (!courseId) {
+      return new Response(JSON.stringify({ error: "courseId required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (mode === "extract" && !storagePath) {
+      return new Response(JSON.stringify({ error: "storagePath required for extract" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (mode === "save" && (!Array.isArray(providedLinks) || providedLinks.length === 0)) {
+      return new Response(JSON.stringify({ error: "links array required for save" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -127,6 +140,38 @@ serve(async (req) => {
       });
     }
 
+    // ----- SAVE MODE: insert teacher-approved links and return. -----
+    if (mode === "save") {
+      const rows = (providedLinks as Array<{ url: string; video_id: string | null; kind: string }>)
+        .filter((l) => l && typeof l.url === "string")
+        .map((l) => ({
+          course_id: courseId,
+          teacher_id: userId,
+          source_file_id: fileId || null,
+          url: l.url,
+          video_id: l.video_id ?? null,
+          kind: l.kind ?? "other",
+        }));
+
+      const { data: upserted, error: upErr } = await admin
+        .from("course_youtube_links")
+        .upsert(rows, { onConflict: "course_id,url", ignoreDuplicates: true })
+        .select("id");
+
+      if (upErr) {
+        return new Response(JSON.stringify({ error: upErr.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const inserted = upserted?.length ?? 0;
+      return new Response(
+        JSON.stringify({ inserted, skipped: rows.length - inserted, total: rows.length }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // ----- EXTRACT MODE: download, extract, return without saving. -----
     // Download file from storage.
     const { data: blob, error: dlErr } = await admin.storage
       .from("course-materials")
@@ -197,38 +242,21 @@ serve(async (req) => {
     }
 
     const links = extractLinksFromText(rawText);
-    if (links.length === 0) {
-      return new Response(JSON.stringify({ inserted: 0, skipped: 0, total: 0 }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+
+    // Mark which links already exist for this course so the UI can disable them.
+    let existingUrls = new Set<string>();
+    if (links.length > 0) {
+      const { data: existing } = await admin
+        .from("course_youtube_links")
+        .select("url")
+        .eq("course_id", courseId)
+        .in("url", links.map((l) => l.url));
+      existingUrls = new Set((existing ?? []).map((r) => r.url));
     }
 
-    const rows = links.map((l) => ({
-      course_id: courseId,
-      teacher_id: userId,
-      source_file_id: fileId || null,
-      url: l.url,
-      video_id: l.video_id,
-      kind: l.kind,
-    }));
-
-    const { data: upserted, error: upErr } = await admin
-      .from("course_youtube_links")
-      .upsert(rows, { onConflict: "course_id,url", ignoreDuplicates: true })
-      .select("id");
-
-    if (upErr) {
-      return new Response(JSON.stringify({ error: upErr.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const inserted = upserted?.length ?? 0;
     return new Response(
       JSON.stringify({
-        inserted,
-        skipped: links.length - inserted,
+        links: links.map((l) => ({ ...l, already_saved: existingUrls.has(l.url) })),
         total: links.length,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },

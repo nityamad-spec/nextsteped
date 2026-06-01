@@ -3,6 +3,15 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { FileText, ClipboardList, ArrowLeft, Loader2, BookOpen, Youtube, Trash2, ExternalLink } from "lucide-react";
 import FileUploadZone from "@/components/FileUploadZone";
 import SetupModuleNav from "@/components/SetupModuleNav";
@@ -39,6 +48,14 @@ const CourseMaterials = () => {
   const [syllabusJsonInStorage, setSyllabusJsonInStorage] = useState(false);
   const [extractedLinks, setExtractedLinks] = useState<Array<{ id: string; url: string; kind: string }>>([]);
   const [extractingLinks, setExtractingLinks] = useState(false);
+  const [savingLinks, setSavingLinks] = useState(false);
+  // Pending review queue: links extracted from a freshly uploaded file, awaiting teacher approval.
+  const [reviewItems, setReviewItems] = useState<Array<{
+    url: string; kind: string; video_id: string | null;
+    already_saved: boolean; selected: boolean;
+    sourceFileId: string | null; sourceFileName: string;
+  }>>([]);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   // Storage paths are course-scoped, so we must have a course row before any
   // upload is allowed. Resolve (or eagerly create) one on mount.
@@ -141,15 +158,14 @@ const CourseMaterials = () => {
   };
   useEffect(() => { void refreshLinks(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [courseId]);
 
-  // Trigger extraction whenever a new YouTube-links file is uploaded.
+  // Extract links from any freshly uploaded YouTube-links file and queue them
+  // for teacher review. Nothing is written to the DB until the teacher confirms.
   const handleYoutubeUploadComplete = async (newFiles: UploadedFile[]) => {
     if (!courseId || newFiles.length === 0) return;
     setExtractingLinks(true);
-    let totalInserted = 0;
-    let totalFound = 0;
+    const collected: typeof reviewItems = [];
     try {
       for (const f of newFiles) {
-        // Look up the metadata row id for source_file_id linkage.
         const { data: meta } = await supabase
           .from("course_material_files")
           .select("id")
@@ -161,24 +177,94 @@ const CourseMaterials = () => {
             fileId: meta?.id ?? null,
             storagePath: f.path,
             fileName: f.name,
+            mode: "extract",
           },
         });
         if (error) {
           toast.error(`Extraction failed for ${f.name}: ${error.message}`);
           continue;
         }
-        totalInserted += (data as any)?.inserted ?? 0;
-        totalFound += (data as any)?.total ?? 0;
+        const links = ((data as any)?.links ?? []) as Array<{
+          url: string; kind: string; video_id: string | null; already_saved: boolean;
+        }>;
+        for (const l of links) {
+          collected.push({
+            ...l,
+            selected: !l.already_saved,
+            sourceFileId: meta?.id ?? null,
+            sourceFileName: f.name,
+          });
+        }
       }
-      if (totalFound === 0) {
+      if (collected.length === 0) {
         toast.info("No YouTube links detected in that file.");
       } else {
-        toast.success(`Found ${totalFound} link(s); ${totalInserted} new.`);
+        setReviewItems(collected);
+        setReviewOpen(true);
       }
-      await refreshLinks();
     } finally {
       setExtractingLinks(false);
     }
+  };
+
+  const toggleReviewItem = (url: string) => {
+    setReviewItems((prev) =>
+      prev.map((i) => (i.url === url ? { ...i, selected: !i.selected } : i)),
+    );
+  };
+
+  const toggleAllReview = (checked: boolean) => {
+    setReviewItems((prev) =>
+      prev.map((i) => (i.already_saved ? i : { ...i, selected: checked })),
+    );
+  };
+
+  const confirmSaveReviewed = async () => {
+    if (!courseId) return;
+    const toSave = reviewItems.filter((i) => i.selected && !i.already_saved);
+    if (toSave.length === 0) {
+      setReviewOpen(false);
+      setReviewItems([]);
+      return;
+    }
+    setSavingLinks(true);
+    try {
+      // Group by source file so source_file_id stays accurate per row.
+      const groups = new Map<string, typeof toSave>();
+      for (const item of toSave) {
+        const key = item.sourceFileId ?? "none";
+        const arr = groups.get(key) ?? [];
+        arr.push(item);
+        groups.set(key, arr);
+      }
+      let totalInserted = 0;
+      for (const [fileId, items] of groups) {
+        const { data, error } = await supabase.functions.invoke("extract-youtube-links", {
+          body: {
+            courseId,
+            fileId: fileId === "none" ? null : fileId,
+            mode: "save",
+            links: items.map((i) => ({ url: i.url, kind: i.kind, video_id: i.video_id })),
+          },
+        });
+        if (error) {
+          toast.error(`Save failed: ${error.message}`);
+          continue;
+        }
+        totalInserted += (data as any)?.inserted ?? 0;
+      }
+      toast.success(`Saved ${totalInserted} link(s).`);
+      setReviewOpen(false);
+      setReviewItems([]);
+      await refreshLinks();
+    } finally {
+      setSavingLinks(false);
+    }
+  };
+
+  const cancelReview = () => {
+    setReviewOpen(false);
+    setReviewItems([]);
   };
 
   const removeLink = async (id: string) => {
@@ -473,6 +559,89 @@ const CourseMaterials = () => {
           nextDisabled={!canContinue}
         />
       </div>
+
+      {/* Review extracted YouTube links before saving */}
+      <Dialog
+        open={reviewOpen}
+        onOpenChange={(open) => {
+          if (!open && !savingLinks) cancelReview();
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Review extracted YouTube links</DialogTitle>
+            <DialogDescription>
+              We found {reviewItems.length} link{reviewItems.length === 1 ? "" : "s"}.
+              Uncheck any you don't want saved. Already-saved links are disabled.
+            </DialogDescription>
+          </DialogHeader>
+
+          {reviewItems.length > 0 && (
+            <div className="flex items-center justify-between border-b pb-2 text-xs text-muted-foreground">
+              <span>
+                {reviewItems.filter((i) => i.selected && !i.already_saved).length} selected to save
+              </span>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={() => toggleAllReview(true)}>
+                  Select all
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => toggleAllReview(false)}>
+                  Deselect all
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <ul className="max-h-[55vh] overflow-y-auto space-y-1.5">
+            {reviewItems.map((item) => (
+              <li
+                key={item.url}
+                className="flex items-start gap-3 rounded-md border bg-muted/20 px-3 py-2 text-sm"
+              >
+                <Checkbox
+                  checked={item.selected}
+                  disabled={item.already_saved}
+                  onCheckedChange={() => toggleReviewItem(item.url)}
+                  className="mt-1"
+                />
+                <div className="min-w-0 flex-1">
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-primary hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{item.url}</span>
+                  </a>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {item.kind}
+                    {item.already_saved && " · already saved"}
+                    {" · from "}
+                    {item.sourceFileName}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={cancelReview} disabled={savingLinks}>
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmSaveReviewed}
+              disabled={
+                savingLinks ||
+                reviewItems.filter((i) => i.selected && !i.already_saved).length === 0
+              }
+            >
+              {savingLinks && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save selected
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
