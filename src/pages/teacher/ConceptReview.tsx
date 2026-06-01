@@ -76,6 +76,7 @@ const ConceptReview = () => {
   const [loading, setLoading] = useState(true);
   const [concepts, setConcepts] = useState<Concept[]>([]);
   const [newConcept, setNewConcept] = useState("");
+  const [newWeight, setNewWeight] = useState("");
   const [adding, setAdding] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -172,20 +173,75 @@ const ConceptReview = () => {
   const handleAddManual = async () => {
     const name = newConcept.trim();
     if (!name || !courseId) return;
-    setAdding(true);
-    const { data, error } = await supabase
-      .from("concepts")
-      .insert({ concept_code: name, weight: 0, course_id: courseId })
-      .select("*")
-      .single();
-    if (error) {
-      toast.error("Failed to add concept: " + error.message);
-    } else if (data) {
-      setConcepts((prev) => [...prev, data]);
-      setNewConcept("");
-      bumpCacheVersion("concepts", courseId);
+
+    const weightInput = newWeight.trim();
+    const parsedPct = weightInput === "" ? 0 : Number(weightInput);
+    if (Number.isNaN(parsedPct) || parsedPct < 0 || parsedPct > 100) {
+      toast.error("Weight must be a number between 0 and 100");
+      return;
     }
-    setAdding(false);
+    if (parsedPct === 100 && concepts.length > 0) {
+      toast.error("Weight of 100% would zero out all other concepts");
+      return;
+    }
+    const wNew = parsedPct / 100;
+
+    setAdding(true);
+    try {
+      // Rescale existing concepts so total stays at 1.0
+      let rescaled: { id: string; weight: number }[] = [];
+      if (concepts.length > 0) {
+        const sumOthers = concepts.reduce((s, c) => s + Number(c.weight || 0), 0);
+        const targetOthers = 1 - wNew;
+        if (sumOthers > 0) {
+          const scale = targetOthers / sumOthers;
+          rescaled = concepts.map((c) => ({ id: c.id, weight: Number(c.weight || 0) * scale }));
+        } else {
+          const each = targetOthers / concepts.length;
+          rescaled = concepts.map((c) => ({ id: c.id, weight: each }));
+        }
+
+        const updates = await Promise.all(
+          rescaled.map((r) =>
+            supabase.from("concepts").update({ weight: r.weight }).eq("id", r.id)
+          )
+        );
+        const updateErr = updates.find((u) => u.error)?.error;
+        if (updateErr) {
+          toast.error("Failed to rebalance weights: " + updateErr.message);
+          await fetchConcepts();
+          return;
+        }
+      }
+
+      const insertWeight = concepts.length === 0 ? (weightInput === "" ? 1 : wNew) : wNew;
+      const { data, error } = await supabase
+        .from("concepts")
+        .insert({ concept_code: name, weight: insertWeight, course_id: courseId })
+        .select("*")
+        .single();
+
+      if (error) {
+        toast.error("Failed to add concept: " + error.message);
+        await fetchConcepts();
+        return;
+      }
+
+      if (data) {
+        setConcepts((prev) => {
+          const rescaleMap = new Map(rescaled.map((r) => [r.id, r.weight]));
+          const updated = prev.map((c) =>
+            rescaleMap.has(c.id) ? { ...c, weight: rescaleMap.get(c.id)! } : c
+          );
+          return [...updated, data];
+        });
+        setNewConcept("");
+        setNewWeight("");
+        bumpCacheVersion("concepts", courseId);
+      }
+    } finally {
+      setAdding(false);
+    }
   };
 
   const handleAddSuggestion = async (s: Suggestion) => {
@@ -760,22 +816,45 @@ const ConceptReview = () => {
             )}
 
             {/* Manual add */}
-            <div className="flex items-center gap-2 pt-2 border-t">
-              <Input
-                placeholder="Manually add a concept that was missed…"
-                value={newConcept}
-                onChange={(e) => setNewConcept(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddManual();
-                  }
-                }}
-                className="flex-1"
-              />
-              <Button onClick={handleAddManual} disabled={!newConcept.trim() || adding}>
-                {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 mr-1" /> Add</>}
-              </Button>
+            <div className="space-y-1.5 pt-2 border-t">
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Manually add a concept that was missed…"
+                  value={newConcept}
+                  onChange={(e) => setNewConcept(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddManual();
+                    }
+                  }}
+                  className="flex-1"
+                />
+                <div className="relative w-24 shrink-0">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    placeholder="Weight"
+                    value={newWeight}
+                    onChange={(e) => setNewWeight(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddManual();
+                      }
+                    }}
+                    className="pr-7"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                </div>
+                <Button onClick={handleAddManual} disabled={!newConcept.trim() || adding}>
+                  {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 mr-1" /> Add</>}
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Set a weight for the new concept; existing concepts will be rescaled so the total stays 100%.
+              </p>
             </div>
           </CardContent>
         </Card>
