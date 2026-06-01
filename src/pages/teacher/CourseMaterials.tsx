@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileText, ClipboardList, ArrowLeft, Loader2, BookOpen, Youtube, Trash2, ExternalLink } from "lucide-react";
+import { FileText, ClipboardList, ArrowLeft, Loader2, BookOpen, Youtube, Trash2, ExternalLink, AlertTriangle } from "lucide-react";
 import FileUploadZone from "@/components/FileUploadZone";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { useAuth } from "@/contexts/AuthContext";
@@ -53,9 +53,11 @@ const CourseMaterials = () => {
   const [reviewItems, setReviewItems] = useState<Array<{
     url: string; kind: string; video_id: string | null;
     already_saved: boolean; selected: boolean;
+    invalid: boolean; invalidReason?: string;
     sourceFileId: string | null; sourceFileName: string;
   }>>([]);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [duplicatesSkipped, setDuplicatesSkipped] = useState(0);
 
   // Storage paths are course-scoped, so we must have a course row before any
   // upload is allowed. Resolve (or eagerly create) one on mount.
@@ -158,12 +160,59 @@ const CourseMaterials = () => {
   };
   useEffect(() => { void refreshLinks(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [courseId]);
 
+  // Validate a candidate YouTube URL. Returns { valid, reason } so we can show
+  // why the link is rejected. We accept watch?v=, youtu.be/, shorts/, playlist,
+  // channel, and @handle URLs only — anything else is flagged.
+  const validateYoutubeUrl = (raw: string): { valid: boolean; reason?: string } => {
+    if (!raw || typeof raw !== "string") return { valid: false, reason: "Empty URL" };
+    let u: URL;
+    try {
+      u = new URL(raw.trim());
+    } catch {
+      return { valid: false, reason: "Not a valid URL" };
+    }
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      return { valid: false, reason: "Unsupported protocol" };
+    }
+    const host = u.hostname.replace(/^www\.|^m\./, "").toLowerCase();
+    if (host === "youtu.be") {
+      const id = u.pathname.slice(1).split("/")[0];
+      if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return { valid: false, reason: "Invalid video ID" };
+      return { valid: true };
+    }
+    if (host === "youtube.com") {
+      const p = u.pathname;
+      if (p === "/watch") {
+        const v = u.searchParams.get("v") || "";
+        if (!/^[A-Za-z0-9_-]{11}$/.test(v)) return { valid: false, reason: "Missing/invalid video ID" };
+        return { valid: true };
+      }
+      if (p.startsWith("/shorts/")) {
+        const id = p.slice("/shorts/".length).split("/")[0];
+        if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return { valid: false, reason: "Invalid shorts ID" };
+        return { valid: true };
+      }
+      if (p === "/playlist") {
+        const list = u.searchParams.get("list") || "";
+        if (!/^[A-Za-z0-9_-]{10,}$/.test(list)) return { valid: false, reason: "Invalid playlist ID" };
+        return { valid: true };
+      }
+      if (p.startsWith("/channel/") || p.startsWith("/@") || p.startsWith("/c/") || p.startsWith("/user/")) {
+        return { valid: true };
+      }
+      return { valid: false, reason: "Unsupported YouTube path" };
+    }
+    return { valid: false, reason: "Not a YouTube domain" };
+  };
+
   // Extract links from any freshly uploaded YouTube-links file and queue them
   // for teacher review. Nothing is written to the DB until the teacher confirms.
   const handleYoutubeUploadComplete = async (newFiles: UploadedFile[]) => {
     if (!courseId || newFiles.length === 0) return;
     setExtractingLinks(true);
     const collected: typeof reviewItems = [];
+    const seen = new Set<string>();
+    let skippedDupes = 0;
     try {
       for (const f of newFiles) {
         const { data: meta } = await supabase
@@ -188,16 +237,28 @@ const CourseMaterials = () => {
           url: string; kind: string; video_id: string | null; already_saved: boolean;
         }>;
         for (const l of links) {
+          // Dedupe across multiple files in the same batch.
+          if (seen.has(l.url)) { skippedDupes += 1; continue; }
+          seen.add(l.url);
+          const { valid, reason } = validateYoutubeUrl(l.url);
           collected.push({
             ...l,
-            selected: !l.already_saved,
+            invalid: !valid,
+            invalidReason: reason,
+            // Invalid + already-saved links should never be pre-selected.
+            selected: valid && !l.already_saved,
             sourceFileId: meta?.id ?? null,
             sourceFileName: f.name,
           });
         }
       }
+      setDuplicatesSkipped(skippedDupes);
       if (collected.length === 0) {
-        toast.info("No YouTube links detected in that file.");
+        toast.info(
+          skippedDupes > 0
+            ? `No new YouTube links detected (${skippedDupes} duplicate(s) skipped).`
+            : "No YouTube links detected in that file.",
+        );
       } else {
         setReviewItems(collected);
         setReviewOpen(true);
@@ -209,22 +270,33 @@ const CourseMaterials = () => {
 
   const toggleReviewItem = (url: string) => {
     setReviewItems((prev) =>
-      prev.map((i) => (i.url === url ? { ...i, selected: !i.selected } : i)),
+      prev.map((i) =>
+        i.url === url && !i.invalid && !i.already_saved
+          ? { ...i, selected: !i.selected }
+          : i,
+      ),
     );
   };
 
   const toggleAllReview = (checked: boolean) => {
     setReviewItems((prev) =>
-      prev.map((i) => (i.already_saved ? i : { ...i, selected: checked })),
+      prev.map((i) =>
+        i.already_saved || i.invalid ? i : { ...i, selected: checked },
+      ),
     );
   };
 
   const confirmSaveReviewed = async () => {
     if (!courseId) return;
-    const toSave = reviewItems.filter((i) => i.selected && !i.already_saved);
+    // Defense-in-depth: never save invalid or already-saved rows even if a
+    // selected flag slipped through.
+    const toSave = reviewItems.filter(
+      (i) => i.selected && !i.already_saved && !i.invalid,
+    );
     if (toSave.length === 0) {
       setReviewOpen(false);
       setReviewItems([]);
+      setDuplicatesSkipped(0);
       return;
     }
     setSavingLinks(true);
@@ -256,6 +328,7 @@ const CourseMaterials = () => {
       toast.success(`Saved ${totalInserted} link(s).`);
       setReviewOpen(false);
       setReviewItems([]);
+      setDuplicatesSkipped(0);
       await refreshLinks();
     } finally {
       setSavingLinks(false);
@@ -265,6 +338,7 @@ const CourseMaterials = () => {
   const cancelReview = () => {
     setReviewOpen(false);
     setReviewItems([]);
+    setDuplicatesSkipped(0);
   };
 
   const removeLink = async (id: string) => {
@@ -572,74 +646,108 @@ const CourseMaterials = () => {
             <DialogTitle>Review extracted YouTube links</DialogTitle>
             <DialogDescription>
               We found {reviewItems.length} link{reviewItems.length === 1 ? "" : "s"}.
-              Uncheck any you don't want saved. Already-saved links are disabled.
+              Uncheck any you don't want saved. Invalid and already-saved links are disabled.
             </DialogDescription>
           </DialogHeader>
 
-          {reviewItems.length > 0 && (
-            <div className="flex items-center justify-between border-b pb-2 text-xs text-muted-foreground">
-              <span>
-                {reviewItems.filter((i) => i.selected && !i.already_saved).length} selected to save
-              </span>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => toggleAllReview(true)}>
-                  Select all
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => toggleAllReview(false)}>
-                  Deselect all
-                </Button>
-              </div>
-            </div>
-          )}
+          {(() => {
+            const invalidCount = reviewItems.filter((i) => i.invalid).length;
+            const alreadyCount = reviewItems.filter((i) => i.already_saved).length;
+            const saveable = reviewItems.filter(
+              (i) => i.selected && !i.already_saved && !i.invalid,
+            ).length;
+            const warnings: string[] = [];
+            if (invalidCount > 0) warnings.push(`${invalidCount} malformed`);
+            if (alreadyCount > 0) warnings.push(`${alreadyCount} already saved`);
+            if (duplicatesSkipped > 0) warnings.push(`${duplicatesSkipped} duplicate(s) skipped`);
+            return (
+              <>
+                {warnings.length > 0 && (
+                  <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>{warnings.join(" · ")}. These won't be saved.</span>
+                  </div>
+                )}
 
-          <ul className="max-h-[55vh] overflow-y-auto space-y-1.5">
-            {reviewItems.map((item) => (
-              <li
-                key={item.url}
-                className="flex items-start gap-3 rounded-md border bg-muted/20 px-3 py-2 text-sm"
-              >
-                <Checkbox
-                  checked={item.selected}
-                  disabled={item.already_saved}
-                  onCheckedChange={() => toggleReviewItem(item.url)}
-                  className="mt-1"
-                />
-                <div className="min-w-0 flex-1">
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-primary hover:underline"
+                {reviewItems.length > 0 && (
+                  <div className="flex items-center justify-between border-b pb-2 text-xs text-muted-foreground">
+                    <span>{saveable} selected to save</span>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => toggleAllReview(true)}>
+                        Select all
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => toggleAllReview(false)}>
+                        Deselect all
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <ul className="max-h-[55vh] overflow-y-auto space-y-1.5">
+                  {reviewItems.map((item) => (
+                    <li
+                      key={item.url}
+                      className={
+                        "flex items-start gap-3 rounded-md border px-3 py-2 text-sm " +
+                        (item.invalid
+                          ? "border-destructive/40 bg-destructive/5"
+                          : "bg-muted/20")
+                      }
+                    >
+                      <Checkbox
+                        checked={item.selected}
+                        disabled={item.already_saved || item.invalid}
+                        onCheckedChange={() => toggleReviewItem(item.url)}
+                        className="mt-1"
+                      />
+                      <div className="min-w-0 flex-1">
+                        {item.invalid ? (
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <span className="truncate line-through">{item.url}</span>
+                          </div>
+                        ) : (
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-primary hover:underline"
+                          >
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{item.url}</span>
+                          </a>
+                        )}
+                        <p className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
+                          {item.invalid ? (
+                            <span className="inline-flex items-center gap-1 font-medium text-destructive">
+                              <AlertTriangle className="h-3 w-3" />
+                              Invalid{item.invalidReason ? `: ${item.invalidReason}` : ""}
+                            </span>
+                          ) : (
+                            <span>{item.kind}</span>
+                          )}
+                          {item.already_saved && <span>· already saved</span>}
+                          <span>· from {item.sourceFileName}</span>
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={cancelReview} disabled={savingLinks}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={confirmSaveReviewed}
+                    disabled={savingLinks || saveable === 0}
                   >
-                    <ExternalLink className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{item.url}</span>
-                  </a>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {item.kind}
-                    {item.already_saved && " · already saved"}
-                    {" · from "}
-                    {item.sourceFileName}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={cancelReview} disabled={savingLinks}>
-              Cancel
-            </Button>
-            <Button
-              onClick={confirmSaveReviewed}
-              disabled={
-                savingLinks ||
-                reviewItems.filter((i) => i.selected && !i.already_saved).length === 0
-              }
-            >
-              {savingLinks && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save selected
-            </Button>
-          </DialogFooter>
+                    {savingLinks && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save {saveable > 0 ? `${saveable} link${saveable === 1 ? "" : "s"}` : "selected"}
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
