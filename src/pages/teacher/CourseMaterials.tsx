@@ -3,13 +3,15 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, ClipboardList, ArrowLeft, Loader2 } from "lucide-react";
+import { FileText, ClipboardList, ArrowLeft, Loader2, BookOpen, Youtube } from "lucide-react";
 import FileUploadZone from "@/components/FileUploadZone";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
 const SYLLABUS_ACCEPT = ".pdf,.docx";
+const LESSON_PLAN_ACCEPT = ".pdf,.docx,.txt";
+const YOUTUBE_LINKS_ACCEPT = ".pdf,.docx,.txt,.csv";
 const MATERIALS_ACCEPT =
   ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
 
