@@ -375,7 +375,8 @@ const ConceptReview = () => {
       return;
     }
     if (data) {
-      setConcepts((prev) => [...prev, data]);
+      const rescaled = await normalizeAllToOne([...concepts, data]);
+      setConcepts(rescaled);
       setRecommendations((prev) => prev.filter((x) => x.name !== r.name));
       bumpCacheVersion("concepts", courseId);
     }
