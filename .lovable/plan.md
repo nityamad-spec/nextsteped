@@ -1,41 +1,62 @@
-## Goal
+# Wire new upload boxes to backend (storage + table only)
 
-On `/teacher/setup/lesson-plan`, expand the Course Schedule form so the professor must specify class cadence before generating a plan. Today the form asks only for Total Weeks, Midterm Week, and Final Week; the generator silently defaults to 2 sessions/week × 60 min. That's hidden, and it makes the AI's per-concept session estimates and pacing decisions invisible to the teacher.
+## Already working
+`FileUploadZone` uploads to bucket `course-materials` at the path given by `folderPath` and inserts a row in `course_material_files` with the supplied `folderType`. The new cards already pass:
+- `folderPath={courseId}/lesson-plan-docs`, `folderType="lesson-plan-docs"`
+- `folderPath={courseId}/youtube-links`, `folderType="youtube-links"`
 
-Add two new required inputs:
-1. **Classes per Week** (sessions_per_week)
-2. **Duration per Class (minutes)** (session_length_minutes)
+`course_material_files.folder_type` is free-form `text` (no CHECK), so both upload types persist correctly with **no schema change** to that table.
 
-## What changes (UI/UX)
+## 1. New table for YouTube links
+Create `public.course_youtube_links` so links are queryable independent of the source doc.
 
-In `src/pages/teacher/CourseCreation.tsx`, inside the Course Schedule card (the "idle" empty state and the same card shown above the published plan):
+Columns:
+- `id uuid pk default gen_random_uuid()`
+- `course_id uuid not null`
+- `teacher_id uuid not null` (uploader)
+- `source_file_id uuid` (nullable — id of the row in `course_material_files`)
+- `url text not null` (canonical full URL)
+- `video_id text` (parsed 11-char YouTube id; nullable for playlist/channel)
+- `kind text not null default 'video'` (`video` | `playlist` | `channel` | `other`)
+- `created_at timestamptz not null default now()`
+- Unique `(course_id, url)` to dedupe re-uploads
 
-- Change the grid from `sm:grid-cols-3` to a layout that fits 5 fields cleanly (e.g. two rows: row 1 = Total Weeks / Classes per Week / Duration; row 2 = Midterm Week / Final Week — or `sm:grid-cols-2 lg:grid-cols-3`).
-- **Classes per Week**: numeric input, min 1, max 7, placeholder "e.g. 2", helper "1–7 classes/week".
-- **Duration per Class**: numeric input in minutes, min 30, max 180, step 5, placeholder "e.g. 60", helper "30–180 min".
-- Both marked required with the same `*` styling as the other three.
-- Load existing values from `courses.sessions_per_week` and `courses.session_length_minutes` (already selected in the load effect — just extend the select list and local state).
-- Persist via the existing `persistSchedule` helper (extend its patch type and the underlying `courses` update).
+GRANTs + RLS (mirror `course_material_files`):
+- `GRANT SELECT, INSERT, UPDATE, DELETE ... TO authenticated`, `GRANT ALL ... TO service_role`
+- Teachers manage own rows: `auth.uid() = teacher_id`
+- Collaborators read/write via `is_course_member(course_id, auth.uid())`
+- Enrolled students `SELECT` only (so a future student view can surface the links)
+- Admins full access via `is_admin(auth.uid())`
 
-## Gating
+## 2. Edge function `extract-youtube-links`
+New `supabase/functions/extract-youtube-links/index.ts`.
 
-- "Generate Lesson Plan" button: currently enabled when `totalWeeks && midtermWeek && finalWeek`. Update to also require `sessionsPerWeek && sessionLength`.
-- "Update Plan" change-detection (`lastGeneratedSchedule`): extend the snapshot to include `sessions_per_week` and `session_length_minutes` so editing either of the new fields enables Update Plan and triggers the confirm modal.
+Input: `{ courseId, fileId, storagePath }` — called by the client right after a successful upload into the `youtube-links` folder.
 
-## What does NOT need to change
+Steps:
+1. Validate JWT, confirm caller is a course member.
+2. Download the file from storage with the service-role client.
+3. Extract raw text:
+   - `.txt` / `.csv` → decode directly
+   - `.pdf` / `.docx` → send to Lovable AI Gateway (Gemini 2.5 flash-lite) with prompt: "Return every YouTube URL you find, one per line, nothing else."
+4. Regex over the text for `youtube.com/watch?v=…`, `youtu.be/…`, `youtube.com/playlist?list=…`, `youtube.com/channel/…`, `youtube.com/@handle`. Normalize, classify `kind` + `video_id`.
+5. Upsert into `course_youtube_links` on conflict `(course_id, url)`.
+6. Return `{ inserted, skipped, total }`.
 
-- DB schema: `courses.sessions_per_week` and `courses.session_length_minutes` already exist.
-- `generate-lesson-plan` edge function: already reads both columns and uses them in the LLM-A prompt and allocator. Once the UI writes real values, the generator's pacing and per-concept session estimates immediately reflect them.
-- `regenerate-lesson-plan-week`: already selects the same two columns.
-- No memory updates required beyond a small addendum to `mem://features/lesson-plan-generation` noting that cadence is now required input, not a silent default.
+## 3. Client wiring in `CourseMaterials.tsx`
+- After a successful upload in the YouTube Links zone, invoke `extract-youtube-links` and toast the result ("Found N YouTube links" / "No YouTube links detected").
+- Render the current list from `course_youtube_links` for this course under the YouTube card (URL + remove button), so the professor sees extraction worked.
+- Lesson Plans card needs no extra wiring — files just sit in storage + table for later use.
+
+May need a small `onUploadComplete?(file)` callback added to `FileUploadZone` if one doesn't already exist; confirmed during build.
 
 ## Files touched
+- **Migration (new):** `course_youtube_links` table + GRANTs + RLS.
+- **New edge function:** `supabase/functions/extract-youtube-links/index.ts`.
+- **Edit:** `src/pages/teacher/CourseMaterials.tsx` — trigger extraction after upload, render extracted links list.
+- **Maybe edit:** `src/components/FileUploadZone.tsx` — add `onUploadComplete` callback if missing.
 
-- `src/pages/teacher/CourseCreation.tsx` — add two local state vars, extend load effect, extend `persistSchedule` signature, render two new inputs in both Course Schedule cards (lines ~756–828 and ~1015–1085 region), extend `canGenerate` and `scheduleChanged` checks, extend `lastGeneratedSchedule` snapshot written after successful generation.
-- `mem://features/lesson-plan-generation` — short note that the schedule form now requires 5 fields (Total Weeks, Classes/Week, Duration, Midterm, Final) and that change-detection includes cadence.
-
-## Out of scope
-
-- No changes to student-side rendering.
-- No edge-function prompt rewrites — existing prompt already includes "Sessions/week: X, Session length: Y min".
-- No migration; columns already exist with sane defaults so existing courses won't break (they'll show whatever value is stored, falling back to placeholder if null — teacher must fill before generating).
+## Explicitly out of scope
+- No changes to `generate-lesson-plan` — wiring the new sources into plan generation comes later.
+- No YouTube Data API calls (no titles/durations fetched).
+- No manual "add link" form (table supports it; UI can come later).

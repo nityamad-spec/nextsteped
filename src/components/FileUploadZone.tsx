@@ -44,6 +44,10 @@ interface FileUploadZoneProps {
   maxFiles?: number;
   /** Notify parent of per-file parse status changes (syllabus only). */
   onParseStatusChange?: (statuses: Record<string, ParseStatus>) => void;
+  /** Fired after each batch of files is successfully uploaded (and metadata
+   *  rows are inserted). Use for post-upload side-effects like extracting
+   *  links, kicking off background jobs, etc. */
+  onUploadComplete?: (newFiles: UploadedFile[]) => void;
 }
 
 function formatSize(bytes: number) {
@@ -72,7 +76,7 @@ async function fileToBase64(file: File): Promise<string> {
   return btoa(binary);
 }
 
-const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, teacherId, folderType, maxFiles, onParseStatusChange }: FileUploadZoneProps) => {
+const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, teacherId, folderType, maxFiles, onParseStatusChange, onUploadComplete }: FileUploadZoneProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [pending, setPending] = useState<File[]>([]);
@@ -353,6 +357,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     if (newFiles.length > 0) {
       onFilesChange([...files, ...newFiles]);
       toast.success(`${newFiles.length} file(s) uploaded`);
+      onUploadComplete?.(newFiles);
     }
 
     setPending([]);

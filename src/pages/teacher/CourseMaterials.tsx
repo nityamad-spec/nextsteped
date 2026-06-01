@@ -3,11 +3,12 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, ClipboardList, ArrowLeft, Loader2, BookOpen, Youtube } from "lucide-react";
+import { FileText, ClipboardList, ArrowLeft, Loader2, BookOpen, Youtube, Trash2, ExternalLink } from "lucide-react";
 import FileUploadZone from "@/components/FileUploadZone";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const SYLLABUS_ACCEPT = ".pdf,.docx";
 const LESSON_PLAN_ACCEPT = ".pdf,.docx,.txt";
@@ -36,6 +37,8 @@ const CourseMaterials = () => {
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
   const [syllabusParseStatus, setSyllabusParseStatus] = useState<Record<string, "parsing" | "parsed" | "failed">>({});
   const [syllabusJsonInStorage, setSyllabusJsonInStorage] = useState(false);
+  const [extractedLinks, setExtractedLinks] = useState<Array<{ id: string; url: string; kind: string }>>([]);
+  const [extractingLinks, setExtractingLinks] = useState(false);
 
   // Storage paths are course-scoped, so we must have a course row before any
   // upload is allowed. Resolve (or eagerly create) one on mount.
@@ -125,6 +128,65 @@ const CourseMaterials = () => {
     };
     fetchFiles();
   }, [user, courseId]);
+
+  // Load already-extracted YouTube links for this course.
+  const refreshLinks = async () => {
+    if (!courseId) return;
+    const { data } = await supabase
+      .from("course_youtube_links")
+      .select("id, url, kind")
+      .eq("course_id", courseId)
+      .order("created_at", { ascending: false });
+    setExtractedLinks(data ?? []);
+  };
+  useEffect(() => { void refreshLinks(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [courseId]);
+
+  // Trigger extraction whenever a new YouTube-links file is uploaded.
+  const handleYoutubeUploadComplete = async (newFiles: UploadedFile[]) => {
+    if (!courseId || newFiles.length === 0) return;
+    setExtractingLinks(true);
+    let totalInserted = 0;
+    let totalFound = 0;
+    try {
+      for (const f of newFiles) {
+        // Look up the metadata row id for source_file_id linkage.
+        const { data: meta } = await supabase
+          .from("course_material_files")
+          .select("id")
+          .eq("storage_path", f.path)
+          .maybeSingle();
+        const { data, error } = await supabase.functions.invoke("extract-youtube-links", {
+          body: {
+            courseId,
+            fileId: meta?.id ?? null,
+            storagePath: f.path,
+            fileName: f.name,
+          },
+        });
+        if (error) {
+          toast.error(`Extraction failed for ${f.name}: ${error.message}`);
+          continue;
+        }
+        totalInserted += (data as any)?.inserted ?? 0;
+        totalFound += (data as any)?.total ?? 0;
+      }
+      if (totalFound === 0) {
+        toast.info("No YouTube links detected in that file.");
+      } else {
+        toast.success(`Found ${totalFound} link(s); ${totalInserted} new.`);
+      }
+      await refreshLinks();
+    } finally {
+      setExtractingLinks(false);
+    }
+  };
+
+  const removeLink = async (id: string) => {
+    const { error } = await supabase.from("course_youtube_links").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    setExtractedLinks((prev) => prev.filter((l) => l.id !== id));
+  };
+
 
   // Verify the parsed syllabus JSON exists in storage. Re-runs when parse
   // statuses change so a fresh parse flips the gate without a reload.
@@ -333,6 +395,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="youtube-links"
+                onUploadComplete={handleYoutubeUploadComplete}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
@@ -340,8 +403,51 @@ const CourseMaterials = () => {
                 Preparing upload area…
               </div>
             )}
+
+            {extractingLinks && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Extracting YouTube links…
+              </div>
+            )}
+
+            {extractedLinks.length > 0 && (
+              <div className="mt-4">
+                <p className="text-xs font-semibold text-foreground mb-2">
+                  Extracted links ({extractedLinks.length})
+                </p>
+                <ul className="space-y-1.5 max-h-64 overflow-y-auto">
+                  {extractedLinks.map((l) => (
+                    <li
+                      key={l.id}
+                      className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-1.5 text-xs"
+                    >
+                      <a
+                        href={l.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex min-w-0 items-center gap-1.5 text-primary hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{l.url}</span>
+                      </a>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeLink(l.id)}
+                        aria-label="Remove link"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </CardContent>
         </Card>
+
 
 
         {!hasSyllabus && (
