@@ -357,6 +357,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     if (newFiles.length > 0) {
       onFilesChange([...files, ...newFiles]);
       toast.success(`${newFiles.length} file(s) uploaded`);
+      onUploadComplete?.(newFiles);
     }
 
     setPending([]);
