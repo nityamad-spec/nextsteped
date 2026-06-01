@@ -519,6 +519,26 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="lesson-plan-docs"
+                onUploadComplete={async () => {
+                  const toastId = toast.loading("Extracting lesson plan structure…");
+                  const { data, error } = await supabase.functions.invoke(
+                    "extract-lesson-plan",
+                    { body: { courseId } },
+                  );
+                  if (error || (data as any)?.error) {
+                    toast.error(
+                      (error?.message || (data as any)?.error) ??
+                        "Couldn't extract a structured plan from the uploaded files.",
+                      { id: toastId },
+                    );
+                    return;
+                  }
+                  const weeks = (data as any)?.weekCount ?? 0;
+                  toast.success(
+                    `Saved uploaded-lesson-plan.json (${weeks} week${weeks === 1 ? "" : "s"}).`,
+                    { id: toastId },
+                  );
+                }}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
