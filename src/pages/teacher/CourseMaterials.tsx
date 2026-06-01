@@ -270,22 +270,33 @@ const CourseMaterials = () => {
 
   const toggleReviewItem = (url: string) => {
     setReviewItems((prev) =>
-      prev.map((i) => (i.url === url ? { ...i, selected: !i.selected } : i)),
+      prev.map((i) =>
+        i.url === url && !i.invalid && !i.already_saved
+          ? { ...i, selected: !i.selected }
+          : i,
+      ),
     );
   };
 
   const toggleAllReview = (checked: boolean) => {
     setReviewItems((prev) =>
-      prev.map((i) => (i.already_saved ? i : { ...i, selected: checked })),
+      prev.map((i) =>
+        i.already_saved || i.invalid ? i : { ...i, selected: checked },
+      ),
     );
   };
 
   const confirmSaveReviewed = async () => {
     if (!courseId) return;
-    const toSave = reviewItems.filter((i) => i.selected && !i.already_saved);
+    // Defense-in-depth: never save invalid or already-saved rows even if a
+    // selected flag slipped through.
+    const toSave = reviewItems.filter(
+      (i) => i.selected && !i.already_saved && !i.invalid,
+    );
     if (toSave.length === 0) {
       setReviewOpen(false);
       setReviewItems([]);
+      setDuplicatesSkipped(0);
       return;
     }
     setSavingLinks(true);
@@ -317,6 +328,7 @@ const CourseMaterials = () => {
       toast.success(`Saved ${totalInserted} link(s).`);
       setReviewOpen(false);
       setReviewItems([]);
+      setDuplicatesSkipped(0);
       await refreshLinks();
     } finally {
       setSavingLinks(false);
@@ -326,6 +338,7 @@ const CourseMaterials = () => {
   const cancelReview = () => {
     setReviewOpen(false);
     setReviewItems([]);
+    setDuplicatesSkipped(0);
   };
 
   const removeLink = async (id: string) => {
