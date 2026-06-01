@@ -922,10 +922,25 @@ const ConceptReview = () => {
           <Button variant="ghost" onClick={() => navigate("/teacher/setup/upload")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Materials
           </Button>
-          <Button onClick={handleContinue} disabled={concepts.length === 0} size="lg">
-            Continue to Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              onClick={handleContinue}
+              disabled={concepts.length === 0 || !weightsBalanced}
+              size="lg"
+            >
+              Continue to Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            {concepts.length > 0 && !weightsBalanced && (
+              <p className="text-[11px] text-destructive">
+                Weights must total 100% (currently {totalWeightPct}%).
+              </p>
+            )}
+          </div>
         </div>
+      </div>
+    </div>
+  );
+};
       </div>
     </div>
   );
