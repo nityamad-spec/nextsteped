@@ -646,78 +646,107 @@ const CourseMaterials = () => {
             <DialogTitle>Review extracted YouTube links</DialogTitle>
             <DialogDescription>
               We found {reviewItems.length} link{reviewItems.length === 1 ? "" : "s"}.
-              Uncheck any you don't want saved. Already-saved links are disabled.
+              Uncheck any you don't want saved. Invalid and already-saved links are disabled.
             </DialogDescription>
           </DialogHeader>
 
-          {reviewItems.length > 0 && (
-            <div className="flex items-center justify-between border-b pb-2 text-xs text-muted-foreground">
-              <span>
-                {reviewItems.filter((i) => i.selected && !i.already_saved).length} selected to save
-              </span>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => toggleAllReview(true)}>
-                  Select all
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => toggleAllReview(false)}>
-                  Deselect all
-                </Button>
-              </div>
-            </div>
-          )}
+          {(() => {
+            const invalidCount = reviewItems.filter((i) => i.invalid).length;
+            const alreadyCount = reviewItems.filter((i) => i.already_saved).length;
+            const saveable = reviewItems.filter(
+              (i) => i.selected && !i.already_saved && !i.invalid,
+            ).length;
+            const warnings: string[] = [];
+            if (invalidCount > 0) warnings.push(`${invalidCount} malformed`);
+            if (alreadyCount > 0) warnings.push(`${alreadyCount} already saved`);
+            if (duplicatesSkipped > 0) warnings.push(`${duplicatesSkipped} duplicate(s) skipped`);
+            return (
+              <>
+                {warnings.length > 0 && (
+                  <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>{warnings.join(" · ")}. These won't be saved.</span>
+                  </div>
+                )}
 
-          <ul className="max-h-[55vh] overflow-y-auto space-y-1.5">
-            {reviewItems.map((item) => (
-              <li
-                key={item.url}
-                className="flex items-start gap-3 rounded-md border bg-muted/20 px-3 py-2 text-sm"
-              >
-                <Checkbox
-                  checked={item.selected}
-                  disabled={item.already_saved}
-                  onCheckedChange={() => toggleReviewItem(item.url)}
-                  className="mt-1"
-                />
-                <div className="min-w-0 flex-1">
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-primary hover:underline"
+                {reviewItems.length > 0 && (
+                  <div className="flex items-center justify-between border-b pb-2 text-xs text-muted-foreground">
+                    <span>{saveable} selected to save</span>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => toggleAllReview(true)}>
+                        Select all
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => toggleAllReview(false)}>
+                        Deselect all
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <ul className="max-h-[55vh] overflow-y-auto space-y-1.5">
+                  {reviewItems.map((item) => (
+                    <li
+                      key={item.url}
+                      className={
+                        "flex items-start gap-3 rounded-md border px-3 py-2 text-sm " +
+                        (item.invalid
+                          ? "border-destructive/40 bg-destructive/5"
+                          : "bg-muted/20")
+                      }
+                    >
+                      <Checkbox
+                        checked={item.selected}
+                        disabled={item.already_saved || item.invalid}
+                        onCheckedChange={() => toggleReviewItem(item.url)}
+                        className="mt-1"
+                      />
+                      <div className="min-w-0 flex-1">
+                        {item.invalid ? (
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <span className="truncate line-through">{item.url}</span>
+                          </div>
+                        ) : (
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-primary hover:underline"
+                          >
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{item.url}</span>
+                          </a>
+                        )}
+                        <p className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
+                          {item.invalid ? (
+                            <span className="inline-flex items-center gap-1 font-medium text-destructive">
+                              <AlertTriangle className="h-3 w-3" />
+                              Invalid{item.invalidReason ? `: ${item.invalidReason}` : ""}
+                            </span>
+                          ) : (
+                            <span>{item.kind}</span>
+                          )}
+                          {item.already_saved && <span>· already saved</span>}
+                          <span>· from {item.sourceFileName}</span>
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={cancelReview} disabled={savingLinks}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={confirmSaveReviewed}
+                    disabled={savingLinks || saveable === 0}
                   >
-                    <ExternalLink className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{item.url}</span>
-                  </a>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {item.kind}
-                    {item.already_saved && " · already saved"}
-                    {" · from "}
-                    {item.sourceFileName}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={cancelReview} disabled={savingLinks}>
-              Cancel
-            </Button>
-            <Button
-              onClick={confirmSaveReviewed}
-              disabled={
-                savingLinks ||
-                reviewItems.filter((i) => i.selected && !i.already_saved).length === 0
-              }
-            >
-              {savingLinks && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save selected
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-};
+                    {savingLinks && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save {saveable > 0 ? `${saveable} link${saveable === 1 ? "" : "s"}` : "selected"}
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
 
 export default CourseMaterials;
