@@ -230,6 +230,78 @@ const CourseMaterials = () => {
           </CardContent>
         </Card>
 
+        {/* Lesson Plans — Optional */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <BookOpen className="h-5 w-5 text-primary" /> Lesson Plans
+              </CardTitle>
+              <Badge variant="secondary">Optional</Badge>
+            </div>
+            <CardDescription>
+              Upload existing weekly lesson plans or course schedules. The AI will use these to align the generated lesson plan with how you actually teach the course.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              <strong>Accepted:</strong> PDF, DOCX, TXT
+            </p>
+            {user && courseId ? (
+              <FileUploadZone
+                folderPath={`${courseId}/lesson-plan-docs`}
+                accept={LESSON_PLAN_ACCEPT}
+                files={lessonPlanDocFiles}
+                onFilesChange={setLessonPlanDocFiles}
+                courseId={courseId}
+                teacherId={user.id}
+                folderType="lesson-plan-docs"
+              />
+            ) : (
+              <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                {resolvingCourse && <Loader2 className="h-4 w-4 animate-spin" />}
+                Preparing upload area…
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* YouTube Links — Optional */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Youtube className="h-5 w-5 text-primary" /> YouTube Links
+              </CardTitle>
+              <Badge variant="secondary">Optional</Badge>
+            </div>
+            <CardDescription>
+              Upload a document containing YouTube links to videos you want students to reference. The AI will use these as supplementary teaching material.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              <strong>Accepted:</strong> PDF, DOCX, TXT, CSV — one link per line works best.
+            </p>
+            {user && courseId ? (
+              <FileUploadZone
+                folderPath={`${courseId}/youtube-links`}
+                accept={YOUTUBE_LINKS_ACCEPT}
+                files={youtubeLinkFiles}
+                onFilesChange={setYoutubeLinkFiles}
+                courseId={courseId}
+                teacherId={user.id}
+                folderType="youtube-links"
+              />
+            ) : (
+              <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                {resolvingCourse && <Loader2 className="h-4 w-4 animate-spin" />}
+                Preparing upload area…
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Optional Lesson Plans */}
         <Card>
           <CardHeader>
