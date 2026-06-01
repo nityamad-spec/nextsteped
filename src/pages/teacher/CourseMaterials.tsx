@@ -48,6 +48,14 @@ const CourseMaterials = () => {
   const [syllabusJsonInStorage, setSyllabusJsonInStorage] = useState(false);
   const [extractedLinks, setExtractedLinks] = useState<Array<{ id: string; url: string; kind: string }>>([]);
   const [extractingLinks, setExtractingLinks] = useState(false);
+  const [savingLinks, setSavingLinks] = useState(false);
+  // Pending review queue: links extracted from a freshly uploaded file, awaiting teacher approval.
+  const [reviewItems, setReviewItems] = useState<Array<{
+    url: string; kind: string; video_id: string | null;
+    already_saved: boolean; selected: boolean;
+    sourceFileId: string | null; sourceFileName: string;
+  }>>([]);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   // Storage paths are course-scoped, so we must have a course row before any
   // upload is allowed. Resolve (or eagerly create) one on mount.
