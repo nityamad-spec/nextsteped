@@ -412,7 +412,9 @@ const ConceptReview = () => {
       toast.error("Failed to delete: " + error.message);
       return;
     }
-    setConcepts((prev) => prev.filter((c) => c.id !== id));
+    const remaining = concepts.filter((c) => c.id !== id);
+    const rescaled = await normalizeAllToOne(remaining);
+    setConcepts(rescaled);
     setConfirmDeleteId(null);
     if (courseId) bumpCacheVersion("concepts", courseId);
   };
