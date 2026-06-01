@@ -158,15 +158,14 @@ const CourseMaterials = () => {
   };
   useEffect(() => { void refreshLinks(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [courseId]);
 
-  // Trigger extraction whenever a new YouTube-links file is uploaded.
+  // Extract links from any freshly uploaded YouTube-links file and queue them
+  // for teacher review. Nothing is written to the DB until the teacher confirms.
   const handleYoutubeUploadComplete = async (newFiles: UploadedFile[]) => {
     if (!courseId || newFiles.length === 0) return;
     setExtractingLinks(true);
-    let totalInserted = 0;
-    let totalFound = 0;
+    const collected: typeof reviewItems = [];
     try {
       for (const f of newFiles) {
-        // Look up the metadata row id for source_file_id linkage.
         const { data: meta } = await supabase
           .from("course_material_files")
           .select("id")
@@ -178,24 +177,94 @@ const CourseMaterials = () => {
             fileId: meta?.id ?? null,
             storagePath: f.path,
             fileName: f.name,
+            mode: "extract",
           },
         });
         if (error) {
           toast.error(`Extraction failed for ${f.name}: ${error.message}`);
           continue;
         }
-        totalInserted += (data as any)?.inserted ?? 0;
-        totalFound += (data as any)?.total ?? 0;
+        const links = ((data as any)?.links ?? []) as Array<{
+          url: string; kind: string; video_id: string | null; already_saved: boolean;
+        }>;
+        for (const l of links) {
+          collected.push({
+            ...l,
+            selected: !l.already_saved,
+            sourceFileId: meta?.id ?? null,
+            sourceFileName: f.name,
+          });
+        }
       }
-      if (totalFound === 0) {
+      if (collected.length === 0) {
         toast.info("No YouTube links detected in that file.");
       } else {
-        toast.success(`Found ${totalFound} link(s); ${totalInserted} new.`);
+        setReviewItems(collected);
+        setReviewOpen(true);
       }
-      await refreshLinks();
     } finally {
       setExtractingLinks(false);
     }
+  };
+
+  const toggleReviewItem = (url: string) => {
+    setReviewItems((prev) =>
+      prev.map((i) => (i.url === url ? { ...i, selected: !i.selected } : i)),
+    );
+  };
+
+  const toggleAllReview = (checked: boolean) => {
+    setReviewItems((prev) =>
+      prev.map((i) => (i.already_saved ? i : { ...i, selected: checked })),
+    );
+  };
+
+  const confirmSaveReviewed = async () => {
+    if (!courseId) return;
+    const toSave = reviewItems.filter((i) => i.selected && !i.already_saved);
+    if (toSave.length === 0) {
+      setReviewOpen(false);
+      setReviewItems([]);
+      return;
+    }
+    setSavingLinks(true);
+    try {
+      // Group by source file so source_file_id stays accurate per row.
+      const groups = new Map<string, typeof toSave>();
+      for (const item of toSave) {
+        const key = item.sourceFileId ?? "none";
+        const arr = groups.get(key) ?? [];
+        arr.push(item);
+        groups.set(key, arr);
+      }
+      let totalInserted = 0;
+      for (const [fileId, items] of groups) {
+        const { data, error } = await supabase.functions.invoke("extract-youtube-links", {
+          body: {
+            courseId,
+            fileId: fileId === "none" ? null : fileId,
+            mode: "save",
+            links: items.map((i) => ({ url: i.url, kind: i.kind, video_id: i.video_id })),
+          },
+        });
+        if (error) {
+          toast.error(`Save failed: ${error.message}`);
+          continue;
+        }
+        totalInserted += (data as any)?.inserted ?? 0;
+      }
+      toast.success(`Saved ${totalInserted} link(s).`);
+      setReviewOpen(false);
+      setReviewItems([]);
+      await refreshLinks();
+    } finally {
+      setSavingLinks(false);
+    }
+  };
+
+  const cancelReview = () => {
+    setReviewOpen(false);
+    setReviewItems([]);
   };
 
   const removeLink = async (id: string) => {
