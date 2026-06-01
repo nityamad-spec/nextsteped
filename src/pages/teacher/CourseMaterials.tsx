@@ -129,6 +129,65 @@ const CourseMaterials = () => {
     fetchFiles();
   }, [user, courseId]);
 
+  // Load already-extracted YouTube links for this course.
+  const refreshLinks = async () => {
+    if (!courseId) return;
+    const { data } = await supabase
+      .from("course_youtube_links")
+      .select("id, url, kind")
+      .eq("course_id", courseId)
+      .order("created_at", { ascending: false });
+    setExtractedLinks(data ?? []);
+  };
+  useEffect(() => { void refreshLinks(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [courseId]);
+
+  // Trigger extraction whenever a new YouTube-links file is uploaded.
+  const handleYoutubeUploadComplete = async (newFiles: UploadedFile[]) => {
+    if (!courseId || newFiles.length === 0) return;
+    setExtractingLinks(true);
+    let totalInserted = 0;
+    let totalFound = 0;
+    try {
+      for (const f of newFiles) {
+        // Look up the metadata row id for source_file_id linkage.
+        const { data: meta } = await supabase
+          .from("course_material_files")
+          .select("id")
+          .eq("storage_path", f.path)
+          .maybeSingle();
+        const { data, error } = await supabase.functions.invoke("extract-youtube-links", {
+          body: {
+            courseId,
+            fileId: meta?.id ?? null,
+            storagePath: f.path,
+            fileName: f.name,
+          },
+        });
+        if (error) {
+          toast.error(`Extraction failed for ${f.name}: ${error.message}`);
+          continue;
+        }
+        totalInserted += (data as any)?.inserted ?? 0;
+        totalFound += (data as any)?.total ?? 0;
+      }
+      if (totalFound === 0) {
+        toast.info("No YouTube links detected in that file.");
+      } else {
+        toast.success(`Found ${totalFound} link(s); ${totalInserted} new.`);
+      }
+      await refreshLinks();
+    } finally {
+      setExtractingLinks(false);
+    }
+  };
+
+  const removeLink = async (id: string) => {
+    const { error } = await supabase.from("course_youtube_links").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    setExtractedLinks((prev) => prev.filter((l) => l.id !== id));
+  };
+
+
   // Verify the parsed syllabus JSON exists in storage. Re-runs when parse
   // statuses change so a fresh parse flips the gate without a reload.
   useEffect(() => {
