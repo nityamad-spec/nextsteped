@@ -772,12 +772,30 @@ const ConceptReview = () => {
         {/* Confirmed concepts */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Check className="h-5 w-5 text-primary" /> Confirmed Concepts
-            </CardTitle>
-            <CardDescription>
-              {concepts.length} concept{concepts.length === 1 ? "" : "s"} will be used to generate your lesson plan. You can delete irrelevant concepts or add any that were missed.
-            </CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Check className="h-5 w-5 text-primary" /> Confirmed Concepts
+                </CardTitle>
+                <CardDescription>
+                  {concepts.length} concept{concepts.length === 1 ? "" : "s"} will be used to generate your lesson plan. You can delete irrelevant concepts or add any that were missed.
+                </CardDescription>
+              </div>
+              {concepts.length > 0 && (() => {
+                const totalPct = Math.round(
+                  concepts.reduce((s, c) => s + Number(c.weight || 0), 0) * 100,
+                );
+                const ok = totalPct === 100;
+                return (
+                  <Badge
+                    variant={ok ? "secondary" : "destructive"}
+                    className="shrink-0 tabular-nums"
+                  >
+                    Total: {totalPct}%
+                  </Badge>
+                );
+              })()}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Sequencing note */}
