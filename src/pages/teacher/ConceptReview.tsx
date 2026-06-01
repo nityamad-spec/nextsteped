@@ -244,6 +244,33 @@ const ConceptReview = () => {
     }
   };
 
+  // Normalize all concept weights to sum to exactly 1 (100%). If current
+  // sum is 0, distribute equally. Persists updates to DB and returns the
+  // rescaled list so callers can update local state in one shot.
+  const normalizeAllToOne = async (
+    list: Concept[],
+  ): Promise<Concept[]> => {
+    if (list.length === 0) return list;
+    const sum = list.reduce((s, c) => s + Number(c.weight || 0), 0);
+    let rescaled: Concept[];
+    if (sum > 0) {
+      const scale = 1 / sum;
+      rescaled = list.map((c) => ({ ...c, weight: Number(c.weight || 0) * scale }));
+    } else {
+      const each = 1 / list.length;
+      rescaled = list.map((c) => ({ ...c, weight: each }));
+    }
+    const { error } = await Promise.all(
+      rescaled.map((c) =>
+        supabase.from("concepts").update({ weight: c.weight }).eq("id", c.id),
+      ),
+    ).then((results) => ({ error: results.find((r) => r.error)?.error }));
+    if (error) {
+      toast.error("Failed to rebalance weights: " + error.message);
+    }
+    return rescaled;
+  };
+
   const handleAddSuggestion = async (s: Suggestion) => {
     if (!courseId) return;
     const pct = getWeight(s.name, s.weight_pct);
@@ -257,7 +284,8 @@ const ConceptReview = () => {
       return;
     }
     if (data) {
-      setConcepts((prev) => [...prev, data]);
+      const rescaled = await normalizeAllToOne([...concepts, data]);
+      setConcepts(rescaled);
       setSuggestions((prev) => prev.filter((x) => x.name !== s.name));
       bumpCacheVersion("concepts", courseId);
     }
@@ -281,7 +309,8 @@ const ConceptReview = () => {
       return;
     }
     if (data && data.length > 0) {
-      setConcepts((prev) => [...prev, ...data]);
+      const rescaled = await normalizeAllToOne([...concepts, ...data]);
+      setConcepts(rescaled);
       const addedNames = new Set(items.map((s) => s.name));
       setSuggestions((prev) => prev.filter((x) => !addedNames.has(x.name)));
       bumpCacheVersion("concepts", courseId);
