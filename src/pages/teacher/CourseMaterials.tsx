@@ -3,13 +3,15 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, ClipboardList, ArrowLeft, Loader2 } from "lucide-react";
+import { FileText, ClipboardList, ArrowLeft, Loader2, BookOpen, Youtube } from "lucide-react";
 import FileUploadZone from "@/components/FileUploadZone";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
 const SYLLABUS_ACCEPT = ".pdf,.docx";
+const LESSON_PLAN_ACCEPT = ".pdf,.docx,.txt";
+const YOUTUBE_LINKS_ACCEPT = ".pdf,.docx,.txt,.csv";
 const MATERIALS_ACCEPT =
   ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
 
@@ -29,6 +31,8 @@ const CourseMaterials = () => {
   const [courseId, setCourseId] = useState<string | null>(initialCourseId);
   const [resolvingCourse, setResolvingCourse] = useState(true);
   const [syllabusFiles, setSyllabusFiles] = useState<UploadedFile[]>([]);
+  const [lessonPlanDocFiles, setLessonPlanDocFiles] = useState<UploadedFile[]>([]);
+  const [youtubeLinkFiles, setYoutubeLinkFiles] = useState<UploadedFile[]>([]);
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
   const [syllabusParseStatus, setSyllabusParseStatus] = useState<Record<string, "parsing" | "parsed" | "failed">>({});
   const [syllabusJsonInStorage, setSyllabusJsonInStorage] = useState(false);
@@ -114,6 +118,8 @@ const CourseMaterials = () => {
           name: f.file_name, size: f.file_size, path: f.storage_path,
         });
         setSyllabusFiles(data.filter((f) => f.folder_type === "syllabus").map(mapFile));
+        setLessonPlanDocFiles(data.filter((f) => f.folder_type === "lesson-plan-docs").map(mapFile));
+        setYoutubeLinkFiles(data.filter((f) => f.folder_type === "youtube-links").map(mapFile));
         setLessonPlanFiles(data.filter((f) => f.folder_type === "lesson-plans").map(mapFile));
       }
     };
@@ -214,6 +220,78 @@ const CourseMaterials = () => {
                 folderType="syllabus"
                 maxFiles={1}
                 onParseStatusChange={setSyllabusParseStatus}
+              />
+            ) : (
+              <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                {resolvingCourse && <Loader2 className="h-4 w-4 animate-spin" />}
+                Preparing upload area…
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Lesson Plans — Optional */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <BookOpen className="h-5 w-5 text-primary" /> Lesson Plans
+              </CardTitle>
+              <Badge variant="secondary">Optional</Badge>
+            </div>
+            <CardDescription>
+              Upload existing weekly lesson plans or course schedules. The AI will use these to align the generated lesson plan with how you actually teach the course.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              <strong>Accepted:</strong> PDF, DOCX, TXT
+            </p>
+            {user && courseId ? (
+              <FileUploadZone
+                folderPath={`${courseId}/lesson-plan-docs`}
+                accept={LESSON_PLAN_ACCEPT}
+                files={lessonPlanDocFiles}
+                onFilesChange={setLessonPlanDocFiles}
+                courseId={courseId}
+                teacherId={user.id}
+                folderType="lesson-plan-docs"
+              />
+            ) : (
+              <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                {resolvingCourse && <Loader2 className="h-4 w-4 animate-spin" />}
+                Preparing upload area…
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* YouTube Links — Optional */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Youtube className="h-5 w-5 text-primary" /> YouTube Links
+              </CardTitle>
+              <Badge variant="secondary">Optional</Badge>
+            </div>
+            <CardDescription>
+              Upload a document containing YouTube links to videos you want students to reference. The AI will use these as supplementary teaching material.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              <strong>Accepted:</strong> PDF, DOCX, TXT, CSV — one link per line works best.
+            </p>
+            {user && courseId ? (
+              <FileUploadZone
+                folderPath={`${courseId}/youtube-links`}
+                accept={YOUTUBE_LINKS_ACCEPT}
+                files={youtubeLinkFiles}
+                onFilesChange={setYoutubeLinkFiles}
+                courseId={courseId}
+                teacherId={user.id}
+                folderType="youtube-links"
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
