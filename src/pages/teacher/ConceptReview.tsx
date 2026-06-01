@@ -941,9 +941,8 @@ const ConceptReview = () => {
     </div>
   );
 };
-      </div>
-    </div>
-  );
-};
+
+export default ConceptReview;
+
 
 export default ConceptReview;
