@@ -1015,14 +1015,14 @@ const ConceptReview = () => {
           <div className="flex flex-col items-end gap-1">
             <Button
               onClick={handleContinue}
-              disabled={concepts.length === 0 || !weightsBalanced}
+              disabled={concepts.length === 0}
               size="lg"
             >
               Continue to Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             {concepts.length > 0 && !weightsBalanced && (
-              <p className="text-[11px] text-destructive">
-                Weights must total 100% (currently {totalWeightPct}%).
+              <p className="text-[11px] text-muted-foreground">
+                Total is {totalWeightPct}%. We'll auto-balance to 100% when you continue.
               </p>
             )}
           </div>
