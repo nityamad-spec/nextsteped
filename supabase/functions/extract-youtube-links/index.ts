@@ -105,9 +105,22 @@ serve(async (req) => {
     }
     const userId = userRes.user.id;
 
-    const { courseId, fileId, storagePath, fileName } = await req.json();
-    if (!courseId || !storagePath) {
-      return new Response(JSON.stringify({ error: "courseId and storagePath required" }), {
+    const body = await req.json();
+    const { courseId, fileId, storagePath, fileName, mode = "extract", links: providedLinks } = body;
+    if (!courseId) {
+      return new Response(JSON.stringify({ error: "courseId required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (mode === "extract" && !storagePath) {
+      return new Response(JSON.stringify({ error: "storagePath required for extract" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (mode === "save" && (!Array.isArray(providedLinks) || providedLinks.length === 0)) {
+      return new Response(JSON.stringify({ error: "links array required for save" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
