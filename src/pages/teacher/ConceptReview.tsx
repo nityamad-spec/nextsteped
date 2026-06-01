@@ -903,9 +903,31 @@ const ConceptReview = () => {
                         {idx + 1}
                       </span>
                       <span className="text-sm font-medium truncate">{c.concept_code}</span>
-                      <Badge variant="secondary" className="text-[10px] shrink-0 tabular-nums">
-                        {Math.round(Number(c.weight) * 100)}%
-                      </Badge>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={
+                            editingWeights[c.id] !== undefined
+                              ? editingWeights[c.id]
+                              : Math.round(Number(c.weight) * 100)
+                          }
+                          onChange={(e) =>
+                            setEditingWeights((prev) => ({ ...prev, [c.id]: e.target.value }))
+                          }
+                          onBlur={() => commitConfirmedWeight(c.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="h-6 w-12 px-1 text-[11px] tabular-nums"
+                          title="Edit weight (%)"
+                        />
+                        <span className="text-[10px] text-muted-foreground">%</span>
+                      </div>
                     </div>
                     {confirmDeleteId === c.id ? (
                       <div className="flex items-center gap-1 shrink-0">
