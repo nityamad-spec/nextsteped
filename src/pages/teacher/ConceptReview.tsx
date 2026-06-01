@@ -173,20 +173,75 @@ const ConceptReview = () => {
   const handleAddManual = async () => {
     const name = newConcept.trim();
     if (!name || !courseId) return;
-    setAdding(true);
-    const { data, error } = await supabase
-      .from("concepts")
-      .insert({ concept_code: name, weight: 0, course_id: courseId })
-      .select("*")
-      .single();
-    if (error) {
-      toast.error("Failed to add concept: " + error.message);
-    } else if (data) {
-      setConcepts((prev) => [...prev, data]);
-      setNewConcept("");
-      bumpCacheVersion("concepts", courseId);
+
+    const weightInput = newWeight.trim();
+    const parsedPct = weightInput === "" ? 0 : Number(weightInput);
+    if (Number.isNaN(parsedPct) || parsedPct < 0 || parsedPct > 100) {
+      toast.error("Weight must be a number between 0 and 100");
+      return;
     }
-    setAdding(false);
+    if (parsedPct === 100 && concepts.length > 0) {
+      toast.error("Weight of 100% would zero out all other concepts");
+      return;
+    }
+    const wNew = parsedPct / 100;
+
+    setAdding(true);
+    try {
+      // Rescale existing concepts so total stays at 1.0
+      let rescaled: { id: string; weight: number }[] = [];
+      if (concepts.length > 0) {
+        const sumOthers = concepts.reduce((s, c) => s + Number(c.weight || 0), 0);
+        const targetOthers = 1 - wNew;
+        if (sumOthers > 0) {
+          const scale = targetOthers / sumOthers;
+          rescaled = concepts.map((c) => ({ id: c.id, weight: Number(c.weight || 0) * scale }));
+        } else {
+          const each = targetOthers / concepts.length;
+          rescaled = concepts.map((c) => ({ id: c.id, weight: each }));
+        }
+
+        const updates = await Promise.all(
+          rescaled.map((r) =>
+            supabase.from("concepts").update({ weight: r.weight }).eq("id", r.id)
+          )
+        );
+        const updateErr = updates.find((u) => u.error)?.error;
+        if (updateErr) {
+          toast.error("Failed to rebalance weights: " + updateErr.message);
+          await fetchConcepts();
+          return;
+        }
+      }
+
+      const insertWeight = concepts.length === 0 ? (weightInput === "" ? 1 : wNew) : wNew;
+      const { data, error } = await supabase
+        .from("concepts")
+        .insert({ concept_code: name, weight: insertWeight, course_id: courseId })
+        .select("*")
+        .single();
+
+      if (error) {
+        toast.error("Failed to add concept: " + error.message);
+        await fetchConcepts();
+        return;
+      }
+
+      if (data) {
+        setConcepts((prev) => {
+          const rescaleMap = new Map(rescaled.map((r) => [r.id, r.weight]));
+          const updated = prev.map((c) =>
+            rescaleMap.has(c.id) ? { ...c, weight: rescaleMap.get(c.id)! } : c
+          );
+          return [...updated, data];
+        });
+        setNewConcept("");
+        setNewWeight("");
+        bumpCacheVersion("concepts", courseId);
+      }
+    } finally {
+      setAdding(false);
+    }
   };
 
   const handleAddSuggestion = async (s: Suggestion) => {
