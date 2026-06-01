@@ -244,6 +244,33 @@ const ConceptReview = () => {
     }
   };
 
+  // Normalize all concept weights to sum to exactly 1 (100%). If current
+  // sum is 0, distribute equally. Persists updates to DB and returns the
+  // rescaled list so callers can update local state in one shot.
+  const normalizeAllToOne = async (
+    list: Concept[],
+  ): Promise<Concept[]> => {
+    if (list.length === 0) return list;
+    const sum = list.reduce((s, c) => s + Number(c.weight || 0), 0);
+    let rescaled: Concept[];
+    if (sum > 0) {
+      const scale = 1 / sum;
+      rescaled = list.map((c) => ({ ...c, weight: Number(c.weight || 0) * scale }));
+    } else {
+      const each = 1 / list.length;
+      rescaled = list.map((c) => ({ ...c, weight: each }));
+    }
+    const { error } = await Promise.all(
+      rescaled.map((c) =>
+        supabase.from("concepts").update({ weight: c.weight }).eq("id", c.id),
+      ),
+    ).then((results) => ({ error: results.find((r) => r.error)?.error }));
+    if (error) {
+      toast.error("Failed to rebalance weights: " + error.message);
+    }
+    return rescaled;
+  };
+
   const handleAddSuggestion = async (s: Suggestion) => {
     if (!courseId) return;
     const pct = getWeight(s.name, s.weight_pct);
@@ -257,7 +284,8 @@ const ConceptReview = () => {
       return;
     }
     if (data) {
-      setConcepts((prev) => [...prev, data]);
+      const rescaled = await normalizeAllToOne([...concepts, data]);
+      setConcepts(rescaled);
       setSuggestions((prev) => prev.filter((x) => x.name !== s.name));
       bumpCacheVersion("concepts", courseId);
     }
@@ -281,7 +309,8 @@ const ConceptReview = () => {
       return;
     }
     if (data && data.length > 0) {
-      setConcepts((prev) => [...prev, ...data]);
+      const rescaled = await normalizeAllToOne([...concepts, ...data]);
+      setConcepts(rescaled);
       const addedNames = new Set(items.map((s) => s.name));
       setSuggestions((prev) => prev.filter((x) => !addedNames.has(x.name)));
       bumpCacheVersion("concepts", courseId);
@@ -346,7 +375,8 @@ const ConceptReview = () => {
       return;
     }
     if (data) {
-      setConcepts((prev) => [...prev, data]);
+      const rescaled = await normalizeAllToOne([...concepts, data]);
+      setConcepts(rescaled);
       setRecommendations((prev) => prev.filter((x) => x.name !== r.name));
       bumpCacheVersion("concepts", courseId);
     }
@@ -382,14 +412,25 @@ const ConceptReview = () => {
       toast.error("Failed to delete: " + error.message);
       return;
     }
-    setConcepts((prev) => prev.filter((c) => c.id !== id));
+    const remaining = concepts.filter((c) => c.id !== id);
+    const rescaled = await normalizeAllToOne(remaining);
+    setConcepts(rescaled);
     setConfirmDeleteId(null);
     if (courseId) bumpCacheVersion("concepts", courseId);
   };
 
+  const totalWeightPct = Math.round(
+    concepts.reduce((s, c) => s + Number(c.weight || 0), 0) * 100,
+  );
+  const weightsBalanced = concepts.length > 0 && totalWeightPct === 100;
+
   const handleContinue = () => {
     if (concepts.length === 0) {
       toast.error("Please confirm at least one concept before continuing.");
+      return;
+    }
+    if (!weightsBalanced) {
+      toast.error(`Concept weights must total 100% (currently ${totalWeightPct}%).`);
       return;
     }
     if (user?.id && courseId) void markStepCompleted(user.id, "concept-review", courseId);
@@ -740,12 +781,30 @@ const ConceptReview = () => {
         {/* Confirmed concepts */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Check className="h-5 w-5 text-primary" /> Confirmed Concepts
-            </CardTitle>
-            <CardDescription>
-              {concepts.length} concept{concepts.length === 1 ? "" : "s"} will be used to generate your lesson plan. You can delete irrelevant concepts or add any that were missed.
-            </CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Check className="h-5 w-5 text-primary" /> Confirmed Concepts
+                </CardTitle>
+                <CardDescription>
+                  {concepts.length} concept{concepts.length === 1 ? "" : "s"} will be used to generate your lesson plan. You can delete irrelevant concepts or add any that were missed.
+                </CardDescription>
+              </div>
+              {concepts.length > 0 && (() => {
+                const totalPct = Math.round(
+                  concepts.reduce((s, c) => s + Number(c.weight || 0), 0) * 100,
+                );
+                const ok = totalPct === 100;
+                return (
+                  <Badge
+                    variant={ok ? "secondary" : "destructive"}
+                    className="shrink-0 tabular-nums"
+                  >
+                    Total: {totalPct}%
+                  </Badge>
+                );
+              })()}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Sequencing note */}
@@ -863,9 +922,20 @@ const ConceptReview = () => {
           <Button variant="ghost" onClick={() => navigate("/teacher/setup/upload")}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Materials
           </Button>
-          <Button onClick={handleContinue} disabled={concepts.length === 0} size="lg">
-            Continue to Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              onClick={handleContinue}
+              disabled={concepts.length === 0 || !weightsBalanced}
+              size="lg"
+            >
+              Continue to Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            {concepts.length > 0 && !weightsBalanced && (
+              <p className="text-[11px] text-destructive">
+                Weights must total 100% (currently {totalWeightPct}%).
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -873,3 +943,4 @@ const ConceptReview = () => {
 };
 
 export default ConceptReview;
+
