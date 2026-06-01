@@ -515,6 +515,39 @@ export type Database = {
           },
         ]
       }
+      course_youtube_links: {
+        Row: {
+          course_id: string
+          created_at: string
+          id: string
+          kind: string
+          source_file_id: string | null
+          teacher_id: string
+          url: string
+          video_id: string | null
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          id?: string
+          kind?: string
+          source_file_id?: string | null
+          teacher_id: string
+          url: string
+          video_id?: string | null
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          source_file_id?: string | null
+          teacher_id?: string
+          url?: string
+          video_id?: string | null
+        }
+        Relationships: []
+      }
       courses: {
         Row: {
           branch: string[] | null
