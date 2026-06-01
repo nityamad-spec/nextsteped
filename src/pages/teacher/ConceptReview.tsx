@@ -76,6 +76,7 @@ const ConceptReview = () => {
   const [loading, setLoading] = useState(true);
   const [concepts, setConcepts] = useState<Concept[]>([]);
   const [newConcept, setNewConcept] = useState("");
+  const [newWeight, setNewWeight] = useState("");
   const [adding, setAdding] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
