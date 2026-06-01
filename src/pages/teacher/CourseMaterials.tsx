@@ -230,6 +230,47 @@ const CourseMaterials = () => {
           </CardContent>
         </Card>
 
+        {/* Past Course Materials — Optional but Recommended */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <ClipboardList className="h-5 w-5 text-primary" /> Past Course Materials & Teaching Resources
+              </CardTitle>
+              <Badge variant="secondary">Optional but Recommended</Badge>
+            </div>
+            <CardDescription>
+              Upload anything from previous iterations of this course or related teaching that helps the AI understand how you teach. The more context you give it, the better it can support your students.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="list-disc list-inside mb-3 space-y-1 text-xs text-muted-foreground">
+              <li><strong className="text-foreground">Past assessments:</strong> previous exams, quizzes, assignments, projects, problem sets</li>
+              <li><strong className="text-foreground">Lecture materials:</strong> slide decks, lecture notes, handouts</li>
+              <li><strong className="text-foreground">Reference material:</strong> reading lists, supplementary articles, sample solutions</li>
+            </ul>
+            <p className="text-xs text-muted-foreground mb-3">
+              <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images.
+            </p>
+            {user && courseId ? (
+              <FileUploadZone
+                folderPath={`${courseId}/lesson-plans`}
+                accept={MATERIALS_ACCEPT}
+                files={lessonPlanFiles}
+                onFilesChange={setLessonPlanFiles}
+                courseId={courseId}
+                teacherId={user.id}
+                folderType="lesson-plans"
+              />
+            ) : (
+              <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                {resolvingCourse && <Loader2 className="h-4 w-4 animate-spin" />}
+                Preparing upload area…
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Lesson Plans — Optional */}
         <Card>
           <CardHeader>
@@ -276,7 +317,7 @@ const CourseMaterials = () => {
               <Badge variant="secondary">Optional</Badge>
             </div>
             <CardDescription>
-              Upload a document containing YouTube links to videos you want students to reference. The AI will use these as supplementary teaching material.
+              Upload a document with YouTube links you want students to reference, or links you have referenced in your teaching.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -302,47 +343,6 @@ const CourseMaterials = () => {
           </CardContent>
         </Card>
 
-        {/* Optional Lesson Plans */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <ClipboardList className="h-5 w-5 text-primary" /> Past Course Materials & Teaching Resources
-              </CardTitle>
-              <Badge variant="secondary">Optional but Recommended</Badge>
-            </div>
-            <CardDescription>
-              Upload anything from previous iterations of this course or related teaching that helps the AI understand how you teach. The more context you give it, the better it can support your students.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="list-disc list-inside mb-3 space-y-1 text-xs text-muted-foreground">
-              <li><strong className="text-foreground">Past assessments:</strong> previous exams, quizzes, assignments, projects, problem sets</li>
-              <li><strong className="text-foreground">Lecture materials:</strong> slide decks, lecture notes, handouts</li>
-              <li><strong className="text-foreground">Lesson plans:</strong> existing weekly plans or schedules</li>
-              <li><strong className="text-foreground">Reference material:</strong> reading lists, supplementary articles, sample solutions</li>
-            </ul>
-            <p className="text-xs text-muted-foreground mb-3">
-              <strong>Accepted:</strong> PDF, PPTX, DOCX, TXT, CSV, images.
-            </p>
-            {user && courseId ? (
-              <FileUploadZone
-                folderPath={`${courseId}/lesson-plans`}
-                accept={MATERIALS_ACCEPT}
-                files={lessonPlanFiles}
-                onFilesChange={setLessonPlanFiles}
-                courseId={courseId}
-                teacherId={user.id}
-                folderType="lesson-plans"
-              />
-            ) : (
-              <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
-                {resolvingCourse && <Loader2 className="h-4 w-4 animate-spin" />}
-                Preparing upload area…
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         {!hasSyllabus && (
           <p className="text-xs text-destructive text-center">
