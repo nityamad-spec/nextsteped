@@ -3,11 +3,12 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, ClipboardList, ArrowLeft, Loader2, BookOpen, Youtube } from "lucide-react";
+import { FileText, ClipboardList, ArrowLeft, Loader2, BookOpen, Youtube, Trash2, ExternalLink } from "lucide-react";
 import FileUploadZone from "@/components/FileUploadZone";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const SYLLABUS_ACCEPT = ".pdf,.docx";
 const LESSON_PLAN_ACCEPT = ".pdf,.docx,.txt";
