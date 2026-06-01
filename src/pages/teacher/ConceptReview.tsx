@@ -844,17 +844,32 @@ const ConceptReview = () => {
                 </CardDescription>
               </div>
               {concepts.length > 0 && (() => {
-                const totalPct = Math.round(
-                  concepts.reduce((s, c) => s + Number(c.weight || 0), 0) * 100,
-                );
-                const ok = totalPct === 100;
+                const ok = totalWeightPct === 100;
                 return (
-                  <Badge
-                    variant={ok ? "secondary" : "destructive"}
-                    className="shrink-0 tabular-nums"
-                  >
-                    Total: {totalPct}%
-                  </Badge>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge
+                      variant={ok ? "secondary" : "destructive"}
+                      className="tabular-nums"
+                    >
+                      Total: {totalWeightPct}%
+                    </Badge>
+                    {!ok && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1"
+                        onClick={handleAutoBalance}
+                        disabled={rebalancing}
+                      >
+                        {rebalancing ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        Auto-balance to 100%
+                      </Button>
+                    )}
+                  </div>
                 );
               })()}
             </div>
