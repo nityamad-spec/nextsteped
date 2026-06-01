@@ -44,6 +44,10 @@ interface FileUploadZoneProps {
   maxFiles?: number;
   /** Notify parent of per-file parse status changes (syllabus only). */
   onParseStatusChange?: (statuses: Record<string, ParseStatus>) => void;
+  /** Fired after each batch of files is successfully uploaded (and metadata
+   *  rows are inserted). Use for post-upload side-effects like extracting
+   *  links, kicking off background jobs, etc. */
+  onUploadComplete?: (newFiles: UploadedFile[]) => void;
 }
 
 function formatSize(bytes: number) {
