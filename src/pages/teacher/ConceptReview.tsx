@@ -816,22 +816,45 @@ const ConceptReview = () => {
             )}
 
             {/* Manual add */}
-            <div className="flex items-center gap-2 pt-2 border-t">
-              <Input
-                placeholder="Manually add a concept that was missed…"
-                value={newConcept}
-                onChange={(e) => setNewConcept(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddManual();
-                  }
-                }}
-                className="flex-1"
-              />
-              <Button onClick={handleAddManual} disabled={!newConcept.trim() || adding}>
-                {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 mr-1" /> Add</>}
-              </Button>
+            <div className="space-y-1.5 pt-2 border-t">
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Manually add a concept that was missed…"
+                  value={newConcept}
+                  onChange={(e) => setNewConcept(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddManual();
+                    }
+                  }}
+                  className="flex-1"
+                />
+                <div className="relative w-24 shrink-0">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    placeholder="Weight"
+                    value={newWeight}
+                    onChange={(e) => setNewWeight(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddManual();
+                      }
+                    }}
+                    className="pr-7"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                </div>
+                <Button onClick={handleAddManual} disabled={!newConcept.trim() || adding}>
+                  {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 mr-1" /> Add</>}
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Set a weight for the new concept; existing concepts will be rescaled so the total stays 100%.
+              </p>
             </div>
           </CardContent>
         </Card>
