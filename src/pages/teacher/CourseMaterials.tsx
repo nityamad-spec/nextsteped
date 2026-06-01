@@ -118,6 +118,8 @@ const CourseMaterials = () => {
           name: f.file_name, size: f.file_size, path: f.storage_path,
         });
         setSyllabusFiles(data.filter((f) => f.folder_type === "syllabus").map(mapFile));
+        setLessonPlanDocFiles(data.filter((f) => f.folder_type === "lesson-plan-docs").map(mapFile));
+        setYoutubeLinkFiles(data.filter((f) => f.folder_type === "youtube-links").map(mapFile));
         setLessonPlanFiles(data.filter((f) => f.folder_type === "lesson-plans").map(mapFile));
       }
     };
