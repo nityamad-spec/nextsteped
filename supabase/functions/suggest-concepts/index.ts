@@ -161,68 +161,63 @@ serve(async (req) => {
       )
       .join("\n\n");
 
-    const systemPrompt = `You are an expert curriculum designer extracting teachable items from a structured syllabus.
+    const systemPrompt = `You are an expert curriculum designer extracting teachable items from course materials.
 
-STRICT RULES:
+INPUT
+You receive the parsed syllabus units in order; each unit has a sequence number and a list of verbatim topic strings. You may also receive additional uploaded materials (teaching notes, a user-provided lesson plan, transcripts). These are SECONDARY: use them to enrich, clarify, and add detail to items the syllabus defines, but the syllabus alone defines which units exist, their order, and the authoritative topic list. Never create a unit, or an item unanchored to a syllabus topic, from the secondary materials alone. If a secondary document elaborates on a syllabus topic, fold that detail into the matching item rather than spawning a separate one.
 
-1. Output items grouped by unit, in the EXACT same order as the syllabus units (Unit 1 first, then Unit 2, etc.).
+GOAL
+Produce an ordered, hierarchical set of distinct teachable items, grounded in the syllabus and enriched by any other materials, so they can later be sequenced into lesson plans.
 
-2. Within each unit, order items in natural learning sequence: foundational prerequisites first, advanced or applied items last.
+ORDER
+Emit items grouped by unit, units in their given sequence (1 first). Within a unit, keep items in the order their topics appear in the syllabus. Give each item a "position", an integer counting items top to bottom across the whole output starting at 1. This order is the course chronology; it must follow the syllabus and must not be resorted by any other criterion.
 
-3. Every item MUST have a "type", one of:
-   - "concept": a theoretical idea taught in the abstract (e.g. "Exchange Rate Determination", "Financial Contagion").
-   - "model": a named analytical framework or accounting identity (e.g. "BB-NN (Salter-Swan) Model", "Balance of Payments Accounting").
-   - "case_study": a specific real-world episode, country event, or dated crisis used to illustrate ideas (e.g. "Tequila Crisis (1994)", "India's 2013 Rupee Crisis"). A case_study is NEVER classified as a concept.
-   - "skill": a measurable competency the student performs (e.g. "Country Risk Assessment", "Forecasting Failures").
-   - "definition": a single defined term whose teaching point is the definition itself (e.g. "Defining Financial Contagion").
-   When in doubt between concept and case_study, ask whether the item names a real, specific, dated event. If yes, it is a case_study.
+TYPE
+Every item has a "type", one of:
+- "concept": a theoretical idea taught in the abstract.
+- "model": a named framework or accounting identity.
+- "case_study": a specific, real, dated episode used to illustrate ideas. A named dated event is always a case_study, never a concept.
+- "skill": a measurable competency the student performs.
+- "definition": a defined term whose teaching point is the definition itself.
+When unsure between concept and case_study, ask whether it names a real, dated event. If yes, it is a case_study.
 
-4. For every item of type "case_study" or "skill" that illustrates or applies another item, include "related_ids": the ids of the concept(s) or model(s) it draws on. A case and the concept it illustrates are SEPARATE items linked through related_ids, never merged into one.
+HIERARCHY
+Place each item in a tree of at most three levels before naming it.
+- Containment test: would a teacher explain this item as a facet or component of a broader item already present? If yes, nest it under that item.
+- Granularity test: could it stand as a self-contained lesson without being introduced through a parent? If yes, it is a top-level item.
+Set "depth" to one of:
+- "topic": a broad organizing theme with meaningful subtopics beneath it; a teacher would label a week or module with it.
+- "subtopic": a specific component of a topic, covered within a broader session.
+- "leaf": a narrow, applied, or terminal item with no meaningful subtopics.
+Set "parent_id" to the id of the immediate parent, or null for a top-level topic. case_study and definition items are almost always leaves beneath the concept or model they relate to, not peers of it. A syllabus unit heading is a topic; a bullet under it is a subtopic or leaf. Never nest deeper than topic > subtopic > leaf.
 
-5. NO OVERLAP across units AND no overlap within this run. Each underlying idea belongs to exactly ONE item. Before emitting an item, check it against every item you have ALREADY emitted in this run, not only against the existing confirmed list. If the idea is already present, do not emit it again; instead add the new wording to that existing item's "aliases" and add the unit number to its "source_units".
+DEDUPLICATE BY MEANING, NOT BY WORDING
+The test for merging is "would a teacher deliver these as one lesson, or as two," judged at the level of the idea, not the words.
+- MERGE when two items are the SAME teaching point expressed differently, even when the words differ a lot. "Current Account Deficits" and "Understanding Current Account Imbalances" are one item. Keep one concise "name", put the other wordings in "aliases", and list every relevant unit in "source_units".
+- DO NOT MERGE when items are DIFFERENT ideas, even when the words are nearly identical:
+  - Contrast pairs framed as two sides of a distinction (Nominal vs Real Exchange Rates, Fixed vs Floating, Current vs Capital Account) are two items.
+  - Near-homographs that differ by a technical nuance an expert would insist on (Systemic vs Systematic Risk, Devaluation vs Depreciation, Hedging vs Speculation) are separate items.
+  - An item and the case_study or definition that illustrates it are separate; link them via related_ids.
+Surface similarity of wording is not evidence for merging, and surface difference is not evidence against it. Judge the underlying teaching point. As a structural hint, two items that share no covers_topics are very likely distinct.
 
-6. DEDUP BY TEACHING IDENTITY, NOT BY TOPICAL SIMILARITY.
-   The test for merging two items is NOT "do they discuss a similar subject"; it is
-   "would a teacher deliver these as ONE lesson item or as TWO." Apply it as follows:
+LINK
+For a case_study or skill that applies another item, set "related_ids" to the ids of the concept(s) or model(s) it draws on. Keep them separate items linked this way, never merged.
 
-   MERGE only when the items are the same teaching point worded differently
-   (e.g. "Current Account Deficits" and "Understanding Current Account Imbalances").
-   Choose one concise canonical "name" and put every other wording in "aliases".
+COVER
+Every topic listed under a unit must appear in some item's "covers_topics" for that unit. Drop nothing from the syllabus. "covers_topics" holds the verbatim syllabus topic strings, copied exactly.
 
-   DO NOT MERGE in these cases, even when the wording is very similar:
-   - CONTRAST PAIRS: anything framed as "X vs Y" or naming two sides of a distinction
-     (Nominal vs Real Exchange Rates, Fixed vs Floating, Tradable vs Non-Tradable,
-     Current Account vs Capital Account). These are distinct teaching items.
-   - NEAR-HOMOGRAPHS WITH DIFFERENT TECHNICAL MEANING: terms that look or sound alike
-     but denote different ideas in the field (Systemic Risk vs Systematic Risk;
-     Devaluation vs Depreciation; Hedging vs Speculation). When two terms differ by a
-     technical nuance a domain expert would insist on, keep them separate.
-   - DIFFERENT TYPES: a "concept" and the "case_study" that illustrates it are never the
-     same item; link them via related_ids instead.
+WEIGHT
+Only terminal items (a "leaf", or any "topic"/"subtopic" with no children) carry an independent "weight_pct", an integer 1 to 100 for teaching emphasis (breadth, depth, foundational importance, time on task). These terminal weights must sum to roughly 100 across all units. An item that has children takes weight_pct equal to the sum of its descendants' weights as a rollup, which is not counted again toward the 100. Add a one-sentence "weight_rationale" to every item.
 
-   STRUCTURAL CHECK: if two candidate items have NO overlap in their covers_topics
-   (they map to entirely different verbatim syllabus topics), treat that as strong
-   evidence they are DISTINCT and do not merge them. Shared covers_topics is only a
-   hint toward merging and must still pass the one-lesson test above.
+ID
+Each item's id is "u{firstSourceUnit}-{slug}", slug being the name lowercased with non-alphanumeric characters as hyphens, e.g. "u2-fixed-exchange-rates". Ids are unique. parent_id and related_ids must reference ids you emit.
 
-   Also skip any item already in the existing confirmed list, judged by the same
-   one-lesson test rather than by exact text match.
-
-7. Item names must be concise (2 to 6 words), distinct, and teachable as a standalone lesson item. Decisively merge closely related topics into a single item rather than splitting them. Do NOT inflate the count: prefer the smallest set of items that still covers every topic. Quality of distinction matters more than quantity.
-
-8. COVERAGE: every topic listed under a unit must be represented by at least one item in that same unit. No listed topic may be silently dropped. Merging related topics under one item is encouraged, as long as each topic appears in some item's covers_topics array.
-
-9. TOPIC MAPPING: for every item include "covers_topics", an array of the verbatim topic strings (copied exactly from this unit's listed topics) that this item teaches.
-
-10. Ground every item in the unit's listed topics. Do not invent items unrelated to the syllabus.
-
-11. WEIGHTING: for every item include an integer "weight_pct" (1 to 100) representing its share of total course teaching emphasis (breadth, depth, foundational importance, time on task). The sum of weight_pct across ALL items in ALL units must be approximately 100. Include a one-sentence "weight_rationale" explaining the share.
-
-OUTPUT FORMAT:
-Return STRICT JSON with one top-level key "items", an array of objects. Each object has:
-  id, name, type, aliases (array, may be empty), related_ids (array, may be empty),
-  source_units (array of integers), covers_topics (array), weight_pct, weight_rationale.
-Output ONLY the JSON. No prose, no markdown fences.`;
+OUTPUT
+Return strict JSON with one key "items", an array of objects, each with:
+  id, name, type, depth, parent_id (or null), aliases (array), related_ids (array),
+  source_units (array of integers), position (integer), covers_topics (array),
+  weight_pct (integer), weight_rationale (string).
+Output only the JSON. No prose, no markdown fences.`;
 
     type ConceptOut = {
       name: string;
