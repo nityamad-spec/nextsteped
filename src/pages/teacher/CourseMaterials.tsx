@@ -160,12 +160,59 @@ const CourseMaterials = () => {
   };
   useEffect(() => { void refreshLinks(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [courseId]);
 
+  // Validate a candidate YouTube URL. Returns { valid, reason } so we can show
+  // why the link is rejected. We accept watch?v=, youtu.be/, shorts/, playlist,
+  // channel, and @handle URLs only — anything else is flagged.
+  const validateYoutubeUrl = (raw: string): { valid: boolean; reason?: string } => {
+    if (!raw || typeof raw !== "string") return { valid: false, reason: "Empty URL" };
+    let u: URL;
+    try {
+      u = new URL(raw.trim());
+    } catch {
+      return { valid: false, reason: "Not a valid URL" };
+    }
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      return { valid: false, reason: "Unsupported protocol" };
+    }
+    const host = u.hostname.replace(/^www\.|^m\./, "").toLowerCase();
+    if (host === "youtu.be") {
+      const id = u.pathname.slice(1).split("/")[0];
+      if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return { valid: false, reason: "Invalid video ID" };
+      return { valid: true };
+    }
+    if (host === "youtube.com") {
+      const p = u.pathname;
+      if (p === "/watch") {
+        const v = u.searchParams.get("v") || "";
+        if (!/^[A-Za-z0-9_-]{11}$/.test(v)) return { valid: false, reason: "Missing/invalid video ID" };
+        return { valid: true };
+      }
+      if (p.startsWith("/shorts/")) {
+        const id = p.slice("/shorts/".length).split("/")[0];
+        if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return { valid: false, reason: "Invalid shorts ID" };
+        return { valid: true };
+      }
+      if (p === "/playlist") {
+        const list = u.searchParams.get("list") || "";
+        if (!/^[A-Za-z0-9_-]{10,}$/.test(list)) return { valid: false, reason: "Invalid playlist ID" };
+        return { valid: true };
+      }
+      if (p.startsWith("/channel/") || p.startsWith("/@") || p.startsWith("/c/") || p.startsWith("/user/")) {
+        return { valid: true };
+      }
+      return { valid: false, reason: "Unsupported YouTube path" };
+    }
+    return { valid: false, reason: "Not a YouTube domain" };
+  };
+
   // Extract links from any freshly uploaded YouTube-links file and queue them
   // for teacher review. Nothing is written to the DB until the teacher confirms.
   const handleYoutubeUploadComplete = async (newFiles: UploadedFile[]) => {
     if (!courseId || newFiles.length === 0) return;
     setExtractingLinks(true);
     const collected: typeof reviewItems = [];
+    const seen = new Set<string>();
+    let skippedDupes = 0;
     try {
       for (const f of newFiles) {
         const { data: meta } = await supabase
@@ -190,16 +237,28 @@ const CourseMaterials = () => {
           url: string; kind: string; video_id: string | null; already_saved: boolean;
         }>;
         for (const l of links) {
+          // Dedupe across multiple files in the same batch.
+          if (seen.has(l.url)) { skippedDupes += 1; continue; }
+          seen.add(l.url);
+          const { valid, reason } = validateYoutubeUrl(l.url);
           collected.push({
             ...l,
-            selected: !l.already_saved,
+            invalid: !valid,
+            invalidReason: reason,
+            // Invalid + already-saved links should never be pre-selected.
+            selected: valid && !l.already_saved,
             sourceFileId: meta?.id ?? null,
             sourceFileName: f.name,
           });
         }
       }
+      setDuplicatesSkipped(skippedDupes);
       if (collected.length === 0) {
-        toast.info("No YouTube links detected in that file.");
+        toast.info(
+          skippedDupes > 0
+            ? `No new YouTube links detected (${skippedDupes} duplicate(s) skipped).`
+            : "No YouTube links detected in that file.",
+        );
       } else {
         setReviewItems(collected);
         setReviewOpen(true);
