@@ -559,6 +559,89 @@ const CourseMaterials = () => {
           nextDisabled={!canContinue}
         />
       </div>
+
+      {/* Review extracted YouTube links before saving */}
+      <Dialog
+        open={reviewOpen}
+        onOpenChange={(open) => {
+          if (!open && !savingLinks) cancelReview();
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Review extracted YouTube links</DialogTitle>
+            <DialogDescription>
+              We found {reviewItems.length} link{reviewItems.length === 1 ? "" : "s"}.
+              Uncheck any you don't want saved. Already-saved links are disabled.
+            </DialogDescription>
+          </DialogHeader>
+
+          {reviewItems.length > 0 && (
+            <div className="flex items-center justify-between border-b pb-2 text-xs text-muted-foreground">
+              <span>
+                {reviewItems.filter((i) => i.selected && !i.already_saved).length} selected to save
+              </span>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={() => toggleAllReview(true)}>
+                  Select all
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => toggleAllReview(false)}>
+                  Deselect all
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <ul className="max-h-[55vh] overflow-y-auto space-y-1.5">
+            {reviewItems.map((item) => (
+              <li
+                key={item.url}
+                className="flex items-start gap-3 rounded-md border bg-muted/20 px-3 py-2 text-sm"
+              >
+                <Checkbox
+                  checked={item.selected}
+                  disabled={item.already_saved}
+                  onCheckedChange={() => toggleReviewItem(item.url)}
+                  className="mt-1"
+                />
+                <div className="min-w-0 flex-1">
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-primary hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{item.url}</span>
+                  </a>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {item.kind}
+                    {item.already_saved && " · already saved"}
+                    {" · from "}
+                    {item.sourceFileName}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={cancelReview} disabled={savingLinks}>
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmSaveReviewed}
+              disabled={
+                savingLinks ||
+                reviewItems.filter((i) => i.selected && !i.already_saved).length === 0
+              }
+            >
+              {savingLinks && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save selected
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
