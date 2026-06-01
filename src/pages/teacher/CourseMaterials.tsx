@@ -395,6 +395,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="youtube-links"
+                onUploadComplete={handleYoutubeUploadComplete}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
@@ -402,8 +403,51 @@ const CourseMaterials = () => {
                 Preparing upload area…
               </div>
             )}
+
+            {extractingLinks && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Extracting YouTube links…
+              </div>
+            )}
+
+            {extractedLinks.length > 0 && (
+              <div className="mt-4">
+                <p className="text-xs font-semibold text-foreground mb-2">
+                  Extracted links ({extractedLinks.length})
+                </p>
+                <ul className="space-y-1.5 max-h-64 overflow-y-auto">
+                  {extractedLinks.map((l) => (
+                    <li
+                      key={l.id}
+                      className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-1.5 text-xs"
+                    >
+                      <a
+                        href={l.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex min-w-0 items-center gap-1.5 text-primary hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{l.url}</span>
+                      </a>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeLink(l.id)}
+                        aria-label="Remove link"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </CardContent>
         </Card>
+
 
 
         {!hasSyllabus && (
