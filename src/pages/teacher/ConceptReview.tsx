@@ -419,19 +419,72 @@ const ConceptReview = () => {
     if (courseId) bumpCacheVersion("concepts", courseId);
   };
 
+  // Inline edit for a confirmed concept's weight (percent).
+  const [editingWeights, setEditingWeights] = useState<Record<string, string>>({});
+  const [rebalancing, setRebalancing] = useState(false);
+
+  const commitConfirmedWeight = async (id: string) => {
+    const raw = editingWeights[id];
+    if (raw === undefined) return;
+    const pct = Number(raw);
+    if (Number.isNaN(pct) || pct < 0 || pct > 100) {
+      toast.error("Weight must be between 0 and 100");
+      setEditingWeights((prev) => {
+        const { [id]: _, ...rest } = prev;
+        return rest;
+      });
+      return;
+    }
+    const w = pct / 100;
+    const prev = concepts.find((c) => c.id === id);
+    if (!prev || Number(prev.weight) === w) {
+      setEditingWeights((p) => {
+        const { [id]: _, ...rest } = p;
+        return rest;
+      });
+      return;
+    }
+    const { error } = await supabase.from("concepts").update({ weight: w }).eq("id", id);
+    if (error) {
+      toast.error("Failed to update weight: " + error.message);
+      return;
+    }
+    setConcepts((list) => list.map((c) => (c.id === id ? { ...c, weight: w } : c)));
+    setEditingWeights((p) => {
+      const { [id]: _, ...rest } = p;
+      return rest;
+    });
+    if (courseId) bumpCacheVersion("concepts", courseId);
+  };
+
+  const handleAutoBalance = async () => {
+    if (concepts.length === 0) return;
+    setRebalancing(true);
+    try {
+      const rescaled = await normalizeAllToOne(concepts);
+      setConcepts(rescaled);
+      if (courseId) bumpCacheVersion("concepts", courseId);
+      toast.success("Weights rebalanced to 100%");
+    } finally {
+      setRebalancing(false);
+    }
+  };
+
   const totalWeightPct = Math.round(
     concepts.reduce((s, c) => s + Number(c.weight || 0), 0) * 100,
   );
   const weightsBalanced = concepts.length > 0 && totalWeightPct === 100;
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (concepts.length === 0) {
       toast.error("Please confirm at least one concept before continuing.");
       return;
     }
     if (!weightsBalanced) {
-      toast.error(`Concept weights must total 100% (currently ${totalWeightPct}%).`);
-      return;
+      const rescaled = await normalizeAllToOne(concepts);
+      setConcepts(rescaled);
+      if (courseId) bumpCacheVersion("concepts", courseId);
+      toast.success("Weights auto-balanced to 100%");
     }
     if (user?.id && courseId) void markStepCompleted(user.id, "concept-review", courseId);
     navigate("/teacher/setup/lesson-plan");
@@ -791,17 +844,32 @@ const ConceptReview = () => {
                 </CardDescription>
               </div>
               {concepts.length > 0 && (() => {
-                const totalPct = Math.round(
-                  concepts.reduce((s, c) => s + Number(c.weight || 0), 0) * 100,
-                );
-                const ok = totalPct === 100;
+                const ok = totalWeightPct === 100;
                 return (
-                  <Badge
-                    variant={ok ? "secondary" : "destructive"}
-                    className="shrink-0 tabular-nums"
-                  >
-                    Total: {totalPct}%
-                  </Badge>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge
+                      variant={ok ? "secondary" : "destructive"}
+                      className="tabular-nums"
+                    >
+                      Total: {totalWeightPct}%
+                    </Badge>
+                    {!ok && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1"
+                        onClick={handleAutoBalance}
+                        disabled={rebalancing}
+                      >
+                        {rebalancing ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        Auto-balance to 100%
+                      </Button>
+                    )}
+                  </div>
                 );
               })()}
             </div>
@@ -835,9 +903,31 @@ const ConceptReview = () => {
                         {idx + 1}
                       </span>
                       <span className="text-sm font-medium truncate">{c.concept_code}</span>
-                      <Badge variant="secondary" className="text-[10px] shrink-0 tabular-nums">
-                        {Math.round(Number(c.weight) * 100)}%
-                      </Badge>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={
+                            editingWeights[c.id] !== undefined
+                              ? editingWeights[c.id]
+                              : Math.round(Number(c.weight) * 100)
+                          }
+                          onChange={(e) =>
+                            setEditingWeights((prev) => ({ ...prev, [c.id]: e.target.value }))
+                          }
+                          onBlur={() => commitConfirmedWeight(c.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="h-6 w-12 px-1 text-[11px] tabular-nums"
+                          title="Edit weight (%)"
+                        />
+                        <span className="text-[10px] text-muted-foreground">%</span>
+                      </div>
                     </div>
                     {confirmDeleteId === c.id ? (
                       <div className="flex items-center gap-1 shrink-0">
@@ -925,14 +1015,14 @@ const ConceptReview = () => {
           <div className="flex flex-col items-end gap-1">
             <Button
               onClick={handleContinue}
-              disabled={concepts.length === 0 || !weightsBalanced}
+              disabled={concepts.length === 0}
               size="lg"
             >
               Continue to Lesson Plan <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             {concepts.length > 0 && !weightsBalanced && (
-              <p className="text-[11px] text-destructive">
-                Weights must total 100% (currently {totalWeightPct}%).
+              <p className="text-[11px] text-muted-foreground">
+                Total is {totalWeightPct}%. We'll auto-balance to 100% when you continue.
               </p>
             )}
           </div>
