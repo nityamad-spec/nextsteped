@@ -58,6 +58,12 @@ const CourseMaterials = () => {
   }>>([]);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [duplicatesSkipped, setDuplicatesSkipped] = useState(0);
+  // Track per-zone busy state (upload / post-upload processing) so we can
+  // gate the "Next" button until every in-flight upload has settled.
+  const [zoneBusy, setZoneBusy] = useState<Record<string, boolean>>({});
+  const setZoneBusyFor = (zone: string) => (busy: boolean) =>
+    setZoneBusy((prev) => (prev[zone] === busy ? prev : { ...prev, [zone]: busy }));
+  const anyUploadBusy = Object.values(zoneBusy).some(Boolean);
 
   // Storage paths are course-scoped, so we must have a course row before any
   // upload is allowed. Resolve (or eagerly create) one on mount.
