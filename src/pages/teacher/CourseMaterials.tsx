@@ -584,6 +584,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="youtube-links"
+                onUploadingChange={setZoneBusyFor("youtube-links")}
                 onUploadComplete={handleYoutubeUploadComplete}
               />
             ) : (
