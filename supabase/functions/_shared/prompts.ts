@@ -28,15 +28,26 @@ export type PromptEntry = {
   updated_at: string;
   /** One-line purpose. */
   description: string;
-  /** The exact system message string (or a snapshot of the template form). */
+  /** The exact system message string. May contain {{placeholder}} tokens interpolated at runtime by resolvePrompt. */
   system_prompt: string;
-  /** True if the edge function imports this entry. False if the prompt is mirrored inline. */
+  /**
+   * True once the edge function reads this prompt through `resolvePrompt(...)`
+   * (so admin overrides take effect). False if the function still builds its
+   * prompt inline and ignores overrides.
+   */
   wired: boolean;
   /** Source file the prompt lives in (for inline mirrors, this is the source of truth on deploy). */
   synced_with: string;
   /** Optional notes: tool-call schema name, batching, temperature, max_tokens, etc. */
   notes?: string;
+  /**
+   * Names of `{{placeholders}}` the runtime interpolates into this prompt.
+   * Empty/omitted means the prompt is fully static. Admin UI uses this to
+   * render insertable chips in the editor.
+   */
+  placeholders?: string[];
 };
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PARSE SYLLABUS
@@ -141,7 +152,7 @@ RULES:
 - Use the concept "name" spelled EXACTLY as given.
 - Maintain the same order (echo "index" 1..N).
 - complexity: integer 1 (trivial) to 5 (very hard).
-- estimated_sessions: number from 0.5 to 3.0 in steps of 0.5 (sessions of \${course.session_length_minutes || 60} min each).
+- estimated_sessions: number from 0.5 to 3.0 in steps of 0.5 (sessions of {{sessionLengthMinutes}} min each).
 - Do not add or drop concepts. Do not invent new ones.
 - Calibrate estimated_sessions to an AVERAGE undergraduate student (not a top-quartile learner). Account for prerequisite chaining, cognitive load, and common misconceptions.
 - Be conservative — under-estimating mastery time is the most common failure of generated plans. When in doubt, round up.
