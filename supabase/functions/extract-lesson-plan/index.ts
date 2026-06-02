@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { EXTRACT_LESSON_PLAN_SYSTEM } from "../_shared/prompts.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -124,19 +125,7 @@ serve(async (req) => {
       });
     }
 
-    const systemPrompt = `You parse course lesson plan documents into a STRICT JSON shape.
-Return a single object with:
-  - weeks: array of week objects, each with:
-      - week (integer, 1-based)
-      - week_name (short topic/theme, 3-8 words)
-      - overview (1-2 sentence summary)
-      - concepts: array of { name, brief_description }
-      - resources: array of { type, title, description, url } (url optional)
-  - overall_course_learning_outcomes: a single paragraph string (or "" if not present)
-Rules:
-  - Preserve wording from the document; do not paraphrase aggressively.
-  - If a field is not present, return an empty string or empty array.
-  - Do not invent weeks beyond what is in the documents.`;
+    const systemPrompt = EXTRACT_LESSON_PLAN_SYSTEM;
 
     const aiResp = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",

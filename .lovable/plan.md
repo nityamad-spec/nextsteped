@@ -1,45 +1,108 @@
-# Lesson Plans upload → extract → save `uploaded-lesson-plan.json`
 
-When a teacher uploads a doc to the "Lesson Plans" card in `/teacher/setup/upload`, parse the document(s) into structured JSON and persist the result at `course-materials/{courseId}/lesson-plan/uploaded-lesson-plan.json` (upsert, overwrites any previous extraction).
+# Version & display edge function system prompts
 
-The raw uploaded files keep flowing into `{courseId}/lesson-plan-docs/...` and into `course_material_files` as today — only the new JSON sidecar is added.
+Goal: make every AI edge function pull its system prompt from a single versioned module, and surface those prompts in an admin-only page so changes between deployments are easy to verify.
 
-## 1. New edge function `extract-lesson-plan`
+## 1. Shared prompts module
 
-Path: `supabase/functions/extract-lesson-plan/index.ts`. CORS + JWT validate + `is_course_member` check (same pattern as `extract-youtube-links` / `parse-syllabus`).
+New file: `supabase/functions/_shared/prompts.ts`
 
-Input: `{ courseId }`. The function:
-1. Loads all rows from `course_material_files` where `course_id = courseId AND folder_type = 'lesson-plan-docs'` via service-role client.
-2. Downloads each file from `course-materials` and base64-encodes it (mime mapping reuses the table from `parse-syllabus`).
-3. Calls Lovable AI Gateway (`google/gemini-2.5-pro`) with a strict tool-call schema → returns the merged plan as:
-   ```
-   { weeks: [{ week, week_name, overview, concepts: [{name, brief_description}], resources: [{type, title, description, url}] }],
-     overall_course_learning_outcomes: string }
-   ```
-   This matches Shape B that `normalizeLessonPlan` already understands, so downstream readers work without changes. System prompt: "Extract ONLY what's in the documents. Do not invent weeks or concepts. If multiple files cover the same week, merge."
-4. Writes the result to `{courseId}/lesson-plan/uploaded-lesson-plan.json` via `storage.upload(..., { upsert: true, contentType: 'application/json' })`.
-5. Returns `{ path, weekCount }`.
+Exports a typed registry:
 
-Errors return JSON with CORS headers; rate-limit (429) and credit (402) handled like `parse-syllabus`.
+```ts
+export type PromptEntry = {
+  function: string;          // edge function name
+  model: string;             // e.g. "google/gemini-2.5-pro"
+  version: string;           // semver-ish, bumped manually on edit
+  updated_at: string;        // ISO date, bumped with version
+  description: string;       // one-liner of purpose
+  system_prompt: string;     // the exact string sent as system message
+  notes?: string;            // optional: tool-call schema name, batching, etc.
+};
 
-## 2. Client wiring
+export const PROMPTS = {
+  "parse-syllabus":            { ... },
+  "extract-lesson-plan":       { ... },
+  "extract-youtube-links":     { ... },
+  "suggest-concepts":          { ... },
+  "recommend-additional-concepts": { ... },
+  "generate-lesson-plan.reorder":       { ... },
+  "generate-lesson-plan.effort":        { ... },
+  "generate-lesson-plan.author-weeks":  { ... },
+  "regenerate-lesson-plan-week": { ... },
+  "generate-diagnostic-questions": { ... },
+  "chat":                      { ... },
+  "classify-question":         { ... },
+  "explain-answers":           { ... },
+  "suggest-lesson":            { ... },
+  "quality-check":             { ... },
+  "teacher-chat":              { ... },  // if present
+} satisfies Record<string, PromptEntry>;
+```
 
-`src/pages/teacher/CourseMaterials.tsx` — the Lesson Plans `FileUploadZone` already has `onUploadComplete`. Add a handler that calls `supabase.functions.invoke('extract-lesson-plan', { body: { courseId } })` and toasts "Extracted N weeks from lesson plan docs" / "Couldn't extract a structured plan from the uploaded files." Non-blocking; UI doesn't wait beyond the toast.
+Each existing edge function is edited to:
+- Import its entry: `import { PROMPTS } from "../_shared/prompts.ts";`
+- Replace the inline `systemPrompt` string with `PROMPTS["<name>"].system_prompt`
+- Log `prompt_version` alongside the existing model in `console.log` for traceability
 
-A lightweight in-card status line ("Last extraction: just now · N weeks") is shown when extraction completes in the current session. No new persistent state.
+Generation pipelines that use multiple prompts (e.g. `generate-lesson-plan` has 3 stages) get one entry per stage, keyed `<function>.<stage>`.
 
-## 3. Storage & DB
+## 2. Expose prompts to the client
 
-- No new tables. No new columns. Path is fully derivable from `courseId`, identical convention to `published-plan.json` / `draft-plan-v2.json`.
-- Existing storage RLS on `course-materials` already grants course members read/write under the `{courseId}/...` prefix, so no policy changes.
+New edge function: `supabase/functions/list-prompts/index.ts`
+- `verify_jwt = false` in `supabase/config.toml` (we gate on role in code)
+- Validates JWT manually, then checks `public.is_admin(user_id)` — non-admins get 403
+- Returns `{ prompts: PromptEntry[] }` straight from the shared module
+
+This avoids bundling the prompt text into the client bundle and ensures the admin always sees what is actually deployed.
+
+## 3. Admin viewer page
+
+New route: `/admin/prompts` (added to `src/App.tsx` under `AdminLayout`)
+
+New file: `src/pages/admin/AdminPrompts.tsx`
+- Calls `supabase.functions.invoke("list-prompts")` once
+- Renders a searchable table: Function · Stage · Model · Version · Updated · short description
+- Row click opens a side sheet with the full prompt text in a `<pre>` block, copy button, and the notes field
+- Tailwind tokens only, shadcn `Table`, `Sheet`, `Input`, `Badge` components
+- Empty/error/loading states
+
+New nav entry in `src/layouts/AdminLayout.tsx` sidebar: "AI Prompts" → `/admin/prompts`.
+
+## 4. Version bump convention
+
+A short comment block at the top of `prompts.ts` documents the rule:
+> When you edit any `system_prompt`, bump that entry's `version` (patch for wording, minor for structural change) and update `updated_at`. Do not edit prompts inline in edge functions.
+
+No DB tables, no migration history (per chosen option). History can be added later if needed.
 
 ## Files touched
 
-- **New:** `supabase/functions/extract-lesson-plan/index.ts`
-- **Edit:** `src/pages/teacher/CourseMaterials.tsx` (Lesson Plans card `onUploadComplete` + tiny status text)
+New:
+- `supabase/functions/_shared/prompts.ts`
+- `supabase/functions/list-prompts/index.ts`
+- `src/pages/admin/AdminPrompts.tsx`
 
-## Explicitly out of scope
+Edited (replace inline system prompt with shared import):
+- `supabase/functions/parse-syllabus/index.ts`
+- `supabase/functions/extract-lesson-plan/index.ts`
+- `supabase/functions/extract-youtube-links/index.ts`
+- `supabase/functions/suggest-concepts/index.ts`
+- `supabase/functions/recommend-additional-concepts/index.ts`
+- `supabase/functions/generate-lesson-plan/index.ts` (3 stages)
+- `supabase/functions/regenerate-lesson-plan-week/index.ts`
+- `supabase/functions/generate-diagnostic-questions/index.ts`
+- `supabase/functions/chat/index.ts`
+- `supabase/functions/classify-question/index.ts`
+- `supabase/functions/explain-answers/index.ts`
+- `supabase/functions/suggest-lesson/index.ts`
+- `supabase/functions/quality-check/index.ts`
+- `src/App.tsx` (route)
+- `src/layouts/AdminLayout.tsx` (nav link)
+- `supabase/config.toml` (config block for `list-prompts` with `verify_jwt = false`)
 
-- No changes to `generate-lesson-plan` or any reader of the published plan.
-- No re-extraction trigger on file delete (stale JSON remains until next upload). Can add later.
-- No UI to view/edit the extracted JSON in this pass.
+## Out of scope
+
+- No DB-backed prompt history or diff view (option 2 was not selected).
+- No runtime override of prompts from the DB — `prompts.ts` is the source of truth.
+- Non-AI edge functions (auth, wipe, seed, etc.) are not included.
