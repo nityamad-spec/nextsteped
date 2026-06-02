@@ -839,6 +839,33 @@ export type Database = {
         }
         Relationships: []
       }
+      edge_function_prompt_overrides: {
+        Row: {
+          function_name: string
+          id: string
+          prompt: string
+          stage: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          function_name: string
+          id?: string
+          prompt: string
+          stage?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          function_name?: string
+          id?: string
+          prompt?: string
+          stage?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       enrollments: {
         Row: {
           course_id: string
