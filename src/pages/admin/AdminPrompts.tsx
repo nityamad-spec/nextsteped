@@ -293,37 +293,19 @@ export default function AdminPrompts() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleRefreshModels}
-                        disabled={refreshing}
-                      >
-                        <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
-                        Refresh models
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Live fetch from the AI gateway is pending back-end approval. The button currently re-applies the bundled catalog.
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>
-                      <Button size="sm" onClick={handleSaveModels} disabled={dirtyCount === 0}>
-                        <Save className="h-3.5 w-3.5 mr-1.5" />
-                        Save {dirtyCount > 0 ? `(${dirtyCount})` : ""}
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Persisting per-step model overrides is pending back-end approval.
-                  </TooltipContent>
-                </Tooltip>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefreshModels}
+                  disabled={refreshing}
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
+                  Refresh models
+                </Button>
+                <Button size="sm" onClick={handleSaveModels} disabled={dirtyCount === 0 || saving}>
+                  <Save className="h-3.5 w-3.5 mr-1.5" />
+                  {saving ? "Saving…" : `Save${dirtyCount > 0 ? ` (${dirtyCount})` : ""}`}
+                </Button>
               </div>
             </Card>
 
