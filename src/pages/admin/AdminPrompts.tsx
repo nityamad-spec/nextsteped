@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -16,10 +17,10 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -33,7 +34,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Copy, FileText, RefreshCw, Save, Sparkles } from "lucide-react";
+import { Copy, FileText, Pencil, RefreshCw, Save } from "lucide-react";
 import { toast } from "sonner";
 import { FALLBACK_AI_MODELS, type AiModelOption } from "@/lib/aiModels";
 
@@ -50,6 +51,8 @@ type PromptEntry = {
   stage?: string;
 };
 
+const rowKey = (p: PromptEntry) => `${p.function}::${p.stage ?? ""}`;
+
 export default function AdminPrompts() {
   const [prompts, setPrompts] = useState<PromptEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,14 +60,14 @@ export default function AdminPrompts() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<PromptEntry | null>(null);
 
-  // --- Models tab state ---
   const [modelOptions, setModelOptions] = useState<AiModelOption[]>(FALLBACK_AI_MODELS);
   const [refreshing, setRefreshing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  // Saved server-side overrides keyed by `${function}::${stage ?? ""}`.
+  const [savingModels, setSavingModels] = useState(false);
   const [savedOverrides, setSavedOverrides] = useState<Record<string, string>>({});
-  // Pending local edits keyed the same way (only edits that differ from saved).
   const [modelOverrides, setModelOverrides] = useState<Record<string, string>>({});
+
+  // Prompt editor state (persistence pending approval).
+  const [draftPrompt, setDraftPrompt] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
@@ -79,8 +82,9 @@ export default function AdminPrompts() {
         setPrompts((promptsRes.data as { prompts: PromptEntry[] })?.prompts ?? []);
         if (!overridesRes.error) {
           const list =
-            (overridesRes.data as { overrides?: Array<{ function_name: string; stage: string | null; model: string }> })
-              ?.overrides ?? [];
+            (overridesRes.data as {
+              overrides?: Array<{ function_name: string; stage: string | null; model: string }>;
+            })?.overrides ?? [];
           const map: Record<string, string> = {};
           for (const o of list) map[`${o.function_name}::${o.stage ?? ""}`] = o.model;
           setSavedOverrides(map);
@@ -94,6 +98,18 @@ export default function AdminPrompts() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Initial model fetch — best effort; falls back silently to bundled.
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data, error: e } = await supabase.functions.invoke("list-ai-models");
+        if (e) return;
+        const list = (data as { models?: AiModelOption[] })?.models ?? [];
+        if (list.length > 0) setModelOptions(list);
+      } catch { /* keep fallback */ }
+    })();
   }, []);
 
   const filtered = prompts.filter((p) => {
@@ -110,24 +126,18 @@ export default function AdminPrompts() {
   const copyPrompt = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("Prompt copied to clipboard");
+      toast.success("Prompt copied");
     } catch {
       toast.error("Copy failed");
     }
   };
 
-  // Build the per-step rows for the Models tab from the prompt registry.
-  // Effective model precedence: pending edit > saved override > registry default.
-  const modelRows = useMemo(() => {
-    return prompts.map((p) => {
-      const key = `${p.function}::${p.stage ?? ""}`;
-      const current =
-        modelOverrides[key] ?? savedOverrides[key] ?? p.model;
-      return { key, entry: p, current };
-    });
-  }, [prompts, modelOverrides, savedOverrides]);
+  const dirtyModelCount = Object.keys(modelOverrides).length;
 
-  const dirtyCount = Object.keys(modelOverrides).length;
+  const effectiveModel = (p: PromptEntry) => {
+    const k = rowKey(p);
+    return modelOverrides[k] ?? savedOverrides[k] ?? p.model;
+  };
 
   const handleRefreshModels = async () => {
     setRefreshing(true);
@@ -139,7 +149,7 @@ export default function AdminPrompts() {
         setModelOptions(list);
         toast.success(
           (data as { source?: string })?.source === "gateway"
-            ? "Loaded live model catalog from the AI gateway"
+            ? "Loaded live model catalog"
             : "Loaded bundled fallback catalog",
         );
       } else {
@@ -154,11 +164,9 @@ export default function AdminPrompts() {
   };
 
   const handleSaveModels = async () => {
-    if (dirtyCount === 0) return;
-    setSaving(true);
+    if (dirtyModelCount === 0) return;
+    setSavingModels(true);
     try {
-      // Build the payload from pending edits. If the edit equals the registry
-      // default AND there is no saved override, skip (nothing to persist).
       const payload: Array<{ function_name: string; stage: string | null; model: string | null }> = [];
       for (const [key, model] of Object.entries(modelOverrides)) {
         const [function_name, stageRaw] = key.split("::");
@@ -167,7 +175,6 @@ export default function AdminPrompts() {
           (p) => p.function === function_name && (p.stage ?? "") === (stage ?? ""),
         );
         if (!entry) continue;
-        // If user reverted to the registry default, send null to delete the row.
         payload.push({
           function_name,
           stage,
@@ -178,7 +185,6 @@ export default function AdminPrompts() {
         body: { overrides: payload },
       });
       if (invokeErr) throw invokeErr;
-      // Merge into savedOverrides snapshot, then clear pending edits.
       setSavedOverrides((prev) => {
         const next = { ...prev };
         for (const p of payload) {
@@ -189,13 +195,25 @@ export default function AdminPrompts() {
         return next;
       });
       setModelOverrides({});
-      toast.success(`Saved ${(data as { applied?: number })?.applied ?? payload.length} override(s)`);
+      toast.success(`Saved ${(data as { applied?: number })?.applied ?? payload.length} model override(s)`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to save overrides");
+      toast.error(e instanceof Error ? e.message : "Failed to save model overrides");
     } finally {
-      setSaving(false);
+      setSavingModels(false);
     }
   };
+
+  const openEditor = (p: PromptEntry) => {
+    setSelected(p);
+    setDraftPrompt(p.system_prompt);
+  };
+
+  const closeEditor = () => {
+    setSelected(null);
+    setDraftPrompt("");
+  };
+
+  const promptDirty = selected ? draftPrompt !== selected.system_prompt : false;
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -205,208 +223,154 @@ export default function AdminPrompts() {
           <div>
             <h1 className="text-2xl font-bold">AI Setup Configuration</h1>
             <p className="text-sm text-muted-foreground">
-              System prompts and per-step model selection for every AI edge function.
+              Manage the model and system prompt for every AI edge function.
             </p>
           </div>
         </div>
 
-        <Tabs defaultValue="prompts">
-          <TabsList>
-            <TabsTrigger value="prompts">Prompts</TabsTrigger>
-            <TabsTrigger value="models">Models</TabsTrigger>
-          </TabsList>
+        <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
+          <Input
+            placeholder="Search by function, model, or prompt text…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="max-w-md"
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefreshModels}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh models
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSaveModels}
+              disabled={dirtyModelCount === 0 || savingModels}
+            >
+              <Save className="h-3.5 w-3.5 mr-1.5" />
+              {savingModels
+                ? "Saving…"
+                : `Save models${dirtyModelCount > 0 ? ` (${dirtyModelCount})` : ""}`}
+            </Button>
+          </div>
+        </Card>
 
-          {/* ===================== Prompts tab ===================== */}
-          <TabsContent value="prompts" className="space-y-4 mt-4">
-            <Card className="p-4">
-              <Input
-                placeholder="Search by function, model, or prompt text…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="max-w-md"
-              />
-            </Card>
-
-            <Card>
-              {loading ? (
-                <div className="p-8 text-center text-muted-foreground">Loading prompts…</div>
-              ) : error ? (
-                <div className="p-8 text-center text-destructive">{error}</div>
-              ) : filtered.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground">No prompts match.</div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Function</TableHead>
-                      <TableHead>Model</TableHead>
-                      <TableHead>Version</TableHead>
-                      <TableHead>Updated</TableHead>
-                      <TableHead>Wired</TableHead>
-                      <TableHead>Description</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((p) => (
-                      <TableRow
-                        key={`${p.function}::${p.stage ?? ""}`}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => setSelected(p)}
-                      >
-                        <TableCell className="font-mono text-xs">
-                          {p.function}
-                          {p.stage && (
-                            <span className="text-muted-foreground"> · {p.stage}</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{p.model}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">v{p.version}</Badge>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{p.updated_at}</TableCell>
-                        <TableCell>
-                          {p.wired ? (
-                            <Badge variant="default">imported</Badge>
-                          ) : (
-                            <Badge variant="outline">inline</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm max-w-md truncate">{p.description}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </Card>
-          </TabsContent>
-
-          {/* ===================== Models tab ===================== */}
-          <TabsContent value="models" className="space-y-4 mt-4">
-            <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <Sparkles className="h-5 w-5 text-primary mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium">Choose the Gemini / Lovable AI model for each setup step.</p>
-                  <p className="text-xs text-muted-foreground">
-                    Each row is one edge function (or one stage of a multi-stage pipeline). Use "Refresh models" to pull the latest catalog from the AI gateway.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRefreshModels}
-                  disabled={refreshing}
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
-                  Refresh models
-                </Button>
-                <Button size="sm" onClick={handleSaveModels} disabled={dirtyCount === 0 || saving}>
-                  <Save className="h-3.5 w-3.5 mr-1.5" />
-                  {saving ? "Saving…" : `Save${dirtyCount > 0 ? ` (${dirtyCount})` : ""}`}
-                </Button>
-              </div>
-            </Card>
-
-            <Card>
-              {loading ? (
-                <div className="p-8 text-center text-muted-foreground">Loading steps…</div>
-              ) : error ? (
-                <div className="p-8 text-center text-destructive">{error}</div>
-              ) : modelRows.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground">No setup steps found.</div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[36%]">Setup step</TableHead>
-                      <TableHead>Default model</TableHead>
-                      <TableHead>Model used at runtime</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {modelRows.map(({ key, entry, current }) => {
-                      const isDirty = key in modelOverrides;
-                      return (
-                        <TableRow key={key}>
-                          <TableCell>
-                            <div className="font-medium text-sm">
-                              {entry.function}
-                              {entry.stage && (
-                                <span className="text-muted-foreground"> · {entry.stage}</span>
+        <Card>
+          {loading ? (
+            <div className="p-8 text-center text-muted-foreground">Loading prompts…</div>
+          ) : error ? (
+            <div className="p-8 text-center text-destructive">{error}</div>
+          ) : filtered.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">No prompts match.</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[26%]">Function</TableHead>
+                  <TableHead className="w-[26%]">Model</TableHead>
+                  <TableHead>Version</TableHead>
+                  <TableHead>Updated</TableHead>
+                  <TableHead>Wired</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Prompt</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((p) => {
+                  const k = rowKey(p);
+                  const current = effectiveModel(p);
+                  const isDirty = k in modelOverrides;
+                  return (
+                    <TableRow key={k}>
+                      <TableCell className="font-mono text-xs align-top">
+                        {p.function}
+                        {p.stage && (
+                          <span className="text-muted-foreground"> · {p.stage}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={current}
+                            onValueChange={(value) => {
+                              setModelOverrides((prev) => {
+                                const next = { ...prev };
+                                if (value === p.model) delete next[k];
+                                else next[k] = value;
+                                return next;
+                              });
+                            }}
+                          >
+                            <SelectTrigger className="w-[240px] h-8 text-xs">
+                              <SelectValue placeholder="Pick a model" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {!modelOptions.some((m) => m.id === current) && (
+                                <SelectItem value={current}>{current} (current)</SelectItem>
                               )}
-                            </div>
-                            <div className="text-xs text-muted-foreground line-clamp-1">
-                              {entry.description}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs font-mono text-muted-foreground">
-                            {entry.model}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Select
-                                value={current}
-                                onValueChange={(value) => {
-                                  setModelOverrides((prev) => {
-                                    const next = { ...prev };
-                                    if (value === entry.model) {
-                                      delete next[key];
-                                    } else {
-                                      next[key] = value;
-                                    }
-                                    return next;
-                                  });
-                                }}
-                              >
-                                <SelectTrigger className="w-[280px]">
-                                  <SelectValue placeholder="Pick a model" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {/* Include the current value even if not in the catalog. */}
-                                  {!modelOptions.some((m) => m.id === current) && (
-                                    <SelectItem value={current}>{current} (current)</SelectItem>
-                                  )}
-                                  {modelOptions.map((m) => (
-                                    <SelectItem key={m.id} value={m.id}>
-                                      <div className="flex flex-col">
-                                        <span className="text-sm">{m.label}</span>
-                                        <span className="text-[10px] text-muted-foreground font-mono">
-                                          {m.id}
-                                        </span>
-                                      </div>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              {isDirty && <Badge variant="secondary">unsaved</Badge>}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              )}
-            </Card>
-          </TabsContent>
-        </Tabs>
+                              {modelOptions.map((m) => (
+                                <SelectItem key={m.id} value={m.id}>
+                                  <div className="flex flex-col">
+                                    <span className="text-sm">{m.label}</span>
+                                    <span className="text-[10px] text-muted-foreground font-mono">
+                                      {m.id}
+                                    </span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {isDirty && <Badge variant="secondary" className="text-[10px]">unsaved</Badge>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <Badge variant="secondary">v{p.version}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground align-top">{p.updated_at}</TableCell>
+                      <TableCell className="align-top">
+                        {p.wired ? (
+                          <Badge variant="default">imported</Badge>
+                        ) : (
+                          <Badge variant="outline">inline</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm max-w-sm truncate align-top">{p.description}</TableCell>
+                      <TableCell className="text-right align-top">
+                        <Button variant="ghost" size="sm" onClick={() => openEditor(p)}>
+                          <Pencil className="h-3.5 w-3.5 mr-1" />
+                          Edit
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
 
-        <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-          <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+        <Sheet open={!!selected} onOpenChange={(open) => !open && closeEditor()}>
+          <SheetContent className="w-full sm:max-w-2xl overflow-y-auto flex flex-col">
             {selected && (
               <>
                 <SheetHeader>
-                  <SheetTitle className="font-mono text-base">{selected.function}</SheetTitle>
+                  <SheetTitle className="font-mono text-base">
+                    {selected.function}
+                    {selected.stage && (
+                      <span className="text-muted-foreground"> · {selected.stage}</span>
+                    )}
+                  </SheetTitle>
                   <SheetDescription>{selected.description}</SheetDescription>
                 </SheetHeader>
 
-                <div className="mt-6 space-y-4">
+                <div className="mt-6 space-y-4 flex-1">
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <div className="text-xs text-muted-foreground">Model</div>
-                      <div className="font-mono text-xs">{selected.model}</div>
+                      <div className="text-xs text-muted-foreground">Model (effective)</div>
+                      <div className="font-mono text-xs">{effectiveModel(selected)}</div>
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Version</div>
@@ -444,17 +408,53 @@ export default function AdminPrompts() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => copyPrompt(selected.system_prompt)}
+                        onClick={() => copyPrompt(draftPrompt)}
                       >
                         <Copy className="h-3 w-3 mr-1" />
                         Copy
                       </Button>
                     </div>
-                    <pre className="p-3 rounded-md bg-muted text-xs whitespace-pre-wrap font-mono max-h-[60vh] overflow-y-auto">
-                      {selected.system_prompt}
-                    </pre>
+                    <Textarea
+                      value={draftPrompt}
+                      onChange={(e) => setDraftPrompt(e.target.value)}
+                      className="font-mono text-xs min-h-[400px]"
+                    />
+                    {!selected.wired && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        This prompt is built inline at request time with runtime values
+                        (e.g. <code>{"${courseName}"}</code>). Editing here will not yet
+                        affect runtime behavior — pending the persistence approach.
+                      </p>
+                    )}
                   </div>
                 </div>
+
+                <SheetFooter className="mt-4 gap-2">
+                  <Button variant="outline" onClick={closeEditor}>
+                    Cancel
+                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button
+                          disabled={!promptDirty}
+                          onClick={() =>
+                            toast.message(
+                              "Prompt persistence is pending approval — the back-end plan was just proposed.",
+                            )
+                          }
+                        >
+                          <Save className="h-3.5 w-3.5 mr-1.5" />
+                          Save prompt
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Persistence not wired yet — awaiting your approval on the
+                      proposed prompt-override table & resolver.
+                    </TooltipContent>
+                  </Tooltip>
+                </SheetFooter>
               </>
             )}
           </SheetContent>
