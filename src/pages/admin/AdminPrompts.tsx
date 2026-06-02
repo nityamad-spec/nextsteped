@@ -75,9 +75,10 @@ export default function AdminPrompts() {
     let cancelled = false;
     (async () => {
       try {
-        const [promptsRes, overridesRes] = await Promise.all([
+        const [promptsRes, overridesRes, promptOverridesRes] = await Promise.all([
           supabase.functions.invoke("list-prompts"),
           supabase.functions.invoke("list-model-overrides"),
+          supabase.functions.invoke("list-prompt-overrides"),
         ]);
         if (cancelled) return;
         if (promptsRes.error) throw promptsRes.error;
@@ -90,6 +91,15 @@ export default function AdminPrompts() {
           const map: Record<string, string> = {};
           for (const o of list) map[`${o.function_name}::${o.stage ?? ""}`] = o.model;
           setSavedOverrides(map);
+        }
+        if (!promptOverridesRes.error) {
+          const list =
+            (promptOverridesRes.data as {
+              overrides?: Array<{ function_name: string; stage: string | null; prompt: string }>;
+            })?.overrides ?? [];
+          const map: Record<string, string> = {};
+          for (const o of list) map[`${o.function_name}::${o.stage ?? ""}`] = o.prompt;
+          setPromptOverrides(map);
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load prompts");
