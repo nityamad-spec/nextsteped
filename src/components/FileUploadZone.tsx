@@ -744,6 +744,48 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         );
       })()}
 
+      {/* Generic upload/processing progress (non-syllabus zones). Matches the
+          syllabus card styling so the setup page feels consistent. */}
+      {folderType !== "syllabus" && (uploading || processing) && uploadStartedAt !== null && (() => {
+        const phase: "uploading" | "processing" = uploading ? "uploading" : "processing";
+        const elapsed = now - uploadStartedAt;
+        // Cap each phase to the upload estimate; the bar holds at ~95% until the
+        // underlying promise resolves, then jumps to 100% via the confirmation row.
+        const estTotal = UPLOAD_EST_MS;
+        const pct = Math.min(95, Math.round((elapsed / estTotal) * 100));
+        const remaining = Math.max(1, Math.ceil((estTotal - elapsed) / 1000));
+        const label = phase === "uploading" ? "Uploading files…" : "Processing uploaded files…";
+        const sub = phase === "uploading"
+          ? (onUploadComplete ? "Step 1 of 2: secure upload" : "Secure upload in progress")
+          : "Step 2 of 2: extracting structure";
+        return (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span className="font-medium text-foreground">{label}</span>
+            </div>
+            <Progress value={pct} className="h-2" />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{sub}</span>
+              {phase === "uploading" && <span>~{remaining}s remaining</span>}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Short-lived "Upload complete" confirmation row. */}
+      {folderType !== "syllabus" && justCompletedAt !== null && !uploading && !processing && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Check className="h-4 w-4 text-primary" />
+            <span className="font-medium text-foreground">Upload complete</span>
+          </div>
+          <Progress value={100} className="h-2 mt-2" />
+        </div>
+      )}
+
+
+
       {files.length > 0 && (
         <div className="space-y-1.5 pt-1">
           {files.map((f) => (
