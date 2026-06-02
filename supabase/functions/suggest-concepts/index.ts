@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { resolveModel } from "../_shared/resolveModel.ts";
+import { resolvePrompt } from "../_shared/resolvePrompt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -161,7 +163,7 @@ serve(async (req) => {
       )
       .join("\n\n");
 
-    const systemPrompt = `You are an expert curriculum designer extracting teachable items from course materials.
+    const defaultSystemPrompt = `You are an expert curriculum designer extracting teachable items from course materials.
 
 INPUT
 You receive the parsed syllabus units in order; each unit has a sequence number and a list of verbatim topic strings. You may also receive additional uploaded materials (teaching notes, a user-provided lesson plan, transcripts). These are SECONDARY: use them to enrich, clarify, and add detail to items the syllabus defines, but the syllabus alone defines which units exist, their order, and the authoritative topic list. Never create a unit, or an item unanchored to a syllabus topic, from the secondary materials alone. If a secondary document elaborates on a syllabus topic, fold that detail into the matching item rather than spawning a separate one.
@@ -235,6 +237,8 @@ Return strict JSON with one key "items", an array of objects, each with:
   source_units (array of integers), position (integer), covers_topics (array),
   sources (array, may be empty), weight_pct (integer for leaves, null for parents), weight_rationale (string).
 Output only the JSON. No prose, no markdown fences`;
+
+    const systemPrompt = await resolvePrompt("suggest-concepts", null, defaultSystemPrompt);
 
     type ConceptOut = {
       name: string;

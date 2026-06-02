@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { resolveModel } from "../_shared/resolveModel.ts";
+import { resolvePrompt } from "../_shared/resolvePrompt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,7 +39,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = `You are a document parser for academic syllabi. Extract the content into STRICT JSON with exactly these keys and no others. Output only raw JSON, no markdown fences, no commentary.
+    const defaultSystemPrompt = `You are a document parser for academic syllabi. Extract the content into STRICT JSON with exactly these keys and no others. Output only raw JSON, no markdown fences, no commentary.
 
   - objectives     (array of strings: course goals and aims)
   - outcomes       (array of strings: measurable competencies students will gain)
@@ -76,6 +77,8 @@ Capture the body however it is organized:
 - Written as prose: split it into the distinct topics it covers, as separate unit objects, in the order they are presented.
 
 Only return units as an empty array if the document contains no subject-matter content at all`;
+
+    const systemPrompt = await resolvePrompt("parse-syllabus", null, defaultSystemPrompt);
 
     // Build messages based on whether we have base64 (binary file) or text content
     const userMessages: any[] = [];

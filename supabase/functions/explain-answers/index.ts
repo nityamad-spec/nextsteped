@@ -1,4 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { resolveModel } from "../_shared/resolveModel.ts";
+import { resolvePrompt } from "../_shared/resolvePrompt.ts";
+import { EXPLAIN_ANSWERS_SYSTEM } from "../_shared/prompts.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,16 +37,11 @@ serve(async (req) => {
       )
       .join("\n\n");
 
-    const systemPrompt = `You are an expert teaching assistant. For each question below, provide a clear, concise explanation (2-4 sentences) of:
-1. WHY the correct answer is correct — explain the underlying concept
-2. If the student got it wrong, explain WHY their answer was incorrect and the common misconception
-
-Return a JSON array where each element has:
-- "index": the question number (0-based)
-- "explanation": the explanation text (use markdown for formatting)
-
-Be educational and encouraging. Focus on building understanding, not just stating facts.
-Return ONLY the JSON array, no other text.`;
+    const systemPrompt = await resolvePrompt(
+      "explain-answers",
+      null,
+      EXPLAIN_ANSWERS_SYSTEM,
+    );
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",

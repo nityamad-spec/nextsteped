@@ -1,4 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { resolveModel } from "../_shared/resolveModel.ts";
+import { resolvePrompt } from "../_shared/resolvePrompt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,7 +22,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = `You are an expert curriculum designer and pedagogy specialist. You will generate TWO things for a single week of a university-level course:
+    const defaultSystemPrompt = `You are an expert curriculum designer and pedagogy specialist. You will generate TWO things for a single week of a university-level course:
 
 1. A structured lesson description with these clearly labeled sections (use exactly these headings):
    **Overview:** A 2-3 sentence overview of the week's focus and goals.
@@ -87,6 +89,8 @@ Concept: [Second Concept]
 
 Valid types: textbook, lab, case-study, exercise, article, video, tool, news
 Valid provenance values: instructor, web`;
+
+    const systemPrompt = await resolvePrompt("suggest-lesson", null, defaultSystemPrompt);
 
     const existingResourcesSummary = existingResources?.length > 0
       ? `\nExisting resources (incorporate these into the appropriate concepts, and suggest NEW additional ones):\n${existingResources.map((r: any) => `- ${r.title}: ${r.action}`).join("\n")}`

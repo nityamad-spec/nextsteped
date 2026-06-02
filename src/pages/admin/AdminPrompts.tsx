@@ -66,16 +66,19 @@ export default function AdminPrompts() {
   const [savedOverrides, setSavedOverrides] = useState<Record<string, string>>({});
   const [modelOverrides, setModelOverrides] = useState<Record<string, string>>({});
 
-  // Prompt editor state (persistence pending approval).
+  // Prompt override state.
+  const [promptOverrides, setPromptOverrides] = useState<Record<string, string>>({});
   const [draftPrompt, setDraftPrompt] = useState<string>("");
+  const [savingPrompt, setSavingPrompt] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [promptsRes, overridesRes] = await Promise.all([
+        const [promptsRes, overridesRes, promptOverridesRes] = await Promise.all([
           supabase.functions.invoke("list-prompts"),
           supabase.functions.invoke("list-model-overrides"),
+          supabase.functions.invoke("list-prompt-overrides"),
         ]);
         if (cancelled) return;
         if (promptsRes.error) throw promptsRes.error;
@@ -88,6 +91,15 @@ export default function AdminPrompts() {
           const map: Record<string, string> = {};
           for (const o of list) map[`${o.function_name}::${o.stage ?? ""}`] = o.model;
           setSavedOverrides(map);
+        }
+        if (!promptOverridesRes.error) {
+          const list =
+            (promptOverridesRes.data as {
+              overrides?: Array<{ function_name: string; stage: string | null; prompt: string }>;
+            })?.overrides ?? [];
+          const map: Record<string, string> = {};
+          for (const o of list) map[`${o.function_name}::${o.stage ?? ""}`] = o.prompt;
+          setPromptOverrides(map);
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load prompts");
@@ -205,7 +217,8 @@ export default function AdminPrompts() {
 
   const openEditor = (p: PromptEntry) => {
     setSelected(p);
-    setDraftPrompt(p.system_prompt);
+    const k = rowKey(p);
+    setDraftPrompt(promptOverrides[k] ?? p.system_prompt);
   };
 
   const closeEditor = () => {
@@ -213,7 +226,41 @@ export default function AdminPrompts() {
     setDraftPrompt("");
   };
 
-  const promptDirty = selected ? draftPrompt !== selected.system_prompt : false;
+  const promptDirty = selected
+    ? draftPrompt !== (promptOverrides[rowKey(selected)] ?? selected.system_prompt)
+    : false;
+
+  const handleSavePrompt = async (reset = false) => {
+    if (!selected) return;
+    setSavingPrompt(true);
+    try {
+      const { error: invokeErr } = await supabase.functions.invoke("set-prompt-override", {
+        body: {
+          overrides: [
+            {
+              function_name: selected.function,
+              stage: selected.stage ?? null,
+              prompt: reset ? null : draftPrompt,
+            },
+          ],
+        },
+      });
+      if (invokeErr) throw invokeErr;
+      const k = rowKey(selected);
+      setPromptOverrides((prev) => {
+        const next = { ...prev };
+        if (reset) delete next[k];
+        else next[k] = draftPrompt;
+        return next;
+      });
+      if (reset) setDraftPrompt(selected.system_prompt);
+      toast.success(reset ? "Reverted to default" : "Prompt override saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save prompt");
+    } finally {
+      setSavingPrompt(false);
+    }
+  };
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -419,13 +466,15 @@ export default function AdminPrompts() {
                       onChange={(e) => setDraftPrompt(e.target.value)}
                       className="font-mono text-xs min-h-[400px]"
                     />
-                    {!selected.wired && (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        This prompt is built inline at request time with runtime values
-                        (e.g. <code>{"${courseName}"}</code>). Editing here will not yet
-                        affect runtime behavior — pending the persistence approach.
+                    {promptOverrides[rowKey(selected)] !== undefined && (
+                      <p className="text-xs text-amber-600 mt-2">
+                        An admin override is currently active for this prompt.
                       </p>
                     )}
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Use <code>{"{{placeholder}}"}</code> tokens to inject runtime values
+                      (e.g. <code>{"{{courseName}}"}</code>). Unknown tokens render literally.
+                    </p>
                   </div>
                 </div>
 
@@ -433,27 +482,22 @@ export default function AdminPrompts() {
                   <Button variant="outline" onClick={closeEditor}>
                     Cancel
                   </Button>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        <Button
-                          disabled={!promptDirty}
-                          onClick={() =>
-                            toast.message(
-                              "Prompt persistence is pending approval — the back-end plan was just proposed.",
-                            )
-                          }
-                        >
-                          <Save className="h-3.5 w-3.5 mr-1.5" />
-                          Save prompt
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      Persistence not wired yet — awaiting your approval on the
-                      proposed prompt-override table & resolver.
-                    </TooltipContent>
-                  </Tooltip>
+                  {promptOverrides[rowKey(selected)] !== undefined && (
+                    <Button
+                      variant="outline"
+                      onClick={() => handleSavePrompt(true)}
+                      disabled={savingPrompt}
+                    >
+                      Reset to default
+                    </Button>
+                  )}
+                  <Button
+                    disabled={!promptDirty || savingPrompt}
+                    onClick={() => handleSavePrompt(false)}
+                  >
+                    <Save className="h-3.5 w-3.5 mr-1.5" />
+                    {savingPrompt ? "Saving…" : "Save prompt"}
+                  </Button>
                 </SheetFooter>
               </>
             )}
