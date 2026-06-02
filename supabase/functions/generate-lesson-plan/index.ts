@@ -619,9 +619,9 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
       return `Week ${w.week}: ${w.concept_names.length > 0 ? w.concept_names.join(", ") : "(no concepts assigned)"}`;
     }).join("\n");
 
-    const authorSystem = `You author readable week-level metadata for a fixed lesson-plan distribution.
+    const defaultAuthorSystem = `You author readable week-level metadata for a fixed lesson-plan distribution.
 
-You will be given EXACTLY ${totalWeeks} weeks with their assigned concepts already locked. Your job is ONLY to write:
+You will be given EXACTLY {{totalWeeks}} weeks with their assigned concepts already locked. Your job is ONLY to write:
 - week_name (3–6 word title) for each non-exam week
 - overview (3–5 sentences) for each non-exam week, grounded strictly in the assigned concepts. Cover: (1) what the average student will be able to do by the end of the week, (2) how it builds on prior weeks, (3) the most common misconception or stumbling block to watch for.
 - 1 coding-exercise + 1–2 article resources per non-exam week, tied to those concepts. Articles must be REAL, well-known, freely accessible (e.g. official Python docs, Real Python, MDN, official framework docs) with working https URLs. If you are not certain a URL exists, OMIT the url field rather than inventing one.
@@ -630,10 +630,16 @@ You will be given EXACTLY ${totalWeeks} weeks with their assigned concepts alrea
 Tone: factual, pedagogical, realistic. Do not over-promise mastery. Avoid repetitive phrasing across weeks.
 
 For exam weeks: week_name="" and overview="Exam week — review prior content." and resources=[].
-You CANNOT change which concepts go in which week. Output exactly ${totalWeeks} week entries with the same week numbers.
+You CANNOT change which concepts go in which week. Output exactly {{totalWeeks}} week entries with the same week numbers.
 Each concept name appears in exactly one week. Do not echo or rehash concept names from other weeks inside this week's overview text.
 
 Return ONLY via the provided tool.`;
+    const authorSystem = await resolvePrompt(
+      "generate-lesson-plan",
+      "author",
+      defaultAuthorSystem,
+      { totalWeeks },
+    );
 
     const authorUser = `COURSE: ${course.name} (${course.term})
 Objectives: ${(course.objectives || []).join("; ") || "Not specified"}
