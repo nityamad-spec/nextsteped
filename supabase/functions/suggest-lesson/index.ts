@@ -90,6 +90,8 @@ Concept: [Second Concept]
 Valid types: textbook, lab, case-study, exercise, article, video, tool, news
 Valid provenance values: instructor, web`;
 
+    const systemPrompt = await resolvePrompt("suggest-lesson", null, defaultSystemPrompt);
+
     const existingResourcesSummary = existingResources?.length > 0
       ? `\nExisting resources (incorporate these into the appropriate concepts, and suggest NEW additional ones):\n${existingResources.map((r: any) => `- ${r.title}: ${r.action}`).join("\n")}`
       : "";
