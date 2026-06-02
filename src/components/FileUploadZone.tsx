@@ -335,7 +335,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const handleConfirmedUpload = async () => {
     if (pending.length === 0 || !confirmed) return;
     setUploading(true);
-    if (folderType === "syllabus") setUploadStartedAt(Date.now());
+    setUploadStartedAt(Date.now());
 
     // Ensure we have a fresh session token before uploading
     const { error: refreshError } = await supabase.auth.refreshSession();
@@ -380,13 +380,36 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     if (newFiles.length > 0) {
       onFilesChange([...files, ...newFiles]);
       toast.success(`${newFiles.length} file(s) uploaded`);
-      onUploadComplete?.(newFiles);
     }
 
     setPending([]);
     setConfirmed(false);
     setUploading(false);
-    if (folderType === "syllabus") setUploadStartedAt(null);
+    if (folderType === "syllabus") {
+      // Keep uploadStartedAt set so the parsing phase can render; the parse
+      // useEffect clears it implicitly via the "parsing" status. We clear here
+      // for non-syllabus zones below.
+    } else {
+      setUploadStartedAt(null);
+    }
+
+    // Run the post-upload side-effect (e.g. extract YouTube links, kick off
+    // lesson-plan extraction) inside a "processing" phase so the progress card
+    // stays visible and the parent's "Next" button stays gated.
+    if (newFiles.length > 0 && onUploadComplete) {
+      setProcessing(true);
+      try {
+        await onUploadComplete(newFiles);
+      } catch (err) {
+        console.error("onUploadComplete failed:", err);
+      } finally {
+        setProcessing(false);
+      }
+    }
+
+    if (newFiles.length > 0 && folderType !== "syllabus") {
+      setJustCompletedAt(Date.now());
+    }
 
     // Kick off background parsing for syllabus files. Non-blocking.
     for (const { file, path } of syllabusToParse) {
