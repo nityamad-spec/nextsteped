@@ -134,7 +134,7 @@ Suggest additional concepts to recommend.`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
+          model: await resolveModel("recommend-additional-concepts", null, "google/gemini-2.5-pro"),
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },

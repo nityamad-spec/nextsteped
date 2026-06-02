@@ -5,3 +5,12 @@ verify_jwt = true
 
 [functions.list-prompts]
 verify_jwt = false
+
+[functions.list-ai-models]
+verify_jwt = false
+
+[functions.set-model-override]
+verify_jwt = false
+
+[functions.list-model-overrides]
+verify_jwt = false

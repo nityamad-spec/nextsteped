@@ -303,7 +303,7 @@ STRICT RULES:
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: await resolveModel("generate-diagnostic-questions", null, MODEL),
       temperature: 0.3,
       messages: [
         { role: "system", content: systemPrompt },

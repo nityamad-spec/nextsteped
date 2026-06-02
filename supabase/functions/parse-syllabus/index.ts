@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { resolveModel } from "../_shared/resolveModel.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -117,7 +118,7 @@ ${fileContent}
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
+        model: await resolveModel("parse-syllabus", null, "google/gemini-2.5-pro"),
         messages: [{ role: "system", content: systemPrompt }, ...userMessages],
         tools: [
           {

@@ -60,17 +60,31 @@ export default function AdminPrompts() {
   // --- Models tab state ---
   const [modelOptions, setModelOptions] = useState<AiModelOption[]>(FALLBACK_AI_MODELS);
   const [refreshing, setRefreshing] = useState(false);
-  // Local edits keyed by `${function}::${stage ?? ""}`.
+  const [saving, setSaving] = useState(false);
+  // Saved server-side overrides keyed by `${function}::${stage ?? ""}`.
+  const [savedOverrides, setSavedOverrides] = useState<Record<string, string>>({});
+  // Pending local edits keyed the same way (only edits that differ from saved).
   const [modelOverrides, setModelOverrides] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const { data, error: invokeErr } = await supabase.functions.invoke("list-prompts");
+        const [promptsRes, overridesRes] = await Promise.all([
+          supabase.functions.invoke("list-prompts"),
+          supabase.functions.invoke("list-model-overrides"),
+        ]);
         if (cancelled) return;
-        if (invokeErr) throw invokeErr;
-        setPrompts((data as { prompts: PromptEntry[] })?.prompts ?? []);
+        if (promptsRes.error) throw promptsRes.error;
+        setPrompts((promptsRes.data as { prompts: PromptEntry[] })?.prompts ?? []);
+        if (!overridesRes.error) {
+          const list =
+            (overridesRes.data as { overrides?: Array<{ function_name: string; stage: string | null; model: string }> })
+              ?.overrides ?? [];
+          const map: Record<string, string> = {};
+          for (const o of list) map[`${o.function_name}::${o.stage ?? ""}`] = o.model;
+          setSavedOverrides(map);
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load prompts");
       } finally {
@@ -103,38 +117,84 @@ export default function AdminPrompts() {
   };
 
   // Build the per-step rows for the Models tab from the prompt registry.
-  // Every registry entry corresponds to one setup-pipeline step (some
-  // functions like generate-lesson-plan ship multiple `stage` entries).
+  // Effective model precedence: pending edit > saved override > registry default.
   const modelRows = useMemo(() => {
     return prompts.map((p) => {
       const key = `${p.function}::${p.stage ?? ""}`;
-      const current = modelOverrides[key] ?? p.model;
+      const current =
+        modelOverrides[key] ?? savedOverrides[key] ?? p.model;
       return { key, entry: p, current };
     });
-  }, [prompts, modelOverrides]);
+  }, [prompts, modelOverrides, savedOverrides]);
 
   const dirtyCount = Object.keys(modelOverrides).length;
 
   const handleRefreshModels = async () => {
     setRefreshing(true);
     try {
-      // Back-end endpoint not yet wired — see plan.md. For now this just
-      // re-applies the static catalog so the UI is verifiable.
-      await new Promise((r) => setTimeout(r, 400));
-      setModelOptions(FALLBACK_AI_MODELS);
-      toast.message("Using bundled model catalog", {
-        description: "Live refresh from the AI gateway is pending back-end approval.",
-      });
+      const { data, error: invokeErr } = await supabase.functions.invoke("list-ai-models");
+      if (invokeErr) throw invokeErr;
+      const list = (data as { models?: AiModelOption[]; source?: string })?.models ?? [];
+      if (list.length > 0) {
+        setModelOptions(list);
+        toast.success(
+          (data as { source?: string })?.source === "gateway"
+            ? "Loaded live model catalog from the AI gateway"
+            : "Loaded bundled fallback catalog",
+        );
+      } else {
+        setModelOptions(FALLBACK_AI_MODELS);
+        toast.message("Using bundled model catalog");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to refresh models");
     } finally {
       setRefreshing(false);
     }
   };
 
-  const handleSaveModels = () => {
-    toast.message("Saving model selections is pending back-end approval", {
-      description:
-        "The UI tracks your choices locally, but writing them to the database and reading them at runtime requires the back-end pieces called out in the plan.",
-    });
+  const handleSaveModels = async () => {
+    if (dirtyCount === 0) return;
+    setSaving(true);
+    try {
+      // Build the payload from pending edits. If the edit equals the registry
+      // default AND there is no saved override, skip (nothing to persist).
+      const payload: Array<{ function_name: string; stage: string | null; model: string | null }> = [];
+      for (const [key, model] of Object.entries(modelOverrides)) {
+        const [function_name, stageRaw] = key.split("::");
+        const stage = stageRaw ? stageRaw : null;
+        const entry = prompts.find(
+          (p) => p.function === function_name && (p.stage ?? "") === (stage ?? ""),
+        );
+        if (!entry) continue;
+        // If user reverted to the registry default, send null to delete the row.
+        payload.push({
+          function_name,
+          stage,
+          model: model === entry.model ? null : model,
+        });
+      }
+      const { data, error: invokeErr } = await supabase.functions.invoke("set-model-override", {
+        body: { overrides: payload },
+      });
+      if (invokeErr) throw invokeErr;
+      // Merge into savedOverrides snapshot, then clear pending edits.
+      setSavedOverrides((prev) => {
+        const next = { ...prev };
+        for (const p of payload) {
+          const k = `${p.function_name}::${p.stage ?? ""}`;
+          if (p.model === null) delete next[k];
+          else next[k] = p.model;
+        }
+        return next;
+      });
+      setModelOverrides({});
+      toast.success(`Saved ${(data as { applied?: number })?.applied ?? payload.length} override(s)`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save overrides");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -233,37 +293,19 @@ export default function AdminPrompts() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleRefreshModels}
-                        disabled={refreshing}
-                      >
-                        <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
-                        Refresh models
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Live fetch from the AI gateway is pending back-end approval. The button currently re-applies the bundled catalog.
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>
-                      <Button size="sm" onClick={handleSaveModels} disabled={dirtyCount === 0}>
-                        <Save className="h-3.5 w-3.5 mr-1.5" />
-                        Save {dirtyCount > 0 ? `(${dirtyCount})` : ""}
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Persisting per-step model overrides is pending back-end approval.
-                  </TooltipContent>
-                </Tooltip>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefreshModels}
+                  disabled={refreshing}
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
+                  Refresh models
+                </Button>
+                <Button size="sm" onClick={handleSaveModels} disabled={dirtyCount === 0 || saving}>
+                  <Save className="h-3.5 w-3.5 mr-1.5" />
+                  {saving ? "Saving…" : `Save${dirtyCount > 0 ? ` (${dirtyCount})` : ""}`}
+                </Button>
               </div>
             </Card>
 
