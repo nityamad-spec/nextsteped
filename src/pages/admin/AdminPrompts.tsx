@@ -217,7 +217,8 @@ export default function AdminPrompts() {
 
   const openEditor = (p: PromptEntry) => {
     setSelected(p);
-    setDraftPrompt(p.system_prompt);
+    const k = rowKey(p);
+    setDraftPrompt(promptOverrides[k] ?? p.system_prompt);
   };
 
   const closeEditor = () => {
@@ -225,7 +226,41 @@ export default function AdminPrompts() {
     setDraftPrompt("");
   };
 
-  const promptDirty = selected ? draftPrompt !== selected.system_prompt : false;
+  const promptDirty = selected
+    ? draftPrompt !== (promptOverrides[rowKey(selected)] ?? selected.system_prompt)
+    : false;
+
+  const handleSavePrompt = async (reset = false) => {
+    if (!selected) return;
+    setSavingPrompt(true);
+    try {
+      const { error: invokeErr } = await supabase.functions.invoke("set-prompt-override", {
+        body: {
+          overrides: [
+            {
+              function_name: selected.function,
+              stage: selected.stage ?? null,
+              prompt: reset ? null : draftPrompt,
+            },
+          ],
+        },
+      });
+      if (invokeErr) throw invokeErr;
+      const k = rowKey(selected);
+      setPromptOverrides((prev) => {
+        const next = { ...prev };
+        if (reset) delete next[k];
+        else next[k] = draftPrompt;
+        return next;
+      });
+      if (reset) setDraftPrompt(selected.system_prompt);
+      toast.success(reset ? "Reverted to default" : "Prompt override saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save prompt");
+    } finally {
+      setSavingPrompt(false);
+    }
+  };
 
   return (
     <TooltipProvider delayDuration={150}>
