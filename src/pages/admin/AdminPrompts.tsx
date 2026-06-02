@@ -461,6 +461,28 @@ export default function AdminPrompts() {
                         Copy
                       </Button>
                     </div>
+                    {Array.isArray((selected as PromptEntry & { placeholders?: string[] }).placeholders) &&
+                      (selected as PromptEntry & { placeholders?: string[] }).placeholders!.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          <span className="text-[10px] text-muted-foreground self-center mr-1">
+                            Insert:
+                          </span>
+                          {(selected as PromptEntry & { placeholders?: string[] }).placeholders!.map((ph) => (
+                            <Tooltip key={ph}>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  onClick={() => setDraftPrompt((prev) => `${prev}{{${ph}}}`)}
+                                  className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-input bg-muted hover:bg-accent transition"
+                                >
+                                  {`{{${ph}}}`}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>Append this placeholder to the prompt</TooltipContent>
+                            </Tooltip>
+                          ))}
+                        </div>
+                      )}
                     <Textarea
                       value={draftPrompt}
                       onChange={(e) => setDraftPrompt(e.target.value)}
