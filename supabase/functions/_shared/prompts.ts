@@ -161,7 +161,7 @@ Return ONLY via the provided tool.`;
 
 export const GENERATE_LESSON_PLAN_AUTHOR_SYSTEM = `You author readable week-level metadata for a fixed lesson-plan distribution.
 
-You will be given EXACTLY \${totalWeeks} weeks with their assigned concepts already locked. Your job is ONLY to write:
+You will be given EXACTLY {{totalWeeks}} weeks with their assigned concepts already locked. Your job is ONLY to write:
 - week_name (3–6 word title) for each non-exam week
 - overview (3–5 sentences) for each non-exam week, grounded strictly in the assigned concepts. Cover: (1) what the average student will be able to do by the end of the week, (2) how it builds on prior weeks, (3) the most common misconception or stumbling block to watch for.
 - 1 coding-exercise + 1–2 article resources per non-exam week, tied to those concepts. Articles must be REAL, well-known, freely accessible (e.g. official Python docs, Real Python, MDN, official framework docs) with working https URLs. If you are not certain a URL exists, OMIT the url field rather than inventing one.
@@ -170,7 +170,7 @@ You will be given EXACTLY \${totalWeeks} weeks with their assigned concepts alre
 Tone: factual, pedagogical, realistic. Do not over-promise mastery. Avoid repetitive phrasing across weeks.
 
 For exam weeks: week_name="" and overview="Exam week — review prior content." and resources=[].
-You CANNOT change which concepts go in which week. Output exactly \${totalWeeks} week entries with the same week numbers.
+You CANNOT change which concepts go in which week. Output exactly {{totalWeeks}} week entries with the same week numbers.
 Each concept name appears in exactly one week. Do not echo or rehash concept names from other weeks inside this week's overview text.
 
 Return ONLY via the provided tool.`;
@@ -191,17 +191,17 @@ You CANNOT change the assigned concepts. Return ONLY via the provided tool.`;
 // ─────────────────────────────────────────────────────────────────────────────
 // GENERATE DIAGNOSTIC QUESTIONS (per-tier, templated)
 // ─────────────────────────────────────────────────────────────────────────────
-export const GENERATE_DIAGNOSTIC_QUESTIONS_SYSTEM = `You are an expert assessment designer creating diagnostic quiz questions for a course titled "\${courseName}". Generate exactly \${needed} \${spec.tier} tier diagnostic questions.
+export const GENERATE_DIAGNOSTIC_QUESTIONS_SYSTEM = `You are an expert assessment designer creating diagnostic quiz questions for a course titled "{{courseName}}". Generate exactly {{needed}} {{tier}} tier diagnostic questions.
 
-Tier: \${spec.label}
-Target difficulty (0=easy, 1=hard): \${spec.difficulty}
+Tier: {{tierLabel}}
+Target difficulty (0=easy, 1=hard): {{difficulty}}
 
 CONCEPT QUOTA — distribute questions across units in the proportions below. The 'topic' field of each question MUST be one of the listed concept codes (exact match, case-sensitive). Do NOT exceed the per-concept target.
 
-\${quotaBlock}
+{{quotaBlock}}
 
 REMAINING NEED for this batch (you must produce exactly these counts):
-\${remainingList || "  (none — quota satisfied)"}
+{{remainingList}}
 
 STRICT RULES:
 - ALL questions MUST be multiple-choice (format = "mcq"). Do NOT generate true_false or short_answer.
@@ -209,11 +209,10 @@ STRICT RULES:
 - The answer field MUST be the FULL TEXT of one of the 4 options, character-for-character identical.
 - The topic field MUST be one of the concept codes shown in the QUOTA above (exact match).
 - Respect the per-concept quota above: do NOT over-generate for any concept.
-- difficulty_estimate must be a number close to \${spec.difficulty} (within ±0.15).
+- difficulty_estimate must be a number close to {{difficulty}} (within ±0.15).
 - bloom_level: integer 1-6 (1=Remember, 2=Understand, 3=Apply, 4=Analyze, 5=Evaluate, 6=Create).
 - content_text: the question stem only, ≤ 600 characters, no embedded options.
-- explanation: 1-2 sentences explaining why the correct option is correct.
-[appended on retries]: RETRY CONTEXT: \${retryHint}`;
+- explanation: 1-2 sentences explaining why the correct option is correct.{{retryHintBlock}}`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CHAT — student & teacher TA defaults
@@ -360,13 +359,14 @@ export const PROMPTS: PromptEntry[] = [
   {
     function: "parse-syllabus",
     model: "google/gemini-2.5-pro",
-    version: "1.0.0",
+    version: "1.1.0",
     updated_at: "2026-06-02",
     description: "Parses uploaded syllabus docs into strict JSON (objectives, outcomes, units, books).",
     system_prompt: PARSE_SYLLABUS_SYSTEM,
-    wired: false,
+    wired: true,
     synced_with: "supabase/functions/parse-syllabus/index.ts",
-    notes: "tool: extract_syllabus. tool_choice forced. Truncated snapshot — see source for full reading-vs-topic heuristic.",
+    notes: "tool: extract_syllabus. tool_choice forced.",
+    placeholders: [],
   },
   {
     function: "extract-lesson-plan",
@@ -377,97 +377,119 @@ export const PROMPTS: PromptEntry[] = [
     system_prompt: EXTRACT_LESSON_PLAN_SYSTEM,
     wired: true,
     synced_with: "supabase/functions/extract-lesson-plan/index.ts",
-    notes: "tool: extract_lesson_plan. Writes JSON to course-materials/{courseId}/lesson-plan/uploaded-lesson-plan.json.",
+    notes: "tool: extract_lesson_plan.",
+    placeholders: [],
   },
   {
     function: "extract-youtube-links",
     model: "google/gemini-2.5-flash-lite",
-    version: "1.0.0",
+    version: "1.1.0",
     updated_at: "2026-06-02",
     description: "Pulls every YouTube URL from a PDF/DOCX via the AI gateway (text path skips AI).",
     system_prompt: EXTRACT_YOUTUBE_SYSTEM,
-    wired: false,
+    wired: true,
     synced_with: "supabase/functions/extract-youtube-links/index.ts",
+    placeholders: [],
   },
   {
     function: "suggest-concepts",
     model: "google/gemini-2.5-flash",
-    version: "1.0.0",
+    version: "1.1.0",
     updated_at: "2026-06-02",
-    description: "Extracts hierarchical teachable items from approved syllabus units. Batched (size=3) to dodge the 150s edge timeout.",
+    description: "Extracts hierarchical teachable items from approved syllabus units. Batched (size=3).",
     system_prompt: SUGGEST_CONCEPTS_SYSTEM,
-    wired: false,
+    wired: true,
     synced_with: "supabase/functions/suggest-concepts/index.ts",
-    notes: "tool: extract_unit_concepts. temp=0.2, max_tokens=8000. Snapshot trimmed — see source for full pedagogical rules.",
+    notes: "tool: extract_unit_concepts. temp=0.2, max_tokens=8000.",
+    placeholders: [],
   },
   {
     function: "recommend-additional-concepts",
     model: "google/gemini-2.5-pro",
-    version: "1.0.0",
+    version: "1.1.0",
     updated_at: "2026-06-02",
     description: "Suggests 5–10 ADDITIONAL concepts (industry / foundational / gap) outside the syllabus.",
     system_prompt: RECOMMEND_ADDITIONAL_CONCEPTS_SYSTEM,
-    wired: false,
+    wired: true,
     synced_with: "supabase/functions/recommend-additional-concepts/index.ts",
-    notes: "tool: recommend_concepts. weight_pct capped at 15 (supplementary).",
+    notes: "tool: recommend_concepts. weight_pct capped at 15.",
+    placeholders: [],
   },
   {
-    function: "generate-lesson-plan.verify",
+    function: "generate-lesson-plan",
+    stage: "verify",
     model: "google/gemini-2.5-flash",
-    version: "1.0.0",
+    version: "1.1.0",
     updated_at: "2026-06-02",
     description: "STAGE 1 of 3 — verifies/re-orders approved concepts to match syllabus pedagogical sequence.",
     system_prompt: GENERATE_LESSON_PLAN_VERIFY_SYSTEM,
-    wired: false,
+    wired: true,
     synced_with: "supabase/functions/generate-lesson-plan/index.ts",
     notes: "tool: verify_concept_order. temp=0.1, max_tokens=4096, seed=42.",
+    placeholders: [],
   },
   {
-    function: "generate-lesson-plan.effort",
+    function: "generate-lesson-plan",
+    stage: "effort",
     model: "google/gemini-2.5-flash",
-    version: "1.0.0",
+    version: "1.1.0",
     updated_at: "2026-06-02",
     description: "STAGE 2 of 3 — estimates per-concept complexity (1-5) and estimated_sessions (0.5-3).",
     system_prompt: GENERATE_LESSON_PLAN_EFFORT_SYSTEM,
-    wired: false,
+    wired: true,
     synced_with: "supabase/functions/generate-lesson-plan/index.ts",
-    notes: "tool: estimate_concept_effort. temp=0.2, max_tokens=8192, seed=42. Template — ${course.session_length_minutes} interpolated.",
+    notes: "tool: estimate_concept_effort. temp=0.2, max_tokens=8192, seed=42.",
+    placeholders: ["sessionLengthMinutes"],
   },
   {
-    function: "generate-lesson-plan.author",
+    function: "generate-lesson-plan",
+    stage: "author",
     model: "google/gemini-2.5-pro",
-    version: "1.0.0",
+    version: "1.1.0",
     updated_at: "2026-06-02",
     description: "STAGE 3 of 3 — authors week_name / overview / resources / overall outcomes for the LOCKED allocation.",
     system_prompt: GENERATE_LESSON_PLAN_AUTHOR_SYSTEM,
-    wired: false,
+    wired: true,
     synced_with: "supabase/functions/generate-lesson-plan/index.ts",
-    notes: "tool: author_weeks. temp=0.5, max_tokens=16384, seed=42. Cannot change concept→week mapping.",
+    notes: "tool: author_weeks. temp=0.5, max_tokens=16384, seed=42.",
+    placeholders: ["totalWeeks"],
   },
   {
     function: "regenerate-lesson-plan-week",
     model: "google/gemini-2.5-pro",
-    version: "1.0.0",
+    version: "1.1.0",
     updated_at: "2026-06-02",
     description: "Regenerates name/overview/resources for a single week (concepts locked).",
     system_prompt: REGENERATE_LESSON_PLAN_WEEK_SYSTEM,
-    wired: false,
+    wired: true,
     synced_with: "supabase/functions/regenerate-lesson-plan-week/index.ts",
     notes: "tool: author_week. temp=0.6, max_tokens=4096, reasoning.effort=high.",
+    placeholders: [],
   },
   {
     function: "generate-diagnostic-questions",
     model: "google/gemini-2.5-pro",
-    version: "1.0.0",
+    version: "1.1.0",
     updated_at: "2026-06-02",
     description: "Generates per-tier MCQ diagnostic questions (standard/easy/medium/hard) respecting concept quotas.",
     system_prompt: GENERATE_DIAGNOSTIC_QUESTIONS_SYSTEM,
-    wired: false,
+    wired: true,
     synced_with: "supabase/functions/generate-diagnostic-questions/index.ts",
     notes: "tool: submit_questions. temp=0.3. Validators enforce 4 options, answer in options, difficulty band ±0.15, bloom range.",
+    placeholders: [
+      "courseName",
+      "needed",
+      "tier",
+      "tierLabel",
+      "difficulty",
+      "quotaBlock",
+      "remainingList",
+      "retryHintBlock",
+    ],
   },
   {
-    function: "chat.study",
+    function: "chat",
+    stage: "study",
     model: "google/gemini-2.5-flash-lite",
     version: "1.0.0",
     updated_at: "2026-06-02",
@@ -476,9 +498,11 @@ export const PROMPTS: PromptEntry[] = [
     wired: true,
     synced_with: "supabase/functions/chat/index.ts",
     notes: "May be overridden by teacher-supplied studySystemPrompt. RAG context appended at runtime.",
+    placeholders: [],
   },
   {
-    function: "chat.exam",
+    function: "chat",
+    stage: "exam",
     model: "google/gemini-2.5-flash-lite",
     version: "1.0.0",
     updated_at: "2026-06-02",
@@ -487,9 +511,11 @@ export const PROMPTS: PromptEntry[] = [
     wired: true,
     synced_with: "supabase/functions/chat/index.ts",
     notes: "May be overridden by teacher-supplied examSystemPrompt.",
+    placeholders: [],
   },
   {
-    function: "chat.teacher",
+    function: "chat",
+    stage: "teacher",
     model: "google/gemini-2.5-flash-lite",
     version: "1.0.0",
     updated_at: "2026-06-02",
@@ -497,38 +523,41 @@ export const PROMPTS: PromptEntry[] = [
     system_prompt: CHAT_DEFAULT_TEACHER,
     wired: true,
     synced_with: "supabase/functions/chat/index.ts",
+    placeholders: [],
   },
   {
     function: "classify-question",
     model: "google/gemini-2.5-flash-lite",
-    version: "1.0.0",
+    version: "1.1.0",
     updated_at: "2026-06-02",
     description: "Classifies whether a student's question is relevant to the course (gates chat off-topic handling).",
     system_prompt: CLASSIFY_QUESTION_SYSTEM,
-    wired: false,
+    wired: true,
     synced_with: "supabase/functions/classify-question/index.ts",
-    notes: "tool: classify_relevance. Templated — courseName / objectives / concepts / message interpolated.",
+    notes: "tool: classify_relevance.",
+    placeholders: ["courseName", "objectivesText", "conceptsText", "message"],
   },
   {
     function: "explain-answers",
     model: "google/gemini-2.5-flash-lite",
-    version: "1.0.0",
+    version: "1.1.0",
     updated_at: "2026-06-02",
     description: "Post-quiz: explains each question (why correct / why student's choice was wrong).",
     system_prompt: EXPLAIN_ANSWERS_SYSTEM,
-    wired: false,
+    wired: true,
     synced_with: "supabase/functions/explain-answers/index.ts",
+    placeholders: [],
   },
   {
     function: "suggest-lesson",
     model: "google/gemini-3-flash-preview",
-    version: "1.0.0",
+    version: "1.1.0",
     updated_at: "2026-06-02",
     description: "AI-assist for a single lesson week: structured description + RESOURCES_JSON appendix.",
     system_prompt: SUGGEST_LESSON_SYSTEM,
-    wired: false,
+    wired: true,
     synced_with: "supabase/functions/suggest-lesson/index.ts",
-    notes: "Snapshot trimmed — see source for full output template.",
+    placeholders: [],
   },
   {
     function: "quality-check",
@@ -540,5 +569,7 @@ export const PROMPTS: PromptEntry[] = [
     wired: true,
     synced_with: "supabase/functions/quality-check/index.ts",
     notes: "tool: report_issues.",
+    placeholders: [],
   },
 ];
+
