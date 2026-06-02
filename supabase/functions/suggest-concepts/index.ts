@@ -238,6 +238,8 @@ Return strict JSON with one key "items", an array of objects, each with:
   sources (array, may be empty), weight_pct (integer for leaves, null for parents), weight_rationale (string).
 Output only the JSON. No prose, no markdown fences`;
 
+    const systemPrompt = await resolvePrompt("suggest-concepts", null, defaultSystemPrompt);
+
     type ConceptOut = {
       name: string;
       rationale: string;
