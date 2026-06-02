@@ -46,8 +46,15 @@ interface FileUploadZoneProps {
   onParseStatusChange?: (statuses: Record<string, ParseStatus>) => void;
   /** Fired after each batch of files is successfully uploaded (and metadata
    *  rows are inserted). Use for post-upload side-effects like extracting
-   *  links, kicking off background jobs, etc. */
-  onUploadComplete?: (newFiles: UploadedFile[]) => void;
+   *  links, kicking off background jobs, etc. May be async — the zone will
+   *  treat it as a "processing" phase and keep the busy state on until it
+   *  resolves. */
+  onUploadComplete?: (newFiles: UploadedFile[]) => void | Promise<void>;
+  /** Notify parent whenever this zone is busy (uploading, parsing the
+   *  syllabus, or running its onUploadComplete side-effect). Used by the
+   *  setup page to disable the "Next" button until all required uploads
+   *  have finished. */
+  onUploadingChange?: (busy: boolean) => void;
 }
 
 function formatSize(bytes: number) {
