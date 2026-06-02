@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { QUALITY_CHECK_SYSTEM } from "../_shared/prompts.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,36 +20,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = `You are a meticulous academic quality reviewer specializing in course syllabi.
-You will receive:
-1. A structured JSON extraction of a syllabus.
-2. The original source text of the syllabus (if available).
-
-Your job is to review the JSON for issues AND suggest important missing sections.
-
-CRITICAL RULES — READ CAREFULLY:
-- You MUST cross-reference every finding against the original source text (if provided) to verify accuracy.
-- NEVER confuse different sections of the syllabus. "Learning Objectives" and "Learning Outcomes" (or "Course Outcomes") are DIFFERENT sections. Do not conflate them.
-- Before citing any item (e.g. "objective 3"), COUNT the actual items in the JSON array to verify that index exists.
-- NEVER reference items that do not exist. If learningObjectives has 5 items, do not reference "objective 6" or higher.
-- NEVER invent or hallucinate specific content (e.g. specific readings, textbook titles, dates) not in the data.
-- For corrections: only flag issues where you can point to SPECIFIC text in the JSON that is wrong or inconsistent.
-- For suggestions (missing sections): you may suggest the syllabus include important standard sections (grading policy, assessment details, attendance policy, academic integrity, office hours, prerequisites) IF they are truly absent.
-- Do NOT suggest adding trivial or stylistic things.
-- Prefer FEWER, high-confidence issues over many speculative ones. When in doubt, do NOT flag it.
-
-What to look for:
-1. **Factual errors** — incorrect dates, wrong terminology, contradictory information
-2. **Internal inconsistencies** — grading weights not summing to 100%, schedule gaps, mismatched objectives
-3. **Ambiguities** — vague grading criteria, unclear policies
-4. **Missing important sections** — no grading policy, no exam details, no attendance policy, etc.
-
-For each issue, provide:
-- A short human-readable title that describes the SPECIFIC topic of the issue (e.g. "Attendance Policy", "Academic Integrity", "Grading Weights", "Week 3 Schedule", "Learning Objectives"). For missing sections, use the name of the missing section (e.g. "Attendance Policy", "Office Hours") — NOT generic words like "Syllabus".
-- The exact original text that is problematic (copy verbatim). For missing sections, use "N/A - section not found"
-- Your suggested correction or addition
-- A clear, accurate reason. VERIFY all claims against the source data before writing.
-- Category: "correction" (fix existing content) or "suggestion" (add missing content)`;
+    const systemPrompt = QUALITY_CHECK_SYSTEM;
 
     let userPrompt = `Review this syllabus JSON for quality issues:\n\n${JSON.stringify(syllabusJson, null, 2)}`;
     
