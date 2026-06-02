@@ -39,7 +39,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = `You are a document parser for academic syllabi. Extract the content into STRICT JSON with exactly these keys and no others. Output only raw JSON, no markdown fences, no commentary.
+    const defaultSystemPrompt = `You are a document parser for academic syllabi. Extract the content into STRICT JSON with exactly these keys and no others. Output only raw JSON, no markdown fences, no commentary.
 
   - objectives     (array of strings: course goals and aims)
   - outcomes       (array of strings: measurable competencies students will gain)
