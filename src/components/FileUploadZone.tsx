@@ -83,9 +83,11 @@ async function fileToBase64(file: File): Promise<string> {
   return btoa(binary);
 }
 
-const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, teacherId, folderType, maxFiles, onParseStatusChange, onUploadComplete }: FileUploadZoneProps) => {
+const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, teacherId, folderType, maxFiles, onParseStatusChange, onUploadComplete, onUploadingChange }: FileUploadZoneProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [justCompletedAt, setJustCompletedAt] = useState<number | null>(null);
   const [pending, setPending] = useState<File[]>([]);
   const [confirmed, setConfirmed] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UploadedFile | null>(null);
