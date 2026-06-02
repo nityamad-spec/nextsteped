@@ -226,7 +226,7 @@ serve(async (req) => {
       orderVerification.notes = "No syllabus text available; kept teacher-approved order.";
       warnings.push("No syllabus text available for order verification; kept teacher-approved order.");
     } else {
-      const verifySystem = `You verify and re-order a set of approved course concepts to match the pedagogical sequence implied by the SYLLABUS.
+      const defaultVerifySystem = `You verify and re-order a set of approved course concepts to match the pedagogical sequence implied by the SYLLABUS.
 
 STRICT RULES:
 - Return EXACTLY the same set of concept names as input — no additions, no deletions, no renames, preserve case and spelling.
@@ -235,6 +235,11 @@ STRICT RULES:
 - If the syllabus is silent or the current order already matches it, return the original order with changed=false.
 - Provide a short rationale (≤15 words) per concept and a 1–3 sentence overall notes summary.
 Return ONLY via the provided tool.`;
+      const verifySystem = await resolvePrompt(
+        "generate-lesson-plan",
+        "verify",
+        defaultVerifySystem,
+      );
 
       const verifyUser = `COURSE: ${course.name} (${course.term})
 Objectives: ${(course.objectives || []).join("; ") || "Not specified"}
