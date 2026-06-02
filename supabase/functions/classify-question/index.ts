@@ -1,4 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { resolveModel } from "../_shared/resolveModel.ts";
+import { resolvePrompt } from "../_shared/resolvePrompt.ts";
+import { CLASSIFY_QUESTION_SYSTEM } from "../_shared/prompts.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
