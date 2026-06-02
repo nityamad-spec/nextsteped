@@ -163,7 +163,7 @@ serve(async (req) => {
       )
       .join("\n\n");
 
-    const systemPrompt = `You are an expert curriculum designer extracting teachable items from course materials.
+    const defaultSystemPrompt = `You are an expert curriculum designer extracting teachable items from course materials.
 
 INPUT
 You receive the parsed syllabus units in order; each unit has a sequence number and a list of verbatim topic strings. You may also receive additional uploaded materials (teaching notes, a user-provided lesson plan, transcripts). These are SECONDARY: use them to enrich, clarify, and add detail to items the syllabus defines, but the syllabus alone defines which units exist, their order, and the authoritative topic list. Never create a unit, or an item unanchored to a syllabus topic, from the secondary materials alone. If a secondary document elaborates on a syllabus topic, fold that detail into the matching item rather than spawning a separate one.
