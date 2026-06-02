@@ -466,13 +466,15 @@ export default function AdminPrompts() {
                       onChange={(e) => setDraftPrompt(e.target.value)}
                       className="font-mono text-xs min-h-[400px]"
                     />
-                    {!selected.wired && (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        This prompt is built inline at request time with runtime values
-                        (e.g. <code>{"${courseName}"}</code>). Editing here will not yet
-                        affect runtime behavior — pending the persistence approach.
+                    {promptOverrides[rowKey(selected)] !== undefined && (
+                      <p className="text-xs text-amber-600 mt-2">
+                        An admin override is currently active for this prompt.
                       </p>
                     )}
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Use <code>{"{{placeholder}}"}</code> tokens to inject runtime values
+                      (e.g. <code>{"{{courseName}}"}</code>). Unknown tokens render literally.
+                    </p>
                   </div>
                 </div>
 
@@ -480,27 +482,22 @@ export default function AdminPrompts() {
                   <Button variant="outline" onClick={closeEditor}>
                     Cancel
                   </Button>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        <Button
-                          disabled={!promptDirty}
-                          onClick={() =>
-                            toast.message(
-                              "Prompt persistence is pending approval — the back-end plan was just proposed.",
-                            )
-                          }
-                        >
-                          <Save className="h-3.5 w-3.5 mr-1.5" />
-                          Save prompt
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      Persistence not wired yet — awaiting your approval on the
-                      proposed prompt-override table & resolver.
-                    </TooltipContent>
-                  </Tooltip>
+                  {promptOverrides[rowKey(selected)] !== undefined && (
+                    <Button
+                      variant="outline"
+                      onClick={() => handleSavePrompt(true)}
+                      disabled={savingPrompt}
+                    >
+                      Reset to default
+                    </Button>
+                  )}
+                  <Button
+                    disabled={!promptDirty || savingPrompt}
+                    onClick={() => handleSavePrompt(false)}
+                  >
+                    <Save className="h-3.5 w-3.5 mr-1.5" />
+                    {savingPrompt ? "Saving…" : "Save prompt"}
+                  </Button>
                 </SheetFooter>
               </>
             )}
