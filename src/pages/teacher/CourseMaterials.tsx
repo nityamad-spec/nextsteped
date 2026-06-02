@@ -490,6 +490,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="lesson-plans"
+                onUploadingChange={setZoneBusyFor("lesson-plans")}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
