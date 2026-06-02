@@ -252,7 +252,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 6000)
           method: "POST",
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: await resolveModel("generate-lesson-plan", "verify", "google/gemini-2.5-flash"),
             temperature: 0.1,
             top_p: 0.9,
             max_tokens: 4096,
@@ -402,7 +402,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: await resolveModel("generate-lesson-plan", "effort", "google/gemini-2.5-flash"),
           temperature: 0.2,
           top_p: 0.9,
           max_tokens: 8192,
@@ -633,7 +633,7 @@ ${assignmentBlock}`;
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
+        model: await resolveModel("generate-lesson-plan", "author", "google/gemini-2.5-pro"),
         temperature: 0.5,
         top_p: 0.9,
         max_tokens: 16384,

@@ -52,7 +52,7 @@ Use the classify_relevance function to respond.`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-lite",
+          model: await resolveModel("classify-question", null, "google/gemini-2.5-flash-lite"),
           messages: [
             { role: "user", content: classificationPrompt },
           ],

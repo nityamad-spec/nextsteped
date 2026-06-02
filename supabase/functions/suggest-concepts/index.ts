@@ -271,7 +271,7 @@ ${retryNote || "Extract concepts unit by unit, in sequence, with no overlap. Eve
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: await resolveModel("suggest-concepts", null, "google/gemini-2.5-flash"),
           temperature: 0.2,
           max_tokens: 8000,
           messages: [
