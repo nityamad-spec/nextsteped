@@ -645,9 +645,14 @@ const CourseMaterials = () => {
             Please upload your syllabus to continue.
           </p>
         )}
-        {hasSyllabus && !canContinue && !allFailed && (
+        {hasSyllabus && !canContinue && !allFailed && !anyUploadBusy && (
           <p className="text-xs text-muted-foreground text-center">
             Parsing your syllabus… this usually takes 10–30 seconds. The Next button will enable when it's ready.
+          </p>
+        )}
+        {anyUploadBusy && (
+          <p className="text-xs font-medium text-amber-700 dark:text-amber-400 text-center">
+            Waiting for uploads to finish… The Next button is disabled until every upload completes.
           </p>
         )}
         {allFailed && (
