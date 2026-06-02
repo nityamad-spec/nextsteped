@@ -347,7 +347,16 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     const syllabusToParse: Array<{ file: File; path: string }> = [];
 
     for (const file of pending) {
-      const filePath = `${folderPath}/${Date.now()}_${file.name}`;
+      // Supabase Storage rejects keys containing characters outside a safe set
+      // (e.g. brackets, parentheses, most punctuation). Sanitize the filename
+      // for the storage key while preserving the original name in DB metadata
+      // and UI labels.
+      const safeName = file.name
+        .normalize("NFKD")
+        .replace(/[^a-zA-Z0-9._-]+/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_+|_+$/g, "");
+      const filePath = `${folderPath}/${Date.now()}_${safeName || "file"}`;
       const { error } = await supabase.storage
         .from("course-materials")
         .upload(filePath, file);
