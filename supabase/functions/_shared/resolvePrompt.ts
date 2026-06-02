@@ -4,38 +4,33 @@
 //
 // Supports `{{placeholder}}` interpolation against a values map provided by
 // the caller. Unknown placeholders are left untouched (they render literally to
-// the model). Overrides are cached per cold start (per Deno isolate).
+// the model).
+//
+// NOTE: no in-memory cache — overrides are fetched on every call so admin edits
+// take effect on the next invocation without waiting for a cold start.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-type CacheKey = string; // `${function_name}::${stage ?? ""}`
-
-let cache: Map<CacheKey, string> | null = null;
-let inflight: Promise<Map<CacheKey, string>> | null = null;
-
-const key = (fn: string, stage?: string | null): CacheKey =>
-  `${fn}::${stage ?? ""}`;
-
-async function loadOverrides(): Promise<Map<CacheKey, string>> {
+async function loadOverride(
+  functionName: string,
+  stage: string | null | undefined,
+): Promise<string | null> {
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !serviceKey) return new Map();
+  if (!url || !serviceKey) return null;
   const admin = createClient(url, serviceKey);
-  const { data, error } = await admin
+  let q = admin
     .from("edge_function_prompt_overrides")
-    .select("function_name, stage, prompt");
+    .select("prompt")
+    .eq("function_name", functionName)
+    .limit(1);
+  q = stage == null ? q.is("stage", null) : q.eq("stage", stage);
+  const { data, error } = await q.maybeSingle();
   if (error) {
     console.warn("[resolvePrompt] override fetch failed:", error.message);
-    return new Map();
+    return null;
   }
-  const map = new Map<CacheKey, string>();
-  for (const row of data ?? []) {
-    map.set(
-      key(row.function_name as string, row.stage as string | null),
-      row.prompt as string,
-    );
-  }
-  return map;
+  return (data?.prompt as string | undefined) ?? null;
 }
 
 function interpolate(template: string, values: Record<string, unknown>): string {
@@ -55,13 +50,8 @@ export async function resolvePrompt(
   values: Record<string, unknown> = {},
 ): Promise<string> {
   try {
-    if (!cache) {
-      if (!inflight) inflight = loadOverrides();
-      cache = await inflight;
-      inflight = null;
-    }
-    const template = cache.get(key(functionName, stage)) ?? defaultPrompt;
-    return interpolate(template, values);
+    const override = await loadOverride(functionName, stage);
+    return interpolate(override ?? defaultPrompt, values);
   } catch (e) {
     console.warn("[resolvePrompt] falling back to default:", e);
     return interpolate(defaultPrompt, values);
