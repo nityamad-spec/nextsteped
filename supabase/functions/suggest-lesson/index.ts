@@ -22,7 +22,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = `You are an expert curriculum designer and pedagogy specialist. You will generate TWO things for a single week of a university-level course:
+    const defaultSystemPrompt = `You are an expert curriculum designer and pedagogy specialist. You will generate TWO things for a single week of a university-level course:
 
 1. A structured lesson description with these clearly labeled sections (use exactly these headings):
    **Overview:** A 2-3 sentence overview of the week's focus and goals.
