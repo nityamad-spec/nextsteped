@@ -1,108 +1,58 @@
+## Change 1 — Upload progress + gated Next (front-end only)
 
-# Version & display edge function system prompts
+**Where:** `src/components/FileUploadZone.tsx`, `src/pages/teacher/CourseMaterials.tsx`.
 
-Goal: make every AI edge function pull its system prompt from a single versioned module, and surface those prompts in an admin-only page so changes between deployments are easy to verify.
+Today the syllabus card shows a styled "Uploading… / Parsing…" progress card (border-primary/30, bg-primary/5, `<Progress>` + step labels), but the other three upload zones (Past Course Materials, Lesson Plans, YouTube Links) show only a tiny spinner. The Next button is gated only on syllabus parse status.
 
-## 1. Shared prompts module
+**UI changes:**
 
-New file: `supabase/functions/_shared/prompts.ts`
+1. In `FileUploadZone`, extend the existing progress card so it renders for **every** `folderType`, not just `syllabus`:
+   - While `uploading` is true → "Uploading <folderType label>…", indeterminate-style timed `<Progress>` bar (same `UPLOAD_EST_MS` heuristic), "Step 1 of 2: secure upload" subtext when a post-upload step exists, otherwise just "Uploading…".
+   - For `lesson-plan-docs` and `youtube-links`, keep a second "Processing…" phase driven by a new local `processing` flag set to true around the `onUploadComplete` callback (wrap the existing `await onUploadComplete?.(...)` so the bar stays visible until extraction returns). Syllabus keeps its existing parse-substeps view unchanged.
+   - On success show a brief green "Upload complete ✓" confirmation row (re-uses `Check` icon already imported) that auto-dismisses after ~2s.
+   - Styling matches the current syllabus card exactly (same border, bg, spacing, `Progress` height).
 
-Exports a typed registry:
+2. Surface an `onUploadingChange?: (busy: boolean) => void` prop from `FileUploadZone` that fires true while `uploading || processing` is true.
 
-```ts
-export type PromptEntry = {
-  function: string;          // edge function name
-  model: string;             // e.g. "google/gemini-2.5-pro"
-  version: string;           // semver-ish, bumped manually on edit
-  updated_at: string;        // ISO date, bumped with version
-  description: string;       // one-liner of purpose
-  system_prompt: string;     // the exact string sent as system message
-  notes?: string;            // optional: tool-call schema name, batching, etc.
-};
+3. In `CourseMaterials.tsx`, track `uploadingMap` keyed by zone (`syllabus | lesson-plans | lesson-plan-docs | youtube-links`). Wire each `<FileUploadZone>` to set its slot. Extend the existing `canContinue` logic so Next is also disabled while **any** zone reports busy. Add a visible reason line above `SetupModuleNav` like "Waiting for uploads to finish…" when blocked by uploads (styled like the existing parse-waiting message). The `SetupModuleNav` `nextDisabled` already produces the muted/disabled look; no new styling needed.
 
-export const PROMPTS = {
-  "parse-syllabus":            { ... },
-  "extract-lesson-plan":       { ... },
-  "extract-youtube-links":     { ... },
-  "suggest-concepts":          { ... },
-  "recommend-additional-concepts": { ... },
-  "generate-lesson-plan.reorder":       { ... },
-  "generate-lesson-plan.effort":        { ... },
-  "generate-lesson-plan.author-weeks":  { ... },
-  "regenerate-lesson-plan-week": { ... },
-  "generate-diagnostic-questions": { ... },
-  "chat":                      { ... },
-  "classify-question":         { ... },
-  "explain-answers":           { ... },
-  "suggest-lesson":            { ... },
-  "quality-check":             { ... },
-  "teacher-chat":              { ... },  // if present
-} satisfies Record<string, PromptEntry>;
-```
+4. Required-uploads rule stays unchanged: only the syllabus is required to enable Next. Other zones only block Next while their own upload/processing is mid-flight (the user can choose not to upload them).
 
-Each existing edge function is edited to:
-- Import its entry: `import { PROMPTS } from "../_shared/prompts.ts";`
-- Replace the inline `systemPrompt` string with `PROMPTS["<name>"].system_prompt`
-- Log `prompt_version` alongside the existing model in `console.log` for traceability
+**No back-end work needed** for Change 1 — `uploading` and `onUploadComplete` are already client-side; the existing parse status from `parse-syllabus` is already streamed back through `onParseStatusChange`.
 
-Generation pipelines that use multiple prompts (e.g. `generate-lesson-plan` has 3 stages) get one entry per stage, keyed `<function>.<stage>`.
+---
 
-## 2. Expose prompts to the client
+## Change 2 — Admin model picker per setup step
 
-New edge function: `supabase/functions/list-prompts/index.ts`
-- `verify_jwt = false` in `supabase/config.toml` (we gate on role in code)
-- Validates JWT manually, then checks `public.is_admin(user_id)` — non-admins get 403
-- Returns `{ prompts: PromptEntry[] }` straight from the shared module
+### Front-end (build now)
 
-This avoids bundling the prompt text into the client bundle and ensures the admin always sees what is actually deployed.
+**Where:** `src/pages/admin/AdminPrompts.tsx` (rename section or add a sibling page `AdminModels.tsx` reachable from the same Admin nav entry — I'll add a tab toggle inside `AdminPrompts` to avoid a new route).
 
-## 3. Admin viewer page
+- New "Models" tab listing every entry from the prompts registry that has a `model` field (syllabus extraction, concept suggestion, lesson-plan generation stages, diagnostic generation, chat, classify-question, explain-answers, quality-check, etc. — one row per stage, label = `function` + optional `stage`).
+- Each row: step name, current model badge, `<Select>` dropdown of available Gemini/Lovable AI models.
+- "Refresh models" button above the table with a spinner state; on click calls a (new) backend endpoint and repopulates dropdown options.
+- "Save" per row (or a single "Save changes" button at the top) calls a (new) backend endpoint to persist the selection.
+- Dropdowns initially populated from a hard-coded fallback list mirroring the Lovable AI catalog so the UI is usable even before the back end ships.
+- Styling uses existing shadcn `Table`, `Select`, `Button`, `Badge` — matches current `AdminPrompts` layout.
 
-New route: `/admin/prompts` (added to `src/App.tsx` under `AdminLayout`)
+### Back-end pieces that need your approval before I touch them
 
-New file: `src/pages/admin/AdminPrompts.tsx`
-- Calls `supabase.functions.invoke("list-prompts")` once
-- Renders a searchable table: Function · Stage · Model · Version · Updated · short description
-- Row click opens a side sheet with the full prompt text in a `<pre>` block, copy button, and the notes field
-- Tailwind tokens only, shadcn `Table`, `Sheet`, `Input`, `Badge` components
-- Empty/error/loading states
+Please confirm each item:
 
-New nav entry in `src/layouts/AdminLayout.tsx` sidebar: "AI Prompts" → `/admin/prompts`.
+1. **Storage of per-step model selection.** New table `public.edge_function_model_overrides (function_name text, stage text null, model text, updated_at, updated_by)` with admin-only RLS + `GRANT`s, read via a new `get-model-overrides` edge function (or `supabase.from(...).select()` directly if you prefer). Needed so selections persist across deploys.
 
-## 4. Version bump convention
+2. **Edge functions reading the override at runtime.** Each edge function listed in `_shared/prompts.ts` would need a small helper (e.g. `resolveModel(functionName, stage, defaultModel)`) that looks up the override (cached in-memory per cold start) and falls back to the registry default. This means editing ~13 edge functions to swap their hard-coded `model:` strings for `resolveModel(...)`. No prompt changes.
 
-A short comment block at the top of `prompts.ts` documents the rule:
-> When you edit any `system_prompt`, bump that entry's `version` (patch for wording, minor for structural change) and update `updated_at`. Do not edit prompts inline in edge functions.
+3. **Refresh-models endpoint.** New edge function `list-ai-models` that calls the Lovable AI Gateway's models endpoint (`GET https://ai.gateway.lovable.dev/v1/models` with `LOVABLE_API_KEY`) and returns the filtered list of chat models. Admin-gated like `list-prompts`. If the gateway doesn't expose a models endpoint we'd fall back to a curated static list shipped in `_shared/models.ts`; I'd confirm which path to take after a quick probe.
 
-No DB tables, no migration history (per chosen option). History can be added later if needed.
+4. **Save endpoint.** New edge function `set-model-override` (admin-gated) that upserts into the table above.
+
+I will build only the UI (with the fallback static model list and disabled Save/Refresh buttons showing a "Pending back-end approval" tooltip) until you approve items 1–4. Once approved I'll wire the endpoints and add the `resolveModel` helper to each edge function in a follow-up batch.
+
+---
 
 ## Files touched
 
-New:
-- `supabase/functions/_shared/prompts.ts`
-- `supabase/functions/list-prompts/index.ts`
-- `src/pages/admin/AdminPrompts.tsx`
-
-Edited (replace inline system prompt with shared import):
-- `supabase/functions/parse-syllabus/index.ts`
-- `supabase/functions/extract-lesson-plan/index.ts`
-- `supabase/functions/extract-youtube-links/index.ts`
-- `supabase/functions/suggest-concepts/index.ts`
-- `supabase/functions/recommend-additional-concepts/index.ts`
-- `supabase/functions/generate-lesson-plan/index.ts` (3 stages)
-- `supabase/functions/regenerate-lesson-plan-week/index.ts`
-- `supabase/functions/generate-diagnostic-questions/index.ts`
-- `supabase/functions/chat/index.ts`
-- `supabase/functions/classify-question/index.ts`
-- `supabase/functions/explain-answers/index.ts`
-- `supabase/functions/suggest-lesson/index.ts`
-- `supabase/functions/quality-check/index.ts`
-- `src/App.tsx` (route)
-- `src/layouts/AdminLayout.tsx` (nav link)
-- `supabase/config.toml` (config block for `list-prompts` with `verify_jwt = false`)
-
-## Out of scope
-
-- No DB-backed prompt history or diff view (option 2 was not selected).
-- No runtime override of prompts from the DB — `prompts.ts` is the source of truth.
-- Non-AI edge functions (auth, wipe, seed, etc.) are not included.
+- Edit: `src/components/FileUploadZone.tsx`, `src/pages/teacher/CourseMaterials.tsx`, `src/pages/admin/AdminPrompts.tsx`.
+- New (front-end only): `src/lib/aiModels.ts` (static fallback model list).
+- No back-end edits in this pass.

@@ -46,8 +46,15 @@ interface FileUploadZoneProps {
   onParseStatusChange?: (statuses: Record<string, ParseStatus>) => void;
   /** Fired after each batch of files is successfully uploaded (and metadata
    *  rows are inserted). Use for post-upload side-effects like extracting
-   *  links, kicking off background jobs, etc. */
-  onUploadComplete?: (newFiles: UploadedFile[]) => void;
+   *  links, kicking off background jobs, etc. May be async — the zone will
+   *  treat it as a "processing" phase and keep the busy state on until it
+   *  resolves. */
+  onUploadComplete?: (newFiles: UploadedFile[]) => void | Promise<void>;
+  /** Notify parent whenever this zone is busy (uploading, parsing the
+   *  syllabus, or running its onUploadComplete side-effect). Used by the
+   *  setup page to disable the "Next" button until all required uploads
+   *  have finished. */
+  onUploadingChange?: (busy: boolean) => void;
 }
 
 function formatSize(bytes: number) {
@@ -76,9 +83,11 @@ async function fileToBase64(file: File): Promise<string> {
   return btoa(binary);
 }
 
-const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, teacherId, folderType, maxFiles, onParseStatusChange, onUploadComplete }: FileUploadZoneProps) => {
+const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, teacherId, folderType, maxFiles, onParseStatusChange, onUploadComplete, onUploadingChange }: FileUploadZoneProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [justCompletedAt, setJustCompletedAt] = useState<number | null>(null);
   const [pending, setPending] = useState<File[]>([]);
   const [confirmed, setConfirmed] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UploadedFile | null>(null);
@@ -130,14 +139,28 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     onParseStatusChange?.(parseStatus);
   }, [parseStatus, onParseStatusChange]);
 
-  // Tick `now` every 250ms while any syllabus operation is in flight, so the
+  // Bubble overall busy state to parent so it can gate the "Next" control
+  // while uploads, syllabus parsing, or post-upload extraction are running.
+  const anyParsing = Object.values(parseStatus).some((s) => s === "parsing");
+  const busy = uploading || processing || anyParsing;
+  useEffect(() => {
+    onUploadingChange?.(busy);
+  }, [busy, onUploadingChange]);
+
+  // Tick `now` every 250ms while any operation is in flight, so the
   // progress bar + ETA stay live without re-rendering when nothing's happening.
   useEffect(() => {
-    const anyParsing = Object.values(parseStatus).some((s) => s === "parsing");
-    if (!uploading && !anyParsing && uploadStartedAt === null) return;
+    if (!uploading && !processing && !anyParsing && uploadStartedAt === null && justCompletedAt === null) return;
     const id = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(id);
-  }, [uploading, parseStatus, uploadStartedAt]);
+  }, [uploading, processing, anyParsing, uploadStartedAt, justCompletedAt]);
+
+  // Auto-dismiss the "Upload complete" confirmation after ~2.5s.
+  useEffect(() => {
+    if (justCompletedAt === null) return;
+    const id = setTimeout(() => setJustCompletedAt(null), 2500);
+    return () => clearTimeout(id);
+  }, [justCompletedAt]);
 
   // On mount (and when files/courseId change), seed parseStatus to "parsed"
   // for existing syllabus files when the parsed JSON pointer is present, so a
@@ -312,7 +335,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const handleConfirmedUpload = async () => {
     if (pending.length === 0 || !confirmed) return;
     setUploading(true);
-    if (folderType === "syllabus") setUploadStartedAt(Date.now());
+    setUploadStartedAt(Date.now());
 
     // Ensure we have a fresh session token before uploading
     const { error: refreshError } = await supabase.auth.refreshSession();
@@ -357,13 +380,36 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     if (newFiles.length > 0) {
       onFilesChange([...files, ...newFiles]);
       toast.success(`${newFiles.length} file(s) uploaded`);
-      onUploadComplete?.(newFiles);
     }
 
     setPending([]);
     setConfirmed(false);
     setUploading(false);
-    if (folderType === "syllabus") setUploadStartedAt(null);
+    if (folderType === "syllabus") {
+      // Keep uploadStartedAt set so the parsing phase can render; the parse
+      // useEffect clears it implicitly via the "parsing" status. We clear here
+      // for non-syllabus zones below.
+    } else {
+      setUploadStartedAt(null);
+    }
+
+    // Run the post-upload side-effect (e.g. extract YouTube links, kick off
+    // lesson-plan extraction) inside a "processing" phase so the progress card
+    // stays visible and the parent's "Next" button stays gated.
+    if (newFiles.length > 0 && onUploadComplete) {
+      setProcessing(true);
+      try {
+        await onUploadComplete(newFiles);
+      } catch (err) {
+        console.error("onUploadComplete failed:", err);
+      } finally {
+        setProcessing(false);
+      }
+    }
+
+    if (newFiles.length > 0 && folderType !== "syllabus") {
+      setJustCompletedAt(Date.now());
+    }
 
     // Kick off background parsing for syllabus files. Non-blocking.
     for (const { file, path } of syllabusToParse) {
@@ -697,6 +743,48 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
           </div>
         );
       })()}
+
+      {/* Generic upload/processing progress (non-syllabus zones). Matches the
+          syllabus card styling so the setup page feels consistent. */}
+      {folderType !== "syllabus" && (uploading || processing) && uploadStartedAt !== null && (() => {
+        const phase: "uploading" | "processing" = uploading ? "uploading" : "processing";
+        const elapsed = now - uploadStartedAt;
+        // Cap each phase to the upload estimate; the bar holds at ~95% until the
+        // underlying promise resolves, then jumps to 100% via the confirmation row.
+        const estTotal = UPLOAD_EST_MS;
+        const pct = Math.min(95, Math.round((elapsed / estTotal) * 100));
+        const remaining = Math.max(1, Math.ceil((estTotal - elapsed) / 1000));
+        const label = phase === "uploading" ? "Uploading files…" : "Processing uploaded files…";
+        const sub = phase === "uploading"
+          ? (onUploadComplete ? "Step 1 of 2: secure upload" : "Secure upload in progress")
+          : "Step 2 of 2: extracting structure";
+        return (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span className="font-medium text-foreground">{label}</span>
+            </div>
+            <Progress value={pct} className="h-2" />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{sub}</span>
+              {phase === "uploading" && <span>~{remaining}s remaining</span>}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Short-lived "Upload complete" confirmation row. */}
+      {folderType !== "syllabus" && justCompletedAt !== null && !uploading && !processing && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Check className="h-4 w-4 text-primary" />
+            <span className="font-medium text-foreground">Upload complete</span>
+          </div>
+          <Progress value={100} className="h-2 mt-2" />
+        </div>
+      )}
+
+
 
       {files.length > 0 && (
         <div className="space-y-1.5 pt-1">

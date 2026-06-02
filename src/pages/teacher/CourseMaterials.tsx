@@ -58,6 +58,12 @@ const CourseMaterials = () => {
   }>>([]);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [duplicatesSkipped, setDuplicatesSkipped] = useState(0);
+  // Track per-zone busy state (upload / post-upload processing) so we can
+  // gate the "Next" button until every in-flight upload has settled.
+  const [zoneBusy, setZoneBusy] = useState<Record<string, boolean>>({});
+  const setZoneBusyFor = (zone: string) => (busy: boolean) =>
+    setZoneBusy((prev) => (prev[zone] === busy ? prev : { ...prev, [zone]: busy }));
+  const anyUploadBusy = Object.values(zoneBusy).some(Boolean);
 
   // Storage paths are course-scoped, so we must have a course row before any
   // upload is allowed. Resolve (or eagerly create) one on mount.
@@ -399,7 +405,7 @@ const CourseMaterials = () => {
   const syllabusStatuses = syllabusFiles.map((f) => syllabusParseStatus[f.path]);
   const anyParsed = syllabusStatuses.some((s) => s === "parsed");
   const allFailed = hasSyllabus && syllabusStatuses.every((s) => s === "failed");
-  const canContinue = hasSyllabus && (anyParsed || syllabusJsonInStorage);
+  const canContinue = hasSyllabus && (anyParsed || syllabusJsonInStorage) && !anyUploadBusy;
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-8">
@@ -442,6 +448,7 @@ const CourseMaterials = () => {
                 folderType="syllabus"
                 maxFiles={1}
                 onParseStatusChange={setSyllabusParseStatus}
+                onUploadingChange={setZoneBusyFor("syllabus")}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
@@ -483,6 +490,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="lesson-plans"
+                onUploadingChange={setZoneBusyFor("lesson-plans")}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
@@ -519,6 +527,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="lesson-plan-docs"
+                onUploadingChange={setZoneBusyFor("lesson-plan-docs")}
                 onUploadComplete={async () => {
                   const toastId = toast.loading("Extracting lesson plan structure…");
                   const { data, error } = await supabase.functions.invoke(
@@ -575,6 +584,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="youtube-links"
+                onUploadingChange={setZoneBusyFor("youtube-links")}
                 onUploadComplete={handleYoutubeUploadComplete}
               />
             ) : (
@@ -635,9 +645,14 @@ const CourseMaterials = () => {
             Please upload your syllabus to continue.
           </p>
         )}
-        {hasSyllabus && !canContinue && !allFailed && (
+        {hasSyllabus && !canContinue && !allFailed && !anyUploadBusy && (
           <p className="text-xs text-muted-foreground text-center">
             Parsing your syllabus… this usually takes 10–30 seconds. The Next button will enable when it's ready.
+          </p>
+        )}
+        {anyUploadBusy && (
+          <p className="text-xs font-medium text-amber-700 dark:text-amber-400 text-center">
+            Waiting for uploads to finish… The Next button is disabled until every upload completes.
           </p>
         )}
         {allFailed && (
