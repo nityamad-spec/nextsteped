@@ -66,8 +66,10 @@ export default function AdminPrompts() {
   const [savedOverrides, setSavedOverrides] = useState<Record<string, string>>({});
   const [modelOverrides, setModelOverrides] = useState<Record<string, string>>({});
 
-  // Prompt editor state (persistence pending approval).
+  // Prompt override state.
+  const [promptOverrides, setPromptOverrides] = useState<Record<string, string>>({});
   const [draftPrompt, setDraftPrompt] = useState<string>("");
+  const [savingPrompt, setSavingPrompt] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
