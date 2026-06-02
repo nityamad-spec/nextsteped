@@ -527,6 +527,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="lesson-plan-docs"
+                onUploadingChange={setZoneBusyFor("lesson-plan-docs")}
                 onUploadComplete={async () => {
                   const toastId = toast.loading("Extracting lesson plan structure…");
                   const { data, error } = await supabase.functions.invoke(
