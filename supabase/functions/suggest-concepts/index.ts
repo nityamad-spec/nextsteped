@@ -169,6 +169,17 @@ You receive the parsed syllabus units in order; each unit has a sequence number 
 GOAL
 Produce an ordered, hierarchical set of distinct teachable items, grounded in the syllabus and enriched by any other materials, so they can later be sequenced into lesson plans.
 
+WHAT IS NOT A TEACHABLE ITEM
+Some entries are not things that get taught and must never be emitted as items, even when nothing labels them as such. Recognize these by their FORM, not by any heading.
+A) READINGS AND SOURCE REFERENCES. The syllabus parser should already have moved readings into the textbook fields, but the secondary materials have not been filtered, so apply this check to every candidate item. Treat an entry as a reading, not a teachable item, if it shows the shape of a source reference:
+- An author surname paired with a year, e.g. "Mishkin (2019)", "Krugman & Obstfeld, 2018".
+- A chapter, section, or page pointer, e.g. "Chapter 12", "Ch. 3-4", "pp. 45-60", "Reading 2".
+- A book or article title given as a source, often in title case or quotation marks, often with an edition or publisher.
+- An "Author, Title, Publisher, Year" citation in any order, or a URL, DOI, or journal reference.
+A teachable item names an IDEA to understand ("Interest Rate Parity"); a reading names a SOURCE where it can be read ("Krugman ch.12"). When an entry names a source, skip it. If a reading clearly corresponds to a teachable item that is present in its own right, record the reference in that item's optional "sources" array rather than creating a standalone item for it.
+B) PURE ADMINISTRATIVE OR FRAMING ENTRIES carrying no subject matter, such as "Introduction", "Course Overview", "Orientation", "Syllabus Review", "Recap", or "Conclusion", when they name no actual concept. If such an entry introduces real teachable content, emit that content under its real name as a leaf, not as a broad topic.
+If you are genuinely unsure, skip an entry only when at least one bibliographic sign above is clearly present; otherwise treat it as a topic. Do not drop a real concept merely because it shares a word with a book title.
+
 ORDER
 Emit items grouped by unit, units in their given sequence (1 first). Within a unit, keep items in the order their topics appear in the syllabus. Give each item a "position", an integer counting items top to bottom across the whole output starting at 1. This order is the course chronology; it must follow the syllabus and must not be resorted by any other criterion.
 
@@ -182,14 +193,15 @@ Every item has a "type", one of:
 When unsure between concept and case_study, ask whether it names a real, dated event. If yes, it is a case_study.
 
 HIERARCHY
-Place each item in a tree of at most three levels before naming it.
+Place each item in a tree of at most three levels.
 - Containment test: would a teacher explain this item as a facet or component of a broader item already present? If yes, nest it under that item.
 - Granularity test: could it stand as a self-contained lesson without being introduced through a parent? If yes, it is a top-level item.
-Set "depth" to one of:
-- "topic": a broad organizing theme with meaningful subtopics beneath it; a teacher would label a week or module with it.
-- "subtopic": a specific component of a topic, covered within a broader session.
-- "leaf": a narrow, applied, or terminal item with no meaningful subtopics.
-Set "parent_id" to the id of the immediate parent, or null for a top-level topic. case_study and definition items are almost always leaves beneath the concept or model they relate to, not peers of it. A syllabus unit heading is a topic; a bullet under it is a subtopic or leaf. Never nest deeper than topic > subtopic > leaf.
+Set "depth" to one of "topic", "subtopic", or "leaf", and the label MUST match the item's actual position in the tree you build:
+- "topic": a broad organizing theme that HAS at least one child item nested beneath it in this output. parent_id is null.
+- "subtopic": an item that has a parent AND has at least one child of its own.
+- "leaf": an item with NO children. Most items are leaves.
+STRUCTURAL RULE, APPLY STRICTLY: an item may be labelled "topic" or "subtopic" ONLY if it actually has children in your output. If an item has no children, its depth is "leaf", no matter how broad or important its name sounds. When in doubt, an item is a leaf. Do not promote an item to topic level to make it look significant; significance is carried by weight_pct, not by depth.
+case_study and definition items are essentially always leaves beneath the concept or model they relate to. A syllabus unit heading is usually a topic; a bullet under it is usually a subtopic or leaf. Never nest deeper than topic > subtopic > leaf.
 
 DEDUPLICATE BY MEANING, NOT BY WORDING
 The test for merging is "would a teacher deliver these as one lesson, or as two," judged at the level of the idea, not the words.
@@ -204,10 +216,15 @@ LINK
 For a case_study or skill that applies another item, set "related_ids" to the ids of the concept(s) or model(s) it draws on. Keep them separate items linked this way, never merged.
 
 COVER
-Every topic listed under a unit must appear in some item's "covers_topics" for that unit. Drop nothing from the syllabus. "covers_topics" holds the verbatim syllabus topic strings, copied exactly.
+Every teachable topic listed under a unit must appear in some item's "covers_topics" for that unit. Drop nothing teachable (readings and pure administrative entries are not teachable and are the only things you may skip). "covers_topics" holds the verbatim syllabus topic strings, copied exactly.
 
 WEIGHT
-Only terminal items (a "leaf", or any "topic"/"subtopic" with no children) carry an independent "weight_pct", an integer 1 to 100 for teaching emphasis (breadth, depth, foundational importance, time on task). These terminal weights must sum to roughly 100 across all units. An item that has children takes weight_pct equal to the sum of its descendants' weights as a rollup, which is not counted again toward the 100. Add a one-sentence "weight_rationale" to every item.
+Weight is assigned to LEAF items only.
+- Every leaf gets an integer "weight_pct" from 1 to 100, reflecting its share of teaching emphasis (breadth, depth, foundational importance, time on task).
+- Every non-leaf item (any item that has children) gets weight_pct of null. Do not give parents a number, and do not include them in any total.
+- The weight_pct values of ALL leaf items, across all units, must sum to EXACTLY 100.
+- FINAL RECONCILIATION, DO THIS BEFORE OUTPUT: add up every leaf's weight_pct. If the total is not exactly 100, adjust leaf values until it is exactly 100, applying the change to the largest-weighted leaves first. Do not output until the leaf total equals 100.
+- Add a one-sentence "weight_rationale" to every item. For a parent (null weight), the rationale notes that its emphasis is the sum of its children.
 
 ID
 Each item's id is "u{firstSourceUnit}-{slug}", slug being the name lowercased with non-alphanumeric characters as hyphens, e.g. "u2-fixed-exchange-rates". Ids are unique. parent_id and related_ids must reference ids you emit.
@@ -216,8 +233,8 @@ OUTPUT
 Return strict JSON with one key "items", an array of objects, each with:
   id, name, type, depth, parent_id (or null), aliases (array), related_ids (array),
   source_units (array of integers), position (integer), covers_topics (array),
-  weight_pct (integer), weight_rationale (string).
-Output only the JSON. No prose, no markdown fences.`;
+  sources (array, may be empty), weight_pct (integer for leaves, null for parents), weight_rationale (string).
+Output only the JSON. No prose, no markdown fences`;
 
     type ConceptOut = {
       name: string;
