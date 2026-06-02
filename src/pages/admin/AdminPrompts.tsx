@@ -49,6 +49,7 @@ type PromptEntry = {
   synced_with: string;
   notes?: string;
   stage?: string;
+  placeholders?: string[];
 };
 
 const rowKey = (p: PromptEntry) => `${p.function}::${p.stage ?? ""}`;
