@@ -84,15 +84,11 @@ serve(async (req) => {
       .map((w) => `- Week ${w.week}${w.week_name ? ` (${w.week_name})` : ""}: ${(w.concept_names || []).join(", ") || "(none)"}`)
       .join("\n");
 
-    const system = `You author readable week-level metadata for a SINGLE week of a fixed lesson-plan distribution.
-
-You will be given ONE week with its concepts already locked. Your job is ONLY to write:
-- week_name: 3–6 word title.
-- overview: 3–5 sentences, grounded strictly in the assigned concepts. Cover (1) what the average undergraduate will be able to do by end of week, (2) how it builds on prior weeks (if any), (3) the most common misconception or stumbling block.
-- 1 coding-exercise + 1–2 article resources tied to those concepts. Articles must be REAL, well-known, freely accessible (e.g. official Python docs, Real Python, MDN, official framework docs) with working https URLs. If you are not certain a URL exists, OMIT the url field rather than inventing one.
-
-Tone: factual, pedagogical, realistic. Do not over-promise mastery. Avoid generic filler.
-You CANNOT change the assigned concepts. Return ONLY via the provided tool.`;
+    const system = await resolvePrompt(
+      "regenerate-lesson-plan-week",
+      null,
+      REGENERATE_LESSON_PLAN_WEEK_SYSTEM,
+    );
 
     const user = `COURSE: ${course.name} (${course.term})
 Objectives: ${(course.objectives || []).join("; ") || "Not specified"}
