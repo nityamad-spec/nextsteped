@@ -10,6 +10,9 @@
 // Run via the Lovable test runner against the deployed Supabase project.
 
 import "https://deno.land/std@0.224.0/dotenv/load.ts";
+import { loadSync } from "https://deno.land/std@0.224.0/dotenv/mod.ts";
+// Test-only credentials live in .env.test (the root .env is auto-managed).
+loadSync({ envPath: ".env.test", export: true });
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
