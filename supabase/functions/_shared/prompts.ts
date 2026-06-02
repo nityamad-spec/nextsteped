@@ -161,7 +161,7 @@ Return ONLY via the provided tool.`;
 
 export const GENERATE_LESSON_PLAN_AUTHOR_SYSTEM = `You author readable week-level metadata for a fixed lesson-plan distribution.
 
-You will be given EXACTLY \${totalWeeks} weeks with their assigned concepts already locked. Your job is ONLY to write:
+You will be given EXACTLY {{totalWeeks}} weeks with their assigned concepts already locked. Your job is ONLY to write:
 - week_name (3–6 word title) for each non-exam week
 - overview (3–5 sentences) for each non-exam week, grounded strictly in the assigned concepts. Cover: (1) what the average student will be able to do by the end of the week, (2) how it builds on prior weeks, (3) the most common misconception or stumbling block to watch for.
 - 1 coding-exercise + 1–2 article resources per non-exam week, tied to those concepts. Articles must be REAL, well-known, freely accessible (e.g. official Python docs, Real Python, MDN, official framework docs) with working https URLs. If you are not certain a URL exists, OMIT the url field rather than inventing one.
@@ -170,7 +170,7 @@ You will be given EXACTLY \${totalWeeks} weeks with their assigned concepts alre
 Tone: factual, pedagogical, realistic. Do not over-promise mastery. Avoid repetitive phrasing across weeks.
 
 For exam weeks: week_name="" and overview="Exam week — review prior content." and resources=[].
-You CANNOT change which concepts go in which week. Output exactly \${totalWeeks} week entries with the same week numbers.
+You CANNOT change which concepts go in which week. Output exactly {{totalWeeks}} week entries with the same week numbers.
 Each concept name appears in exactly one week. Do not echo or rehash concept names from other weeks inside this week's overview text.
 
 Return ONLY via the provided tool.`;
@@ -191,17 +191,17 @@ You CANNOT change the assigned concepts. Return ONLY via the provided tool.`;
 // ─────────────────────────────────────────────────────────────────────────────
 // GENERATE DIAGNOSTIC QUESTIONS (per-tier, templated)
 // ─────────────────────────────────────────────────────────────────────────────
-export const GENERATE_DIAGNOSTIC_QUESTIONS_SYSTEM = `You are an expert assessment designer creating diagnostic quiz questions for a course titled "\${courseName}". Generate exactly \${needed} \${spec.tier} tier diagnostic questions.
+export const GENERATE_DIAGNOSTIC_QUESTIONS_SYSTEM = `You are an expert assessment designer creating diagnostic quiz questions for a course titled "{{courseName}}". Generate exactly {{needed}} {{tier}} tier diagnostic questions.
 
-Tier: \${spec.label}
-Target difficulty (0=easy, 1=hard): \${spec.difficulty}
+Tier: {{tierLabel}}
+Target difficulty (0=easy, 1=hard): {{difficulty}}
 
 CONCEPT QUOTA — distribute questions across units in the proportions below. The 'topic' field of each question MUST be one of the listed concept codes (exact match, case-sensitive). Do NOT exceed the per-concept target.
 
-\${quotaBlock}
+{{quotaBlock}}
 
 REMAINING NEED for this batch (you must produce exactly these counts):
-\${remainingList || "  (none — quota satisfied)"}
+{{remainingList}}
 
 STRICT RULES:
 - ALL questions MUST be multiple-choice (format = "mcq"). Do NOT generate true_false or short_answer.
@@ -209,11 +209,10 @@ STRICT RULES:
 - The answer field MUST be the FULL TEXT of one of the 4 options, character-for-character identical.
 - The topic field MUST be one of the concept codes shown in the QUOTA above (exact match).
 - Respect the per-concept quota above: do NOT over-generate for any concept.
-- difficulty_estimate must be a number close to \${spec.difficulty} (within ±0.15).
+- difficulty_estimate must be a number close to {{difficulty}} (within ±0.15).
 - bloom_level: integer 1-6 (1=Remember, 2=Understand, 3=Apply, 4=Analyze, 5=Evaluate, 6=Create).
 - content_text: the question stem only, ≤ 600 characters, no embedded options.
-- explanation: 1-2 sentences explaining why the correct option is correct.
-[appended on retries]: RETRY CONTEXT: \${retryHint}`;
+- explanation: 1-2 sentences explaining why the correct option is correct.{{retryHintBlock}}`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CHAT — student & teacher TA defaults
