@@ -2,3 +2,6 @@ project_id = "qqzrjaizioapwzoprvio"
 
 [functions.complete-student-signup]
 verify_jwt = true
+
+[functions.list-prompts]
+verify_jwt = false
