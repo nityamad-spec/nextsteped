@@ -448,6 +448,7 @@ const CourseMaterials = () => {
                 folderType="syllabus"
                 maxFiles={1}
                 onParseStatusChange={setSyllabusParseStatus}
+                onUploadingChange={setZoneBusyFor("syllabus")}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
