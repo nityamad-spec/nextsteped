@@ -212,8 +212,11 @@ serve(async (req) => {
           messages: [
             {
               role: "system",
-              content:
-                "You extract YouTube URLs from documents. Return every YouTube URL you find, one per line. Output URLs only — no commentary, no numbering, no other text. If none are found, output nothing.",
+              content: await resolvePrompt(
+                "extract-youtube-links",
+                null,
+                EXTRACT_YOUTUBE_SYSTEM,
+              ),
             },
             {
               role: "user",
