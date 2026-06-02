@@ -36,15 +36,17 @@ serve(async (req) => {
       ? `Key concepts: ${concepts.join(", ")}`
       : "";
 
-    const classificationPrompt = `You are a course relevance classifier. Given the following course context, determine if the student's question is relevant to the course.
-
-Course: ${courseName}
-${objectivesText}
-${conceptsText}
-
-Student's question: "${message}"
-
-Use the classify_relevance function to respond.`;
+    const classificationPrompt = await resolvePrompt(
+      "classify-question",
+      null,
+      CLASSIFY_QUESTION_SYSTEM,
+      {
+        courseName,
+        objectivesText,
+        conceptsText,
+        message,
+      },
+    );
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
