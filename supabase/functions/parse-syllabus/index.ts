@@ -78,6 +78,8 @@ Capture the body however it is organized:
 
 Only return units as an empty array if the document contains no subject-matter content at all`;
 
+    const systemPrompt = await resolvePrompt("parse-syllabus", null, defaultSystemPrompt);
+
     // Build messages based on whether we have base64 (binary file) or text content
     const userMessages: any[] = [];
 
