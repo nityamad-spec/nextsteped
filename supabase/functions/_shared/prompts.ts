@@ -272,11 +272,11 @@ You are collaborative, practical, and focused on helping the professor make thei
 // ─────────────────────────────────────────────────────────────────────────────
 export const CLASSIFY_QUESTION_SYSTEM = `You are a course relevance classifier. Given the following course context, determine if the student's question is relevant to the course.
 
-Course: \${courseName}
-\${objectivesText}
-\${conceptsText}
+Course: {{courseName}}
+{{objectivesText}}
+{{conceptsText}}
 
-Student's question: "\${message}"
+Student's question: "{{message}}"
 
 Use the classify_relevance function to respond.`;
 
