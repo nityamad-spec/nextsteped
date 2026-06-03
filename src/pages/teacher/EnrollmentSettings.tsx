@@ -20,10 +20,8 @@ const EnrollmentSettings = () => {
   const { currentCourse } = useApp();
   const { user } = useAuth();
 
-  const [publishSection, setPublishSection] = useState("");
   const [startDate, setStartDate] = useState(currentCourse?.startDate || "");
   const [endDate, setEndDate] = useState(currentCourse?.endDate || "");
-  const [weeklyNudges, setWeeklyNudges] = useState(true);
   const [csvUploaded, setCsvUploaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dbEnrollmentCode, setDbEnrollmentCode] = useState<string | null>(null);
