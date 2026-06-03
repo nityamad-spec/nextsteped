@@ -1,45 +1,55 @@
-# Lesson Plans upload → extract → save `uploaded-lesson-plan.json`
 
-When a teacher uploads a doc to the "Lesson Plans" card in `/teacher/setup/upload`, parse the document(s) into structured JSON and persist the result at `course-materials/{courseId}/lesson-plan/uploaded-lesson-plan.json` (upsert, overwrites any previous extraction).
+## Goal
 
-The raw uploaded files keep flowing into `{courseId}/lesson-plan-docs/...` and into `course_material_files` as today — only the new JSON sidecar is added.
+Replace the hardcoded `conceptMasteryMock` array in `/teacher/courses/dashboard` so the **Concept Exploration Map** lists the concepts that belong to the currently selected course (from the `concepts` table). Mastery/touched/deep/unexplored numbers stay mocked (deterministic per concept) until real analytics land.
 
-## 1. New edge function `extract-lesson-plan`
+## Scope
 
-Path: `supabase/functions/extract-lesson-plan/index.ts`. CORS + JWT validate + `is_course_member` check (same pattern as `extract-youtube-links` / `parse-syllabus`).
+Only `src/pages/teacher/CourseDashboard.tsx`. No schema changes, no edge functions, no changes to the Teaching Insights card (still mock).
 
-Input: `{ courseId }`. The function:
-1. Loads all rows from `course_material_files` where `course_id = courseId AND folder_type = 'lesson-plan-docs'` via service-role client.
-2. Downloads each file from `course-materials` and base64-encodes it (mime mapping reuses the table from `parse-syllabus`).
-3. Calls Lovable AI Gateway (`google/gemini-2.5-pro`) with a strict tool-call schema → returns the merged plan as:
-   ```
-   { weeks: [{ week, week_name, overview, concepts: [{name, brief_description}], resources: [{type, title, description, url}] }],
-     overall_course_learning_outcomes: string }
-   ```
-   This matches Shape B that `normalizeLessonPlan` already understands, so downstream readers work without changes. System prompt: "Extract ONLY what's in the documents. Do not invent weeks or concepts. If multiple files cover the same week, merge."
-4. Writes the result to `{courseId}/lesson-plan/uploaded-lesson-plan.json` via `storage.upload(..., { upsert: true, contentType: 'application/json' })`.
-5. Returns `{ path, weekCount }`.
+## What changes
 
-Errors return JSON with CORS headers; rate-limit (429) and credit (402) handled like `parse-syllabus`.
+1. **Fetch concepts for the current course**
+   - Use the existing `useTeacherCourseId()` hook (already imported).
+   - Add a `useEffect` that, when `courseId` changes, queries:
+     ```
+     supabase
+       .from("concepts")
+       .select("id, concept_code, weight")
+       .eq("course_id", courseId)
+       .order("weight", { ascending: false })
+     ```
+   - Store result in local state `concepts` (typed `{ id, concept_code, weight }[]`).
+   - Track `loading` and `error` flags.
 
-## 2. Client wiring
+2. **Derive display rows from real concepts + static mock stats**
+   - Build a small pure helper `mockStatsFor(conceptId: string)` that returns `{ touched, deeplyExplored, notExplored, masteryPct }`.
+   - Implementation: seeded pseudo-random from a hash of `conceptId` so numbers are stable across renders and look varied across concepts (no flicker, no Math.random in render). Keep ranges similar to today's mock (touched 5–35, deep 1–25, unexplored 5–50, mastery 30–90).
+   - Map fetched concepts → `{ concept: concept_code, ...mockStatsFor(id) }`.
 
-`src/pages/teacher/CourseMaterials.tsx` — the Lesson Plans `FileUploadZone` already has `onUploadComplete`. Add a handler that calls `supabase.functions.invoke('extract-lesson-plan', { body: { courseId } })` and toasts "Extracted N weeks from lesson plan docs" / "Couldn't extract a structured plan from the uploaded files." Non-blocking; UI doesn't wait beyond the toast.
+3. **Render states in the existing card**
+   - Loading: show 4 `Skeleton` rows (reuse `@/components/ui/skeleton`) inside the CardContent, keep the legend.
+   - Empty (course has no concepts yet): muted message "No concepts defined for this course yet. Add them in Concept Review." with a subtle link/hint — no row list.
+   - Error: small inline error text, keep legend.
+   - Loaded: render the same row markup that exists today (legend, bars, expandable mastery detail) but driven by the fetched list.
 
-A lightweight in-card status line ("Last extraction: just now · N weeks") is shown when extraction completes in the current session. No new persistent state.
+4. **Keep all existing UI behavior**
+   - Legend, hover/expand, color thresholds (≥70 emerald, ≥50 amber, else destructive), and dot logic unchanged.
+   - Section selector, Course Progress card, Stats row, Teaching Insights, Collaborators — untouched.
 
-## 3. Storage & DB
+## Out of scope
 
-- No new tables. No new columns. Path is fully derivable from `courseId`, identical convention to `published-plan.json` / `draft-plan-v2.json`.
-- Existing storage RLS on `course-materials` already grants course members read/write under the `{courseId}/...` prefix, so no policy changes.
+- Real mastery analytics (chat-derived touched/deep counts). Mastery stays static per memory rule (`mastery levels hidden from student/professor` does not apply here — this is aggregate exploration, but the numbers themselves remain mocked).
+- Pagination/virtualization (concept lists are small, typically < 50).
+- Filtering by section (selector already exists but doesn't filter today; leaving as-is).
+
+## Technical notes
+
+- `concept_code` is the human label shown today (e.g. "Variables & Types"). Display it directly; no extra join needed.
+- Hash helper can be a 6-line `djb2` style function kept inside the component file.
+- No new dependencies.
+- RLS already allows teachers/collaborators to read concepts for their courses, so the client query works without an edge function.
 
 ## Files touched
 
-- **New:** `supabase/functions/extract-lesson-plan/index.ts`
-- **Edit:** `src/pages/teacher/CourseMaterials.tsx` (Lesson Plans card `onUploadComplete` + tiny status text)
-
-## Explicitly out of scope
-
-- No changes to `generate-lesson-plan` or any reader of the published plan.
-- No re-extraction trigger on file delete (stale JSON remains until next upload). Can add later.
-- No UI to view/edit the extracted JSON in this pass.
+- `src/pages/teacher/CourseDashboard.tsx` — remove `conceptMasteryMock`, add fetch + helper + loading/empty/error states.

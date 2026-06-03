@@ -12,17 +12,20 @@ import { Badge } from "@/components/ui/badge";
 import CourseCollaborators from "@/components/CourseCollaborators";
 import CourseStatusBanner from "@/components/CourseStatusBanner";
 
-/* ── Concept Exploration Map categories ── */
-const conceptMasteryMock = [
-  { concept: "Variables & Types", touched: 32, deeplyExplored: 18, notExplored: 5, masteryPct: 72 },
-  { concept: "Control Flow", touched: 28, deeplyExplored: 22, notExplored: 5, masteryPct: 64 },
-  { concept: "Functions", touched: 20, deeplyExplored: 10, notExplored: 25, masteryPct: 45 },
-  { concept: "Lists & Dicts", touched: 15, deeplyExplored: 5, notExplored: 35, masteryPct: 38 },
-  { concept: "File Handling", touched: 8, deeplyExplored: 2, notExplored: 45, masteryPct: 50 },
-  { concept: "OOP Basics", touched: 5, deeplyExplored: 1, notExplored: 49, masteryPct: 100 },
-  { concept: "Error Handling", touched: 12, deeplyExplored: 4, notExplored: 39, masteryPct: 57 },
-  { concept: "Modules", touched: 10, deeplyExplored: 3, notExplored: 42, masteryPct: 67 },
-];
+/* ── Static mock stats per concept (deterministic by id) ── */
+function hashStr(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function mockStatsFor(id: string) {
+  const h = hashStr(id);
+  const touched = 5 + (h % 31); // 5..35
+  const deeplyExplored = 1 + ((h >> 3) % 25); // 1..25
+  const notExplored = 5 + ((h >> 6) % 46); // 5..50
+  const masteryPct = 30 + ((h >> 9) % 61); // 30..90
+  return { touched, deeplyExplored, notExplored, masteryPct };
+}
 
 const insightsMock = [
   "Consider dedicating extra time to **Functions** — most students have only touched this concept without deep exploration.",
