@@ -9,9 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, UserPlus, Upload, Copy, FileText, ArrowLeft } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { markStepCompleted } from "@/lib/setupProgress";
@@ -22,10 +20,8 @@ const EnrollmentSettings = () => {
   const { currentCourse } = useApp();
   const { user } = useAuth();
 
-  const [publishSection, setPublishSection] = useState("");
   const [startDate, setStartDate] = useState(currentCourse?.startDate || "");
   const [endDate, setEndDate] = useState(currentCourse?.endDate || "");
-  const [weeklyNudges, setWeeklyNudges] = useState(true);
   const [csvUploaded, setCsvUploaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dbEnrollmentCode, setDbEnrollmentCode] = useState<string | null>(null);
@@ -102,19 +98,7 @@ const EnrollmentSettings = () => {
             <CardDescription>Configure course sections and schedule</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-2">
-                <Label>Sections</Label>
-                <Select value={publishSection} onValueChange={setPublishSection}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Sections</SelectItem>
-                    {(currentCourse?.sections || ["Section A", "Section B"]).map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Start Date</Label>
                 <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
@@ -163,13 +147,6 @@ const EnrollmentSettings = () => {
               <span className="text-sm text-muted-foreground">Upload additional roster (CSV)</span>
             </div>
 
-            <div className="flex items-center justify-between pt-2">
-              <div>
-                <Label>Weekly Nudges</Label>
-                <p className="text-xs text-muted-foreground">Send weekly reminders to stay on track</p>
-              </div>
-              <Switch checked={weeklyNudges} onCheckedChange={setWeeklyNudges} />
-            </div>
           </CardContent>
         </Card>
 
