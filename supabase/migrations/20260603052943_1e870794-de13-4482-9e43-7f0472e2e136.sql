@@ -1,0 +1,1 @@
+ALTER TABLE public.course_material_files DROP CONSTRAINT IF EXISTS course_material_files_storage_path_key;
