@@ -42,7 +42,7 @@ const CourseDashboard = () => {
   const courseSections = currentCourse?.sections || [];
   const [selectedSection, setSelectedSection] = useState<string>("all");
   const [hoveredConcept, setHoveredConcept] = useState<string | null>(null);
-  const [expandedConcept, setExpandedConcept] = useState<string | null>(null);
+  
   const [isCollaborator, setIsCollaborator] = useState(false);
   const [concepts, setConcepts] = useState<{ id: string; concept_code: string; weight: number }[]>([]);
   const [conceptsLoading, setConceptsLoading] = useState(true);
