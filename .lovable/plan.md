@@ -1,43 +1,68 @@
-## Goal
+# Lesson plan missing on student home — root cause + fix
 
-Order the **Concept Exploration Map** on `/teacher/courses/dashboard` to follow the **lesson plan sequence** (week 1 → final week, top-to-bottom within each week).
+## Root cause
 
-## What changes
+The Python course is correctly set up:
+- `courses.published = true`, `lesson_plan_published_at` is set
+- 16 rows exist in `lesson_plan_weeks`; Week 1 is `locked = false` (so RLS lets the student read it)
+- Akash's `profiles.active_course_id` correctly points at the Python course
 
-Only `src/pages/teacher/CourseDashboard.tsx`.
+The problem is in `src/hooks/useEnrolledCourseId.ts`. The hook seeds its state directly from `localStorage.getItem("enrolledCourseId")` and **only** queries the backend when that value is missing:
 
-1. **Fetch lesson plan weeks alongside concepts**
-   - In the existing concept-fetch `useEffect`, run a second query in parallel:
-     ```
-     supabase
-       .from("lesson_plan_weeks")
-       .select("week_number, concepts")
-       .eq("course_id", courseId)
-       .order("week_number", { ascending: true })
-     ```
-   - `concepts` jsonb is an array of `{ id, name, ... }`. The `id` is a lesson-plan-local string (e.g. `i_1780465691343_h2lc`), **not** a `concepts.id` UUID — so matching is done by **name → `concepts.concept_code`** (case-insensitive, trimmed).
+```ts
+const [courseId, setCourseId] = useState(() => localStorage.getItem("enrolledCourseId"));
+useEffect(() => {
+  if (courseId || !user) return;   // <-- skipped when localStorage has ANY value
+  ...
+});
+```
 
-2. **Build an order index**
-   - Walk weeks in order; for each week walk its concepts array in order; record the first occurrence of each normalized name with an incrementing index.
-   - Result: `Map<normalizedName, number>`.
+If `localStorage.enrolledCourseId` holds a stale id (a previously enrolled / deleted course, a different tenant, or a value carried over from another login on the same browser), the hook returns that stale id forever. In `StudentHome.tsx` the lesson-plan effect then runs:
 
-3. **Sort the fetched concepts list**
-   - For each row, look up its `concept_code` in the index.
-   - Sort:
-     - matched concepts first, by index ascending;
-     - unmatched concepts (not referenced in any week) last, ordered alphabetically by `concept_code`.
-   - Replace the current `weight desc` order.
+```ts
+const { data: course } = await supabase
+  .from("courses")
+  .select("teacher_id, start_date, total_weeks, lesson_plan_published_at")
+  .eq("id", enrolledCourseId)
+  .maybeSingle();
+if (!course?.teacher_id) { setPlanLoading(false); return; }
+```
 
-4. **Loading / empty / error**
-   - Treat lesson-plan fetch failure as non-fatal: fall back to alphabetical order on the concepts list (don't block the card). Concepts-table error keeps existing error state.
-   - Loading state unchanged — still gated on the concepts fetch.
+The course lookup returns null (RLS hides the stale id), the effect bails before touching `lesson_plan_weeks`, and the UI renders the "Lesson plan not yet available" empty state — even though the real Python plan is published and visible. The teacher-side already had this same bug and was fixed in `useTeacherCourseId.ts`; the student hook never got the same hardening.
 
-## Out of scope
+## Fix
 
-- No week labels/headers in the map (just ordering).
-- No schema changes.
-- No change to mocked mastery stats or any other card.
+### 1. Harden `src/hooks/useEnrolledCourseId.ts`
+
+Mirror the validation pattern used in `useTeacherCourseId`:
+
+- Keep the lazy `localStorage` seed for fast first paint.
+- Always run a one-shot validation effect that:
+  1. If a candidate id exists, confirm there is an `enrollments` row for `(student_id = user.id, course_id = candidate)`. If yes, keep it.
+  2. If no, clear `localStorage.enrolledCourseId`, fall back to `profiles.active_course_id` (re-validated against enrollments), then to the most recent `enrollments` row, and persist the resolved id back to both `localStorage` and `profiles.active_course_id`.
+  3. Track the last-validated id in a ref so we don't re-validate on every render.
+- Expose the same `string | null` return so no call sites change.
+
+### 2. Defensive cleanup in `src/pages/student/StudentHome.tsx`
+
+In the lesson-plan effect, when the `courses` lookup returns null, treat it as a stale-id signal:
+
+- `localStorage.removeItem("enrolledCourseId")`
+- Leave `planLoading = false` (current behaviour) but log a warning so future regressions are obvious.
+
+The hardened hook will then resolve the correct id on the next render and the effect re-runs against the real Python course.
+
+### 3. No DB or RLS changes
+
+Verified server-side: RLS on `lesson_plan_weeks` already returns Week 1 for this student. No migration needed.
 
 ## Files touched
 
-- `src/pages/teacher/CourseDashboard.tsx` — extend the concept-loading effect with a parallel lesson-plan query and apply lesson-plan-based ordering.
+- `src/hooks/useEnrolledCourseId.ts` — add validation + recovery (≈40 lines).
+- `src/pages/student/StudentHome.tsx` — clear stale localStorage on null course lookup (≈3 lines).
+
+## Verification
+
+1. Manually set `localStorage.enrolledCourseId` to a random UUID in the preview, reload `/student/home`, confirm the hook recovers and the Python Week 1 card renders.
+2. With a clean localStorage, confirm normal load still works (regression check).
+3. With two enrollments, confirm `active_course_id` is honored.
