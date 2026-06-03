@@ -41,8 +41,6 @@ const CourseDashboard = () => {
   const { taSettings } = useTASettings(courseId);
   const courseSections = currentCourse?.sections || [];
   const [selectedSection, setSelectedSection] = useState<string>("all");
-  const [hoveredConcept, setHoveredConcept] = useState<string | null>(null);
-  const [expandedConcept, setExpandedConcept] = useState<string | null>(null);
   const [isCollaborator, setIsCollaborator] = useState(false);
   const [concepts, setConcepts] = useState<{ id: string; concept_code: string; weight: number }[]>([]);
   const [conceptsLoading, setConceptsLoading] = useState(true);
@@ -248,29 +246,17 @@ const CourseDashboard = () => {
         {/* Concept Mastery Map */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Concept Exploration Map</CardTitle>
-            <CardDescription>Aggregate anonymous view — based on chat interactions</CardDescription>
+            <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Concept Mastery Map</CardTitle>
+            <CardDescription>Aggregate mastery across enrolled students</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-center gap-4 rounded-lg border bg-muted/30 px-4 py-2.5">
-              <span className="text-xs font-medium text-muted-foreground">Legend:</span>
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-primary" />
-                <span className="text-xs text-muted-foreground">Deeply Explored</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-primary/40" />
-                <span className="text-xs text-muted-foreground">Touched</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-muted" />
-                <span className="text-xs text-muted-foreground">Not Explored</span>
-              </div>
-              <div className="ml-auto flex items-center gap-1.5">
-                <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                <div className="h-2.5 w-2.5 rounded-full bg-destructive" />
-                <span className="text-[10px] text-muted-foreground">Mastery level — click a row for details</span>
+            <div className="rounded-lg border bg-muted/30 px-4 py-3">
+              <div className="h-2 w-full rounded-full bg-gradient-to-r from-mastery-beginner via-mastery-progressing via-mastery-proficient to-mastery-expert" />
+              <div className="mt-2 grid grid-cols-4 text-[11px] font-medium text-muted-foreground">
+                <span className="text-left">Beginner</span>
+                <span className="text-center">Developing</span>
+                <span className="text-center">Proficient</span>
+                <span className="text-right">Expert</span>
               </div>
             </div>
 
@@ -290,60 +276,23 @@ const CourseDashboard = () => {
                 No concepts defined for this course yet. Add them in Concept Review.
               </p>
             ) : conceptRows.map((c) => {
-              const total = c.touched + c.deeplyExplored + c.notExplored;
-              const touchedPct = Math.round((c.touched / total) * 100);
-              const deepPct = Math.round((c.deeplyExplored / total) * 100);
-              const isExpanded = expandedConcept === c.concept;
-              const dotColor = c.deeplyExplored === 0
-                ? "bg-muted-foreground/30"
-                : c.masteryPct >= 70
-                  ? "bg-emerald-500"
-                  : c.masteryPct >= 50
-                    ? "bg-amber-500"
-                    : "bg-destructive";
+              const pct = Math.max(0, Math.min(100, c.masteryPct));
+              const level =
+                pct < 25 ? "Beginner" :
+                pct < 50 ? "Developing" :
+                pct < 75 ? "Proficient" : "Expert";
               return (
-                <div
-                  key={c.concept}
-                  className="space-y-1.5 rounded-lg px-3 py-2 cursor-pointer transition-colors hover:bg-muted/40"
-                  onClick={() => setExpandedConcept(isExpanded ? null : c.concept)}
-                >
+                <div key={c.concept} className="space-y-1.5 rounded-lg px-3 py-2">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`h-2.5 w-2.5 rounded-full ${dotColor} shrink-0`} />
-                      <span className="text-sm font-medium">{c.concept}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span>{c.deeplyExplored} deep</span>
-                      <span>{c.touched} touched</span>
-                      <span>{c.notExplored} unexplored</span>
-                    </div>
+                    <span className="text-sm font-medium">{c.concept}</span>
+                    <span className="text-xs text-muted-foreground">{level}</span>
                   </div>
-                  <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
-                    <div className="bg-primary transition-all" style={{ width: `${deepPct}%` }} />
-                    <div className="bg-primary/40 transition-all" style={{ width: `${touchedPct}%` }} />
+                  <div className="relative h-2.5 w-full rounded-full bg-gradient-to-r from-mastery-beginner via-mastery-progressing via-mastery-proficient to-mastery-expert">
+                    <div
+                      className="absolute top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-sm bg-foreground shadow-sm"
+                      style={{ left: `calc(${pct}% - 1px)` }}
+                    />
                   </div>
-                  {isExpanded && c.deeplyExplored > 0 && (
-                    <div className="flex items-center gap-2 ml-5 pt-1 animate-in slide-in-from-top-1 fade-in duration-200">
-                      <div className="flex items-center gap-1.5">
-                        <div className="h-1.5 w-20 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all ${
-                              c.masteryPct >= 70 ? "bg-emerald-500" : c.masteryPct >= 50 ? "bg-amber-500" : "bg-destructive"
-                            }`}
-                            style={{ width: `${c.masteryPct}%` }}
-                          />
-                        </div>
-                        <span className={`text-[10px] font-semibold ${
-                          c.masteryPct >= 70 ? "text-emerald-600" : c.masteryPct >= 50 ? "text-amber-600" : "text-destructive"
-                        }`}>
-                          {c.masteryPct}% mastery
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground">
-                        among {c.deeplyExplored} students who deeply explored
-                      </span>
-                    </div>
-                  )}
                 </div>
               );
             })}
