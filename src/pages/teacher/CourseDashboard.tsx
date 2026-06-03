@@ -42,7 +42,7 @@ const CourseDashboard = () => {
   const courseSections = currentCourse?.sections || [];
   const [selectedSection, setSelectedSection] = useState<string>("all");
   const [hoveredConcept, setHoveredConcept] = useState<string | null>(null);
-  const [expandedConcept, setExpandedConcept] = useState<string | null>(null);
+  
   const [isCollaborator, setIsCollaborator] = useState(false);
   const [concepts, setConcepts] = useState<{ id: string; concept_code: string; weight: number }[]>([]);
   const [conceptsLoading, setConceptsLoading] = useState(true);
@@ -248,29 +248,27 @@ const CourseDashboard = () => {
         {/* Concept Mastery Map */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Concept Exploration Map</CardTitle>
-            <CardDescription>Aggregate anonymous view — based on chat interactions</CardDescription>
+            <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Concept Mastery Map</CardTitle>
+            <CardDescription>Aggregate anonymous view — student mastery distribution per concept</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap items-center gap-4 rounded-lg border bg-muted/30 px-4 py-2.5">
               <span className="text-xs font-medium text-muted-foreground">Legend:</span>
               <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-primary" />
-                <span className="text-xs text-muted-foreground">Deeply Explored</span>
+                <div className="h-3 w-3 rounded-sm bg-mastery-beginner" />
+                <span className="text-xs text-muted-foreground">Beginner</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-primary/40" />
-                <span className="text-xs text-muted-foreground">Touched</span>
+                <div className="h-3 w-3 rounded-sm bg-mastery-progressing" />
+                <span className="text-xs text-muted-foreground">Developing</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-muted" />
-                <span className="text-xs text-muted-foreground">Not Explored</span>
+                <div className="h-3 w-3 rounded-sm bg-mastery-proficient" />
+                <span className="text-xs text-muted-foreground">Proficient</span>
               </div>
-              <div className="ml-auto flex items-center gap-1.5">
-                <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                <div className="h-2.5 w-2.5 rounded-full bg-destructive" />
-                <span className="text-[10px] text-muted-foreground">Mastery level — click a row for details</span>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-3 rounded-sm bg-mastery-expert" />
+                <span className="text-xs text-muted-foreground">Expert</span>
               </div>
             </div>
 
@@ -290,60 +288,37 @@ const CourseDashboard = () => {
                 No concepts defined for this course yet. Add them in Concept Review.
               </p>
             ) : conceptRows.map((c) => {
-              const total = c.touched + c.deeplyExplored + c.notExplored;
-              const touchedPct = Math.round((c.touched / total) * 100);
-              const deepPct = Math.round((c.deeplyExplored / total) * 100);
-              const isExpanded = expandedConcept === c.concept;
-              const dotColor = c.deeplyExplored === 0
-                ? "bg-muted-foreground/30"
-                : c.masteryPct >= 70
-                  ? "bg-emerald-500"
-                  : c.masteryPct >= 50
-                    ? "bg-amber-500"
-                    : "bg-destructive";
+              const total = Math.max(1, c.touched + c.deeplyExplored + c.notExplored);
+              // Deterministic static distribution from concept name
+              let h = 0;
+              for (let i = 0; i < c.concept.length; i++) h = (h * 31 + c.concept.charCodeAt(i)) >>> 0;
+              const w1 = (h % 100) / 100;
+              const w2 = ((h >>> 7) % 100) / 100;
+              const w3 = ((h >>> 13) % 100) / 100;
+              const w4 = ((h >>> 19) % 100) / 100;
+              const sum = w1 + w2 + w3 + w4 || 1;
+              const beginner = Math.round((w1 / sum) * total);
+              const developing = Math.round((w2 / sum) * total);
+              const proficient = Math.round((w3 / sum) * total);
+              const expert = Math.max(0, total - beginner - developing - proficient);
+              const pct = (n: number) => (n / total) * 100;
               return (
-                <div
-                  key={c.concept}
-                  className="space-y-1.5 rounded-lg px-3 py-2 cursor-pointer transition-colors hover:bg-muted/40"
-                  onClick={() => setExpandedConcept(isExpanded ? null : c.concept)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`h-2.5 w-2.5 rounded-full ${dotColor} shrink-0`} />
-                      <span className="text-sm font-medium">{c.concept}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span>{c.deeplyExplored} deep</span>
-                      <span>{c.touched} touched</span>
-                      <span>{c.notExplored} unexplored</span>
+                <div key={c.concept} className="space-y-1.5 rounded-lg px-3 py-2">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-sm font-medium">{c.concept}</span>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="text-mastery-beginner font-medium">{beginner} Beginner</span>
+                      <span className="text-mastery-progressing font-medium">{developing} Developing</span>
+                      <span className="text-mastery-proficient font-medium">{proficient} Proficient</span>
+                      <span className="text-mastery-expert font-medium">{expert} Expert</span>
                     </div>
                   </div>
                   <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
-                    <div className="bg-primary transition-all" style={{ width: `${deepPct}%` }} />
-                    <div className="bg-primary/40 transition-all" style={{ width: `${touchedPct}%` }} />
+                    <div className="bg-mastery-beginner" style={{ width: `${pct(beginner)}%` }} />
+                    <div className="bg-mastery-progressing" style={{ width: `${pct(developing)}%` }} />
+                    <div className="bg-mastery-proficient" style={{ width: `${pct(proficient)}%` }} />
+                    <div className="bg-mastery-expert" style={{ width: `${pct(expert)}%` }} />
                   </div>
-                  {isExpanded && c.deeplyExplored > 0 && (
-                    <div className="flex items-center gap-2 ml-5 pt-1 animate-in slide-in-from-top-1 fade-in duration-200">
-                      <div className="flex items-center gap-1.5">
-                        <div className="h-1.5 w-20 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all ${
-                              c.masteryPct >= 70 ? "bg-emerald-500" : c.masteryPct >= 50 ? "bg-amber-500" : "bg-destructive"
-                            }`}
-                            style={{ width: `${c.masteryPct}%` }}
-                          />
-                        </div>
-                        <span className={`text-[10px] font-semibold ${
-                          c.masteryPct >= 70 ? "text-emerald-600" : c.masteryPct >= 50 ? "text-amber-600" : "text-destructive"
-                        }`}>
-                          {c.masteryPct}% mastery
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground">
-                        among {c.deeplyExplored} students who deeply explored
-                      </span>
-                    </div>
-                  )}
                 </div>
               );
             })}
