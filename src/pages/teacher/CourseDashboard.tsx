@@ -246,7 +246,22 @@ const CourseDashboard = () => {
               </div>
             </div>
 
-            {conceptMasteryMock.map((c) => {
+            {conceptsLoading ? (
+              <div className="space-y-3">
+                {[0,1,2,3].map((i) => (
+                  <div key={i} className="space-y-1.5 px-3 py-2">
+                    <div className="h-4 w-1/3 rounded bg-muted animate-pulse" />
+                    <div className="h-3 w-full rounded-full bg-muted animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : conceptsError ? (
+              <p className="text-sm text-destructive px-3 py-2">Failed to load concepts: {conceptsError}</p>
+            ) : conceptRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-3 py-4 text-center">
+                No concepts defined for this course yet. Add them in Concept Review.
+              </p>
+            ) : conceptRows.map((c) => {
               const total = c.touched + c.deeplyExplored + c.notExplored;
               const touchedPct = Math.round((c.touched / total) * 100);
               const deepPct = Math.round((c.deeplyExplored / total) * 100);
