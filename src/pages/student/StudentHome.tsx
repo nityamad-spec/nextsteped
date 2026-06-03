@@ -190,26 +190,14 @@ const StudentHome = () => {
   };
 
   // Dynamic "What to do next" suggestions
-  const unexplored = conceptMasteryData.filter(c => c.status === "not_explored");
-  const weakConcepts = conceptMasteryData.filter(c => c.quizScore !== null && c.quizScore < 60);
-
   const nextActions = [];
-  if (unexplored.length > 0) {
+  if (concepts.length > 0) {
     nextActions.push({
       icon: MessageSquare,
-      title: `Start learning: ${unexplored[0].name}`,
+      title: `Start learning: ${concepts[0].name}`,
       description: "Use the Study Chat to explore this concept",
       action: () => navigate("/student/chat?newchat=true"),
       variant: "default" as const,
-    });
-  }
-  if (weakConcepts.length > 0) {
-    nextActions.push({
-      icon: Brain,
-      title: `Strengthen: ${weakConcepts[0].name}`,
-      description: `You scored ${weakConcepts[0].quizScore}% — revisit with the Teaching Assistant`,
-      action: () => navigate("/student/chat?newchat=true"),
-      variant: "outline" as const,
     });
   }
   nextActions.push({
