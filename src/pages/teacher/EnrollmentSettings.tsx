@@ -149,13 +149,6 @@ const EnrollmentSettings = () => {
               <span className="text-sm text-muted-foreground">Upload additional roster (CSV)</span>
             </div>
 
-            <div className="flex items-center justify-between pt-2">
-              <div>
-                <Label>Weekly Nudges</Label>
-                <p className="text-xs text-muted-foreground">Send weekly reminders to stay on track</p>
-              </div>
-              <Switch checked={weeklyNudges} onCheckedChange={setWeeklyNudges} />
-            </div>
           </CardContent>
         </Card>
 
