@@ -17,17 +17,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 
-/* ── Concept mastery data (mock — will be wired to real chat data later) ── */
-const conceptMasteryData = [
-  { name: "Variables & Types", status: "deeply_explored" as const, quizScore: 85 },
-  { name: "Control Flow", status: "touched" as const, quizScore: null },
-  { name: "Functions", status: "deeply_explored" as const, quizScore: 62 },
-  { name: "Lists & Dicts", status: "not_explored" as const, quizScore: null },
-  { name: "File Handling", status: "not_explored" as const, quizScore: null },
-  { name: "OOP Basics", status: "not_explored" as const, quizScore: null },
-  { name: "Error Handling", status: "not_explored" as const, quizScore: null },
-  { name: "Modules", status: "touched" as const, quizScore: null },
-];
+/* Concepts are loaded from the DB for the student's enrolled course.
+   Mastery is a uniform "Not explored" placeholder until real data is wired. */
 
 type MasteryStatus = "deeply_explored" | "touched" | "not_explored";
 
