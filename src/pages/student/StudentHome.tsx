@@ -58,6 +58,28 @@ const StudentHome = () => {
   const [lessonPlan, setLessonPlan] = useState<any[]>([]);
   const [planLoading, setPlanLoading] = useState(true);
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
+  const [concepts, setConcepts] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (!enrolledCourseId) { setConcepts([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("concepts")
+        .select("id, concept_code, weight")
+        .eq("course_id", enrolledCourseId)
+        .order("weight", { ascending: false })
+        .order("concept_code", { ascending: true });
+      if (cancelled) return;
+      if (error) {
+        console.error("Concepts load error:", error);
+        setConcepts([]);
+        return;
+      }
+      setConcepts((data || []).map((c: any) => ({ id: String(c.id), name: String(c.concept_code) })));
+    })();
+    return () => { cancelled = true; };
+  }, [enrolledCourseId]);
 
   useEffect(() => {
     const loadPlan = async () => {
