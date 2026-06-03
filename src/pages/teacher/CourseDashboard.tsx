@@ -48,33 +48,61 @@ const CourseDashboard = () => {
   const [conceptsLoading, setConceptsLoading] = useState(true);
   const [conceptsError, setConceptsError] = useState<string | null>(null);
 
+  const [lessonOrder, setLessonOrder] = useState<Map<string, number>>(new Map());
+
   useEffect(() => {
-    if (!courseId) { setConcepts([]); setConceptsLoading(false); return; }
+    if (!courseId) { setConcepts([]); setLessonOrder(new Map()); setConceptsLoading(false); return; }
     let cancelled = false;
     setConceptsLoading(true);
     setConceptsError(null);
     (async () => {
-      const { data, error } = await supabase
-        .from("concepts")
-        .select("id, concept_code, weight")
-        .eq("course_id", courseId)
-        .order("weight", { ascending: false });
+      const [conceptsRes, weeksRes] = await Promise.all([
+        supabase
+          .from("concepts")
+          .select("id, concept_code, weight")
+          .eq("course_id", courseId),
+        supabase
+          .from("lesson_plan_weeks")
+          .select("week_number, concepts")
+          .eq("course_id", courseId)
+          .order("week_number", { ascending: true }),
+      ]);
       if (cancelled) return;
-      if (error) {
-        setConceptsError(error.message);
+
+      if (conceptsRes.error) {
+        setConceptsError(conceptsRes.error.message);
         setConcepts([]);
       } else {
-        setConcepts(data || []);
+        setConcepts(conceptsRes.data || []);
       }
+
+      const order = new Map<string, number>();
+      if (!weeksRes.error && Array.isArray(weeksRes.data)) {
+        let idx = 0;
+        for (const w of weeksRes.data) {
+          const list = Array.isArray((w as any).concepts) ? (w as any).concepts : [];
+          for (const c of list) {
+            const name = typeof c?.name === "string" ? c.name.trim().toLowerCase() : "";
+            if (name && !order.has(name)) order.set(name, idx++);
+          }
+        }
+      }
+      setLessonOrder(order);
       setConceptsLoading(false);
     })();
     return () => { cancelled = true; };
   }, [courseId]);
 
-  const conceptRows = concepts.map((c) => ({
-    concept: c.concept_code,
-    ...mockStatsFor(c.id),
-  }));
+  const conceptRows = [...concepts]
+    .sort((a, b) => {
+      const ai = lessonOrder.get(a.concept_code.trim().toLowerCase());
+      const bi = lessonOrder.get(b.concept_code.trim().toLowerCase());
+      if (ai !== undefined && bi !== undefined) return ai - bi;
+      if (ai !== undefined) return -1;
+      if (bi !== undefined) return 1;
+      return a.concept_code.localeCompare(b.concept_code);
+    })
+    .map((c) => ({ concept: c.concept_code, ...mockStatsFor(c.id) }));
 
   // Only need to know if the signed-in teacher is a collaborator (not the owner)
   // — owners get no banner, collaborators get the Handshake badge.
