@@ -44,6 +44,37 @@ const CourseDashboard = () => {
   const [hoveredConcept, setHoveredConcept] = useState<string | null>(null);
   const [expandedConcept, setExpandedConcept] = useState<string | null>(null);
   const [isCollaborator, setIsCollaborator] = useState(false);
+  const [concepts, setConcepts] = useState<{ id: string; concept_code: string; weight: number }[]>([]);
+  const [conceptsLoading, setConceptsLoading] = useState(true);
+  const [conceptsError, setConceptsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!courseId) { setConcepts([]); setConceptsLoading(false); return; }
+    let cancelled = false;
+    setConceptsLoading(true);
+    setConceptsError(null);
+    (async () => {
+      const { data, error } = await supabase
+        .from("concepts")
+        .select("id, concept_code, weight")
+        .eq("course_id", courseId)
+        .order("weight", { ascending: false });
+      if (cancelled) return;
+      if (error) {
+        setConceptsError(error.message);
+        setConcepts([]);
+      } else {
+        setConcepts(data || []);
+      }
+      setConceptsLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
+
+  const conceptRows = concepts.map((c) => ({
+    concept: c.concept_code,
+    ...mockStatsFor(c.id),
+  }));
 
   // Only need to know if the signed-in teacher is a collaborator (not the owner)
   // — owners get no banner, collaborators get the Handshake badge.
