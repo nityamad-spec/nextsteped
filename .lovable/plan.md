@@ -1,43 +1,36 @@
-# Concept Mastery Map — UI refactor
+# Concept Mastery Map — Brand Color Recolor
 
-Scope: `src/pages/teacher/CourseDashboard.tsx`, the "Concept Exploration Map" card only. UI-only, no backend changes.
+Scope: UI-only edit to `src/pages/teacher/CourseDashboard.tsx` (and a few tokens in `src/index.css` + `tailwind.config.ts`). No data, routing, or component-structure changes.
 
-## Data note (flag)
-`conceptRows` currently carries `touched / deeplyExplored / notExplored` per concept (derived from chat interactions). The four mastery-level counts (Beginner / Developing / Proficient / Expert) are **not** tracked in the backend today. Per the request, I'll keep it static: derive four deterministic per-concept counts client-side from the existing `total` (students) so each row still adds up to its real student total and stays stable across renders. No DB / edge function changes.
+## Assumption on logo colors
+You didn't specify the logo hex values, so I'll use the existing NextStep brand color already defined as `--primary: hsl(234 62% 52%)` (the indigo used across the app) as the base, and derive a 4-step intensity ramp by varying lightness. If you have specific logo hex codes (e.g. a 2-3 color logo with secondary accents), share them and I'll swap the ramp before implementing.
 
-If you later want these driven by real data, that's a separate backend task (new aggregation over `assessment_results` / mastery records keyed by concept). I'll flag and ask before doing that.
+Proposed ramp (high → low intensity), darkest = Expert:
+
+```text
+Expert      234 62% 28%   (deepest)
+Proficient  234 62% 42%
+Developing  234 62% 60%
+Beginner    234 55% 80%   (lightest)
+```
 
 ## Changes
 
-1. **Rename** card title `Concept Exploration Map` → `Concept Mastery Map`. Description → `Aggregate anonymous view — student mastery distribution per concept`.
+1. **Tokens** (`src/index.css`, light + dark blocks):
+   - Override the four mastery tokens with the ramp above:
+     - `--mastery-expert: 234 62% 28%`
+     - `--mastery-proficient: 234 62% 42%`
+     - `--mastery-progressing: 234 62% 60%` (still labeled "Developing" in UI)
+     - `--mastery-beginner: 234 55% 80%`
+   - Keep token names unchanged so the rest of the app keeps working; only the hue/lightness changes.
 
-2. **Legend (four entries):** replace the three exploration chips with four flat-color squares + labels:
-   - Beginner → `bg-mastery-beginner`
-   - Developing → `bg-mastery-progressing` (existing token; label shown as "Developing")
-   - Proficient → `bg-mastery-proficient`
-   - Expert → `bg-mastery-expert`
-   These tokens already exist in `index.css` and are flat HSL colors — reused so no new tokens needed.
+2. **Concept Mastery Map** (`CourseDashboard.tsx`, the existing block):
+   - Legend swatches: keep `bg-mastery-*` classes (now repainted by the new tokens).
+   - Per-row stacked bar: keep `bg-mastery-*` order (Beginner → Developing → Proficient → Expert) so darker shades sit on the right.
+   - Per-row counts: replace `text-mastery-beginner / progressing / proficient / expert` with `text-muted-foreground` (theme grey ≈ #6B7280). Keep `font-medium` and the label text ("12 Beginner", etc.).
 
-3. **Remove** the trailing "Mastery level — click a row for details" block (the three dots + caption) from the legend area.
+3. **No other components touched.** Mastery tokens are also used by the student-side mastery heatmap; the recolor will cascade there as well. Flagging this in case you want the ramp scoped only to the dashboard — if so, I'll introduce new `--brand-ramp-1..4` tokens instead and use them only in this card.
 
-4. **Per-row bar:** replace the two-segment `bg-primary` / `bg-primary/40` bar with a four-segment stacked bar using the same four mastery tokens, widths proportional to each level's count over the row total. No gradients.
-
-5. **Per-row right-side counts:** replace `X deep / Y touched / Z unexplored` with four counts in legend order, each colored with its mastery token, e.g.
-   `8 Beginner   14 Developing   20 Proficient   11 Expert`.
-
-6. **Remove click affordance:** drop `cursor-pointer`, `hover:bg-muted/40`, the `onClick`, the `expandedConcept` state, the leading colored dot (`dotColor`), and the entire `isExpanded` mastery-details sub-block (lines ~325–346). Rows become static.
-
-7. **Static per-concept distribution:** add a small pure helper that, given a concept name and total students, returns `{ beginner, developing, proficient, expert }` summing to total. Use a deterministic hash of the concept name as seed so values don't reshuffle on re-render. Keeps the visual variety while being obviously placeholder.
-
-## Out of scope
-- No changes to `conceptRows` fetch, `useConceptRows`, or any other card on the dashboard.
-- No changes to the student-side "Concept Exploration & Mastery Map" on `/student/home`.
-- No new design tokens; reusing existing `mastery-*` tokens from `index.css`.
-
-## Question before I build
-The spec says **Developing**, but the existing mastery scale in this codebase uses **Progressing** (token `mastery-progressing`, used in Student Insights and `StudentProfile` type). Two options — pick one:
-
-- **A (recommended):** Show the label "Developing" in this card only, keep the underlying token name `mastery-progressing`. Zero ripple.
-- **B:** Rename the scale project-wide from "Progressing" → "Developing" (token, types, other views). Larger change, touches Student Insights, types, and any persisted enum values.
-
-Confirm A or B and I'll implement.
+## Open questions (non-blocking)
+- Confirm intensity direction: **Expert = darkest, Beginner = lightest** (my default). Flip if you want the opposite.
+- Confirm cascading to the student mastery heatmap is OK, or I should scope this to just the dashboard card.

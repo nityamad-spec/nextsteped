@@ -40,10 +40,10 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --mastery-beginner: 24 90% 54%;
-    --mastery-progressing: 270 60% 55%;
-    --mastery-proficient: 217 72% 50%;
-    --mastery-expert: 152 56% 42%;
+    --mastery-beginner: 234 55% 82%;
+    --mastery-progressing: 234 62% 62%;
+    --mastery-proficient: 234 62% 44%;
+    --mastery-expert: 234 62% 28%;
     --mastery-movedup: 142 70% 45%;
 
     --sidebar-background: 228 14% 97%;
