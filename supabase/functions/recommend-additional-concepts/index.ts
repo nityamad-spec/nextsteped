@@ -1,8 +1,6 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { resolveModel } from "../_shared/resolveModel.ts";
-import { resolvePrompt } from "../_shared/resolvePrompt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -97,7 +95,7 @@ serve(async (req) => {
       .map((c) => `- ${c}`)
       .join("\n");
 
-    const defaultSystemPrompt = `You are an experienced curriculum advisor who helps professors strengthen their course coverage.
+    const systemPrompt = `You are an experienced curriculum advisor who helps professors strengthen their course coverage.
 
 Your job is to suggest ADDITIONAL concepts that are NOT in the syllabus and NOT in the existing confirmed concept list, but would meaningfully strengthen the course. Mix three flavors of suggestions:
 
@@ -114,12 +112,6 @@ STRICT RULES:
 - Be specific to this course's subject area — do not output generic advice.
 - WEIGHTING: For every recommendation, include an integer "weight_pct" (1–15) representing the share of total course time it would deserve if added (small because these are supplementary). Use the lower end (1–4) for narrow add-ons, mid (5–9) for substantial topics, upper (10–15) only for major missing pillars.
 - WEIGHT RATIONALE: For every recommendation, include a one-sentence "weight_rationale" explaining the suggested weight.`;
-
-    const systemPrompt = await resolvePrompt(
-      "recommend-additional-concepts",
-      null,
-      defaultSystemPrompt,
-    );
 
     const userPrompt = `Course: ${course?.name || "Untitled"} (${course?.course_code || "n/a"})
 Stated objectives: ${(course?.objectives || []).join("; ") || "n/a"}
@@ -142,7 +134,7 @@ Suggest additional concepts to recommend.`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: await resolveModel("recommend-additional-concepts", null, "google/gemini-2.5-pro"),
+          model: "google/gemini-2.5-pro",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },

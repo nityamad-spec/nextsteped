@@ -157,13 +157,6 @@ Deno.serve(async (req) => {
       return { path };
     });
 
-    await runStep("diagnostic_questions", async () => {
-      const { count, error } = await admin
-        .from("diagnostic_questions").delete({ count: "exact" }).eq("course_id", courseId);
-      if (error) throw new Error(`diagnostic_questions delete failed: ${error.message}`);
-      return { diagnostic_questions: count ?? 0 };
-    });
-
     await runStep("concepts", async () => {
       const { count: c1, error: e1 } = await admin
         .from("concepts").delete({ count: "exact" }).eq("course_id", courseId);
@@ -178,6 +171,10 @@ Deno.serve(async (req) => {
       const { count, error } = await admin
         .from("lesson_plan_weeks").delete({ count: "exact" }).eq("course_id", courseId);
       if (error) throw new Error(`lesson_plan_weeks delete failed: ${error.message}`);
+      // Always include the canonical storage paths in addition to whatever is
+      // recorded on the course row. The teacher UI falls back to the canonical
+      // path when the column is null, so leaving those files behind would
+      // resurrect a "stale" plan after wipe.
       const canonicalPublished = `${courseId}/lesson-plan/published-plan.json`;
       const canonicalDraft = `${courseId}/lesson-plan/draft-plan-v2.json`;
       const paths = Array.from(new Set(
@@ -195,7 +192,12 @@ Deno.serve(async (req) => {
       return { lesson_plan_weeks: count ?? 0, removedFiles, paths };
     });
 
-
+    await runStep("diagnostic_questions", async () => {
+      const { count, error } = await admin
+        .from("diagnostic_questions").delete({ count: "exact" }).eq("course_id", courseId);
+      if (error) throw new Error(`diagnostic_questions delete failed: ${error.message}`);
+      return { diagnostic_questions: count ?? 0 };
+    });
 
     await runStep("course_flags", async () => {
       const { error } = await admin

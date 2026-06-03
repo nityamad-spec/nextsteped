@@ -1,7 +1,4 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { resolveModel } from "../_shared/resolveModel.ts";
-import { resolvePrompt } from "../_shared/resolvePrompt.ts";
-import { GENERATE_DIAGNOSTIC_QUESTIONS_SYSTEM } from "../_shared/prompts.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -276,21 +273,28 @@ async function callGateway(
     .map(([k, v]) => `  - ${k}: ${v} more`)
     .join("\n");
 
-  const systemPrompt = await resolvePrompt(
-    "generate-diagnostic-questions",
-    null,
-    GENERATE_DIAGNOSTIC_QUESTIONS_SYSTEM,
-    {
-      courseName,
-      needed,
-      tier: spec.tier,
-      tierLabel: spec.label,
-      difficulty: spec.difficulty,
-      quotaBlock,
-      remainingList: remainingList || "  (none — quota satisfied)",
-      retryHintBlock: retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : "",
-    },
-  );
+  const systemPrompt = `You are an expert assessment designer creating diagnostic quiz questions for a course titled "${courseName}". Generate exactly ${needed} ${spec.tier} tier diagnostic questions.
+
+Tier: ${spec.label}
+Target difficulty (0=easy, 1=hard): ${spec.difficulty}
+
+CONCEPT QUOTA — distribute questions across units in the proportions below. The 'topic' field of each question MUST be one of the listed concept codes (exact match, case-sensitive). Do NOT exceed the per-concept target.
+
+${quotaBlock}
+
+REMAINING NEED for this batch (you must produce exactly these counts):
+${remainingList || "  (none — quota satisfied)"}
+
+STRICT RULES:
+- ALL questions MUST be multiple-choice (format = "mcq"). Do NOT generate true_false or short_answer.
+- Each question MUST have exactly 4 distinct, non-empty options in the options array (no letter prefixes like "A)").
+- The answer field MUST be the FULL TEXT of one of the 4 options, character-for-character identical.
+- The topic field MUST be one of the concept codes shown in the QUOTA above (exact match).
+- Respect the per-concept quota above: do NOT over-generate for any concept.
+- difficulty_estimate must be a number close to ${spec.difficulty} (within ±0.15).
+- bloom_level: integer 1-6 (1=Remember, 2=Understand, 3=Apply, 4=Analyze, 5=Evaluate, 6=Create).
+- content_text: the question stem only, ≤ 600 characters, no embedded options.
+- explanation: 1-2 sentences explaining why the correct option is correct.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -299,7 +303,7 @@ async function callGateway(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: await resolveModel("generate-diagnostic-questions", null, MODEL),
+      model: MODEL,
       temperature: 0.3,
       messages: [
         { role: "system", content: systemPrompt },

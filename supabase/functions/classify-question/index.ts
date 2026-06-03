@@ -1,7 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { resolveModel } from "../_shared/resolveModel.ts";
-import { resolvePrompt } from "../_shared/resolvePrompt.ts";
-import { CLASSIFY_QUESTION_SYSTEM } from "../_shared/prompts.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,17 +33,15 @@ serve(async (req) => {
       ? `Key concepts: ${concepts.join(", ")}`
       : "";
 
-    const classificationPrompt = await resolvePrompt(
-      "classify-question",
-      null,
-      CLASSIFY_QUESTION_SYSTEM,
-      {
-        courseName,
-        objectivesText,
-        conceptsText,
-        message,
-      },
-    );
+    const classificationPrompt = `You are a course relevance classifier. Given the following course context, determine if the student's question is relevant to the course.
+
+Course: ${courseName}
+${objectivesText}
+${conceptsText}
+
+Student's question: "${message}"
+
+Use the classify_relevance function to respond.`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -57,7 +52,7 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: await resolveModel("classify-question", null, "google/gemini-2.5-flash-lite"),
+          model: "google/gemini-2.5-flash-lite",
           messages: [
             { role: "user", content: classificationPrompt },
           ],

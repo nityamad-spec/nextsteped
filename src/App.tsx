@@ -53,7 +53,6 @@ import AdminStudents from "./pages/admin/AdminStudents";
 import AdminTeachers from "./pages/admin/AdminTeachers";
 import AdminSetupDebug from "./pages/admin/AdminSetupDebug";
 import AdminSetupTrace from "./pages/admin/AdminSetupTrace";
-import AdminPrompts from "./pages/admin/AdminPrompts";
 import ResetPassword from "./pages/ResetPassword";
 import ContentLibrary from "./pages/teacher/ContentLibrary";
 import TeacherChat from "./pages/teacher/TeacherChat";
@@ -319,7 +318,6 @@ const App = () => (
                 <Route path="teachers" element={<AdminTeachers />} />
                 <Route path="setup-debug" element={<AdminSetupDebug />} />
                 <Route path="setup-trace" element={<AdminSetupTrace />} />
-                <Route path="prompts" element={<AdminPrompts />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

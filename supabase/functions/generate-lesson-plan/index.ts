@@ -1,7 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
-import { resolvePrompt } from "../_shared/resolvePrompt.ts";
-import { resolveModel } from "../_shared/resolveModel.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -227,7 +225,7 @@ serve(async (req) => {
       orderVerification.notes = "No syllabus text available; kept teacher-approved order.";
       warnings.push("No syllabus text available for order verification; kept teacher-approved order.");
     } else {
-      const defaultVerifySystem = `You verify and re-order a set of approved course concepts to match the pedagogical sequence implied by the SYLLABUS.
+      const verifySystem = `You verify and re-order a set of approved course concepts to match the pedagogical sequence implied by the SYLLABUS.
 
 STRICT RULES:
 - Return EXACTLY the same set of concept names as input — no additions, no deletions, no renames, preserve case and spelling.
@@ -236,11 +234,6 @@ STRICT RULES:
 - If the syllabus is silent or the current order already matches it, return the original order with changed=false.
 - Provide a short rationale (≤15 words) per concept and a 1–3 sentence overall notes summary.
 Return ONLY via the provided tool.`;
-      const verifySystem = await resolvePrompt(
-        "generate-lesson-plan",
-        "verify",
-        defaultVerifySystem,
-      );
 
       const verifyUser = `COURSE: ${course.name} (${course.term})
 Objectives: ${(course.objectives || []).join("; ") || "Not specified"}
@@ -259,7 +252,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 6000)
           method: "POST",
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: await resolveModel("generate-lesson-plan", "verify", "google/gemini-2.5-flash"),
+            model: "google/gemini-2.5-flash",
             temperature: 0.1,
             top_p: 0.9,
             max_tokens: 4096,
@@ -377,25 +370,19 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 6000)
       .map((n, i) => `${i + 1}. ${n} (teacher_weight=${teacherWeights[i].toFixed(3)})`)
       .join("\n");
 
-    const defaultEffortSystem = `You are a curriculum pacing expert. For each concept in the supplied ORDERED list, estimate how much teaching/learning effort an average undergraduate student needs to reach proficiency.
+    const effortSystem = `You are a curriculum pacing expert. For each concept in the supplied ORDERED list, estimate how much teaching/learning effort an average undergraduate student needs to reach proficiency.
 
 RULES:
 - Return EXACTLY one entry per input concept.
 - Use the concept "name" spelled EXACTLY as given.
 - Maintain the same order (echo "index" 1..N).
 - complexity: integer 1 (trivial) to 5 (very hard).
-- estimated_sessions: number from 0.5 to 3.0 in steps of 0.5 (sessions of {{sessionLengthMinutes}} min each).
+- estimated_sessions: number from 0.5 to 3.0 in steps of 0.5 (sessions of ${course.session_length_minutes || 60} min each).
 - Do not add or drop concepts. Do not invent new ones.
 - Calibrate estimated_sessions to an AVERAGE undergraduate student (not a top-quartile learner). Account for prerequisite chaining, cognitive load, and common misconceptions.
 - Be conservative — under-estimating mastery time is the most common failure of generated plans. When in doubt, round up.
 - Provide a brief, factual rationale grounded in the syllabus/lesson-plan signals; do not speculate beyond them.
 Return ONLY via the provided tool.`;
-    const effortSystem = await resolvePrompt(
-      "generate-lesson-plan",
-      "effort",
-      defaultEffortSystem,
-      { sessionLengthMinutes: course.session_length_minutes || 60 },
-    );
 
     const effortUser = `COURSE: ${course.name} (${course.term})
 Objectives: ${(course.objectives || []).join("; ") || "Not specified"}
@@ -415,7 +402,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: await resolveModel("generate-lesson-plan", "effort", "google/gemini-2.5-flash"),
+          model: "google/gemini-2.5-flash",
           temperature: 0.2,
           top_p: 0.9,
           max_tokens: 8192,
@@ -620,9 +607,9 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
       return `Week ${w.week}: ${w.concept_names.length > 0 ? w.concept_names.join(", ") : "(no concepts assigned)"}`;
     }).join("\n");
 
-    const defaultAuthorSystem = `You author readable week-level metadata for a fixed lesson-plan distribution.
+    const authorSystem = `You author readable week-level metadata for a fixed lesson-plan distribution.
 
-You will be given EXACTLY {{totalWeeks}} weeks with their assigned concepts already locked. Your job is ONLY to write:
+You will be given EXACTLY ${totalWeeks} weeks with their assigned concepts already locked. Your job is ONLY to write:
 - week_name (3–6 word title) for each non-exam week
 - overview (3–5 sentences) for each non-exam week, grounded strictly in the assigned concepts. Cover: (1) what the average student will be able to do by the end of the week, (2) how it builds on prior weeks, (3) the most common misconception or stumbling block to watch for.
 - 1 coding-exercise + 1–2 article resources per non-exam week, tied to those concepts. Articles must be REAL, well-known, freely accessible (e.g. official Python docs, Real Python, MDN, official framework docs) with working https URLs. If you are not certain a URL exists, OMIT the url field rather than inventing one.
@@ -631,16 +618,10 @@ You will be given EXACTLY {{totalWeeks}} weeks with their assigned concepts alre
 Tone: factual, pedagogical, realistic. Do not over-promise mastery. Avoid repetitive phrasing across weeks.
 
 For exam weeks: week_name="" and overview="Exam week — review prior content." and resources=[].
-You CANNOT change which concepts go in which week. Output exactly {{totalWeeks}} week entries with the same week numbers.
+You CANNOT change which concepts go in which week. Output exactly ${totalWeeks} week entries with the same week numbers.
 Each concept name appears in exactly one week. Do not echo or rehash concept names from other weeks inside this week's overview text.
 
 Return ONLY via the provided tool.`;
-    const authorSystem = await resolvePrompt(
-      "generate-lesson-plan",
-      "author",
-      defaultAuthorSystem,
-      { totalWeeks },
-    );
 
     const authorUser = `COURSE: ${course.name} (${course.term})
 Objectives: ${(course.objectives || []).join("; ") || "Not specified"}
@@ -652,7 +633,7 @@ ${assignmentBlock}`;
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: await resolveModel("generate-lesson-plan", "author", "google/gemini-2.5-pro"),
+        model: "google/gemini-2.5-pro",
         temperature: 0.5,
         top_p: 0.9,
         max_tokens: 16384,

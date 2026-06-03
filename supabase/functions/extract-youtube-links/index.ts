@@ -1,8 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { resolveModel } from "../_shared/resolveModel.ts";
-import { resolvePrompt } from "../_shared/resolvePrompt.ts";
-import { EXTRACT_YOUTUBE_SYSTEM } from "../_shared/prompts.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -208,15 +205,12 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: await resolveModel("extract-youtube-links", null, "google/gemini-2.5-flash-lite"),
+          model: "google/gemini-2.5-flash-lite",
           messages: [
             {
               role: "system",
-              content: await resolvePrompt(
-                "extract-youtube-links",
-                null,
-                EXTRACT_YOUTUBE_SYSTEM,
-              ),
+              content:
+                "You extract YouTube URLs from documents. Return every YouTube URL you find, one per line. Output URLs only — no commentary, no numbering, no other text. If none are found, output nothing.",
             },
             {
               role: "user",
