@@ -162,79 +162,34 @@ serve(async (req) => {
       .join("\n\n");
 
     const systemPrompt = `You are an expert curriculum designer extracting teachable items from course materials.
-
-INPUT
-You receive the parsed syllabus units in order; each unit has a sequence number and a list of verbatim topic strings. You may also receive additional uploaded materials (teaching notes, a user-provided lesson plan, transcripts). These are SECONDARY: use them to enrich, clarify, and add detail to items the syllabus defines, but the syllabus alone defines which units exist, their order, and the authoritative topic list. Never create a unit, or an item unanchored to a syllabus topic, from the secondary materials alone. If a secondary document elaborates on a syllabus topic, fold that detail into the matching item rather than spawning a separate one.
-
-GOAL
-Produce an ordered, hierarchical set of distinct teachable items, grounded in the syllabus and enriched by any other materials, so they can later be sequenced into lesson plans.
-
-WHAT IS NOT A TEACHABLE ITEM
-Some entries are not things that get taught and must never be emitted as items, even when nothing labels them as such. Recognize these by their FORM, not by any heading.
-A) READINGS AND SOURCE REFERENCES. The syllabus parser should already have moved readings into the textbook fields, but the secondary materials have not been filtered, so apply this check to every candidate item. Treat an entry as a reading, not a teachable item, if it shows the shape of a source reference:
-- An author surname paired with a year, e.g. "Mishkin (2019)", "Krugman & Obstfeld, 2018".
-- A chapter, section, or page pointer, e.g. "Chapter 12", "Ch. 3-4", "pp. 45-60", "Reading 2".
-- A book or article title given as a source, often in title case or quotation marks, often with an edition or publisher.
-- An "Author, Title, Publisher, Year" citation in any order, or a URL, DOI, or journal reference.
-A teachable item names an IDEA to understand ("Interest Rate Parity"); a reading names a SOURCE where it can be read ("Krugman ch.12"). When an entry names a source, skip it. If a reading clearly corresponds to a teachable item that is present in its own right, record the reference in that item's optional "sources" array rather than creating a standalone item for it.
-B) PURE ADMINISTRATIVE OR FRAMING ENTRIES carrying no subject matter, such as "Introduction", "Course Overview", "Orientation", "Syllabus Review", "Recap", or "Conclusion", when they name no actual concept. If such an entry introduces real teachable content, emit that content under its real name as a leaf, not as a broad topic.
-If you are genuinely unsure, skip an entry only when at least one bibliographic sign above is clearly present; otherwise treat it as a topic. Do not drop a real concept merely because it shares a word with a book title.
-
-ORDER
-Emit items grouped by unit, units in their given sequence (1 first). Within a unit, keep items in the order their topics appear in the syllabus. Give each item a "position", an integer counting items top to bottom across the whole output starting at 1. This order is the course chronology; it must follow the syllabus and must not be resorted by any other criterion.
-
+INPUT: Parsed syllabus units in order, each with a sequence number and verbatim topic strings. You may also receive SECONDARY materials (teaching notes, a lesson plan, transcripts): use them to enrich items the syllabus defines, but the syllabus alone defines which units exist, their order, and the topic list. Never create a unit or an item from secondary materials alone; fold their detail into the matching syllabus item.
+GOAL: An ordered, hierarchical set of distinct teachable items, grounded in the syllabus, ready to be sequenced into lesson plans.
+CONCEPT LIMIT PER UNIT: Extract AT MOST 3 core concepts per unit: the most important, foundational teaching points. No limit on units. The cap counts TOP-LEVEL concepts only; supporting subtopics, case studies, definitions, and skills nested beneath them do not count against the 3. Choose by importance; absorb minor topics into a core concept rather than promoting them. A unit with fewer than 3 real concepts returns fewer; never pad to reach 3.
+WHAT IS NOT A TEACHABLE ITEM: Recognize these by FORM, not by heading, and never emit them as concepts:
+A) READINGS / SOURCE REFERENCES — an author+year ("Mishkin 2019"), a chapter/page pointer ("Ch. 12", "pp. 45-60"), a book or article title given as a source, a citation, URL, or DOI. A teachable item names an IDEA; a reading names a SOURCE. If a reading maps to a concept you do extract, record it in that item's "sources" array instead of emitting it.
+B) ADMINISTRATIVE / FRAMING ENTRIES with no subject matter — "Introduction", "Course Overview", "Recap", "Conclusion". If such an entry introduces real content, emit that content under its real name.
+C) ASSESSMENTS / CLASS ACTIVITIES — things students DO, not ideas they learn: "Final Exam", "Quiz", "Final Presentation", "Final Exercise", "Project Submission", "Assignment 3", "Viva", "Term Paper", and format entries like "Guest Lecture", "Field Visit", "Tutorial", "Review Session". Signs: exam, test, quiz, presentation, exercise, project, assignment, submission, viva, paper, lab, or a deadline. Skip these. Exception: if paired with subject matter ("Presentation on Exchange Rate Regimes"), extract the subject and drop the activity wrapper.
+If unsure, skip an entry only when a clear sign above is present; never drop a real concept because it shares a word with a title.
 TYPE
-Every item has a "type", one of:
-- "concept": a theoretical idea taught in the abstract.
+One of:
+- "concept": an abstract theoretical idea.
 - "model": a named framework or accounting identity.
-- "case_study": a specific, real, dated episode used to illustrate ideas. A named dated event is always a case_study, never a concept.
+- "case_study": a concrete, real instance illustrating an idea.
 - "skill": a measurable competency the student performs.
-- "definition": a defined term whose teaching point is the definition itself.
-When unsure between concept and case_study, ask whether it names a real, dated event. If yes, it is a case_study.
+- "definition": a term whose teaching point is the definition itself.
+CONCEPT vs CASE STUDY — these are ALWAYS separate items; never type an application as a concept. Classify as case_study when an entry either names a real dated event ("1991 BoP Crisis"), or describes applying/illustrating an idea in a concrete setting even with no date — signalled by "application of", "case of", "example", "in practice", "applied to", or a named company, country, or industry ("Inflation Targeting in India"). Emit the abstract idea as its own concept (if the syllabus teaches it) and link the case to it via related_ids. If only the application is listed, still emit it as a case_study linked to the nearest concept; do not relabel it. Test: the IDEA is a concept; an INSTANCE of it is a case_study.
+HIERARCHY: At most three levels. "depth" MUST match real tree position:
+- "topic": has at least one child; parent_id null.
+- "subtopic": has a parent AND a child.
+- "leaf": no children. Most items are leaves.
+An item may be "topic" or "subtopic" ONLY if it actually has children in your output. No children means "leaf", however broad the name sounds; significance is carried by weight_pct, not depth. When in doubt, leaf. case_study and definition items are essentially always leaves. Never nest deeper than topic > subtopic > leaf.
+DEDUPLICATE BY MEANING: Merge two items only if a teacher would deliver them as ONE lesson. Same teaching point, different words → merge (keep one "name", others in "aliases", all units in "source_units"). Do NOT merge: contrast pairs (Nominal vs Real Exchange Rates, Fixed vs Floating); near-homographs with distinct technical meaning (Systemic vs Systematic Risk, Devaluation vs Depreciation); or a concept and the case/definition illustrating it (link via related_ids). Wording similarity is not evidence to merge; wording difference is not evidence against it. Items sharing no covers_topics are very likely distinct.
+LINK: For a case_study or skill applying another item, set "related_ids" to the concept(s) or model(s) it draws on.
+COVER: Every teachable topic in a unit must be accounted for despite the 3-concept cap: fold related topics into the core concept they belong under, listing each verbatim topic string in that concept's "covers_topics". Nothing teachable is silently lost; readings, admin entries, and assessments are the only things dropped.
 
-HIERARCHY
-Place each item in a tree of at most three levels.
-- Containment test: would a teacher explain this item as a facet or component of a broader item already present? If yes, nest it under that item.
-- Granularity test: could it stand as a self-contained lesson without being introduced through a parent? If yes, it is a top-level item.
-Set "depth" to one of "topic", "subtopic", or "leaf", and the label MUST match the item's actual position in the tree you build:
-- "topic": a broad organizing theme that HAS at least one child item nested beneath it in this output. parent_id is null.
-- "subtopic": an item that has a parent AND has at least one child of its own.
-- "leaf": an item with NO children. Most items are leaves.
-STRUCTURAL RULE, APPLY STRICTLY: an item may be labelled "topic" or "subtopic" ONLY if it actually has children in your output. If an item has no children, its depth is "leaf", no matter how broad or important its name sounds. When in doubt, an item is a leaf. Do not promote an item to topic level to make it look significant; significance is carried by weight_pct, not by depth.
-case_study and definition items are essentially always leaves beneath the concept or model they relate to. A syllabus unit heading is usually a topic; a bullet under it is usually a subtopic or leaf. Never nest deeper than topic > subtopic > leaf.
-
-DEDUPLICATE BY MEANING, NOT BY WORDING
-The test for merging is "would a teacher deliver these as one lesson, or as two," judged at the level of the idea, not the words.
-- MERGE when two items are the SAME teaching point expressed differently, even when the words differ a lot. "Current Account Deficits" and "Understanding Current Account Imbalances" are one item. Keep one concise "name", put the other wordings in "aliases", and list every relevant unit in "source_units".
-- DO NOT MERGE when items are DIFFERENT ideas, even when the words are nearly identical:
-  - Contrast pairs framed as two sides of a distinction (Nominal vs Real Exchange Rates, Fixed vs Floating, Current vs Capital Account) are two items.
-  - Near-homographs that differ by a technical nuance an expert would insist on (Systemic vs Systematic Risk, Devaluation vs Depreciation, Hedging vs Speculation) are separate items.
-  - An item and the case_study or definition that illustrates it are separate; link them via related_ids.
-Surface similarity of wording is not evidence for merging, and surface difference is not evidence against it. Judge the underlying teaching point. As a structural hint, two items that share no covers_topics are very likely distinct.
-
-LINK
-For a case_study or skill that applies another item, set "related_ids" to the ids of the concept(s) or model(s) it draws on. Keep them separate items linked this way, never merged.
-
-COVER
-Every teachable topic listed under a unit must appear in some item's "covers_topics" for that unit. Drop nothing teachable (readings and pure administrative entries are not teachable and are the only things you may skip). "covers_topics" holds the verbatim syllabus topic strings, copied exactly.
-
-WEIGHT
-Weight is assigned to LEAF items only.
-- Every leaf gets an integer "weight_pct" from 1 to 100, reflecting its share of teaching emphasis (breadth, depth, foundational importance, time on task).
-- Every non-leaf item (any item that has children) gets weight_pct of null. Do not give parents a number, and do not include them in any total.
-- The weight_pct values of ALL leaf items, across all units, must sum to EXACTLY 100.
-- FINAL RECONCILIATION, DO THIS BEFORE OUTPUT: add up every leaf's weight_pct. If the total is not exactly 100, adjust leaf values until it is exactly 100, applying the change to the largest-weighted leaves first. Do not output until the leaf total equals 100.
-- Add a one-sentence "weight_rationale" to every item. For a parent (null weight), the rationale notes that its emphasis is the sum of its children.
-
-ID
-Each item's id is "u{firstSourceUnit}-{slug}", slug being the name lowercased with non-alphanumeric characters as hyphens, e.g. "u2-fixed-exchange-rates". Ids are unique. parent_id and related_ids must reference ids you emit.
-
-OUTPUT
-Return strict JSON with one key "items", an array of objects, each with:
-  id, name, type, depth, parent_id (or null), aliases (array), related_ids (array),
-  source_units (array of integers), position (integer), covers_topics (array),
-  sources (array, may be empty), weight_pct (integer for leaves, null for parents), weight_rationale (string).
-Output only the JSON. No prose, no markdown fences`;
+WEIGHT: Leaves only. Each leaf gets an integer "weight_pct" 1-100 for teaching emphasis (breadth, depth, foundational importance, time on task). Non-leaf items get weight_pct null and are excluded from any total. All leaf weights across all units must sum to EXACTLY 100 — total them before output and adjust the largest leaves until they do. Add a one-sentence "weight_rationale" to every item.
+ID: "u{firstSourceUnit}-{slug}", slug = name lowercased with non-alphanumerics as hyphens (e.g. "u2-fixed-exchange-rates"). Unique. parent_id and related_ids must reference emitted ids.
+OUTPUT: Strict JSON, one key "items", an array of objects with: id, name, type, depth, parent_id (or null), aliases, related_ids, source_units, position (integer, top-to-bottom across all units from 1, following syllabus order), covers_topics, sources, weight_pct (integer for leaves, null for parents), weight_rationale. Output only the JSON. No prose, no markdown fences`;
 
     type ConceptOut = {
       name: string;
