@@ -12,17 +12,20 @@ import { Badge } from "@/components/ui/badge";
 import CourseCollaborators from "@/components/CourseCollaborators";
 import CourseStatusBanner from "@/components/CourseStatusBanner";
 
-/* ── Concept Exploration Map categories ── */
-const conceptMasteryMock = [
-  { concept: "Variables & Types", touched: 32, deeplyExplored: 18, notExplored: 5, masteryPct: 72 },
-  { concept: "Control Flow", touched: 28, deeplyExplored: 22, notExplored: 5, masteryPct: 64 },
-  { concept: "Functions", touched: 20, deeplyExplored: 10, notExplored: 25, masteryPct: 45 },
-  { concept: "Lists & Dicts", touched: 15, deeplyExplored: 5, notExplored: 35, masteryPct: 38 },
-  { concept: "File Handling", touched: 8, deeplyExplored: 2, notExplored: 45, masteryPct: 50 },
-  { concept: "OOP Basics", touched: 5, deeplyExplored: 1, notExplored: 49, masteryPct: 100 },
-  { concept: "Error Handling", touched: 12, deeplyExplored: 4, notExplored: 39, masteryPct: 57 },
-  { concept: "Modules", touched: 10, deeplyExplored: 3, notExplored: 42, masteryPct: 67 },
-];
+/* ── Static mock stats per concept (deterministic by id) ── */
+function hashStr(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function mockStatsFor(id: string) {
+  const h = hashStr(id);
+  const touched = 5 + (h % 31); // 5..35
+  const deeplyExplored = 1 + ((h >> 3) % 25); // 1..25
+  const notExplored = 5 + ((h >> 6) % 46); // 5..50
+  const masteryPct = 30 + ((h >> 9) % 61); // 30..90
+  return { touched, deeplyExplored, notExplored, masteryPct };
+}
 
 const insightsMock = [
   "Consider dedicating extra time to **Functions** — most students have only touched this concept without deep exploration.",
@@ -41,6 +44,37 @@ const CourseDashboard = () => {
   const [hoveredConcept, setHoveredConcept] = useState<string | null>(null);
   const [expandedConcept, setExpandedConcept] = useState<string | null>(null);
   const [isCollaborator, setIsCollaborator] = useState(false);
+  const [concepts, setConcepts] = useState<{ id: string; concept_code: string; weight: number }[]>([]);
+  const [conceptsLoading, setConceptsLoading] = useState(true);
+  const [conceptsError, setConceptsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!courseId) { setConcepts([]); setConceptsLoading(false); return; }
+    let cancelled = false;
+    setConceptsLoading(true);
+    setConceptsError(null);
+    (async () => {
+      const { data, error } = await supabase
+        .from("concepts")
+        .select("id, concept_code, weight")
+        .eq("course_id", courseId)
+        .order("weight", { ascending: false });
+      if (cancelled) return;
+      if (error) {
+        setConceptsError(error.message);
+        setConcepts([]);
+      } else {
+        setConcepts(data || []);
+      }
+      setConceptsLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
+
+  const conceptRows = concepts.map((c) => ({
+    concept: c.concept_code,
+    ...mockStatsFor(c.id),
+  }));
 
   // Only need to know if the signed-in teacher is a collaborator (not the owner)
   // — owners get no banner, collaborators get the Handshake badge.
@@ -212,7 +246,22 @@ const CourseDashboard = () => {
               </div>
             </div>
 
-            {conceptMasteryMock.map((c) => {
+            {conceptsLoading ? (
+              <div className="space-y-3">
+                {[0,1,2,3].map((i) => (
+                  <div key={i} className="space-y-1.5 px-3 py-2">
+                    <div className="h-4 w-1/3 rounded bg-muted animate-pulse" />
+                    <div className="h-3 w-full rounded-full bg-muted animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : conceptsError ? (
+              <p className="text-sm text-destructive px-3 py-2">Failed to load concepts: {conceptsError}</p>
+            ) : conceptRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-3 py-4 text-center">
+                No concepts defined for this course yet. Add them in Concept Review.
+              </p>
+            ) : conceptRows.map((c) => {
               const total = c.touched + c.deeplyExplored + c.notExplored;
               const touchedPct = Math.round((c.touched / total) * 100);
               const deepPct = Math.round((c.deeplyExplored / total) * 100);
