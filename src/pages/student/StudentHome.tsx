@@ -17,17 +17,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 
-/* ── Concept mastery data (mock — will be wired to real chat data later) ── */
-const conceptMasteryData = [
-  { name: "Variables & Types", status: "deeply_explored" as const, quizScore: 85 },
-  { name: "Control Flow", status: "touched" as const, quizScore: null },
-  { name: "Functions", status: "deeply_explored" as const, quizScore: 62 },
-  { name: "Lists & Dicts", status: "not_explored" as const, quizScore: null },
-  { name: "File Handling", status: "not_explored" as const, quizScore: null },
-  { name: "OOP Basics", status: "not_explored" as const, quizScore: null },
-  { name: "Error Handling", status: "not_explored" as const, quizScore: null },
-  { name: "Modules", status: "touched" as const, quizScore: null },
-];
+/* Concepts are loaded from the DB for the student's enrolled course.
+   Mastery is a uniform "Not explored" placeholder until real data is wired. */
 
 type MasteryStatus = "deeply_explored" | "touched" | "not_explored";
 
@@ -67,6 +58,28 @@ const StudentHome = () => {
   const [lessonPlan, setLessonPlan] = useState<any[]>([]);
   const [planLoading, setPlanLoading] = useState(true);
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
+  const [concepts, setConcepts] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (!enrolledCourseId) { setConcepts([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("concepts")
+        .select("id, concept_code, weight")
+        .eq("course_id", enrolledCourseId)
+        .order("weight", { ascending: false })
+        .order("concept_code", { ascending: true });
+      if (cancelled) return;
+      if (error) {
+        console.error("Concepts load error:", error);
+        setConcepts([]);
+        return;
+      }
+      setConcepts((data || []).map((c: any) => ({ id: String(c.id), name: String(c.concept_code) })));
+    })();
+    return () => { cancelled = true; };
+  }, [enrolledCourseId]);
 
   useEffect(() => {
     const loadPlan = async () => {
@@ -177,26 +190,14 @@ const StudentHome = () => {
   };
 
   // Dynamic "What to do next" suggestions
-  const unexplored = conceptMasteryData.filter(c => c.status === "not_explored");
-  const weakConcepts = conceptMasteryData.filter(c => c.quizScore !== null && c.quizScore < 60);
-
   const nextActions = [];
-  if (unexplored.length > 0) {
+  if (concepts.length > 0) {
     nextActions.push({
       icon: MessageSquare,
-      title: `Start learning: ${unexplored[0].name}`,
+      title: `Start learning: ${concepts[0].name}`,
       description: "Use the Study Chat to explore this concept",
       action: () => navigate("/student/chat?newchat=true"),
       variant: "default" as const,
-    });
-  }
-  if (weakConcepts.length > 0) {
-    nextActions.push({
-      icon: Brain,
-      title: `Strengthen: ${weakConcepts[0].name}`,
-      description: `You scored ${weakConcepts[0].quizScore}% — revisit with the Teaching Assistant`,
-      action: () => navigate("/student/chat?newchat=true"),
-      variant: "outline" as const,
     });
   }
   nextActions.push({
@@ -415,23 +416,27 @@ const StudentHome = () => {
             <CardDescription>Based on your interactions with the Teaching Assistant across diagnostic test, study mode, and practice exam sessions</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {conceptMasteryData.map((concept) => (
-                <Tooltip key={concept.name}>
-                  <TooltipTrigger asChild>
-                    <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${getMasteryColor(concept.status)}`}>
-                      <p className="text-xs font-medium truncate">{concept.name}</p>
-                      <p className="text-lg font-bold mt-1">
-                        {concept.status === "deeply_explored" && concept.quizScore !== null ? `${concept.quizScore}%` : "—"}
-                      </p>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{concept.name}: {getMasteryLabel(concept.status, concept.quizScore)}</p>
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
+            {concepts.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Concepts will appear here once your professor sets them up.
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {concepts.map((concept) => (
+                  <Tooltip key={concept.id}>
+                    <TooltipTrigger asChild>
+                      <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${getMasteryColor("not_explored")}`}>
+                        <p className="text-xs font-medium truncate">{concept.name}</p>
+                        <p className="text-lg font-bold mt-1">—</p>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{concept.name}: {getMasteryLabel("not_explored", null)}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            )}
             <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
               <div className="flex items-center gap-1.5">
                 <div className="h-3 w-3 rounded bg-background border" />
