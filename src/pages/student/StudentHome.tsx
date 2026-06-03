@@ -416,23 +416,27 @@ const StudentHome = () => {
             <CardDescription>Based on your interactions with the Teaching Assistant across diagnostic test, study mode, and practice exam sessions</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {conceptMasteryData.map((concept) => (
-                <Tooltip key={concept.name}>
-                  <TooltipTrigger asChild>
-                    <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${getMasteryColor(concept.status)}`}>
-                      <p className="text-xs font-medium truncate">{concept.name}</p>
-                      <p className="text-lg font-bold mt-1">
-                        {concept.status === "deeply_explored" && concept.quizScore !== null ? `${concept.quizScore}%` : "—"}
-                      </p>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{concept.name}: {getMasteryLabel(concept.status, concept.quizScore)}</p>
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
+            {concepts.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Concepts will appear here once your professor sets them up.
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {concepts.map((concept) => (
+                  <Tooltip key={concept.id}>
+                    <TooltipTrigger asChild>
+                      <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${getMasteryColor("not_explored")}`}>
+                        <p className="text-xs font-medium truncate">{concept.name}</p>
+                        <p className="text-lg font-bold mt-1">—</p>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{concept.name}: {getMasteryLabel("not_explored", null)}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            )}
             <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
               <div className="flex items-center gap-1.5">
                 <div className="h-3 w-3 rounded bg-background border" />
