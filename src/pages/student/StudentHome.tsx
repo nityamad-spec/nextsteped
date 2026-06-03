@@ -78,7 +78,14 @@ const StudentHome = () => {
           .select("teacher_id, start_date, total_weeks, lesson_plan_published_at")
           .eq("id", enrolledCourseId)
           .maybeSingle();
-        if (!course?.teacher_id) { setPlanLoading(false); return; }
+        if (!course?.teacher_id) {
+          // Course id is stale (deleted / not visible). Clear cache so the
+          // useEnrolledCourseId hook can recover on next render.
+          console.warn("[StudentHome] enrolledCourseId did not resolve to a visible course; clearing cache", enrolledCourseId);
+          if (typeof window !== "undefined") localStorage.removeItem("enrolledCourseId");
+          setPlanLoading(false);
+          return;
+        }
         if (course.start_date) setCourseStartDate(course.start_date);
         if (course.total_weeks) setTotalWeeks(course.total_weeks);
         publishedAt = course.lesson_plan_published_at ?? null;
