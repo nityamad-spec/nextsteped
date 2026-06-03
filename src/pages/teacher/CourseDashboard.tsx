@@ -307,10 +307,10 @@ const CourseDashboard = () => {
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-sm font-medium">{c.concept}</span>
                     <div className="flex items-center gap-3 text-xs">
-                      <span className="text-mastery-beginner font-medium">{beginner} Beginner</span>
-                      <span className="text-mastery-progressing font-medium">{developing} Developing</span>
-                      <span className="text-mastery-proficient font-medium">{proficient} Proficient</span>
-                      <span className="text-mastery-expert font-medium">{expert} Expert</span>
+                      <span className="text-muted-foreground font-medium">{beginner} Beginner</span>
+                      <span className="text-muted-foreground font-medium">{developing} Developing</span>
+                      <span className="text-muted-foreground font-medium">{proficient} Proficient</span>
+                      <span className="text-muted-foreground font-medium">{expert} Expert</span>
                     </div>
                   </div>
                   <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
