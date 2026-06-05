@@ -123,20 +123,20 @@ describe("computeStandardCorrect — Phase A scoring", () => {
 
 describe("computeLearnerLevel — final cutoffs", () => {
   it.each([
-    [17, 20, "Expert"], // 0.85 boundary
-    [20, 20, "Expert"],
-    [12, 20, "Proficient"], // 0.60 boundary
-    [16, 20, "Proficient"],
-    [7, 20, "Progressing"], // 0.35 boundary
-    [11, 20, "Progressing"],
-    [6, 20, "Beginner"],
-    [0, 20, "Beginner"],
+    [17, 20, "expert"], // 0.85 boundary
+    [20, 20, "expert"],
+    [12, 20, "proficient"], // 0.60 boundary
+    [16, 20, "proficient"],
+    [7, 20, "developing"], // 0.35 boundary
+    [11, 20, "developing"],
+    [6, 20, "beginner"],
+    [0, 20, "beginner"],
   ])("%i / %i → %s", (correct, total, level) => {
     expect(computeLearnerLevel(correct, total)).toBe(level);
   });
 
   it("returns Beginner for zero total (defensive)", () => {
-    expect(computeLearnerLevel(0, 0)).toBe("Beginner");
+    expect(computeLearnerLevel(0, 0)).toBe("beginner");
   });
 });
 
@@ -181,7 +181,7 @@ describe("two-phase diagnostic flow", () => {
       const level = computeLearnerLevel(totalCorrect, TOTAL_COUNT);
       // sanity: high Phase A + perfect Phase B → at least Proficient
       if (phaseACorrect >= 2) {
-        expect(["Progressing", "Proficient", "Expert"]).toContain(level);
+        expect(["developing", "proficient", "expert"]).toContain(level);
       }
     },
   );

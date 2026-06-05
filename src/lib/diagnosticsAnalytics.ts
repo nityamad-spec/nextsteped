@@ -10,7 +10,7 @@
  * rollups can be done without joining back to `diagnostic_questions`.
  */
 
-export type LearnerLevel = "Beginner" | "Progressing" | "Proficient" | "Expert";
+export type LearnerLevel = "beginner" | "developing" | "proficient" | "expert";
 export type BranchTier = "easy" | "medium" | "hard";
 export type QuestionTier = "standard" | BranchTier;
 
@@ -55,7 +55,7 @@ export interface ProfileRow {
   email: string | null;
 }
 
-export const LEARNER_LEVELS: LearnerLevel[] = ["Beginner", "Progressing", "Proficient", "Expert"];
+export const LEARNER_LEVELS: LearnerLevel[] = ["beginner", "developing", "proficient", "expert"];
 export const BRANCH_TIERS: BranchTier[] = ["easy", "medium", "hard"];
 
 // ---------- Global KPIs ----------
@@ -105,10 +105,10 @@ export function aggregateGlobalKpis(results: DiagnosticResultRow[]): GlobalKpis 
 
 export function aggregateLevelDistribution(results: DiagnosticResultRow[]): Record<LearnerLevel, number> {
   const out: Record<LearnerLevel, number> = {
-    Beginner: 0,
-    Progressing: 0,
-    Proficient: 0,
-    Expert: 0,
+    beginner: 0,
+    developing: 0,
+    proficient: 0,
+    expert: 0,
   };
   for (const r of results) {
     if ((LEARNER_LEVELS as string[]).includes(r.learner_level)) {

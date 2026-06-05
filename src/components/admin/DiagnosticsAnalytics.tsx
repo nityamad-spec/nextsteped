@@ -57,10 +57,10 @@ import {
 } from "@/lib/diagnosticsAnalytics";
 
 const LEVEL_COLORS: Record<LearnerLevel, string> = {
-  Beginner: "hsl(var(--destructive))",
-  Progressing: "hsl(var(--chart-3, 30 90% 55%))",
-  Proficient: "hsl(var(--chart-2, 200 80% 55%))",
-  Expert: "hsl(var(--primary))",
+  beginner: "hsl(var(--destructive))",
+  developing: "hsl(var(--chart-3, 30 90% 55%))",
+  proficient: "hsl(var(--chart-2, 200 80% 55%))",
+  expert: "hsl(var(--primary))",
 };
 
 const TIER_COLORS: Record<string, string> = {

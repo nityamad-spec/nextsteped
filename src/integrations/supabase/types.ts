@@ -767,6 +767,7 @@ export type Database = {
           created_at: string
           id: string
           learner_level: string
+          mastery_score: number | null
           question_ids: Json
           question_times: Json
           score: number
@@ -781,6 +782,7 @@ export type Database = {
           created_at?: string
           id?: string
           learner_level: string
+          mastery_score?: number | null
           question_ids?: Json
           question_times?: Json
           score: number
@@ -795,6 +797,7 @@ export type Database = {
           created_at?: string
           id?: string
           learner_level?: string
+          mastery_score?: number | null
           question_ids?: Json
           question_times?: Json
           score?: number

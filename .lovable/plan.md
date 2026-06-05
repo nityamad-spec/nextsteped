@@ -1,78 +1,105 @@
-
 ## Goal
 
-Capture the two currently-NULL columns on `diagnostic_questions` (`bloom_justification`, `difficulty_justification`) from Gemini at generation time, using a constrained, categorised format so values are consistent and analysable — not free-form prose.
+Compute a single **course-level mastery score (0–1)** and a **learner level** (beginner / developing / proficient / expert) for each diagnostic submission, in one edge function, with all tuning numbers in a named config block.
 
-## Format decision
+## Table & column mapping (confirmed)
 
-Each justification is stored as a single string in the form:
+**`diagnostic_results`** — write target. One row per (student, course) attempt. Existing fields used: `student_id`, `course_id`, `score`, `total_questions`, `branch_tier`, `answers`, `confidences`, `question_times`, `question_ids`.
 
+**Schema change (one migration, asked separately before build):**
+- Add `mastery_score numeric(5,4)` — null allowed for legacy rows.
+- Change `learner_level` vocabulary from `Beginner|Progressing|Proficient|Expert` → `beginner|developing|proficient|expert`.
+  - Backfill existing rows: `Beginner→beginner`, `Progressing→developing`, `Proficient→proficient`, `Expert→expert`.
+  - Same backfill on `profiles.learner_level`.
+  - Update every TS reference (`src/lib/diagnosticsAnalytics.ts`, `useStudentStatus.ts`, `AssessmentAnalytics.tsx`, `AdminStudents.tsx`, `complete-student-signup`, `chat` function, `types/index.ts`, `DiagnosticQuiz.tsx`) to the new lowercase vocab.
+
+**`diagnostic_questions`** — read source for `difficulty_estimate` (numeric, ~0–1) and `bloom_level` (1–6), joined by `id` from `answers[].question_id`.
+
+## New edge function: `supabase/functions/score-diagnostic/index.ts`
+
+**Invocation:** called from `DiagnosticQuiz.tsx` on submit, replacing the current inline `computeLearnerLevel(correct,total)` + insert.
+
+**Request body:**
+```json
+{
+  "course_id": "<uuid>",
+  "branch_tier": "easy|medium|hard|null",
+  "answers": [ /* same shape currently built in DiagnosticQuiz */ ],
+  "confidences": [ ... ],
+  "question_times": [ ... ],   // ms
+  "question_ids": [ ... ]
+}
 ```
-<CATEGORY>: <short rationale>
+
+**Auth:** validate JWT in code; `student_id = auth.uid()`. Defensive duplicate-check (same as today) before insert.
+
+**Flow:**
+1. Validate body with zod.
+2. Load `diagnostic_questions` rows for `question_ids ∩ course_id` in one query; build a `Map<id, {difficulty, bloom}>`.
+3. For each answer where `response` is non-empty:
+   - If `question_id` not in map → drop + log (`console.warn`), never count as wrong.
+   - Trust client `is_correct`.
+   - Compute per-question: `max_points = difficulty × BLOOM_WEIGHT[bloom]`, `earned = is_correct ? max_points : 0`.
+   - Compute `expected_ms = EXPECTED_TIME_BASE_MS[bloom] × DIFFICULTY_TIME_FACTOR(difficulty)`; `pace_i = paceCurve(time_ms / expected_ms)`.
+4. Aggregate:
+   - `accuracyScore = Σ earned / Σ max_points` (0..1).
+   - `paceScore    = mean(pace_i)` (0..1).
+   - `confidenceScore = mean(confidence_i) / 5` (assuming 1–5 scale; clamp 0..1).
+5. `masteryScore = clamp01(W.accuracy*accuracyScore + W.pace*paceScore + W.confidence*confidenceScore)`.
+6. `learner_level = bandFor(masteryScore)` using equal 25% bands with the boundary rule (lower inclusive, upper exclusive, except top band includes 1.0).
+7. Insert row into `diagnostic_results` with `score = correctCount`, `total_questions = answered count after drops`, `mastery_score`, `learner_level`, plus all jsonb fields.
+8. Also update `profiles.learner_level` (mirrors existing behavior).
+9. Respond `{ mastery_score, learner_level, dropped_question_ids }`.
+
+## Config block (single object, top of file)
+
+```ts
+const CONFIG = {
+  // Cognitive depth weights (Bloom 1..6)
+  BLOOM_WEIGHT: { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 },
+
+  // Expected solve time per bloom level, in ms (baseline at difficulty 0.5)
+  EXPECTED_TIME_BASE_MS: { 1: 20_000, 2: 30_000, 3: 45_000, 4: 60_000, 5: 80_000, 6: 110_000 },
+  DIFFICULTY_TIME_FACTOR: (d: number) => 0.6 + 1.0 * clamp01(d), // 0.6x at d=0 → 1.6x at d=1
+
+  // Pace curve: r = actual/expected
+  // - r < 0.25  → 0.2  (too-fast / guessing floor)
+  // - 0.25..1.0 → smooth ramp to 1.0 at r=1
+  // - r > 1.0   → exp(-(r-1)/2.0)  (gentle decay, no cliff)
+  PACE_GUESS_FLOOR: 0.2,
+  PACE_FAST_CUTOFF: 0.25,
+  PACE_SLOW_DECAY: 2.0,
+
+  // Final combination weights (must sum to 1.0)
+  WEIGHTS: { accuracy: 0.70, pace: 0.15, confidence: 0.15 },
+
+  // Learner-level bands (lower inclusive, upper exclusive; top band includes 1.0)
+  LEVEL_BANDS: [
+    { max: 0.25, level: "beginner" },
+    { max: 0.50, level: "developing" },
+    { max: 0.75, level: "proficient" },
+    { max: 1.01, level: "expert" }, // 1.01 so 1.0 lands here
+  ],
+} as const;
 ```
 
-- Non-empty, ≤ 300 characters total
-- `<CATEGORY>` MUST be one of a fixed enum (below)
-- `<short rationale>` is a 1-sentence explanation tied to *this* question
+**Defaults rationale (for review):**
+- Accuracy dominates (0.70). Pace and confidence are 0.15 each — adjustments, not backbone.
+- Bloom weights grow ~linearly; recall worth 1.0, synthesis worth 2.5.
+- Expected times scale with both bloom (base) and difficulty (0.6×–1.6×).
+- Pace curve has a hard low floor for very-fast answers (likely guesses) but only gentle decay for slow answers (don't punish careful thinkers).
 
-### Fixed categories — `bloom_justification`
+## Client-side change
 
-Aligned to the existing Bloom level (1–6) the model already returns:
+`src/pages/student/DiagnosticQuiz.tsx` — replace the `from("diagnostic_results").insert(...)` block (≈lines 427–488) with one `supabase.functions.invoke("score-diagnostic", { body })` call. Use returned `learner_level` to update `studentProfile` and navigate.
 
-- `RECALL` — direct recall of fact / syntax / definition (Bloom 1)
-- `COMPREHENSION` — explain or interpret a concept or code snippet (Bloom 2)
-- `APPLICATION` — apply a rule/procedure to a new but routine case (Bloom 3)
-- `ANALYSIS` — decompose, trace, compare, or debug (Bloom 4)
-- `EVALUATION` — judge correctness/quality against criteria (Bloom 5)
-- `SYNTHESIS` — design or construct a new solution (Bloom 6)
+## Out of scope
 
-Validator additionally checks the category is consistent with `bloom_level`
-(`RECALL`↔1, `COMPREHENSION`↔2, `APPLICATION`↔3, `ANALYSIS`↔4, `EVALUATION`↔5, `SYNTHESIS`↔6).
+- No changes to weekly-quiz scoring or `assessment_results`.
+- No teacher/student UI surfacing of `mastery_score` (per Core memory: mastery hidden from both roles).
+- No backfill of `mastery_score` for historical diagnostic_results rows (left null).
 
-### Fixed categories — `difficulty_justification`
+## Open question for you
 
-Aligned to the tier's target difficulty band:
+Confidence scale — the current `confidences` jsonb in `diagnostic_results` is written by `DiagnosticQuiz.tsx`. **Is it 1–5 or 0–4 or 0–1?** I've assumed 1–5 (divide by 5). If it's different, only the normalizer constant changes. I'll verify by reading the quiz component during build and adjust before deploying.
 
-- `SURFACE_RECOGNITION` — recognise a term/output, minimal reasoning (~0.1–0.3)
-- `SINGLE_STEP` — one rule or one line of code to reason about (~0.3–0.5)
-- `MULTI_STEP` — chain 2–3 concepts or steps (~0.4–0.6)
-- `EDGE_CASE` — corner case, subtle distractor, or non-obvious behaviour (~0.6–0.8)
-- `COMPOSITE_REASONING` — integrate multiple concepts under constraints (~0.75–0.95)
-
-Validator additionally checks the category is "plausible" for `difficulty_estimate`:
-each category has an allowed `[min, max]` band (above); a mismatch is rejected.
-
-## Changes to `supabase/functions/generate-diagnostic-questions/index.ts`
-
-1. **`GeneratedQuestion` interface** — add `bloom_justification: string` and `difficulty_justification: string`.
-
-2. **Tool-call JSON schema** (`submit_questions.parameters`) — add both fields as `string`, list them in `required`. Include the category enum and 300-char limit in the field `description` so Gemini emits the right shape.
-
-3. **System prompt** — add a short section:
-   > Each question must include `bloom_justification` and `difficulty_justification`, each starting with one of the allowed categories followed by `:` and a 1-sentence rationale. Total length ≤ 300 chars.
-   Followed by the two enum lists and the consistency rules.
-
-4. **`validateMcq`** — extend to:
-   - require both strings, non-empty, ≤ 300 chars
-   - parse `^([A-Z_]+):\s*(.+)$`; reject if category isn't in the allowed enum
-   - reject if `bloom_justification` category doesn't match `bloom_level`
-   - reject if `difficulty_justification` category's band doesn't contain `difficulty_estimate`
-   - return both normalised strings in `ValidatedQuestion`
-
-5. **`ValidatedQuestion`** — add the two fields.
-
-6. **Row builder (lines 631–647)** — include `bloom_justification` and `difficulty_justification` in the insert payload.
-
-7. **Retry behaviour** — unchanged; existing `MAX_ATTEMPTS=3` and "common issues" hint already surface validator reasons, so category/band violations naturally feed the retry prompt.
-
-## Non-changes
-
-- DB schema: no migration required — both columns already exist on `diagnostic_questions` and are nullable.
-- `seed-questions/index.ts`: leave as-is (it already passes these fields through from authored JSON).
-- Student-facing UI: unchanged — these justifications are author/analytics metadata, not shown to students.
-- Teacher analytics: out of scope here; can later be surfaced in Assessment Analytics if desired.
-
-## Risk / rollout
-
-- Stricter validation may cause more retries on first few generations. Mitigation: the enum + format is explicit in both the system prompt and the tool schema description, and `MAX_ATTEMPTS=3` already retries with reason hints.
-- If after 3 attempts a tier still can't satisfy the new fields, the function returns 422 (existing behaviour) — surfaces the problem instead of silently storing junk.
