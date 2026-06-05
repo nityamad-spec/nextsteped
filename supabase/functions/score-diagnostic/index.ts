@@ -212,8 +212,9 @@ Deno.serve(async (req) => {
     paceScores.push(paceCurve(actualMs / expectedMs));
 
     // Confidence
-    const c = typeof a.confidence === "number" ? a.confidence : 0;
-    confidenceScores.push(clamp01(c / CONFIG.CONFIDENCE_SCALE_MAX));
+    const rawC = Number.isInteger(a.confidence) ? (a.confidence as number) : CONFIG.CONFIDENCE_DEFAULT;
+    const keyC = Math.min(2, Math.max(0, rawC));
+    confidenceScores.push(CONFIG.CONFIDENCE_LEVELS[keyC] ?? 0.5);
   }
 
   const accuracyScore = maxSum > 0 ? clamp01(earnedSum / maxSum) : 0;
