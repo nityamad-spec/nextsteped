@@ -141,6 +141,31 @@ function validateMcq(
   const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
   if (!explanation) return { ok: false, reason: "empty explanation" };
 
+  // bloom_justification: CATEGORY: rationale, non-empty, <=300 chars, category matches bloom_level
+  const bj = typeof q.bloom_justification === "string" ? q.bloom_justification.trim() : "";
+  if (!bj) return { ok: false, reason: "empty bloom_justification" };
+  if (bj.length > 300) return { ok: false, reason: "bloom_justification > 300 chars" };
+  const bjMatch = bj.match(JUSTIFICATION_RE);
+  if (!bjMatch) return { ok: false, reason: "bloom_justification must be 'CATEGORY: rationale'" };
+  const bjCat = bjMatch[1];
+  if (!BLOOM_CATEGORIES.has(bjCat)) return { ok: false, reason: `bloom_justification category '${bjCat}' not allowed` };
+  if (BLOOM_CATEGORY_BY_LEVEL[bloom] !== bjCat) {
+    return { ok: false, reason: `bloom_justification category '${bjCat}' does not match bloom_level ${bloom}` };
+  }
+
+  // difficulty_justification: CATEGORY: rationale, non-empty, <=300 chars, category band contains difficulty_estimate
+  const dj = typeof q.difficulty_justification === "string" ? q.difficulty_justification.trim() : "";
+  if (!dj) return { ok: false, reason: "empty difficulty_justification" };
+  if (dj.length > 300) return { ok: false, reason: "difficulty_justification > 300 chars" };
+  const djMatch = dj.match(JUSTIFICATION_RE);
+  if (!djMatch) return { ok: false, reason: "difficulty_justification must be 'CATEGORY: rationale'" };
+  const djCat = djMatch[1];
+  const band = DIFFICULTY_CATEGORY_BANDS[djCat];
+  if (!band) return { ok: false, reason: `difficulty_justification category '${djCat}' not allowed` };
+  if (diff < band[0] || diff > band[1]) {
+    return { ok: false, reason: `difficulty_justification '${djCat}' band ${band[0]}-${band[1]} excludes difficulty ${diff.toFixed(2)}` };
+  }
+
   return {
     ok: true,
     normalized: {
@@ -152,9 +177,12 @@ function validateMcq(
       bloom_level: bloom,
       explanation,
       topic: canonicalTopic,
+      bloom_justification: bj,
+      difficulty_justification: dj,
     },
   };
 }
+
 
 function isDuplicate(q: ValidatedQuestion, accepted: ValidatedQuestion[]): boolean {
   const key = q.content_text.slice(0, 120).toLowerCase();
