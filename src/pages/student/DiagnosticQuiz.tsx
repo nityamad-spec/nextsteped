@@ -103,6 +103,8 @@ const DiagnosticQuiz = () => {
   const [questionIds, setQuestionIds] = useState<string[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
+  const [branchTier, setBranchTier] = useState<BranchTier | null>(null);
+  const [loadingBranch, setLoadingBranch] = useState(false);
 
   useEffect(() => {
     const init = async () => {
