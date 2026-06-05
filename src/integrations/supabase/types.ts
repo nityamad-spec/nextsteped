@@ -686,6 +686,7 @@ export type Database = {
           item_code: string
           options: Json | null
           teacher_id: string
+          tier: string
           topic: string | null
           updated_at: string
         }
@@ -707,6 +708,7 @@ export type Database = {
           item_code: string
           options?: Json | null
           teacher_id: string
+          tier?: string
           topic?: string | null
           updated_at?: string
         }
@@ -728,6 +730,7 @@ export type Database = {
           item_code?: string
           options?: Json | null
           teacher_id?: string
+          tier?: string
           topic?: string | null
           updated_at?: string
         }
@@ -758,6 +761,7 @@ export type Database = {
       diagnostic_results: {
         Row: {
           answers: Json
+          branch_tier: string | null
           confidences: Json
           course_id: string
           created_at: string
@@ -771,6 +775,7 @@ export type Database = {
         }
         Insert: {
           answers?: Json
+          branch_tier?: string | null
           confidences?: Json
           course_id: string
           created_at?: string
@@ -784,6 +789,7 @@ export type Database = {
         }
         Update: {
           answers?: Json
+          branch_tier?: string | null
           confidences?: Json
           course_id?: string
           created_at?: string
