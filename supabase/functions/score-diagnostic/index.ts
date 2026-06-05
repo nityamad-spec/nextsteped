@@ -83,7 +83,7 @@ const AnswerSchema = z.object({
   correct: z.string().optional(),
   is_correct: z.boolean().optional(),
   time_ms: z.number().optional(),
-  confidence: z.number().optional(),
+  confidence: z.number().int().min(0).max(2).optional(),
 });
 
 const BodySchema = z.object({
