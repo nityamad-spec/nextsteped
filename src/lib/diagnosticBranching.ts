@@ -12,7 +12,7 @@ export const TOTAL_COUNT = STANDARD_COUNT + ADAPTIVE_COUNT;
 
 export type BranchTier = "easy" | "medium" | "hard";
 export type QuestionTier = "standard" | BranchTier;
-export type LearnerLevel = "Beginner" | "Progressing" | "Proficient" | "Expert";
+export type LearnerLevel = "beginner" | "developing" | "proficient" | "expert";
 
 export interface ScoredQuestion {
   id: string;
