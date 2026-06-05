@@ -15,6 +15,8 @@ interface GeneratedQuestion {
   bloom_level: number;
   explanation: string;
   topic: string;
+  bloom_justification: string;
+  difficulty_justification: string;
 }
 
 interface TierSpec {
@@ -36,10 +38,33 @@ const MAX_ATTEMPTS = 3;
 const MODEL = "google/gemini-2.5-pro";
 const DIFFICULTY_BAND = 0.15;
 
+// Fixed categorization for bloom_justification (maps to bloom_level 1-6)
+const BLOOM_CATEGORY_BY_LEVEL: Record<number, string> = {
+  1: "RECALL",
+  2: "COMPREHENSION",
+  3: "APPLICATION",
+  4: "ANALYSIS",
+  5: "EVALUATION",
+  6: "SYNTHESIS",
+};
+const BLOOM_CATEGORIES = new Set(Object.values(BLOOM_CATEGORY_BY_LEVEL));
+
+// Fixed categorization for difficulty_justification with plausible difficulty bands
+const DIFFICULTY_CATEGORY_BANDS: Record<string, [number, number]> = {
+  SURFACE_RECOGNITION: [0.1, 0.3],
+  SINGLE_STEP: [0.3, 0.5],
+  MULTI_STEP: [0.4, 0.6],
+  EDGE_CASE: [0.6, 0.8],
+  COMPOSITE_REASONING: [0.75, 0.95],
+};
+
+const JUSTIFICATION_RE = /^([A-Z_]+):\s*(.+)$/;
+
 interface ValidatedQuestion extends GeneratedQuestion {
   format: "mcq";
   options: string[];
 }
+
 
 interface ConceptInfo {
   id: string;
