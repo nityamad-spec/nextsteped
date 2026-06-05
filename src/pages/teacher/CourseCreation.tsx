@@ -570,7 +570,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       exam_type: null,
       concepts: [],
       resources: [],
-      locked: true,
+      locked: false,
     };
     setWeeks(prev => [...prev, newWeek]);
     setExpandedWeeks(prev => [...prev, newWeek.id]);
