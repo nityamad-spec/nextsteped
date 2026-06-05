@@ -30,9 +30,56 @@ interface QuizQuestion {
   explanation: string;
   courseId: string;
   format: "mcq" | "true_false" | "short_answer";
+  tier: "standard" | "easy" | "medium" | "hard";
 }
 
 const answerLetters = ["A", "B", "C", "D", "E", "F"];
+type BranchTier = "easy" | "medium" | "hard";
+
+const STANDARD_COUNT = 10;
+const ADAPTIVE_COUNT = 10;
+const TOTAL_COUNT = STANDARD_COUNT + ADAPTIVE_COUNT;
+
+function pickBranchTier(standardCorrect: number): BranchTier {
+  if (standardCorrect < 4) return "easy";
+  if (standardCorrect < 8) return "medium";
+  return "hard";
+}
+
+function mapRow(row: any): QuizQuestion {
+  let options = (row.options as string[]) || [];
+  let questionText = row.content_text;
+  const format = row.format as QuizQuestion["format"];
+
+  if (format !== "short_answer" && (!options || options.length === 0)) {
+    const optionRegex = /^([A-F])\.\s*(.+)$/gm;
+    const parsed: string[] = [];
+    let match;
+    while ((match = optionRegex.exec(row.content_text)) !== null) {
+      parsed.push(match[2].trim());
+    }
+    if (parsed.length > 0) {
+      options = parsed;
+      questionText = row.content_text.replace(/\n[A-F]\.\s*.+/g, "").trim();
+    }
+  }
+
+  const idx = answerLetters.indexOf(row.answer);
+  const correctIndex = idx >= 0 ? idx : options.indexOf(row.answer);
+
+  return {
+    id: row.id,
+    question: questionText,
+    options: format === "short_answer" ? [] : options,
+    correctIndex: correctIndex >= 0 ? correctIndex : 0,
+    correctAnswer: row.answer,
+    topic: row.topic || "",
+    explanation: row.explanation || "",
+    courseId: row.course_id,
+    format,
+    tier: (row.tier as QuizQuestion["tier"]) || "standard",
+  };
+}
 
 
 const DiagnosticQuiz = () => {
