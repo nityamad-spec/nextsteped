@@ -44,8 +44,9 @@ const CONFIG = {
     { max: 1.0001, level: "expert" },
   ],
 
-  // Confidence raw scale in client (slider 0..100).
-  CONFIDENCE_SCALE_MAX: 100,
+  // Confidence: 3-level discrete scale from UI [0,1,2] mapped to [0..1].
+  CONFIDENCE_LEVELS: { 0: 0.0, 1: 0.5, 2: 1.0 } as Record<number, number>,
+  CONFIDENCE_DEFAULT: 1,
 } as const;
 
 type LearnerLevel = "beginner" | "developing" | "proficient" | "expert";
@@ -82,7 +83,7 @@ const AnswerSchema = z.object({
   correct: z.string().optional(),
   is_correct: z.boolean().optional(),
   time_ms: z.number().optional(),
-  confidence: z.number().optional(),
+  confidence: z.number().int().min(0).max(2).optional(),
 });
 
 const BodySchema = z.object({
@@ -211,8 +212,9 @@ Deno.serve(async (req) => {
     paceScores.push(paceCurve(actualMs / expectedMs));
 
     // Confidence
-    const c = typeof a.confidence === "number" ? a.confidence : 0;
-    confidenceScores.push(clamp01(c / CONFIG.CONFIDENCE_SCALE_MAX));
+    const rawC = Number.isInteger(a.confidence) ? (a.confidence as number) : CONFIG.CONFIDENCE_DEFAULT;
+    const keyC = Math.min(2, Math.max(0, rawC));
+    confidenceScores.push(CONFIG.CONFIDENCE_LEVELS[keyC] ?? 0.5);
   }
 
   const accuracyScore = maxSum > 0 ? clamp01(earnedSum / maxSum) : 0;

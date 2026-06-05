@@ -1,105 +1,43 @@
 ## Goal
 
-Compute a single **course-level mastery score (0–1)** and a **learner level** (beginner / developing / proficient / expert) for each diagnostic submission, in one edge function, with all tuning numbers in a named config block.
+Switch confidence from a 0–100 slider to a 3-step scale `[0, 1, 2]` (Not Confident / Somewhat Confident / Very Confident), and normalize it correctly inside the mastery calculation without changing the 15% confidence weight.
 
-## Table & column mapping (confirmed)
+## Changes
 
-**`diagnostic_results`** — write target. One row per (student, course) attempt. Existing fields used: `student_id`, `course_id`, `score`, `total_questions`, `branch_tier`, `answers`, `confidences`, `question_times`, `question_ids`.
+### 1. `supabase/functions/score-diagnostic/index.ts` (CONFIG + normalization)
 
-**Schema change (one migration, asked separately before build):**
-- Add `mastery_score numeric(5,4)` — null allowed for legacy rows.
-- Change `learner_level` vocabulary from `Beginner|Progressing|Proficient|Expert` → `beginner|developing|proficient|expert`.
-  - Backfill existing rows: `Beginner→beginner`, `Progressing→developing`, `Proficient→proficient`, `Expert→expert`.
-  - Same backfill on `profiles.learner_level`.
-  - Update every TS reference (`src/lib/diagnosticsAnalytics.ts`, `useStudentStatus.ts`, `AssessmentAnalytics.tsx`, `AdminStudents.tsx`, `complete-student-signup`, `chat` function, `types/index.ts`, `DiagnosticQuiz.tsx`) to the new lowercase vocab.
+- Replace `CONFIDENCE_SCALE_MAX: 100` with an explicit 3-level map in the CONFIG block, single source of truth:
+  ```ts
+  CONFIDENCE_LEVELS: { 0: 0.0, 1: 0.5, 2: 1.0 },  // not / somewhat / very
+  CONFIDENCE_DEFAULT: 1,                          // fallback if missing/invalid
+  ```
+- In the per-answer loop, replace `clamp01(c / CONFIDENCE_SCALE_MAX)` with a lookup:
+  ```ts
+  const raw = Number.isInteger(a.confidence) ? a.confidence : CONFIG.CONFIDENCE_DEFAULT;
+  const key = Math.min(2, Math.max(0, raw as number));
+  confidenceScores.push(CONFIG.CONFIDENCE_LEVELS[key]);
+  ```
+- `WEIGHTS.confidence` stays at `0.15`. Because the new normalized range is still `[0, 1]` (0.0 / 0.5 / 1.0), the contribution to `masteryScore` keeps the same magnitude — no other math changes.
+- Tighten the zod schema for `confidence` to `z.number().int().min(0).max(2).optional()` so out-of-range client values are rejected with a clear 400.
 
-**`diagnostic_questions`** — read source for `difficulty_estimate` (numeric, ~0–1) and `bloom_level` (1–6), joined by `id` from `answers[].question_id`.
+### 2. `src/pages/student/DiagnosticQuiz.tsx` (UI + persisted values)
 
-## New edge function: `supabase/functions/score-diagnostic/index.ts`
+- Update `confidenceLabels` to `{ 0: "Not Confident", 1: "Somewhat Confident", 2: "Very Confident" }`.
+- Change the slider props: `min={0} max={2} step={1}`, default value `[confidence ?? 1]`, label fallback `confidenceLabels[confidence ?? 1]`.
+- Update the auto-initialize effect (currently sets `confidence = 50` when an answer exists) to set `1` instead.
+- Update any other `?? 50` / `=== 50` defaults in that file to `?? 1`.
+- No DB schema change. The `confidences` jsonb array on `diagnostic_results` will now store integers `0|1|2` going forward; legacy rows with 0/50/100 remain untouched (not rescored).
 
-**Invocation:** called from `DiagnosticQuiz.tsx` on submit, replacing the current inline `computeLearnerLevel(correct,total)` + insert.
+### 3. Scope guardrails
 
-**Request body:**
-```json
-{
-  "course_id": "<uuid>",
-  "branch_tier": "easy|medium|hard|null",
-  "answers": [ /* same shape currently built in DiagnosticQuiz */ ],
-  "confidences": [ ... ],
-  "question_times": [ ... ],   // ms
-  "question_ids": [ ... ]
-}
-```
+- No migration, no backfill of old `confidences` arrays, no change to `mastery_score`/`learner_level` columns.
+- No changes to accuracy or pace logic, weights, or bands.
+- No UI surfacing of mastery to students/teachers (per Core memory).
 
-**Auth:** validate JWT in code; `student_id = auth.uid()`. Defensive duplicate-check (same as today) before insert.
+## Why the weight stays intact
 
-**Flow:**
-1. Validate body with zod.
-2. Load `diagnostic_questions` rows for `question_ids ∩ course_id` in one query; build a `Map<id, {difficulty, bloom}>`.
-3. For each answer where `response` is non-empty:
-   - If `question_id` not in map → drop + log (`console.warn`), never count as wrong.
-   - Trust client `is_correct`.
-   - Compute per-question: `max_points = difficulty × BLOOM_WEIGHT[bloom]`, `earned = is_correct ? max_points : 0`.
-   - Compute `expected_ms = EXPECTED_TIME_BASE_MS[bloom] × DIFFICULTY_TIME_FACTOR(difficulty)`; `pace_i = paceCurve(time_ms / expected_ms)`.
-4. Aggregate:
-   - `accuracyScore = Σ earned / Σ max_points` (0..1).
-   - `paceScore    = mean(pace_i)` (0..1).
-   - `confidenceScore = mean(confidence_i) / 5` (assuming 1–5 scale; clamp 0..1).
-5. `masteryScore = clamp01(W.accuracy*accuracyScore + W.pace*paceScore + W.confidence*confidenceScore)`.
-6. `learner_level = bandFor(masteryScore)` using equal 25% bands with the boundary rule (lower inclusive, upper exclusive, except top band includes 1.0).
-7. Insert row into `diagnostic_results` with `score = correctCount`, `total_questions = answered count after drops`, `mastery_score`, `learner_level`, plus all jsonb fields.
-8. Also update `profiles.learner_level` (mirrors existing behavior).
-9. Respond `{ mastery_score, learner_level, dropped_question_ids }`.
+Confidence still contributes `0.15 × confidenceScore` where `confidenceScore ∈ [0, 1]`. Only the mapping from raw input to that `[0, 1]` value changes (3 discrete points instead of 101). Max possible contribution to mastery is unchanged at `0.15`.
 
-## Config block (single object, top of file)
+## Open question
 
-```ts
-const CONFIG = {
-  // Cognitive depth weights (Bloom 1..6)
-  BLOOM_WEIGHT: { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 },
-
-  // Expected solve time per bloom level, in ms (baseline at difficulty 0.5)
-  EXPECTED_TIME_BASE_MS: { 1: 20_000, 2: 30_000, 3: 45_000, 4: 60_000, 5: 80_000, 6: 110_000 },
-  DIFFICULTY_TIME_FACTOR: (d: number) => 0.6 + 1.0 * clamp01(d), // 0.6x at d=0 → 1.6x at d=1
-
-  // Pace curve: r = actual/expected
-  // - r < 0.25  → 0.2  (too-fast / guessing floor)
-  // - 0.25..1.0 → smooth ramp to 1.0 at r=1
-  // - r > 1.0   → exp(-(r-1)/2.0)  (gentle decay, no cliff)
-  PACE_GUESS_FLOOR: 0.2,
-  PACE_FAST_CUTOFF: 0.25,
-  PACE_SLOW_DECAY: 2.0,
-
-  // Final combination weights (must sum to 1.0)
-  WEIGHTS: { accuracy: 0.70, pace: 0.15, confidence: 0.15 },
-
-  // Learner-level bands (lower inclusive, upper exclusive; top band includes 1.0)
-  LEVEL_BANDS: [
-    { max: 0.25, level: "beginner" },
-    { max: 0.50, level: "developing" },
-    { max: 0.75, level: "proficient" },
-    { max: 1.01, level: "expert" }, // 1.01 so 1.0 lands here
-  ],
-} as const;
-```
-
-**Defaults rationale (for review):**
-- Accuracy dominates (0.70). Pace and confidence are 0.15 each — adjustments, not backbone.
-- Bloom weights grow ~linearly; recall worth 1.0, synthesis worth 2.5.
-- Expected times scale with both bloom (base) and difficulty (0.6×–1.6×).
-- Pace curve has a hard low floor for very-fast answers (likely guesses) but only gentle decay for slow answers (don't punish careful thinkers).
-
-## Client-side change
-
-`src/pages/student/DiagnosticQuiz.tsx` — replace the `from("diagnostic_results").insert(...)` block (≈lines 427–488) with one `supabase.functions.invoke("score-diagnostic", { body })` call. Use returned `learner_level` to update `studentProfile` and navigate.
-
-## Out of scope
-
-- No changes to weekly-quiz scoring or `assessment_results`.
-- No teacher/student UI surfacing of `mastery_score` (per Core memory: mastery hidden from both roles).
-- No backfill of `mastery_score` for historical diagnostic_results rows (left null).
-
-## Open question for you
-
-Confidence scale — the current `confidences` jsonb in `diagnostic_results` is written by `DiagnosticQuiz.tsx`. **Is it 1–5 or 0–4 or 0–1?** I've assumed 1–5 (divide by 5). If it's different, only the normalizer constant changes. I'll verify by reading the quiz component during build and adjust before deploying.
-
+Is the mapping `0 → 0.0, 1 → 0.5, 2 → 1.0` what you want, or do you prefer something less linear (e.g. `0 → 0.0, 1 → 0.6, 2 → 1.0` to reward "very confident + correct" more strongly, or `0 → 0.2, 1 → 0.5, 2 → 1.0` to avoid zeroing out the confidence component entirely when a student is unsure)? Default in the plan is the simple linear mapping.

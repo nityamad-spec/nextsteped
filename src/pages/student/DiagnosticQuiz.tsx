@@ -25,9 +25,9 @@ import {
 } from "@/lib/diagnosticBranching";
 
 const confidenceLabels: Record<number, string> = {
-  0: "Just Guessing",
-  50: "Somewhat Confident",
-  100: "Very Confident",
+  0: "Not Confident",
+  1: "Somewhat Confident",
+  2: "Very Confident",
 };
 
 interface QuizQuestion {
@@ -294,7 +294,7 @@ const DiagnosticQuiz = () => {
   // so the slider position reflects a real selection and Next is enabled.
   useEffect(() => {
     if (hasAnswer && confidence === null) {
-      setConfidence(50);
+      setConfidence(1);
     }
   }, [hasAnswer, confidence]);
 
@@ -662,21 +662,21 @@ const DiagnosticQuiz = () => {
                   </p>
                   <div className="px-2">
                     <Slider
-                      value={[confidence ?? 50]}
+                      value={[confidence ?? 1]}
                       onValueChange={(val) => setConfidence(val[0])}
                       min={0}
-                      max={100}
-                      step={50}
+                      max={2}
+                      step={1}
                       className="mb-2"
                     />
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Just Guessing</span>
+                      <span>Not Confident</span>
                       <span>Somewhat Confident</span>
                       <span>Very Confident</span>
                     </div>
                   </div>
                   <p className="mt-2 text-center text-sm font-medium text-primary">
-                    {confidenceLabels[confidence ?? 50] || "Somewhat Confident"}
+                    {confidenceLabels[confidence ?? 1] || "Somewhat Confident"}
                   </p>
                 </div>
               )}
