@@ -329,8 +329,8 @@ const DiagnosticQuestionsSetup = () => {
             <div className="rounded-lg bg-muted/30 border p-4 space-y-2">
               <p className="text-sm font-medium">How it works:</p>
               <ul className="text-sm text-muted-foreground space-y-1.5 ml-4 list-disc">
-                <li><strong>5 Standard Questions</strong> — Common to all students, covering core concepts at a medium difficulty level</li>
-                <li><strong>5 Adaptive Questions</strong> — Based on performance on the standard questions, students are routed to an Easy, Medium, or Hard tier of follow-up questions</li>
+                <li><strong>10 Standard Questions</strong> — Common to all students, covering core concepts at a medium difficulty level</li>
+                <li><strong>10 Adaptive Questions</strong> — Based on performance on the standard questions, students are routed to an Easy, Medium, or Hard tier of follow-up questions</li>
                 <li>Questions are <strong>randomized</strong> for each student to prevent cheating</li>
               </ul>
             </div>
@@ -436,10 +436,6 @@ const DiagnosticQuestionsSetup = () => {
                     );
                   })}
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  All four tiers run in parallel. Each tier retries up to 3 times until 5 valid MCQs pass semantic validation.
-                  Using high-quality model (Gemini 2.5 Pro) — generation may take ~60–90s.
-                </p>
               </div>
             )}
 
