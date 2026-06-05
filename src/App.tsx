@@ -148,7 +148,7 @@ function TeacherRedirect() {
 
 function StudentRedirect() {
   const { user } = useAuth();
-  const { loading, hasProfile, hasEnrollment, hasDiagnostic, activeCourseId } = useStudentStatus();
+  const { loading, hasProfile, hasEnrollment, hasDiagnostic, activeCourseId, role } = useStudentStatus();
   const { setStudentOnboarded, setDiagnosticComplete } = useApp();
   const [healing, setHealing] = useState(false);
   const [healedCourseId, setHealedCourseId] = useState<string | null>(null);
