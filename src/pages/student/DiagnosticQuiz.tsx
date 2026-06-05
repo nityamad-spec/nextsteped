@@ -145,7 +145,7 @@ const DiagnosticQuiz = () => {
 
       const { data: existing } = await supabase
         .from("diagnostic_results")
-        .select("id")
+        .select("id, score, total_questions, created_at")
         .eq("student_id", user.id)
         .eq("course_id", courseId)
         .maybeSingle();
@@ -153,7 +153,18 @@ const DiagnosticQuiz = () => {
       if (existing) {
         try { localStorage.removeItem(progressKey); } catch {}
         setDiagnosticComplete(true);
-        navigate("/student/home", { replace: true });
+        const { data: course } = await supabase
+          .from("courses")
+          .select("name")
+          .eq("id", courseId)
+          .maybeSingle();
+        setExistingResult({
+          score: existing.score ?? 0,
+          total: existing.total_questions ?? 0,
+          completedAt: existing.created_at ?? null,
+          courseName: course?.name ?? null,
+        });
+        setPhase("already-completed");
         return;
       }
 
