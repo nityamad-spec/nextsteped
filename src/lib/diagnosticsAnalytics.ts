@@ -10,7 +10,7 @@
  * rollups can be done without joining back to `diagnostic_questions`.
  */
 
-export type LearnerLevel = "Beginner" | "Progressing" | "Proficient" | "Expert";
+export type LearnerLevel = "beginner" | "developing" | "proficient" | "expert";
 export type BranchTier = "easy" | "medium" | "hard";
 export type QuestionTier = "standard" | BranchTier;
 
