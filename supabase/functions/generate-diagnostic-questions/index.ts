@@ -15,6 +15,8 @@ interface GeneratedQuestion {
   bloom_level: number;
   explanation: string;
   topic: string;
+  bloom_justification: string;
+  difficulty_justification: string;
 }
 
 interface TierSpec {
@@ -36,10 +38,33 @@ const MAX_ATTEMPTS = 3;
 const MODEL = "google/gemini-2.5-pro";
 const DIFFICULTY_BAND = 0.15;
 
+// Fixed categorization for bloom_justification (maps to bloom_level 1-6)
+const BLOOM_CATEGORY_BY_LEVEL: Record<number, string> = {
+  1: "RECALL",
+  2: "COMPREHENSION",
+  3: "APPLICATION",
+  4: "ANALYSIS",
+  5: "EVALUATION",
+  6: "SYNTHESIS",
+};
+const BLOOM_CATEGORIES = new Set(Object.values(BLOOM_CATEGORY_BY_LEVEL));
+
+// Fixed categorization for difficulty_justification with plausible difficulty bands
+const DIFFICULTY_CATEGORY_BANDS: Record<string, [number, number]> = {
+  SURFACE_RECOGNITION: [0.1, 0.3],
+  SINGLE_STEP: [0.3, 0.5],
+  MULTI_STEP: [0.4, 0.6],
+  EDGE_CASE: [0.6, 0.8],
+  COMPOSITE_REASONING: [0.75, 0.95],
+};
+
+const JUSTIFICATION_RE = /^([A-Z_]+):\s*(.+)$/;
+
 interface ValidatedQuestion extends GeneratedQuestion {
   format: "mcq";
   options: string[];
 }
+
 
 interface ConceptInfo {
   id: string;
@@ -116,6 +141,31 @@ function validateMcq(
   const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
   if (!explanation) return { ok: false, reason: "empty explanation" };
 
+  // bloom_justification: CATEGORY: rationale, non-empty, <=300 chars, category matches bloom_level
+  const bj = typeof q.bloom_justification === "string" ? q.bloom_justification.trim() : "";
+  if (!bj) return { ok: false, reason: "empty bloom_justification" };
+  if (bj.length > 300) return { ok: false, reason: "bloom_justification > 300 chars" };
+  const bjMatch = bj.match(JUSTIFICATION_RE);
+  if (!bjMatch) return { ok: false, reason: "bloom_justification must be 'CATEGORY: rationale'" };
+  const bjCat = bjMatch[1];
+  if (!BLOOM_CATEGORIES.has(bjCat)) return { ok: false, reason: `bloom_justification category '${bjCat}' not allowed` };
+  if (BLOOM_CATEGORY_BY_LEVEL[bloom] !== bjCat) {
+    return { ok: false, reason: `bloom_justification category '${bjCat}' does not match bloom_level ${bloom}` };
+  }
+
+  // difficulty_justification: CATEGORY: rationale, non-empty, <=300 chars, category band contains difficulty_estimate
+  const dj = typeof q.difficulty_justification === "string" ? q.difficulty_justification.trim() : "";
+  if (!dj) return { ok: false, reason: "empty difficulty_justification" };
+  if (dj.length > 300) return { ok: false, reason: "difficulty_justification > 300 chars" };
+  const djMatch = dj.match(JUSTIFICATION_RE);
+  if (!djMatch) return { ok: false, reason: "difficulty_justification must be 'CATEGORY: rationale'" };
+  const djCat = djMatch[1];
+  const band = DIFFICULTY_CATEGORY_BANDS[djCat];
+  if (!band) return { ok: false, reason: `difficulty_justification category '${djCat}' not allowed` };
+  if (diff < band[0] || diff > band[1]) {
+    return { ok: false, reason: `difficulty_justification '${djCat}' band ${band[0]}-${band[1]} excludes difficulty ${diff.toFixed(2)}` };
+  }
+
   return {
     ok: true,
     normalized: {
@@ -127,9 +177,12 @@ function validateMcq(
       bloom_level: bloom,
       explanation,
       topic: canonicalTopic,
+      bloom_justification: bj,
+      difficulty_justification: dj,
     },
   };
 }
+
 
 function isDuplicate(q: ValidatedQuestion, accepted: ValidatedQuestion[]): boolean {
   const key = q.content_text.slice(0, 120).toLowerCase();
@@ -295,7 +348,29 @@ STRICT RULES:
 - difficulty_estimate must be a number close to ${spec.difficulty} (within ±0.15).
 - bloom_level: integer 1-6 (1=Remember, 2=Understand, 3=Apply, 4=Analyze, 5=Evaluate, 6=Create).
 - content_text: the question stem only, ≤ 600 characters, no embedded options.
-- explanation: 1-2 sentences explaining why the correct option is correct.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+- explanation: 1-2 sentences explaining why the correct option is correct.
+
+CATEGORIZED JUSTIFICATIONS (required, ≤ 300 chars each, format "CATEGORY: 1-sentence rationale"):
+
+bloom_justification — pick the CATEGORY that matches bloom_level EXACTLY:
+  - RECALL (bloom_level=1): direct recall of a fact, syntax, or definition
+  - COMPREHENSION (bloom_level=2): explain or interpret a concept or snippet
+  - APPLICATION (bloom_level=3): apply a rule/procedure to a new but routine case
+  - ANALYSIS (bloom_level=4): decompose, trace, compare, or debug
+  - EVALUATION (bloom_level=5): judge correctness/quality against criteria
+  - SYNTHESIS (bloom_level=6): design or construct a new solution
+
+difficulty_justification — pick the CATEGORY whose band contains difficulty_estimate:
+  - SURFACE_RECOGNITION (0.10-0.30): recognise a term/output, minimal reasoning
+  - SINGLE_STEP (0.30-0.50): one rule or one line of code to reason about
+  - MULTI_STEP (0.40-0.60): chain 2-3 concepts or steps
+  - EDGE_CASE (0.60-0.80): corner case, subtle distractor, non-obvious behaviour
+  - COMPOSITE_REASONING (0.75-0.95): integrate multiple concepts under constraints
+
+Examples:
+  bloom_justification: "APPLICATION: Student must apply the for-loop range pattern to a new iteration count."
+  difficulty_justification: "SINGLE_STEP: One indexing operation determines the output."${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -337,6 +412,8 @@ STRICT RULES:
                       bloom_level: { type: "integer", minimum: 1, maximum: 6 },
                       explanation: { type: "string" },
                       topic: { type: "string" },
+                      bloom_justification: { type: "string", description: "Format 'CATEGORY: rationale', ≤300 chars. CATEGORY must be one of RECALL, COMPREHENSION, APPLICATION, ANALYSIS, EVALUATION, SYNTHESIS and match bloom_level." },
+                      difficulty_justification: { type: "string", description: "Format 'CATEGORY: rationale', ≤300 chars. CATEGORY must be one of SURFACE_RECOGNITION, SINGLE_STEP, MULTI_STEP, EDGE_CASE, COMPOSITE_REASONING and its band must contain difficulty_estimate." },
                     },
                     required: [
                       "content_text",
@@ -347,7 +424,10 @@ STRICT RULES:
                       "bloom_level",
                       "explanation",
                       "topic",
+                      "bloom_justification",
+                      "difficulty_justification",
                     ],
+
                   },
                 },
               },
@@ -638,6 +718,9 @@ Deno.serve(async (req) => {
           bloom_level: recheck.normalized.bloom_level,
           explanation: recheck.normalized.explanation,
           topic: recheck.normalized.topic,
+          bloom_justification: recheck.normalized.bloom_justification,
+          difficulty_justification: recheck.normalized.difficulty_justification,
+
           concept_id: conceptInfo.id,
           course_id: course.id,
           teacher_id: course.teacher_id,
