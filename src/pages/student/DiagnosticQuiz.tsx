@@ -25,9 +25,9 @@ import {
 } from "@/lib/diagnosticBranching";
 
 const confidenceLabels: Record<number, string> = {
-  0: "Just Guessing",
-  50: "Somewhat Confident",
-  100: "Very Confident",
+  0: "Not Confident",
+  1: "Somewhat Confident",
+  2: "Very Confident",
 };
 
 interface QuizQuestion {
