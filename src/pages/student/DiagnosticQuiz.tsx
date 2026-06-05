@@ -285,8 +285,11 @@ const DiagnosticQuiz = () => {
   // Persist in-progress quiz state so a refresh resumes at the same place.
   useEffect(() => {
     if (!user || !activeCourseId || phase !== "quiz") return;
+    const standardIds = questions.slice(0, STANDARD_COUNT).map((q) => q.id);
+    const adaptiveIds = branchTier ? questions.slice(STANDARD_COUNT, TOTAL_COUNT).map((q) => q.id) : null;
+    if (standardIds.length !== STANDARD_COUNT) return;
     const payload = {
-      v: 1 as const,
+      v: 2 as const,
       phase: "quiz" as const,
       currentQ,
       answers,
@@ -294,6 +297,9 @@ const DiagnosticQuiz = () => {
       confidences,
       questionTimes,
       questionIds,
+      standardIds,
+      adaptiveIds,
+      branchTier,
       selected,
       textAnswer,
       confidence,
@@ -306,7 +312,7 @@ const DiagnosticQuiz = () => {
         JSON.stringify(payload),
       );
     } catch {}
-  }, [user, activeCourseId, phase, currentQ, answers, textAnswers, confidences, questionTimes, questionIds, selected, textAnswer, confidence, questionStartTime]);
+  }, [user, activeCourseId, phase, currentQ, answers, textAnswers, confidences, questionTimes, questionIds, selected, textAnswer, confidence, questionStartTime, questions, branchTier]);
 
   const handleAnswer = async () => {
     if (!canProceed) return;
