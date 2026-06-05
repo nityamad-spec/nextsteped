@@ -13,6 +13,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, ArrowLeft, Brain, Zap, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { seededShuffle } from "@/lib/seededShuffle";
+import {
+  STANDARD_COUNT,
+  ADAPTIVE_COUNT,
+  TOTAL_COUNT,
+  pickBranchTier,
+  computeStandardCorrect,
+  computeLearnerLevel,
+  type BranchTier,
+} from "@/lib/diagnosticBranching";
 
 const confidenceLabels: Record<number, string> = {
   0: "Just Guessing",
@@ -34,17 +43,6 @@ interface QuizQuestion {
 }
 
 const answerLetters = ["A", "B", "C", "D", "E", "F"];
-type BranchTier = "easy" | "medium" | "hard";
-
-const STANDARD_COUNT = 10;
-const ADAPTIVE_COUNT = 10;
-const TOTAL_COUNT = STANDARD_COUNT + ADAPTIVE_COUNT;
-
-function pickBranchTier(standardCorrect: number): BranchTier {
-  if (standardCorrect < 4) return "easy";
-  if (standardCorrect < 8) return "medium";
-  return "hard";
-}
 
 function mapRow(row: any): QuizQuestion {
   let options = (row.options as string[]) || [];
@@ -337,13 +335,11 @@ const DiagnosticQuiz = () => {
 
     if (justFinishedStandard) {
       // Compute branch tier from standard answers
-      const standardCorrect = questions.slice(0, STANDARD_COUNT).reduce((sum, q, i) => {
-        const isShort = q.format === "short_answer";
-        const isCorrect = isShort
-          ? newTextAnswers[i].toLowerCase() === q.correctAnswer.trim().toLowerCase()
-          : newAnswers[i] === q.correctIndex;
-        return sum + (isCorrect ? 1 : 0);
-      }, 0);
+      const standardCorrect = computeStandardCorrect(
+        questions.slice(0, STANDARD_COUNT),
+        newAnswers,
+        newTextAnswers,
+      );
       const branch = pickBranchTier(standardCorrect);
 
       setLoadingBranch(true);
@@ -412,8 +408,7 @@ const DiagnosticQuiz = () => {
 
     const correct = standardisedAnswers.filter((a) => a.is_correct).length;
     const total = finalQuestions.length;
-    const ratio = correct / total;
-    const level = ratio >= 0.85 ? "Expert" : ratio >= 0.6 ? "Proficient" : ratio >= 0.35 ? "Progressing" : "Beginner";
+    const level = computeLearnerLevel(correct, total);
 
     if (studentProfile) {
       setStudentProfile({ ...studentProfile, learnerLevel: level });
