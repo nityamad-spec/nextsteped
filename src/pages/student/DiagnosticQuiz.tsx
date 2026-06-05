@@ -168,9 +168,9 @@ const DiagnosticQuiz = () => {
 
       const mapped: QuizQuestion[] = dbQuestions.map(mapRow);
 
-      // Seeded shuffle — same student+course always gets same order
-      const shuffled = seededShuffle(mapped, user.id + courseId);
-      setQuestions(shuffled);
+      // Seeded shuffle of standard tier; cap at STANDARD_COUNT
+      const standardShuffled = seededShuffle(mapped, user.id + courseId + ":standard").slice(0, STANDARD_COUNT);
+      setQuestions(standardShuffled);
 
       // Try to restore in-progress quiz state from localStorage
       try {
@@ -179,37 +179,84 @@ const DiagnosticQuiz = () => {
           const saved = JSON.parse(raw);
           const validShape =
             saved &&
-            saved.v === 1 &&
+            saved.v === 2 &&
             Array.isArray(saved.questionIds) &&
             Array.isArray(saved.answers) &&
             Array.isArray(saved.textAnswers) &&
             Array.isArray(saved.confidences) &&
             Array.isArray(saved.questionTimes) &&
+            Array.isArray(saved.standardIds) &&
             typeof saved.currentQ === "number";
 
-          // Sanity check: saved committed question ids must be a prefix of the
-          // freshly shuffled order, and currentQ must be within bounds.
-          const orderMatches =
+          const standardMatches =
             validShape &&
-            saved.questionIds.every((id: string, i: number) => shuffled[i]?.id === id) &&
-            saved.currentQ >= 0 &&
-            saved.currentQ < shuffled.length &&
-            saved.currentQ === saved.questionIds.length;
+            saved.standardIds.length === STANDARD_COUNT &&
+            saved.standardIds.every((id: string, i: number) => standardShuffled[i]?.id === id);
 
-          if (orderMatches) {
-            setCurrentQ(saved.currentQ);
-            setAnswers(saved.answers);
-            setTextAnswers(saved.textAnswers);
-            setConfidences(saved.confidences);
-            setQuestionTimes(saved.questionTimes);
-            setQuestionIds(saved.questionIds);
-            setSelected(typeof saved.selected === "number" ? saved.selected : null);
-            setTextAnswer(typeof saved.textAnswer === "string" ? saved.textAnswer : "");
-            setConfidence(typeof saved.confidence === "number" ? saved.confidence : null);
-            setQuestionStartTime(typeof saved.questionStartTime === "number" ? saved.questionStartTime : Date.now());
-            setPhase("quiz");
-            return;
+          if (!standardMatches) {
+            localStorage.removeItem(progressKey);
+          } else if (!saved.branchTier) {
+            // Phase A in progress (no branch chosen yet)
+            const validPrefix =
+              saved.currentQ >= 0 &&
+              saved.currentQ < STANDARD_COUNT &&
+              saved.currentQ === saved.questionIds.length;
+            if (validPrefix) {
+              setCurrentQ(saved.currentQ);
+              setAnswers(saved.answers);
+              setTextAnswers(saved.textAnswers);
+              setConfidences(saved.confidences);
+              setQuestionTimes(saved.questionTimes);
+              setQuestionIds(saved.questionIds);
+              setSelected(typeof saved.selected === "number" ? saved.selected : null);
+              setTextAnswer(typeof saved.textAnswer === "string" ? saved.textAnswer : "");
+              setConfidence(typeof saved.confidence === "number" ? saved.confidence : null);
+              setQuestionStartTime(typeof saved.questionStartTime === "number" ? saved.questionStartTime : Date.now());
+              setPhase("quiz");
+              return;
+            }
+            localStorage.removeItem(progressKey);
           } else {
+            // Phase B — branch tier was chosen; reload that tier's questions and resume
+            const branch = saved.branchTier as BranchTier;
+            const { data: branchRows } = await supabase
+              .from("diagnostic_questions")
+              .select("*")
+              .eq("in_test", true)
+              .eq("course_id", courseId)
+              .eq("tier", branch)
+              .order("difficulty_estimate", { ascending: true });
+            if (branchRows && branchRows.length >= ADAPTIVE_COUNT) {
+              const branchMapped = branchRows.map(mapRow);
+              const branchShuffled = seededShuffle(branchMapped, user.id + courseId + ":" + branch).slice(0, ADAPTIVE_COUNT);
+              const full = [...standardShuffled, ...branchShuffled];
+              const adaptiveIds = branchShuffled.map((q) => q.id);
+              const adaptiveMatches =
+                Array.isArray(saved.adaptiveIds) &&
+                saved.adaptiveIds.length === ADAPTIVE_COUNT &&
+                saved.adaptiveIds.every((id: string, i: number) => adaptiveIds[i] === id);
+              const validPrefix =
+                adaptiveMatches &&
+                saved.currentQ >= STANDARD_COUNT &&
+                saved.currentQ < TOTAL_COUNT &&
+                saved.currentQ === saved.questionIds.length;
+              if (validPrefix) {
+                setQuestions(full);
+                setBranchTier(branch);
+                setCurrentQ(saved.currentQ);
+                setAnswers(saved.answers);
+                setTextAnswers(saved.textAnswers);
+                setConfidences(saved.confidences);
+                setQuestionTimes(saved.questionTimes);
+                setQuestionIds(saved.questionIds);
+                setSelected(typeof saved.selected === "number" ? saved.selected : null);
+                setTextAnswer(typeof saved.textAnswer === "string" ? saved.textAnswer : "");
+                setConfidence(typeof saved.confidence === "number" ? saved.confidence : null);
+                setQuestionStartTime(typeof saved.questionStartTime === "number" ? saved.questionStartTime : Date.now());
+                setPhase("quiz");
+                return;
+              }
+            }
             localStorage.removeItem(progressKey);
           }
         }
