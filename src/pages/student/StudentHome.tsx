@@ -41,7 +41,8 @@ const StudentHome = () => {
   const { taSettings } = useTASettings(enrolledCourseId);
   const { user } = useAuth();
   const navigate = useNavigate();
-  const courseName = currentCourse?.name || "Intro to Python";
+  const [courseNameDb, setCourseNameDb] = useState<string | null>(null);
+  const courseName = courseNameDb || currentCourse?.name || "";
   const displayName = profileData?.name || studentProfile?.name || "Student";
 
   // Semester progress — compute from course start_date
@@ -88,7 +89,7 @@ const StudentHome = () => {
       try {
         const { data: course } = await supabase
           .from("courses")
-          .select("teacher_id, start_date, total_weeks, lesson_plan_published_at")
+          .select("teacher_id, name, start_date, total_weeks, lesson_plan_published_at")
           .eq("id", enrolledCourseId)
           .maybeSingle();
         if (!course?.teacher_id) {
@@ -99,6 +100,7 @@ const StudentHome = () => {
           setPlanLoading(false);
           return;
         }
+        if (course.name) setCourseNameDb(course.name);
         if (course.start_date) setCourseStartDate(course.start_date);
         if (course.total_weeks) setTotalWeeks(course.total_weeks);
         publishedAt = course.lesson_plan_published_at ?? null;
