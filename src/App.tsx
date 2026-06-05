@@ -148,7 +148,7 @@ function TeacherRedirect() {
 
 function StudentRedirect() {
   const { user } = useAuth();
-  const { loading, hasProfile, hasEnrollment, hasDiagnostic, activeCourseId } = useStudentStatus();
+  const { loading, hasProfile, hasEnrollment, hasDiagnostic, activeCourseId, role } = useStudentStatus();
   const { setStudentOnboarded, setDiagnosticComplete } = useApp();
   const [healing, setHealing] = useState(false);
   const [healedCourseId, setHealedCourseId] = useState<string | null>(null);
@@ -212,6 +212,11 @@ function StudentRedirect() {
     return <Navigate to={`/student/diagnostic?course=${healedCourseId}`} replace />;
   }
 
+  // Role-mismatch guard: a signed-in teacher or admin should never be
+  // funnelled through /student/onboarding. Bounce them to their own home.
+  if (role === "teacher") return <Navigate to="/teacher" replace />;
+  if (role === "admin") return <Navigate to="/admin/dashboard" replace />;
+
   // Profile is the only onboarding gate; enrollment is optional and can happen later.
   if (!hasProfile) return <Navigate to="/student/onboarding" replace />;
   // Per-course isolation: if the student is enrolled in their active course but
@@ -248,9 +253,13 @@ function AuthRedirect() {
 
   if (loading || checking) return null;
   if (user) {
-    const r = profileRole || "student";
-    if (r === "admin") return <Navigate to="/admin/dashboard" replace />;
-    return <Navigate to={r === "teacher" ? "/teacher" : "/student"} replace />;
+    // Only redirect when we actually know the user's role. If neither the
+    // profile row nor user_metadata gave us a role, render the Auth form so
+    // the user can pick a role explicitly instead of silently defaulting to
+    // /student (which sends teachers to /student/onboarding).
+    if (profileRole === "admin") return <Navigate to="/admin/dashboard" replace />;
+    if (profileRole === "teacher") return <Navigate to="/teacher" replace />;
+    if (profileRole === "student") return <Navigate to="/student" replace />;
   }
   return <Auth />;
 }

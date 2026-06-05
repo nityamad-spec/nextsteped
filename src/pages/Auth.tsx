@@ -123,13 +123,21 @@ const Auth = () => {
         return;
       }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      const userRole = profile?.role || user.user_metadata?.role || role;
+      // Fetch profile, with a single retry on null to cover the brief
+      // JWT-propagation race right after sign-in.
+      const fetchProfile = async () => {
+        const { data } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle();
+        return data;
+      };
+      let profile = await fetchProfile();
+      if (!profile) {
+        await new Promise((r) => setTimeout(r, 300));
+        profile = await fetchProfile();
+      }
 
       if (profile && profile.role !== role && role !== "admin") {
         toast.error(`This account is registered as a ${profile.role}. Please sign in from the correct page.`);
@@ -137,6 +145,11 @@ const Auth = () => {
         setLoading(false);
         return;
       }
+
+      // Trust the URL role param when the profile row is still missing —
+      // do NOT fall back to user_metadata.role, which is often "student"
+      // on legacy accounts and was routing teachers to /student/onboarding.
+      const userRole = profile?.role || role;
 
       toast.success("Welcome back!");
       if (userRole === "admin") {

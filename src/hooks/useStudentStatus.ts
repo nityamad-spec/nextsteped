@@ -9,6 +9,7 @@ export interface StudentStatus {
   /** True only if a diagnostic exists for the *active* course. */
   hasDiagnostic: boolean;
   activeCourseId: string | null;
+  role: string | null;
   profileData: {
     name: string;
     learner_level: string | null;
@@ -23,6 +24,7 @@ export function useStudentStatus() {
     hasEnrollment: false,
     hasDiagnostic: false,
     activeCourseId: null,
+    role: null,
     profileData: null,
   });
 
@@ -73,6 +75,7 @@ export function useStudentStatus() {
         hasEnrollment: !!(enrollments && enrollments.length > 0),
         hasDiagnostic,
         activeCourseId,
+        role: profile?.role ?? null,
         profileData: isStudent ? { name: profile.name, learner_level: profile.learner_level } : null,
       });
     };
