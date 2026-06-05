@@ -662,21 +662,21 @@ const DiagnosticQuiz = () => {
                   </p>
                   <div className="px-2">
                     <Slider
-                      value={[confidence ?? 50]}
+                      value={[confidence ?? 1]}
                       onValueChange={(val) => setConfidence(val[0])}
                       min={0}
-                      max={100}
-                      step={50}
+                      max={2}
+                      step={1}
                       className="mb-2"
                     />
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Just Guessing</span>
+                      <span>Not Confident</span>
                       <span>Somewhat Confident</span>
                       <span>Very Confident</span>
                     </div>
                   </div>
                   <p className="mt-2 text-center text-sm font-medium text-primary">
-                    {confidenceLabels[confidence ?? 50] || "Somewhat Confident"}
+                    {confidenceLabels[confidence ?? 1] || "Somewhat Confident"}
                   </p>
                 </div>
               )}
