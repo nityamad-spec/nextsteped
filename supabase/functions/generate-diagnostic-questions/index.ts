@@ -348,7 +348,29 @@ STRICT RULES:
 - difficulty_estimate must be a number close to ${spec.difficulty} (within ±0.15).
 - bloom_level: integer 1-6 (1=Remember, 2=Understand, 3=Apply, 4=Analyze, 5=Evaluate, 6=Create).
 - content_text: the question stem only, ≤ 600 characters, no embedded options.
-- explanation: 1-2 sentences explaining why the correct option is correct.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+- explanation: 1-2 sentences explaining why the correct option is correct.
+
+CATEGORIZED JUSTIFICATIONS (required, ≤ 300 chars each, format "CATEGORY: 1-sentence rationale"):
+
+bloom_justification — pick the CATEGORY that matches bloom_level EXACTLY:
+  - RECALL (bloom_level=1): direct recall of a fact, syntax, or definition
+  - COMPREHENSION (bloom_level=2): explain or interpret a concept or snippet
+  - APPLICATION (bloom_level=3): apply a rule/procedure to a new but routine case
+  - ANALYSIS (bloom_level=4): decompose, trace, compare, or debug
+  - EVALUATION (bloom_level=5): judge correctness/quality against criteria
+  - SYNTHESIS (bloom_level=6): design or construct a new solution
+
+difficulty_justification — pick the CATEGORY whose band contains difficulty_estimate:
+  - SURFACE_RECOGNITION (0.10-0.30): recognise a term/output, minimal reasoning
+  - SINGLE_STEP (0.30-0.50): one rule or one line of code to reason about
+  - MULTI_STEP (0.40-0.60): chain 2-3 concepts or steps
+  - EDGE_CASE (0.60-0.80): corner case, subtle distractor, non-obvious behaviour
+  - COMPOSITE_REASONING (0.75-0.95): integrate multiple concepts under constraints
+
+Examples:
+  bloom_justification: "APPLICATION: Student must apply the for-loop range pattern to a new iteration count."
+  difficulty_justification: "SINGLE_STEP: One indexing operation determines the output."${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
