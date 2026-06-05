@@ -213,10 +213,9 @@ function StudentRedirect() {
     return <Navigate to={`/student/diagnostic?course=${healedCourseId}`} replace />;
   }
 
-  // Role-mismatch guard: a signed-in teacher or admin should never be
-  // funnelled through /student/onboarding. Bounce them to their own home.
-  if (role === "teacher") return <Navigate to="/teacher" replace />;
-  if (role === "admin") return <Navigate to="/admin/dashboard" replace />;
+  // Role-mismatch is handled centrally by <RoleGuard /> wrapping /student routes.
+
+
 
   // Profile is the only onboarding gate; enrollment is optional and can happen later.
   if (!hasProfile) return <Navigate to="/student/onboarding" replace />;
