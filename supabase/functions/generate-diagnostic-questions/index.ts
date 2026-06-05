@@ -718,6 +718,9 @@ Deno.serve(async (req) => {
           bloom_level: recheck.normalized.bloom_level,
           explanation: recheck.normalized.explanation,
           topic: recheck.normalized.topic,
+          bloom_justification: recheck.normalized.bloom_justification,
+          difficulty_justification: recheck.normalized.difficulty_justification,
+
           concept_id: conceptInfo.id,
           course_id: course.id,
           teacher_id: course.teacher_id,
