@@ -531,8 +531,8 @@ const DiagnosticQuiz = () => {
           <h1 className="font-heading text-2xl font-bold">Diagnostic Quiz</h1>
           <p className="text-sm text-muted-foreground">Adaptive testing — difficulty adjusts to your responses</p>
         </div>
-        <Progress value={((currentQ + 1) / questions.length) * 100} className="mb-4 h-2" />
-        <p className="mb-4 text-xs text-muted-foreground text-center">Question {currentQ + 1} of {questions.length}</p>
+        <Progress value={((currentQ + 1) / TOTAL_COUNT) * 100} className="mb-4 h-2" />
+        <p className="mb-4 text-xs text-muted-foreground text-center">Question {currentQ + 1} of {TOTAL_COUNT}</p>
 
         <Card>
           <CardContent className="p-6">
