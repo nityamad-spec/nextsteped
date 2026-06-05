@@ -13,9 +13,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { CheckCircle, XCircle, UserPlus, Users, Clock, BookOpen, Crown, PlusCircle, Settings, Calculator, AlertTriangle, Loader2, Mail } from "lucide-react";
+import { CheckCircle, XCircle, UserPlus, Users, Clock, BookOpen, Crown, PlusCircle, Settings, Calculator, AlertTriangle, Loader2, Mail, BarChart3 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import CostCalculator from "@/components/admin/CostCalculator";
+import DiagnosticsAnalytics from "@/components/admin/DiagnosticsAnalytics";
 
 interface TeacherApplication {
   id: string;
@@ -259,6 +260,9 @@ const AdminDashboard = () => {
           <TabsTrigger value="rejected" className="gap-2">
             <XCircle className="h-4 w-4" /> Rejected ({rejected.length})
           </TabsTrigger>
+          <TabsTrigger value="diagnostics" className="gap-2">
+            <BarChart3 className="h-4 w-4" /> Diagnostics
+          </TabsTrigger>
           <TabsTrigger value="settings" className="gap-2">
             <Settings className="h-4 w-4" /> Settings
           </TabsTrigger>
@@ -266,6 +270,10 @@ const AdminDashboard = () => {
             <Calculator className="h-4 w-4" /> Cost Calculator
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="diagnostics" className="space-y-4">
+          <DiagnosticsAnalytics />
+        </TabsContent>
 
         <TabsContent value="pending" className="space-y-4">
           {pending.length === 0 ? (
