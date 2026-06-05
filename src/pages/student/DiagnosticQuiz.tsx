@@ -10,7 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, ArrowLeft, Brain, Zap, Loader2 } from "lucide-react";
+import { ArrowRight, ArrowLeft, Brain, Zap, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { seededShuffle } from "@/lib/seededShuffle";
@@ -94,7 +94,13 @@ const DiagnosticQuiz = () => {
   const [answers, setAnswers] = useState<number[]>([]);
   const [textAnswers, setTextAnswers] = useState<string[]>([]);
   const [confidences, setConfidences] = useState<number[]>([]);
-  const [phase, setPhase] = useState<"loading" | "intro" | "quiz" | "result">("loading");
+  const [phase, setPhase] = useState<"loading" | "intro" | "quiz" | "result" | "already-completed">("loading");
+  const [existingResult, setExistingResult] = useState<{
+    score: number;
+    total: number;
+    completedAt: string | null;
+    courseName: string | null;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   const [questionStartTime, setQuestionStartTime] = useState<number>(0);
   const [questionTimes, setQuestionTimes] = useState<number[]>([]);
@@ -139,7 +145,7 @@ const DiagnosticQuiz = () => {
 
       const { data: existing } = await supabase
         .from("diagnostic_results")
-        .select("id")
+        .select("id, score, total_questions, created_at")
         .eq("student_id", user.id)
         .eq("course_id", courseId)
         .maybeSingle();
@@ -147,7 +153,18 @@ const DiagnosticQuiz = () => {
       if (existing) {
         try { localStorage.removeItem(progressKey); } catch {}
         setDiagnosticComplete(true);
-        navigate("/student/home", { replace: true });
+        const { data: course } = await supabase
+          .from("courses")
+          .select("name")
+          .eq("id", courseId)
+          .maybeSingle();
+        setExistingResult({
+          score: existing.score ?? 0,
+          total: existing.total_questions ?? 0,
+          completedAt: existing.created_at ?? null,
+          courseName: course?.name ?? null,
+        });
+        setPhase("already-completed");
         return;
       }
 
@@ -485,6 +502,59 @@ const DiagnosticQuiz = () => {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (phase === "already-completed") {
+    const pct = existingResult && existingResult.total > 0
+      ? Math.round((existingResult.score / existingResult.total) * 100)
+      : null;
+    const completedLabel = existingResult?.completedAt
+      ? new Date(existingResult.completedAt).toLocaleDateString(undefined, {
+          year: "numeric", month: "short", day: "numeric",
+        })
+      : null;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg">
+          <Card>
+            <CardContent className="p-8 text-center space-y-5">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <CheckCircle2 className="h-8 w-8 text-primary" />
+              </div>
+              <div className="space-y-1">
+                <h2 className="font-heading text-2xl font-bold">Diagnostic Already Completed</h2>
+                <p className="text-sm text-muted-foreground">
+                  You've already taken the diagnostic{existingResult?.courseName ? ` for ${existingResult.courseName}` : ""}. It's a one-time assessment, so a retake isn't available.
+                </p>
+              </div>
+
+              {existingResult && (
+                <div className="rounded-lg border bg-muted/30 p-4 text-left">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xs uppercase tracking-wide text-muted-foreground">Your score</span>
+                    {completedLabel && (
+                      <span className="text-xs text-muted-foreground">Completed {completedLabel}</span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-foreground">
+                      {existingResult.score}<span className="text-xl text-muted-foreground">/{existingResult.total}</span>
+                    </span>
+                    {pct !== null && (
+                      <Badge variant="secondary" className="ml-auto">{pct}%</Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <Button onClick={() => navigate("/student/home")} className="w-full">
+                Go to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     );
   }
