@@ -25,11 +25,12 @@ interface TierSpec {
 }
 
 const TIER_SPEC: TierSpec[] = [
-  { tier: "standard", count: 5, difficulty: 0.5, label: "Standard (medium difficulty, common to all students)" },
-  { tier: "easy", count: 5, difficulty: 0.2, label: "Easy adaptive tier (for struggling students)" },
-  { tier: "medium", count: 5, difficulty: 0.5, label: "Medium adaptive tier (for average students)" },
-  { tier: "hard", count: 5, difficulty: 0.85, label: "Hard adaptive tier (for advanced students)" },
+  { tier: "standard", count: 10, difficulty: 0.5, label: "Standard (medium difficulty, common to all students)" },
+  { tier: "easy", count: 10, difficulty: 0.2, label: "Easy adaptive tier (for struggling students)" },
+  { tier: "medium", count: 10, difficulty: 0.5, label: "Medium adaptive tier (for average students)" },
+  { tier: "hard", count: 10, difficulty: 0.85, label: "Hard adaptive tier (for advanced students)" },
 ];
+const TOTAL_QUESTIONS = TIER_SPEC.reduce((s, t) => s + t.count, 0);
 
 const MAX_ATTEMPTS = 3;
 const MODEL = "google/gemini-2.5-pro";
