@@ -335,13 +335,11 @@ const DiagnosticQuiz = () => {
 
     if (justFinishedStandard) {
       // Compute branch tier from standard answers
-      const standardCorrect = questions.slice(0, STANDARD_COUNT).reduce((sum, q, i) => {
-        const isShort = q.format === "short_answer";
-        const isCorrect = isShort
-          ? newTextAnswers[i].toLowerCase() === q.correctAnswer.trim().toLowerCase()
-          : newAnswers[i] === q.correctIndex;
-        return sum + (isCorrect ? 1 : 0);
-      }, 0);
+      const standardCorrect = computeStandardCorrect(
+        questions.slice(0, STANDARD_COUNT),
+        newAnswers,
+        newTextAnswers,
+      );
       const branch = pickBranchTier(standardCorrect);
 
       setLoadingBranch(true);
