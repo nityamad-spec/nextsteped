@@ -44,8 +44,9 @@ const CONFIG = {
     { max: 1.0001, level: "expert" },
   ],
 
-  // Confidence raw scale in client (slider 0..100).
-  CONFIDENCE_SCALE_MAX: 100,
+  // Confidence: 3-level discrete scale from UI [0,1,2] mapped to [0..1].
+  CONFIDENCE_LEVELS: { 0: 0.0, 1: 0.5, 2: 1.0 } as Record<number, number>,
+  CONFIDENCE_DEFAULT: 1,
 } as const;
 
 type LearnerLevel = "beginner" | "developing" | "proficient" | "expert";
