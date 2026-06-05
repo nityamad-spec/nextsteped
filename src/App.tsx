@@ -253,9 +253,13 @@ function AuthRedirect() {
 
   if (loading || checking) return null;
   if (user) {
-    const r = profileRole || "student";
-    if (r === "admin") return <Navigate to="/admin/dashboard" replace />;
-    return <Navigate to={r === "teacher" ? "/teacher" : "/student"} replace />;
+    // Only redirect when we actually know the user's role. If neither the
+    // profile row nor user_metadata gave us a role, render the Auth form so
+    // the user can pick a role explicitly instead of silently defaulting to
+    // /student (which sends teachers to /student/onboarding).
+    if (profileRole === "admin") return <Navigate to="/admin/dashboard" replace />;
+    if (profileRole === "teacher") return <Navigate to="/teacher" replace />;
+    if (profileRole === "student") return <Navigate to="/student" replace />;
   }
   return <Auth />;
 }
