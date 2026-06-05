@@ -332,63 +332,116 @@ const DiagnosticQuiz = () => {
     setTextAnswer("");
     setConfidence(null);
 
+    const justFinishedStandard =
+      currentQ === STANDARD_COUNT - 1 && !branchTier && activeCourseId;
+
+    if (justFinishedStandard) {
+      // Compute branch tier from standard answers
+      const standardCorrect = questions.slice(0, STANDARD_COUNT).reduce((sum, q, i) => {
+        const isShort = q.format === "short_answer";
+        const isCorrect = isShort
+          ? newTextAnswers[i].toLowerCase() === q.correctAnswer.trim().toLowerCase()
+          : newAnswers[i] === q.correctIndex;
+        return sum + (isCorrect ? 1 : 0);
+      }, 0);
+      const branch = pickBranchTier(standardCorrect);
+
+      setLoadingBranch(true);
+      const { data: branchRows } = await supabase
+        .from("diagnostic_questions")
+        .select("*")
+        .eq("in_test", true)
+        .eq("course_id", activeCourseId)
+        .eq("tier", branch)
+        .order("difficulty_estimate", { ascending: true });
+      setLoadingBranch(false);
+
+      if (!branchRows || branchRows.length < ADAPTIVE_COUNT) {
+        // Fallback — just submit with what we have
+        await submitFinal(newAnswers, newTextAnswers, newConfidences, newQuestionTimes, newQuestionIds, questions.slice(0, STANDARD_COUNT), branch);
+        return;
+      }
+
+      const branchMapped = branchRows.map(mapRow);
+      const branchShuffled = seededShuffle(branchMapped, user!.id + activeCourseId + ":" + branch).slice(0, ADAPTIVE_COUNT);
+      setBranchTier(branch);
+      setQuestions((prev) => [...prev.slice(0, STANDARD_COUNT), ...branchShuffled]);
+      setCurrentQ(currentQ + 1);
+      setQuestionStartTime(Date.now());
+      return;
+    }
+
     if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
       setQuestionStartTime(Date.now());
-    } else {
-      // Build standardised answer objects
-      const standardisedAnswers = questions.map((q, i) => {
-        const isShort = q.format === "short_answer";
-        const selectedValue = isShort ? newTextAnswers[i] : answerLetters[newAnswers[i]] || String(newAnswers[i]);
-        const correctValue = q.correctAnswer;
-        const isCorrect = isShort
-          ? newTextAnswers[i].toLowerCase() === correctValue.trim().toLowerCase()
-          : newAnswers[i] === q.correctIndex;
-        return {
-          question_id: q.id,
-          question_text: q.question,
-          type: q.format,
-          topic: q.topic,
-          selected: selectedValue,
-          correct: correctValue,
-          is_correct: isCorrect,
-          time_ms: newQuestionTimes[i],
-          confidence: newConfidences[i],
-        };
-      });
-
-      const correct = standardisedAnswers.filter(a => a.is_correct).length;
-      const total = questions.length;
-      const ratio = correct / total;
-      const level = ratio >= 0.85 ? "Expert" : ratio >= 0.6 ? "Proficient" : ratio >= 0.35 ? "Progressing" : "Beginner";
-
-      if (studentProfile) {
-        setStudentProfile({ ...studentProfile, learnerLevel: level });
-      }
-
-      if (user) {
-        setSaving(true);
-        await supabase.from("diagnostic_results").insert({
-          student_id: user.id,
-          score: correct,
-          total_questions: total,
-          learner_level: level,
-          answers: standardisedAnswers as unknown as import("@/integrations/supabase/types").Json,
-          confidences: newConfidences as unknown as import("@/integrations/supabase/types").Json,
-          question_times: newQuestionTimes as unknown as import("@/integrations/supabase/types").Json,
-          question_ids: newQuestionIds as unknown as import("@/integrations/supabase/types").Json,
-          course_id: questions[0]?.courseId || null,
-        });
-        await supabase.from("profiles").update({ learner_level: level }).eq("id", user.id);
-        setSaving(false);
-      }
-
-      if (user && activeCourseId) {
-        try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {}
-      }
-
-      setPhase("result");
+      return;
     }
+
+    await submitFinal(newAnswers, newTextAnswers, newConfidences, newQuestionTimes, newQuestionIds, questions, branchTier);
+  };
+
+  const submitFinal = async (
+    newAnswers: number[],
+    newTextAnswers: string[],
+    newConfidences: number[],
+    newQuestionTimes: number[],
+    newQuestionIds: string[],
+    finalQuestions: QuizQuestion[],
+    branch: BranchTier | null,
+  ) => {
+    const standardisedAnswers = finalQuestions.map((q, i) => {
+      const isShort = q.format === "short_answer";
+      const selectedValue = isShort ? newTextAnswers[i] : answerLetters[newAnswers[i]] || String(newAnswers[i]);
+      const correctValue = q.correctAnswer;
+      const isCorrect = isShort
+        ? newTextAnswers[i].toLowerCase() === correctValue.trim().toLowerCase()
+        : newAnswers[i] === q.correctIndex;
+      return {
+        question_id: q.id,
+        question_text: q.question,
+        type: q.format,
+        topic: q.topic,
+        tier: q.tier,
+        selected: selectedValue,
+        correct: correctValue,
+        is_correct: isCorrect,
+        time_ms: newQuestionTimes[i],
+        confidence: newConfidences[i],
+      };
+    });
+
+    const correct = standardisedAnswers.filter((a) => a.is_correct).length;
+    const total = finalQuestions.length;
+    const ratio = correct / total;
+    const level = ratio >= 0.85 ? "Expert" : ratio >= 0.6 ? "Proficient" : ratio >= 0.35 ? "Progressing" : "Beginner";
+
+    if (studentProfile) {
+      setStudentProfile({ ...studentProfile, learnerLevel: level });
+    }
+
+    if (user) {
+      setSaving(true);
+      await supabase.from("diagnostic_results").insert({
+        student_id: user.id,
+        score: correct,
+        total_questions: total,
+        learner_level: level,
+        branch_tier: branch,
+        answers: standardisedAnswers as unknown as import("@/integrations/supabase/types").Json,
+        confidences: newConfidences as unknown as import("@/integrations/supabase/types").Json,
+        question_times: newQuestionTimes as unknown as import("@/integrations/supabase/types").Json,
+        question_ids: newQuestionIds as unknown as import("@/integrations/supabase/types").Json,
+        course_id: finalQuestions[0]?.courseId || null,
+      });
+      await supabase.from("profiles").update({ learner_level: level }).eq("id", user.id);
+      setSaving(false);
+    }
+
+    if (user && activeCourseId) {
+      try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {}
+    }
+
+    setPhase("result");
   };
 
   if (phase === "loading") {
