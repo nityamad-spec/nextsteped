@@ -20,7 +20,7 @@ function mkResult(over: Partial<DiagnosticResultRow> = {}): DiagnosticResultRow 
     course_id: "c1",
     score: 15,
     total_questions: 20,
-    learner_level: "Proficient",
+    learner_level: "proficient",
     branch_tier: "medium",
     answers: [],
     question_times: [],
@@ -68,9 +68,9 @@ describe("aggregateGlobalKpis", () => {
 describe("aggregateLevelDistribution", () => {
   it("counts known levels and ignores unknown", () => {
     const dist = aggregateLevelDistribution([
-      mkResult({ learner_level: "Beginner" }),
-      mkResult({ learner_level: "Expert" }),
-      mkResult({ learner_level: "Expert" }),
+      mkResult({ learner_level: "beginner" }),
+      mkResult({ learner_level: "expert" }),
+      mkResult({ learner_level: "expert" }),
       mkResult({ learner_level: "weird" as any }),
     ]);
     expect(dist).toEqual({ Beginner: 1, Progressing: 0, Proficient: 0, Expert: 2 });
