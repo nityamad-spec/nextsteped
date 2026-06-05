@@ -412,6 +412,8 @@ Examples:
                       bloom_level: { type: "integer", minimum: 1, maximum: 6 },
                       explanation: { type: "string" },
                       topic: { type: "string" },
+                      bloom_justification: { type: "string", description: "Format 'CATEGORY: rationale', ≤300 chars. CATEGORY must be one of RECALL, COMPREHENSION, APPLICATION, ANALYSIS, EVALUATION, SYNTHESIS and match bloom_level." },
+                      difficulty_justification: { type: "string", description: "Format 'CATEGORY: rationale', ≤300 chars. CATEGORY must be one of SURFACE_RECOGNITION, SINGLE_STEP, MULTI_STEP, EDGE_CASE, COMPOSITE_REASONING and its band must contain difficulty_estimate." },
                     },
                     required: [
                       "content_text",
@@ -422,7 +424,10 @@ Examples:
                       "bloom_level",
                       "explanation",
                       "topic",
+                      "bloom_justification",
+                      "difficulty_justification",
                     ],
+
                   },
                 },
               },
