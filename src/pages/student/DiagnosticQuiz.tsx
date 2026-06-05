@@ -408,8 +408,7 @@ const DiagnosticQuiz = () => {
 
     const correct = standardisedAnswers.filter((a) => a.is_correct).length;
     const total = finalQuestions.length;
-    const ratio = correct / total;
-    const level = ratio >= 0.85 ? "Expert" : ratio >= 0.6 ? "Proficient" : ratio >= 0.35 ? "Progressing" : "Beginner";
+    const level = computeLearnerLevel(correct, total);
 
     if (studentProfile) {
       setStudentProfile({ ...studentProfile, learnerLevel: level });
