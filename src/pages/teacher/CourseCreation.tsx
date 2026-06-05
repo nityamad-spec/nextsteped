@@ -460,7 +460,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           url: r.url || undefined,
           ai_suggested: !!r.ai_suggested,
         })),
-        locked: i > 0,
+        locked: false,
       }));
 
       setWeeksRaw(normalizeWeeks(generated));
