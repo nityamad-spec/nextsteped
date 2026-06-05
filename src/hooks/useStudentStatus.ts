@@ -9,6 +9,7 @@ export interface StudentStatus {
   /** True only if a diagnostic exists for the *active* course. */
   hasDiagnostic: boolean;
   activeCourseId: string | null;
+  role: string | null;
   profileData: {
     name: string;
     learner_level: string | null;
