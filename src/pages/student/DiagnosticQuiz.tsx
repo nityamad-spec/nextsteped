@@ -506,6 +506,59 @@ const DiagnosticQuiz = () => {
     );
   }
 
+  if (phase === "already-completed") {
+    const pct = existingResult && existingResult.total > 0
+      ? Math.round((existingResult.score / existingResult.total) * 100)
+      : null;
+    const completedLabel = existingResult?.completedAt
+      ? new Date(existingResult.completedAt).toLocaleDateString(undefined, {
+          year: "numeric", month: "short", day: "numeric",
+        })
+      : null;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg">
+          <Card>
+            <CardContent className="p-8 text-center space-y-5">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <CheckCircle2 className="h-8 w-8 text-primary" />
+              </div>
+              <div className="space-y-1">
+                <h2 className="font-heading text-2xl font-bold">Diagnostic Already Completed</h2>
+                <p className="text-sm text-muted-foreground">
+                  You've already taken the diagnostic{existingResult?.courseName ? ` for ${existingResult.courseName}` : ""}. It's a one-time assessment, so a retake isn't available.
+                </p>
+              </div>
+
+              {existingResult && (
+                <div className="rounded-lg border bg-muted/30 p-4 text-left">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xs uppercase tracking-wide text-muted-foreground">Your score</span>
+                    {completedLabel && (
+                      <span className="text-xs text-muted-foreground">Completed {completedLabel}</span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-foreground">
+                      {existingResult.score}<span className="text-xl text-muted-foreground">/{existingResult.total}</span>
+                    </span>
+                    {pct !== null && (
+                      <Badge variant="secondary" className="ml-auto">{pct}%</Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <Button onClick={() => navigate("/student/home")} className="w-full">
+                Go to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (phase === "intro") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
