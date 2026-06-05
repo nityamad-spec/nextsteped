@@ -68,13 +68,13 @@ export function computeStandardCorrect(
 
 /**
  * Final learner level from full-quiz correct ratio.
- * ≥0.85 Expert, ≥0.60 Proficient, ≥0.35 Progressing, else Beginner.
+ * ≥0.85 expert, ≥0.60 proficient, ≥0.35 developing, else beginner.
  */
 export function computeLearnerLevel(correct: number, total: number): LearnerLevel {
-  if (total <= 0) return "Beginner";
+  if (total <= 0) return "beginner";
   const ratio = correct / total;
-  if (ratio >= 0.85) return "Expert";
-  if (ratio >= 0.6) return "Proficient";
-  if (ratio >= 0.35) return "Progressing";
-  return "Beginner";
+  if (ratio >= 0.85) return "expert";
+  if (ratio >= 0.6) return "proficient";
+  if (ratio >= 0.35) return "developing";
+  return "beginner";
 }
