@@ -43,17 +43,6 @@ interface QuizQuestion {
 }
 
 const answerLetters = ["A", "B", "C", "D", "E", "F"];
-type BranchTier = "easy" | "medium" | "hard";
-
-const STANDARD_COUNT = 10;
-const ADAPTIVE_COUNT = 10;
-const TOTAL_COUNT = STANDARD_COUNT + ADAPTIVE_COUNT;
-
-function pickBranchTier(standardCorrect: number): BranchTier {
-  if (standardCorrect < 4) return "easy";
-  if (standardCorrect < 8) return "medium";
-  return "hard";
-}
 
 function mapRow(row: any): QuizQuestion {
   let options = (row.options as string[]) || [];
