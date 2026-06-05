@@ -55,7 +55,7 @@ export interface ProfileRow {
   email: string | null;
 }
 
-export const LEARNER_LEVELS: LearnerLevel[] = ["Beginner", "Progressing", "Proficient", "Expert"];
+export const LEARNER_LEVELS: LearnerLevel[] = ["beginner", "developing", "proficient", "expert"];
 export const BRANCH_TIERS: BranchTier[] = ["easy", "medium", "hard"];
 
 // ---------- Global KPIs ----------
