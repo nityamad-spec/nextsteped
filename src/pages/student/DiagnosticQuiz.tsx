@@ -424,71 +424,55 @@ const DiagnosticQuiz = () => {
       };
     });
 
-    const correct = standardisedAnswers.filter((a) => a.is_correct).length;
-    const total = finalQuestions.length;
-    const level = computeLearnerLevel(correct, total);
+    if (!user) {
+      setPhase("result");
+      return;
+    }
 
-    if (studentProfile) {
+    setSaving(true);
+    const courseIdForSave = finalQuestions[0]?.courseId || activeCourseId || null;
+    if (!courseIdForSave) {
+      setSaving(false);
+      toast.error("Missing course context. Please try again.");
+      return;
+    }
+
+    const { data: scored, error: fnErr } = await supabase.functions.invoke("score-diagnostic", {
+      body: {
+        course_id: courseIdForSave,
+        branch_tier: branch,
+        answers: standardisedAnswers,
+        confidences: newConfidences,
+        question_times: newQuestionTimes,
+        question_ids: newQuestionIds,
+      },
+    });
+
+    if (fnErr || (scored && (scored as { error?: string }).error)) {
+      setSaving(false);
+      const errCode = (scored as { error?: string } | null)?.error ?? "";
+      if (errCode === "already_submitted") {
+        toast.info("You've already submitted this diagnostic.");
+        try { localStorage.removeItem(`diagnosticProgress:${user.id}:${courseIdForSave}`); } catch {}
+        setDiagnosticComplete(true);
+        navigate("/student/home", { replace: true });
+        return;
+      }
+      console.error("Failed to score diagnostic:", fnErr ?? scored);
+      toast.error("Couldn't save your diagnostic. Please try again.");
+      return;
+    }
+
+    const level = (scored as { learner_level?: string })?.learner_level as
+      | "beginner" | "developing" | "proficient" | "expert" | undefined;
+
+    if (studentProfile && level) {
       setStudentProfile({ ...studentProfile, learnerLevel: level });
     }
 
-    if (user) {
-      setSaving(true);
-      const courseIdForSave = finalQuestions[0]?.courseId || activeCourseId || null;
+    setSaving(false);
 
-      // Defensive re-check to avoid duplicate attempts (e.g. quiz open in two tabs)
-      if (courseIdForSave) {
-        const { data: alreadyExists } = await supabase
-          .from("diagnostic_results")
-          .select("id")
-          .eq("student_id", user.id)
-          .eq("course_id", courseIdForSave)
-          .maybeSingle();
-        if (alreadyExists) {
-          setSaving(false);
-          toast.info("You've already submitted this diagnostic.");
-          try { localStorage.removeItem(`diagnosticProgress:${user.id}:${courseIdForSave}`); } catch {}
-          setDiagnosticComplete(true);
-          navigate("/student/home", { replace: true });
-          return;
-        }
-      }
-
-      const { error: saveError } = await supabase.from("diagnostic_results").insert({
-        student_id: user.id,
-        score: correct,
-        total_questions: total,
-        learner_level: level,
-        branch_tier: branch,
-        answers: standardisedAnswers as unknown as import("@/integrations/supabase/types").Json,
-        confidences: newConfidences as unknown as import("@/integrations/supabase/types").Json,
-        question_times: newQuestionTimes as unknown as import("@/integrations/supabase/types").Json,
-        question_ids: newQuestionIds as unknown as import("@/integrations/supabase/types").Json,
-        course_id: courseIdForSave,
-      });
-
-      if (saveError) {
-        setSaving(false);
-        // Unique violation → treat as already submitted
-        if ((saveError as { code?: string }).code === "23505") {
-          toast.info("You've already submitted this diagnostic.");
-          if (courseIdForSave) {
-            try { localStorage.removeItem(`diagnosticProgress:${user.id}:${courseIdForSave}`); } catch {}
-          }
-          setDiagnosticComplete(true);
-          navigate("/student/home", { replace: true });
-          return;
-        }
-        console.error("Failed to save diagnostic result:", saveError);
-        toast.error("Couldn't save your diagnostic. Please try again.");
-        return;
-      }
-
-      await supabase.from("profiles").update({ learner_level: level }).eq("id", user.id);
-      setSaving(false);
-    }
-
-    if (user && activeCourseId) {
+    if (activeCourseId) {
       try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {}
     }
 
