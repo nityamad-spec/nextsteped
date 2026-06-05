@@ -58,6 +58,7 @@ import ContentLibrary from "./pages/teacher/ContentLibrary";
 import TeacherChat from "./pages/teacher/TeacherChat";
 import { AUTH_BYPASS } from "@/lib/authBypass";
 import SessionBanner from "@/components/SessionBanner";
+import RoleGuard, { seedRoleCache } from "@/components/RoleGuard";
 
 const queryClient = new QueryClient();
 
@@ -212,10 +213,9 @@ function StudentRedirect() {
     return <Navigate to={`/student/diagnostic?course=${healedCourseId}`} replace />;
   }
 
-  // Role-mismatch guard: a signed-in teacher or admin should never be
-  // funnelled through /student/onboarding. Bounce them to their own home.
-  if (role === "teacher") return <Navigate to="/teacher" replace />;
-  if (role === "admin") return <Navigate to="/admin/dashboard" replace />;
+  // Role-mismatch is handled centrally by <RoleGuard /> wrapping /student routes.
+
+
 
   // Profile is the only onboarding gate; enrollment is optional and can happen later.
   if (!hasProfile) return <Navigate to="/student/onboarding" replace />;
@@ -246,7 +246,9 @@ function AuthRedirect() {
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data }) => {
-        setProfileRole(data?.role || user.user_metadata?.role || null);
+        const r = (data?.role as any) || (user.user_metadata?.role as any) || null;
+        setProfileRole(r);
+        seedRoleCache(user.id, r);
         setChecking(false);
       });
   }, [user]);
@@ -283,11 +285,11 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
 
               {/* Teacher onboarding (single-page, no layout) */}
-              <Route path="/teacher" element={<ProtectedRoute><TeacherRedirect /></ProtectedRoute>} />
-              <Route path="/teacher/onboarding" element={<ProtectedRoute><TeacherOnboarding /></ProtectedRoute>} />
-              <Route path="/teacher/courses/new" element={<ProtectedRoute><NewCoursePage /></ProtectedRoute>} />
+              <Route path="/teacher" element={<ProtectedRoute><RoleGuard allow={["teacher"]}><TeacherRedirect /></RoleGuard></ProtectedRoute>} />
+              <Route path="/teacher/onboarding" element={<ProtectedRoute><RoleGuard allow={["teacher"]}><TeacherOnboarding /></RoleGuard></ProtectedRoute>} />
+              <Route path="/teacher/courses/new" element={<ProtectedRoute><RoleGuard allow={["teacher"]}><NewCoursePage /></RoleGuard></ProtectedRoute>} />
               {/* Teacher dashboard + setup modules (all share TeacherLayout) */}
-              <Route element={<ProtectedRoute><TeacherLayout /></ProtectedRoute>}>
+              <Route element={<ProtectedRoute><RoleGuard allow={["teacher"]}><TeacherLayout /></RoleGuard></ProtectedRoute>}>
                 <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
                 <Route path="/teacher/setup" element={<CourseSetup />} />
                 <Route path="/teacher/setup/upload" element={<CourseMaterials />} />
@@ -307,11 +309,11 @@ const App = () => (
               </Route>
 
               {/* Student routes */}
-              <Route path="/student" element={<ProtectedRoute><StudentRedirect /></ProtectedRoute>} />
-              <Route path="/student/onboarding" element={<StudentOnboarding />} />
-              <Route path="/student/verify-email" element={<VerifyEmail />} />
-              <Route path="/student/diagnostic" element={<ProtectedRoute><DiagnosticQuiz /></ProtectedRoute>} />
-              <Route element={<ProtectedRoute><StudentLayout /></ProtectedRoute>}>
+              <Route path="/student" element={<ProtectedRoute><RoleGuard allow={["student"]}><StudentRedirect /></RoleGuard></ProtectedRoute>} />
+              <Route path="/student/onboarding" element={<RoleGuard allow={["student"]} allowAnonymous><StudentOnboarding /></RoleGuard>} />
+              <Route path="/student/verify-email" element={<RoleGuard allow={["student"]} allowAnonymous><VerifyEmail /></RoleGuard>} />
+              <Route path="/student/diagnostic" element={<ProtectedRoute><RoleGuard allow={["student"]}><DiagnosticQuiz /></RoleGuard></ProtectedRoute>} />
+              <Route element={<ProtectedRoute><RoleGuard allow={["student"]}><StudentLayout /></RoleGuard></ProtectedRoute>}>
                 <Route path="/student/home" element={<StudentHome />} />
                 <Route path="/student/chat" element={<AIChat />} />
                 <Route path="/student/feedback" element={<Feedback />} />
@@ -319,7 +321,7 @@ const App = () => (
               </Route>
 
               {/* Admin routes */}
-              <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
+              <Route path="/admin" element={<ProtectedRoute><RoleGuard allow={["admin"]}><AdminLayout /></RoleGuard></ProtectedRoute>}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="dashboard" element={<AdminDashboard />} />
                 <Route path="courses" element={<AdminCourses />} />
@@ -328,6 +330,7 @@ const App = () => (
                 <Route path="setup-debug" element={<AdminSetupDebug />} />
                 <Route path="setup-trace" element={<AdminSetupTrace />} />
               </Route>
+
 
               <Route path="*" element={<NotFound />} />
             </Routes>
