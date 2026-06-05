@@ -246,7 +246,9 @@ function AuthRedirect() {
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data }) => {
-        setProfileRole(data?.role || user.user_metadata?.role || null);
+        const r = (data?.role as any) || (user.user_metadata?.role as any) || null;
+        setProfileRole(r);
+        seedRoleCache(user.id, r);
         setChecking(false);
       });
   }, [user]);
