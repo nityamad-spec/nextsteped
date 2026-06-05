@@ -155,47 +155,16 @@ const DiagnosticQuiz = () => {
         .select("*")
         .eq("in_test", true)
         .eq("course_id", courseId)
+        .eq("tier", "standard")
         .order("difficulty_estimate", { ascending: true });
 
-      if (error || !dbQuestions || dbQuestions.length === 0) {
+      if (error || !dbQuestions || dbQuestions.length < STANDARD_COUNT) {
         setQuestions([]);
         setPhase("intro");
         return;
       }
 
-      const mapped: QuizQuestion[] = dbQuestions.map((row) => {
-        let options = (row.options as string[]) || [];
-        let questionText = row.content_text;
-        const format = row.format as QuizQuestion["format"];
-
-        if (format !== "short_answer" && (!options || options.length === 0)) {
-          const optionRegex = /^([A-F])\.\s*(.+)$/gm;
-          const parsed: string[] = [];
-          let match;
-          while ((match = optionRegex.exec(row.content_text)) !== null) {
-            parsed.push(match[2].trim());
-          }
-          if (parsed.length > 0) {
-            options = parsed;
-            questionText = row.content_text.replace(/\n[A-F]\.\s*.+/g, "").trim();
-          }
-        }
-
-        const idx = answerLetters.indexOf(row.answer);
-        const correctIndex = idx >= 0 ? idx : options.indexOf(row.answer);
-
-        return {
-          id: row.id,
-          question: questionText,
-          options: format === "short_answer" ? [] : options,
-          correctIndex: correctIndex >= 0 ? correctIndex : 0,
-          correctAnswer: row.answer,
-          topic: row.topic || "",
-          explanation: row.explanation || "",
-          courseId: row.course_id,
-          format,
-        };
-      });
+      const mapped: QuizQuestion[] = dbQuestions.map(mapRow);
 
       // Seeded shuffle — same student+course always gets same order
       const shuffled = seededShuffle(mapped, user.id + courseId);
