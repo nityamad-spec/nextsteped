@@ -643,15 +643,16 @@ Deno.serve(async (req) => {
           teacher_id: course.teacher_id,
           in_test: true,
           is_distractor: false,
+          tier: t.tier,
         });
         counter++;
       }
     }
 
-    if (rows.length !== 20) {
+    if (rows.length !== TOTAL_QUESTIONS) {
       return new Response(
         JSON.stringify({
-          error: "Pre-insert revalidation reduced row count below 20.",
+          error: `Pre-insert revalidation reduced row count below ${TOTAL_QUESTIONS}.`,
           finalCount: rows.length,
           breakdown,
         }),
