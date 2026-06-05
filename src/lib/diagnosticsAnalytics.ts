@@ -105,10 +105,10 @@ export function aggregateGlobalKpis(results: DiagnosticResultRow[]): GlobalKpis 
 
 export function aggregateLevelDistribution(results: DiagnosticResultRow[]): Record<LearnerLevel, number> {
   const out: Record<LearnerLevel, number> = {
-    Beginner: 0,
-    Progressing: 0,
-    Proficient: 0,
-    Expert: 0,
+    beginner: 0,
+    developing: 0,
+    proficient: 0,
+    expert: 0,
   };
   for (const r of results) {
     if ((LEARNER_LEVELS as string[]).includes(r.learner_level)) {
