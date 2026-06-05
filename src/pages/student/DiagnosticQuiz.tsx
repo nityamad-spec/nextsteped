@@ -94,7 +94,13 @@ const DiagnosticQuiz = () => {
   const [answers, setAnswers] = useState<number[]>([]);
   const [textAnswers, setTextAnswers] = useState<string[]>([]);
   const [confidences, setConfidences] = useState<number[]>([]);
-  const [phase, setPhase] = useState<"loading" | "intro" | "quiz" | "result">("loading");
+  const [phase, setPhase] = useState<"loading" | "intro" | "quiz" | "result" | "already-completed">("loading");
+  const [existingResult, setExistingResult] = useState<{
+    score: number;
+    total: number;
+    completedAt: string | null;
+    courseName: string | null;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   const [questionStartTime, setQuestionStartTime] = useState<number>(0);
   const [questionTimes, setQuestionTimes] = useState<number[]>([]);
