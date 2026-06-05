@@ -75,6 +75,7 @@ export function useStudentStatus() {
         hasEnrollment: !!(enrollments && enrollments.length > 0),
         hasDiagnostic,
         activeCourseId,
+        role: profile?.role ?? null,
         profileData: isStudent ? { name: profile.name, learner_level: profile.learner_level } : null,
       });
     };
