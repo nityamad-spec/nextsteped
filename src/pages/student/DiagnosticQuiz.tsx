@@ -294,7 +294,7 @@ const DiagnosticQuiz = () => {
   // so the slider position reflects a real selection and Next is enabled.
   useEffect(() => {
     if (hasAnswer && confidence === null) {
-      setConfidence(50);
+      setConfidence(1);
     }
   }, [hasAnswer, confidence]);
 
