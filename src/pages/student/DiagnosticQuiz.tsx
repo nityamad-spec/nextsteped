@@ -13,6 +13,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, ArrowLeft, Brain, Zap, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { seededShuffle } from "@/lib/seededShuffle";
+import {
+  STANDARD_COUNT,
+  ADAPTIVE_COUNT,
+  TOTAL_COUNT,
+  pickBranchTier,
+  computeStandardCorrect,
+  computeLearnerLevel,
+  type BranchTier,
+} from "@/lib/diagnosticBranching";
 
 const confidenceLabels: Record<number, string> = {
   0: "Just Guessing",
