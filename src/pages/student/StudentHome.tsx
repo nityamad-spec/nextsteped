@@ -41,7 +41,8 @@ const StudentHome = () => {
   const { taSettings } = useTASettings(enrolledCourseId);
   const { user } = useAuth();
   const navigate = useNavigate();
-  const courseName = currentCourse?.name || "Intro to Python";
+  const [courseNameDb, setCourseNameDb] = useState<string | null>(null);
+  const courseName = courseNameDb || currentCourse?.name || "";
   const displayName = profileData?.name || studentProfile?.name || "Student";
 
   // Semester progress — compute from course start_date
