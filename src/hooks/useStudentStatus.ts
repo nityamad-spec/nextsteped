@@ -24,6 +24,7 @@ export function useStudentStatus() {
     hasEnrollment: false,
     hasDiagnostic: false,
     activeCourseId: null,
+    role: null,
     profileData: null,
   });
 
