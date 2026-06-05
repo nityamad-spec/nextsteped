@@ -1,68 +1,59 @@
-## Root cause
+# Centralized Role-Based Route Guard
 
-`useStudentStatus` only sets `hasProfile = true` when `profile.role === "student"`. So any signed-in **teacher** (or admin) that hits a `/student*` route is treated as "no profile" and `StudentRedirect` sends them to `/student/onboarding`. There is no role-mismatch guard.
+## Goal
+Stop any signed-in user from landing in a section that doesn't match their role. Today the only role check lives inside `StudentRedirect`, and `/student/onboarding`, `/student/diagnostic`, all `/student/*` layout routes, every `/teacher/*` route, and every `/admin/*` route are unguarded against role mismatch. A teacher who lands on `/student/onboarding` (the exact bug reported earlier) renders the student onboarding form. A student who types `/teacher` or `/admin/dashboard` gets in past `ProtectedRoute`.
 
-A teacher can reach `/student` in three different ways today, and all three are bugged:
+## Approach
+Add one component, `RoleGuard`, that wraps role-scoped routes and enforces the allowed role(s). Reuse the role resolution we already have (`profiles.role` with `user_metadata.role` as fallback) so we don't add a second source of truth.
 
-1. **`AuthRedirect`** (`src/App.tsx:228-256`) — when an already-authenticated user visits `/auth`. If the `profiles` row hasn't propagated yet (fresh JWT race) or RLS transiently denies the read, the query returns `null` and the code falls back to `r = profileRole || "student"` → `Navigate("/student")` → for a teacher, that becomes `/student/onboarding`.
-2. **`Auth.tsx` login handler** (`src/pages/Auth.tsx:101-146`) — after a teacher signs in, it fetches `profiles`. If the row comes back `null` (same race), `userRole` falls back to `user.user_metadata?.role || role`. Legacy users whose `user_metadata.role` is `"student"` get navigated to `/student`. The mismatch guard `profile && profile.role !== role` is skipped because `profile` is null.
-3. **Direct nav / refresh on `/student`** by an authenticated teacher — `StudentRedirect` has no role check at all, so they're unconditionally pushed to `/student/onboarding`.
+### New component: `src/components/RoleGuard.tsx`
+- Props: `allow: Array<"student" | "teacher" | "admin">`, `children`.
+- Reads `useAuth()`; if no user → `<Navigate to="/auth" replace />` (so it can also stand in for `ProtectedRoute` where convenient — but we will keep `ProtectedRoute` wrapping it to avoid churn).
+- Resolves role once per user:
+  - `select role from profiles where id = user.id`
+  - Falls back to `user.user_metadata?.role` if the row is missing (JWT-propagation race), then `null`.
+  - Caches the resolved role in a tiny module-level `Map<userId, role>` so navigating between guarded routes doesn't re-query on every transition.
+- While resolving → render the same `Loading…` block used elsewhere.
+- If resolved role is in `allow` → render children.
+- Otherwise redirect to the user's home:
+  - `teacher` → `/teacher`
+  - `admin` → `/admin/dashboard`
+  - `student` → `/student`
+  - unknown/null → `/auth` (forces them to pick a role on the auth screen; matches the `AuthRedirect` fix already in place).
 
-The session replay matches this: the page loads at `/student/onboarding`, and ~1s later the "teacher" badge appears once the profile finally resolves — i.e. the role context arrives *after* the redirect.
+### Wiring in `src/App.tsx`
+Wrap each role-scoped route/group with `RoleGuard` *inside* the existing `ProtectedRoute`:
 
-## Decision (defaulting since you skipped)
+```text
+/teacher, /teacher/onboarding, /teacher/courses/new,
+  and the TeacherLayout group         →  RoleGuard allow={["teacher"]}
+/student, /student/onboarding,
+  /student/diagnostic, /student/verify-email,
+  and the StudentLayout group         →  RoleGuard allow={["student"]}
+/admin and all nested admin routes    →  RoleGuard allow={["admin"]}
+```
 
-Silent role-based redirect, no sign-out, no toast. A signed-in teacher landing on a student route goes to `/teacher`; a signed-in admin goes to `/admin/dashboard`. Matches the existing Landing-page behaviour and is the least disruptive for the common "I clicked the wrong button / refreshed the wrong tab" case.
+`/student/onboarding` and `/student/verify-email` are currently *not* wrapped in `ProtectedRoute` (they need to be reachable mid-signup). For those two we wrap in `RoleGuard` only when a user is signed in — if `useAuth().user` is null, `RoleGuard` renders children (lets the unauthenticated onboarding/verify flow work). The `allow` check only fires for authenticated sessions.
 
-## Fix plan (frontend only — no backend or schema changes)
+Public routes (`/`, `/auth`, `/intro/*`, `/reset-password`) stay untouched.
 
-### 1. `StudentRedirect` — add role-mismatch guard (primary fix)
-File: `src/App.tsx` (lines ~149-226)
+### What `StudentRedirect` and `TeacherRedirect` keep doing
+They keep their *intra-role* logic (onboarding gates, diagnostic gate, first-course redirect). The cross-role bounce currently in `StudentRedirect` becomes redundant once `RoleGuard` wraps `/student`, so we remove those two lines to keep one source of truth.
 
-- Fetch `profile.role` once at the top of the component (alongside `useStudentStatus`, or extend the hook to expose `role`).
-- Before any of the existing redirects:
-  - `role === "teacher"` → `<Navigate to="/teacher" replace />`
-  - `role === "admin"` → `<Navigate to="/admin/dashboard" replace />`
-- Only when `role === "student"` *or* no profile row exists at all do we keep the current logic (`/student/onboarding` → diagnostic → home).
-- Keeps the self-heal block for pending invited students (their profile genuinely doesn't exist yet, so the `student`/no-profile branch still runs).
+### Edge cases
+- **JWT race after sign-in**: handled by `user_metadata.role` fallback + the cached role from `AuthRedirect`'s lookup (we'll seed the cache from there too).
+- **Account with no profile row** (stranded invite): `RoleGuard` on `/student` falls through to `null` role → redirect to `/auth`. The self-heal path in `StudentRedirect` won't run in that case anymore, so we keep `/student/onboarding` reachable for `role === "student"` and let the existing healer there handle stranded students. Stranded teachers/admins shouldn't exist (they go through approve-teacher), but if one appears they'll land on `/auth` rather than student onboarding.
+- **Role change mid-session**: the cache is keyed by `user.id` and cleared on sign-out (subscribe to `onAuthStateChange` `SIGNED_OUT`).
 
-Simplest implementation: extend `useStudentStatus` to also return `role: string | null` (it already selects `role`), then branch in `StudentRedirect`.
+## Files touched
+- `src/components/RoleGuard.tsx` — new.
+- `src/App.tsx` — wrap teacher / student / admin route trees with `RoleGuard`; remove the now-redundant role bounce from `StudentRedirect`.
+- No backend, RLS, hook, or schema changes.
 
-### 2. `AuthRedirect` — remove the "default to student" fallback
-File: `src/App.tsx:228-256`
-
-- If `profileRole` is `null` after the query, do **not** assume student. Use this resolution order:
-  1. `profile.role` if present,
-  2. else `user.user_metadata?.role` if present,
-  3. else fall through to a Loading… state (and let `StudentRedirect`/`TeacherRedirect`'s own checks take over once the user navigates) — or render the `<Auth />` form so the user can explicitly pick a role.
-- Concretely: replace `const r = profileRole || "student";` with an explicit check; if neither source yields a role, render `<Auth />` (signed-in but unclassified user gets to choose) instead of guessing.
-
-### 3. `Auth.tsx` teacher-login path — tighten the mismatch guard
-File: `src/pages/Auth.tsx:101-146`
-
-- When `role !== "student"` and the profile fetch returns `null`, retry the `profiles` select **once** after a 300 ms delay (covers the JWT-propagation race). If still null:
-  - Trust the URL `role` param the user signed in under (it was `teacher` here), and navigate accordingly. Do **not** consult `user_metadata.role` as a tiebreaker — that's the field that's been routing legacy users to `/student`.
-- Existing mismatch behaviour (`profile.role !== role` → toast + sign-out) is unchanged.
-
-### 4. Sanity-check related paths (no changes expected)
-- `Landing.tsx` `goReturningProfessor` / `goReturningStudent` already gate on `profile.role` correctly — leave as is.
-- `StudentOnboarding.tsx` already self-redirects `student`-role users to `/student`, but does nothing for teachers who land there. Fix #1 prevents teachers from being sent here in the first place, so no edit needed.
-
-## Files to edit
-
-- `src/hooks/useStudentStatus.ts` — expose `role: string | null` from the profile select.
-- `src/App.tsx` — `StudentRedirect` (add teacher/admin guard) and `AuthRedirect` (drop default-to-student fallback).
-- `src/pages/Auth.tsx` — small retry + remove `user_metadata.role` fallback in the non-student login branch.
-
-## Out of scope
-
-- No edge-function or RLS changes. The `"Invalid login credentials"` error in your earlier paste was the student-signin function rejecting a teacher email — unrelated to this redirect bug and already gated by the role param on the form.
-- No changes to `TeacherRedirect`, layouts, or onboarding pages.
-
-## How I'll verify
-
-1. Sign in as teacher from `/auth?role=teacher` → lands on `/teacher/courses/dashboard` (or `/teacher/setup` / `/teacher/courses/new` per existing TeacherRedirect logic). Never `/student/*`.
-2. While signed in as teacher, manually visit `/student` and `/student/onboarding` → both bounce to `/teacher`.
-3. While signed in as teacher, manually visit `/auth` → `AuthRedirect` sends to `/teacher`, never `/student`.
-4. Sign in as student → unchanged: `/student/home` (or onboarding/diagnostic when appropriate).
-5. Admin login still routes to `/admin/dashboard`.
+## Verification
+1. Signed-in **teacher** typing `/student`, `/student/onboarding`, `/student/home`, `/student/chat` → all bounce to `/teacher`.
+2. Signed-in **student** typing `/teacher`, `/teacher/courses/dashboard`, `/admin/dashboard` → bounce to `/student`.
+3. Signed-in **admin** typing `/student/*` or `/teacher/*` → bounce to `/admin/dashboard`.
+4. Unauthenticated user hitting any guarded route → `/auth` (unchanged).
+5. New student mid-signup on `/student/onboarding` (not yet authenticated) → form renders (unchanged).
+6. Existing teacher login flow still lands on `/teacher/courses/dashboard` on success.
