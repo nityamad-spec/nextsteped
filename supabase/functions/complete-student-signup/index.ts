@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
       degree_id: pending.degree_id,
       branch_id: pending.branch_id,
       graduation_year: pending.graduation_year,
-      learner_level: "Beginner",
+      learner_level: "beginner",
       needs_password_setup: false,
       active_course_id: pending.course_id,
     }, { onConflict: "id" });
