@@ -58,6 +58,7 @@ import ContentLibrary from "./pages/teacher/ContentLibrary";
 import TeacherChat from "./pages/teacher/TeacherChat";
 import { AUTH_BYPASS } from "@/lib/authBypass";
 import SessionBanner from "@/components/SessionBanner";
+import RoleGuard, { seedRoleCache } from "@/components/RoleGuard";
 
 const queryClient = new QueryClient();
 
