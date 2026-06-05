@@ -73,7 +73,7 @@ describe("aggregateLevelDistribution", () => {
       mkResult({ learner_level: "expert" }),
       mkResult({ learner_level: "weird" as any }),
     ]);
-    expect(dist).toEqual({ Beginner: 1, Progressing: 0, Proficient: 0, Expert: 2 });
+    expect(dist).toEqual({ beginner: 1, developing: 0, proficient: 0, expert: 2 });
   });
 });
 
