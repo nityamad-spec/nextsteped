@@ -598,7 +598,8 @@ const DiagnosticQuiz = () => {
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
               <Button onClick={handleAnswer} disabled={!canProceed}>
-                {currentQ < questions.length - 1 ? "Next Question" : "Finish Quiz"} <ArrowRight className="ml-2 h-4 w-4" />
+              <Button onClick={handleAnswer} disabled={!canProceed || loadingBranch}>
+                {loadingBranch ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading…</> : (currentQ < TOTAL_COUNT - 1 ? "Next Question" : "Finish Quiz")} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </CardContent>
