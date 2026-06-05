@@ -273,22 +273,94 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   useEffect(() => {
     if (!user) { setRestoringDraft(false); return; }
     let cancelled = false;
+    setRestoringDraft(true);
     (async () => {
+      const hydrated = (draft: LessonPlanDraft): boolean => {
+        if (!Array.isArray(draft.weeks) || draft.weeks.length === 0) return false;
+        applyDraft(draft);
+        return true;
+      };
+
       try {
+        // 1. localStorage (fastest)
         const local = localStorage.getItem(draftLocalKey);
-        if (local) { applyDraft(JSON.parse(local)); return; }
+        if (local) {
+          try {
+            if (hydrated(JSON.parse(local))) return;
+          } catch { /* fallthrough */ }
+        }
+
+        // 2. Draft file in storage
         if (draftStoragePath) {
-          const { data, error } = await supabase.storage.from("course-materials").download(draftStoragePath);
-          if (!error && data) applyDraft(JSON.parse(await data.text()));
+          try {
+            const { data, error } = await supabase.storage
+              .from("course-materials")
+              .download(draftStoragePath);
+            if (!error && data) {
+              const parsed = JSON.parse(await data.text());
+              if (hydrated(parsed)) return;
+            }
+          } catch { /* fallthrough */ }
+        }
+
+        // 3. DB fallback — source of truth (`lesson_plan_weeks` + `courses`).
+        // Restores the plan after localStorage is cleared or the draft file
+        // is missing/unreadable (e.g. Safari "Load failed").
+        if (courseId) {
+          const [weeksRes, courseRes] = await Promise.all([
+            supabase
+              .from("lesson_plan_weeks")
+              .select("week_number, week_name, overview, is_exam_week, locked, concepts, resources")
+              .eq("course_id", courseId)
+              .order("week_number", { ascending: true }),
+            supabase
+              .from("courses")
+              .select("lesson_plan_published_at, lesson_plan_overall_outcomes, midterm_week, final_week")
+              .eq("id", courseId)
+              .maybeSingle(),
+          ]);
+
+          const rows = weeksRes.data || [];
+          if (!weeksRes.error && rows.length > 0) {
+            const midterm = courseRes.data?.midterm_week ?? null;
+            const final = courseRes.data?.final_week ?? null;
+            const dbWeeks: WeekPlan[] = rows.map((r: any) => ({
+              id: makeId(),
+              week: r.week_number,
+              week_name: r.week_name || `Week ${r.week_number}`,
+              overview: r.overview || "",
+              is_exam_week: !!r.is_exam_week,
+              exam_type: r.is_exam_week
+                ? (midterm === r.week_number ? "midterm" : final === r.week_number ? "final" : null)
+                : null,
+              concepts: Array.isArray(r.concepts) ? r.concepts : [],
+              resources: Array.isArray(r.resources) ? r.resources : [],
+              locked: !!r.locked,
+            }));
+
+            const publishedAt = courseRes.data?.lesson_plan_published_at;
+            const draft: LessonPlanDraft = {
+              weeks: dbWeeks,
+              published: !!publishedAt,
+              publishTimestamp: publishedAt ? new Date(publishedAt).toLocaleString() : null,
+              overallOutcomes: courseRes.data?.lesson_plan_overall_outcomes || "",
+            };
+            applyDraft(draft);
+            // Re-seed localStorage so subsequent loads are instant.
+            try {
+              localStorage.setItem(draftLocalKey, JSON.stringify(draft));
+            } catch { /* quota — ignore */ }
+            return;
+          }
         }
       } catch (e) {
-        console.error("Failed to restore draft:", e);
+        console.error("Failed to restore lesson plan:", e);
       } finally {
         if (!cancelled) setRestoringDraft(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [user, draftLocalKey, draftStoragePath, applyDraft]);
+  }, [user, courseId, draftLocalKey, draftStoragePath, applyDraft]);
 
   // Backfill: if this course was published before lesson_plan_weeks existed,
   // mirror the loaded weeks into the table so student RLS visibility works.
