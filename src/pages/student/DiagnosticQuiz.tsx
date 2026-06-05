@@ -597,7 +597,6 @@ const DiagnosticQuiz = () => {
               <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; const prevConfidence = confidences[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setConfidence(prevConfidence ?? null); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { if (user && activeCourseId) { try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {} } navigate("/student/onboarding"); } }}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
-              <Button onClick={handleAnswer} disabled={!canProceed}>
               <Button onClick={handleAnswer} disabled={!canProceed || loadingBranch}>
                 {loadingBranch ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading…</> : (currentQ < TOTAL_COUNT - 1 ? "Next Question" : "Finish Quiz")} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
