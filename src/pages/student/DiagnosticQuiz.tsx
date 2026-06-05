@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, ArrowLeft, Brain, Zap, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { seededShuffle } from "@/lib/seededShuffle";
 import {
@@ -416,7 +417,27 @@ const DiagnosticQuiz = () => {
 
     if (user) {
       setSaving(true);
-      await supabase.from("diagnostic_results").insert({
+      const courseIdForSave = finalQuestions[0]?.courseId || activeCourseId || null;
+
+      // Defensive re-check to avoid duplicate attempts (e.g. quiz open in two tabs)
+      if (courseIdForSave) {
+        const { data: alreadyExists } = await supabase
+          .from("diagnostic_results")
+          .select("id")
+          .eq("student_id", user.id)
+          .eq("course_id", courseIdForSave)
+          .maybeSingle();
+        if (alreadyExists) {
+          setSaving(false);
+          toast.info("You've already submitted this diagnostic.");
+          try { localStorage.removeItem(`diagnosticProgress:${user.id}:${courseIdForSave}`); } catch {}
+          setDiagnosticComplete(true);
+          navigate("/student/home", { replace: true });
+          return;
+        }
+      }
+
+      const { error: saveError } = await supabase.from("diagnostic_results").insert({
         student_id: user.id,
         score: correct,
         total_questions: total,
@@ -426,8 +447,26 @@ const DiagnosticQuiz = () => {
         confidences: newConfidences as unknown as import("@/integrations/supabase/types").Json,
         question_times: newQuestionTimes as unknown as import("@/integrations/supabase/types").Json,
         question_ids: newQuestionIds as unknown as import("@/integrations/supabase/types").Json,
-        course_id: finalQuestions[0]?.courseId || null,
+        course_id: courseIdForSave,
       });
+
+      if (saveError) {
+        setSaving(false);
+        // Unique violation → treat as already submitted
+        if ((saveError as { code?: string }).code === "23505") {
+          toast.info("You've already submitted this diagnostic.");
+          if (courseIdForSave) {
+            try { localStorage.removeItem(`diagnosticProgress:${user.id}:${courseIdForSave}`); } catch {}
+          }
+          setDiagnosticComplete(true);
+          navigate("/student/home", { replace: true });
+          return;
+        }
+        console.error("Failed to save diagnostic result:", saveError);
+        toast.error("Couldn't save your diagnostic. Please try again.");
+        return;
+      }
+
       await supabase.from("profiles").update({ learner_level: level }).eq("id", user.id);
       setSaving(false);
     }

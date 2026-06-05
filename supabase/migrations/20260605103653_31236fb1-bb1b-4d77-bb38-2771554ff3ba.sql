@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS public.diagnostic_results_student_id_unique;
