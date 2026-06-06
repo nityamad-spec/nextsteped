@@ -36,6 +36,7 @@ import { upsertPublishedWeeks, setWeekLocked } from "@/lib/lessonPlanWeeks";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { WeeklyQuizReviewDialog } from "@/components/WeeklyQuizReviewDialog";
 
 // ─── Types ───
 type Concept = {
