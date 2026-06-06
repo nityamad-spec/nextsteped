@@ -145,28 +145,6 @@ const AIChat = () => {
     fetchContext();
   }, [enrolledCourseId]);
 
-  // Determine current week and show weekly quiz popup on chat open
-  useEffect(() => {
-    if (!enrolledCourseId || assessmentActive || mode !== "learning") return;
-    const determineWeek = async () => {
-      const { data: course } = await supabase
-        .from("courses")
-        .select("start_date")
-        .eq("id", enrolledCourseId)
-        .maybeSingle();
-      if (course?.start_date) {
-        const start = new Date(course.start_date);
-        const now = new Date();
-        const diffMs = now.getTime() - start.getTime();
-        const weekNum = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1;
-        if (weekNum >= 2) {
-          setCurrentWeek(weekNum);
-          setShowWeeklyQuizPrompt(true);
-        }
-      }
-    };
-    determineWeek();
-  }, [enrolledCourseId, mode]);
   // Load practice history
   const loadPracticeHistory = useCallback(async () => {
     if (!user || !enrolledCourseId) return;
