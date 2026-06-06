@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
   if (qIds.length > 0) {
     const { data: qs, error: qErr } = await admin
       .from("diagnostic_questions")
-      .select("id, difficulty_estimate, bloom_level, course_id")
+      .select("id, difficulty_estimate, bloom_level, course_id, concept_id")
       .in("id", qIds)
       .eq("course_id", body.course_id);
     if (qErr) {
@@ -163,6 +163,7 @@ Deno.serve(async (req) => {
       qMap.set(q.id as string, {
         difficulty: Number(q.difficulty_estimate ?? 0.5),
         bloom: Number(q.bloom_level ?? 1),
+        concept_id: (q as { concept_id?: string }).concept_id ?? null,
       });
     }
   }
