@@ -1,76 +1,47 @@
-# Mastery Update Formula
+# Decouple Weekly Quiz from Chat
 
-## Decision
-- **Concept mastery** → updated with **Exponential Moving Average (EMA)** per new signal.
-- **Course mastery** → **derived**, never blended directly. Recomputed as the weighted average of that student's concept mastery rows using `concepts.weight`.
+Today, clicking **Take Quiz** in the lesson plan on `/student/home` navigates to `/student/chat?mode=quiz&day=N`, which forces the AI Chat page to mount, swap into exam-mode UI, hide the chat, and render `AssessmentView` full-screen. The quiz is structurally tangled with chat session state, mode tabs, leave-warning dialogs, and a separate "weekly quiz prompt" that pops up on chat open.
 
-## Concept EMA
+Goal: make the weekly quiz fully self-contained. Clicking **Take Quiz** opens a modal dialog over the lesson plan, the student takes the quiz, results are saved + mastery updated, then the modal closes — no navigation, no chat involvement.
 
-For each `(student, course, concept)` row, when a new signal arrives:
+## What changes
 
-```text
-signal     = correct_in_concept / attempted_in_concept   // 0..1 from this assessment
-α (alpha)  = 0.4                                          // weight of the new signal
-new_score  = α * signal + (1 - α) * old_score             // EMA
-```
+### 1. New component `src/components/WeeklyQuizDialog.tsx`
+A controlled full-screen `Dialog` that owns the entire weekly quiz lifecycle:
+- Props: `open`, `onOpenChange`, `courseId`, `studentId`, `day`, `taSettings` (for `quizNumQuestions`, `quizTimeLimit`).
+- On open: fetches questions via the same logic currently in `AIChat.handleStartQuiz` — `assessment_questions` filtered by `course_id`, `mode='daily_quiz'`, `quiz_day`, seeded-shuffled, sliced to `quizNumQuestions`; falls back to `getQuizQuestions` from `@/data/questionBank` if DB is empty.
+- Renders `<AssessmentView type="quiz" .../>` inside `<DialogContent>` sized to ~`max-w-4xl h-[90vh]` with internal scroll.
+- On `onSubmit`: inserts into `assessment_results` (mode=`daily_quiz`, `quiz_day=day`) and fires `update-mastery` (source `weekly_quiz`) — same payload shape as today. No chat-message side effect.
+- On `onEnd` or dialog close while a quiz is active: shows the existing leave-warning confirm; on confirm closes the dialog without submitting.
+- Shows a small intro state (concept coverage + question count + time limit) before the student clicks **Start Quiz**, matching the current `AssessmentView` intro phase (already built into `AssessmentView`).
 
-Special cases:
-- **First ever signal** for a concept (`sample_count = 0`): `new_score = signal` (no prior to blend).
-- **Diagnostic** seeds the row with `signal` directly and sets `sample_count = 1`.
-- Every update also increments `sample_count`, sets `last_source`, `last_source_id`, `last_assessed_at`, and adds to `questions_attempted` / `questions_correct` (lifetime counters, independent of EMA).
-- `mastery_level` recomputed from `new_score` using the same 4 bands already defined in `score-diagnostic` (`beginner` <0.25, `developing` <0.50, `proficient` <0.75, `expert` ≤1.0). Stored but hidden in UI.
+### 2. `src/pages/student/StudentHome.tsx`
+- Add local state `quizDialog: { open: boolean; day: number | null }`.
+- Replace the `navigate("/student/chat?mode=quiz&day=...")` call on the **Take Quiz** button with `setQuizDialog({ open: true, day: dp.day })`.
+- Render `<WeeklyQuizDialog open={quizDialog.open} day={quizDialog.day} onOpenChange={...} courseId={enrolledCourseId} studentId={user.id} taSettings={taSettings} />` once at the bottom of the page.
+- `taSettings` is already available via `useTASettings(enrolledCourseId)` already imported here.
 
-**Why α = 0.4:** responsive enough that 2–3 recent assessments dominate, but a single bad quiz won't crater a previously strong concept. Tunable in one constant.
+### 3. `src/pages/student/AIChat.tsx` — remove quiz coupling
+- Delete `showWeeklyQuizPrompt`, `currentWeek`, and the `useEffect` that decides whether to pop the "Weekly Quiz available" dialog (lines ~110-172).
+- Delete the URL-driven `handleStartQuiz` branch in the mount effect (lines ~271-280). `mode=exam` handling stays.
+- Drop `handleStartQuiz` and the quiz-related JSX block: the `<Dialog>` at ~line 1117 that offered the in-chat quiz launcher.
+- `assessmentType` state can stay narrowed to `"exam"` only (or be removed entirely along with the `quiz` branch in `handleAssessmentSubmit`), since chat now only runs exam-mode assessments. Keep the union for now to minimize diff: set `assessmentType` only to `"exam"` and leave the dead `quiz` branches untouched — they are unreachable, follow-up cleanup.
+- `initialMode` simplifies to `searchParams.get("mode") === "exam" ? "exam" : "learning"`.
+- The chat page no longer reads `?mode=quiz` or `?day=`. Direct links into the old URL still land safely on chat in learning mode.
 
-## Course mastery (derived)
+### 4. `AssessmentView` — no changes required
+It already accepts `type="quiz"` with `day`, renders intro / active / review phases internally, and calls `onSubmit` / `onEnd`. The dialog reuses it as-is.
 
-After any concept row(s) change for a student in a course:
+## Behaviour after change
+- Student opens **Lesson Plan** on home, expands a week, clicks **Take Quiz** → modal opens in place, intro phase shown.
+- Quiz runs inside the modal; timer, answers, review, "Study weak topics" are all in the dialog. "Study weak topics" simply closes the dialog and navigates to `/student/chat?topics=...` (same handler shape as today, optional — can be deferred).
+- On submit: results saved, mastery updated, review shown inside the dialog. Closing returns the student to the lesson plan on home (no navigation away).
+- AI Chat page never auto-launches a quiz and no longer shows the weekly-quiz pop-up on entry.
 
-```text
-course_score = Σ (concept.mastery_score * concept.weight)
-             / Σ (concept.weight)
-```
+## Out of scope
+- Re-styling `AssessmentView`.
+- Showing per-week quiz completion state on the lesson plan card (would be a nice follow-up).
+- Cleaning the now-dead `"quiz"` branches inside `AIChat.handleAssessmentSubmit` and `assessmentType` union.
 
-over all rows in `student_concept_mastery` for that `(student, course)`. Concepts the student hasn't been assessed on yet are simply excluded from the sum (no zero-fill — that would unfairly drag the score down early).
-
-Then:
-- `student_course_mastery.mastery_score = course_score`
-- `learner_level` = band from `course_score`
-- `accuracy_component` = `course_score` (same value; pace/confidence kept only for diagnostic, set to NULL on derived updates)
-- `last_source` / `last_source_id` = whatever triggered the recompute
-- `sample_count` = count of concept rows contributing to the sum
-
-## Where this lives
-
-A new edge function **`update-mastery`** owns both steps:
-
-1. Input: `{ student_id, course_id, source, source_id, per_concept: [{ concept_id, attempted, correct }] }`
-2. For each concept in `per_concept`: upsert `student_concept_mastery` using EMA above.
-3. Recompute course row from all concept rows for that student/course.
-4. All writes via `service_role` (RLS keeps clients out).
-
-Called from:
-- `score-diagnostic` → after inserting `diagnostic_results`, group answers by `concept_id` (via `diagnostic_questions.concept_id`) and call `update-mastery`. Diagnostic case uses `signal` directly (no prior).
-- Assessment submission path (weekly quiz / exam) → after writing `assessment_results`, group questions by `concept_id` from `assessment_questions` and call `update-mastery`.
-
-## Tuning constants (single source of truth in `update-mastery`)
-
-```ts
-const MASTERY_CONFIG = {
-  EMA_ALPHA: 0.4,
-  LEVEL_BANDS: [
-    { max: 0.25,   level: "beginner" },
-    { max: 0.50,   level: "developing" },
-    { max: 0.75,   level: "proficient" },
-    { max: 1.0001, level: "expert" },
-  ],
-} as const;
-```
-
-## Out of scope for this step
-- Backfill of existing diagnostic/assessment rows (still open question — default: start fresh).
-- Recency decay on concept rows older than X weeks (can layer on later by shrinking `old_score` toward 0.5 before EMA; not needed for v1).
-- Time/confidence components in concept EMA — kept accuracy-only for clarity; diagnostic still records its richer breakdown on the course row at seed time.
-
-## Migration impact
-None. Schema from the previous migration already supports this. Only new code: the `update-mastery` edge function plus two call sites.
+## Open question
+"Pop up window" — I'm reading this as an in-page modal dialog (no navigation, no new browser window). Confirm if you actually want a separate browser `window.open(...)` popup instead; that path is doable but loses shared React state and the `supabase` client session has to be re-bootstrapped in the new window, which I'd avoid unless you specifically need it.

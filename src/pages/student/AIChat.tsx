@@ -79,7 +79,7 @@ const AIChat = () => {
   const { user } = useAuth();
   const enrolledCourseId = useEnrolledCourseId();
   const { taSettings } = useTASettings(enrolledCourseId);
-  const initialMode = (searchParams.get("mode") === "exam" || searchParams.get("mode") === "quiz") ? "exam" : "learning";
+  const initialMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
 
   const [mode, setMode] = useState<"learning" | "exam">(initialMode);
   const [input, setInput] = useState("");
@@ -107,9 +107,6 @@ const AIChat = () => {
   const [customExamTimeLimit, setCustomExamTimeLimit] = useState<number | null>(null);
   const [currentAssessmentSessionId, setCurrentAssessmentSessionId] = useState<string | null>(null);
 
-  // Weekly quiz popup state
-  const [showWeeklyQuizPrompt, setShowWeeklyQuizPrompt] = useState(false);
-  const [currentWeek, setCurrentWeek] = useState<number | null>(null);
 
   // Practice questions widget state
   const [showPractice, setShowPractice] = useState(false);
@@ -148,28 +145,6 @@ const AIChat = () => {
     fetchContext();
   }, [enrolledCourseId]);
 
-  // Determine current week and show weekly quiz popup on chat open
-  useEffect(() => {
-    if (!enrolledCourseId || assessmentActive || mode !== "learning") return;
-    const determineWeek = async () => {
-      const { data: course } = await supabase
-        .from("courses")
-        .select("start_date")
-        .eq("id", enrolledCourseId)
-        .maybeSingle();
-      if (course?.start_date) {
-        const start = new Date(course.start_date);
-        const now = new Date();
-        const diffMs = now.getTime() - start.getTime();
-        const weekNum = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1;
-        if (weekNum >= 2) {
-          setCurrentWeek(weekNum);
-          setShowWeeklyQuizPrompt(true);
-        }
-      }
-    };
-    determineWeek();
-  }, [enrolledCourseId, mode]);
   // Load practice history
   const loadPracticeHistory = useCallback(async () => {
     if (!user || !enrolledCourseId) return;
@@ -270,11 +245,7 @@ const AIChat = () => {
 
   useEffect(() => {
     const urlMode = searchParams.get("mode");
-    const urlDay = parseInt(searchParams.get("day") || "1") || 1;
-    if (urlMode === "quiz") {
-      setShowWeeklyQuizPrompt(false);
-      handleStartQuiz(urlDay);
-    } else if (urlMode === "exam") {
+    if (urlMode === "exam") {
       handleStartExam();
     }
   }, []);
@@ -1096,30 +1067,6 @@ const AIChat = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Weekly Quiz Popup Dialog */}
-        <Dialog open={showWeeklyQuizPrompt} onOpenChange={setShowWeeklyQuizPrompt}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-primary" />
-                Weekly Quiz Available
-              </DialogTitle>
-              <DialogDescription>
-                {currentWeek
-                  ? `Week ${currentWeek - 1} is complete! Take a short quiz to test your understanding of recent concepts — it helps us personalize your learning.`
-                  : "A weekly quiz is available to test your understanding of recent concepts."}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="flex gap-2 sm:justify-between">
-              <Button variant="outline" onClick={() => setShowWeeklyQuizPrompt(false)}>
-                Skip & Continue to Chat
-              </Button>
-              <Button onClick={() => { setShowWeeklyQuizPrompt(false); handleStartQuiz(currentWeek ? currentWeek - 1 : 1); }}>
-                Take Quiz
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         {/* Messages */}
         <div className="flex-1 overflow-auto p-4 space-y-4">

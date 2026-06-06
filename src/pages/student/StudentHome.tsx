@@ -15,6 +15,7 @@ import { Progress } from "@/components/ui/progress";
 import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, ChevronDown, ChevronUp, Lock, Check, Sparkles } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 
 
 /* Concepts are loaded from the DB for the student's enrolled course.
@@ -60,6 +61,7 @@ const StudentHome = () => {
   const [planLoading, setPlanLoading] = useState(true);
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
   const [concepts, setConcepts] = useState<{ id: string; name: string }[]>([]);
+  const [quizDialog, setQuizDialog] = useState<{ open: boolean; day: number | null }>({ open: false, day: null });
 
   useEffect(() => {
     if (!enrolledCourseId) { setConcepts([]); return; }
@@ -394,7 +396,7 @@ const StudentHome = () => {
                               <p className="text-xs text-muted-foreground">Optional — helps you track your understanding</p>
                             </div>
                           </div>
-                          <Button size="sm" variant="outline" onClick={() => navigate(`/student/chat?mode=quiz&day=${dp.day}`)}>
+                          <Button size="sm" variant="outline" onClick={() => setQuizDialog({ open: true, day: dp.day })}>
                             Take Quiz
                           </Button>
                         </div>
@@ -459,6 +461,16 @@ const StudentHome = () => {
           </CardContent>
         </Card>
       </motion.div>
+
+      <WeeklyQuizDialog
+        open={quizDialog.open}
+        onOpenChange={(o) => setQuizDialog((s) => ({ ...s, open: o }))}
+        courseId={enrolledCourseId}
+        studentId={user?.id ?? null}
+        day={quizDialog.day}
+        numQuestions={taSettings.quizNumQuestions || 5}
+        timeLimitMinutes={taSettings.quizTimeLimit || 10}
+      />
     </div>
   );
 };
