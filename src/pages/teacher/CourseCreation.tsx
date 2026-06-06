@@ -1699,7 +1699,14 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                 )}
                                 {quizGenerated[w.week] > 0 ? "Regenerate Weekly Quiz" : "Generate Weekly Quiz"}
                               </Button>
-                              <Button size="sm" variant="outline" className="h-8 text-xs gap-1" disabled>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs gap-1"
+                                onClick={() => setReviewQuizWeek(w)}
+                                disabled={!quizGenerated[w.week]}
+                                title={!quizGenerated[w.week] ? "Generate the quiz first" : undefined}
+                              >
                                 <FileText className="h-3 w-3" /> View Quiz Questions
                               </Button>
                               {quizGenerated[w.week] > 0 && (
