@@ -275,8 +275,8 @@ Deno.serve(async (req) => {
     return json({ error: "insert_failed", details: insertErr.message }, 500);
   }
 
-  // Mirror learner level on profile
-  await admin.from("profiles").update({ learner_level: learnerLevel }).eq("id", studentId);
+  // NOTE: profiles.learner_level is intentionally NOT updated here.
+  // Profile-level state is not driven by any quiz/diagnostic submission.
 
   // Fire-and-forget mastery update (concept EMA + derived course mastery).
   // Failures are logged but never block diagnostic submission.
