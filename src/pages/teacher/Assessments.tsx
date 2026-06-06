@@ -77,11 +77,13 @@ const Assessments = () => {
     if (!courseId) { setQuestionsLoading(false); return; }
     const fetchQuestions = async () => {
       setQuestionsLoading(true);
-      const [{ data, error }, diagnosticRes] = await Promise.all([
+      const [{ data, error }, diagnosticRes, conceptsRes] = await Promise.all([
         supabase.from("assessment_questions").select("*").eq("course_id", courseId),
         supabase.from("diagnostic_questions").select("id", { count: "exact" }).eq("course_id", courseId),
+        supabase.from("concepts").select("id, concept_code, concept_name").eq("course_id", courseId).order("concept_code"),
       ]);
       if (error) { console.error(error); toast.error("Failed to load questions"); }
+
       else if (data) {
         setQuestions(data.map((row: any) => ({
           id: row.id, question: row.question_text, answer: row.answer, topic: row.topic,
