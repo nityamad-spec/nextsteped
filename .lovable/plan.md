@@ -1,22 +1,34 @@
-## Plan
+# Weekly Quiz: Confidence + Per-Question Time
 
-Make the manual question forms in `/teacher/assessments` and Exam Mode actually saveable against the new `assessment_questions` schema by replacing the free-text Topic input with a Concept picker (using `concept_code` + name), driven by the course's concepts list. This eliminates the "topic must match a concept code" failure path.
+The `assessment_results` table already has `confidences` and `question_times` (jsonb) columns from the recent migration aligning it with `diagnostic_results`. No schema changes needed — purely frontend wiring.
 
-Skipping `seed-questions` — it writes to `diagnostic_questions`, not `assessment_questions`. There is currently no edge function that inserts into `assessment_questions`, so no backend code needs updating.
+## Changes
 
-### Changes
+### 1. `src/components/AssessmentView.tsx`
+- Add state:
+  - `confidences: Record<string, "not_confident" | "somewhat_confident" | "very_confident">`
+  - `questionTimes: Record<string, number>` (seconds spent on each question)
+  - `questionStartRef` (ref tracking when current question was shown)
+- In `renderQuestionCard`, below the answer input, render a "How confident are you?" selector with three buttons (Not confident / Somewhat / Very). Selecting one updates `confidences[q.id]`.
+- Track time per question: when `currentIndex` changes (or question first shown), record start timestamp. When user moves to next/prev, finishes, or submits, accumulate elapsed seconds into `questionTimes[currentQuestion.id]`.
+- Extend `AssessmentResults` interface with:
+  - `confidences: Record<string, string>`
+  - `questionTimes: Record<string, number>`
+- Include both in the object passed to `onSubmit` in `handleFinish`.
+- Quiz Submit button stays enabled even if confidence not picked (optional), but show a subtle hint. (Default behavior: optional, stored as null/omitted for unanswered.)
 
-**1. `src/pages/teacher/Assessments.tsx`**
-- Add `const [concepts, setConcepts] = useState<{ id: string; concept_code: string; concept_name: string }[]>([])`.
-- In the existing course-load effect (alongside questions fetch), also fetch `id, concept_code, concept_name` from `concepts` where `course_id = courseId`, ordered by `concept_code`.
-- Replace the `<Input>` at line 425 with a shadcn `<Select value={formTopic} onValueChange={setFormTopic}>` listing concepts as `{concept_code} — {concept_name}` with `value={concept_code}`.
-- In `handleSave`, keep the concept_code → concept_id lookup already added (acts as a safety net), but it will now always succeed because the value comes from the Select.
-- Empty state: if `concepts.length === 0`, render a small inline message in the dialog ("Add concepts in Concept Management first") and disable the Save button.
+### 2. `src/components/WeeklyQuizDialog.tsx`
+- In `handleSubmit`, include `confidences: results.confidences` and `question_times: results.questionTimes` in the `assessment_results` insert payload (cast via `Json`).
 
-**2. `src/pages/teacher/ExamMode.tsx`**
-- Same treatment: load concepts list, swap the `<Input>` at line 514 for a concept `<Select>`, mirror the empty-state guard.
+### 3. Test
+- Update `src/components/WeeklyQuizDialog.test.tsx` expectations only if the new fields cause failure (the current `toMatchObject` won't fail since it allows extras — no change needed).
 
-### Out of scope
-- Editing existing assessment questions whose `topic` no longer matches a concept (tables were wiped, so none exist).
-- Backfilling other diagnostic-only columns (`tier`, `format`, `bloom_level`, etc.) from these manual forms — defaults stay in effect; can be exposed later if professors need control.
-- Any change to `seed-questions` or other edge functions.
+## Storage shape
+- `confidences`: `{ "<question_id>": "not_confident" | "somewhat_confident" | "very_confident" }`
+- `question_times`: `{ "<question_id>": <seconds:number> }`
+
+Matches how diagnostic flow stores them.
+
+## Out of scope
+- Exam mode (only weekly quiz per request, but since AssessmentView is shared, exam will also collect them; ExamMode's submit handler is unchanged so they just won't be persisted there).
+- Any analytics/dashboard surfacing of the new data.
