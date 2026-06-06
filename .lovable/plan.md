@@ -1,25 +1,47 @@
 ## Plan
 
-Switch the weekly quiz (`/student/home` → WeeklyQuizDialog) from rendering all questions at once to one-question-per-page with Next/Previous navigation. Scope the change to `type="quiz"` only — exam simulation (`type="exam"`) keeps its current all-at-once layout.
+Additively align `assessment_questions` and `assessment_results` with their diagnostic counterparts. Existing rows in both tables will be wiped first so new NOT NULL columns (`concept_id`) can be enforced cleanly. All existing assessment-only columns stay so `WeeklyQuizDialog`, `ExamMode`, `seed-questions`, `update-mastery`, and `AssessmentAnalytics` keep working.
 
-### Change in `src/components/AssessmentView.tsx`
+### Single migration
 
-Active phase render (currently lines ~456–502):
+**1. Wipe data (preserves schema, RLS, FKs):**
+- `DELETE FROM public.assessment_results;`
+- `DELETE FROM public.assessment_questions;`
 
-- Add `const [currentIndex, setCurrentIndex] = useState(0)` (reset when phase enters "active").
-- When `isQuiz`:
-  - Render only `renderQuestionCard(questions[currentIndex], currentIndex)` instead of mapping all questions.
-  - Add a step indicator in the header: `Question {currentIndex+1} of {questions.length}` (replacing or alongside the existing "answered" count).
-  - Below the question card, add a footer row with:
-    - **Previous** button (`variant="outline"`), disabled when `currentIndex === 0`.
-    - **Next** button, shown when `currentIndex < questions.length - 1`, advances `currentIndex`. Not gated on the current question being answered (students can skip and come back).
-    - **Submit Quiz** button, shown only on the last question (`currentIndex === questions.length - 1`), keeps existing `handleFinish` behavior and `disabled={answeredCount === 0}` rule.
-  - Progress bar value uses `(currentIndex + 1) / questions.length` for quiz, so it reflects page position; keep the answered count visible as secondary text.
-- When `!isQuiz` (exam): keep existing `questions.map(...)` + bottom Submit unchanged.
+**2. `assessment_questions` — add diagnostic-style columns:**
+- `concept_id uuid NOT NULL` → FK `concepts(id) ON UPDATE CASCADE ON DELETE RESTRICT`
+- `item_code text NOT NULL DEFAULT ''`
+- `format text NOT NULL DEFAULT 'mcq'`
+- `tier text NOT NULL DEFAULT 'standard' CHECK (tier IN ('standard','easy','medium','hard'))`
+- `in_test boolean NOT NULL DEFAULT false`
+- `difficulty_estimate numeric(3,2) NOT NULL DEFAULT 0.5`
+- `bloom_level int NOT NULL DEFAULT 1`
+- `bloom_justification text`
+- `difficulty_justification text`
+- `is_distractor boolean NOT NULL DEFAULT false`
+- `updated_at timestamptz NOT NULL DEFAULT now()`
+- Indexes: `(concept_id)`, `(course_id, tier)`
+- BEFORE INSERT/UPDATE trigger calling a new SECURITY DEFINER function `assessment_questions_validate_topic()` that enforces `topic == concepts.concept_code` for the supplied `concept_id` (same logic as `diagnostic_questions_validate_topic`)
+- BEFORE UPDATE trigger calling existing `update_updated_at_column()`
 
-No changes to scoring, submission payload, mastery updates, question ordering (seededShuffle stays), or `WeeklyQuizDialog`. Pure UI/navigation change in the active phase.
+Kept as-is: `mode`, `quiz_day`, `question_type`, `question_text`, `answer`, `topic`, `difficulty`, `options`, `correct_index`, `explanation`, `teacher_id`, `course_id`, RLS policies.
 
-### Out of scope
-- Exam mode pagination.
-- Per-question validation gating (skip allowed).
-- Test updates beyond what's needed to keep existing WeeklyQuizDialog tests green (they stub AssessmentView, so unaffected).
+**3. `assessment_results` — add diagnostic-style columns:**
+- `learner_level text NOT NULL DEFAULT 'developing'`
+- `branch_tier text CHECK (branch_tier IN ('easy','medium','hard'))`
+- `mastery_score numeric(5,4)`
+- `confidences jsonb NOT NULL DEFAULT '[]'`
+- `question_times jsonb NOT NULL DEFAULT '[]'`
+- `question_ids jsonb NOT NULL DEFAULT '[]'`
+
+Kept as-is: `mode`, `quiz_day`, `score`, `total_questions`, `correct_answers`, `answers`, `time_spent`, RLS policies.
+
+Note: NOT applying diagnostic's `UNIQUE (student_id, course_id)` — assessments produce many rows per student/course (one per quiz day, per exam attempt).
+
+### Out of scope (this turn)
+- Updating edge functions (`seed-questions`, etc.) or frontend code to actually populate the new columns. Defaults keep current writes working; population can come next.
+- Renaming any existing columns.
+
+### Risk
+- Wipes all historical assessment data (teacher-seeded questions and student quiz results). User confirmed this.
+- The `topic == concepts.concept_code` trigger will fail any future insert into `assessment_questions` whose topic doesn't match. `seed-questions` currently writes free-form `topic`; it will need to set `topic = concept_code` and a real `concept_id` going forward. Flagging so we update it in a follow-up.

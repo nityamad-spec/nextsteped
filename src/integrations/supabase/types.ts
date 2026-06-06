@@ -35,53 +35,93 @@ export type Database = {
       assessment_questions: {
         Row: {
           answer: string
+          bloom_justification: string | null
+          bloom_level: number
+          concept_id: string
           correct_index: number | null
           course_id: string
           created_at: string
           difficulty: string
+          difficulty_estimate: number
+          difficulty_justification: string | null
           explanation: string | null
+          format: string
           id: string
+          in_test: boolean
+          is_distractor: boolean
+          item_code: string
           mode: string
           options: Json | null
           question_text: string
           question_type: string
           quiz_day: number | null
           teacher_id: string
+          tier: string
           topic: string
+          updated_at: string
         }
         Insert: {
           answer: string
+          bloom_justification?: string | null
+          bloom_level?: number
+          concept_id: string
           correct_index?: number | null
           course_id: string
           created_at?: string
           difficulty?: string
+          difficulty_estimate?: number
+          difficulty_justification?: string | null
           explanation?: string | null
+          format?: string
           id?: string
+          in_test?: boolean
+          is_distractor?: boolean
+          item_code?: string
           mode: string
           options?: Json | null
           question_text: string
           question_type?: string
           quiz_day?: number | null
           teacher_id: string
+          tier?: string
           topic: string
+          updated_at?: string
         }
         Update: {
           answer?: string
+          bloom_justification?: string | null
+          bloom_level?: number
+          concept_id?: string
           correct_index?: number | null
           course_id?: string
           created_at?: string
           difficulty?: string
+          difficulty_estimate?: number
+          difficulty_justification?: string | null
           explanation?: string | null
+          format?: string
           id?: string
+          in_test?: boolean
+          is_distractor?: boolean
+          item_code?: string
           mode?: string
           options?: Json | null
           question_text?: string
           question_type?: string
           quiz_day?: number | null
           teacher_id?: string
+          tier?: string
           topic?: string
+          updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "assessment_questions_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "assessment_questions_course_id_fkey"
             columns: ["course_id"]
@@ -101,11 +141,17 @@ export type Database = {
       assessment_results: {
         Row: {
           answers: Json
+          branch_tier: string | null
+          confidences: Json
           correct_answers: number
           course_id: string | null
           created_at: string
           id: string
+          learner_level: string
+          mastery_score: number | null
           mode: string
+          question_ids: Json
+          question_times: Json
           quiz_day: number | null
           score: number
           student_id: string
@@ -114,11 +160,17 @@ export type Database = {
         }
         Insert: {
           answers?: Json
+          branch_tier?: string | null
+          confidences?: Json
           correct_answers: number
           course_id?: string | null
           created_at?: string
           id?: string
+          learner_level?: string
+          mastery_score?: number | null
           mode: string
+          question_ids?: Json
+          question_times?: Json
           quiz_day?: number | null
           score: number
           student_id: string
@@ -127,11 +179,17 @@ export type Database = {
         }
         Update: {
           answers?: Json
+          branch_tier?: string | null
+          confidences?: Json
           correct_answers?: number
           course_id?: string | null
           created_at?: string
           id?: string
+          learner_level?: string
+          mastery_score?: number | null
           mode?: string
+          question_ids?: Json
+          question_times?: Json
           quiz_day?: number | null
           score?: number
           student_id?: string
