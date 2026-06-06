@@ -228,7 +228,7 @@ Deno.serve(async (req) => {
 
     const [{ data: course, error: cErr }, { data: allConcepts }, { data: weekRow }] = await Promise.all([
       admin.from("courses").select("id, name, teacher_id, course_code").eq("id", courseId).maybeSingle(),
-      admin.from("concepts").select("id, concept_code, concept_name").eq("course_id", courseId),
+      admin.from("concepts").select("id, concept_code").eq("course_id", courseId),
       admin.from("lesson_plan_weeks").select("week_number, week_name, concepts").eq("course_id", courseId).eq("week_number", quizDay).maybeSingle(),
     ]);
 
@@ -247,11 +247,9 @@ Deno.serve(async (req) => {
     // against lesson_plan_weeks.concepts[].name. If none match, fall back to all
     // course concepts so we still produce questions.
     const courseConceptByCodeLc: Record<string, ConceptInfo> = {};
-    const courseConceptByNameLc: Record<string, ConceptInfo> = {};
     for (const c of allConcepts as any[]) {
-      const info: ConceptInfo = { id: c.id, code: c.concept_code, name: c.concept_name ?? c.concept_code };
+      const info: ConceptInfo = { id: c.id, code: c.concept_code, name: c.concept_code };
       courseConceptByCodeLc[c.concept_code.toLowerCase()] = info;
-      courseConceptByNameLc[(c.concept_name ?? c.concept_code).toLowerCase()] = info;
     }
 
     let weekConcepts: ConceptInfo[] = [];
@@ -259,7 +257,7 @@ Deno.serve(async (req) => {
       for (const item of weekRow.concepts as any[]) {
         const name = typeof item?.name === "string" ? item.name.trim() : "";
         if (!name) continue;
-        const hit = courseConceptByCodeLc[name.toLowerCase()] || courseConceptByNameLc[name.toLowerCase()];
+        const hit = courseConceptByCodeLc[name.toLowerCase()];
         if (hit && !weekConcepts.find((c) => c.code === hit.code)) weekConcepts.push(hit);
       }
     }
