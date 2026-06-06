@@ -461,6 +461,16 @@ const StudentHome = () => {
           </CardContent>
         </Card>
       </motion.div>
+
+      <WeeklyQuizDialog
+        open={quizDialog.open}
+        onOpenChange={(o) => setQuizDialog((s) => ({ ...s, open: o }))}
+        courseId={enrolledCourseId}
+        studentId={user?.id ?? null}
+        day={quizDialog.day}
+        numQuestions={taSettings.quizNumQuestions || 5}
+        timeLimitMinutes={taSettings.quizTimeLimit || 10}
+      />
     </div>
   );
 };
