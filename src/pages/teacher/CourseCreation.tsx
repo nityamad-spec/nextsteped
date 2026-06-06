@@ -36,6 +36,7 @@ import { upsertPublishedWeeks, setWeekLocked } from "@/lib/lessonPlanWeeks";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { WeeklyQuizReviewDialog } from "@/components/WeeklyQuizReviewDialog";
 
 // ─── Types ───
 type Concept = {
@@ -123,6 +124,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   // Weekly-quiz generation state
   const [generatingQuizWeek, setGeneratingQuizWeek] = useState<number | null>(null);
   const [quizGenerated, setQuizGenerated] = useState<Record<number, number>>({});
+  const [reviewQuizWeek, setReviewQuizWeek] = useState<WeekPlan | null>(null);
 
   // Load count of existing weekly-quiz questions per week
   useEffect(() => {
@@ -1698,7 +1700,14 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                 )}
                                 {quizGenerated[w.week] > 0 ? "Regenerate Weekly Quiz" : "Generate Weekly Quiz"}
                               </Button>
-                              <Button size="sm" variant="outline" className="h-8 text-xs gap-1" disabled>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs gap-1"
+                                onClick={() => setReviewQuizWeek(w)}
+                                disabled={!quizGenerated[w.week]}
+                                title={!quizGenerated[w.week] ? "Generate the quiz first" : undefined}
+                              >
                                 <FileText className="h-3 w-3" /> View Quiz Questions
                               </Button>
                               {quizGenerated[w.week] > 0 && (
@@ -1869,6 +1878,14 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <WeeklyQuizReviewDialog
+        open={!!reviewQuizWeek}
+        onOpenChange={(o) => { if (!o) setReviewQuizWeek(null); }}
+        courseId={courseId}
+        weekNumber={reviewQuizWeek?.week ?? null}
+        weekName={reviewQuizWeek?.week_name}
+      />
     </div>
   );
 };
