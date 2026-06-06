@@ -272,6 +272,36 @@ Deno.serve(async (req) => {
   // Mirror learner level on profile
   await admin.from("profiles").update({ learner_level: learnerLevel }).eq("id", studentId);
 
+  // Fire-and-forget mastery update (concept EMA + derived course mastery).
+  // Failures are logged but never block diagnostic submission.
+  if (perConceptTally.size > 0 && inserted?.id) {
+    try {
+      const masteryUrl = `${SUPABASE_URL}/functions/v1/update-mastery`;
+      const resp = await fetch(masteryUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          course_id: body.course_id,
+          source: "diagnostic",
+          source_id: inserted.id,
+          per_concept: Array.from(perConceptTally.entries()).map(([concept_id, t]) => ({
+            concept_id,
+            attempted: t.attempted,
+            correct: t.correct,
+          })),
+        }),
+      });
+      if (!resp.ok) {
+        console.error("update-mastery non-OK", resp.status, await resp.text());
+      }
+    } catch (e) {
+      console.error("update-mastery call failed", e);
+    }
+  }
+
   return json({
     id: inserted?.id,
     mastery_score: masteryScore,
