@@ -125,6 +125,33 @@ const StudentHome = () => {
     return () => { cancelled = true; };
   }, [enrolledCourseId, user?.id, quizDialog.open]);
 
+  // Load taken weekly quizzes so we can lock attempts to one per week
+  useEffect(() => {
+    if (!enrolledCourseId || !user?.id) { setTakenQuizzes({}); return; }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("assessment_results")
+        .select("quiz_day, score")
+        .eq("student_id", user.id)
+        .eq("course_id", enrolledCourseId)
+        .eq("mode", "daily_quiz");
+      if (cancelled) return;
+      if (error) { console.error("Taken quizzes load error:", error); setTakenQuizzes({}); return; }
+      const map: Record<number, { score: number }> = {};
+      (data || []).forEach((r: any) => {
+        if (r.quiz_day != null) {
+          const day = Number(r.quiz_day);
+          const score = Number(r.score) || 0;
+          // Keep the highest score in case any duplicates exist
+          if (!map[day] || score > map[day].score) map[day] = { score };
+        }
+      });
+      setTakenQuizzes(map);
+    })();
+    return () => { cancelled = true; };
+  }, [enrolledCourseId, user?.id, quizDialog.open]);
+
 
   useEffect(() => {
     const loadPlan = async () => {
