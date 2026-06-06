@@ -154,6 +154,17 @@ const WeeklyQuizDialog = ({
         return;
       }
 
+      // If there's no adaptive bank (easy/medium/hard all empty), treat as
+      // single-pass fallback — Phase A submission becomes the final submission.
+      const adaptiveTotal = b.easy.length + b.medium.length + b.hard.length;
+      if (adaptiveTotal === 0) {
+        const pool = b.standard.slice(0, WQ_STANDARD_COUNT + WQ_ADAPTIVE_COUNT);
+        setFallbackQuestions(pool);
+        setPhaseAQuestions(pool);
+        setPhase("phaseA");
+        return;
+      }
+
       setBuckets(b);
       setPhaseAQuestions(b.standard.slice(0, WQ_STANDARD_COUNT));
       setPhase("phaseA");
