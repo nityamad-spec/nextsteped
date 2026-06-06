@@ -107,9 +107,6 @@ const AIChat = () => {
   const [customExamTimeLimit, setCustomExamTimeLimit] = useState<number | null>(null);
   const [currentAssessmentSessionId, setCurrentAssessmentSessionId] = useState<string | null>(null);
 
-  // Weekly quiz popup state
-  const [showWeeklyQuizPrompt, setShowWeeklyQuizPrompt] = useState(false);
-  const [currentWeek, setCurrentWeek] = useState<number | null>(null);
 
   // Practice questions widget state
   const [showPractice, setShowPractice] = useState(false);
