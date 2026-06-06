@@ -106,7 +106,7 @@ export function WeeklyQuizReviewDialog({ open, onOpenChange, courseId, weekNumbe
             No questions generated yet. Close this dialog and click <span className="font-medium">Generate Weekly Quiz</span> first.
           </div>
         ) : (
-          <ScrollArea className="flex-1 min-h-0 pr-3 -mr-3">
+          <ScrollArea className="max-h-[70vh] pr-3 -mr-3">
             <div className="space-y-6 pb-2">
               {TIER_ORDER.map((tier) => {
                 const items = grouped[tier] ?? [];
