@@ -467,20 +467,29 @@ const StudentHome = () => {
               </p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {concepts.map((concept) => (
-                  <Tooltip key={concept.id}>
-                    <TooltipTrigger asChild>
-                      <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${getMasteryColor("not_explored")}`}>
-                        <p className="text-xs font-medium truncate">{concept.name}</p>
-                        <p className="text-lg font-bold mt-1">—</p>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{concept.name}: {getMasteryLabel("not_explored", null)}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
+                {concepts.map((concept) => {
+                  const m = conceptMastery[concept.id];
+                  const attempted = m?.attempted ?? 0;
+                  const score = m?.score ?? 0;
+                  const status: MasteryStatus =
+                    attempted === 0 ? "not_explored" : score >= 0.75 ? "deeply_explored" : "touched";
+                  const pct = attempted > 0 ? Math.round(score * 100) : null;
+                  return (
+                    <Tooltip key={concept.id}>
+                      <TooltipTrigger asChild>
+                        <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${getMasteryColor(status)}`}>
+                          <p className="text-xs font-medium truncate">{concept.name}</p>
+                          <p className="text-lg font-bold mt-1">{pct !== null ? `${pct}%` : "—"}</p>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{concept.name}: {getMasteryLabel(status, pct)}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
               </div>
+
             )}
             <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
               <div className="flex items-center gap-1.5">
