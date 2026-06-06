@@ -1067,30 +1067,6 @@ const AIChat = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Weekly Quiz Popup Dialog */}
-        <Dialog open={showWeeklyQuizPrompt} onOpenChange={setShowWeeklyQuizPrompt}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-primary" />
-                Weekly Quiz Available
-              </DialogTitle>
-              <DialogDescription>
-                {currentWeek
-                  ? `Week ${currentWeek - 1} is complete! Take a short quiz to test your understanding of recent concepts — it helps us personalize your learning.`
-                  : "A weekly quiz is available to test your understanding of recent concepts."}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="flex gap-2 sm:justify-between">
-              <Button variant="outline" onClick={() => setShowWeeklyQuizPrompt(false)}>
-                Skip & Continue to Chat
-              </Button>
-              <Button onClick={() => { setShowWeeklyQuizPrompt(false); handleStartQuiz(currentWeek ? currentWeek - 1 : 1); }}>
-                Take Quiz
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         {/* Messages */}
         <div className="flex-1 overflow-auto p-4 space-y-4">
