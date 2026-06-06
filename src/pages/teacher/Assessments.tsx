@@ -128,13 +128,23 @@ const Assessments = () => {
     const isTF = formType === "True/False";
     const filteredOptions = isMCQ ? formOptions.filter(o => o.trim()) : null;
     const answer = isMCQ ? (filteredOptions?.[formCorrectIndex] || "") : formAnswer;
+    // Resolve concept_id from topic (concept_code). Required by DB schema + trigger.
+    const { data: conceptRow } = await supabase
+      .from("concepts").select("id").eq("course_id", courseId).eq("concept_code", formTopic).maybeSingle();
+    if (!conceptRow?.id) {
+      setSaving(false);
+      toast.error(`Topic "${formTopic}" must match an existing course concept code.`);
+      return;
+    }
     const row = {
-      course_id: courseId, teacher_id: user.id, mode: formMode, question_type: formType,
+      course_id: courseId, teacher_id: user.id, concept_id: conceptRow.id,
+      mode: formMode, question_type: formType,
       question_text: formQuestion, answer, topic: formTopic, difficulty: "Medium" as const,
       options: isMCQ ? filteredOptions : isTF ? ["True", "False"] : null,
       correct_index: isMCQ ? formCorrectIndex : isTF ? (formAnswer === "True" ? 0 : 1) : null,
       explanation: null as string | null, quiz_day: null as number | null,
     };
+
     try {
       if (editingId) {
         const { error } = await supabase.from("assessment_questions").update(row).eq("id", editingId);
