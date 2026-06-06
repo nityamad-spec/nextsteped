@@ -120,6 +120,60 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [showRegenFromScratchConfirm, setShowRegenFromScratchConfirm] = useState(false);
   const [regeneratingWeekId, setRegeneratingWeekId] = useState<string | null>(null);
   const [confirmRegenWeekId, setConfirmRegenWeekId] = useState<string | null>(null);
+  // Weekly-quiz generation state
+  const [generatingQuizWeek, setGeneratingQuizWeek] = useState<number | null>(null);
+  const [quizGenerated, setQuizGenerated] = useState<Record<number, number>>({});
+
+  // Load count of existing weekly-quiz questions per week
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("assessment_questions")
+        .select("quiz_day")
+        .eq("course_id", courseId)
+        .eq("mode", "daily_quiz");
+      if (cancelled || error || !data) return;
+      const counts: Record<number, number> = {};
+      for (const r of data as { quiz_day: number | null }[]) {
+        if (r.quiz_day == null) continue;
+        counts[r.quiz_day] = (counts[r.quiz_day] ?? 0) + 1;
+      }
+      setQuizGenerated(counts);
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
+
+  const handleGenerateWeeklyQuiz = useCallback(async (week: WeekPlan) => {
+    if (!courseId) {
+      toast({ title: "Course not ready", description: "Reload and try again.", variant: "destructive" });
+      return;
+    }
+    if (!week.concepts || week.concepts.length === 0) {
+      toast({ title: "No concepts", description: "Add at least one concept to this week first.", variant: "destructive" });
+      return;
+    }
+    setGeneratingQuizWeek(week.week);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-weekly-quiz", {
+        body: { course_id: courseId, week_number: week.week },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const count = Number((data as any)?.generated ?? 0);
+      setQuizGenerated((prev) => ({ ...prev, [week.week]: count }));
+      toast({ title: "Weekly quiz generated", description: `${count} questions ready for Week ${week.week}.` });
+    } catch (err: any) {
+      toast({
+        title: "Failed to generate quiz",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingQuizWeek(null);
+    }
+  }, [courseId, toast]);
 
   // ─── Auto-recover / validate course (handles missing or stale localStorage IDs) ───
   useEffect(() => {
