@@ -521,9 +521,21 @@ const ExamMode = () => {
               <Textarea value={formQuestion} onChange={e => setFormQuestion(e.target.value)} placeholder="Enter question text..." rows={3} />
             </div>
             <div className="space-y-2">
-              <Label>Topic</Label>
-              <Input value={formTopic} onChange={e => setFormTopic(e.target.value)} placeholder="e.g. Functions" />
+              <Label>Concept</Label>
+              {concepts.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No concepts yet — add some in Concept Management first.</p>
+              ) : (
+                <Select value={formTopic} onValueChange={setFormTopic}>
+                  <SelectTrigger><SelectValue placeholder="Select a concept" /></SelectTrigger>
+                  <SelectContent>
+                    {concepts.map(c => (
+                      <SelectItem key={c.id} value={c.concept_code}>{c.concept_code} — {c.concept_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
+
             <div className="space-y-2">
               <Label>Question Type</Label>
               <Select value={formType} onValueChange={v => setFormType(v as QuestionType)}>
