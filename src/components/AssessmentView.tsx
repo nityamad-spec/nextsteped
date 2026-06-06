@@ -32,12 +32,16 @@ export interface StandardisedAnswer {
   explanation?: string;
 }
 
+export type ConfidenceLevel = "not_confident" | "somewhat_confident" | "very_confident";
+
 export interface AssessmentResults {
   totalQuestions: number;
   correctAnswers: number;
   score: number;
   answers: StandardisedAnswer[];
   timeSpent: number;
+  confidences: Record<string, ConfidenceLevel>;
+  questionTimes: Record<string, number>;
 }
 
 type Phase = "intro" | "active" | "review";
