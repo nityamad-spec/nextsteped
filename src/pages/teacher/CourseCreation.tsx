@@ -125,6 +125,31 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [generatingQuizWeek, setGeneratingQuizWeek] = useState<number | null>(null);
   const [quizGenerated, setQuizGenerated] = useState<Record<number, number>>({});
   const [reviewQuizWeek, setReviewQuizWeek] = useState<WeekPlan | null>(null);
+  const [quizElapsed, setQuizElapsed] = useState(0);
+
+  const QUIZ_TIERS = ["Standard", "Easy", "Medium", "Hard"] as const;
+  const QUIZ_ESTIMATED_SECONDS = 35;
+
+  // Tick the elapsed timer while a weekly quiz is generating
+  useEffect(() => {
+    if (generatingQuizWeek == null) { setQuizElapsed(0); return; }
+    const start = Date.now();
+    const id = setInterval(() => setQuizElapsed(Math.floor((Date.now() - start) / 1000)), 250);
+    return () => clearInterval(id);
+  }, [generatingQuizWeek]);
+
+  const quizTierStatus = (idx: number): { label: string; pct: number } => {
+    const phase = QUIZ_ESTIMATED_SECONDS / 3;
+    const offset = idx * 1.5;
+    const t = Math.max(0, quizElapsed - offset);
+    if (t < phase) return { label: "Generating questions…", pct: Math.min(40, (t / phase) * 40) };
+    if (t < phase * 2) return { label: "Validating MCQs…", pct: 40 + Math.min(40, ((t - phase) / phase) * 40) };
+    if (t < QUIZ_ESTIMATED_SECONDS) return { label: "Finalizing…", pct: 80 + Math.min(15, ((t - phase * 2) / phase) * 15) };
+    return { label: "Waiting for server…", pct: 95 };
+  };
+  const quizOverallPct = Math.min(95, (quizElapsed / QUIZ_ESTIMATED_SECONDS) * 95);
+  const quizEtaSeconds = Math.max(0, QUIZ_ESTIMATED_SECONDS - quizElapsed);
+
 
   // Load count of existing weekly-quiz questions per week
   useEffect(() => {
