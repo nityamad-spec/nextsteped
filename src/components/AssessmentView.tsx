@@ -558,7 +558,10 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
               <div className="flex items-center justify-between pt-4 pb-8 gap-3">
                 <Button
                   variant="outline"
-                  onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                  onClick={() => {
+                    flushTimeFor(questions[safeIndex]?.id);
+                    setCurrentIndex((i) => Math.max(0, i - 1));
+                  }}
                   disabled={safeIndex === 0}
                   className="gap-2"
                 >
