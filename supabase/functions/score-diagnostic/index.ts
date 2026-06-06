@@ -176,6 +176,7 @@ Deno.serve(async (req) => {
   let correctCount = 0;
   let answeredCount = 0;
   const droppedQuestionIds: string[] = [];
+  const perConceptTally = new Map<string, { attempted: number; correct: number }>();
 
   for (const a of body.answers) {
     const responseStr = (a.selected ?? "").toString();
