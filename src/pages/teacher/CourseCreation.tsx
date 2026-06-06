@@ -1741,7 +1741,39 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                 </span>
                               )}
                             </div>
+
+                            {generatingQuizWeek === w.week && (
+                              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                    <p className="text-xs font-medium">Generating Week {w.week} quiz…</p>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                    <Clock className="h-3 w-3" />
+                                    <span>{quizElapsed}s elapsed · ~{quizEtaSeconds}s remaining</span>
+                                  </div>
+                                </div>
+                                <Progress value={quizOverallPct} className="h-2" />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {QUIZ_TIERS.map((tier, i) => {
+                                    const s = quizTierStatus(i);
+                                    return (
+                                      <div key={tier} className="rounded-md border bg-background/60 px-3 py-2">
+                                        <div className="flex items-center justify-between mb-1.5">
+                                          <span className="text-[11px] font-medium">{tier} tier</span>
+                                          <span className="text-[10px] text-muted-foreground">{Math.round(s.pct)}%</span>
+                                        </div>
+                                        <Progress value={s.pct} className="h-1.5" />
+                                        <p className="text-[10px] text-muted-foreground mt-1">{s.label}</p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </section>
+
 
 
                           {/* Week actions */}
