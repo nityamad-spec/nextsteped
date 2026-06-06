@@ -245,11 +245,7 @@ const AIChat = () => {
 
   useEffect(() => {
     const urlMode = searchParams.get("mode");
-    const urlDay = parseInt(searchParams.get("day") || "1") || 1;
-    if (urlMode === "quiz") {
-      setShowWeeklyQuizPrompt(false);
-      handleStartQuiz(urlDay);
-    } else if (urlMode === "exam") {
+    if (urlMode === "exam") {
       handleStartExam();
     }
   }, []);
