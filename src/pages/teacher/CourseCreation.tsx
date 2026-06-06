@@ -1618,6 +1618,26 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                             )}
                           </section>
 
+                          {/* Weekly Quiz */}
+                          <section className="space-y-3">
+                            <div className="flex items-center gap-2">
+                              <div className="h-5 w-1 rounded-full bg-primary" />
+                              <Label className="text-sm font-semibold">Weekly Quiz</Label>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground -mt-1">
+                              Auto-generated 5-question quiz covering this week's concepts.
+                            </p>
+                            <div className="rounded-lg border bg-background p-3 flex flex-wrap items-center gap-2">
+                              <Button size="sm" variant="default" className="h-8 text-xs gap-1">
+                                <Sparkles className="h-3 w-3" /> Generate Weekly Quiz
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-8 text-xs gap-1">
+                                <FileText className="h-3 w-3" /> View Quiz Questions
+                              </Button>
+                            </div>
+                          </section>
+
+
                           {/* Week actions */}
                           <div className="flex justify-end gap-2 pt-2 border-t">
                             <Button size="sm" variant="ghost" onClick={() => deleteWeek(w.id)} className="h-7 text-xs text-destructive hover:text-destructive">
