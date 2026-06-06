@@ -1625,8 +1625,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                               <Label className="text-sm font-semibold">Weekly Quiz</Label>
                             </div>
                             <p className="text-[11px] text-muted-foreground -mt-1">
-                              Auto-generated 5-question quiz covering this week's concepts.
+                              Auto-generated 10 question quiz covering this week's concepts, 5 questions are standard for all students and 5 are adaptive based on their mastery level.
                             </p>
+
                             <div className="rounded-lg border bg-background p-3 flex flex-wrap items-center gap-2">
                               <Button size="sm" variant="default" className="h-8 text-xs gap-1">
                                 <Sparkles className="h-3 w-3" /> Generate Weekly Quiz
