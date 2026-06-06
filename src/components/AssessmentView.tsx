@@ -93,6 +93,15 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   };
 
   const handleFinish = useCallback(() => {
+    // Flush time on the currently-shown question (quiz mode only meaningful, but harmless either way)
+    const currentQid = questions[Math.min(currentIndex, questions.length - 1)]?.id;
+    const now = Date.now();
+    const elapsed = Math.max(0, Math.round((now - questionStartRef.current) / 1000));
+    const finalTimes: Record<string, number> = { ...questionTimes };
+    if (currentQid) {
+      finalTimes[currentQid] = (finalTimes[currentQid] ?? 0) + elapsed;
+    }
+
     const standardised: StandardisedAnswer[] = questions.map(q => {
       const userAnswer = answers[q.id] || "";
       let isCorrect = false;
@@ -121,6 +130,8 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       score: Math.round((correct / questions.length) * 100),
       answers: standardised,
       timeSpent: timeLimitMinutes * 60 - timeLeft,
+      confidences,
+      questionTimes: finalTimes,
     };
     setResults(res);
     setPhase("review");
@@ -131,7 +142,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     setExpandedQuestions(wrongIndices);
 
     fetchExplanations(standardised);
-  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit]);
+  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, confidences, questionTimes, currentIndex]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
