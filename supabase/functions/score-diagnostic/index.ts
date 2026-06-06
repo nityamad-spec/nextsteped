@@ -148,11 +148,11 @@ Deno.serve(async (req) => {
 
   // Load question metadata for scoring
   const qIds = Array.from(new Set((body.answers.map((a) => a.question_id).filter(Boolean) as string[])));
-  const qMap = new Map<string, { difficulty: number; bloom: number }>();
+  const qMap = new Map<string, { difficulty: number; bloom: number; concept_id: string | null }>();
   if (qIds.length > 0) {
     const { data: qs, error: qErr } = await admin
       .from("diagnostic_questions")
-      .select("id, difficulty_estimate, bloom_level, course_id")
+      .select("id, difficulty_estimate, bloom_level, course_id, concept_id")
       .in("id", qIds)
       .eq("course_id", body.course_id);
     if (qErr) {
@@ -163,6 +163,7 @@ Deno.serve(async (req) => {
       qMap.set(q.id as string, {
         difficulty: Number(q.difficulty_estimate ?? 0.5),
         bloom: Number(q.bloom_level ?? 1),
+        concept_id: (q as { concept_id?: string }).concept_id ?? null,
       });
     }
   }
@@ -175,6 +176,7 @@ Deno.serve(async (req) => {
   let correctCount = 0;
   let answeredCount = 0;
   const droppedQuestionIds: string[] = [];
+  const perConceptTally = new Map<string, { attempted: number; correct: number }>();
 
   for (const a of body.answers) {
     const responseStr = (a.selected ?? "").toString();
@@ -203,6 +205,13 @@ Deno.serve(async (req) => {
     maxSum += maxPoints;
     answeredCount += 1;
     if (isCorrect) correctCount += 1;
+
+    if (meta.concept_id) {
+      const t = perConceptTally.get(meta.concept_id) ?? { attempted: 0, correct: 0 };
+      t.attempted += 1;
+      if (isCorrect) t.correct += 1;
+      perConceptTally.set(meta.concept_id, t);
+    }
 
     // Pace
     const expectedMs =
@@ -262,6 +271,36 @@ Deno.serve(async (req) => {
 
   // Mirror learner level on profile
   await admin.from("profiles").update({ learner_level: learnerLevel }).eq("id", studentId);
+
+  // Fire-and-forget mastery update (concept EMA + derived course mastery).
+  // Failures are logged but never block diagnostic submission.
+  if (perConceptTally.size > 0 && inserted?.id) {
+    try {
+      const masteryUrl = `${SUPABASE_URL}/functions/v1/update-mastery`;
+      const resp = await fetch(masteryUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          course_id: body.course_id,
+          source: "diagnostic",
+          source_id: inserted.id,
+          per_concept: Array.from(perConceptTally.entries()).map(([concept_id, t]) => ({
+            concept_id,
+            attempted: t.attempted,
+            correct: t.correct,
+          })),
+        }),
+      });
+      if (!resp.ok) {
+        console.error("update-mastery non-OK", resp.status, await resp.text());
+      }
+    } catch (e) {
+      console.error("update-mastery call failed", e);
+    }
+  }
 
   return json({
     id: inserted?.id,

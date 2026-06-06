@@ -25,6 +25,40 @@ import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 const WELCOME_LEARNING = "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?";
 const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Configure your practice settings and click **Start Exam** to begin a timed simulation. Good luck!";
 
+async function invokeUpdateMastery(args: {
+  courseId: string;
+  source: "weekly_quiz" | "exam" | "practice";
+  sourceId: string | null;
+  answers: any[];
+}) {
+  try {
+    const tally = new Map<string, { attempted: number; correct: number }>();
+    for (const a of args.answers ?? []) {
+      const code = (a?.topic ?? "").toString().trim();
+      if (!code) continue;
+      const t = tally.get(code) ?? { attempted: 0, correct: 0 };
+      t.attempted += 1;
+      if (a?.is_correct) t.correct += 1;
+      tally.set(code, t);
+    }
+    if (tally.size === 0) return;
+    await supabase.functions.invoke("update-mastery", {
+      body: {
+        course_id: args.courseId,
+        source: args.source,
+        source_id: args.sourceId,
+        per_concept: Array.from(tally.entries()).map(([concept_code, t]) => ({
+          concept_code,
+          attempted: t.attempted,
+          correct: t.correct,
+        })),
+      },
+    });
+  } catch (e) {
+    console.error("update-mastery invoke failed", e);
+  }
+}
+
 const normalizeExamWelcomeMessage = (content: string) => {
   if (!content.includes("**Exam Prep Mode Active**")) return content;
 
@@ -174,7 +208,7 @@ const AIChat = () => {
   const handlePracticeResult = async (result: { score: number; totalQuestions: number; correctAnswers: number; answers: any[]; timeSpent: number }) => {
     if (!user || !enrolledCourseId) return;
     try {
-      await supabase.from("assessment_results").insert({
+      const { data: inserted } = await supabase.from("assessment_results").insert({
         student_id: user.id,
         course_id: enrolledCourseId,
         mode: "practice",
@@ -183,6 +217,13 @@ const AIChat = () => {
         correct_answers: result.correctAnswers,
         answers: result.answers as any,
         time_spent: result.timeSpent,
+      }).select("id").single();
+
+      void invokeUpdateMastery({
+        courseId: enrolledCourseId,
+        source: "practice",
+        sourceId: inserted?.id ?? null,
+        answers: result.answers,
       });
 
       if (activeChat) {
@@ -500,7 +541,7 @@ const AIChat = () => {
 
     // Persist structured results to database
     if (user) {
-      const { error } = await supabase.from("assessment_results").insert({
+      const { data: insertedAssessment, error } = await supabase.from("assessment_results").insert({
         student_id: user.id,
         course_id: enrolledCourseId || undefined,
         mode: assessmentType === "quiz" ? "daily_quiz" : "exam",
@@ -510,9 +551,16 @@ const AIChat = () => {
         correct_answers: results.correctAnswers,
         answers: (results.answers ?? []) as unknown as import("@/integrations/supabase/types").Json,
         time_spent: results.timeSpent ?? 0,
-      });
+      }).select("id").single();
       if (error) {
         console.error("Failed to save assessment results:", error);
+      } else if (enrolledCourseId) {
+        void invokeUpdateMastery({
+          courseId: enrolledCourseId,
+          source: assessmentType === "quiz" ? "weekly_quiz" : "exam",
+          sourceId: insertedAssessment?.id ?? null,
+          answers: results.answers ?? [],
+        });
       }
     }
 

@@ -1,79 +1,76 @@
-# Mastery Tracking Schema
+# Mastery Update Formula
 
-Two new tables to track each student's mastery at both the **course level** (single overall score per course) and the **concept level** (one score per concept in that course). Both are upserted whenever a new signal arrives (diagnostic submission, weekly quiz, exam, practice).
+## Decision
+- **Concept mastery** → updated with **Exponential Moving Average (EMA)** per new signal.
+- **Course mastery** → **derived**, never blended directly. Recomputed as the weighted average of that student's concept mastery rows using `concepts.weight`.
 
-## Tables
+## Concept EMA
 
-### 1. `student_course_mastery`
-One row per `(student_id, course_id)`. Holds the latest overall course mastery.
+For each `(student, course, concept)` row, when a new signal arrives:
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid PK | |
-| `student_id` | uuid NOT NULL | references `auth.users` |
-| `course_id` | uuid NOT NULL | references `courses(id)` ON DELETE CASCADE |
-| `mastery_score` | numeric(5,4) NOT NULL | 0.0000–1.0000 |
-| `learner_level` | text NOT NULL | `beginner` \| `developing` \| `proficient` \| `expert` |
-| `accuracy_component` | numeric(5,4) | latest breakdown for transparency |
-| `pace_component` | numeric(5,4) | |
-| `confidence_component` | numeric(5,4) | |
-| `last_source` | text | `diagnostic` \| `weekly_quiz` \| `exam` \| `practice` |
-| `last_source_id` | uuid | id of the row that triggered the update |
-| `sample_count` | int NOT NULL default 0 | number of contributing assessments |
-| `created_at` / `updated_at` | timestamptz | |
+```text
+signal     = correct_in_concept / attempted_in_concept   // 0..1 from this assessment
+α (alpha)  = 0.4                                          // weight of the new signal
+new_score  = α * signal + (1 - α) * old_score             // EMA
+```
 
-UNIQUE `(student_id, course_id)`.
+Special cases:
+- **First ever signal** for a concept (`sample_count = 0`): `new_score = signal` (no prior to blend).
+- **Diagnostic** seeds the row with `signal` directly and sets `sample_count = 1`.
+- Every update also increments `sample_count`, sets `last_source`, `last_source_id`, `last_assessed_at`, and adds to `questions_attempted` / `questions_correct` (lifetime counters, independent of EMA).
+- `mastery_level` recomputed from `new_score` using the same 4 bands already defined in `score-diagnostic` (`beginner` <0.25, `developing` <0.50, `proficient` <0.75, `expert` ≤1.0). Stored but hidden in UI.
 
-### 2. `student_concept_mastery`
-One row per `(student_id, course_id, concept_id)`.
+**Why α = 0.4:** responsive enough that 2–3 recent assessments dominate, but a single bad quiz won't crater a previously strong concept. Tunable in one constant.
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid PK | |
-| `student_id` | uuid NOT NULL | |
-| `course_id` | uuid NOT NULL | FK courses, CASCADE |
-| `concept_id` | uuid NOT NULL | FK `concepts(id)`, CASCADE |
-| `concept_code` | text NOT NULL | denormalized for fast reads |
-| `mastery_score` | numeric(5,4) NOT NULL | 0–1 |
-| `mastery_level` | text NOT NULL | same 4-tier scale (hidden in UI per memory) |
-| `questions_attempted` | int NOT NULL default 0 | |
-| `questions_correct` | int NOT NULL default 0 | |
-| `last_source` | text | |
-| `last_source_id` | uuid | |
-| `last_assessed_at` | timestamptz | |
-| `created_at` / `updated_at` | timestamptz | |
+## Course mastery (derived)
 
-UNIQUE `(student_id, course_id, concept_id)`.
+After any concept row(s) change for a student in a course:
 
-## Indexes
-- `student_course_mastery (course_id)` — teacher dashboards.
-- `student_concept_mastery (course_id, concept_id)` — class-wide heatmap.
-- `student_concept_mastery (student_id, course_id)` — student dashboard.
+```text
+course_score = Σ (concept.mastery_score * concept.weight)
+             / Σ (concept.weight)
+```
 
-## RLS & Grants
-- `GRANT SELECT, INSERT, UPDATE ON ... TO authenticated; GRANT ALL ... TO service_role;`
-- Policies:
-  - Student can `SELECT` rows where `student_id = auth.uid()`.
-  - Teachers (course owner or in `course_teachers`) can `SELECT` any row where `course_id` is theirs (via `is_course_member`).
-  - Admin via `is_admin(auth.uid())` full access.
-  - Writes restricted to `service_role` — all updates flow through edge functions, never the client.
+over all rows in `student_concept_mastery` for that `(student, course)`. Concepts the student hasn't been assessed on yet are simply excluded from the sum (no zero-fill — that would unfairly drag the score down early).
 
-## Update flow (no code in this plan, only contract)
-Edge functions perform an **upsert** on these tables:
+Then:
+- `student_course_mastery.mastery_score = course_score`
+- `learner_level` = band from `course_score`
+- `accuracy_component` = `course_score` (same value; pace/confidence kept only for diagnostic, set to NULL on derived updates)
+- `last_source` / `last_source_id` = whatever triggered the recompute
+- `sample_count` = count of concept rows contributing to the sum
 
-- `score-diagnostic` → seeds both: course row from overall mastery; concept rows aggregated from diagnostic answers grouped by `concept_id`.
-- `assessment_results` writes (weekly quiz / exam) → a follow-up step (either inline in the submission edge function or a new `update-mastery` function) recomputes per-concept scores from that result and blends them into existing rows using a **decayed running average**:
-  ```text
-  new = (old * old_n + signal * signal_n) / (old_n + signal_n)
-  ```
-  with optional recency weighting (newer assessments weighted higher). Course mastery = weighted average of concept masteries using `concepts.weight`.
+## Where this lives
 
-The decay/blend formula and exact recompute trigger points are out of scope for this schema plan and will be designed in a follow-up.
+A new edge function **`update-mastery`** owns both steps:
 
-## Migration scope
-Single migration: create both tables + grants + RLS + policies + `updated_at` triggers + indexes. No backfill — first diagnostic / assessment after deploy populates rows.
+1. Input: `{ student_id, course_id, source, source_id, per_concept: [{ concept_id, attempted, correct }] }`
+2. For each concept in `per_concept`: upsert `student_concept_mastery` using EMA above.
+3. Recompute course row from all concept rows for that student/course.
+4. All writes via `service_role` (RLS keeps clients out).
 
-## Open questions
-1. **Backfill existing students?** Replay current `diagnostic_results` + `assessment_results` to seed the new tables, or start fresh from next assessment only?
-2. **Concept mastery from diagnostic** — diagnostic questions are linked via `diagnostic_questions.concept_id`; confirm we want per-concept rows seeded from the diagnostic, or course-level only at diagnostic time and concept rows only after quizzes/exams begin.
-3. **Blend formula** — simple running average vs. exponential decay (e.g. weight = 0.7·new + 0.3·old)? Affects how fast mastery moves.
+Called from:
+- `score-diagnostic` → after inserting `diagnostic_results`, group answers by `concept_id` (via `diagnostic_questions.concept_id`) and call `update-mastery`. Diagnostic case uses `signal` directly (no prior).
+- Assessment submission path (weekly quiz / exam) → after writing `assessment_results`, group questions by `concept_id` from `assessment_questions` and call `update-mastery`.
+
+## Tuning constants (single source of truth in `update-mastery`)
+
+```ts
+const MASTERY_CONFIG = {
+  EMA_ALPHA: 0.4,
+  LEVEL_BANDS: [
+    { max: 0.25,   level: "beginner" },
+    { max: 0.50,   level: "developing" },
+    { max: 0.75,   level: "proficient" },
+    { max: 1.0001, level: "expert" },
+  ],
+} as const;
+```
+
+## Out of scope for this step
+- Backfill of existing diagnostic/assessment rows (still open question — default: start fresh).
+- Recency decay on concept rows older than X weeks (can layer on later by shrinking `old_score` toward 0.5 before EMA; not needed for v1).
+- Time/confidence components in concept EMA — kept accuracy-only for clarity; diagnostic still records its richer breakdown on the course row at seed time.
+
+## Migration impact
+None. Schema from the previous migration already supports this. Only new code: the `update-mastery` edge function plus two call sites.
