@@ -268,9 +268,33 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             />
           </div>
         )}
+
+        {/* Confidence selector */}
+        <div className="pt-2 border-t">
+          <p className="text-xs font-medium text-muted-foreground mb-2">How confident are you in this answer?</p>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { v: "not_confident", label: "Not confident" },
+              { v: "somewhat_confident", label: "Somewhat" },
+              { v: "very_confident", label: "Very confident" },
+            ] as { v: ConfidenceLevel; label: string }[]).map(opt => (
+              <Button
+                key={opt.v}
+                type="button"
+                size="sm"
+                variant={confidences[q.id] === opt.v ? "default" : "outline"}
+                className="text-xs h-8"
+                onClick={() => setConfidences(prev => ({ ...prev, [q.id]: opt.v }))}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
+
 
   // Intro screen
   if (phase === "intro") {
