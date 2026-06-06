@@ -1,34 +1,20 @@
-# Weekly Quiz: Confidence + Per-Question Time
+# Gate confidence selector on having an answer
 
-The `assessment_results` table already has `confidences` and `question_times` (jsonb) columns from the recent migration aligning it with `diagnostic_results`. No schema changes needed — purely frontend wiring.
+In `src/components/AssessmentView.tsx`, the per-question confidence buttons (Not confident / Somewhat / Very confident) currently render and are clickable regardless of whether the student has answered.
 
-## Changes
+## Change
 
-### 1. `src/components/AssessmentView.tsx`
-- Add state:
-  - `confidences: Record<string, "not_confident" | "somewhat_confident" | "very_confident">`
-  - `questionTimes: Record<string, number>` (seconds spent on each question)
-  - `questionStartRef` (ref tracking when current question was shown)
-- In `renderQuestionCard`, below the answer input, render a "How confident are you?" selector with three buttons (Not confident / Somewhat / Very). Selecting one updates `confidences[q.id]`.
-- Track time per question: when `currentIndex` changes (or question first shown), record start timestamp. When user moves to next/prev, finishes, or submits, accumulate elapsed seconds into `questionTimes[currentQuestion.id]`.
-- Extend `AssessmentResults` interface with:
-  - `confidences: Record<string, string>`
-  - `questionTimes: Record<string, number>`
-- Include both in the object passed to `onSubmit` in `handleFinish`.
-- Quiz Submit button stays enabled even if confidence not picked (optional), but show a subtle hint. (Default behavior: optional, stored as null/omitted for unanswered.)
+In `renderQuestionCard`, compute `hasAnswer` from `answers[q.id]`:
+- For `short_answer` / `problem_solving`: `answers[q.id]?.trim().length > 0`
+- For `mcq` / `true_false`: `!!answers[q.id]`
 
-### 2. `src/components/WeeklyQuizDialog.tsx`
-- In `handleSubmit`, include `confidences: results.confidences` and `question_times: results.questionTimes` in the `assessment_results` insert payload (cast via `Json`).
+Then in the confidence block:
+- Disable all three buttons when `!hasAnswer`.
+- When `!hasAnswer`, also clear any previously-set confidence for that question (so flipping an answer back to empty wipes the stale confidence) — handled by gating `setConfidences` behind `hasAnswer`, and on answer-clear we remove the entry.
+- Helper text changes: when no answer, show "Answer the question to rate your confidence." instead of "How confident are you in this answer?"
 
-### 3. Test
-- Update `src/components/WeeklyQuizDialog.test.tsx` expectations only if the new fields cause failure (the current `toMatchObject` won't fail since it allows extras — no change needed).
-
-## Storage shape
-- `confidences`: `{ "<question_id>": "not_confident" | "somewhat_confident" | "very_confident" }`
-- `question_times`: `{ "<question_id>": <seconds:number> }`
-
-Matches how diagnostic flow stores them.
+To keep state consistent if a student clears a text answer, update `handleAnswer` to delete `confidences[questionId]` when the new answer is empty.
 
 ## Out of scope
-- Exam mode (only weekly quiz per request, but since AssessmentView is shared, exam will also collect them; ExamMode's submit handler is unchanged so they just won't be persisted there).
-- Any analytics/dashboard surfacing of the new data.
+- Exam mode (uses the same component but request is weekly-quiz-specific; behavior change is harmless there and keeps a single code path).
+- Any submit-button gating beyond the existing "must answer at least one" rule.
