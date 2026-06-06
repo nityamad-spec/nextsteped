@@ -1684,12 +1684,28 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
 
 
                             <div className="rounded-lg border bg-background p-3 flex flex-wrap items-center gap-2">
-                              <Button size="sm" variant="default" className="h-8 text-xs gap-1">
-                                <Sparkles className="h-3 w-3" /> Generate Weekly Quiz
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="h-8 text-xs gap-1"
+                                onClick={() => handleGenerateWeeklyQuiz(w)}
+                                disabled={generatingQuizWeek === w.week}
+                              >
+                                {generatingQuizWeek === w.week ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Sparkles className="h-3 w-3" />
+                                )}
+                                {quizGenerated[w.week] > 0 ? "Regenerate Weekly Quiz" : "Generate Weekly Quiz"}
                               </Button>
-                              <Button size="sm" variant="outline" className="h-8 text-xs gap-1">
+                              <Button size="sm" variant="outline" className="h-8 text-xs gap-1" disabled>
                                 <FileText className="h-3 w-3" /> View Quiz Questions
                               </Button>
+                              {quizGenerated[w.week] > 0 && (
+                                <span className="text-[11px] text-muted-foreground ml-1">
+                                  {quizGenerated[w.week]} questions ready
+                                </span>
+                              )}
                             </div>
                           </section>
 
