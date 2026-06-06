@@ -277,28 +277,42 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
           </div>
         )}
 
-        {/* Confidence selector */}
-        <div className="pt-2 border-t">
-          <p className="text-xs font-medium text-muted-foreground mb-2">How confident are you in this answer?</p>
-          <div className="grid grid-cols-3 gap-2">
-            {([
-              { v: "not_confident", label: "Not confident" },
-              { v: "somewhat_confident", label: "Somewhat" },
-              { v: "very_confident", label: "Very confident" },
-            ] as { v: ConfidenceLevel; label: string }[]).map(opt => (
-              <Button
-                key={opt.v}
-                type="button"
-                size="sm"
-                variant={confidences[q.id] === opt.v ? "default" : "outline"}
-                className="text-xs h-8"
-                onClick={() => setConfidences(prev => ({ ...prev, [q.id]: opt.v }))}
-              >
-                {opt.label}
-              </Button>
-            ))}
-          </div>
-        </div>
+        {/* Confidence selector — gated on having an answer */}
+        {(() => {
+          const raw = answers[q.id];
+          const hasAnswer = typeof raw === "string" && raw.trim().length > 0;
+          return (
+            <div className="pt-2 border-t">
+              <p className="text-xs font-medium text-muted-foreground mb-2">
+                {hasAnswer
+                  ? "How confident are you in this answer?"
+                  : "Answer the question to rate your confidence."}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { v: "not_confident", label: "Not confident" },
+                  { v: "somewhat_confident", label: "Somewhat" },
+                  { v: "very_confident", label: "Very confident" },
+                ] as { v: ConfidenceLevel; label: string }[]).map(opt => (
+                  <Button
+                    key={opt.v}
+                    type="button"
+                    size="sm"
+                    variant={confidences[q.id] === opt.v ? "default" : "outline"}
+                    className="text-xs h-8"
+                    disabled={!hasAnswer}
+                    onClick={() => {
+                      if (!hasAnswer) return;
+                      setConfidences(prev => ({ ...prev, [q.id]: opt.v }));
+                    }}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </CardContent>
     </Card>
   );
