@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
 
   // Load question metadata for scoring
   const qIds = Array.from(new Set((body.answers.map((a) => a.question_id).filter(Boolean) as string[])));
-  const qMap = new Map<string, { difficulty: number; bloom: number }>();
+  const qMap = new Map<string, { difficulty: number; bloom: number; concept_id: string | null }>();
   if (qIds.length > 0) {
     const { data: qs, error: qErr } = await admin
       .from("diagnostic_questions")
