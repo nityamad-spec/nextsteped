@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Question } from "@/data/questionBank";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
