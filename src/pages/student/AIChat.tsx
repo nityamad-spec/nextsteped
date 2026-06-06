@@ -541,7 +541,7 @@ const AIChat = () => {
 
     // Persist structured results to database
     if (user) {
-      const { error } = await supabase.from("assessment_results").insert({
+      const { data: insertedAssessment, error } = await supabase.from("assessment_results").insert({
         student_id: user.id,
         course_id: enrolledCourseId || undefined,
         mode: assessmentType === "quiz" ? "daily_quiz" : "exam",
@@ -551,9 +551,16 @@ const AIChat = () => {
         correct_answers: results.correctAnswers,
         answers: (results.answers ?? []) as unknown as import("@/integrations/supabase/types").Json,
         time_spent: results.timeSpent ?? 0,
-      });
+      }).select("id").single();
       if (error) {
         console.error("Failed to save assessment results:", error);
+      } else if (enrolledCourseId) {
+        void invokeUpdateMastery({
+          courseId: enrolledCourseId,
+          source: assessmentType === "quiz" ? "weekly_quiz" : "exam",
+          sourceId: insertedAssessment?.id ?? null,
+          answers: results.answers ?? [],
+        });
       }
     }
 
