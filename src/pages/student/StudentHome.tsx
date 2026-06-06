@@ -456,19 +456,41 @@ const StudentHome = () => {
                           );
                         })()}
 
-                        {/* Weekly Quiz option */}
-                        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <ClipboardCheck className="h-4 w-4 text-primary" />
-                            <div>
-                              <p className="text-sm font-medium">Week {dp.day} Quiz</p>
-                              <p className="text-xs text-muted-foreground">Optional — helps you track your understanding</p>
+                        {/* Weekly Quiz option — one attempt per week */}
+                        {(() => {
+                          const taken = takenQuizzes[dp.day];
+                          return (
+                            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <ClipboardCheck className="h-4 w-4 text-primary" />
+                                <div>
+                                  <p className="text-sm font-medium">Week {dp.day} Quiz</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {taken
+                                      ? `Completed — ${taken.score}%`
+                                      : "Optional — one attempt only"}
+                                  </p>
+                                </div>
+                              </div>
+                              {taken ? (
+                                <Button size="sm" variant="outline" disabled>
+                                  Quiz completed
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    if (takenQuizzes[dp.day]) return;
+                                    setQuizDialog({ open: true, day: dp.day });
+                                  }}
+                                >
+                                  Take Quiz
+                                </Button>
+                              )}
                             </div>
-                          </div>
-                          <Button size="sm" variant="outline" onClick={() => setQuizDialog({ open: true, day: dp.day })}>
-                            Take Quiz
-                          </Button>
-                        </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
