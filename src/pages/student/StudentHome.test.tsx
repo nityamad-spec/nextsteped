@@ -122,9 +122,12 @@ vi.mock("@/integrations/supabase/client", () => ({
 const renderHome = () =>
   render(
     <MemoryRouter>
-      <StudentHome />
+      <TooltipProvider>
+        <StudentHome />
+      </TooltipProvider>
     </MemoryRouter>,
   );
+
 
 const getTile = (label: string) => screen.getByText(label).closest("div")!;
 
