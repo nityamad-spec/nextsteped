@@ -396,7 +396,7 @@ const StudentHome = () => {
                               <p className="text-xs text-muted-foreground">Optional — helps you track your understanding</p>
                             </div>
                           </div>
-                          <Button size="sm" variant="outline" onClick={() => navigate(`/student/chat?mode=quiz&day=${dp.day}`)}>
+                          <Button size="sm" variant="outline" onClick={() => setQuizDialog({ open: true, day: dp.day })}>
                             Take Quiz
                           </Button>
                         </div>
