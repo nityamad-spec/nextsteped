@@ -19,6 +19,18 @@ interface AssessmentViewProps {
   onEnd: () => void;
   onSubmit: (results: AssessmentResults) => void;
   onStudyTopics?: (topics: string[]) => void;
+  /** Skip the intro screen and jump straight to active/review. */
+  initialPhase?: "intro" | "active";
+  /** Start the active phase at this question index (e.g. mid-quiz resume). */
+  initialIndex?: number;
+  /** Pre-filled answers keyed by question id (e.g. carried over from Phase A). */
+  initialAnswers?: Record<string, string>;
+  /** Pre-filled confidences keyed by question id. */
+  initialConfidences?: Record<string, ConfidenceLevel>;
+  /** Pre-filled per-question time (seconds) keyed by question id. */
+  initialQuestionTimes?: Record<string, number>;
+  /** Optional override for the intro screen title. */
+  introTitle?: string;
 }
 
 export interface StandardisedAnswer {
@@ -46,17 +58,31 @@ export interface AssessmentResults {
 
 type Phase = "intro" | "active" | "review";
 
-const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics }: AssessmentViewProps) => {
-  const [phase, setPhase] = useState<Phase>("intro");
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+const AssessmentView = ({
+  type,
+  questions,
+  timeLimitMinutes,
+  day,
+  onEnd,
+  onSubmit,
+  onStudyTopics,
+  initialPhase = "intro",
+  initialIndex = 0,
+  initialAnswers,
+  initialConfidences,
+  initialQuestionTimes,
+  introTitle,
+}: AssessmentViewProps) => {
+  const [phase, setPhase] = useState<Phase>(initialPhase);
+  const [answers, setAnswers] = useState<Record<string, string>>(initialAnswers ?? {});
   const [timeLeft, setTimeLeft] = useState(timeLimitMinutes * 60);
   const [results, setResults] = useState<AssessmentResults | null>(null);
   const [explanations, setExplanations] = useState<Record<number, string>>({});
   const [loadingExplanations, setLoadingExplanations] = useState(false);
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [confidences, setConfidences] = useState<Record<string, ConfidenceLevel>>({});
-  const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [confidences, setConfidences] = useState<Record<string, ConfidenceLevel>>(initialConfidences ?? {});
+  const [questionTimes, setQuestionTimes] = useState<Record<string, number>>(initialQuestionTimes ?? {});
   const questionStartRef = useRef<number>(Date.now());
 
   // Helper: flush elapsed time onto a question id
@@ -68,10 +94,18 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     setQuestionTimes(prev => ({ ...prev, [qid]: (prev[qid] ?? 0) + elapsed }));
   }, []);
 
-  // Reset pagination when (re)entering active phase
+  // Reset pagination when (re)entering active phase, but respect initialIndex
+  // on the very first mount so callers can resume mid-quiz (e.g. weekly quiz
+  // Phase B starting at index 5).
+  const didInitRef = useRef(false);
   useEffect(() => {
     if (phase === "active") {
-      setCurrentIndex(0);
+      if (!didInitRef.current) {
+        // First time entering active: keep the initialIndex already set above.
+        didInitRef.current = true;
+      } else {
+        setCurrentIndex(0);
+      }
       questionStartRef.current = Date.now();
     }
   }, [phase]);
@@ -328,7 +362,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
               {isQuiz ? <ClipboardList className="h-7 w-7 text-primary" /> : <GraduationCap className="h-7 w-7 text-primary" />}
             </div>
             <CardTitle className="text-xl">
-              {isQuiz ? `Daily Quiz — Day ${day || 1}` : "Exam Practice Simulation"}
+              {introTitle ?? (isQuiz ? `Daily Quiz — Day ${day || 1}` : "Exam Practice Simulation")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-center">

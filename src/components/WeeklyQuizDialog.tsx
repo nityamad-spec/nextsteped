@@ -1,11 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { seededShuffle } from "@/lib/seededShuffle";
 import { getQuizQuestions, Question } from "@/data/questionBank";
-import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
+import AssessmentView, { AssessmentResults, ConfidenceLevel } from "@/components/AssessmentView";
+import {
+  WQ_STANDARD_COUNT,
+  WQ_ADAPTIVE_COUNT,
+  pickWeeklyBranchTier,
+  computeWeeklyLearnerLevel,
+  type WqBranchTier,
+} from "@/lib/weeklyQuizBranching";
 import type { Json } from "@/integrations/supabase/types";
 
 interface Props {
@@ -14,8 +21,30 @@ interface Props {
   courseId: string | null;
   studentId: string | null;
   day: number | null;
+  /** Ignored — adaptive flow always uses 5 + 5 = 10 questions. */
   numQuestions?: number;
   timeLimitMinutes?: number;
+}
+
+type Buckets = Record<"standard" | WqBranchTier, Question[]>;
+
+function mapRowToQuestion(row: any): Question {
+  return {
+    id: row.id,
+    text: row.question_text,
+    type: (row.question_type === "MCQ"
+      ? "mcq"
+      : row.question_type === "Problem Solving"
+      ? "problem_solving"
+      : row.question_type === "True/False"
+      ? "true_false"
+      : "short_answer") as Question["type"],
+    options: row.options as string[] | undefined,
+    correctAnswer: row.answer,
+    topic: row.topic,
+    difficulty: row.difficulty as "Easy" | "Medium" | "Hard",
+    day: row.quiz_day || 0,
+  };
 }
 
 async function invokeUpdateMastery(args: {
@@ -52,30 +81,41 @@ async function invokeUpdateMastery(args: {
   }
 }
 
+type Phase = "loading" | "phaseA" | "branching" | "phaseB" | "submitted";
+
 const WeeklyQuizDialog = ({
   open,
   onOpenChange,
   courseId,
   studentId,
   day,
-  numQuestions = 5,
   timeLimitMinutes = 10,
 }: Props) => {
-  const [loading, setLoading] = useState(false);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [submitted, setSubmitted] = useState(false);
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [buckets, setBuckets] = useState<Buckets | null>(null);
+  /** Fallback (no tiered questions in DB) — use static bank, single pass. */
+  const [fallbackQuestions, setFallbackQuestions] = useState<Question[] | null>(null);
+  const [phaseAQuestions, setPhaseAQuestions] = useState<Question[]>([]);
+  const [phaseAResult, setPhaseAResult] = useState<AssessmentResults | null>(null);
+  const [phaseBQuestions, setPhaseBQuestions] = useState<Question[]>([]);
+  const [chosenTier, setChosenTier] = useState<WqBranchTier | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Reset + fetch on open
   useEffect(() => {
     if (!open || !courseId || !day) return;
     let cancelled = false;
-    setLoading(true);
-    setSubmitted(false);
-    setQuestions([]);
+    setPhase("loading");
+    setBuckets(null);
+    setFallbackQuestions(null);
+    setPhaseAQuestions([]);
+    setPhaseAResult(null);
+    setPhaseBQuestions([]);
+    setChosenTier(null);
+    setError(null);
 
     (async () => {
-      let qs: Question[] = [];
       const { data, error } = await supabase
         .from("assessment_questions")
         .select("*")
@@ -83,40 +123,104 @@ const WeeklyQuizDialog = ({
         .eq("mode", "daily_quiz")
         .eq("quiz_day", day);
 
-      if (!error && data && data.length > 0) {
-        qs = data.map((row: any) => ({
-          id: row.id,
-          text: row.question_text,
-          type: (row.question_type === "MCQ"
-            ? "mcq"
-            : row.question_type === "Problem Solving"
-            ? "problem_solving"
-            : row.question_type === "True/False"
-            ? "true_false"
-            : "short_answer") as Question["type"],
-          options: row.options as string[] | undefined,
-          correctAnswer: row.answer,
-          topic: row.topic,
-          difficulty: row.difficulty as "Easy" | "Medium" | "Hard",
-          day: row.quiz_day || 0,
-        }));
-        const seed = (studentId || "anon") + courseId;
-        qs = seededShuffle(qs, seed).slice(0, Math.min(numQuestions, qs.length));
-      } else {
-        qs = getQuizQuestions(day, numQuestions);
-      }
       if (cancelled) return;
-      setQuestions(qs);
-      setLoading(false);
+
+      if (error || !data || data.length === 0) {
+        // Fallback to the static local bank — no adaptive routing possible.
+        const qs = getQuizQuestions(day, WQ_STANDARD_COUNT + WQ_ADAPTIVE_COUNT);
+        setFallbackQuestions(qs);
+        setPhaseAQuestions(qs);
+        setPhase("phaseA");
+        return;
+      }
+
+      // Bucket by tier; fall back to "standard" for missing tier values.
+      const seed = (studentId || "anon") + courseId + ":" + day;
+      const b: Buckets = { standard: [], easy: [], medium: [], hard: [] };
+      for (const row of data as any[]) {
+        const tier: keyof Buckets = (row.tier === "easy" || row.tier === "medium" || row.tier === "hard")
+          ? row.tier
+          : "standard";
+        b[tier].push(mapRowToQuestion(row));
+      }
+      // Seeded shuffle each bucket so order is stable per student.
+      (Object.keys(b) as (keyof Buckets)[]).forEach((k) => {
+        b[k] = seededShuffle(b[k], seed + ":" + k);
+      });
+
+      if (b.standard.length === 0) {
+        setError("This quiz isn't ready yet — your professor hasn't generated questions for this week.");
+        setPhase("phaseA"); // will show empty state via questions.length === 0 path
+        return;
+      }
+
+      // If there's no adaptive bank (easy/medium/hard all empty), treat as
+      // single-pass fallback — Phase A submission becomes the final submission.
+      const adaptiveTotal = b.easy.length + b.medium.length + b.hard.length;
+      if (adaptiveTotal === 0) {
+        const pool = b.standard.slice(0, WQ_STANDARD_COUNT + WQ_ADAPTIVE_COUNT);
+        setFallbackQuestions(pool);
+        setPhaseAQuestions(pool);
+        setPhase("phaseA");
+        return;
+      }
+
+      setBuckets(b);
+      setPhaseAQuestions(b.standard.slice(0, WQ_STANDARD_COUNT));
+      setPhase("phaseA");
     })();
 
     return () => { cancelled = true; };
-  }, [open, courseId, day, studentId, numQuestions]);
+  }, [open, courseId, day, studentId]);
 
-  const handleSubmit = async (results: AssessmentResults) => {
-    setSubmitted(true);
+  // Build Phase B once branching is chosen.
+  useEffect(() => {
+    if (phase !== "branching" || !buckets || !chosenTier || !phaseAResult) return;
+    // Pick Phase B questions from chosen tier; if too few, fall back medium → easy → hard.
+    const order: WqBranchTier[] = [chosenTier, "medium", "easy", "hard"];
+    let chosen: Question[] = [];
+    for (const t of order) {
+      const pool = buckets[t] || [];
+      if (pool.length >= WQ_ADAPTIVE_COUNT) {
+        chosen = pool.slice(0, WQ_ADAPTIVE_COUNT);
+        break;
+      }
+      if (chosen.length === 0 && pool.length > 0) chosen = pool.slice(0, WQ_ADAPTIVE_COUNT);
+    }
+    setPhaseBQuestions(chosen);
+    setPhase("phaseB");
+  }, [phase, buckets, chosenTier, phaseAResult]);
+
+  // Phase A submit — DON'T persist; compute branch and advance to Phase B.
+  const handlePhaseASubmit = (results: AssessmentResults) => {
+    setPhaseAResult(results);
+    // Fallback mode (no tiered bank) — treat Phase A submission as the final
+    // submission and persist a single 5-question result.
+    if (fallbackQuestions) {
+      void persistFinalResult(results, null);
+      setPhase("submitted");
+      return;
+    }
+    const tier = pickWeeklyBranchTier(results.correctAnswers);
+    setChosenTier(tier);
+    setPhase("branching");
+  };
+
+  // Phase B submit — combine and persist.
+  const handlePhaseBSubmit = (combined: AssessmentResults) => {
+    // `combined` already contains all answered questions (we passed all 10 to
+    // Phase B with Phase A's answers pre-filled), so scoring is over the full set.
+    void persistFinalResult(combined, chosenTier);
+    setPhase("submitted");
+  };
+
+  const persistFinalResult = async (results: AssessmentResults, branchTier: WqBranchTier | null) => {
     if (!studentId || !courseId || !day) return;
     try {
+      const masteryScore = results.totalQuestions > 0
+        ? results.correctAnswers / results.totalQuestions
+        : 0;
+      const learnerLevel = computeWeeklyLearnerLevel(results.correctAnswers, results.totalQuestions);
       const { data: inserted, error } = await supabase
         .from("assessment_results")
         .insert({
@@ -131,6 +235,9 @@ const WeeklyQuizDialog = ({
           time_spent: results.timeSpent ?? 0,
           confidences: (results.confidences ?? {}) as unknown as Json,
           question_times: (results.questionTimes ?? {}) as unknown as Json,
+          branch_tier: branchTier,
+          mastery_score: masteryScore,
+          learner_level: learnerLevel,
         })
         .select("id")
         .single();
@@ -149,23 +256,37 @@ const WeeklyQuizDialog = ({
     }
   };
 
-  const handleEnd = () => {
-    // AssessmentView calls onEnd from intro (cancel) or review (close) phases
-    onOpenChange(false);
-  };
+  const handleEnd = () => onOpenChange(false);
 
   const requestClose = (next: boolean) => {
     if (next) {
       onOpenChange(true);
       return;
     }
-    // Trying to close
-    if (!submitted && questions.length > 0 && !loading) {
-      setConfirmLeave(true);
-      return;
+    // Trying to close mid-quiz
+    if (phase === "phaseA" || phase === "phaseB" || phase === "branching") {
+      const hasStarted = phaseAQuestions.length > 0;
+      if (hasStarted) {
+        setConfirmLeave(true);
+        return;
+      }
     }
     onOpenChange(false);
   };
+
+  // Build the combined 10-question array for Phase B mount, with Phase A answers
+  // carried over so the final review renders all 10.
+  const phaseBMount = useMemo(() => {
+    if (phase !== "phaseB" || !phaseAResult) return null;
+    const all = [...phaseAQuestions, ...phaseBQuestions];
+    const initialAnswers: Record<string, string> = {};
+    const initialConfidences: Record<string, ConfidenceLevel> = { ...(phaseAResult.confidences || {}) };
+    const initialQuestionTimes: Record<string, number> = { ...(phaseAResult.questionTimes || {}) };
+    for (const a of phaseAResult.answers || []) {
+      if (a.selected) initialAnswers[a.question_id] = a.selected;
+    }
+    return { all, initialAnswers, initialConfidences, initialQuestionTimes };
+  }, [phase, phaseAResult, phaseAQuestions, phaseBQuestions]);
 
   return (
     <>
@@ -173,39 +294,67 @@ const WeeklyQuizDialog = ({
         <DialogContent
           className="max-w-4xl w-[95vw] h-[90vh] p-0 overflow-hidden flex flex-col"
           onInteractOutside={(e) => {
-            if (!submitted && questions.length > 0) e.preventDefault();
+            if (phase === "phaseA" || phase === "phaseB" || phase === "branching") e.preventDefault();
           }}
           onEscapeKeyDown={(e) => {
-            if (!submitted && questions.length > 0) e.preventDefault();
+            if (phase === "phaseA" || phase === "phaseB" || phase === "branching") e.preventDefault();
           }}
         >
           <DialogHeader className="sr-only">
             <DialogTitle>Weekly Quiz{day ? ` — Week ${day}` : ""}</DialogTitle>
             <DialogDescription>
-              Optional weekly quiz to check your understanding of recent concepts.
+              Adaptive weekly quiz: 5 standard questions, then 5 more tailored to your performance.
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-auto">
-            {loading ? (
+            {phase === "loading" ? (
               <div className="h-full flex items-center justify-center">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : questions.length === 0 ? (
+            ) : error ? (
               <div className="h-full flex items-center justify-center p-8 text-center text-sm text-muted-foreground">
-                No quiz questions are available for this week yet.
+                {error}
               </div>
-            ) : (
+            ) : phase === "phaseA" ? (
+              phaseAQuestions.length === 0 ? (
+                <div className="h-full flex items-center justify-center p-8 text-center text-sm text-muted-foreground">
+                  No quiz questions are available for this week yet.
+                </div>
+              ) : (
+                <AssessmentView
+                  type="quiz"
+                  questions={phaseAQuestions}
+                  timeLimitMinutes={timeLimitMinutes}
+                  day={day ?? 1}
+                  onEnd={handleEnd}
+                  onSubmit={handlePhaseASubmit}
+                  introTitle={fallbackQuestions ? `Weekly Quiz — Week ${day ?? 1}` : `Weekly Quiz — Week ${day ?? 1} (Part 1 of 2)`}
+                />
+              )
+            ) : phase === "branching" ? (
+              <div className="h-full flex flex-col items-center justify-center gap-3 p-8 text-center">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <p className="text-sm font-medium">Tailoring your next 5 questions…</p>
+                <p className="text-xs text-muted-foreground">Based on Part 1 we're picking the right difficulty for you.</p>
+              </div>
+            ) : phase === "phaseB" && phaseBMount ? (
               <AssessmentView
+                key="phase-b"
                 type="quiz"
-                questions={questions}
+                questions={phaseBMount.all}
                 timeLimitMinutes={timeLimitMinutes}
                 day={day ?? 1}
                 onEnd={handleEnd}
-                onSubmit={handleSubmit}
+                onSubmit={handlePhaseBSubmit}
+                initialPhase="active"
+                initialIndex={WQ_STANDARD_COUNT}
+                initialAnswers={phaseBMount.initialAnswers}
+                initialConfidences={phaseBMount.initialConfidences}
+                initialQuestionTimes={phaseBMount.initialQuestionTimes}
               />
-            )}
+            ) : null}
           </div>
-          {(loading || questions.length === 0) && (
+          {(phase === "loading" || (phase === "phaseA" && phaseAQuestions.length === 0) || error) && (
             <DialogFooter className="p-4 border-t">
               <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
             </DialogFooter>
