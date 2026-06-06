@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, Clock, Trophy, ClipboardList, GraduationCap, ShieldCheck, Loader2, BookOpen, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Trophy, ClipboardList, GraduationCap, ShieldCheck, Loader2, BookOpen, Lightbulb, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
