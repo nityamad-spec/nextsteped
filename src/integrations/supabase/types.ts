@@ -1292,7 +1292,6 @@ export type Database = {
       student_course_mastery: {
         Row: {
           accuracy_component: number | null
-          confidence_component: number | null
           course_id: string
           created_at: string
           id: string
@@ -1300,14 +1299,12 @@ export type Database = {
           last_source_id: string | null
           learner_level: string
           mastery_score: number
-          pace_component: number | null
           sample_count: number
           student_id: string
           updated_at: string
         }
         Insert: {
           accuracy_component?: number | null
-          confidence_component?: number | null
           course_id: string
           created_at?: string
           id?: string
@@ -1315,14 +1312,12 @@ export type Database = {
           last_source_id?: string | null
           learner_level: string
           mastery_score: number
-          pace_component?: number | null
           sample_count?: number
           student_id: string
           updated_at?: string
         }
         Update: {
           accuracy_component?: number | null
-          confidence_component?: number | null
           course_id?: string
           created_at?: string
           id?: string
@@ -1330,7 +1325,6 @@ export type Database = {
           last_source_id?: string | null
           learner_level?: string
           mastery_score?: number
-          pace_component?: number | null
           sample_count?: number
           student_id?: string
           updated_at?: string
