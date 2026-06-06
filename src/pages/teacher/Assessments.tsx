@@ -60,6 +60,8 @@ const Assessments = () => {
   const [examManualQuestions, setExamManualQuestions] = useState(false);
   const [examManualCount, setExamManualCount] = useState(20);
   const [diagnosticCount, setDiagnosticCount] = useState(0);
+  const [concepts, setConcepts] = useState<{ id: string; concept_code: string; concept_name: string }[]>([]);
+
 
   useEffect(() => {
     if (!taLoading) {
@@ -75,11 +77,13 @@ const Assessments = () => {
     if (!courseId) { setQuestionsLoading(false); return; }
     const fetchQuestions = async () => {
       setQuestionsLoading(true);
-      const [{ data, error }, diagnosticRes] = await Promise.all([
+      const [{ data, error }, diagnosticRes, conceptsRes] = await Promise.all([
         supabase.from("assessment_questions").select("*").eq("course_id", courseId),
         supabase.from("diagnostic_questions").select("id", { count: "exact" }).eq("course_id", courseId),
+        supabase.from("concepts").select("id, concept_code, concept_name").eq("course_id", courseId).order("concept_code"),
       ]);
       if (error) { console.error(error); toast.error("Failed to load questions"); }
+
       else if (data) {
         setQuestions(data.map((row: any) => ({
           id: row.id, question: row.question_text, answer: row.answer, topic: row.topic,
@@ -89,6 +93,8 @@ const Assessments = () => {
         })));
       }
       setDiagnosticCount(diagnosticRes.count || 0);
+      setConcepts((conceptsRes.data as any[]) || []);
+
       setQuestionsLoading(false);
     };
     fetchQuestions();
@@ -431,9 +437,21 @@ const Assessments = () => {
               <Textarea value={formQuestion} onChange={e => setFormQuestion(e.target.value)} placeholder="Enter question text..." rows={3} />
             </div>
             <div className="space-y-2">
-              <Label>Topic</Label>
-              <Input value={formTopic} onChange={e => setFormTopic(e.target.value)} placeholder="e.g. Functions" />
+              <Label>Concept</Label>
+              {concepts.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No concepts yet — add some in Concept Management first.</p>
+              ) : (
+                <Select value={formTopic} onValueChange={setFormTopic}>
+                  <SelectTrigger><SelectValue placeholder="Select a concept" /></SelectTrigger>
+                  <SelectContent>
+                    {concepts.map(c => (
+                      <SelectItem key={c.id} value={c.concept_code}>{c.concept_code} — {c.concept_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
+
             <div className="space-y-2">
               <Label>Question Type</Label>
               <Select value={formType} onValueChange={v => setFormType(v as QuestionType)}>
