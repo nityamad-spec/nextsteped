@@ -136,11 +136,18 @@ const ExamMode = () => {
     if (!courseId) { setQuestionsLoading(false); return; }
     const fetchQuestions = async () => {
       setQuestionsLoading(true);
-      const { data, error } = await supabase
-        .from("assessment_questions")
-        .select("*")
-        .eq("course_id", courseId)
-        .eq("mode", "exam");
+      const [{ data, error }, conceptsRes] = await Promise.all([
+        supabase
+          .from("assessment_questions")
+          .select("*")
+          .eq("course_id", courseId)
+          .eq("mode", "exam"),
+        supabase
+          .from("concepts")
+          .select("id, concept_code, concept_name")
+          .eq("course_id", courseId)
+          .order("concept_code"),
+      ]);
       if (error) { console.error(error); toast.error("Failed to load custom exam questions"); }
       else if (data) {
         setQuestions(data.map((row: any) => ({
@@ -149,10 +156,12 @@ const ExamMode = () => {
           options: row.options, correctIndex: row.correct_index ?? undefined,
         })));
       }
+      setConcepts((conceptsRes.data as any[]) || []);
       setQuestionsLoading(false);
     };
     fetchQuestions();
   }, [courseId]);
+
 
   const handleExamLengthChange = (v: number) => { setExamLength(v); setEstimateApproved(false); };
   const handleExamTypeChange = (v: string) => { setExamQuestionTypes(v); setEstimateApproved(false); };
