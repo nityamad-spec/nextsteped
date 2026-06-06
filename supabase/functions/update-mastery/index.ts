@@ -1,5 +1,8 @@
 // Edge function: update-mastery
+// SOLE writer of public.student_course_mastery.
 // EMA blend per concept; course mastery derived as weighted avg of concept rows.
+// Pace and confidence are diagnostic-only signals and live exclusively in
+// diagnostic_results — they MUST NOT be folded into course-level mastery here.
 //
 // Input:
 // {
@@ -210,6 +213,13 @@ Deno.serve(async (req) => {
   const courseScore = weightTotal > 0 ? clamp01(weightedSum / weightTotal) : 0;
   const courseLevel = bandFor(courseScore);
 
+  if (weightTotal === 0) {
+    console.warn("update-mastery: weightTotal is 0 — no contributing concepts", {
+      student_id: studentId,
+      course_id: body.course_id,
+    });
+  }
+
   const { error: courseErr } = await admin
     .from("student_course_mastery")
     .upsert(
@@ -219,8 +229,6 @@ Deno.serve(async (req) => {
         mastery_score: Number(courseScore.toFixed(4)),
         learner_level: courseLevel,
         accuracy_component: Number(courseScore.toFixed(4)),
-        pace_component: null,
-        confidence_component: null,
         last_source: body.source,
         last_source_id: body.source_id ?? null,
         sample_count: contributing,
