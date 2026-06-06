@@ -580,7 +580,10 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                   </Button>
                 ) : (
                   <Button
-                    onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}
+                    onClick={() => {
+                      flushTimeFor(questions[safeIndex]?.id);
+                      setCurrentIndex((i) => Math.min(questions.length - 1, i + 1));
+                    }}
                     className="gap-2"
                   >
                     Next
