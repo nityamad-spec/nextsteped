@@ -78,8 +78,8 @@ export function WeeklyQuizReviewDialog({ open, onOpenChange, courseId, weekNumbe
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
-        <DialogHeader className="shrink-0">
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
           <DialogTitle>
             Week {weekNumber} Quiz Review{weekName ? ` — ${weekName}` : ""}
           </DialogTitle>
@@ -87,6 +87,7 @@ export function WeeklyQuizReviewDialog({ open, onOpenChange, courseId, weekNumbe
             Each student sees 10 questions: the 5 standard items, then 5 adaptive items routed by their performance on the standard set.
           </DialogDescription>
         </DialogHeader>
+
 
         {loading ? (
           <div className="flex items-center justify-center py-12 text-sm text-muted-foreground gap-2">
@@ -105,7 +106,7 @@ export function WeeklyQuizReviewDialog({ open, onOpenChange, courseId, weekNumbe
             No questions generated yet. Close this dialog and click <span className="font-medium">Generate Weekly Quiz</span> first.
           </div>
         ) : (
-          <ScrollArea className="flex-1 min-h-0 pr-3 -mr-3">
+          <ScrollArea className="max-h-[70vh] pr-3 -mr-3">
             <div className="space-y-6 pb-2">
               {TIER_ORDER.map((tier) => {
                 const items = grouped[tier] ?? [];
