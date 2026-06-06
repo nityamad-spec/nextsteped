@@ -206,6 +206,13 @@ Deno.serve(async (req) => {
     answeredCount += 1;
     if (isCorrect) correctCount += 1;
 
+    if (meta.concept_id) {
+      const t = perConceptTally.get(meta.concept_id) ?? { attempted: 0, correct: 0 };
+      t.attempted += 1;
+      if (isCorrect) t.correct += 1;
+      perConceptTally.set(meta.concept_id, t);
+    }
+
     // Pace
     const expectedMs =
       (CONFIG.EXPECTED_TIME_BASE_MS[bloom] ?? 30_000) *
