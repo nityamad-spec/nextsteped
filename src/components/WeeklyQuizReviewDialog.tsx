@@ -78,8 +78,8 @@ export function WeeklyQuizReviewDialog({ open, onOpenChange, courseId, weekNumbe
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle>
             Week {weekNumber} Quiz Review{weekName ? ` — ${weekName}` : ""}
           </DialogTitle>
@@ -105,7 +105,7 @@ export function WeeklyQuizReviewDialog({ open, onOpenChange, courseId, weekNumbe
             No questions generated yet. Close this dialog and click <span className="font-medium">Generate Weekly Quiz</span> first.
           </div>
         ) : (
-          <ScrollArea className="flex-1 pr-3 -mr-3">
+          <ScrollArea className="flex-1 min-h-0 pr-3 -mr-3">
             <div className="space-y-6 pb-2">
               {TIER_ORDER.map((tier) => {
                 const items = grouped[tier] ?? [];
