@@ -1176,6 +1176,7 @@ export type Database = {
           mastery_score: number
           questions_attempted: number
           questions_correct: number
+          sample_count: number
           student_id: string
           updated_at: string
         }
@@ -1192,6 +1193,7 @@ export type Database = {
           mastery_score: number
           questions_attempted?: number
           questions_correct?: number
+          sample_count?: number
           student_id: string
           updated_at?: string
         }
@@ -1208,6 +1210,7 @@ export type Database = {
           mastery_score?: number
           questions_attempted?: number
           questions_correct?: number
+          sample_count?: number
           student_id?: string
           updated_at?: string
         }

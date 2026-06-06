@@ -1,0 +1,1 @@
+ALTER TABLE public.student_concept_mastery ADD COLUMN IF NOT EXISTS sample_count integer NOT NULL DEFAULT 0;
