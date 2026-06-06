@@ -255,7 +255,7 @@ const WeeklyQuizDialog = ({
     // Trying to close mid-quiz
     if (phase === "phaseA" || phase === "phaseB" || phase === "branching") {
       const hasStarted = phaseAQuestions.length > 0;
-      if (hasStarted && phase !== "submitted") {
+      if (hasStarted) {
         setConfirmLeave(true);
         return;
       }
