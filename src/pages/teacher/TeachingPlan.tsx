@@ -946,6 +946,39 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
                               )}
                             </Button>
 
+                            {/* Weekly Quiz generation — appears when a Weekly Quiz resource is on this week */}
+                            {dp.resources.some((r) => r.type === "quiz") && (() => {
+                              const have = quizCounts[dp.day] || 0;
+                              const target = 20; // 5 standard + 5 easy + 5 medium + 5 hard
+                              const isGenerating = generatingQuizDay === dp.day;
+                              const complete = have >= target;
+                              return (
+                                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between gap-3">
+                                  <div className="text-xs">
+                                    <p className="font-medium">Weekly Quiz bank</p>
+                                    <p className="text-muted-foreground">
+                                      {have}/{target} adaptive questions {complete ? "ready" : "generated"} · 5 standard + 5 easy/medium/hard for adaptive routing
+                                    </p>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant={complete ? "outline" : "default"}
+                                    disabled={isGenerating}
+                                    onClick={() => generateQuizForDay(dp.day, complete)}
+                                    className="gap-1.5 shrink-0"
+                                  >
+                                    {isGenerating
+                                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
+                                      : complete
+                                        ? <><Sparkles className="h-3.5 w-3.5" /> Regenerate</>
+                                        : <><Sparkles className="h-3.5 w-3.5" /> Generate Questions</>}
+                                  </Button>
+                                </div>
+                              );
+                            })()}
+
+
+
                             {/* Editable header fields */}
                             {isEditing ? (
                               <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-dashed">
