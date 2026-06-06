@@ -1,5 +1,8 @@
 // Edge function: update-mastery
+// SOLE writer of public.student_course_mastery.
 // EMA blend per concept; course mastery derived as weighted avg of concept rows.
+// Pace and confidence are diagnostic-only signals and live exclusively in
+// diagnostic_results — they MUST NOT be folded into course-level mastery here.
 //
 // Input:
 // {
