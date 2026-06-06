@@ -88,7 +88,7 @@ describe("WeeklyQuizDialog", () => {
         day={1}
       />
     );
-    expect(screen.queryByText(/Weekly Quiz/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Daily Quiz/i)).not.toBeInTheDocument();
   });
 
   it("loads questions and shows the intro screen when opened from the lesson plan", async () => {
@@ -99,13 +99,14 @@ describe("WeeklyQuizDialog", () => {
         courseId="course-1"
         studentId="student-1"
         day={1}
+        numQuestions={5}
         timeLimitMinutes={10}
       />
     );
 
-    // Intro phase headline rendered by AssessmentView (Part 1 of 2 for adaptive flow)
+    // Intro phase headline rendered by AssessmentView
     await waitFor(() => {
-      expect(screen.getByText(/Weekly Quiz — Week 1/i)).toBeInTheDocument();
+      expect(screen.getByText(/Daily Quiz — Day 1/i)).toBeInTheDocument();
     });
     expect(screen.getByRole("button", { name: /Start Quiz/i })).toBeInTheDocument();
   });
@@ -120,6 +121,7 @@ describe("WeeklyQuizDialog", () => {
         courseId="course-1"
         studentId="student-1"
         day={2}
+        numQuestions={5}
         timeLimitMinutes={10}
       />
     );
@@ -136,8 +138,7 @@ describe("WeeklyQuizDialog", () => {
     const submitBtn = await screen.findByRole("button", { name: /Submit Quiz/i });
     fireEvent.click(submitBtn);
 
-    // With only a single 'standard' question and no adaptive bank, dialog falls
-    // back to single-pass submit and persists the result row.
+    // Insert into assessment_results
     await waitFor(() => expect(insertMock).toHaveBeenCalledTimes(1));
     const insertedRow = insertMock.mock.calls[0][0];
     expect(insertedRow).toMatchObject({

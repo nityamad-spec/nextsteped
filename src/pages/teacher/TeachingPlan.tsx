@@ -110,8 +110,6 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
   const [editingConceptName, setEditingConceptName] = useState<string | null>(null);
   const [editConceptValue, setEditConceptValue] = useState("");
   const [courseCurrentWeek, setCourseCurrentWeek] = useState<number>(0);
-  const [generatingQuizDay, setGeneratingQuizDay] = useState<number | null>(null);
-  const [quizCounts, setQuizCounts] = useState<Record<number, number>>({});
 
   const renameConcept = (dayId: string, oldName: string, newName: string) => {
     if (!newName.trim() || newName === oldName) { setEditingConceptName(null); return; }
@@ -437,59 +435,9 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
     }
   };
 
-  const refreshQuizCounts = async () => {
-    if (!courseId) return;
-    const { data } = await supabase
-      .from("assessment_questions")
-      .select("quiz_day")
-      .eq("course_id", courseId)
-      .eq("mode", "daily_quiz");
-    const counts: Record<number, number> = {};
-    for (const r of data || []) {
-      const d = (r as any).quiz_day as number | null;
-      if (d != null) counts[d] = (counts[d] || 0) + 1;
-    }
-    setQuizCounts(counts);
-  };
-
-  useEffect(() => { void refreshQuizCounts(); }, [courseId, reloadKey]);
-
-  const generateQuizForDay = async (dayNumber: number, regenerate = false) => {
-    if (!courseId) return;
-    setGeneratingQuizDay(dayNumber);
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-weekly-quiz", {
-        body: { courseId, quizDay: dayNumber, regenerate },
-      });
-      if (error) throw error;
-      if (data?.error) {
-        toast({ title: "Quiz generation failed", description: data.error, variant: "destructive" });
-        return;
-      }
-      toast({ title: `Week ${dayNumber} quiz ready`, description: data?.message || "Questions saved." });
-      await refreshQuizCounts();
-    } catch (err: any) {
-      toast({ title: "Quiz generation failed", description: err.message || "Please try again.", variant: "destructive" });
-    } finally {
-      setGeneratingQuizDay(null);
-    }
-  };
-
   const handlePublish = async () => {
     await savePlan();
     if (user?.id && courseId) void markStepCompleted(user.id, "lesson-plan", courseId, { source: "TeachingPlan.handlePublish" });
-    // Fire-and-forget: ensure every week with a Weekly Quiz resource has a full bank.
-    if (courseId) {
-      const quizWeeks = days.filter((d) => d.resources.some((r) => r.type === "quiz"));
-      for (const w of quizWeeks) {
-        const have = quizCounts[w.day] || 0;
-        if (have < 20) {
-          void supabase.functions.invoke("generate-weekly-quiz", {
-            body: { courseId, quizDay: w.day },
-          }).then(() => { void refreshQuizCounts(); });
-        }
-      }
-    }
     setShowPublishModal(false);
     setPublishChecklist({ days: false, resources: false });
     toast({ title: "Plan published", description: "Students can now see the updated lesson plan." });
@@ -945,39 +893,6 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
                                 <><Sparkles className="h-4 w-4" /> AI Suggest Lesson Content & Resources</>
                               )}
                             </Button>
-
-                            {/* Weekly Quiz generation — appears when a Weekly Quiz resource is on this week */}
-                            {dp.resources.some((r) => r.type === "quiz") && (() => {
-                              const have = quizCounts[dp.day] || 0;
-                              const target = 20; // 5 standard + 5 easy + 5 medium + 5 hard
-                              const isGenerating = generatingQuizDay === dp.day;
-                              const complete = have >= target;
-                              return (
-                                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between gap-3">
-                                  <div className="text-xs">
-                                    <p className="font-medium">Weekly Quiz bank</p>
-                                    <p className="text-muted-foreground">
-                                      {have}/{target} adaptive questions {complete ? "ready" : "generated"} · 5 standard + 5 easy/medium/hard for adaptive routing
-                                    </p>
-                                  </div>
-                                  <Button
-                                    size="sm"
-                                    variant={complete ? "outline" : "default"}
-                                    disabled={isGenerating}
-                                    onClick={() => generateQuizForDay(dp.day, complete)}
-                                    className="gap-1.5 shrink-0"
-                                  >
-                                    {isGenerating
-                                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
-                                      : complete
-                                        ? <><Sparkles className="h-3.5 w-3.5" /> Regenerate</>
-                                        : <><Sparkles className="h-3.5 w-3.5" /> Generate Questions</>}
-                                  </Button>
-                                </div>
-                              );
-                            })()}
-
-
 
                             {/* Editable header fields */}
                             {isEditing ? (
