@@ -78,8 +78,8 @@ export function WeeklyQuizReviewDialog({ open, onOpenChange, courseId, weekNumbe
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
-        <DialogHeader className="shrink-0">
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
           <DialogTitle>
             Week {weekNumber} Quiz Review{weekName ? ` — ${weekName}` : ""}
           </DialogTitle>
@@ -87,6 +87,7 @@ export function WeeklyQuizReviewDialog({ open, onOpenChange, courseId, weekNumbe
             Each student sees 10 questions: the 5 standard items, then 5 adaptive items routed by their performance on the standard set.
           </DialogDescription>
         </DialogHeader>
+
 
         {loading ? (
           <div className="flex items-center justify-center py-12 text-sm text-muted-foreground gap-2">
