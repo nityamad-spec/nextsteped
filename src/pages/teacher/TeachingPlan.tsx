@@ -437,9 +437,59 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
     }
   };
 
+  const refreshQuizCounts = async () => {
+    if (!courseId) return;
+    const { data } = await supabase
+      .from("assessment_questions")
+      .select("quiz_day")
+      .eq("course_id", courseId)
+      .eq("mode", "daily_quiz");
+    const counts: Record<number, number> = {};
+    for (const r of data || []) {
+      const d = (r as any).quiz_day as number | null;
+      if (d != null) counts[d] = (counts[d] || 0) + 1;
+    }
+    setQuizCounts(counts);
+  };
+
+  useEffect(() => { void refreshQuizCounts(); }, [courseId, reloadKey]);
+
+  const generateQuizForDay = async (dayNumber: number, regenerate = false) => {
+    if (!courseId) return;
+    setGeneratingQuizDay(dayNumber);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-weekly-quiz", {
+        body: { courseId, quizDay: dayNumber, regenerate },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        toast({ title: "Quiz generation failed", description: data.error, variant: "destructive" });
+        return;
+      }
+      toast({ title: `Week ${dayNumber} quiz ready`, description: data?.message || "Questions saved." });
+      await refreshQuizCounts();
+    } catch (err: any) {
+      toast({ title: "Quiz generation failed", description: err.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setGeneratingQuizDay(null);
+    }
+  };
+
   const handlePublish = async () => {
     await savePlan();
     if (user?.id && courseId) void markStepCompleted(user.id, "lesson-plan", courseId, { source: "TeachingPlan.handlePublish" });
+    // Fire-and-forget: ensure every week with a Weekly Quiz resource has a full bank.
+    if (courseId) {
+      const quizWeeks = days.filter((d) => d.resources.some((r) => r.type === "quiz"));
+      for (const w of quizWeeks) {
+        const have = quizCounts[w.day] || 0;
+        if (have < 20) {
+          void supabase.functions.invoke("generate-weekly-quiz", {
+            body: { courseId, quizDay: w.day },
+          }).then(() => { void refreshQuizCounts(); });
+        }
+      }
+    }
     setShowPublishModal(false);
     setPublishChecklist({ days: false, resources: false });
     toast({ title: "Plan published", description: "Students can now see the updated lesson plan." });
