@@ -64,6 +64,7 @@ const StudentHome = () => {
   const [quizDialog, setQuizDialog] = useState<{ open: boolean; day: number | null }>({ open: false, day: null });
   const [conceptMastery, setConceptMastery] = useState<Record<string, { score: number; attempted: number }>>({});
   const [courseMastery, setCourseMastery] = useState<number | null>(null);
+  const [takenQuizzes, setTakenQuizzes] = useState<Record<number, { score: number }>>({});
 
   useEffect(() => {
     if (!enrolledCourseId) { setConcepts([]); return; }
@@ -120,6 +121,33 @@ const StudentHome = () => {
       });
       setConceptMastery(map);
       setCourseMastery(courseM?.mastery_score != null ? Number(courseM.mastery_score) : null);
+    })();
+    return () => { cancelled = true; };
+  }, [enrolledCourseId, user?.id, quizDialog.open]);
+
+  // Load taken weekly quizzes so we can lock attempts to one per week
+  useEffect(() => {
+    if (!enrolledCourseId || !user?.id) { setTakenQuizzes({}); return; }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("assessment_results")
+        .select("quiz_day, score")
+        .eq("student_id", user.id)
+        .eq("course_id", enrolledCourseId)
+        .eq("mode", "daily_quiz");
+      if (cancelled) return;
+      if (error) { console.error("Taken quizzes load error:", error); setTakenQuizzes({}); return; }
+      const map: Record<number, { score: number }> = {};
+      (data || []).forEach((r: any) => {
+        if (r.quiz_day != null) {
+          const day = Number(r.quiz_day);
+          const score = Number(r.score) || 0;
+          // Keep the highest score in case any duplicates exist
+          if (!map[day] || score > map[day].score) map[day] = { score };
+        }
+      });
+      setTakenQuizzes(map);
     })();
     return () => { cancelled = true; };
   }, [enrolledCourseId, user?.id, quizDialog.open]);
@@ -428,19 +456,41 @@ const StudentHome = () => {
                           );
                         })()}
 
-                        {/* Weekly Quiz option */}
-                        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <ClipboardCheck className="h-4 w-4 text-primary" />
-                            <div>
-                              <p className="text-sm font-medium">Week {dp.day} Quiz</p>
-                              <p className="text-xs text-muted-foreground">Optional — helps you track your understanding</p>
+                        {/* Weekly Quiz option — one attempt per week */}
+                        {(() => {
+                          const taken = takenQuizzes[dp.day];
+                          return (
+                            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <ClipboardCheck className="h-4 w-4 text-primary" />
+                                <div>
+                                  <p className="text-sm font-medium">Week {dp.day} Quiz</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {taken
+                                      ? `Completed — ${taken.score}%`
+                                      : "Optional — one attempt only"}
+                                  </p>
+                                </div>
+                              </div>
+                              {taken ? (
+                                <Button size="sm" variant="outline" disabled>
+                                  Quiz completed
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    if (takenQuizzes[dp.day]) return;
+                                    setQuizDialog({ open: true, day: dp.day });
+                                  }}
+                                >
+                                  Take Quiz
+                                </Button>
+                              )}
                             </div>
-                          </div>
-                          <Button size="sm" variant="outline" onClick={() => setQuizDialog({ open: true, day: dp.day })}>
-                            Take Quiz
-                          </Button>
-                        </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
