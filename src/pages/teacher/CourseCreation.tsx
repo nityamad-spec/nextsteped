@@ -123,6 +123,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   // Weekly-quiz generation state
   const [generatingQuizWeek, setGeneratingQuizWeek] = useState<number | null>(null);
   const [quizGenerated, setQuizGenerated] = useState<Record<number, number>>({});
+  const [reviewQuizWeek, setReviewQuizWeek] = useState<WeekPlan | null>(null);
 
   // Load count of existing weekly-quiz questions per week
   useEffect(() => {
