@@ -11,15 +11,26 @@ const COURSE_A = "course-aaa";
 const COURSE_B = "course-bbb";
 const STUDENT_ID = "student-1";
 
-const concepts = [
-  { id: "concept-1", concept_code: "Basic Data Types", weight: 0.07, course_id: COURSE_A },
-  { id: "concept-2", concept_code: "Python Fundamentals", weight: 0.07, course_id: COURSE_A },
-  { id: "concept-3", concept_code: "File I/O", weight: 0.13, course_id: COURSE_A },
+const courseRow = {
+  id: COURSE_A,
+  teacher_id: "teacher-1",
+  name: "Intro to Python",
+  start_date: new Date().toISOString().slice(0, 10),
+  total_weeks: 16,
+  lesson_plan_published_at: new Date().toISOString(),
+};
+
+const lessonPlanWeeks = [
+  {
+    week_number: 1,
+    week_name: "Week 1 — Getting Started",
+    overview: "Intro",
+    is_exam_week: false,
+    concepts: [{ id: "concept-1", name: "Basic Data Types" }],
+    resources: [],
+  },
 ];
 
-// Per-course mastery store — keyed by `${student}|${course}` → row[]
-const masteryStore: Record<string, any[]> = {};
-const courseMasteryStore: Record<string, any> = {};
 
 const courseRow = {
   id: COURSE_A,
