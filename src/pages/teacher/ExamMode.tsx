@@ -117,6 +117,8 @@ const ExamMode = () => {
   const [formOptions, setFormOptions] = useState<string[]>(["", "", "", ""]);
   const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
   const [saving, setSaving] = useState(false);
+  const [concepts, setConcepts] = useState<{ id: string; concept_code: string; concept_name: string }[]>([]);
+
 
   useEffect(() => {
     if (!loading) {
