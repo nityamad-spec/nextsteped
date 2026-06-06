@@ -61,6 +61,7 @@ const StudentHome = () => {
   const [planLoading, setPlanLoading] = useState(true);
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
   const [concepts, setConcepts] = useState<{ id: string; name: string }[]>([]);
+  const [quizDialog, setQuizDialog] = useState<{ open: boolean; day: number | null }>({ open: false, day: null });
 
   useEffect(() => {
     if (!enrolledCourseId) { setConcepts([]); return; }
