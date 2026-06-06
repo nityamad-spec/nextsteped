@@ -1162,6 +1162,128 @@ export type Database = {
         }
         Relationships: []
       }
+      student_concept_mastery: {
+        Row: {
+          concept_code: string
+          concept_id: string
+          course_id: string
+          created_at: string
+          id: string
+          last_assessed_at: string | null
+          last_source: string | null
+          last_source_id: string | null
+          mastery_level: string
+          mastery_score: number
+          questions_attempted: number
+          questions_correct: number
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          concept_code: string
+          concept_id: string
+          course_id: string
+          created_at?: string
+          id?: string
+          last_assessed_at?: string | null
+          last_source?: string | null
+          last_source_id?: string | null
+          mastery_level: string
+          mastery_score: number
+          questions_attempted?: number
+          questions_correct?: number
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          concept_code?: string
+          concept_id?: string
+          course_id?: string
+          created_at?: string
+          id?: string
+          last_assessed_at?: string | null
+          last_source?: string | null
+          last_source_id?: string | null
+          mastery_level?: string
+          mastery_score?: number
+          questions_attempted?: number
+          questions_correct?: number
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_concept_mastery_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_concept_mastery_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_course_mastery: {
+        Row: {
+          accuracy_component: number | null
+          confidence_component: number | null
+          course_id: string
+          created_at: string
+          id: string
+          last_source: string | null
+          last_source_id: string | null
+          learner_level: string
+          mastery_score: number
+          pace_component: number | null
+          sample_count: number
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          accuracy_component?: number | null
+          confidence_component?: number | null
+          course_id: string
+          created_at?: string
+          id?: string
+          last_source?: string | null
+          last_source_id?: string | null
+          learner_level: string
+          mastery_score: number
+          pace_component?: number | null
+          sample_count?: number
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          accuracy_component?: number | null
+          confidence_component?: number | null
+          course_id?: string
+          created_at?: string
+          id?: string
+          last_source?: string | null
+          last_source_id?: string | null
+          learner_level?: string
+          mastery_score?: number
+          pace_component?: number | null
+          sample_count?: number
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_course_mastery_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_feedback: {
         Row: {
           additional_comments: string | null
