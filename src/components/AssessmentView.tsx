@@ -50,6 +50,13 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const [explanations, setExplanations] = useState<Record<number, string>>({});
   const [loadingExplanations, setLoadingExplanations] = useState(false);
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Reset pagination when (re)entering active phase
+  useEffect(() => {
+    if (phase === "active") setCurrentIndex(0);
+  }, [phase]);
+
 
   // Timer
   useEffect(() => {
