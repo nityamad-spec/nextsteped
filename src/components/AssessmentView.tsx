@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, Clock, Trophy, ClipboardList, GraduationCap, ShieldCheck, Loader2, BookOpen, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Trophy, ClipboardList, GraduationCap, ShieldCheck, Loader2, BookOpen, Lightbulb, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -50,6 +50,13 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const [explanations, setExplanations] = useState<Record<number, string>>({});
   const [loadingExplanations, setLoadingExplanations] = useState(false);
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Reset pagination when (re)entering active phase
+  useEffect(() => {
+    if (phase === "active") setCurrentIndex(0);
+  }, [phase]);
+
 
   // Timer
   useEffect(() => {
@@ -453,7 +460,13 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     );
   }
 
-  // Active assessment — ALL QUESTIONS AT ONCE
+  // Active assessment — paginated for quiz, all-at-once for exam
+  const safeIndex = Math.min(currentIndex, questions.length - 1);
+  const isLast = safeIndex === questions.length - 1;
+  const progressValue = isQuiz
+    ? ((safeIndex + 1) / questions.length) * 100
+    : (answeredCount / questions.length) * 100;
+
   return (
     <div className="flex flex-1 flex-col">
       {/* Sticky header with timer + progress */}
@@ -464,7 +477,9 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
               {isQuiz ? `Daily Quiz — Day ${day}` : "Exam Simulation"}
             </Badge>
             <span className="text-sm text-muted-foreground">
-              {answeredCount}/{questions.length} answered
+              {isQuiz
+                ? `Question ${safeIndex + 1} of ${questions.length} · ${answeredCount} answered`
+                : `${answeredCount}/${questions.length} answered`}
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -475,31 +490,70 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
           </div>
         </div>
         <div className="px-5 pb-2">
-          <Progress value={(answeredCount / questions.length) * 100} className="h-1.5" />
+          <Progress value={progressValue} className="h-1.5" />
         </div>
       </div>
 
-      {/* All questions scrollable */}
+      {/* Questions area */}
       <div className="flex-1 overflow-auto p-6">
         <div className="mx-auto max-w-2xl space-y-6">
-          {questions.map((q, i) => renderQuestionCard(q, i))}
+          {isQuiz ? (
+            <>
+              {renderQuestionCard(questions[safeIndex], safeIndex)}
 
-          {/* Submit button at bottom */}
-          <div className="flex justify-center pt-4 pb-8">
-            <Button
-              onClick={handleFinish}
-              size="lg"
-              className="gap-2 px-8"
-              disabled={answeredCount === 0}
-            >
-              <CheckCircle className="h-5 w-5" />
-              Submit {isQuiz ? "Quiz" : "Exam"} ({answeredCount}/{questions.length} answered)
-            </Button>
-          </div>
+              <div className="flex items-center justify-between pt-4 pb-8 gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                  disabled={safeIndex === 0}
+                  className="gap-2"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+
+                {isLast ? (
+                  <Button
+                    onClick={handleFinish}
+                    className="gap-2 px-6"
+                    disabled={answeredCount === 0}
+                  >
+                    <CheckCircle className="h-5 w-5" />
+                    Submit Quiz ({answeredCount}/{questions.length} answered)
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}
+                    className="gap-2"
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              {questions.map((q, i) => renderQuestionCard(q, i))}
+
+              <div className="flex justify-center pt-4 pb-8">
+                <Button
+                  onClick={handleFinish}
+                  size="lg"
+                  className="gap-2 px-8"
+                  disabled={answeredCount === 0}
+                >
+                  <CheckCircle className="h-5 w-5" />
+                  Submit Exam ({answeredCount}/{questions.length} answered)
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
   );
+
 };
 
 export default AssessmentView;
