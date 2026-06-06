@@ -177,6 +177,12 @@ const WeeklyQuizDialog = ({
             if (!submitted && questions.length > 0) e.preventDefault();
           }}
         >
+          <DialogHeader className="sr-only">
+            <DialogTitle>Weekly Quiz{day ? ` — Week ${day}` : ""}</DialogTitle>
+            <DialogDescription>
+              Optional weekly quiz to check your understanding of recent concepts.
+            </DialogDescription>
+          </DialogHeader>
           <div className="flex-1 overflow-auto">
             {loading ? (
               <div className="h-full flex items-center justify-center">
