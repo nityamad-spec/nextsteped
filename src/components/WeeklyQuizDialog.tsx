@@ -129,6 +129,8 @@ const WeeklyQuizDialog = ({
           correct_answers: results.correctAnswers,
           answers: (results.answers ?? []) as unknown as Json,
           time_spent: results.timeSpent ?? 0,
+          confidences: (results.confidences ?? {}) as unknown as Json,
+          question_times: (results.questionTimes ?? {}) as unknown as Json,
         })
         .select("id")
         .single();

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Question } from "@/data/questionBank";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,12 +32,16 @@ export interface StandardisedAnswer {
   explanation?: string;
 }
 
+export type ConfidenceLevel = "not_confident" | "somewhat_confident" | "very_confident";
+
 export interface AssessmentResults {
   totalQuestions: number;
   correctAnswers: number;
   score: number;
   answers: StandardisedAnswer[];
   timeSpent: number;
+  confidences: Record<string, ConfidenceLevel>;
+  questionTimes: Record<string, number>;
 }
 
 type Phase = "intro" | "active" | "review";
@@ -51,10 +55,25 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const [loadingExplanations, setLoadingExplanations] = useState(false);
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [confidences, setConfidences] = useState<Record<string, ConfidenceLevel>>({});
+  const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
+  const questionStartRef = useRef<number>(Date.now());
+
+  // Helper: flush elapsed time onto a question id
+  const flushTimeFor = useCallback((qid: string | undefined) => {
+    if (!qid) return;
+    const now = Date.now();
+    const elapsed = Math.max(0, Math.round((now - questionStartRef.current) / 1000));
+    questionStartRef.current = now;
+    setQuestionTimes(prev => ({ ...prev, [qid]: (prev[qid] ?? 0) + elapsed }));
+  }, []);
 
   // Reset pagination when (re)entering active phase
   useEffect(() => {
-    if (phase === "active") setCurrentIndex(0);
+    if (phase === "active") {
+      setCurrentIndex(0);
+      questionStartRef.current = Date.now();
+    }
   }, [phase]);
 
 
@@ -74,6 +93,15 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   };
 
   const handleFinish = useCallback(() => {
+    // Flush time on the currently-shown question (quiz mode only meaningful, but harmless either way)
+    const currentQid = questions[Math.min(currentIndex, questions.length - 1)]?.id;
+    const now = Date.now();
+    const elapsed = Math.max(0, Math.round((now - questionStartRef.current) / 1000));
+    const finalTimes: Record<string, number> = { ...questionTimes };
+    if (currentQid) {
+      finalTimes[currentQid] = (finalTimes[currentQid] ?? 0) + elapsed;
+    }
+
     const standardised: StandardisedAnswer[] = questions.map(q => {
       const userAnswer = answers[q.id] || "";
       let isCorrect = false;
@@ -102,6 +130,8 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       score: Math.round((correct / questions.length) * 100),
       answers: standardised,
       timeSpent: timeLimitMinutes * 60 - timeLeft,
+      confidences,
+      questionTimes: finalTimes,
     };
     setResults(res);
     setPhase("review");
@@ -112,7 +142,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     setExpandedQuestions(wrongIndices);
 
     fetchExplanations(standardised);
-  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit]);
+  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, confidences, questionTimes, currentIndex]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
@@ -238,9 +268,33 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             />
           </div>
         )}
+
+        {/* Confidence selector */}
+        <div className="pt-2 border-t">
+          <p className="text-xs font-medium text-muted-foreground mb-2">How confident are you in this answer?</p>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { v: "not_confident", label: "Not confident" },
+              { v: "somewhat_confident", label: "Somewhat" },
+              { v: "very_confident", label: "Very confident" },
+            ] as { v: ConfidenceLevel; label: string }[]).map(opt => (
+              <Button
+                key={opt.v}
+                type="button"
+                size="sm"
+                variant={confidences[q.id] === opt.v ? "default" : "outline"}
+                className="text-xs h-8"
+                onClick={() => setConfidences(prev => ({ ...prev, [q.id]: opt.v }))}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
+
 
   // Intro screen
   if (phase === "intro") {
@@ -504,7 +558,10 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
               <div className="flex items-center justify-between pt-4 pb-8 gap-3">
                 <Button
                   variant="outline"
-                  onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                  onClick={() => {
+                    flushTimeFor(questions[safeIndex]?.id);
+                    setCurrentIndex((i) => Math.max(0, i - 1));
+                  }}
                   disabled={safeIndex === 0}
                   className="gap-2"
                 >
@@ -523,7 +580,10 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                   </Button>
                 ) : (
                   <Button
-                    onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}
+                    onClick={() => {
+                      flushTimeFor(questions[safeIndex]?.id);
+                      setCurrentIndex((i) => Math.min(questions.length - 1, i + 1));
+                    }}
                     className="gap-2"
                   >
                     Next
