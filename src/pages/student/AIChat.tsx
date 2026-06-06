@@ -174,7 +174,7 @@ const AIChat = () => {
   const handlePracticeResult = async (result: { score: number; totalQuestions: number; correctAnswers: number; answers: any[]; timeSpent: number }) => {
     if (!user || !enrolledCourseId) return;
     try {
-      await supabase.from("assessment_results").insert({
+      const { data: inserted } = await supabase.from("assessment_results").insert({
         student_id: user.id,
         course_id: enrolledCourseId,
         mode: "practice",
@@ -183,6 +183,13 @@ const AIChat = () => {
         correct_answers: result.correctAnswers,
         answers: result.answers as any,
         time_spent: result.timeSpent,
+      }).select("id").single();
+
+      void invokeUpdateMastery({
+        courseId: enrolledCourseId,
+        source: "practice",
+        sourceId: inserted?.id ?? null,
+        answers: result.answers,
       });
 
       if (activeChat) {
