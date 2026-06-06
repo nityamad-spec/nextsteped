@@ -64,6 +64,7 @@ const StudentHome = () => {
   const [quizDialog, setQuizDialog] = useState<{ open: boolean; day: number | null }>({ open: false, day: null });
   const [conceptMastery, setConceptMastery] = useState<Record<string, { score: number; attempted: number }>>({});
   const [courseMastery, setCourseMastery] = useState<number | null>(null);
+  const [takenQuizzes, setTakenQuizzes] = useState<Record<number, { score: number }>>({});
 
   useEffect(() => {
     if (!enrolledCourseId) { setConcepts([]); return; }

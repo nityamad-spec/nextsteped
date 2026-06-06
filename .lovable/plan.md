@@ -1,20 +1,22 @@
-# Gate confidence selector on having an answer
+# Limit weekly quizzes to one attempt
 
-In `src/components/AssessmentView.tsx`, the per-question confidence buttons (Not confident / Somewhat / Very confident) currently render and are clickable regardless of whether the student has answered.
+Students currently see a "Take Quiz" button for every week regardless of whether they've already submitted. After this change, once an `assessment_results` row exists for `(student_id, course_id, mode='daily_quiz', quiz_day=N)`, the button is replaced with a disabled state showing their score.
 
-## Change
+## Changes — `src/pages/student/StudentHome.tsx`
 
-In `renderQuestionCard`, compute `hasAnswer` from `answers[q.id]`:
-- For `short_answer` / `problem_solving`: `answers[q.id]?.trim().length > 0`
-- For `mcq` / `true_false`: `!!answers[q.id]`
+1. **Load taken quizzes** in a new effect alongside the existing mastery load:
+   ```ts
+   const [takenQuizzes, setTakenQuizzes] = useState<Record<number, { score: number }>>({});
+   ```
+   Query `assessment_results` for `student_id = user.id`, `course_id = enrolledCourseId`, `mode = 'daily_quiz'`, selecting `quiz_day, score`. Build `{ [quiz_day]: { score } }`. Re-run when the quiz dialog closes (same dep as existing mastery effect) so a freshly-submitted quiz immediately flips the button.
 
-Then in the confidence block:
-- Disable all three buttons when `!hasAnswer`.
-- When `!hasAnswer`, also clear any previously-set confidence for that question (so flipping an answer back to empty wipes the stale confidence) — handled by gating `setConfidences` behind `hasAnswer`, and on answer-clear we remove the entry.
-- Helper text changes: when no answer, show "Answer the question to rate your confidence." instead of "How confident are you in this answer?"
+2. **Render**: at the Weekly Quiz block (around line 431), branch on `takenQuizzes[dp.day]`:
+   - If present: show a muted "Completed — {score}%" badge and a disabled Button reading "Quiz completed".
+   - Else: existing "Take Quiz" button.
 
-To keep state consistent if a student clears a text answer, update `handleAnswer` to delete `confidences[questionId]` when the new answer is empty.
+3. **Guard the launcher**: in `setQuizDialog({ open: true, day: dp.day })`, also short-circuit if `takenQuizzes[dp.day]` exists (defensive — button is already disabled).
 
 ## Out of scope
-- Exam mode (uses the same component but request is weekly-quiz-specific; behavior change is harmless there and keeps a single code path).
-- Any submit-button gating beyond the existing "must answer at least one" rule.
+- Backend uniqueness constraint (purely UI gate — a determined student could still POST, but the existing flow has no other entry point).
+- Allowing retakes / teacher reset.
+- Exam mode (single-attempt rule was specified for weekly quizzes only).
