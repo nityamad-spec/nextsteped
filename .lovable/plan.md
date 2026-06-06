@@ -1,18 +1,27 @@
-# Fix: scroll inside Weekly Quiz Review dialog
+# Weekly Quiz generation progress bar
 
-## Problem
-`WeeklyQuizReviewDialog` uses `DialogContent` with `flex flex-col max-h-[85vh]` and a `ScrollArea` child with `flex-1`. In a flex column, a child with `flex-1` won't shrink below its content unless it also has `min-h-0`. Result: the ScrollArea expands to fit all questions, pushing the dialog past the viewport so the inner scroller never engages — only the page scrolls (or nothing does).
+Mirror the live progress UI used in `DiagnosticQuestionsSetup` so that, while a week's quiz is generating, the teacher sees an overall progress bar, elapsed/ETA timer, and per-tier (Standard / Easy / Medium / Hard) progress cards — instead of just a spinning button.
 
-## Fix
-In `src/components/WeeklyQuizReviewDialog.tsx`:
+## UX
 
-1. Add `min-h-0` to the `ScrollArea` (and to its viewport via class) so the flex child can shrink and become scrollable.
-2. Make the `DialogHeader` `shrink-0` so it doesn't get squeezed.
-3. Tighten the height calc so the scroll region has a guaranteed bounded height: keep `max-h-[85vh]` on `DialogContent`, plus an explicit `overflow-hidden` on `DialogContent` to prevent the outer dialog from growing.
+When the user clicks **Generate Weekly Quiz** on a given week in `/teacher/setup/lesson-plan`:
 
-Concretely:
-- `DialogContent` → add `overflow-hidden`
-- `DialogHeader` → add `shrink-0`
-- `ScrollArea` → `flex-1 min-h-0 pr-3 -mr-3`
+- The button stays in its loading state.
+- Directly below the button, a bordered panel appears showing:
+  - Header row: spinner + "Generating Week N quiz…" on the left, "Xs elapsed · ~Ys remaining" on the right.
+  - One overall horizontal progress bar.
+  - A 2-column grid of 4 small tier cards (Standard, Easy, Medium, Hard), each with its own mini progress bar and a status label that ramps through "Generating questions…" → "Validating MCQs…" → "Finalizing…".
+- Panel disappears as soon as generation finishes (success or failure); existing toasts are unchanged.
+- Only the week currently generating shows the panel; other weeks are unaffected.
 
-No other behavior changes.
+## Technical notes
+
+File: `src/pages/teacher/CourseCreation.tsx`
+
+1. Add an `elapsed` state and a `useEffect` ticking every 250ms while `generatingQuizWeek !== null` (reset to 0 when it returns to null). Same pattern as `DiagnosticQuestionsSetup.tsx` lines 57–69.
+2. Add module-level constants:
+   - `QUIZ_TIERS = ["Standard","Easy","Medium","Hard"]`
+   - `QUIZ_ESTIMATED_SECONDS = 35` (single week, 4 tiers in parallel — faster than diagnostic's 75s).
+3. Reuse the same `tierStatus(idx)` and `overallPct` / `etaSeconds` math from the diagnostic component, scaled to `QUIZ_ESTIMATED_SECONDS`.
+4. In the Weekly Quiz section JSX (around lines 1687–1718), render the progress panel right after the action-button row, gated by `generatingQuizWeek === w.week`. Use the existing `Progress` component from `@/components/ui/progress` and `Loader2` / `Clock` icons from `lucide-react` (Clock is not yet imported here — add it).
+5. No backend, edge-function, or DB changes. Progress is purely a client-side simulation, identical to the diagnostic flow.
