@@ -93,6 +93,8 @@ const Assessments = () => {
         })));
       }
       setDiagnosticCount(diagnosticRes.count || 0);
+      setConcepts((conceptsRes.data as any[]) || []);
+
       setQuestionsLoading(false);
     };
     fetchQuestions();
