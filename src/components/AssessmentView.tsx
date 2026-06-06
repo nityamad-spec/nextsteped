@@ -55,10 +55,25 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const [loadingExplanations, setLoadingExplanations] = useState(false);
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [confidences, setConfidences] = useState<Record<string, ConfidenceLevel>>({});
+  const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
+  const questionStartRef = useRef<number>(Date.now());
+
+  // Helper: flush elapsed time onto a question id
+  const flushTimeFor = useCallback((qid: string | undefined) => {
+    if (!qid) return;
+    const now = Date.now();
+    const elapsed = Math.max(0, Math.round((now - questionStartRef.current) / 1000));
+    questionStartRef.current = now;
+    setQuestionTimes(prev => ({ ...prev, [qid]: (prev[qid] ?? 0) + elapsed }));
+  }, []);
 
   // Reset pagination when (re)entering active phase
   useEffect(() => {
-    if (phase === "active") setCurrentIndex(0);
+    if (phase === "active") {
+      setCurrentIndex(0);
+      questionStartRef.current = Date.now();
+    }
   }, [phase]);
 
 
