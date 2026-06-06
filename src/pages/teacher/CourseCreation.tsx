@@ -1878,6 +1878,14 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <WeeklyQuizReviewDialog
+        open={!!reviewQuizWeek}
+        onOpenChange={(o) => { if (!o) setReviewQuizWeek(null); }}
+        courseId={courseId}
+        weekNumber={reviewQuizWeek?.week ?? null}
+        weekName={reviewQuizWeek?.week_name}
+      />
     </div>
   );
 };
