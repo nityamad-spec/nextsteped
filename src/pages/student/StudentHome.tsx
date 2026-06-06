@@ -62,6 +62,8 @@ const StudentHome = () => {
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
   const [concepts, setConcepts] = useState<{ id: string; name: string }[]>([]);
   const [quizDialog, setQuizDialog] = useState<{ open: boolean; day: number | null }>({ open: false, day: null });
+  const [conceptMastery, setConceptMastery] = useState<Record<string, { score: number; attempted: number }>>({});
+  const [courseMastery, setCourseMastery] = useState<number | null>(null);
 
   useEffect(() => {
     if (!enrolledCourseId) { setConcepts([]); return; }
@@ -83,6 +85,45 @@ const StudentHome = () => {
     })();
     return () => { cancelled = true; };
   }, [enrolledCourseId]);
+
+  // Load mastery for this student + course
+  useEffect(() => {
+    if (!enrolledCourseId || !user?.id) {
+      setConceptMastery({});
+      setCourseMastery(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [{ data: cm }, { data: courseM }] = await Promise.all([
+        supabase
+          .from("student_concept_mastery")
+          .select("concept_id, mastery_score, questions_attempted")
+          .eq("student_id", user.id)
+          .eq("course_id", enrolledCourseId),
+        supabase
+          .from("student_course_mastery")
+          .select("mastery_score")
+          .eq("student_id", user.id)
+          .eq("course_id", enrolledCourseId)
+          .maybeSingle(),
+      ]);
+      if (cancelled) return;
+      const map: Record<string, { score: number; attempted: number }> = {};
+      (cm || []).forEach((r: any) => {
+        if (r.concept_id) {
+          map[String(r.concept_id)] = {
+            score: Number(r.mastery_score) || 0,
+            attempted: Number(r.questions_attempted) || 0,
+          };
+        }
+      });
+      setConceptMastery(map);
+      setCourseMastery(courseM?.mastery_score != null ? Number(courseM.mastery_score) : null);
+    })();
+    return () => { cancelled = true; };
+  }, [enrolledCourseId, user?.id, quizDialog.open]);
+
 
   useEffect(() => {
     const loadPlan = async () => {
