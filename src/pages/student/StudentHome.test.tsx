@@ -38,8 +38,9 @@ vi.mock("@/hooks/useStudentStatus", () => ({
   useStudentStatus: () => ({ profileData: { name: "Test Student" } }),
 }));
 vi.mock("@/hooks/useTASettings", () => ({
-  useTASettings: () => ({ taSettings: null }),
+  useTASettings: () => ({ taSettings: { quizNumQuestions: 5, quizTimeLimit: 10 } }),
 }));
+
 vi.mock("@/contexts/AppContext", () => ({
   useApp: () => ({
     studentProfile: { name: "Test Student" },
