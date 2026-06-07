@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { seededShuffle } from "@/lib/seededShuffle";
-import { getQuizQuestions, Question } from "@/data/questionBank";
+import type { Question } from "@/data/questionBank";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -103,7 +103,7 @@ const WeeklyQuizDialog = ({
         const seed = (studentId || "anon") + courseId;
         qs = seededShuffle(qs, seed).slice(0, Math.min(numQuestions, qs.length));
       } else {
-        qs = getQuizQuestions(day, numQuestions);
+        qs = [];
       }
       if (cancelled) return;
       setQuestions(qs);

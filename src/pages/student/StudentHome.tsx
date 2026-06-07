@@ -65,6 +65,7 @@ const StudentHome = () => {
   const [conceptMastery, setConceptMastery] = useState<Record<string, { score: number; attempted: number }>>({});
   const [courseMastery, setCourseMastery] = useState<number | null>(null);
   const [takenQuizzes, setTakenQuizzes] = useState<Record<number, { score: number }>>({});
+  const [availableQuizDays, setAvailableQuizDays] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (!enrolledCourseId) { setConcepts([]); return; }
@@ -151,6 +152,26 @@ const StudentHome = () => {
     })();
     return () => { cancelled = true; };
   }, [enrolledCourseId, user?.id, quizDialog.open]);
+
+  // Load which weeks actually have published quiz questions
+  useEffect(() => {
+    if (!enrolledCourseId) { setAvailableQuizDays(new Set()); return; }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("assessment_questions")
+        .select("quiz_day")
+        .eq("course_id", enrolledCourseId)
+        .eq("mode", "daily_quiz")
+        .not("quiz_day", "is", null);
+      if (cancelled) return;
+      if (error) { console.error("Available quiz days load error:", error); setAvailableQuizDays(new Set()); return; }
+      const days = new Set<number>();
+      (data || []).forEach((r: any) => { if (r.quiz_day != null) days.add(Number(r.quiz_day)); });
+      setAvailableQuizDays(days);
+    })();
+    return () => { cancelled = true; };
+  }, [enrolledCourseId]);
 
 
   useEffect(() => {
@@ -456,8 +477,16 @@ const StudentHome = () => {
                           );
                         })()}
 
-                        {/* Weekly Quiz option — one attempt per week */}
+                        {/* Weekly Quiz option — only shown when professor has published one */}
                         {(() => {
+                          if (!availableQuizDays.has(dp.day)) {
+                            return (
+                              <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/30 p-3 flex items-center gap-2">
+                                <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+                                <p className="text-xs text-muted-foreground">Quiz not yet available for this week.</p>
+                              </div>
+                            );
+                          }
                           const taken = takenQuizzes[dp.day];
                           return (
                             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between">
