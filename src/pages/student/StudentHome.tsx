@@ -65,6 +65,7 @@ const StudentHome = () => {
   const [conceptMastery, setConceptMastery] = useState<Record<string, { score: number; attempted: number }>>({});
   const [courseMastery, setCourseMastery] = useState<number | null>(null);
   const [takenQuizzes, setTakenQuizzes] = useState<Record<number, { score: number }>>({});
+  const [availableQuizDays, setAvailableQuizDays] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (!enrolledCourseId) { setConcepts([]); return; }
