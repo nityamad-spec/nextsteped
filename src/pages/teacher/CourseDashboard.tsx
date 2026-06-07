@@ -234,7 +234,9 @@ const CourseDashboard = () => {
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-medium">Course Progress</p>
-            <span className="text-sm text-muted-foreground">Week {currentWeek} of {totalWeeks}</span>
+            <span className="text-sm text-muted-foreground">
+              {hasStartDate ? `Week ${currentWeek} of ${totalWeeks}` : "Start date not set"}
+            </span>
           </div>
           <Progress value={progressPct} className="h-3" />
         </CardContent>
