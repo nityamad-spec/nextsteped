@@ -326,7 +326,7 @@ const TeacherChat = () => {
               disabled={isStreaming}
               className="flex-1"
             />
-            <Button onClick={sendMessage} disabled={!input.trim() || isStreaming}>
+            <Button onClick={() => sendMessage()} disabled={!input.trim() || isStreaming}>
               <Send className="h-4 w-4" />
             </Button>
           </div>
