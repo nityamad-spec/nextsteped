@@ -5,7 +5,7 @@ import { useChatSessions } from "@/hooks/useChatSessions";
 import { ChatMessage } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Plus, History, MessageSquare, ChevronLeft, Loader2, Sparkles, User } from "lucide-react";
+import { Send, Plus, History, MessageSquare, ChevronLeft, Loader2, Sparkles, User, ListChecks, BookOpen, Search, ClipboardList, Lightbulb, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
@@ -14,6 +14,39 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const WELCOME = "Hi Professor! I'm your **Course Assistant**. I can help you refine your lesson plan, brainstorm exercises and case studies, review AI suggestions, or answer any course design questions. What would you like to work on?";
+
+const SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string }[] = [
+  {
+    icon: ListChecks,
+    label: "Suggest in-class exercises",
+    prompt: "Suggest 3 in-class exercises for this week's concepts that work for a 50-minute session.",
+  },
+  {
+    icon: BookOpen,
+    label: "Brainstorm a case study",
+    prompt: "Brainstorm a real-world case study I can use to teach this week's key concept. Include discussion questions.",
+  },
+  {
+    icon: Search,
+    label: "Research an article",
+    prompt: "Find and summarize a recent article I can assign as pre-reading for this week's topic.",
+  },
+  {
+    icon: ClipboardList,
+    label: "Draft assessment questions",
+    prompt: "Draft 5 multiple-choice questions and 2 short-answer questions covering this week's concepts.",
+  },
+  {
+    icon: Lightbulb,
+    label: "Explain a tough concept",
+    prompt: "Give me 3 different ways to explain this week's hardest concept to a struggling student.",
+  },
+  {
+    icon: MessageCircle,
+    label: "Plan a class discussion",
+    prompt: "Outline a 20-minute discussion prompt with follow-up questions for this week's topic.",
+  },
+];
 
 const TeacherChat = () => {
   const { user } = useAuth();
@@ -90,8 +123,9 @@ const TeacherChat = () => {
     return fetch(url, options);
   };
 
-  const sendMessage = useCallback(async () => {
-    if (!input.trim() || !activeChat || isStreaming || isCooldown) return;
+  const sendMessage = useCallback(async (overrideContent?: string) => {
+    const contentToSend = (overrideContent ?? input).trim();
+    if (!contentToSend || !activeChat || isStreaming || isCooldown) return;
 
     const now = Date.now();
     if (now - lastSendTime.current < 3000) {
@@ -100,7 +134,7 @@ const TeacherChat = () => {
     }
     lastSendTime.current = now;
 
-    const userContent = input;
+    const userContent = contentToSend;
     setInput("");
     setIsStreaming(true);
     setIsCooldown(true);
@@ -300,6 +334,31 @@ const TeacherChat = () => {
         <ScrollArea className="flex-1 p-4">
           <div className="max-w-3xl mx-auto space-y-4">
             {allMessages.map(renderMessage)}
+            {displayMessages.length <= 1 && !isStreaming && (
+              <div className="pt-2">
+                <p className="text-xs font-medium text-muted-foreground mb-2 px-1">Try one of these to get started</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {SUGGESTED_PROMPTS.map((s) => {
+                    const Icon = s.icon;
+                    return (
+                      <Button
+                        key={s.label}
+                        variant="outline"
+                        className="h-auto justify-start gap-3 rounded-2xl border-border/60 bg-card px-3 py-3 text-left hover:bg-accent"
+                        onClick={() => sendMessage(s.prompt)}
+                        disabled={isStreaming || isCooldown}
+                      >
+                        <Icon className="h-4 w-4 shrink-0 text-primary" />
+                        <span className="flex flex-col gap-0.5 min-w-0">
+                          <span className="text-sm font-medium leading-tight">{s.label}</span>
+                          <span className="text-xs text-muted-foreground leading-snug whitespace-normal line-clamp-2">{s.prompt}</span>
+                        </span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {isStreaming && !streamingMessage && (
               <div className="flex gap-3">
                 <Avatar className="h-8 w-8 shrink-0">
@@ -325,7 +384,7 @@ const TeacherChat = () => {
               disabled={isStreaming}
               className="flex-1"
             />
-            <Button onClick={sendMessage} disabled={!input.trim() || isStreaming}>
+            <Button onClick={() => sendMessage()} disabled={!input.trim() || isStreaming}>
               <Send className="h-4 w-4" />
             </Button>
           </div>
