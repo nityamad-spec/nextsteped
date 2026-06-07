@@ -153,6 +153,26 @@ const StudentHome = () => {
     return () => { cancelled = true; };
   }, [enrolledCourseId, user?.id, quizDialog.open]);
 
+  // Load which weeks actually have published quiz questions
+  useEffect(() => {
+    if (!enrolledCourseId) { setAvailableQuizDays(new Set()); return; }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("assessment_questions")
+        .select("quiz_day")
+        .eq("course_id", enrolledCourseId)
+        .eq("mode", "daily_quiz")
+        .not("quiz_day", "is", null);
+      if (cancelled) return;
+      if (error) { console.error("Available quiz days load error:", error); setAvailableQuizDays(new Set()); return; }
+      const days = new Set<number>();
+      (data || []).forEach((r: any) => { if (r.quiz_day != null) days.add(Number(r.quiz_day)); });
+      setAvailableQuizDays(days);
+    })();
+    return () => { cancelled = true; };
+  }, [enrolledCourseId]);
+
 
   useEffect(() => {
     const loadPlan = async () => {
