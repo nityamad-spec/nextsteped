@@ -477,8 +477,16 @@ const StudentHome = () => {
                           );
                         })()}
 
-                        {/* Weekly Quiz option — one attempt per week */}
+                        {/* Weekly Quiz option — only shown when professor has published one */}
                         {(() => {
+                          if (!availableQuizDays.has(dp.day)) {
+                            return (
+                              <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/30 p-3 flex items-center gap-2">
+                                <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+                                <p className="text-xs text-muted-foreground">Quiz not yet available for this week.</p>
+                              </div>
+                            );
+                          }
                           const taken = takenQuizzes[dp.day];
                           return (
                             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between">
