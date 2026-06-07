@@ -103,7 +103,7 @@ const WeeklyQuizDialog = ({
         const seed = (studentId || "anon") + courseId;
         qs = seededShuffle(qs, seed).slice(0, Math.min(numQuestions, qs.length));
       } else {
-        qs = getQuizQuestions(day, numQuestions);
+        qs = [];
       }
       if (cancelled) return;
       setQuestions(qs);
