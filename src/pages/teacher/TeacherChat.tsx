@@ -90,8 +90,9 @@ const TeacherChat = () => {
     return fetch(url, options);
   };
 
-  const sendMessage = useCallback(async () => {
-    if (!input.trim() || !activeChat || isStreaming || isCooldown) return;
+  const sendMessage = useCallback(async (overrideContent?: string) => {
+    const contentToSend = (overrideContent ?? input).trim();
+    if (!contentToSend || !activeChat || isStreaming || isCooldown) return;
 
     const now = Date.now();
     if (now - lastSendTime.current < 3000) {
@@ -100,7 +101,7 @@ const TeacherChat = () => {
     }
     lastSendTime.current = now;
 
-    const userContent = input;
+    const userContent = contentToSend;
     setInput("");
     setIsStreaming(true);
     setIsCooldown(true);
