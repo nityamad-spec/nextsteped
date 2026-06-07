@@ -15,6 +15,39 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const WELCOME = "Hi Professor! I'm your **Course Assistant**. I can help you refine your lesson plan, brainstorm exercises and case studies, review AI suggestions, or answer any course design questions. What would you like to work on?";
 
+const SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string }[] = [
+  {
+    icon: ListChecks,
+    label: "Suggest in-class exercises",
+    prompt: "Suggest 3 in-class exercises for this week's concepts that work for a 50-minute session.",
+  },
+  {
+    icon: BookOpen,
+    label: "Brainstorm a case study",
+    prompt: "Brainstorm a real-world case study I can use to teach this week's key concept. Include discussion questions.",
+  },
+  {
+    icon: Search,
+    label: "Research an article",
+    prompt: "Find and summarize a recent article I can assign as pre-reading for this week's topic.",
+  },
+  {
+    icon: ClipboardList,
+    label: "Draft assessment questions",
+    prompt: "Draft 5 multiple-choice questions and 2 short-answer questions covering this week's concepts.",
+  },
+  {
+    icon: Lightbulb,
+    label: "Explain a tough concept",
+    prompt: "Give me 3 different ways to explain this week's hardest concept to a struggling student.",
+  },
+  {
+    icon: MessageCircle,
+    label: "Plan a class discussion",
+    prompt: "Outline a 20-minute discussion prompt with follow-up questions for this week's topic.",
+  },
+];
+
 const TeacherChat = () => {
   const { user } = useAuth();
   const courseId = useTeacherCourseId();
