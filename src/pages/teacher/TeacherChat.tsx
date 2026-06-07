@@ -5,7 +5,7 @@ import { useChatSessions } from "@/hooks/useChatSessions";
 import { ChatMessage } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Plus, History, MessageSquare, ChevronLeft, Loader2, Sparkles, User } from "lucide-react";
+import { Send, Plus, History, MessageSquare, ChevronLeft, Loader2, Sparkles, User, ListChecks, BookOpen, Search, ClipboardList, Lightbulb, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
