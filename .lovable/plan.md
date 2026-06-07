@@ -1,31 +1,42 @@
-# Why quizzes appear for unpublished weeks
+# Make teacher Course Dashboard progress bar date-based
 
-`WeeklyQuizDialog.tsx` queries `assessment_questions` for `mode='daily_quiz'` + `quiz_day=N`. When that returns 0 rows (as for Statistics weeks 2/3/4/13), it falls back to a **hardcoded Python question bank** (`src/data/questionBank.ts` via `getQuizQuestions(day, numQuestions)`).
+Replace the hardcoded `currentWeek = 6 / totalWeeks = 16` mock on `/teacher/courses/dashboard` with the same date-based formula already used on `/student/home`, sourced from the `courses` row.
 
-So the student always sees a quiz — either the real one or generic Python questions — regardless of what the professor published. For a Statistics course this is doubly wrong (wrong subject + unpublished).
+## Change
 
-`StudentHome.tsx` makes it worse: it shows a "Take Quiz" button for every week in the lesson plan without checking whether questions exist.
+**`src/pages/teacher/CourseDashboard.tsx`**
 
-# Fix
+1. Add `start_date` and `total_weeks` to the existing `courses` fetch (the file already loads `currentCourse` — extend that select, or add a small effect if it doesn't pull those fields today).
+2. Replace lines 132–135:
 
-1. `**src/components/WeeklyQuizDialog.tsx**`
-  - Remove the `getQuizQuestions(...)` fallback. If the DB query returns 0 rows, show an empty state ("No quiz available for this week yet") and disable submission. No static questions, ever.
-  - Drop the `import { getQuizQuestions, Question } from "@/data/questionBank"` (keep the `Question` type by importing only the type, or inline it).
-2. `**src/pages/student/StudentHome.tsx**`
-  - Add a lightweight query alongside the existing `takenQuizzes` load that fetches the set of `quiz_day` values present in `assessment_questions` for the enrolled course + `mode='daily_quiz'`. Store as `availableQuizDays: Set<number>`.
-  - In the weekly card render (around line 459–490), only render the "Take Quiz" row when `availableQuizDays.has(dp.day)`. Otherwise show nothing (or a muted "Quiz not yet available" line — confirm preference below).
-3. `**src/data/questionBank.ts**` — leave the file in place for now (other tests reference it). It just stops being called from the dialog. We can delete it in a follow-up once we confirm no other runtime path imports it.
+   ```ts
+   // Semester progress (mock)
+   const totalWeeks = 16;
+   const currentWeek = 6;
+   const progressPct = Math.round((currentWeek / totalWeeks) * 100);
+   ```
 
-# Out of scope
+   with the same logic as `StudentHome.tsx` (lines 49–55):
 
-- No changes to scoring, mastery, or the professor publish flow.
-- No DB/migration changes.
+   ```ts
+   const totalWeeks = currentCourse?.total_weeks ?? 16;
+   const currentWeek = currentCourse?.start_date
+     ? Math.max(1, Math.min(totalWeeks,
+         Math.floor((Date.now() - new Date(currentCourse.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1))
+     : 1;
+   const progressPct = Math.round((currentWeek / totalWeeks) * 100);
+   ```
 
-# Risks
+3. Update the surrounding label area (around line 214) so the subtext shows `Week {currentWeek} of {totalWeeks}` — mirrors the student view.
 
-- `WeeklyQuizDialog.test.tsx` may rely on the fallback — will update the test to mock `assessment_questions` rows instead.
-- Any existing student who previously "completed" a fallback quiz still has a row in `assessment_results`; they'll keep their "Quiz completed" badge but no new fallback attempts can happen.
+## Edge cases
 
-# Question before implementing
+- **No `start_date` set** (course not yet scheduled): fall back to `currentWeek = 1`, `progressPct = round(1/totalWeeks*100)`, and render the subtext as "Start date not set" so the teacher knows why the bar is near-empty.
+- **Course past final week**: `Math.min(totalWeeks, …)` already caps it at 100%.
+- **`total_weeks` null**: default to 16 (matches student fallback).
 
-For weeks where the professor hasn't published a quiz, the weekly card should show a muted "Quiz not yet available" line?
+## Out of scope
+
+- No class-average mastery bar (separate request).
+- No DB changes — `courses.start_date` and `courses.total_weeks` already exist.
+- No change to the student view.

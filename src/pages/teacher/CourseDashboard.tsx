@@ -129,9 +129,31 @@ const CourseDashboard = () => {
     return () => { cancelled = true; };
   }, [user, courseId]);
 
-  // Semester progress (mock)
-  const totalWeeks = 16;
-  const currentWeek = 6;
+  // Semester progress — date-based, mirrors /student/home
+  const [courseSchedule, setCourseSchedule] = useState<{ start_date: string | null; total_weeks: number | null }>({ start_date: null, total_weeks: null });
+  useEffect(() => {
+    if (!courseId) { setCourseSchedule({ start_date: null, total_weeks: null }); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("courses")
+        .select("start_date, total_weeks")
+        .eq("id", courseId)
+        .maybeSingle();
+      if (cancelled) return;
+      setCourseSchedule({
+        start_date: (data?.start_date as string | null) ?? null,
+        total_weeks: (data?.total_weeks as number | null) ?? null,
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
+  const totalWeeks = courseSchedule.total_weeks ?? 16;
+  const hasStartDate = !!courseSchedule.start_date;
+  const currentWeek = hasStartDate
+    ? Math.max(1, Math.min(totalWeeks,
+        Math.floor((Date.now() - new Date(courseSchedule.start_date!).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1))
+    : 1;
   const progressPct = Math.round((currentWeek / totalWeeks) * 100);
 
 
@@ -212,7 +234,9 @@ const CourseDashboard = () => {
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-medium">Course Progress</p>
-            <span className="text-sm text-muted-foreground">Week {currentWeek} of {totalWeeks}</span>
+            <span className="text-sm text-muted-foreground">
+              {hasStartDate ? `Week ${currentWeek} of ${totalWeeks}` : "Start date not set"}
+            </span>
           </div>
           <Progress value={progressPct} className="h-3" />
         </CardContent>
