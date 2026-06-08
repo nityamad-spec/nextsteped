@@ -6,9 +6,13 @@
 //   - Writes ONLY to diagnostic_results.
 //   - Does NOT write profiles.learner_level (intentionally — profile-level is
 //     not driven by any quiz/diagnostic flow).
-//   - Does NOT write student_course_mastery — that table is owned exclusively
-//     by the update-mastery edge function. Pace and confidence are
-//     diagnostic-only signals and stay scoped to diagnostic_results.
+//   - Does NOT write student_concept_mastery or student_course_mastery. Those
+//     tables are populated exclusively by weekly_quiz / exam / practice via
+//     the update-mastery edge function. The diagnostic is a pure
+//     assessment-of-record and does not seed per-concept EMAs, so the EMA
+//     signal stays consistent (raw correct/attempted) across its callers.
+//     Pace and confidence are diagnostic-only signals and stay scoped to
+//     diagnostic_results.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
