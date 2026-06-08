@@ -561,8 +561,9 @@ const AIChat = () => {
     return fetch(url, options);
   };
 
-  const sendMessage = useCallback(async () => {
-    if (!input.trim() || !activeChat || isStreaming || isCooldown) return;
+  const sendMessage = useCallback(async (overrideContent?: string) => {
+    const contentToSend = (overrideContent ?? input).trim();
+    if (!contentToSend || !activeChat || isStreaming || isCooldown) return;
     if (assessmentActive) return;
 
     // Rate limiting: enforce 3-second minimum gap
@@ -573,7 +574,7 @@ const AIChat = () => {
     }
     lastSendTime.current = now;
 
-    const userContent = input;
+    const userContent = contentToSend;
     setInput("");
     setIsStreaming(true);
     setIsCooldown(true);
