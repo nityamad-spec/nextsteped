@@ -1102,6 +1102,31 @@ const AIChat = () => {
                   </div>
                 </div>
               )}
+              {mode === "learning" && !assessmentActive && !isStreaming && activeChat.messages.length <= 1 && (
+                <div className="pt-2">
+                  <p className="text-xs font-medium text-muted-foreground mb-2 px-1">Try one of these to get started</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {STUDENT_SUGGESTED_PROMPTS.map((s) => {
+                      const Icon = s.icon;
+                      return (
+                        <Button
+                          key={s.label}
+                          variant="outline"
+                          className="h-auto justify-start gap-3 rounded-2xl border-border/60 bg-card px-3 py-3 text-left hover:bg-accent"
+                          onClick={() => sendMessage(s.prompt)}
+                          disabled={isStreaming || isCooldown}
+                        >
+                          <Icon className="h-4 w-4 shrink-0 text-primary" />
+                          <span className="flex flex-col gap-0.5 min-w-0">
+                            <span className="text-sm font-medium leading-tight">{s.label}</span>
+                            <span className="text-xs text-muted-foreground leading-snug whitespace-normal line-clamp-2">{s.prompt}</span>
+                          </span>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </>
           ) : (
