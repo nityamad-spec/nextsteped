@@ -1,6 +1,13 @@
 // Edge function: update-mastery
-// SOLE writer of public.student_course_mastery.
+// SOLE writer of public.student_course_mastery and public.student_concept_mastery.
 // EMA blend per concept; course mastery derived as weighted avg of concept rows.
+//
+// Live callers: weekly_quiz, exam, practice. The diagnostic intentionally does
+// NOT call this function — it is a pure assessment-of-record that writes only
+// to diagnostic_results. The "diagnostic" value remains in the source enum for
+// backward compatibility with any historical payloads, but no live caller in
+// the app sends it.
+//
 // Pace and confidence are diagnostic-only signals and live exclusively in
 // diagnostic_results — they MUST NOT be folded into course-level mastery here.
 //
