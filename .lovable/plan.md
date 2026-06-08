@@ -1,23 +1,29 @@
-# Add suggested prompts to the Professor Course Assistant
+# Add starter prompts to the Student Teaching Assistant chat
 
-Show a small grid of clickable example prompts on `/teacher/chat` when a chat is empty (only the welcome message present), so professors have a starting point.
+Show a small grid of clickable example prompts on `/student/chat` (Study mode only) when a chat is empty — only the welcome message present — so students have a starting point. Mirror the pattern already used on `/teacher/chat`.
 
 ## Change
 
-`**src/pages/teacher/TeacherChat.tsx**` only.
+`src/pages/student/AIChat.tsx` only.
 
-1. Define a module-level constant `SUGGESTED_PROMPTS` with 3 prompts grouped lightly by icon/category:
-  - **Suggest in-class exercises** — "Suggest 3 in-class exercises for this week's concepts that work for a 50-minute session."
-  - **Brainstorm a case study** — "Brainstorm a real-world case study I can use to teach [concept]."
-  - **Research an article** — "Find and summarize a recent article I can assign as pre-reading for [topic]."
-   Each entry: `{ icon, label, prompt }` (icons from `lucide-react`: `Dumbbell`/`ListChecks`, `BookOpen`, `Search`, `ClipboardList`, `Lightbulb`, `MessageCircle`).
-2. In the Messages `ScrollArea` (around lines 300–315), after `allMessages.map(...)`, render the suggestions card **only when `displayMessages.length <= 1**` (i.e. just the welcome message) AND `!isStreaming`. Layout: 2-column grid on `sm:`, single column on mobile, each tile a `Button variant="outline"` with icon + label that on click calls a new `handleSuggestionClick(prompt)`.
-3. `handleSuggestionClick(prompt)` sets the input and immediately calls `sendMessage()`. Since `sendMessage` is a `useCallback` reading `input` from state, we'll refactor it minimally to accept an optional `overrideContent?: string` argument so the click path doesn't have to wait for a state update. Default behavior unchanged.
-4. Styling: use existing semantic tokens (`border`, `bg-card`, `text-muted-foreground`, `text-primary`). No new colors. Match the existing rounded-2xl / card aesthetic in the page.
+1. Add a module-level constant `STUDENT_SUGGESTED_PROMPTS` with 6 prompts, each `{ icon, label, prompt }`. Icons from `lucide-react`:
+  - **Explain a concept** (`Lightbulb`) — "Explain this week's key concept in simple terms with an example."
+  - **Walk through an example** (`BookOpen`) — "Walk me through a worked example for [topic] step by step."
+  - **Quiz me** (`ListChecks`) — "Quiz me with 5 practice questions on this week's material and check my answers."
+  - **Compare two ideas** (`GitCompare`) — "What's the difference between [X] and [Y], and when do I use each?"
+  - **Prep for the exam** (`GraduationCap`) — "What topics should I focus on for the upcoming exam, and how should I study them?"
+2. Refactor `sendMessage` minimally to accept an optional `overrideContent?: string` so the click path doesn't wait for input state to update. Replace `input` reads with `(overrideContent ?? input)`. Default behavior unchanged; existing call sites (`onKeyDown`, send button) stay the same.
+3. In the messages container (around lines 1077–1097), after `activeChat.messages.map(renderMessage)` and the streaming placeholder, render the suggestions block only when:
+  - `mode === "learning"` (hide in Exam mode — input is disabled there)
+  - `!assessmentActive`
+  - `!isStreaming`
+  - `activeChat.messages.length <= 1` (just the welcome message)
+   Layout: small heading "Try one of these to get started", then a 1-col / `sm:grid-cols-2` grid of `Button variant="outline"` tiles. Each tile shows the icon + bold label + a truncated (2-line) prompt preview, and on click calls `sendMessage(s.prompt)`.
+4. Styling uses existing semantic tokens (`border`, `bg-card`, `text-muted-foreground`, `text-primary`) and matches the rounded-2xl card aesthetic used elsewhere on the page.
 
 ## Out of scope
 
-- No edge-function or system-prompt changes — these are just chat seed messages.
-- No persistence — suggestions are static client-side copy.
-- No changes to the student AI chat.
-
+- No edge-function, system-prompt, relevance-classifier, or RAG changes — these are static client-side seed prompts.
+- No persistence of suggestions.
+- No changes to Exam mode, practice widget, or `/teacher/chat`.
+- No new business logic (mastery, scoring, etc.).

@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User, BarChart3, Dumbbell } from "lucide-react";
+import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User, BarChart3, Dumbbell, Lightbulb, ListChecks, GitCompare, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import ExamHistory from "@/components/ExamHistory";
@@ -24,6 +24,14 @@ import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 
 const WELCOME_LEARNING = "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?";
 const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Configure your practice settings and click **Start Exam** to begin a timed simulation. Good luck!";
+
+const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string }[] = [
+  { icon: Lightbulb, label: "Explain a concept", prompt: "Explain this week's key concept in simple terms with an example." },
+  { icon: BookOpen, label: "Walk through an example", prompt: "Walk me through a worked example for this week's topic step by step." },
+  { icon: ListChecks, label: "Quiz me", prompt: "Quiz me with 5 practice questions on this week's material and check my answers." },
+  { icon: GitCompare, label: "Compare two ideas", prompt: "What's the difference between two related concepts from this week, and when do I use each?" },
+  { icon: GraduationCap, label: "Prep for the exam", prompt: "What topics should I focus on for the upcoming exam, and how should I study them?" },
+];
 
 async function invokeUpdateMastery(args: {
   courseId: string;
@@ -553,8 +561,9 @@ const AIChat = () => {
     return fetch(url, options);
   };
 
-  const sendMessage = useCallback(async () => {
-    if (!input.trim() || !activeChat || isStreaming || isCooldown) return;
+  const sendMessage = useCallback(async (overrideContent?: string) => {
+    const contentToSend = (overrideContent ?? input).trim();
+    if (!contentToSend || !activeChat || isStreaming || isCooldown) return;
     if (assessmentActive) return;
 
     // Rate limiting: enforce 3-second minimum gap
@@ -565,7 +574,7 @@ const AIChat = () => {
     }
     lastSendTime.current = now;
 
-    const userContent = input;
+    const userContent = contentToSend;
     setInput("");
     setIsStreaming(true);
     setIsCooldown(true);
@@ -1093,6 +1102,31 @@ const AIChat = () => {
                   </div>
                 </div>
               )}
+              {mode === "learning" && !assessmentActive && !isStreaming && activeChat.messages.length <= 1 && (
+                <div className="pt-2">
+                  <p className="text-xs font-medium text-muted-foreground mb-2 px-1">Try one of these to get started</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {STUDENT_SUGGESTED_PROMPTS.map((s) => {
+                      const Icon = s.icon;
+                      return (
+                        <Button
+                          key={s.label}
+                          variant="outline"
+                          className="h-auto justify-start gap-3 rounded-2xl border-border/60 bg-card px-3 py-3 text-left hover:bg-accent"
+                          onClick={() => sendMessage(s.prompt)}
+                          disabled={isStreaming || isCooldown}
+                        >
+                          <Icon className="h-4 w-4 shrink-0 text-primary" />
+                          <span className="flex flex-col gap-0.5 min-w-0">
+                            <span className="text-sm font-medium leading-tight">{s.label}</span>
+                            <span className="text-xs text-muted-foreground leading-snug whitespace-normal line-clamp-2">{s.prompt}</span>
+                          </span>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </>
           ) : (
@@ -1141,7 +1175,7 @@ const AIChat = () => {
               className="flex-1"
               disabled={mode === "exam"}
             />
-            <Button onClick={sendMessage} size="icon" disabled={!input.trim() || isStreaming || isCooldown || mode === "exam"}>
+            <Button onClick={() => sendMessage()} size="icon" disabled={!input.trim() || isStreaming || isCooldown || mode === "exam"}>
               <Send className="h-4 w-4" />
             </Button>
           </div>
