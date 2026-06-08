@@ -25,6 +25,14 @@ import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 const WELCOME_LEARNING = "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?";
 const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Configure your practice settings and click **Start Exam** to begin a timed simulation. Good luck!";
 
+const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string }[] = [
+  { icon: Lightbulb, label: "Explain a concept", prompt: "Explain this week's key concept in simple terms with an example." },
+  { icon: BookOpen, label: "Walk through an example", prompt: "Walk me through a worked example for this week's topic step by step." },
+  { icon: ListChecks, label: "Quiz me", prompt: "Quiz me with 5 practice questions on this week's material and check my answers." },
+  { icon: GitCompare, label: "Compare two ideas", prompt: "What's the difference between two related concepts from this week, and when do I use each?" },
+  { icon: GraduationCap, label: "Prep for the exam", prompt: "What topics should I focus on for the upcoming exam, and how should I study them?" },
+];
+
 async function invokeUpdateMastery(args: {
   courseId: string;
   source: "weekly_quiz" | "exam" | "practice";
