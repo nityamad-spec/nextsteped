@@ -1,29 +1,40 @@
-# Add starter prompts to the Student Teaching Assistant chat
+## Goal
 
-Show a small grid of clickable example prompts on `/student/chat` (Study mode only) when a chat is empty — only the welcome message present — so students have a starting point. Mirror the pattern already used on `/teacher/chat`.
+Decouple the diagnostic from the EMA-based mastery tables. After this change:
+- `diagnostic_results` remains the source of truth for the diagnostic submission (score, `mastery_score`, `learner_level`, components).
+- `student_concept_mastery` and `student_course_mastery` are populated only by weekly quiz, exam, and practice submissions — so the per-concept EMA is never mixed with raw `correct/attempted` from the diagnostic.
 
-## Change
+This resolves the inconsistency where `diagnostic_results.mastery_score` was difficulty × Bloom weighted while the mastery tables it wrote into were not.
 
-`src/pages/student/AIChat.tsx` only.
+## Changes
 
-1. Add a module-level constant `STUDENT_SUGGESTED_PROMPTS` with 6 prompts, each `{ icon, label, prompt }`. Icons from `lucide-react`:
-  - **Explain a concept** (`Lightbulb`) — "Explain this week's key concept in simple terms with an example."
-  - **Walk through an example** (`BookOpen`) — "Walk me through a worked example for [topic] step by step."
-  - **Quiz me** (`ListChecks`) — "Quiz me with 5 practice questions on this week's material and check my answers."
-  - **Compare two ideas** (`GitCompare`) — "What's the difference between [X] and [Y], and when do I use each?"
-  - **Prep for the exam** (`GraduationCap`) — "What topics should I focus on for the upcoming exam, and how should I study them?"
-2. Refactor `sendMessage` minimally to accept an optional `overrideContent?: string` so the click path doesn't wait for input state to update. Replace `input` reads with `(overrideContent ?? input)`. Default behavior unchanged; existing call sites (`onKeyDown`, send button) stay the same.
-3. In the messages container (around lines 1077–1097), after `activeChat.messages.map(renderMessage)` and the streaming placeholder, render the suggestions block only when:
-  - `mode === "learning"` (hide in Exam mode — input is disabled there)
-  - `!assessmentActive`
-  - `!isStreaming`
-  - `activeChat.messages.length <= 1` (just the welcome message)
-   Layout: small heading "Try one of these to get started", then a 1-col / `sm:grid-cols-2` grid of `Button variant="outline"` tiles. Each tile shows the icon + bold label + a truncated (2-line) prompt preview, and on click calls `sendMessage(s.prompt)`.
-4. Styling uses existing semantic tokens (`border`, `bg-card`, `text-muted-foreground`, `text-primary`) and matches the rounded-2xl card aesthetic used elsewhere on the page.
+### 1. `supabase/functions/score-diagnostic/index.ts`
+- Remove the `perConceptTally` map and the trailing `fetch(...)` call to `update-mastery`.
+- Keep everything else (weighted scoring, pace, confidence, `diagnostic_results` insert) exactly as-is.
+- Update the top-of-file comment to state the function no longer writes to `student_concept_mastery` / `student_course_mastery` and that those tables are populated by weekly quiz / exam / practice only.
+
+### 2. `supabase/functions/update-mastery/index.ts`
+- No code change.
+- Update the header comment to note that `diagnostic` is no longer a live caller (the `"diagnostic"` enum value stays in the Zod schema for backward compatibility; nothing in the app sends it after this change).
+
+### 3. Frontend fallbacks
+Audited every reader of the two mastery tables:
+
+| Consumer | Reads | Behavior after change | Action |
+|---|---|---|---|
+| `src/pages/student/StudentHome.tsx` — concept heatmap (line 550) | `student_concept_mastery` | Heatmap shows "no data" for all concepts until the student takes a weekly quiz/exam/practice — same as the pre-diagnostic state today | None needed. Acceptable. |
+| `src/pages/student/StudentHome.tsx` — `courseMastery` state (line 66, 124) | `student_course_mastery.mastery_score` | State stays `null` until first weekly quiz | None needed. Value is loaded but never rendered (confirmed via grep — only referenced in the test file). |
+| `AssessmentAnalytics.tsx`, `StudentCourseSwitcher.tsx`, `admin/DiagnosticsAnalytics.tsx` | `diagnostic_results` only | Unchanged | None needed. |
+| Teacher Course Dashboard / Student Insights | Do not query `student_concept_mastery` or `student_course_mastery` (grep confirmed) | Unchanged | None needed. |
+
+No additional UI fallback is required. The `learner_level` badge and diagnostic summary on the student side already source from `diagnostic_results`, not from `student_course_mastery`.
+
+### 4. Tests
+- `src/pages/student/StudentHome.test.tsx` seeds `courseMasteryStore` directly — keep as-is; it doesn't go through the diagnostic flow.
+- No existing test asserts that the diagnostic writes to the mastery tables, so nothing to remove.
 
 ## Out of scope
 
-- No edge-function, system-prompt, relevance-classifier, or RAG changes — these are static client-side seed prompts.
-- No persistence of suggestions.
-- No changes to Exam mode, practice widget, or `/teacher/chat`.
-- No new business logic (mastery, scoring, etc.).
+- Schema changes to `student_concept_mastery` / `student_course_mastery` (none needed).
+- Backfilling or wiping any historical mastery rows that were previously seeded by the diagnostic — existing rows stay; they'll be naturally overwritten by future weekly quiz / exam / practice EMA updates.
+- Changes to weekly quiz / exam / practice mastery formulas (separate decision).

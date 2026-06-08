@@ -6,9 +6,13 @@
 //   - Writes ONLY to diagnostic_results.
 //   - Does NOT write profiles.learner_level (intentionally — profile-level is
 //     not driven by any quiz/diagnostic flow).
-//   - Does NOT write student_course_mastery — that table is owned exclusively
-//     by the update-mastery edge function. Pace and confidence are
-//     diagnostic-only signals and stay scoped to diagnostic_results.
+//   - Does NOT write student_concept_mastery or student_course_mastery. Those
+//     tables are populated exclusively by weekly_quiz / exam / practice via
+//     the update-mastery edge function. The diagnostic is a pure
+//     assessment-of-record and does not seed per-concept EMAs, so the EMA
+//     signal stays consistent (raw correct/attempted) across its callers.
+//     Pace and confidence are diagnostic-only signals and stay scoped to
+//     diagnostic_results.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
@@ -182,7 +186,6 @@ Deno.serve(async (req) => {
   let correctCount = 0;
   let answeredCount = 0;
   const droppedQuestionIds: string[] = [];
-  const perConceptTally = new Map<string, { attempted: number; correct: number }>();
 
   for (const a of body.answers) {
     const responseStr = (a.selected ?? "").toString();
@@ -212,12 +215,8 @@ Deno.serve(async (req) => {
     answeredCount += 1;
     if (isCorrect) correctCount += 1;
 
-    if (meta.concept_id) {
-      const t = perConceptTally.get(meta.concept_id) ?? { attempted: 0, correct: 0 };
-      t.attempted += 1;
-      if (isCorrect) t.correct += 1;
-      perConceptTally.set(meta.concept_id, t);
-    }
+
+
 
     // Pace
     const expectedMs =
@@ -278,35 +277,11 @@ Deno.serve(async (req) => {
   // NOTE: profiles.learner_level is intentionally NOT updated here.
   // Profile-level state is not driven by any quiz/diagnostic submission.
 
-  // Fire-and-forget mastery update (concept EMA + derived course mastery).
-  // Failures are logged but never block diagnostic submission.
-  if (perConceptTally.size > 0 && inserted?.id) {
-    try {
-      const masteryUrl = `${SUPABASE_URL}/functions/v1/update-mastery`;
-      const resp = await fetch(masteryUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          course_id: body.course_id,
-          source: "diagnostic",
-          source_id: inserted.id,
-          per_concept: Array.from(perConceptTally.entries()).map(([concept_id, t]) => ({
-            concept_id,
-            attempted: t.attempted,
-            correct: t.correct,
-          })),
-        }),
-      });
-      if (!resp.ok) {
-        console.error("update-mastery non-OK", resp.status, await resp.text());
-      }
-    } catch (e) {
-      console.error("update-mastery call failed", e);
-    }
-  }
+  // Intentionally does NOT call update-mastery. The diagnostic is a pure
+  // assessment-of-record — student_concept_mastery and student_course_mastery
+  // are populated by weekly_quiz / exam / practice submissions only.
+
+
 
   return json({
     id: inserted?.id,
