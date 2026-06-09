@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { TASettings } from "@/types";
+import { TASettings, ExamScheduleItem } from "@/types";
 import { defaultTASettings } from "@/data/mockData";
 
 interface DBTASettings {
