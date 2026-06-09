@@ -542,7 +542,8 @@ const AIChat = () => {
     const ids = availableExamIds.length > 0 ? availableExamIds : await loadAvailableExamIds();
     const examId = consumeNextExamId(ids);
     const fetched = await fetchDBQuestions("exam", undefined, examId ?? undefined);
-    let questions = filterByVisibleTopics(fetched.questions, visibleTopics);
+    // Option 2: trust the professor — skip week-visibility filter for generator-produced exams.
+    let questions = examId ? fetched.questions : filterByVisibleTopics(fetched.questions, visibleTopics);
     let meta = fetched.meta;
     if (questions.length === 0) {
       let fallback = getExamQuestions(count, undefined, custom.questionMix);
