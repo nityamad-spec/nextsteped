@@ -202,7 +202,7 @@ const ExamMode = () => {
     const lengthMin = 60;
     setExamSchedule(prev => [...prev, {
       id: newExamId(),
-      kind: "midterm",
+      kind: "final",
       lengthMin,
       breakdown: questionEstimate(lengthMin, examQuestionTypes).breakdown,
       approved: false,
