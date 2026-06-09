@@ -410,8 +410,11 @@ const AIChat = () => {
     return filtered.length > 0 ? filtered : questions; // Fallback to all if no matches
   };
 
-  const fetchDBQuestions = async (mode: string, quizDay?: number): Promise<Question[]> => {
-    if (!enrolledCourseId) return [];
+  const fetchDBQuestions = async (
+    mode: string,
+    quizDay?: number,
+  ): Promise<{ questions: Question[]; meta: Map<string, { difficulty: number; bloom: number }> }> => {
+    if (!enrolledCourseId) return { questions: [], meta: new Map() };
     let query = supabase
       .from("assessment_questions")
       .select("*")
@@ -419,17 +422,25 @@ const AIChat = () => {
       .eq("mode", mode);
     if (quizDay) query = query.eq("quiz_day", quizDay);
     const { data, error } = await query;
-    if (error || !data || data.length === 0) return [];
-    return data.map((row: any) => ({
-      id: row.id,
-      text: row.question_text,
-      type: (row.question_type === "MCQ" ? "mcq" : row.question_type === "Problem Solving" ? "problem_solving" : row.question_type === "True/False" || row.question_type === "TF" ? "true_false" : "short_answer") as Question["type"],
-      options: row.options as string[] | undefined,
-      correctAnswer: row.answer,
-      topic: row.topic,
-      difficulty: row.difficulty as "Easy" | "Medium" | "Hard",
-      day: row.quiz_day || 0,
-    }));
+    if (error || !data || data.length === 0) return { questions: [], meta: new Map() };
+    const meta = new Map<string, { difficulty: number; bloom: number }>();
+    const questions = data.map((row: any) => {
+      meta.set(row.id, {
+        difficulty: Number(row.difficulty_estimate ?? 0.5),
+        bloom: Number(row.bloom_level ?? 1),
+      });
+      return {
+        id: row.id,
+        text: row.question_text,
+        type: (row.question_type === "MCQ" ? "mcq" : row.question_type === "Problem Solving" ? "problem_solving" : row.question_type === "True/False" || row.question_type === "TF" ? "true_false" : "short_answer") as Question["type"],
+        options: row.options as string[] | undefined,
+        correctAnswer: row.answer,
+        topic: row.topic,
+        difficulty: row.difficulty as "Easy" | "Medium" | "Hard",
+        day: row.quiz_day || 0,
+      };
+    });
+    return { questions, meta };
   };
 
   const handleStartExam = async () => {
