@@ -178,30 +178,116 @@ const ExamMode = () => {
   }, [courseId]);
 
 
-  const handleExamLengthChange = (v: number) => { setExamLength(v); setEstimateApproved(false); };
-  const handleExamTypeChange = (v: string) => { setExamQuestionTypes(v); setEstimateApproved(false); };
+  // ── Schedule mutation helpers ──
+  const updateExam = (id: string, patch: Partial<ExamScheduleItem>) => {
+    setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
+  };
 
-  const activeBreakdown = editingEstimate ? customBreakdown : estimate.breakdown;
-  const activeTotal = Object.values(activeBreakdown).reduce((s, n) => s + n, 0);
+  // When the global question types change, refresh each card's breakdown
+  // (preserve approved state only if the type set is unchanged for that card)
+  useEffect(() => {
+    setExamSchedule(prev => prev.map(e => ({
+      ...e,
+      breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
+      approved: false,
+    })));
+    setEditingCardIds({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examQuestionTypes]);
 
-  const handleApproveEstimate = () => { if (editingEstimate) setEditingEstimate(false); setEstimateApproved(true); };
-  const handleEditEstimate = () => { setCustomBreakdown({ ...estimate.breakdown }); setEditingEstimate(true); setEstimateApproved(false); };
+  const handleExamTypeChange = (v: string) => setExamQuestionTypes(v);
 
-  const canContinue = examApproved;
+  const handleAddExam = () => {
+    if (examSchedule.length >= MAX_EXAMS) return;
+    const lengthMin = 60;
+    setExamSchedule(prev => [...prev, {
+      id: newExamId(),
+      kind: "midterm",
+      lengthMin,
+      breakdown: questionEstimate(lengthMin, examQuestionTypes).breakdown,
+      approved: false,
+    }]);
+  };
+
+  const handleRemoveExamRequest = () => {
+    if (examSchedule.length <= 1) return;
+    const last = examSchedule[examSchedule.length - 1];
+    if (last.approved) {
+      setConfirmRemoveId(last.id);
+    } else {
+      setExamSchedule(prev => prev.slice(0, -1));
+    }
+  };
+  const confirmRemoveExam = () => {
+    setExamSchedule(prev => prev.slice(0, -1));
+    setConfirmRemoveId(null);
+  };
+
+  const handleLengthChange = (id: string, v: number) => {
+    const exam = examSchedule.find(e => e.id === id);
+    if (!exam) return;
+    updateExam(id, {
+      lengthMin: v,
+      breakdown: questionEstimate(v, examQuestionTypes).breakdown,
+      approved: false,
+    });
+    setEditingCardIds(prev => ({ ...prev, [id]: false }));
+  };
+
+  const handleKindChange = (id: string, kind: "midterm" | "final") => {
+    updateExam(id, { kind, approved: false });
+  };
+
+  const handleEditBreakdown = (id: string) => {
+    setEditingCardIds(prev => ({ ...prev, [id]: true }));
+    updateExam(id, { approved: false });
+  };
+
+  const handleBreakdownNumberChange = (id: string, type: string, value: number) => {
+    const exam = examSchedule.find(e => e.id === id);
+    if (!exam) return;
+    updateExam(id, {
+      breakdown: { ...exam.breakdown, [type]: Math.max(0, value || 0) },
+      approved: false,
+    });
+  };
+
+  const handleApproveExam = (id: string) => {
+    setEditingCardIds(prev => ({ ...prev, [id]: false }));
+    updateExam(id, { approved: !examSchedule.find(e => e.id === id)?.approved });
+  };
+
+  // Auto-label each card "<Kind> N" within its kind
+  const labeledSchedule = useMemo(() => {
+    const counters: Record<string, number> = { midterm: 0, final: 0 };
+    return examSchedule.map(e => {
+      counters[e.kind] = (counters[e.kind] || 0) + 1;
+      return { ...e, label: `${e.kind === "midterm" ? "Midterm" : "Final"} ${counters[e.kind]}` };
+    });
+  }, [examSchedule]);
+
+  const typesSelected = parseMix(examQuestionTypes).length > 0;
+  const allExamsApproved = examSchedule.length > 0 && examSchedule.every(e => e.approved);
+  const canContinue = allExamsApproved && typesSelected;
 
   const handleSave = async () => {
     try {
+      const firstExam = examSchedule[0];
       await saveTASettings({
         ...settings,
-        examTimeLimit: examLength,
+        // Mirror first card to legacy fields for backward compat
+        examTimeLimit: firstExam?.lengthMin ?? 60,
         examQuestionMix: examQuestionTypes,
         examPresentation: "all_at_once",
-        examApproved,
-        examEnabled,
-        examManualQuestions,
-        examManualCount,
+        examApproved: allExamsApproved,
+        examEnabled: examEnabled || allExamsApproved,
+        examManualQuestions: false,
+        examManualCount: firstExam
+          ? Object.values(firstExam.breakdown).reduce((s, n) => s + n, 0)
+          : null,
+        examSchedule,
       });
-      if ((examApproved || examEnabled) && user?.id && courseId) {
+      if ((allExamsApproved || examEnabled) && user?.id && courseId) {
         void markStepCompleted(user.id, "exam-mode", courseId, { source: "ExamMode.handleSave" });
       }
     } catch {
