@@ -868,6 +868,14 @@ const ExamMode = () => {
         </DialogContent>
       </Dialog>
 
+      <ExamQuestionsViewDialog
+        open={!!viewExamId}
+        onOpenChange={(o) => { if (!o) setViewExamId(null); }}
+        courseId={courseId}
+        examId={viewExamId}
+        examLabel={labeledSchedule.find(e => e.id === viewExamId)?.label ?? "Exam"}
+      />
+
       <AlertDialog open={!!confirmRemoveId} onOpenChange={(o) => !o && setConfirmRemoveId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
