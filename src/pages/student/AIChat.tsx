@@ -354,23 +354,12 @@ const AIChat = () => {
   useEffect(() => {
     const shouldNewChat = searchParams.get("newchat") === "true";
     if (!shouldNewChat || !user) return;
-    const topicsParam = searchParams.get("topics");
-    const targetMode = topicsParam
-      ? "learning"
-      : (searchParams.get("mode") === "exam" || searchParams.get("mode") === "quiz") ? "exam" : "learning";
+    const targetMode = (searchParams.get("mode") === "exam" || searchParams.get("mode") === "quiz") ? "exam" : "learning";
     setMode(targetMode);
     setAssessmentActive(false);
     const welcome = targetMode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
-    const title = topicsParam
-      ? `Study: ${topicsParam.slice(0, 40)}`
-      : targetMode === "learning" ? "New Study Session" : "New Exam Prep";
-    createSession(title, welcome).then(() => {
-      if (topicsParam) {
-        setInput(`Help me focus on these topics: ${topicsParam}. Start with the one I'm weakest on and explain with examples and quick practice questions.`);
-      }
-    });
-    // Clear query params so refresh doesn't re-trigger
-    navigate(location.pathname, { replace: true });
+    const title = targetMode === "learning" ? "New Study Session" : "New Exam Prep";
+    createSession(title, welcome);
   }, []);
 
   useEffect(() => {
