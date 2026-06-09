@@ -23,7 +23,7 @@ const TIER_SPEC: TierSpec[] = [
 ];
 
 const MAX_ATTEMPTS = 3;
-const MODEL = "google/gemini-2.5-pro";
+const MODEL = "google/gemini-2.5-flash";
 
 interface GeneratedQuestion {
   content_text: string;
