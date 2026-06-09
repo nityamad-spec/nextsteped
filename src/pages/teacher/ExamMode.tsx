@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import QuestionTypeSelector from "@/components/QuestionTypeSelector";
+import ExamQuestionsViewDialog from "@/components/ExamQuestionsViewDialog";
 import { bumpCacheVersion } from "@/lib/cacheVersion";
 import type { ExamScheduleItem } from "@/types";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -135,6 +136,14 @@ const ExamMode = () => {
   const [saving, setSaving] = useState(false);
   const [concepts, setConcepts] = useState<{ id: string; concept_code: string; concept_name: string }[]>([]);
 
+  // Per-exam generated-question state
+  const [examQuestionCounts, setExamQuestionCounts] = useState<Record<string, number>>({});
+  const [generatingExamId, setGeneratingExamId] = useState<string | null>(null);
+  const [genProgress, setGenProgress] = useState<{ current: number; total: number } | null>(null);
+  const [viewExamId, setViewExamId] = useState<string | null>(null);
+
+
+
 
   useEffect(() => {
     if (!loading) {
@@ -165,17 +174,41 @@ const ExamMode = () => {
       ]);
       if (error) { console.error(error); toast.error("Failed to load custom exam questions"); }
       else if (data) {
-        setQuestions(data.map((row: any) => ({
+        // Manually-added questions (exam_id NULL) keep showing in the list below.
+        // AI-generated rows (exam_id set) are excluded here and surfaced via the per-exam View dialog.
+        const manual = (data as any[]).filter((row) => !row.exam_id);
+        setQuestions(manual.map((row: any) => ({
           id: row.id, question: row.question_text, answer: row.answer, topic: row.topic,
           difficulty: row.difficulty, type: row.question_type,
           options: row.options, correctIndex: row.correct_index ?? undefined,
         })));
+        const counts: Record<string, number> = {};
+        for (const row of data as any[]) {
+          if (row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
+        }
+        setExamQuestionCounts(counts);
       }
       setConcepts((conceptsRes.data as any[]) || []);
       setQuestionsLoading(false);
     };
     fetchQuestions();
   }, [courseId]);
+
+  const refreshExamCounts = async () => {
+    if (!courseId) return;
+    const { data } = await supabase
+      .from("assessment_questions")
+      .select("exam_id")
+      .eq("course_id", courseId)
+      .eq("mode", "exam");
+    const counts: Record<string, number> = {};
+    for (const row of (data as any[]) ?? []) {
+      if (row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
+    }
+    setExamQuestionCounts(counts);
+  };
+
+
 
 
   // ── Schedule mutation helpers ──
@@ -269,6 +302,83 @@ const ExamMode = () => {
   const typesSelected = parseMix(examQuestionTypes).length > 0;
   const allExamsApproved = examSchedule.length > 0 && examSchedule.every(e => e.approved);
   const canContinue = allExamsApproved && typesSelected;
+
+  // ── Generate Questions handler ──
+  const handleGenerateQuestions = async (examId: string) => {
+    if (!courseId) { toast.error("No course selected"); return; }
+    const exam = examSchedule.find(e => e.id === examId);
+    if (!exam) return;
+    const totalQuestions = Object.values(exam.breakdown).reduce<number>((s, n) => s + (n as number), 0);
+    if (totalQuestions <= 0) { toast.error("Approve an estimate with at least 1 question first."); return; }
+    const types = parseMix(examQuestionTypes);
+    if (types.length === 0) { toast.error("Select at least one question type."); return; }
+
+    setGeneratingExamId(examId);
+    setGenProgress({ current: 0, total: totalQuestions });
+
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const url = `https://${projectId}.supabase.co/functions/v1/generate-exam-questions`;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          course_id: courseId,
+          exam_id: examId,
+          length_min: exam.lengthMin,
+          total_questions: totalQuestions,
+          question_types: types,
+        }),
+      });
+      if (!res.ok || !res.body) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`Generation failed: ${res.status} ${txt.slice(0, 200)}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let finalErr: string | null = null;
+      let done = false;
+      while (!done) {
+        const { value, done: streamDone } = await reader.read();
+        if (streamDone) break;
+        buf += decoder.decode(value, { stream: true });
+        const events = buf.split("\n\n");
+        buf = events.pop() ?? "";
+        for (const ev of events) {
+          const line = ev.split("\n").find(l => l.startsWith("data: "));
+          if (!line) continue;
+          try {
+            const payload = JSON.parse(line.slice(6));
+            if (payload.event === "progress") {
+              setGenProgress({ current: payload.generated, total: payload.total });
+            } else if (payload.event === "done") {
+              done = true;
+            } else if (payload.event === "error") {
+              finalErr = payload.error ?? "Unknown error";
+              done = true;
+            }
+          } catch { /* ignore parse */ }
+        }
+      }
+      if (finalErr) throw new Error(finalErr);
+
+      await refreshExamCounts();
+      if (courseId) bumpCacheVersion("questions", courseId);
+      toast.success(`Generated ${totalQuestions} exam questions`);
+    } catch (e: any) {
+      console.error("generate exam questions failed:", e);
+      toast.error(e?.message ?? "Failed to generate questions");
+    } finally {
+      setGeneratingExamId(null);
+      setGenProgress(null);
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -523,13 +633,48 @@ const ExamMode = () => {
                             >
                               {exam.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve Estimate"}
                             </Button>
-                            <Button
-                              variant="outline" size="sm" className="h-7 text-xs"
-                              disabled={breakdownEntries.length === 0}
-                              onClick={() => { /* not wired yet */ }}
-                            >
-                              <Sparkles className="mr-1 h-3 w-3" /> Generate Questions
-                            </Button>
+                            {(() => {
+                              const generatedCount = examQuestionCounts[exam.id] ?? 0;
+                              const isGenerating = generatingExamId === exam.id;
+                              const hasExisting = generatedCount > 0;
+                              if (hasExisting && !isGenerating) {
+                                return (
+                                  <>
+                                    <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs font-medium text-primary">
+                                      <Check className="h-3 w-3" /> {generatedCount} questions generated
+                                    </span>
+                                    <Button
+                                      variant="outline" size="sm" className="h-7 text-xs"
+                                      onClick={() => setViewExamId(exam.id)}
+                                    >
+                                      View
+                                    </Button>
+                                  </>
+                                );
+                              }
+                              return (
+                                <Button
+                                  variant="outline" size="sm" className="h-7 text-xs"
+                                  disabled={
+                                    breakdownEntries.length === 0 ||
+                                    !exam.approved ||
+                                    !!generatingExamId
+                                  }
+                                  onClick={() => handleGenerateQuestions(exam.id)}
+                                >
+                                  {isGenerating ? (
+                                    <>
+                                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                      Generating {genProgress?.current ?? 0}/{genProgress?.total ?? 0}…
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Sparkles className="mr-1 h-3 w-3" /> Generate Questions
+                                    </>
+                                  )}
+                                </Button>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -722,6 +867,14 @@ const ExamMode = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ExamQuestionsViewDialog
+        open={!!viewExamId}
+        onOpenChange={(o) => { if (!o) setViewExamId(null); }}
+        courseId={courseId}
+        examId={viewExamId}
+        examLabel={labeledSchedule.find(e => e.id === viewExamId)?.label ?? "Exam"}
+      />
 
       <AlertDialog open={!!confirmRemoveId} onOpenChange={(o) => !o && setConfirmRemoveId(null)}>
         <AlertDialogContent>
