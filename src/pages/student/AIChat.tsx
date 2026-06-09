@@ -19,6 +19,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { seededShuffle } from "@/lib/seededShuffle";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import PracticeQuestions, { PracticeQuestion } from "@/components/PracticeQuestions";
 import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 
@@ -941,7 +944,7 @@ const AIChat = () => {
                   <div key={pi} className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
                     isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
                   }`}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{part.content.trim()}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{part.content.trim()}</ReactMarkdown>
                   </div>
                 ) : null
               )}
@@ -950,7 +953,7 @@ const AIChat = () => {
             <div className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
               isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
             }`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{displayContent}</ReactMarkdown>
             </div>
           )}
           {msg.timestamp && (
