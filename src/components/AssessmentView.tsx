@@ -43,6 +43,8 @@ export interface AssessmentResults {
   totalQuestions: number;
   correctAnswers: number;
   score: number;
+  flatScore?: number;
+  weightedScore?: number;
   answers: StandardisedAnswer[];
   timeSpent: number;
   confidences?: Record<string, ConfidenceLevel>;
@@ -51,7 +53,7 @@ export interface AssessmentResults {
 
 type Phase = "intro" | "active" | "review";
 
-const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics }: AssessmentViewProps) => {
+const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta }: AssessmentViewProps) => {
   const [phase, setPhase] = useState<Phase>("intro");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(timeLimitMinutes * 60);
