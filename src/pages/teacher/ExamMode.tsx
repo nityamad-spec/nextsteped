@@ -303,6 +303,83 @@ const ExamMode = () => {
   const allExamsApproved = examSchedule.length > 0 && examSchedule.every(e => e.approved);
   const canContinue = allExamsApproved && typesSelected;
 
+  // ── Generate Questions handler ──
+  const handleGenerateQuestions = async (examId: string) => {
+    if (!courseId) { toast.error("No course selected"); return; }
+    const exam = examSchedule.find(e => e.id === examId);
+    if (!exam) return;
+    const totalQuestions = Object.values(exam.breakdown).reduce<number>((s, n) => s + (n as number), 0);
+    if (totalQuestions <= 0) { toast.error("Approve an estimate with at least 1 question first."); return; }
+    const types = parseMix(examQuestionTypes);
+    if (types.length === 0) { toast.error("Select at least one question type."); return; }
+
+    setGeneratingExamId(examId);
+    setGenProgress({ current: 0, total: totalQuestions });
+
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const url = `https://${projectId}.supabase.co/functions/v1/generate-exam-questions`;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          course_id: courseId,
+          exam_id: examId,
+          length_min: exam.lengthMin,
+          total_questions: totalQuestions,
+          question_types: types,
+        }),
+      });
+      if (!res.ok || !res.body) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`Generation failed: ${res.status} ${txt.slice(0, 200)}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let finalErr: string | null = null;
+      let done = false;
+      while (!done) {
+        const { value, done: streamDone } = await reader.read();
+        if (streamDone) break;
+        buf += decoder.decode(value, { stream: true });
+        const events = buf.split("\n\n");
+        buf = events.pop() ?? "";
+        for (const ev of events) {
+          const line = ev.split("\n").find(l => l.startsWith("data: "));
+          if (!line) continue;
+          try {
+            const payload = JSON.parse(line.slice(6));
+            if (payload.event === "progress") {
+              setGenProgress({ current: payload.generated, total: payload.total });
+            } else if (payload.event === "done") {
+              done = true;
+            } else if (payload.event === "error") {
+              finalErr = payload.error ?? "Unknown error";
+              done = true;
+            }
+          } catch { /* ignore parse */ }
+        }
+      }
+      if (finalErr) throw new Error(finalErr);
+
+      await refreshExamCounts();
+      if (courseId) bumpCacheVersion("questions", courseId);
+      toast.success(`Generated ${totalQuestions} exam questions`);
+    } catch (e: any) {
+      console.error("generate exam questions failed:", e);
+      toast.error(e?.message ?? "Failed to generate questions");
+    } finally {
+      setGeneratingExamId(null);
+      setGenProgress(null);
+    }
+  };
+
   const handleSave = async () => {
     try {
       const firstExam = examSchedule[0];
