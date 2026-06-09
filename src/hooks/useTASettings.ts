@@ -63,6 +63,9 @@ function dbToAppSettings(row: DBTASettings): TASettings {
       if (row.quiz_day2_enabled) days.push(2);
       return days;
     })(),
+    examSchedule: Array.isArray(row.exam_schedule)
+      ? (row.exam_schedule as ExamScheduleItem[])
+      : undefined,
   };
 }
 
