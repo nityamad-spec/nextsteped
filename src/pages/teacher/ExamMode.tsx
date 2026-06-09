@@ -527,6 +527,13 @@ const ExamMode = () => {
                             >
                               {exam.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve Estimate"}
                             </Button>
+                            <Button
+                              variant="outline" size="sm" className="h-7 text-xs"
+                              disabled={breakdownEntries.length === 0}
+                              onClick={() => { /* not wired yet */ }}
+                            >
+                              <Sparkles className="mr-1 h-3 w-3" /> Generate Questions
+                            </Button>
                           </div>
                         </div>
                       </div>
