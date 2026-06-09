@@ -139,13 +139,12 @@ const ExamMode = () => {
   useEffect(() => {
     if (!loading) {
       setSettings(taSettings);
-      setExamLength(taSettings.examTimeLimit ?? 60);
       setExamQuestionTypes(taSettings.examQuestionMix || "mixed");
-      setExamApproved(taSettings.examApproved ?? false);
       setExamEnabled(taSettings.examEnabled ?? false);
-      setExamManualQuestions(taSettings.examManualQuestions ?? false);
-      setExamManualCount(taSettings.examManualCount ?? estimate.total);
+      setExamSchedule(buildInitialSchedule());
+      setEditingCardIds({});
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, taSettings]);
 
   useEffect(() => {
