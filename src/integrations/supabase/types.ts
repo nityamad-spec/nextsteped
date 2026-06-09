@@ -452,6 +452,7 @@ export type Database = {
           exam_manual_questions: boolean
           exam_presentation: string | null
           exam_question_mix: string
+          exam_schedule: Json | null
           exam_time_limit: number
           hint_ladder: boolean
           id: string
@@ -480,6 +481,7 @@ export type Database = {
           exam_manual_questions?: boolean
           exam_presentation?: string | null
           exam_question_mix?: string
+          exam_schedule?: Json | null
           exam_time_limit?: number
           hint_ladder?: boolean
           id?: string
@@ -508,6 +510,7 @@ export type Database = {
           exam_manual_questions?: boolean
           exam_presentation?: string | null
           exam_question_mix?: string
+          exam_schedule?: Json | null
           exam_time_limit?: number
           hint_ladder?: boolean
           id?: string

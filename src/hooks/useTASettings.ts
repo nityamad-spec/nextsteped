@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { TASettings } from "@/types";
+import { TASettings, ExamScheduleItem } from "@/types";
 import { defaultTASettings } from "@/data/mockData";
 
 interface DBTASettings {
@@ -28,6 +28,7 @@ interface DBTASettings {
   quiz_day1_enabled: boolean;
   quiz_day2_enabled: boolean;
   quiz_days_enabled: number[] | null;
+  exam_schedule: unknown;
 }
 
 function dbToAppSettings(row: DBTASettings): TASettings {
@@ -62,6 +63,9 @@ function dbToAppSettings(row: DBTASettings): TASettings {
       if (row.quiz_day2_enabled) days.push(2);
       return days;
     })(),
+    examSchedule: Array.isArray(row.exam_schedule)
+      ? (row.exam_schedule as ExamScheduleItem[])
+      : undefined,
   };
 }
 
@@ -126,12 +130,13 @@ export function useTASettings(courseId: string | null) {
         quiz_day1_enabled: (settings.quizDaysEnabled || []).includes(1),
         quiz_day2_enabled: (settings.quizDaysEnabled || []).includes(2),
         quiz_days_enabled: settings.quizDaysEnabled || [],
+        exam_schedule: settings.examSchedule ?? null,
         updated_at: new Date().toISOString(),
       };
 
       const { error } = await supabase
         .from("course_ta_settings")
-        .upsert(row, { onConflict: "course_id" });
+        .upsert(row as never, { onConflict: "course_id" });
 
       if (error) {
         console.error("Error saving TA settings:", error);

@@ -22,6 +22,14 @@ import {
 import SetupModuleNav from "@/components/SetupModuleNav";
 import QuestionTypeSelector from "@/components/QuestionTypeSelector";
 import { bumpCacheVersion } from "@/lib/cacheVersion";
+import type { ExamScheduleItem } from "@/types";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+
+const MAX_EXAMS = 10;
+const newExamId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `exam-${Math.random().toString(36).slice(2)}-${Date.now()}`;
 
 type QuestionType = "MCQ" | "True/False" | "Short Answer" | "Code Practice";
 
@@ -88,24 +96,29 @@ const ExamMode = () => {
 
   // ── Exam config state ──
   const [settings, setSettings] = useState(taSettings);
-  const [examLength, setExamLength] = useState(taSettings.examTimeLimit ?? 60);
   const [examQuestionTypes, setExamQuestionTypes] = useState(taSettings.examQuestionMix || "mixed");
-  const [editingEstimate, setEditingEstimate] = useState(false);
-
-  const [examApproved, setExamApproved] = useState(taSettings.examApproved ?? false);
   const [examEnabled, setExamEnabled] = useState(taSettings.examEnabled ?? false);
-  const [examManualQuestions, setExamManualQuestions] = useState(taSettings.examManualQuestions ?? false);
-  const [examManualCount, setExamManualCount] = useState(taSettings.examManualCount ?? 5);
 
-  const estimate = useMemo(() => questionEstimate(examLength, examQuestionTypes), [examLength, examQuestionTypes]);
-  const [customBreakdown, setCustomBreakdown] = useState<Record<string, number>>(estimate.breakdown);
-  const [estimateApproved, setEstimateApproved] = useState(false);
-
-  // Keep custom breakdown in sync with the auto estimate when not actively editing
-  useEffect(() => {
-    if (!editingEstimate) setCustomBreakdown(estimate.breakdown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [examLength, examQuestionTypes]);
+  // Multi-exam schedule (replaces single examLength + single estimate)
+  const buildInitialSchedule = (): ExamScheduleItem[] => {
+    if (taSettings.examSchedule && taSettings.examSchedule.length > 0) {
+      return taSettings.examSchedule;
+    }
+    const legacyLength = taSettings.examTimeLimit ?? 60;
+    const legacyMix = taSettings.examQuestionMix || "mixed";
+    return [{
+      id: newExamId(),
+      kind: "midterm",
+      lengthMin: legacyLength,
+      breakdown: questionEstimate(legacyLength, legacyMix).breakdown,
+      approved: taSettings.examApproved ?? false,
+    }];
+  };
+  const [examSchedule, setExamSchedule] = useState<ExamScheduleItem[]>(buildInitialSchedule);
+  // Tracks which cards are in "Edit Breakdown" mode (id → true)
+  const [editingCardIds, setEditingCardIds] = useState<Record<string, boolean>>({});
+  // Pending removal confirmation (when popping an approved card)
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
 
   // ── Custom exam questions state (merged from Assessments) ──
   const [questions, setQuestions] = useState<EditableQuestion[]>([]);
@@ -126,13 +139,12 @@ const ExamMode = () => {
   useEffect(() => {
     if (!loading) {
       setSettings(taSettings);
-      setExamLength(taSettings.examTimeLimit ?? 60);
       setExamQuestionTypes(taSettings.examQuestionMix || "mixed");
-      setExamApproved(taSettings.examApproved ?? false);
       setExamEnabled(taSettings.examEnabled ?? false);
-      setExamManualQuestions(taSettings.examManualQuestions ?? false);
-      setExamManualCount(taSettings.examManualCount ?? estimate.total);
+      setExamSchedule(buildInitialSchedule());
+      setEditingCardIds({});
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, taSettings]);
 
   useEffect(() => {
@@ -166,30 +178,116 @@ const ExamMode = () => {
   }, [courseId]);
 
 
-  const handleExamLengthChange = (v: number) => { setExamLength(v); setEstimateApproved(false); };
-  const handleExamTypeChange = (v: string) => { setExamQuestionTypes(v); setEstimateApproved(false); };
+  // ── Schedule mutation helpers ──
+  const updateExam = (id: string, patch: Partial<ExamScheduleItem>) => {
+    setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
+  };
 
-  const activeBreakdown = editingEstimate ? customBreakdown : estimate.breakdown;
-  const activeTotal = Object.values(activeBreakdown).reduce((s, n) => s + n, 0);
+  // When the global question types change, refresh each card's breakdown
+  // (preserve approved state only if the type set is unchanged for that card)
+  useEffect(() => {
+    setExamSchedule(prev => prev.map(e => ({
+      ...e,
+      breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
+      approved: false,
+    })));
+    setEditingCardIds({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examQuestionTypes]);
 
-  const handleApproveEstimate = () => { if (editingEstimate) setEditingEstimate(false); setEstimateApproved(true); };
-  const handleEditEstimate = () => { setCustomBreakdown({ ...estimate.breakdown }); setEditingEstimate(true); setEstimateApproved(false); };
+  const handleExamTypeChange = (v: string) => setExamQuestionTypes(v);
 
-  const canContinue = examApproved;
+  const handleAddExam = () => {
+    if (examSchedule.length >= MAX_EXAMS) return;
+    const lengthMin = 60;
+    setExamSchedule(prev => [...prev, {
+      id: newExamId(),
+      kind: "midterm",
+      lengthMin,
+      breakdown: questionEstimate(lengthMin, examQuestionTypes).breakdown,
+      approved: false,
+    }]);
+  };
+
+  const handleRemoveExamRequest = () => {
+    if (examSchedule.length <= 1) return;
+    const last = examSchedule[examSchedule.length - 1];
+    if (last.approved) {
+      setConfirmRemoveId(last.id);
+    } else {
+      setExamSchedule(prev => prev.slice(0, -1));
+    }
+  };
+  const confirmRemoveExam = () => {
+    setExamSchedule(prev => prev.slice(0, -1));
+    setConfirmRemoveId(null);
+  };
+
+  const handleLengthChange = (id: string, v: number) => {
+    const exam = examSchedule.find(e => e.id === id);
+    if (!exam) return;
+    updateExam(id, {
+      lengthMin: v,
+      breakdown: questionEstimate(v, examQuestionTypes).breakdown,
+      approved: false,
+    });
+    setEditingCardIds(prev => ({ ...prev, [id]: false }));
+  };
+
+  const handleKindChange = (id: string, kind: "midterm" | "final") => {
+    updateExam(id, { kind, approved: false });
+  };
+
+  const handleEditBreakdown = (id: string) => {
+    setEditingCardIds(prev => ({ ...prev, [id]: true }));
+    updateExam(id, { approved: false });
+  };
+
+  const handleBreakdownNumberChange = (id: string, type: string, value: number) => {
+    const exam = examSchedule.find(e => e.id === id);
+    if (!exam) return;
+    updateExam(id, {
+      breakdown: { ...exam.breakdown, [type]: Math.max(0, value || 0) },
+      approved: false,
+    });
+  };
+
+  const handleApproveExam = (id: string) => {
+    setEditingCardIds(prev => ({ ...prev, [id]: false }));
+    updateExam(id, { approved: !examSchedule.find(e => e.id === id)?.approved });
+  };
+
+  // Auto-label each card "<Kind> N" within its kind
+  const labeledSchedule = useMemo(() => {
+    const counters: Record<string, number> = { midterm: 0, final: 0 };
+    return examSchedule.map(e => {
+      counters[e.kind] = (counters[e.kind] || 0) + 1;
+      return { ...e, label: `${e.kind === "midterm" ? "Midterm" : "Final"} ${counters[e.kind]}` };
+    });
+  }, [examSchedule]);
+
+  const typesSelected = parseMix(examQuestionTypes).length > 0;
+  const allExamsApproved = examSchedule.length > 0 && examSchedule.every(e => e.approved);
+  const canContinue = allExamsApproved && typesSelected;
 
   const handleSave = async () => {
     try {
+      const firstExam = examSchedule[0];
       await saveTASettings({
         ...settings,
-        examTimeLimit: examLength,
+        // Mirror first card to legacy fields for backward compat
+        examTimeLimit: firstExam?.lengthMin ?? 60,
         examQuestionMix: examQuestionTypes,
         examPresentation: "all_at_once",
-        examApproved,
-        examEnabled,
-        examManualQuestions,
-        examManualCount,
+        examApproved: allExamsApproved,
+        examEnabled: examEnabled || allExamsApproved,
+        examManualQuestions: false,
+        examManualCount: firstExam
+          ? Object.values(firstExam.breakdown).reduce((s, n) => s + n, 0)
+          : null,
+        examSchedule,
       });
-      if ((examApproved || examEnabled) && user?.id && courseId) {
+      if ((allExamsApproved || examEnabled) && user?.id && courseId) {
         void markStepCompleted(user.id, "exam-mode", courseId, { source: "ExamMode.handleSave" });
       }
     } catch {
@@ -328,98 +426,129 @@ const ExamMode = () => {
                 <QuestionTypeSelector value={examQuestionTypes} onChange={handleExamTypeChange} allowedTypes={ALLOWED_EXAM_TYPES} />
               </div>
 
-              <div className="space-y-3">
-                <Label className="text-sm font-medium">Exam Length (minutes)</Label>
-                <div className="flex items-center gap-4">
-                  <Slider value={[examLength]} onValueChange={(v) => { handleExamLengthChange(v[0]); setExamApproved(false); }} min={15} max={180} step={15} className="flex-1" />
-                  <span className="w-16 text-right text-sm font-bold">{examLength} min</span>
-                </div>
-              </div>
-
-              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+              {/* ── Exam Schedule ── */}
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Calculator className="h-4 w-4 text-primary" />
-                    <Label className="text-sm font-medium">Number of Questions</Label>
+                  <div>
+                    <Label className="text-sm font-medium">Number of Exams This Semester</Label>
+                    <p className="text-xs text-muted-foreground">Add 1 – {MAX_EXAMS} exams (midterm or final)</p>
                   </div>
-                  <Button
-                    variant={examManualQuestions ? "default" : "outline"}
-                    size="sm" className="h-7 text-xs"
-                    onClick={() => { setExamManualQuestions(!examManualQuestions); setExamApproved(false); }}
-                  >
-                    {examManualQuestions ? "Manual" : "Estimated"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline" size="icon" className="h-8 w-8"
+                      onClick={handleRemoveExamRequest}
+                      disabled={examSchedule.length <= 1}
+                      aria-label="Remove exam"
+                    >−</Button>
+                    <span className="w-6 text-center text-sm font-bold">{examSchedule.length}</span>
+                    <Button
+                      variant="outline" size="icon" className="h-8 w-8"
+                      onClick={handleAddExam}
+                      disabled={examSchedule.length >= MAX_EXAMS}
+                      aria-label="Add exam"
+                    >+</Button>
+                  </div>
                 </div>
 
-                {examManualQuestions ? (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">Manually define the number of questions for this exam.</p>
-                    <div className="flex items-center gap-4">
-                      <Slider value={[examManualCount]} onValueChange={(v) => { setExamManualCount(v[0]); setExamApproved(false); }} min={5} max={100} step={1} className="flex-1" />
-                      <span className="w-16 text-right text-sm font-bold">{examManualCount}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-xs text-muted-foreground">
-                      Based on {examLength} min — estimated <span className="font-bold text-foreground">{activeTotal} questions</span>
-                    </p>
-                    <div className="space-y-2">
-                      {Object.entries(activeBreakdown).map(([type, count]) => (
-                        <div key={type} className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">{type}</span>
-                          {editingEstimate ? (
-                            <Input type="number" min={0} className="h-7 w-16 text-xs text-right" value={count}
-                              onChange={(e) => setCustomBreakdown(prev => ({ ...prev, [type]: Math.max(0, parseInt(e.target.value) || 0) }))} />
-                          ) : (
-                            <span className="text-sm font-bold">{count}</span>
-                          )}
+                <div className="space-y-3">
+                  {labeledSchedule.map(exam => {
+                    const total = Object.values(exam.breakdown).reduce<number>((s, n) => s + (n as number), 0);
+                    const isEditing = !!editingCardIds[exam.id];
+                    const breakdownEntries = Object.entries(exam.breakdown);
+                    return (
+                      <div key={exam.id} className={`rounded-lg border p-4 space-y-3 ${exam.approved ? "border-primary/40 bg-primary/5" : ""}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold">{exam.label}</p>
+                          <Select value={exam.kind} onValueChange={v => handleKindChange(exam.id, v as "midterm" | "final")}>
+                            <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="midterm">Midterm</SelectItem>
+                              <SelectItem value="final">Final</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {!editingEstimate && (
-                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleEditEstimate}>
-                          <Pencil className="mr-1 h-3 w-3" /> Edit Breakdown
-                        </Button>
-                      )}
-                      <Button variant={estimateApproved ? "outline" : "default"} size="sm" className="h-7 text-xs" onClick={handleApproveEstimate}>
-                        {estimateApproved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve Estimate"}
-                      </Button>
-                    </div>
-                  </>
-                )}
+
+                        <div className="space-y-2">
+                          <Label className="text-xs font-medium text-muted-foreground">Length</Label>
+                          <div className="flex items-center gap-4">
+                            <Slider
+                              value={[exam.lengthMin]}
+                              onValueChange={(v) => handleLengthChange(exam.id, v[0])}
+                              min={15} max={180} step={15} className="flex-1"
+                            />
+                            <span className="w-16 text-right text-sm font-bold">{exam.lengthMin} min</span>
+                          </div>
+                        </div>
+
+                        <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Calculator className="h-3.5 w-3.5 text-primary" />
+                            <span className="text-xs text-muted-foreground">
+                              Estimated <span className="font-bold text-foreground">{total} questions</span>
+                              {breakdownEntries.length > 0 && (
+                                <>
+                                  {" "}({breakdownEntries.map(([t, c]) => `${t} ${c}`).join(" · ")})
+                                </>
+                              )}
+                            </span>
+                          </div>
+                          {breakdownEntries.length === 0 ? (
+                            <p className="text-xs text-destructive">Select at least one question type above.</p>
+                          ) : (
+                            <div className="space-y-1">
+                              {breakdownEntries.map(([type, count]) => (
+                                <div key={type} className="flex items-center justify-between">
+                                  <span className="text-xs text-muted-foreground">{type}</span>
+                                  {isEditing ? (
+                                    <Input
+                                      type="number" min={0}
+                                      className="h-7 w-16 text-xs text-right"
+                                      value={count as number}
+                                      onChange={(e) => handleBreakdownNumberChange(exam.id, type, parseInt(e.target.value))}
+                                    />
+                                  ) : (
+                                    <span className="text-sm font-bold">{count as number}</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2 pt-1">
+                            {!isEditing && breakdownEntries.length > 0 && (
+                              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleEditBreakdown(exam.id)}>
+                                <Pencil className="mr-1 h-3 w-3" /> Edit Breakdown
+                              </Button>
+                            )}
+                            <Button
+                              variant={exam.approved ? "outline" : "default"}
+                              size="sm" className="h-7 text-xs"
+                              disabled={breakdownEntries.length === 0}
+                              onClick={() => handleApproveExam(exam.id)}
+                            >
+                              {exam.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve Estimate"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
-              {(() => {
-                const typesSelected = examQuestionTypes && examQuestionTypes !== "mixed"
-                  ? examQuestionTypes.split(",").filter(Boolean).length > 0
-                  : false;
-                return (
-                  <div className={`flex items-center justify-between rounded-lg border p-4 ${examApproved ? "border-primary/30 bg-primary/5" : ""}`}>
-                    <div>
-                      <p className="text-sm font-medium">Approve Exam Rules</p>
-                      <p className="text-xs text-muted-foreground">
-                        {typesSelected
-                          ? "You must approve exam settings before publishing"
-                          : "Select at least one question type above before approving"}
-                      </p>
-                    </div>
-                    <Button
-                      variant={examApproved ? "outline" : "default"}
-                      size="sm"
-                      disabled={!examApproved && !typesSelected}
-                      onClick={() => {
-                        const next = !examApproved;
-                        setExamApproved(next);
-                        if (next && !examEnabled) setExamEnabled(true);
-                      }}
-                    >
-                      {examApproved ? <><Check className="mr-1 h-4 w-4" /> Approved</> : "Approve"}
-                    </Button>
-                  </div>
-                );
-              })()}
+              {/* ── Global approval state ── */}
+              <div className={`flex items-center justify-between rounded-lg border p-4 ${allExamsApproved ? "border-primary/30 bg-primary/5" : ""}`}>
+                <div>
+                  <p className="text-sm font-medium">Exam Rules Status</p>
+                  <p className="text-xs text-muted-foreground">
+                    {!typesSelected
+                      ? "Select at least one question type above before approving exams"
+                      : allExamsApproved
+                        ? `All ${examSchedule.length} exam${examSchedule.length > 1 ? "s" : ""} approved`
+                        : `Approve all ${examSchedule.length} exam${examSchedule.length > 1 ? "s" : ""} above to continue`}
+                  </p>
+                </div>
+                {allExamsApproved && <Check className="h-5 w-5 text-primary" />}
+              </div>
             </CardContent>
           </Card>
 
@@ -590,6 +719,21 @@ const ExamMode = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!confirmRemoveId} onOpenChange={(o) => !o && setConfirmRemoveId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this exam?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This exam is approved. Removing it will discard its question breakdown.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRemoveExam}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
