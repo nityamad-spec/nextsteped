@@ -23,28 +23,33 @@ async function invokeUpdateMastery(args: {
   source: "weekly_quiz";
   sourceId: string | null;
   answers: any[];
+  questionMeta: Map<string, { difficulty: number; bloom: number }>;
 }) {
   try {
-    const tally = new Map<string, { attempted: number; correct: number }>();
+    const per_question: Array<{
+      concept_code: string;
+      difficulty: number;
+      bloom: number;
+      is_correct: boolean;
+    }> = [];
     for (const a of args.answers ?? []) {
       const code = (a?.topic ?? "").toString().trim();
-      if (!code) continue;
-      const t = tally.get(code) ?? { attempted: 0, correct: 0 };
-      t.attempted += 1;
-      if (a?.is_correct) t.correct += 1;
-      tally.set(code, t);
+      const meta = a?.question_id ? args.questionMeta.get(a.question_id) : undefined;
+      if (!code || !meta) continue;
+      per_question.push({
+        concept_code: code,
+        difficulty: meta.difficulty,
+        bloom: meta.bloom,
+        is_correct: !!a.is_correct,
+      });
     }
-    if (tally.size === 0) return;
+    if (per_question.length === 0) return;
     await supabase.functions.invoke("update-mastery", {
       body: {
         course_id: args.courseId,
         source: args.source,
         source_id: args.sourceId,
-        per_concept: Array.from(tally.entries()).map(([concept_code, t]) => ({
-          concept_code,
-          attempted: t.attempted,
-          correct: t.correct,
-        })),
+        per_question,
       },
     });
   } catch (e) {
