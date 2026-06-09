@@ -136,7 +136,7 @@ export function useTASettings(courseId: string | null) {
 
       const { error } = await supabase
         .from("course_ta_settings")
-        .upsert(row, { onConflict: "course_id" });
+        .upsert(row as never, { onConflict: "course_id" });
 
       if (error) {
         console.error("Error saving TA settings:", error);
