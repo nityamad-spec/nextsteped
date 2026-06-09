@@ -131,10 +131,28 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       };
     });
     const correct = standardised.filter(a => a.is_correct).length;
+    const flatScore = Math.round((correct / questions.length) * 100);
+
+    // Weighted score (difficulty × Bloom) when meta is available.
+    let weightedScore: number | undefined;
+    if (questionMeta && questionMeta.size > 0) {
+      let num = 0;
+      let den = 0;
+      for (const a of standardised) {
+        const meta = questionMeta.get(a.question_id) ?? { difficulty: 0.5, bloom: 1 };
+        const maxPoints = clamp01(meta.difficulty) * (BLOOM_WEIGHT[clampBloom(meta.bloom)] ?? 1.0);
+        den += maxPoints;
+        if (a.is_correct) num += maxPoints;
+      }
+      if (den > 0) weightedScore = Math.round((num / den) * 100);
+    }
+
     const res: AssessmentResults = {
       totalQuestions: questions.length,
       correctAnswers: correct,
-      score: Math.round((correct / questions.length) * 100),
+      score: weightedScore ?? flatScore,
+      flatScore,
+      weightedScore,
       answers: standardised,
       timeSpent: timeLimitMinutes * 60 - timeLeft,
       questionTimes: finalTimes,
