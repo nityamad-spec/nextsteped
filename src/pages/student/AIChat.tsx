@@ -446,18 +446,21 @@ const AIChat = () => {
   const handleStartExam = async () => {
     const count = taSettings.examManualCount || Math.max(5, Math.round((taSettings.examTimeLimit || 60) / 3));
     const visibleTopics = await fetchVisibleTopics();
-    let questions = await fetchDBQuestions("exam");
-    questions = filterByVisibleTopics(questions, visibleTopics);
+    const fetched = await fetchDBQuestions("exam");
+    let questions = filterByVisibleTopics(fetched.questions, visibleTopics);
+    let meta = fetched.meta;
     if (questions.length === 0) {
       let fallback = getExamQuestions(count);
       fallback = filterByVisibleTopics(fallback, visibleTopics);
       questions = fallback.length > 0 ? fallback : getExamQuestions(count);
+      meta = new Map();
     } else {
       const seed = (user?.id || "anon") + (enrolledCourseId || "");
       const shuffled = seededShuffle(questions, seed);
       questions = shuffled.slice(0, Math.min(count, shuffled.length));
     }
     setAssessmentQuestions(questions);
+    setAssessmentQuestionMeta(meta);
     setAssessmentType("exam");
     setAssessmentDay(3);
     setAssessmentActive(true);
