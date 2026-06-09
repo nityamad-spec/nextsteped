@@ -505,7 +505,9 @@ const AIChat = () => {
   const handleStartExam = async () => {
     const count = taSettings.examManualCount || Math.max(5, Math.round((taSettings.examTimeLimit || 60) / 3));
     const visibleTopics = await fetchVisibleTopics();
-    const fetched = await fetchDBQuestions("exam");
+    const ids = availableExamIds.length > 0 ? availableExamIds : await loadAvailableExamIds();
+    const examId = consumeNextExamId(ids);
+    const fetched = await fetchDBQuestions("exam", undefined, examId ?? undefined);
     let questions = filterByVisibleTopics(fetched.questions, visibleTopics);
     let meta = fetched.meta;
     if (questions.length === 0) {
@@ -514,7 +516,7 @@ const AIChat = () => {
       questions = fallback.length > 0 ? fallback : getExamQuestions(count);
       meta = new Map();
     } else {
-      const seed = (user?.id || "anon") + (enrolledCourseId || "");
+      const seed = (user?.id || "anon") + (enrolledCourseId || "") + (examId || "");
       const shuffled = seededShuffle(questions, seed);
       questions = shuffled.slice(0, Math.min(count, shuffled.length));
     }
@@ -535,7 +537,9 @@ const AIChat = () => {
 
     const visibleTopics = await fetchVisibleTopics();
     const count = custom.questionCount;
-    const fetched = await fetchDBQuestions("exam");
+    const ids = availableExamIds.length > 0 ? availableExamIds : await loadAvailableExamIds();
+    const examId = consumeNextExamId(ids);
+    const fetched = await fetchDBQuestions("exam", undefined, examId ?? undefined);
     let questions = filterByVisibleTopics(fetched.questions, visibleTopics);
     let meta = fetched.meta;
     if (questions.length === 0) {
@@ -557,7 +561,7 @@ const AIChat = () => {
           }[custom.questionMix] || ["mcq", "short_answer", "problem_solving", "true_false"];
       const filtered = questions.filter(q => allowedTypes.includes(q.type));
       const pool = filtered.length > 0 ? filtered : questions;
-      const seed = (user?.id || "anon") + (enrolledCourseId || "");
+      const seed = (user?.id || "anon") + (enrolledCourseId || "") + (examId || "");
       const shuffled = seededShuffle(pool, seed);
       questions = shuffled.slice(0, Math.min(count, shuffled.length));
     }
@@ -568,6 +572,7 @@ const AIChat = () => {
     setAssessmentDay(3);
     setAssessmentActive(true);
   };
+
 
   const handleStartQuiz = async (day?: number) => {
     const count = taSettings.quizNumQuestions || 5;
