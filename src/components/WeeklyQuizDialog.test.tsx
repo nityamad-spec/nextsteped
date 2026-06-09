@@ -68,6 +68,8 @@ beforeEach(() => {
       answer: "4",
       topic: "ARITH",
       difficulty: "Easy",
+      difficulty_estimate: 0.3,
+      bloom_level: 2,
       quiz_day: 1,
       mode: "daily_quiz",
       course_id: "course-1",
