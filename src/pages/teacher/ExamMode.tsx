@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   BookOpen, Calculator, Check, Pencil, Info, AlertTriangle, ArrowLeft,
-  Plus, Trash2, Filter, ClipboardCheck, Loader2, Shield,
+  Plus, Trash2, Filter, ClipboardCheck, Loader2, Shield, Sparkles,
 } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import QuestionTypeSelector from "@/components/QuestionTypeSelector";
@@ -526,6 +526,13 @@ const ExamMode = () => {
                               onClick={() => handleApproveExam(exam.id)}
                             >
                               {exam.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve Estimate"}
+                            </Button>
+                            <Button
+                              variant="outline" size="sm" className="h-7 text-xs"
+                              disabled={breakdownEntries.length === 0}
+                              onClick={() => { /* not wired yet */ }}
+                            >
+                              <Sparkles className="mr-1 h-3 w-3" /> Generate Questions
                             </Button>
                           </div>
                         </div>
