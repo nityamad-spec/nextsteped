@@ -339,7 +339,7 @@ Deno.serve(async (req) => {
         mode: "daily_quiz",
         quiz_day: weekNumber,
         tier: spec.tier,
-        question_type: q.format === "mcq" ? "MCQ" : "TF",
+        question_type: q.format === "mcq" ? "MCQ" : "True/False",
         format: q.format,
         question_text: q.content_text,
         options: q.options,

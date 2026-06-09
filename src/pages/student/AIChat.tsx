@@ -389,7 +389,7 @@ const AIChat = () => {
     return data.map((row: any) => ({
       id: row.id,
       text: row.question_text,
-      type: (row.question_type === "MCQ" ? "mcq" : row.question_type === "Problem Solving" ? "problem_solving" : row.question_type === "True/False" ? "true_false" : "short_answer") as Question["type"],
+      type: (row.question_type === "MCQ" ? "mcq" : row.question_type === "Problem Solving" ? "problem_solving" : row.question_type === "True/False" || row.question_type === "TF" ? "true_false" : "short_answer") as Question["type"],
       options: row.options as string[] | undefined,
       correctAnswer: row.answer,
       topic: row.topic,
