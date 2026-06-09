@@ -40,7 +40,7 @@ export interface AssessmentResults {
   score: number;
   answers: StandardisedAnswer[];
   timeSpent: number;
-  confidences: Record<string, ConfidenceLevel>;
+  confidences?: Record<string, ConfidenceLevel>;
   questionTimes: Record<string, number>;
 }
 
@@ -55,7 +55,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const [loadingExplanations, setLoadingExplanations] = useState(false);
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [confidences, setConfidences] = useState<Record<string, ConfidenceLevel>>({});
+  // confidence collection removed for quizzes/exams
   const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
   const questionStartRef = useRef<number>(Date.now());
 
@@ -90,14 +90,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
 
   const handleAnswer = (questionId: string, answer: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
-    if (!answer || !answer.trim()) {
-      setConfidences(prev => {
-        if (!(questionId in prev)) return prev;
-        const next = { ...prev };
-        delete next[questionId];
-        return next;
-      });
-    }
   };
 
   const handleFinish = useCallback(() => {
@@ -138,7 +130,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       score: Math.round((correct / questions.length) * 100),
       answers: standardised,
       timeSpent: timeLimitMinutes * 60 - timeLeft,
-      confidences,
       questionTimes: finalTimes,
     };
     setResults(res);
@@ -150,7 +141,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     setExpandedQuestions(wrongIndices);
 
     fetchExplanations(standardised);
-  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, confidences, questionTimes, currentIndex]);
+  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
@@ -277,42 +268,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
           </div>
         )}
 
-        {/* Confidence selector — gated on having an answer */}
-        {(() => {
-          const raw = answers[q.id];
-          const hasAnswer = typeof raw === "string" && raw.trim().length > 0;
-          return (
-            <div className="pt-2 border-t">
-              <p className="text-xs font-medium text-muted-foreground mb-2">
-                {hasAnswer
-                  ? "How confident are you in this answer?"
-                  : "Answer the question to rate your confidence."}
-              </p>
-              <div className="grid grid-cols-3 gap-2">
-                {([
-                  { v: "not_confident", label: "Not confident" },
-                  { v: "somewhat_confident", label: "Somewhat" },
-                  { v: "very_confident", label: "Very confident" },
-                ] as { v: ConfidenceLevel; label: string }[]).map(opt => (
-                  <Button
-                    key={opt.v}
-                    type="button"
-                    size="sm"
-                    variant={confidences[q.id] === opt.v ? "default" : "outline"}
-                    className="text-xs h-8"
-                    disabled={!hasAnswer}
-                    onClick={() => {
-                      if (!hasAnswer) return;
-                      setConfidences(prev => ({ ...prev, [q.id]: opt.v }));
-                    }}
-                  >
-                    {opt.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
+        {/* Confidence selector removed — not collected for quizzes/exams */}
       </CardContent>
     </Card>
   );

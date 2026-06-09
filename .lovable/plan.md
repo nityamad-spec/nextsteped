@@ -1,68 +1,23 @@
-## Goal
+# Remove confidence collection from weekly quizzes, exams, and practice questions
 
-Make the weekly quiz update concept mastery using a **weighted accuracy** signal — each question contributes `difficulty_estimate × BLOOM_WEIGHT[bloom_level]` instead of a flat 1 point. This is exactly how `score-diagnostic` computes `accuracyScore`. Pace and confidence stay diagnostic-only.
+## Current state
+- `AssessmentView` (shared by weekly quizzes via `WeeklyQuizDialog` and exams via `AIChat` exam-prep mode) unconditionally renders a "How confident are you?" selector for every question (lines 280–315) and ships the values in `AssessmentResults.confidences`.
+- `WeeklyQuizDialog` persists those values into `assessment_results.confidences`.
+- `PracticeQuestions` / `PracticeQuestionsWidget` already don't collect confidence — nothing to change there.
+- `DiagnosticQuiz` has its own confidence flow (separate component); diagnostics are NOT in scope for this change and keep their behavior.
 
-Scope: weekly quiz only. Exam and practice continue to use the existing flat correct/attempted signal (unchanged behavior). Diagnostic is unchanged (still writes only to `diagnostic_results`).
+## Change
+1. **`src/components/AssessmentView.tsx`** — delete the confidence UI block (lines ~280–315), remove `confidences` state + `ConfidenceLevel` type local usage, and drop the field from `AssessmentResults`/`onSubmit` payload (export an empty-typed shape if other code reads it).
+2. **`src/components/WeeklyQuizDialog.tsx`** — remove `confidences: results.confidences ?? {}` from the `assessment_results` insert. The DB column stays (free-form JSON) but we write `{}` or omit it.
+3. **`src/pages/student/AIChat.tsx`** — if it reads `results.confidences` from `AssessmentView` for exams, drop those reads / inserts.
+4. **`src/components/WeeklyQuizDialog.test.tsx`** — update any assertion that expects a confidence map.
 
-## Changes
+## Out of scope
+- `DiagnosticQuiz.tsx`, `score-diagnostic`, `diagnosticsAnalytics`, `admin/DiagnosticsAnalytics` — diagnostic flow keeps confidence.
+- DB schema: `assessment_results.confidences` column stays (no migration). It just won't receive new data from quizzes/exams.
 
-### 1. `supabase/functions/update-mastery/index.ts`
-
-Add a second, preferred input shape on the same endpoint:
-
-```ts
-per_question?: [{
-  concept_id?: uuid,
-  concept_code?: string,
-  difficulty: number,      // 0..1
-  bloom: number,           // 1..6
-  is_correct: boolean
-}]
-```
-
-`per_concept` stays as-is (back-compat for exam/practice/AIChat).
-
-Behavior:
-- If `per_question` is provided, group by resolved concept and compute per concept:
-  - `earnedSum += difficulty × BLOOM_WEIGHT[bloom]` when correct
-  - `maxSum += difficulty × BLOOM_WEIGHT[bloom]` always
-  - `signal = clamp01(earnedSum / maxSum)` (replaces `correct/attempted`)
-  - `questions_attempted` / `questions_correct` counters still increment by raw 1s so existing UI counts are unaffected.
-- If only `per_concept` is provided, current path runs unchanged.
-- Reuse the same `BLOOM_WEIGHT` constants from `score-diagnostic` (copy into the file's tuning block so update-mastery has no cross-function import).
-- EMA blend, course-level weighted-average derivation, and table writes are unchanged.
-
-Validation: zod schema accepts either `per_question` or `per_concept` (at least one, non-empty).
-
-### 2. `src/components/WeeklyQuizDialog.tsx`
-
-- Extend the `assessment_questions` select to include `difficulty_estimate, bloom_level` and carry them into the `Question` objects (or a side map keyed by `id`).
-- In `invokeUpdateMastery`, drop the tally step and instead send `per_question`:
-
-```ts
-per_question: results.answers.map(a => ({
-  concept_code: a.topic,
-  difficulty: questionMeta[a.question_id].difficulty_estimate,
-  bloom: questionMeta[a.question_id].bloom_level,
-  is_correct: !!a.is_correct,
-}))
-```
-
-- `source` and `source_id` are unchanged.
-
-### 3. Tests
-
-- `src/components/WeeklyQuizDialog.test.tsx`: update the seeded `assessment_questions` row to include `difficulty_estimate` and `bloom_level`, and update the expected `invokeMock` payload assertion from `per_concept: [...]` to `per_question: [{ concept_code:"ARITH", difficulty:..., bloom:..., is_correct:true }]`.
-- No change to `StudentHome.test.tsx` (it doesn't go through the edge function).
-
-### 4. Out of scope
-
-- Exam (`AIChat.tsx` exam path) and practice (`AIChat.tsx` practice path) continue to send `per_concept` and use flat accuracy. Switching them is a separate decision.
-- No DB schema changes. No backfill. No changes to course-mastery weighting or learner-level bands.
-
-## Technical notes
-
-- `assessment_questions` already stores `difficulty_estimate numeric(3,2)` (0..1) and `bloom_level int` (1..6) — same semantics as `diagnostic_questions`, so no normalization needed.
-- Weighted signal preserves the EMA contract: it's still a 0..1 value blended with the prior via `EMA_ALPHA = 0.4`.
-- When all questions in a concept are bloom=1 and difficulty=0.5, the new signal equals the old `correct/attempted` ratio, so legacy comparisons stay sensible.
-- The `update-mastery` header comment should be updated to document the two input shapes and that `per_question` is the preferred shape going forward.
+## Verification
+- Open Week-3 statistics weekly quiz on `/student/home` — no confidence buttons.
+- Start an exam from AI Chat exam-prep mode — no confidence buttons.
+- Practice questions remain unchanged.
+- Diagnostic quiz still shows confidence as before.
