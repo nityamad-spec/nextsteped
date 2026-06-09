@@ -1,17 +1,17 @@
-## Goal
-Add a **Generate Questions** button to each exam card on `/teacher/setup/exam-mode`. UI-only — no handler wired up.
+## Changes to `/teacher/setup/exam-mode`
 
-## Change
-In `src/pages/teacher/ExamMode.tsx`, inside the per-exam card's footer row (the same row that currently holds **Edit Breakdown** and **Approve Estimate**), append a third button:
+Scope: UI/label-only edits to `src/pages/teacher/ExamMode.tsx`. No schema, hook, or backend changes — `exam_schedule.kind` stays `"midterm" | "final"` in the type system for backward compatibility, but the UI will only ever produce/show `"final"`.
 
-```tsx
-<Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { /* not wired yet */ }}>
-  <Sparkles className="mr-1 h-3 w-3" /> Generate Questions
-</Button>
-```
+### 1. Remove Midterm as a selectable type
+- Per-exam type `<Select>` (line ~462): remove the `Midterm` `<SelectItem>`, leaving only `Final`. Since there's only one option, replace the Select with a static read-only "Final" badge/label to avoid a pointless dropdown.
+- Default `kind` for new exams (lines 111 and 205, inside `createExam` / initial state) changes from `"midterm"` to `"final"`.
+- Auto-label counter (lines 260–265): simplify to just `Final N` numbering.
+- Helper text (line 434): change `"Add 1 – {MAX_EXAMS} exams (midterm or final)"` → `"Add 1 – {MAX_EXAMS} mock tests"`.
+- Migration-on-load in `useTASettings.ts` is untouched; any legacy `"midterm"` already saved will still load fine but will be re-saved as-is until the user edits. (If you'd like me to also coerce loaded `midterm` → `final` on load, say so — I left it out to avoid silent data mutation.)
 
-- Uses `Sparkles` from `lucide-react` (added to existing import).
-- No state, no API call, no toast — purely visual.
-- Disabled when no question types are selected (same condition as Approve Estimate) so the button doesn't look actionable when there's nothing to generate.
+### 2. Rename header
+- Line 433: `"Number of Exams This Semester"` → `"Number of Mock Tests Generated"`.
 
-No other files change.
+### Out of scope
+- DB column names, `ExamScheduleItem.kind` type, and legacy `examTimeLimit` / `examApproved` mirrors remain unchanged.
+- No other pages (dashboards, analytics) are touched.

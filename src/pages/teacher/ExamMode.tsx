@@ -108,7 +108,7 @@ const ExamMode = () => {
     const legacyMix = taSettings.examQuestionMix || "mixed";
     return [{
       id: newExamId(),
-      kind: "midterm",
+      kind: "final",
       lengthMin: legacyLength,
       breakdown: questionEstimate(legacyLength, legacyMix).breakdown,
       approved: taSettings.examApproved ?? false,
@@ -202,7 +202,7 @@ const ExamMode = () => {
     const lengthMin = 60;
     setExamSchedule(prev => [...prev, {
       id: newExamId(),
-      kind: "midterm",
+      kind: "final",
       lengthMin,
       breakdown: questionEstimate(lengthMin, examQuestionTypes).breakdown,
       approved: false,
@@ -257,12 +257,12 @@ const ExamMode = () => {
     updateExam(id, { approved: !examSchedule.find(e => e.id === id)?.approved });
   };
 
-  // Auto-label each card "<Kind> N" within its kind
+  // Auto-label each card "Final N"
   const labeledSchedule = useMemo(() => {
-    const counters: Record<string, number> = { midterm: 0, final: 0 };
+    let n = 0;
     return examSchedule.map(e => {
-      counters[e.kind] = (counters[e.kind] || 0) + 1;
-      return { ...e, label: `${e.kind === "midterm" ? "Midterm" : "Final"} ${counters[e.kind]}` };
+      n += 1;
+      return { ...e, label: `Final ${n}` };
     });
   }, [examSchedule]);
 
@@ -430,8 +430,8 @@ const ExamMode = () => {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label className="text-sm font-medium">Number of Exams This Semester</Label>
-                    <p className="text-xs text-muted-foreground">Add 1 – {MAX_EXAMS} exams (midterm or final)</p>
+                    <Label className="text-sm font-medium">Number of Mock Tests Generated</Label>
+                    <p className="text-xs text-muted-foreground">Add 1 – {MAX_EXAMS} mock tests</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -459,13 +459,9 @@ const ExamMode = () => {
                       <div key={exam.id} className={`rounded-lg border p-4 space-y-3 ${exam.approved ? "border-primary/40 bg-primary/5" : ""}`}>
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-semibold">{exam.label}</p>
-                          <Select value={exam.kind} onValueChange={v => handleKindChange(exam.id, v as "midterm" | "final")}>
-                            <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="midterm">Midterm</SelectItem>
-                              <SelectItem value="final">Final</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <span className="inline-flex items-center rounded-md border bg-muted/50 px-2 py-1 text-xs font-medium text-muted-foreground">
+                            Final
+                          </span>
                         </div>
 
                         <div className="space-y-2">
