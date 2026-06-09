@@ -44,6 +44,7 @@ export type Database = {
           difficulty: string
           difficulty_estimate: number
           difficulty_justification: string | null
+          exam_id: string | null
           explanation: string | null
           format: string
           id: string
@@ -71,6 +72,7 @@ export type Database = {
           difficulty?: string
           difficulty_estimate?: number
           difficulty_justification?: string | null
+          exam_id?: string | null
           explanation?: string | null
           format?: string
           id?: string
@@ -98,6 +100,7 @@ export type Database = {
           difficulty?: string
           difficulty_estimate?: number
           difficulty_justification?: string | null
+          exam_id?: string | null
           explanation?: string | null
           format?: string
           id?: string
