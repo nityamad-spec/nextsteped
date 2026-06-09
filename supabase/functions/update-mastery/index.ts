@@ -148,20 +148,63 @@ Deno.serve(async (req) => {
     byCode.set(row.concept_code, row);
   }
 
-  // Aggregate input by concept_id (defensive — caller may pass duplicates)
-  const agg = new Map<string, { concept_code: string; attempted: number; correct: number }>();
+  // Aggregate input by concept_id (defensive — caller may pass duplicates).
+  // Track both raw counts (for questions_attempted/correct counters) and
+  // weighted earned/max (for the EMA signal when per_question is provided).
+  type Agg = {
+    concept_code: string;
+    attempted: number;
+    correct: number;
+    earned: number;
+    max: number;
+    weighted: boolean;
+  };
+  const agg = new Map<string, Agg>();
   const unresolved: Array<{ concept_id?: string; concept_code?: string }> = [];
-  for (const item of body.per_concept) {
-    let resolved = item.concept_id ? byId.get(item.concept_id) : undefined;
-    if (!resolved && item.concept_code) resolved = byCode.get(item.concept_code);
-    if (!resolved) {
-      unresolved.push({ concept_id: item.concept_id, concept_code: item.concept_code });
-      continue;
-    }
-    const cur = agg.get(resolved.id) ?? { concept_code: resolved.concept_code, attempted: 0, correct: 0 };
-    cur.attempted += item.attempted;
-    cur.correct += item.correct;
+
+  const resolve = (concept_id?: string, concept_code?: string) => {
+    let r = concept_id ? byId.get(concept_id) : undefined;
+    if (!r && concept_code) r = byCode.get(concept_code);
+    return r;
+  };
+  const ensure = (resolved: { id: string; concept_code: string }): Agg => {
+    const cur = agg.get(resolved.id) ?? {
+      concept_code: resolved.concept_code,
+      attempted: 0, correct: 0, earned: 0, max: 0, weighted: false,
+    };
     agg.set(resolved.id, cur);
+    return cur;
+  };
+
+  if (body.per_question && body.per_question.length > 0) {
+    for (const item of body.per_question) {
+      const resolved = resolve(item.concept_id, item.concept_code);
+      if (!resolved) {
+        unresolved.push({ concept_id: item.concept_id, concept_code: item.concept_code });
+        continue;
+      }
+      const cur = ensure(resolved);
+      const bloom = Math.min(6, Math.max(1, Math.round(item.bloom)));
+      const bloomWeight = MASTERY_CONFIG.BLOOM_WEIGHT[bloom] ?? 1.0;
+      const difficulty = clamp01(item.difficulty);
+      const maxPoints = difficulty * bloomWeight;
+      cur.attempted += 1;
+      if (item.is_correct) cur.correct += 1;
+      cur.max += maxPoints;
+      if (item.is_correct) cur.earned += maxPoints;
+      cur.weighted = true;
+    }
+  } else if (body.per_concept) {
+    for (const item of body.per_concept) {
+      const resolved = resolve(item.concept_id, item.concept_code);
+      if (!resolved) {
+        unresolved.push({ concept_id: item.concept_id, concept_code: item.concept_code });
+        continue;
+      }
+      const cur = ensure(resolved);
+      cur.attempted += item.attempted;
+      cur.correct += item.correct;
+    }
   }
 
   // Load existing concept rows for this student+course
@@ -191,11 +234,14 @@ Deno.serve(async (req) => {
 
   for (const [conceptId, info] of agg) {
     if (info.attempted <= 0) continue;
-    const signal = clamp01(info.correct / info.attempted);
+    const signal = info.weighted && info.max > 0
+      ? clamp01(info.earned / info.max)
+      : clamp01(info.correct / info.attempted);
     const prior = existingMap.get(conceptId);
     const newScore = !prior || prior.sample_count === 0
       ? signal
       : clamp01(MASTERY_CONFIG.EMA_ALPHA * signal + (1 - MASTERY_CONFIG.EMA_ALPHA) * prior.mastery_score);
+
 
     conceptUpserts.push({
       student_id: studentId,
