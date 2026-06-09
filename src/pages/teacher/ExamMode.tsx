@@ -633,13 +633,48 @@ const ExamMode = () => {
                             >
                               {exam.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve Estimate"}
                             </Button>
-                            <Button
-                              variant="outline" size="sm" className="h-7 text-xs"
-                              disabled={breakdownEntries.length === 0}
-                              onClick={() => { /* not wired yet */ }}
-                            >
-                              <Sparkles className="mr-1 h-3 w-3" /> Generate Questions
-                            </Button>
+                            {(() => {
+                              const generatedCount = examQuestionCounts[exam.id] ?? 0;
+                              const isGenerating = generatingExamId === exam.id;
+                              const hasExisting = generatedCount > 0;
+                              if (hasExisting && !isGenerating) {
+                                return (
+                                  <>
+                                    <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs font-medium text-primary">
+                                      <Check className="h-3 w-3" /> {generatedCount} questions generated
+                                    </span>
+                                    <Button
+                                      variant="outline" size="sm" className="h-7 text-xs"
+                                      onClick={() => setViewExamId(exam.id)}
+                                    >
+                                      View
+                                    </Button>
+                                  </>
+                                );
+                              }
+                              return (
+                                <Button
+                                  variant="outline" size="sm" className="h-7 text-xs"
+                                  disabled={
+                                    breakdownEntries.length === 0 ||
+                                    !exam.approved ||
+                                    !!generatingExamId
+                                  }
+                                  onClick={() => handleGenerateQuestions(exam.id)}
+                                >
+                                  {isGenerating ? (
+                                    <>
+                                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                      Generating {genProgress?.current ?? 0}/{genProgress?.total ?? 0}…
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Sparkles className="mr-1 h-3 w-3" /> Generate Questions
+                                    </>
+                                  )}
+                                </Button>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
