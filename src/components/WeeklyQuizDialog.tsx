@@ -104,7 +104,7 @@ const WeeklyQuizDialog = ({
               ? "mcq"
               : row.question_type === "Problem Solving"
               ? "problem_solving"
-              : row.question_type === "True/False"
+              : row.question_type === "True/False" || row.question_type === "TF"
               ? "true_false"
               : "short_answer") as Question["type"],
             options: row.options as string[] | undefined,
