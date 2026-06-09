@@ -1,41 +1,5 @@
-import type { ExamScheduleItem } from "@/types";
+import { useState, useMemo, useEffect } from "react";
 
-const MAX_EXAMS = 10;
-const newExamId = () =>
-  (typeof crypto !== "undefined" && "randomUUID" in crypto)
-    ? crypto.randomUUID()
-    : `exam-${Math.random().toString(36).slice(2)}-${Date.now()}`;
-
-const ExamMode = () => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const courseId = useTeacherCourseId();
-  const { taSettings, loading, saveTASettings } = useTASettings(courseId);
-
-  // ── Exam config state ──
-  const [settings, setSettings] = useState(taSettings);
-  const [examQuestionTypes, setExamQuestionTypes] = useState(taSettings.examQuestionMix || "mixed");
-
-  const [examEnabled, setExamEnabled] = useState(taSettings.examEnabled ?? false);
-
-  // Multi-exam schedule
-  const [examSchedule, setExamSchedule] = useState<ExamScheduleItem[]>(() => {
-    if (taSettings.examSchedule && taSettings.examSchedule.length > 0) return taSettings.examSchedule;
-    // Migrate single legacy exam settings into one card
-    const legacyLength = taSettings.examTimeLimit ?? 60;
-    const legacyBreakdown = questionEstimate(legacyLength, taSettings.examQuestionMix || "mixed").breakdown;
-    return [{
-      id: newExamId(),
-      kind: "midterm",
-      lengthMin: legacyLength,
-      breakdown: legacyBreakdown,
-      approved: taSettings.examApproved ?? false,
-    }];
-  });
-  // Track which cards are in "Edit Breakdown" mode (id → true)
-  const [editingCardIds, setEditingCardIds] = useState<Record<string, boolean>>({});
-
-import { useNavigate } from "react-router-dom";
 import { useTASettings } from "@/hooks/useTASettings";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { useAuth } from "@/contexts/AuthContext";
