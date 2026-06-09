@@ -38,8 +38,41 @@ async function invokeUpdateMastery(args: {
   source: "weekly_quiz" | "exam" | "practice";
   sourceId: string | null;
   answers: any[];
+  questionMeta?: Map<string, { difficulty: number; bloom: number }>;
 }) {
   try {
+    // Weighted per-question payload when meta is available — matches WeeklyQuizDialog.
+    if (args.questionMeta && args.questionMeta.size > 0) {
+      const perQuestion: {
+        concept_code: string;
+        difficulty: number;
+        bloom: number;
+        is_correct: boolean;
+      }[] = [];
+      for (const a of args.answers ?? []) {
+        const code = (a?.topic ?? "").toString().trim();
+        if (!code) continue;
+        const meta = args.questionMeta.get(a.question_id) ?? { difficulty: 0.5, bloom: 1 };
+        perQuestion.push({
+          concept_code: code,
+          difficulty: Math.min(1, Math.max(0, meta.difficulty)),
+          bloom: Math.min(6, Math.max(1, Math.round(meta.bloom))),
+          is_correct: !!a?.is_correct,
+        });
+      }
+      if (perQuestion.length === 0) return;
+      await supabase.functions.invoke("update-mastery", {
+        body: {
+          course_id: args.courseId,
+          source: args.source,
+          source_id: args.sourceId,
+          per_question: perQuestion,
+        },
+      });
+      return;
+    }
+
+    // Fallback aggregate path (no meta).
     const tally = new Map<string, { attempted: number; correct: number }>();
     for (const a of args.answers ?? []) {
       const code = (a?.topic ?? "").toString().trim();
