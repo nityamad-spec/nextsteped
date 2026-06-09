@@ -96,24 +96,29 @@ const ExamMode = () => {
 
   // ── Exam config state ──
   const [settings, setSettings] = useState(taSettings);
-  const [examLength, setExamLength] = useState(taSettings.examTimeLimit ?? 60);
   const [examQuestionTypes, setExamQuestionTypes] = useState(taSettings.examQuestionMix || "mixed");
-  const [editingEstimate, setEditingEstimate] = useState(false);
-
-  const [examApproved, setExamApproved] = useState(taSettings.examApproved ?? false);
   const [examEnabled, setExamEnabled] = useState(taSettings.examEnabled ?? false);
-  const [examManualQuestions, setExamManualQuestions] = useState(taSettings.examManualQuestions ?? false);
-  const [examManualCount, setExamManualCount] = useState(taSettings.examManualCount ?? 5);
 
-  const estimate = useMemo(() => questionEstimate(examLength, examQuestionTypes), [examLength, examQuestionTypes]);
-  const [customBreakdown, setCustomBreakdown] = useState<Record<string, number>>(estimate.breakdown);
-  const [estimateApproved, setEstimateApproved] = useState(false);
-
-  // Keep custom breakdown in sync with the auto estimate when not actively editing
-  useEffect(() => {
-    if (!editingEstimate) setCustomBreakdown(estimate.breakdown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [examLength, examQuestionTypes]);
+  // Multi-exam schedule (replaces single examLength + single estimate)
+  const buildInitialSchedule = (): ExamScheduleItem[] => {
+    if (taSettings.examSchedule && taSettings.examSchedule.length > 0) {
+      return taSettings.examSchedule;
+    }
+    const legacyLength = taSettings.examTimeLimit ?? 60;
+    const legacyMix = taSettings.examQuestionMix || "mixed";
+    return [{
+      id: newExamId(),
+      kind: "midterm",
+      lengthMin: legacyLength,
+      breakdown: questionEstimate(legacyLength, legacyMix).breakdown,
+      approved: taSettings.examApproved ?? false,
+    }];
+  };
+  const [examSchedule, setExamSchedule] = useState<ExamScheduleItem[]>(buildInitialSchedule);
+  // Tracks which cards are in "Edit Breakdown" mode (id → true)
+  const [editingCardIds, setEditingCardIds] = useState<Record<string, boolean>>({});
+  // Pending removal confirmation (when popping an approved card)
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
 
   // ── Custom exam questions state (merged from Assessments) ──
   const [questions, setQuestions] = useState<EditableQuestion[]>([]);
