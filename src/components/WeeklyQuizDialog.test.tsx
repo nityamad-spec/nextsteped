@@ -68,6 +68,8 @@ beforeEach(() => {
       answer: "4",
       topic: "ARITH",
       difficulty: "Easy",
+      difficulty_estimate: 0.3,
+      bloom_level: 2,
       quiz_day: 1,
       mode: "daily_quiz",
       course_id: "course-1",
@@ -167,7 +169,9 @@ describe("WeeklyQuizDialog", () => {
       course_id: "course-1",
       source: "weekly_quiz",
       source_id: "result-123",
-      per_concept: [{ concept_code: "ARITH", attempted: 1, correct: 1 }],
+      per_question: [
+        { concept_code: "ARITH", difficulty: 0.3, bloom: 2, is_correct: true },
+      ],
     });
   });
 });

@@ -11,12 +11,19 @@
 // Pace and confidence are diagnostic-only signals and live exclusively in
 // diagnostic_results — they MUST NOT be folded into course-level mastery here.
 //
-// Input:
+// Input (one of per_question or per_concept is required; per_question preferred):
 // {
 //   course_id: uuid,
 //   source: "diagnostic" | "weekly_quiz" | "exam" | "practice",
 //   source_id: uuid | null,
-//   per_concept: [
+//   // Preferred (weighted): per-question rows. Signal per concept becomes
+//   //   sum(difficulty * BLOOM_WEIGHT[bloom] for correct) / sum(...for all attempted)
+//   per_question?: [
+//     { concept_id?: uuid, concept_code?: string,
+//       difficulty: number /*0..1*/, bloom: number /*1..6*/, is_correct: boolean }
+//   ],
+//   // Legacy (flat correct/attempted) — still used by exam/practice callers.
+//   per_concept?: [
 //     { concept_id?: uuid, concept_code?: string, attempted: number, correct: number }
 //   ]
 // }
@@ -33,6 +40,8 @@ const corsHeaders: Record<string, string> = {
 
 const MASTERY_CONFIG = {
   EMA_ALPHA: 0.4,
+  // Cognitive depth weights (Bloom 1..6) — mirrors score-diagnostic CONFIG.BLOOM_WEIGHT.
+  BLOOM_WEIGHT: { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 } as Record<number, number>,
   LEVEL_BANDS: [
     { max: 0.25, level: "beginner" },
     { max: 0.50, level: "developing" },
@@ -64,12 +73,30 @@ const PerConceptSchema = z
     message: "concept_id or concept_code required",
   });
 
-const BodySchema = z.object({
-  course_id: z.string().uuid(),
-  source: z.enum(["diagnostic", "weekly_quiz", "exam", "practice"]),
-  source_id: z.string().uuid().nullable().optional(),
-  per_concept: z.array(PerConceptSchema).min(1),
-});
+const PerQuestionSchema = z
+  .object({
+    concept_id: z.string().uuid().optional(),
+    concept_code: z.string().optional(),
+    difficulty: z.number().min(0).max(1),
+    bloom: z.number().int().min(1).max(6),
+    is_correct: z.boolean(),
+  })
+  .refine((v) => v.concept_id || v.concept_code, {
+    message: "concept_id or concept_code required",
+  });
+
+const BodySchema = z
+  .object({
+    course_id: z.string().uuid(),
+    source: z.enum(["diagnostic", "weekly_quiz", "exam", "practice"]),
+    source_id: z.string().uuid().nullable().optional(),
+    per_concept: z.array(PerConceptSchema).optional(),
+    per_question: z.array(PerQuestionSchema).optional(),
+  })
+  .refine(
+    (v) => (v.per_question && v.per_question.length > 0) || (v.per_concept && v.per_concept.length > 0),
+    { message: "per_question or per_concept required" },
+  );
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -121,20 +148,63 @@ Deno.serve(async (req) => {
     byCode.set(row.concept_code, row);
   }
 
-  // Aggregate input by concept_id (defensive — caller may pass duplicates)
-  const agg = new Map<string, { concept_code: string; attempted: number; correct: number }>();
+  // Aggregate input by concept_id (defensive — caller may pass duplicates).
+  // Track both raw counts (for questions_attempted/correct counters) and
+  // weighted earned/max (for the EMA signal when per_question is provided).
+  type Agg = {
+    concept_code: string;
+    attempted: number;
+    correct: number;
+    earned: number;
+    max: number;
+    weighted: boolean;
+  };
+  const agg = new Map<string, Agg>();
   const unresolved: Array<{ concept_id?: string; concept_code?: string }> = [];
-  for (const item of body.per_concept) {
-    let resolved = item.concept_id ? byId.get(item.concept_id) : undefined;
-    if (!resolved && item.concept_code) resolved = byCode.get(item.concept_code);
-    if (!resolved) {
-      unresolved.push({ concept_id: item.concept_id, concept_code: item.concept_code });
-      continue;
-    }
-    const cur = agg.get(resolved.id) ?? { concept_code: resolved.concept_code, attempted: 0, correct: 0 };
-    cur.attempted += item.attempted;
-    cur.correct += item.correct;
+
+  const resolve = (concept_id?: string, concept_code?: string) => {
+    let r = concept_id ? byId.get(concept_id) : undefined;
+    if (!r && concept_code) r = byCode.get(concept_code);
+    return r;
+  };
+  const ensure = (resolved: { id: string; concept_code: string }): Agg => {
+    const cur = agg.get(resolved.id) ?? {
+      concept_code: resolved.concept_code,
+      attempted: 0, correct: 0, earned: 0, max: 0, weighted: false,
+    };
     agg.set(resolved.id, cur);
+    return cur;
+  };
+
+  if (body.per_question && body.per_question.length > 0) {
+    for (const item of body.per_question) {
+      const resolved = resolve(item.concept_id, item.concept_code);
+      if (!resolved) {
+        unresolved.push({ concept_id: item.concept_id, concept_code: item.concept_code });
+        continue;
+      }
+      const cur = ensure(resolved);
+      const bloom = Math.min(6, Math.max(1, Math.round(item.bloom)));
+      const bloomWeight = MASTERY_CONFIG.BLOOM_WEIGHT[bloom] ?? 1.0;
+      const difficulty = clamp01(item.difficulty);
+      const maxPoints = difficulty * bloomWeight;
+      cur.attempted += 1;
+      if (item.is_correct) cur.correct += 1;
+      cur.max += maxPoints;
+      if (item.is_correct) cur.earned += maxPoints;
+      cur.weighted = true;
+    }
+  } else if (body.per_concept) {
+    for (const item of body.per_concept) {
+      const resolved = resolve(item.concept_id, item.concept_code);
+      if (!resolved) {
+        unresolved.push({ concept_id: item.concept_id, concept_code: item.concept_code });
+        continue;
+      }
+      const cur = ensure(resolved);
+      cur.attempted += item.attempted;
+      cur.correct += item.correct;
+    }
   }
 
   // Load existing concept rows for this student+course
@@ -164,11 +234,14 @@ Deno.serve(async (req) => {
 
   for (const [conceptId, info] of agg) {
     if (info.attempted <= 0) continue;
-    const signal = clamp01(info.correct / info.attempted);
+    const signal = info.weighted && info.max > 0
+      ? clamp01(info.earned / info.max)
+      : clamp01(info.correct / info.attempted);
     const prior = existingMap.get(conceptId);
     const newScore = !prior || prior.sample_count === 0
       ? signal
       : clamp01(MASTERY_CONFIG.EMA_ALPHA * signal + (1 - MASTERY_CONFIG.EMA_ALPHA) * prior.mastery_score);
+
 
     conceptUpserts.push({
       student_id: studentId,

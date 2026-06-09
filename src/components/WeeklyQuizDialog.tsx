@@ -23,28 +23,33 @@ async function invokeUpdateMastery(args: {
   source: "weekly_quiz";
   sourceId: string | null;
   answers: any[];
+  questionMeta: Map<string, { difficulty: number; bloom: number }>;
 }) {
   try {
-    const tally = new Map<string, { attempted: number; correct: number }>();
+    const per_question: Array<{
+      concept_code: string;
+      difficulty: number;
+      bloom: number;
+      is_correct: boolean;
+    }> = [];
     for (const a of args.answers ?? []) {
       const code = (a?.topic ?? "").toString().trim();
-      if (!code) continue;
-      const t = tally.get(code) ?? { attempted: 0, correct: 0 };
-      t.attempted += 1;
-      if (a?.is_correct) t.correct += 1;
-      tally.set(code, t);
+      const meta = a?.question_id ? args.questionMeta.get(a.question_id) : undefined;
+      if (!code || !meta) continue;
+      per_question.push({
+        concept_code: code,
+        difficulty: meta.difficulty,
+        bloom: meta.bloom,
+        is_correct: !!a.is_correct,
+      });
     }
-    if (tally.size === 0) return;
+    if (per_question.length === 0) return;
     await supabase.functions.invoke("update-mastery", {
       body: {
         course_id: args.courseId,
         source: args.source,
         source_id: args.sourceId,
-        per_concept: Array.from(tally.entries()).map(([concept_code, t]) => ({
-          concept_code,
-          attempted: t.attempted,
-          correct: t.correct,
-        })),
+        per_question,
       },
     });
   } catch (e) {
@@ -63,6 +68,7 @@ const WeeklyQuizDialog = ({
 }: Props) => {
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [questionMeta, setQuestionMeta] = useState<Map<string, { difficulty: number; bloom: number }>>(new Map());
   const [submitted, setSubmitted] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
 
@@ -73,9 +79,11 @@ const WeeklyQuizDialog = ({
     setLoading(true);
     setSubmitted(false);
     setQuestions([]);
+    setQuestionMeta(new Map());
 
     (async () => {
       let qs: Question[] = [];
+      const meta = new Map<string, { difficulty: number; bloom: number }>();
       const { data, error } = await supabase
         .from("assessment_questions")
         .select("*")
@@ -84,22 +92,28 @@ const WeeklyQuizDialog = ({
         .eq("quiz_day", day);
 
       if (!error && data && data.length > 0) {
-        qs = data.map((row: any) => ({
-          id: row.id,
-          text: row.question_text,
-          type: (row.question_type === "MCQ"
-            ? "mcq"
-            : row.question_type === "Problem Solving"
-            ? "problem_solving"
-            : row.question_type === "True/False"
-            ? "true_false"
-            : "short_answer") as Question["type"],
-          options: row.options as string[] | undefined,
-          correctAnswer: row.answer,
-          topic: row.topic,
-          difficulty: row.difficulty as "Easy" | "Medium" | "Hard",
-          day: row.quiz_day || 0,
-        }));
+        qs = data.map((row: any) => {
+          meta.set(row.id, {
+            difficulty: Number(row.difficulty_estimate ?? 0.5),
+            bloom: Number(row.bloom_level ?? 1),
+          });
+          return {
+            id: row.id,
+            text: row.question_text,
+            type: (row.question_type === "MCQ"
+              ? "mcq"
+              : row.question_type === "Problem Solving"
+              ? "problem_solving"
+              : row.question_type === "True/False"
+              ? "true_false"
+              : "short_answer") as Question["type"],
+            options: row.options as string[] | undefined,
+            correctAnswer: row.answer,
+            topic: row.topic,
+            difficulty: row.difficulty as "Easy" | "Medium" | "Hard",
+            day: row.quiz_day || 0,
+          };
+        });
         const seed = (studentId || "anon") + courseId;
         qs = seededShuffle(qs, seed).slice(0, Math.min(numQuestions, qs.length));
       } else {
@@ -107,6 +121,7 @@ const WeeklyQuizDialog = ({
       }
       if (cancelled) return;
       setQuestions(qs);
+      setQuestionMeta(meta);
       setLoading(false);
     })();
 
@@ -143,6 +158,7 @@ const WeeklyQuizDialog = ({
         source: "weekly_quiz",
         sourceId: inserted?.id ?? null,
         answers: results.answers ?? [],
+        questionMeta,
       });
     } catch (e) {
       console.error("Quiz submit error:", e);
