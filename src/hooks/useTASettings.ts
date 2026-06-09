@@ -130,7 +130,7 @@ export function useTASettings(courseId: string | null) {
         quiz_day1_enabled: (settings.quizDaysEnabled || []).includes(1),
         quiz_day2_enabled: (settings.quizDaysEnabled || []).includes(2),
         quiz_days_enabled: settings.quizDaysEnabled || [],
-        exam_schedule: settings.examSchedule ?? null,
+        exam_schedule: (settings.examSchedule ?? null) as unknown as never,
         updated_at: new Date().toISOString(),
       };
 
