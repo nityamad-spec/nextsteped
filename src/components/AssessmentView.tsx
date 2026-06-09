@@ -166,7 +166,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     setExpandedQuestions(wrongIndices);
 
     fetchExplanations(standardised);
-  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex]);
+  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex, questionMeta]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
