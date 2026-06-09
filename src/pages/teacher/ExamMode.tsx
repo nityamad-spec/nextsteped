@@ -22,6 +22,14 @@ import {
 import SetupModuleNav from "@/components/SetupModuleNav";
 import QuestionTypeSelector from "@/components/QuestionTypeSelector";
 import { bumpCacheVersion } from "@/lib/cacheVersion";
+import type { ExamScheduleItem } from "@/types";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+
+const MAX_EXAMS = 10;
+const newExamId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `exam-${Math.random().toString(36).slice(2)}-${Date.now()}`;
 
 type QuestionType = "MCQ" | "True/False" | "Short Answer" | "Code Practice";
 
