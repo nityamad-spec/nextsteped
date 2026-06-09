@@ -446,7 +446,7 @@ const ExamMode = () => {
                   )}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {(["MCQ", "True/False", "Short Answer", "Code Practice"] as QuestionType[]).map(type => (
+                  {(["MCQ", "True/False"] as QuestionType[]).map(type => (
                     <button key={type} onClick={() => toggleFilterType(type)}
                       className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${filterTypes.includes(type) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"}`}>
                       {type}
