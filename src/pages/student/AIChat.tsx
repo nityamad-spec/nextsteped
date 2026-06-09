@@ -38,8 +38,41 @@ async function invokeUpdateMastery(args: {
   source: "weekly_quiz" | "exam" | "practice";
   sourceId: string | null;
   answers: any[];
+  questionMeta?: Map<string, { difficulty: number; bloom: number }>;
 }) {
   try {
+    // Weighted per-question payload when meta is available — matches WeeklyQuizDialog.
+    if (args.questionMeta && args.questionMeta.size > 0) {
+      const perQuestion: {
+        concept_code: string;
+        difficulty: number;
+        bloom: number;
+        is_correct: boolean;
+      }[] = [];
+      for (const a of args.answers ?? []) {
+        const code = (a?.topic ?? "").toString().trim();
+        if (!code) continue;
+        const meta = args.questionMeta.get(a.question_id) ?? { difficulty: 0.5, bloom: 1 };
+        perQuestion.push({
+          concept_code: code,
+          difficulty: Math.min(1, Math.max(0, meta.difficulty)),
+          bloom: Math.min(6, Math.max(1, Math.round(meta.bloom))),
+          is_correct: !!a?.is_correct,
+        });
+      }
+      if (perQuestion.length === 0) return;
+      await supabase.functions.invoke("update-mastery", {
+        body: {
+          course_id: args.courseId,
+          source: args.source,
+          source_id: args.sourceId,
+          per_question: perQuestion,
+        },
+      });
+      return;
+    }
+
+    // Fallback aggregate path (no meta).
     const tally = new Map<string, { attempted: number; correct: number }>();
     for (const a of args.answers ?? []) {
       const code = (a?.topic ?? "").toString().trim();
@@ -111,6 +144,7 @@ const AIChat = () => {
   const [assessmentActive, setAssessmentActive] = useState(false);
   const [assessmentType, setAssessmentType] = useState<"quiz" | "exam">("quiz");
   const [assessmentQuestions, setAssessmentQuestions] = useState<Question[]>([]);
+  const [assessmentQuestionMeta, setAssessmentQuestionMeta] = useState<Map<string, { difficulty: number; bloom: number }>>(new Map());
   const [assessmentDay, setAssessmentDay] = useState(1);
   const [customExamTimeLimit, setCustomExamTimeLimit] = useState<number | null>(null);
   const [currentAssessmentSessionId, setCurrentAssessmentSessionId] = useState<string | null>(null);
@@ -376,8 +410,11 @@ const AIChat = () => {
     return filtered.length > 0 ? filtered : questions; // Fallback to all if no matches
   };
 
-  const fetchDBQuestions = async (mode: string, quizDay?: number): Promise<Question[]> => {
-    if (!enrolledCourseId) return [];
+  const fetchDBQuestions = async (
+    mode: string,
+    quizDay?: number,
+  ): Promise<{ questions: Question[]; meta: Map<string, { difficulty: number; bloom: number }> }> => {
+    if (!enrolledCourseId) return { questions: [], meta: new Map() };
     let query = supabase
       .from("assessment_questions")
       .select("*")
@@ -385,34 +422,45 @@ const AIChat = () => {
       .eq("mode", mode);
     if (quizDay) query = query.eq("quiz_day", quizDay);
     const { data, error } = await query;
-    if (error || !data || data.length === 0) return [];
-    return data.map((row: any) => ({
-      id: row.id,
-      text: row.question_text,
-      type: (row.question_type === "MCQ" ? "mcq" : row.question_type === "Problem Solving" ? "problem_solving" : row.question_type === "True/False" || row.question_type === "TF" ? "true_false" : "short_answer") as Question["type"],
-      options: row.options as string[] | undefined,
-      correctAnswer: row.answer,
-      topic: row.topic,
-      difficulty: row.difficulty as "Easy" | "Medium" | "Hard",
-      day: row.quiz_day || 0,
-    }));
+    if (error || !data || data.length === 0) return { questions: [], meta: new Map() };
+    const meta = new Map<string, { difficulty: number; bloom: number }>();
+    const questions = data.map((row: any) => {
+      meta.set(row.id, {
+        difficulty: Number(row.difficulty_estimate ?? 0.5),
+        bloom: Number(row.bloom_level ?? 1),
+      });
+      return {
+        id: row.id,
+        text: row.question_text,
+        type: (row.question_type === "MCQ" ? "mcq" : row.question_type === "Problem Solving" ? "problem_solving" : row.question_type === "True/False" || row.question_type === "TF" ? "true_false" : "short_answer") as Question["type"],
+        options: row.options as string[] | undefined,
+        correctAnswer: row.answer,
+        topic: row.topic,
+        difficulty: row.difficulty as "Easy" | "Medium" | "Hard",
+        day: row.quiz_day || 0,
+      };
+    });
+    return { questions, meta };
   };
 
   const handleStartExam = async () => {
     const count = taSettings.examManualCount || Math.max(5, Math.round((taSettings.examTimeLimit || 60) / 3));
     const visibleTopics = await fetchVisibleTopics();
-    let questions = await fetchDBQuestions("exam");
-    questions = filterByVisibleTopics(questions, visibleTopics);
+    const fetched = await fetchDBQuestions("exam");
+    let questions = filterByVisibleTopics(fetched.questions, visibleTopics);
+    let meta = fetched.meta;
     if (questions.length === 0) {
       let fallback = getExamQuestions(count);
       fallback = filterByVisibleTopics(fallback, visibleTopics);
       questions = fallback.length > 0 ? fallback : getExamQuestions(count);
+      meta = new Map();
     } else {
       const seed = (user?.id || "anon") + (enrolledCourseId || "");
       const shuffled = seededShuffle(questions, seed);
       questions = shuffled.slice(0, Math.min(count, shuffled.length));
     }
     setAssessmentQuestions(questions);
+    setAssessmentQuestionMeta(meta);
     setAssessmentType("exam");
     setAssessmentDay(3);
     setAssessmentActive(true);
@@ -428,12 +476,14 @@ const AIChat = () => {
 
     const visibleTopics = await fetchVisibleTopics();
     const count = custom.questionCount;
-    let questions = await fetchDBQuestions("exam");
-    questions = filterByVisibleTopics(questions, visibleTopics);
+    const fetched = await fetchDBQuestions("exam");
+    let questions = filterByVisibleTopics(fetched.questions, visibleTopics);
+    let meta = fetched.meta;
     if (questions.length === 0) {
       let fallback = getExamQuestions(count, undefined, custom.questionMix);
       fallback = filterByVisibleTopics(fallback, visibleTopics);
       questions = fallback.length > 0 ? fallback : getExamQuestions(count, undefined, custom.questionMix);
+      meta = new Map();
     } else {
       const allowedTypes = custom.questionMix.includes(",")
         ? custom.questionMix.split(",")
@@ -454,6 +504,7 @@ const AIChat = () => {
     }
     setCustomExamTimeLimit(custom.timeLimit);
     setAssessmentQuestions(questions);
+    setAssessmentQuestionMeta(meta);
     setAssessmentType("exam");
     setAssessmentDay(3);
     setAssessmentActive(true);
@@ -462,15 +513,19 @@ const AIChat = () => {
   const handleStartQuiz = async (day?: number) => {
     const count = taSettings.quizNumQuestions || 5;
     const quizDay = day || parseInt(searchParams.get("day") || "1") || 1;
-    let questions = await fetchDBQuestions("daily_quiz", quizDay);
+    const fetched = await fetchDBQuestions("daily_quiz", quizDay);
+    let questions = fetched.questions;
+    let meta = fetched.meta;
     if (questions.length === 0) {
       questions = getQuizQuestions(quizDay, count);
+      meta = new Map();
     } else {
       const seed = (user?.id || "anon") + (enrolledCourseId || "");
       const shuffled = seededShuffle(questions, seed);
       questions = shuffled.slice(0, Math.min(count, shuffled.length));
     }
     setAssessmentQuestions(questions);
+    setAssessmentQuestionMeta(meta);
     setAssessmentType("quiz");
     setAssessmentDay(quizDay);
     setAssessmentActive(true);
@@ -539,6 +594,7 @@ const AIChat = () => {
           source: assessmentType === "quiz" ? "weekly_quiz" : "exam",
           sourceId: insertedAssessment?.id ?? null,
           answers: results.answers ?? [],
+          questionMeta: assessmentQuestionMeta,
         });
       }
     }
@@ -876,6 +932,7 @@ const AIChat = () => {
           onEnd={handleAssessmentEnd}
           onSubmit={handleAssessmentSubmit}
           onStudyTopics={handleStudyWeakTopics}
+          questionMeta={assessmentQuestionMeta}
         />
 
         <Dialog open={showLeaveWarning} onOpenChange={setShowLeaveWarning}>

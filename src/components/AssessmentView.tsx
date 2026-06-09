@@ -19,7 +19,12 @@ interface AssessmentViewProps {
   onEnd: () => void;
   onSubmit: (results: AssessmentResults) => void;
   onStudyTopics?: (topics: string[]) => void;
+  questionMeta?: Map<string, { difficulty: number; bloom: number }>;
 }
+
+const BLOOM_WEIGHT: Record<number, number> = { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 };
+const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+const clampBloom = (n: number) => Math.min(6, Math.max(1, Math.round(n)));
 
 export interface StandardisedAnswer {
   question_id: string;
@@ -38,6 +43,8 @@ export interface AssessmentResults {
   totalQuestions: number;
   correctAnswers: number;
   score: number;
+  flatScore?: number;
+  weightedScore?: number;
   answers: StandardisedAnswer[];
   timeSpent: number;
   confidences?: Record<string, ConfidenceLevel>;
@@ -46,7 +53,7 @@ export interface AssessmentResults {
 
 type Phase = "intro" | "active" | "review";
 
-const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics }: AssessmentViewProps) => {
+const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta }: AssessmentViewProps) => {
   const [phase, setPhase] = useState<Phase>("intro");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(timeLimitMinutes * 60);
@@ -124,10 +131,28 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       };
     });
     const correct = standardised.filter(a => a.is_correct).length;
+    const flatScore = Math.round((correct / questions.length) * 100);
+
+    // Weighted score (difficulty × Bloom) when meta is available.
+    let weightedScore: number | undefined;
+    if (questionMeta && questionMeta.size > 0) {
+      let num = 0;
+      let den = 0;
+      for (const a of standardised) {
+        const meta = questionMeta.get(a.question_id) ?? { difficulty: 0.5, bloom: 1 };
+        const maxPoints = clamp01(meta.difficulty) * (BLOOM_WEIGHT[clampBloom(meta.bloom)] ?? 1.0);
+        den += maxPoints;
+        if (a.is_correct) num += maxPoints;
+      }
+      if (den > 0) weightedScore = Math.round((num / den) * 100);
+    }
+
     const res: AssessmentResults = {
       totalQuestions: questions.length,
       correctAnswers: correct,
-      score: Math.round((correct / questions.length) * 100),
+      score: weightedScore ?? flatScore,
+      flatScore,
+      weightedScore,
       answers: standardised,
       timeSpent: timeLimitMinutes * 60 - timeLeft,
       questionTimes: finalTimes,
@@ -141,7 +166,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     setExpandedQuestions(wrongIndices);
 
     fetchExplanations(standardised);
-  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex]);
+  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex, questionMeta]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
