@@ -1,40 +1,68 @@
 ## Goal
 
-Decouple the diagnostic from the EMA-based mastery tables. After this change:
-- `diagnostic_results` remains the source of truth for the diagnostic submission (score, `mastery_score`, `learner_level`, components).
-- `student_concept_mastery` and `student_course_mastery` are populated only by weekly quiz, exam, and practice submissions — so the per-concept EMA is never mixed with raw `correct/attempted` from the diagnostic.
+Make the weekly quiz update concept mastery using a **weighted accuracy** signal — each question contributes `difficulty_estimate × BLOOM_WEIGHT[bloom_level]` instead of a flat 1 point. This is exactly how `score-diagnostic` computes `accuracyScore`. Pace and confidence stay diagnostic-only.
 
-This resolves the inconsistency where `diagnostic_results.mastery_score` was difficulty × Bloom weighted while the mastery tables it wrote into were not.
+Scope: weekly quiz only. Exam and practice continue to use the existing flat correct/attempted signal (unchanged behavior). Diagnostic is unchanged (still writes only to `diagnostic_results`).
 
 ## Changes
 
-### 1. `supabase/functions/score-diagnostic/index.ts`
-- Remove the `perConceptTally` map and the trailing `fetch(...)` call to `update-mastery`.
-- Keep everything else (weighted scoring, pace, confidence, `diagnostic_results` insert) exactly as-is.
-- Update the top-of-file comment to state the function no longer writes to `student_concept_mastery` / `student_course_mastery` and that those tables are populated by weekly quiz / exam / practice only.
+### 1. `supabase/functions/update-mastery/index.ts`
 
-### 2. `supabase/functions/update-mastery/index.ts`
-- No code change.
-- Update the header comment to note that `diagnostic` is no longer a live caller (the `"diagnostic"` enum value stays in the Zod schema for backward compatibility; nothing in the app sends it after this change).
+Add a second, preferred input shape on the same endpoint:
 
-### 3. Frontend fallbacks
-Audited every reader of the two mastery tables:
+```ts
+per_question?: [{
+  concept_id?: uuid,
+  concept_code?: string,
+  difficulty: number,      // 0..1
+  bloom: number,           // 1..6
+  is_correct: boolean
+}]
+```
 
-| Consumer | Reads | Behavior after change | Action |
-|---|---|---|---|
-| `src/pages/student/StudentHome.tsx` — concept heatmap (line 550) | `student_concept_mastery` | Heatmap shows "no data" for all concepts until the student takes a weekly quiz/exam/practice — same as the pre-diagnostic state today | None needed. Acceptable. |
-| `src/pages/student/StudentHome.tsx` — `courseMastery` state (line 66, 124) | `student_course_mastery.mastery_score` | State stays `null` until first weekly quiz | None needed. Value is loaded but never rendered (confirmed via grep — only referenced in the test file). |
-| `AssessmentAnalytics.tsx`, `StudentCourseSwitcher.tsx`, `admin/DiagnosticsAnalytics.tsx` | `diagnostic_results` only | Unchanged | None needed. |
-| Teacher Course Dashboard / Student Insights | Do not query `student_concept_mastery` or `student_course_mastery` (grep confirmed) | Unchanged | None needed. |
+`per_concept` stays as-is (back-compat for exam/practice/AIChat).
 
-No additional UI fallback is required. The `learner_level` badge and diagnostic summary on the student side already source from `diagnostic_results`, not from `student_course_mastery`.
+Behavior:
+- If `per_question` is provided, group by resolved concept and compute per concept:
+  - `earnedSum += difficulty × BLOOM_WEIGHT[bloom]` when correct
+  - `maxSum += difficulty × BLOOM_WEIGHT[bloom]` always
+  - `signal = clamp01(earnedSum / maxSum)` (replaces `correct/attempted`)
+  - `questions_attempted` / `questions_correct` counters still increment by raw 1s so existing UI counts are unaffected.
+- If only `per_concept` is provided, current path runs unchanged.
+- Reuse the same `BLOOM_WEIGHT` constants from `score-diagnostic` (copy into the file's tuning block so update-mastery has no cross-function import).
+- EMA blend, course-level weighted-average derivation, and table writes are unchanged.
 
-### 4. Tests
-- `src/pages/student/StudentHome.test.tsx` seeds `courseMasteryStore` directly — keep as-is; it doesn't go through the diagnostic flow.
-- No existing test asserts that the diagnostic writes to the mastery tables, so nothing to remove.
+Validation: zod schema accepts either `per_question` or `per_concept` (at least one, non-empty).
 
-## Out of scope
+### 2. `src/components/WeeklyQuizDialog.tsx`
 
-- Schema changes to `student_concept_mastery` / `student_course_mastery` (none needed).
-- Backfilling or wiping any historical mastery rows that were previously seeded by the diagnostic — existing rows stay; they'll be naturally overwritten by future weekly quiz / exam / practice EMA updates.
-- Changes to weekly quiz / exam / practice mastery formulas (separate decision).
+- Extend the `assessment_questions` select to include `difficulty_estimate, bloom_level` and carry them into the `Question` objects (or a side map keyed by `id`).
+- In `invokeUpdateMastery`, drop the tally step and instead send `per_question`:
+
+```ts
+per_question: results.answers.map(a => ({
+  concept_code: a.topic,
+  difficulty: questionMeta[a.question_id].difficulty_estimate,
+  bloom: questionMeta[a.question_id].bloom_level,
+  is_correct: !!a.is_correct,
+}))
+```
+
+- `source` and `source_id` are unchanged.
+
+### 3. Tests
+
+- `src/components/WeeklyQuizDialog.test.tsx`: update the seeded `assessment_questions` row to include `difficulty_estimate` and `bloom_level`, and update the expected `invokeMock` payload assertion from `per_concept: [...]` to `per_question: [{ concept_code:"ARITH", difficulty:..., bloom:..., is_correct:true }]`.
+- No change to `StudentHome.test.tsx` (it doesn't go through the edge function).
+
+### 4. Out of scope
+
+- Exam (`AIChat.tsx` exam path) and practice (`AIChat.tsx` practice path) continue to send `per_concept` and use flat accuracy. Switching them is a separate decision.
+- No DB schema changes. No backfill. No changes to course-mastery weighting or learner-level bands.
+
+## Technical notes
+
+- `assessment_questions` already stores `difficulty_estimate numeric(3,2)` (0..1) and `bloom_level int` (1..6) — same semantics as `diagnostic_questions`, so no normalization needed.
+- Weighted signal preserves the EMA contract: it's still a 0..1 value blended with the prior via `EMA_ALPHA = 0.4`.
+- When all questions in a concept are bloom=1 and difficulty=0.5, the new signal equals the old `correct/attempted` ratio, so legacy comparisons stay sensible.
+- The `update-mastery` header comment should be updated to document the two input shapes and that `per_question` is the preferred shape going forward.

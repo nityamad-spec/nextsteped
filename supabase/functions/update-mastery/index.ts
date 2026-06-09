@@ -11,12 +11,19 @@
 // Pace and confidence are diagnostic-only signals and live exclusively in
 // diagnostic_results — they MUST NOT be folded into course-level mastery here.
 //
-// Input:
+// Input (one of per_question or per_concept is required; per_question preferred):
 // {
 //   course_id: uuid,
 //   source: "diagnostic" | "weekly_quiz" | "exam" | "practice",
 //   source_id: uuid | null,
-//   per_concept: [
+//   // Preferred (weighted): per-question rows. Signal per concept becomes
+//   //   sum(difficulty * BLOOM_WEIGHT[bloom] for correct) / sum(...for all attempted)
+//   per_question?: [
+//     { concept_id?: uuid, concept_code?: string,
+//       difficulty: number /*0..1*/, bloom: number /*1..6*/, is_correct: boolean }
+//   ],
+//   // Legacy (flat correct/attempted) — still used by exam/practice callers.
+//   per_concept?: [
 //     { concept_id?: uuid, concept_code?: string, attempted: number, correct: number }
 //   ]
 // }
