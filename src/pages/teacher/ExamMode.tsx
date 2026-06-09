@@ -459,13 +459,9 @@ const ExamMode = () => {
                       <div key={exam.id} className={`rounded-lg border p-4 space-y-3 ${exam.approved ? "border-primary/40 bg-primary/5" : ""}`}>
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-semibold">{exam.label}</p>
-                          <Select value={exam.kind} onValueChange={v => handleKindChange(exam.id, v as "midterm" | "final")}>
-                            <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="midterm">Midterm</SelectItem>
-                              <SelectItem value="final">Final</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <span className="inline-flex items-center rounded-md border bg-muted/50 px-2 py-1 text-xs font-medium text-muted-foreground">
+                            Final
+                          </span>
                         </div>
 
                         <div className="space-y-2">
