@@ -149,6 +149,12 @@ const AIChat = () => {
   const [customExamTimeLimit, setCustomExamTimeLimit] = useState<number | null>(null);
   const [currentAssessmentSessionId, setCurrentAssessmentSessionId] = useState<string | null>(null);
 
+  // Exam rotation: list of distinct exam_id values the professor has generated for this course
+  const [availableExamIds, setAvailableExamIds] = useState<string[]>([]);
+  const [nextExamIndex, setNextExamIndex] = useState(0);
+
+
+
 
   // Practice questions widget state
   const [showPractice, setShowPractice] = useState(false);
