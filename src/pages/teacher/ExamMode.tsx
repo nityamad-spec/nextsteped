@@ -325,7 +325,7 @@ const ExamMode = () => {
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Question Types</Label>
                 <p className="text-xs text-muted-foreground">Select which question types to include in exams</p>
-                <QuestionTypeSelector value={examQuestionTypes} onChange={handleExamTypeChange} />
+                <QuestionTypeSelector value={examQuestionTypes} onChange={handleExamTypeChange} allowedTypes={ALLOWED_EXAM_TYPES} />
               </div>
 
               <div className="space-y-3">
