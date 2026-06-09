@@ -136,6 +136,14 @@ const ExamMode = () => {
   const [saving, setSaving] = useState(false);
   const [concepts, setConcepts] = useState<{ id: string; concept_code: string; concept_name: string }[]>([]);
 
+  // Per-exam generated-question state
+  const [examQuestionCounts, setExamQuestionCounts] = useState<Record<string, number>>({});
+  const [generatingExamId, setGeneratingExamId] = useState<string | null>(null);
+  const [genProgress, setGenProgress] = useState<{ current: number; total: number } | null>(null);
+  const [viewExamId, setViewExamId] = useState<string | null>(null);
+
+
+
 
   useEffect(() => {
     if (!loading) {
