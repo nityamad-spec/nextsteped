@@ -149,6 +149,12 @@ const AIChat = () => {
   const [customExamTimeLimit, setCustomExamTimeLimit] = useState<number | null>(null);
   const [currentAssessmentSessionId, setCurrentAssessmentSessionId] = useState<string | null>(null);
 
+  // Exam rotation: list of distinct exam_id values the professor has generated for this course
+  const [availableExamIds, setAvailableExamIds] = useState<string[]>([]);
+  const [nextExamIndex, setNextExamIndex] = useState(0);
+
+
+
 
   // Practice questions widget state
   const [showPractice, setShowPractice] = useState(false);
@@ -410,9 +416,44 @@ const AIChat = () => {
     return filtered.length > 0 ? filtered : questions; // Fallback to all if no matches
   };
 
+  const rotationKey = enrolledCourseId && user
+    ? `examPrepRotation:${enrolledCourseId}:${user.id}`
+    : null;
+
+  /** Load distinct exam_id values that have generated questions for this course. */
+  const loadAvailableExamIds = useCallback(async () => {
+    if (!enrolledCourseId) {
+      setAvailableExamIds([]);
+      return [] as string[];
+    }
+    const { data, error } = await supabase
+      .from("assessment_questions")
+      .select("exam_id")
+      .eq("course_id", enrolledCourseId)
+      .eq("mode", "exam")
+      .not("exam_id", "is", null);
+    if (error || !data) {
+      setAvailableExamIds([]);
+      return [] as string[];
+    }
+    const ids = Array.from(new Set(data.map((r: any) => r.exam_id).filter(Boolean))).sort();
+    setAvailableExamIds(ids);
+    if (rotationKey) {
+      const stored = parseInt(localStorage.getItem(rotationKey) || "0", 10);
+      setNextExamIndex(Number.isFinite(stored) ? stored : 0);
+    }
+    return ids;
+  }, [enrolledCourseId, rotationKey]);
+
+  // Load whenever course resolves or mode flips to exam
+  useEffect(() => {
+    if (mode === "exam") loadAvailableExamIds();
+  }, [mode, loadAvailableExamIds]);
+
   const fetchDBQuestions = async (
     mode: string,
     quizDay?: number,
+    examId?: string,
   ): Promise<{ questions: Question[]; meta: Map<string, { difficulty: number; bloom: number }> }> => {
     if (!enrolledCourseId) return { questions: [], meta: new Map() };
     let query = supabase
@@ -421,6 +462,7 @@ const AIChat = () => {
       .eq("course_id", enrolledCourseId)
       .eq("mode", mode);
     if (quizDay) query = query.eq("quiz_day", quizDay);
+    if (examId) query = query.eq("exam_id", examId);
     const { data, error } = await query;
     if (error || !data || data.length === 0) return { questions: [], meta: new Map() };
     const meta = new Map<string, { difficulty: number; bloom: number }>();
@@ -443,10 +485,29 @@ const AIChat = () => {
     return { questions, meta };
   };
 
+  /**
+   * Pick the next exam_id in rotation and advance the persisted index.
+   * Returns null when professor hasn't generated any exam.
+   */
+  const consumeNextExamId = (ids: string[]): string | null => {
+    if (ids.length === 0) return null;
+    const idx = nextExamIndex % ids.length;
+    const examId = ids[idx];
+    const advanced = (idx + 1) % ids.length;
+    setNextExamIndex(advanced);
+    if (rotationKey) {
+      try { localStorage.setItem(rotationKey, String(advanced)); } catch { /* ignore */ }
+    }
+    return examId;
+  };
+
+
   const handleStartExam = async () => {
     const count = taSettings.examManualCount || Math.max(5, Math.round((taSettings.examTimeLimit || 60) / 3));
     const visibleTopics = await fetchVisibleTopics();
-    const fetched = await fetchDBQuestions("exam");
+    const ids = availableExamIds.length > 0 ? availableExamIds : await loadAvailableExamIds();
+    const examId = consumeNextExamId(ids);
+    const fetched = await fetchDBQuestions("exam", undefined, examId ?? undefined);
     let questions = filterByVisibleTopics(fetched.questions, visibleTopics);
     let meta = fetched.meta;
     if (questions.length === 0) {
@@ -455,7 +516,7 @@ const AIChat = () => {
       questions = fallback.length > 0 ? fallback : getExamQuestions(count);
       meta = new Map();
     } else {
-      const seed = (user?.id || "anon") + (enrolledCourseId || "");
+      const seed = (user?.id || "anon") + (enrolledCourseId || "") + (examId || "");
       const shuffled = seededShuffle(questions, seed);
       questions = shuffled.slice(0, Math.min(count, shuffled.length));
     }
@@ -476,7 +537,9 @@ const AIChat = () => {
 
     const visibleTopics = await fetchVisibleTopics();
     const count = custom.questionCount;
-    const fetched = await fetchDBQuestions("exam");
+    const ids = availableExamIds.length > 0 ? availableExamIds : await loadAvailableExamIds();
+    const examId = consumeNextExamId(ids);
+    const fetched = await fetchDBQuestions("exam", undefined, examId ?? undefined);
     let questions = filterByVisibleTopics(fetched.questions, visibleTopics);
     let meta = fetched.meta;
     if (questions.length === 0) {
@@ -498,7 +561,7 @@ const AIChat = () => {
           }[custom.questionMix] || ["mcq", "short_answer", "problem_solving", "true_false"];
       const filtered = questions.filter(q => allowedTypes.includes(q.type));
       const pool = filtered.length > 0 ? filtered : questions;
-      const seed = (user?.id || "anon") + (enrolledCourseId || "");
+      const seed = (user?.id || "anon") + (enrolledCourseId || "") + (examId || "");
       const shuffled = seededShuffle(pool, seed);
       questions = shuffled.slice(0, Math.min(count, shuffled.length));
     }
@@ -509,6 +572,7 @@ const AIChat = () => {
     setAssessmentDay(3);
     setAssessmentActive(true);
   };
+
 
   const handleStartQuiz = async (day?: number) => {
     const count = taSettings.quizNumQuestions || 5;
@@ -1109,11 +1173,14 @@ const AIChat = () => {
           <div className="border-b">
             <ExamPrepPanel
               taSettings={taSettings}
+              examCount={availableExamIds.length}
+              nextExamIndex={nextExamIndex}
               onStart={(customSettings) => {
                 handleStartExamWithSettings(customSettings);
               }}
               onShowDashboard={() => setShowPerformanceDashboard(true)}
             />
+
           </div>
         )}
 

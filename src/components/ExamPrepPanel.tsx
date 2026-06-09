@@ -18,9 +18,14 @@ interface ExamPrepPanelProps {
   taSettings: TASettings;
   onStart: (settings: ExamCustomSettings) => void;
   onShowDashboard?: () => void;
+  /** Number of distinct exams the professor has generated questions for. */
+  examCount?: number;
+  /** Index (0-based) of the next exam that will be served on the next Start Exam click. */
+  nextExamIndex?: number;
 }
 
-const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard }: ExamPrepPanelProps) => {
+const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard, examCount = 0, nextExamIndex = 0 }: ExamPrepPanelProps) => {
+
   const profTime = taSettings.examTimeLimit || 60;
   const profCount = taSettings.examManualQuestions
     ? (taSettings.examManualCount || 20)
@@ -48,8 +53,22 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard }: ExamPrepPanelPr
     setQuestionCount(Math.max(1, Math.min(100, parsed)));
   };
 
+  const upcomingExamPosition = examCount > 0 ? (nextExamIndex % examCount) + 1 : 0;
+  const availabilityNote =
+    examCount === 0
+      ? "Your professor hasn't published a practice exam yet — you'll get a sample set."
+      : examCount === 1
+        ? "1 practice exam available from your professor — you can retake it as often as you like."
+        : `${examCount} practice exams available from your professor — each Start Exam rotates to the next one (next up: Exam ${upcomingExamPosition} of ${examCount}).`;
+
   return (
     <div className="border-b bg-muted/20 px-5 py-4 space-y-3">
+      {/* Availability note about professor-published exams */}
+      <div className="flex items-start gap-2 rounded-lg border border-border bg-background/60 px-3 py-2">
+        <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+        <p className="text-xs text-muted-foreground">{availabilityNote}</p>
+      </div>
+
       {/* Recommendation banner */}
       <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
         <Info className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
@@ -57,6 +76,7 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard }: ExamPrepPanelPr
           <span className="font-medium text-foreground">Professor recommended settings</span> — these simulate the real exam. You can customize them for your practice.
         </p>
       </div>
+
 
       {/* Summary + Start */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
