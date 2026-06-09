@@ -932,6 +932,7 @@ const AIChat = () => {
           onEnd={handleAssessmentEnd}
           onSubmit={handleAssessmentSubmit}
           onStudyTopics={handleStudyWeakTopics}
+          questionMeta={assessmentQuestionMeta}
         />
 
         <Dialog open={showLeaveWarning} onOpenChange={setShowLeaveWarning}>
