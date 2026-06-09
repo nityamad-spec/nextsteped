@@ -476,12 +476,14 @@ const AIChat = () => {
 
     const visibleTopics = await fetchVisibleTopics();
     const count = custom.questionCount;
-    let questions = await fetchDBQuestions("exam");
-    questions = filterByVisibleTopics(questions, visibleTopics);
+    const fetched = await fetchDBQuestions("exam");
+    let questions = filterByVisibleTopics(fetched.questions, visibleTopics);
+    let meta = fetched.meta;
     if (questions.length === 0) {
       let fallback = getExamQuestions(count, undefined, custom.questionMix);
       fallback = filterByVisibleTopics(fallback, visibleTopics);
       questions = fallback.length > 0 ? fallback : getExamQuestions(count, undefined, custom.questionMix);
+      meta = new Map();
     } else {
       const allowedTypes = custom.questionMix.includes(",")
         ? custom.questionMix.split(",")
@@ -502,6 +504,7 @@ const AIChat = () => {
     }
     setCustomExamTimeLimit(custom.timeLimit);
     setAssessmentQuestions(questions);
+    setAssessmentQuestionMeta(meta);
     setAssessmentType("exam");
     setAssessmentDay(3);
     setAssessmentActive(true);
@@ -510,15 +513,19 @@ const AIChat = () => {
   const handleStartQuiz = async (day?: number) => {
     const count = taSettings.quizNumQuestions || 5;
     const quizDay = day || parseInt(searchParams.get("day") || "1") || 1;
-    let questions = await fetchDBQuestions("daily_quiz", quizDay);
+    const fetched = await fetchDBQuestions("daily_quiz", quizDay);
+    let questions = fetched.questions;
+    let meta = fetched.meta;
     if (questions.length === 0) {
       questions = getQuizQuestions(quizDay, count);
+      meta = new Map();
     } else {
       const seed = (user?.id || "anon") + (enrolledCourseId || "");
       const shuffled = seededShuffle(questions, seed);
       questions = shuffled.slice(0, Math.min(count, shuffled.length));
     }
     setAssessmentQuestions(questions);
+    setAssessmentQuestionMeta(meta);
     setAssessmentType("quiz");
     setAssessmentDay(quizDay);
     setAssessmentActive(true);
