@@ -310,10 +310,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Generate all tiers
+    // Generate all tiers in parallel (sequential = 4× latency, blows past 150s edge limit)
     const allQuestions: { spec: TierSpec; q: GeneratedQuestion }[] = [];
-    for (const spec of TIER_SPEC) {
-      const qs = await generateTier(spec, course.name ?? "Course", weekNumber, weekRow.week_name ?? "", conceptByCode, lovableKey);
+    const tierResults = await Promise.all(
+      TIER_SPEC.map((spec) =>
+        generateTier(spec, course.name ?? "Course", weekNumber, weekRow.week_name ?? "", conceptByCode, lovableKey)
+          .then((qs) => ({ spec, qs })),
+      ),
+    );
+    for (const { spec, qs } of tierResults) {
       for (const q of qs) allQuestions.push({ spec, q });
     }
 
