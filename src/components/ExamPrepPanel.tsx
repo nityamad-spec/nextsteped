@@ -18,9 +18,14 @@ interface ExamPrepPanelProps {
   taSettings: TASettings;
   onStart: (settings: ExamCustomSettings) => void;
   onShowDashboard?: () => void;
+  /** Number of distinct exams the professor has generated questions for. */
+  examCount?: number;
+  /** Index (0-based) of the next exam that will be served on the next Start Exam click. */
+  nextExamIndex?: number;
 }
 
-const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard }: ExamPrepPanelProps) => {
+const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard, examCount = 0, nextExamIndex = 0 }: ExamPrepPanelProps) => {
+
   const profTime = taSettings.examTimeLimit || 60;
   const profCount = taSettings.examManualQuestions
     ? (taSettings.examManualCount || 20)
