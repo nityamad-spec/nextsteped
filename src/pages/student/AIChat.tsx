@@ -594,6 +594,7 @@ const AIChat = () => {
           source: assessmentType === "quiz" ? "weekly_quiz" : "exam",
           sourceId: insertedAssessment?.id ?? null,
           answers: results.answers ?? [],
+          questionMeta: assessmentQuestionMeta,
         });
       }
     }
