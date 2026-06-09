@@ -44,19 +44,22 @@ const TYPE_LABELS: Record<string, string> = {
   problem_solving: "Coding",
 };
 
+// Allowed question types on this page
+const ALLOWED_EXAM_TYPES = ["mcq", "true_false"];
+
 // Parse the mix value (supports legacy presets + new comma-separated keys)
 const parseMix = (mix: string): string[] => {
-  if (!mix || mix === "mixed") return ["mcq", "true_false", "short_answer", "problem_solving"];
+  if (!mix || mix === "mixed") return [...ALLOWED_EXAM_TYPES];
   const legacy: Record<string, string[]> = {
     mcq_only: ["mcq"],
     true_false_only: ["true_false"],
-    short_answer: ["short_answer"],
-    problem_solving: ["problem_solving"],
-    mcq_short: ["mcq", "short_answer"],
-    mcq_problem: ["mcq", "problem_solving"],
+    short_answer: [],
+    problem_solving: [],
+    mcq_short: ["mcq"],
+    mcq_problem: ["mcq"],
   };
   if (legacy[mix]) return legacy[mix];
-  return mix.split(",").map(k => k.trim()).filter(Boolean);
+  return mix.split(",").map(k => k.trim()).filter(k => ALLOWED_EXAM_TYPES.includes(k));
 };
 
 const questionEstimate = (length: number, mix: string) => {
@@ -322,7 +325,7 @@ const ExamMode = () => {
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Question Types</Label>
                 <p className="text-xs text-muted-foreground">Select which question types to include in exams</p>
-                <QuestionTypeSelector value={examQuestionTypes} onChange={handleExamTypeChange} />
+                <QuestionTypeSelector value={examQuestionTypes} onChange={handleExamTypeChange} allowedTypes={ALLOWED_EXAM_TYPES} />
               </div>
 
               <div className="space-y-3">
@@ -443,7 +446,7 @@ const ExamMode = () => {
                   )}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {(["MCQ", "True/False", "Short Answer", "Code Practice"] as QuestionType[]).map(type => (
+                  {(["MCQ", "True/False"] as QuestionType[]).map(type => (
                     <button key={type} onClick={() => toggleFilterType(type)}
                       className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${filterTypes.includes(type) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"}`}>
                       {type}
@@ -543,8 +546,6 @@ const ExamMode = () => {
                 <SelectContent>
                   <SelectItem value="MCQ">Multiple Choice</SelectItem>
                   <SelectItem value="True/False">True / False</SelectItem>
-                  <SelectItem value="Short Answer">Short Answer</SelectItem>
-                  <SelectItem value="Code Practice">Code Practice</SelectItem>
                 </SelectContent>
               </Select>
             </div>
