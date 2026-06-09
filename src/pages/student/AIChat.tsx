@@ -1173,11 +1173,14 @@ const AIChat = () => {
           <div className="border-b">
             <ExamPrepPanel
               taSettings={taSettings}
+              examCount={availableExamIds.length}
+              nextExamIndex={nextExamIndex}
               onStart={(customSettings) => {
                 handleStartExamWithSettings(customSettings);
               }}
               onShowDashboard={() => setShowPerformanceDashboard(true)}
             />
+
           </div>
         )}
 
