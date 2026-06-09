@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import QuestionTypeSelector from "@/components/QuestionTypeSelector";
+import ExamQuestionsViewDialog from "@/components/ExamQuestionsViewDialog";
 import { bumpCacheVersion } from "@/lib/cacheVersion";
 import type { ExamScheduleItem } from "@/types";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
