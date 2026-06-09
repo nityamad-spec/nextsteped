@@ -546,8 +546,6 @@ const ExamMode = () => {
                 <SelectContent>
                   <SelectItem value="MCQ">Multiple Choice</SelectItem>
                   <SelectItem value="True/False">True / False</SelectItem>
-                  <SelectItem value="Short Answer">Short Answer</SelectItem>
-                  <SelectItem value="Code Practice">Code Practice</SelectItem>
                 </SelectContent>
               </Select>
             </div>
