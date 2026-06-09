@@ -944,7 +944,7 @@ const AIChat = () => {
                   <div key={pi} className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
                     isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
                   }`}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{part.content.trim()}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{part.content.trim()}</ReactMarkdown>
                   </div>
                 ) : null
               )}
@@ -953,7 +953,7 @@ const AIChat = () => {
             <div className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
               isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
             }`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{displayContent}</ReactMarkdown>
             </div>
           )}
           {msg.timestamp && (
