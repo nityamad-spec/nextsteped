@@ -169,7 +169,9 @@ describe("WeeklyQuizDialog", () => {
       course_id: "course-1",
       source: "weekly_quiz",
       source_id: "result-123",
-      per_concept: [{ concept_code: "ARITH", attempted: 1, correct: 1 }],
+      per_question: [
+        { concept_code: "ARITH", difficulty: 0.3, bloom: 2, is_correct: true },
+      ],
     });
   });
 });
