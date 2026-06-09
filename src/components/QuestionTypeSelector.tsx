@@ -11,6 +11,8 @@ interface QuestionTypeSelectorProps {
   /** Comma-separated string of selected type keys, or legacy preset like "mixed", "mcq_only" */
   value: string;
   onChange: (value: string) => void;
+  /** Optional whitelist of type keys to render (e.g. ["mcq", "true_false"]) */
+  allowedTypes?: string[];
 }
 
 /** Normalise legacy presets into explicit key arrays */
