@@ -108,7 +108,7 @@ const ExamMode = () => {
     const legacyMix = taSettings.examQuestionMix || "mixed";
     return [{
       id: newExamId(),
-      kind: "midterm",
+      kind: "final",
       lengthMin: legacyLength,
       breakdown: questionEstimate(legacyLength, legacyMix).breakdown,
       approved: taSettings.examApproved ?? false,
