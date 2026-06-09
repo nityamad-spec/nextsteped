@@ -257,12 +257,12 @@ const ExamMode = () => {
     updateExam(id, { approved: !examSchedule.find(e => e.id === id)?.approved });
   };
 
-  // Auto-label each card "<Kind> N" within its kind
+  // Auto-label each card "Final N"
   const labeledSchedule = useMemo(() => {
-    const counters: Record<string, number> = { midterm: 0, final: 0 };
+    let n = 0;
     return examSchedule.map(e => {
-      counters[e.kind] = (counters[e.kind] || 0) + 1;
-      return { ...e, label: `${e.kind === "midterm" ? "Midterm" : "Final"} ${counters[e.kind]}` };
+      n += 1;
+      return { ...e, label: `Final ${n}` };
     });
   }, [examSchedule]);
 
