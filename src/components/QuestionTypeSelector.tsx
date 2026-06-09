@@ -51,7 +51,7 @@ const QuestionTypeSelector = ({ value, onChange, allowedTypes }: QuestionTypeSel
 
   return (
     <div className="flex flex-wrap gap-2">
-      {ALL_TYPES.map(t => {
+      {visibleTypes.map(t => {
         const isActive = selected.includes(t.key);
         return (
           <button
