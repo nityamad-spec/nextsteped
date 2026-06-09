@@ -430,8 +430,8 @@ const ExamMode = () => {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label className="text-sm font-medium">Number of Exams This Semester</Label>
-                    <p className="text-xs text-muted-foreground">Add 1 – {MAX_EXAMS} exams (midterm or final)</p>
+                    <Label className="text-sm font-medium">Number of Mock Tests Generated</Label>
+                    <p className="text-xs text-muted-foreground">Add 1 – {MAX_EXAMS} mock tests</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
