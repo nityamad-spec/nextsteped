@@ -32,8 +32,11 @@ const parseValue = (v: string): string[] => {
   return v.split(",").filter(Boolean);
 };
 
-const QuestionTypeSelector = ({ value, onChange }: QuestionTypeSelectorProps) => {
-  const selected = parseValue(value);
+const QuestionTypeSelector = ({ value, onChange, allowedTypes }: QuestionTypeSelectorProps) => {
+  const visibleTypes = allowedTypes
+    ? ALL_TYPES.filter(t => allowedTypes.includes(t.key))
+    : ALL_TYPES;
+  const selected = parseValue(value).filter(k => !allowedTypes || allowedTypes.includes(k));
 
   const toggle = (key: string) => {
     let next: string[];
