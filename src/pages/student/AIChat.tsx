@@ -144,6 +144,7 @@ const AIChat = () => {
   const [assessmentActive, setAssessmentActive] = useState(false);
   const [assessmentType, setAssessmentType] = useState<"quiz" | "exam">("quiz");
   const [assessmentQuestions, setAssessmentQuestions] = useState<Question[]>([]);
+  const [assessmentQuestionMeta, setAssessmentQuestionMeta] = useState<Map<string, { difficulty: number; bloom: number }>>(new Map());
   const [assessmentDay, setAssessmentDay] = useState(1);
   const [customExamTimeLimit, setCustomExamTimeLimit] = useState<number | null>(null);
   const [currentAssessmentSessionId, setCurrentAssessmentSessionId] = useState<string | null>(null);
