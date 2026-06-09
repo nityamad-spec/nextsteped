@@ -96,6 +96,7 @@ export interface TASettings {
   quizEnabled?: boolean;
   examManualQuestions?: boolean;
   examManualCount?: number | null;
+  examSchedule?: ExamScheduleItem[];
   quizDaysEnabled?: number[];
 }
 
