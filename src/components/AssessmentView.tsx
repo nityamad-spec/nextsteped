@@ -19,7 +19,12 @@ interface AssessmentViewProps {
   onEnd: () => void;
   onSubmit: (results: AssessmentResults) => void;
   onStudyTopics?: (topics: string[]) => void;
+  questionMeta?: Map<string, { difficulty: number; bloom: number }>;
 }
+
+const BLOOM_WEIGHT: Record<number, number> = { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 };
+const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+const clampBloom = (n: number) => Math.min(6, Math.max(1, Math.round(n)));
 
 export interface StandardisedAnswer {
   question_id: string;
