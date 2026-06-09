@@ -174,17 +174,41 @@ const ExamMode = () => {
       ]);
       if (error) { console.error(error); toast.error("Failed to load custom exam questions"); }
       else if (data) {
-        setQuestions(data.map((row: any) => ({
+        // Manually-added questions (exam_id NULL) keep showing in the list below.
+        // AI-generated rows (exam_id set) are excluded here and surfaced via the per-exam View dialog.
+        const manual = (data as any[]).filter((row) => !row.exam_id);
+        setQuestions(manual.map((row: any) => ({
           id: row.id, question: row.question_text, answer: row.answer, topic: row.topic,
           difficulty: row.difficulty, type: row.question_type,
           options: row.options, correctIndex: row.correct_index ?? undefined,
         })));
+        const counts: Record<string, number> = {};
+        for (const row of data as any[]) {
+          if (row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
+        }
+        setExamQuestionCounts(counts);
       }
       setConcepts((conceptsRes.data as any[]) || []);
       setQuestionsLoading(false);
     };
     fetchQuestions();
   }, [courseId]);
+
+  const refreshExamCounts = async () => {
+    if (!courseId) return;
+    const { data } = await supabase
+      .from("assessment_questions")
+      .select("exam_id")
+      .eq("course_id", courseId)
+      .eq("mode", "exam");
+    const counts: Record<string, number> = {};
+    for (const row of (data as any[]) ?? []) {
+      if (row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
+    }
+    setExamQuestionCounts(counts);
+  };
+
+
 
 
   // ── Schedule mutation helpers ──
