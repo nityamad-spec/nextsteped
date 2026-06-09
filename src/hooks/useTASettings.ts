@@ -28,6 +28,7 @@ interface DBTASettings {
   quiz_day1_enabled: boolean;
   quiz_day2_enabled: boolean;
   quiz_days_enabled: number[] | null;
+  exam_schedule: unknown;
 }
 
 function dbToAppSettings(row: DBTASettings): TASettings {
