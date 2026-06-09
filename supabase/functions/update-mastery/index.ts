@@ -40,6 +40,8 @@ const corsHeaders: Record<string, string> = {
 
 const MASTERY_CONFIG = {
   EMA_ALPHA: 0.4,
+  // Cognitive depth weights (Bloom 1..6) — mirrors score-diagnostic CONFIG.BLOOM_WEIGHT.
+  BLOOM_WEIGHT: { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 } as Record<number, number>,
   LEVEL_BANDS: [
     { max: 0.25, level: "beginner" },
     { max: 0.50, level: "developing" },
