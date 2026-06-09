@@ -73,12 +73,30 @@ const PerConceptSchema = z
     message: "concept_id or concept_code required",
   });
 
-const BodySchema = z.object({
-  course_id: z.string().uuid(),
-  source: z.enum(["diagnostic", "weekly_quiz", "exam", "practice"]),
-  source_id: z.string().uuid().nullable().optional(),
-  per_concept: z.array(PerConceptSchema).min(1),
-});
+const PerQuestionSchema = z
+  .object({
+    concept_id: z.string().uuid().optional(),
+    concept_code: z.string().optional(),
+    difficulty: z.number().min(0).max(1),
+    bloom: z.number().int().min(1).max(6),
+    is_correct: z.boolean(),
+  })
+  .refine((v) => v.concept_id || v.concept_code, {
+    message: "concept_id or concept_code required",
+  });
+
+const BodySchema = z
+  .object({
+    course_id: z.string().uuid(),
+    source: z.enum(["diagnostic", "weekly_quiz", "exam", "practice"]),
+    source_id: z.string().uuid().nullable().optional(),
+    per_concept: z.array(PerConceptSchema).optional(),
+    per_question: z.array(PerQuestionSchema).optional(),
+  })
+  .refine(
+    (v) => (v.per_question && v.per_question.length > 0) || (v.per_concept && v.per_concept.length > 0),
+    { message: "per_question or per_concept required" },
+  );
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
