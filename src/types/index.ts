@@ -66,6 +66,14 @@ export interface ChatSession {
   updatedAt: number;
 }
 
+export interface ExamScheduleItem {
+  id: string;
+  kind: "midterm" | "final";
+  lengthMin: number;
+  breakdown: Record<string, number>;
+  approved: boolean;
+}
+
 export interface TASettings {
   hintLadder: boolean;
   knowledgeSources: "uploaded" | "uploaded_and_web";
