@@ -25,7 +25,8 @@ import "katex/dist/katex.min.css";
 import PracticeQuestions, { PracticeQuestion } from "@/components/PracticeQuestions";
 import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 
-const WELCOME_LEARNING = "Hi! I'm your AI Teaching Assistant for **Intro to Python**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?";
+const getWelcomeLearning = (courseName?: string | null) =>
+  `Hi! I'm your AI Teaching Assistant for **${courseName?.trim() || "your course"}**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?`;
 const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Configure your practice settings and click **Start Exam** to begin a timed simulation. Good luck!";
 
 const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string }[] = [
@@ -360,10 +361,11 @@ const AIChat = () => {
   // Auto-create first session if none exist
   useEffect(() => {
     if (chatsLoading || chats.length > 0 || !user) return;
-    const welcome = mode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
+    if (mode === "learning" && !courseContext) return; // wait for course name before creating
+    const welcome = mode === "learning" ? getWelcomeLearning(courseContext?.courseName) : WELCOME_EXAM;
     const title = mode === "learning" ? "New Study Session" : "New Exam Prep";
     createSession(title, welcome);
-  }, [chatsLoading, chats.length, user, mode]);
+  }, [chatsLoading, chats.length, user, mode, courseContext]);
 
   // Handle ?newchat=true param
   useEffect(() => {
@@ -372,7 +374,7 @@ const AIChat = () => {
     const targetMode = (searchParams.get("mode") === "exam" || searchParams.get("mode") === "quiz") ? "exam" : "learning";
     setMode(targetMode);
     setAssessmentActive(false);
-    const welcome = targetMode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
+    const welcome = targetMode === "learning" ? getWelcomeLearning(courseContext?.courseName) : WELCOME_EXAM;
     const title = targetMode === "learning" ? "New Study Session" : "New Exam Prep";
     createSession(title, welcome);
   }, []);
@@ -387,7 +389,7 @@ const AIChat = () => {
 
   const createNewChat = async () => {
     setAssessmentActive(false);
-    const welcome = mode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
+    const welcome = mode === "learning" ? getWelcomeLearning(courseContext?.courseName) : WELCOME_EXAM;
     const title = mode === "learning" ? "New Study Session" : "New Exam Prep";
     await createSession(title, welcome);
     setShowHistory(false);
@@ -886,7 +888,7 @@ const AIChat = () => {
     setAssessmentActive(false);
     // Only auto-create a new chat for study mode; exam mode doesn't need empty chats
     if (targetMode === "learning") {
-      const welcome = WELCOME_LEARNING;
+      const welcome = getWelcomeLearning(courseContext?.courseName);
       await createSession("New Study Session", welcome, targetMode);
     }
   };
