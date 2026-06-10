@@ -39,7 +39,18 @@ const corsHeaders: Record<string, string> = {
 };
 
 const MASTERY_CONFIG = {
-  EMA_ALPHA: 0.4,
+  // Per-source EMA alpha. The same signal moves a concept's score more when it
+  // comes from a higher-stakes source (exam > weekly_quiz > practice). The
+  // internal signal itself still weights hard, high-Bloom items more via
+  // difficulty * BLOOM_WEIGHT — this only scales how much the blended score
+  // shifts per submission.
+  EMA_ALPHA_BY_SOURCE: {
+    weekly_quiz: 0.4,
+    exam: 0.6,
+    practice: 0.1,
+    diagnostic: 0.4, // kept for back-compat; no live caller
+  } as Record<string, number>,
+  EMA_ALPHA_DEFAULT: 0.4,
   // Cognitive depth weights (Bloom 1..6) — mirrors score-diagnostic CONFIG.BLOOM_WEIGHT.
   BLOOM_WEIGHT: { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 } as Record<number, number>,
   LEVEL_BANDS: [
@@ -49,6 +60,7 @@ const MASTERY_CONFIG = {
     { max: 1.0001, level: "expert" },
   ],
 } as const;
+
 
 type LearnerLevel = "beginner" | "developing" | "proficient" | "expert";
 
