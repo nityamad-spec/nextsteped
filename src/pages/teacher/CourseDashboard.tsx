@@ -7,8 +7,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, MessageSquare, Shield, BarChart3, Lightbulb, Handshake } from "lucide-react";
+import { Users, MessageSquare, Shield, BarChart3, Lightbulb, Handshake, RefreshCw, AlertTriangle, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 import CourseCollaborators from "@/components/CourseCollaborators";
 import CourseStatusBanner from "@/components/CourseStatusBanner";
 
@@ -20,12 +22,18 @@ function bandFor(score: number): "beginner" | "developing" | "proficient" | "exp
   return "expert";
 }
 
-const insightsMock = [
-  "Consider dedicating extra time to **Functions** — most students have only touched this concept without deep exploration.",
-  "**Variables & Types** is well-explored. You can reference this as a foundation when introducing more advanced topics.",
-  "**File Handling** and **OOP Basics** have the highest 'Not Explored' rates. A targeted lab session could help accelerate engagement.",
-  "Students who deeply explored **Control Flow** tend to also explore **Functions** — consider linking these topics in your teaching.",
-];
+type TeachingInsight = { concept_code: string | null; severity: "info" | "warn" | "action"; text: string };
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
 
 const CourseDashboard = () => {
   const { currentCourse } = useApp();
@@ -160,6 +168,72 @@ const CourseDashboard = () => {
     })();
     return () => { cancelled = true; };
   }, [courseId]);
+
+  // Teaching Insights — cached AI-generated bullets
+  const [insights, setInsights] = useState<TeachingInsight[]>([]);
+  const [insightsGeneratedAt, setInsightsGeneratedAt] = useState<string | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(true);
+  const [insightsRefreshing, setInsightsRefreshing] = useState(false);
+  const [insightsEmpty, setInsightsEmpty] = useState(false);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+
+  const loadInsights = async (force = false) => {
+    if (!courseId) return;
+    if (force) setInsightsRefreshing(true);
+    setInsightsError(null);
+    try {
+      // Short-circuit when there's no mastery data at all
+      const { count } = await supabase
+        .from("student_concept_mastery")
+        .select("*", { count: "exact", head: true })
+        .eq("course_id", courseId);
+      if ((count ?? 0) === 0) {
+        setInsights([]); setInsightsGeneratedAt(null); setInsightsEmpty(true); return;
+      }
+      setInsightsEmpty(false);
+
+      // Try cached row first (RLS-protected) unless forcing refresh
+      if (!force) {
+        const { data: cached } = await supabase
+          .from("course_teaching_insights")
+          .select("insights, generated_at")
+          .eq("course_id", courseId)
+          .maybeSingle();
+        if (cached && cached.generated_at && Date.now() - new Date(cached.generated_at as string).getTime() < 6 * 60 * 60 * 1000) {
+          setInsights((cached.insights as TeachingInsight[]) || []);
+          setInsightsGeneratedAt(cached.generated_at as string);
+          return;
+        }
+      }
+
+      const { data, error } = await supabase.functions.invoke("generate-teaching-insights", {
+        body: { course_id: courseId, force_refresh: force },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setInsights(((data as any)?.insights as TeachingInsight[]) || []);
+      setInsightsGeneratedAt(((data as any)?.generated_at as string | null) ?? null);
+      setInsightsEmpty(!!(data as any)?.empty);
+    } catch (e: any) {
+      const msg = e?.message || "Failed to load insights";
+      setInsightsError(msg);
+      if (force) toast({ title: "Couldn't refresh insights", description: msg, variant: "destructive" });
+    } finally {
+      setInsightsLoading(false);
+      setInsightsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    setInsightsLoading(true);
+    setInsights([]);
+    setInsightsGeneratedAt(null);
+    setInsightsEmpty(false);
+    if (!courseId) { setInsightsLoading(false); return; }
+    loadInsights(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseId]);
+
   const totalWeeks = courseSchedule.total_weeks ?? 16;
   const hasStartDate = !!courseSchedule.start_date;
   const currentWeek = hasStartDate
@@ -361,20 +435,65 @@ const CourseDashboard = () => {
         {/* Teaching Insights */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Lightbulb className="h-5 w-5 text-primary" /> Teaching Insights</CardTitle>
-            <CardDescription>Suggestions to enhance learning based on student engagement patterns</CardDescription>
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <CardTitle className="flex items-center gap-2"><Lightbulb className="h-5 w-5 text-primary" /> Teaching Insights</CardTitle>
+                <CardDescription>AI-generated suggestions grounded in your students' real mastery data</CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                {insightsGeneratedAt && (
+                  <span className="text-xs text-muted-foreground">Updated {timeAgo(insightsGeneratedAt)}</span>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => loadInsights(true)}
+                  disabled={insightsRefreshing || insightsLoading || insightsEmpty}
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${insightsRefreshing ? "animate-spin" : ""}`} />
+                  <span className="ml-1.5">Refresh</span>
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {insightsMock.map((insight, i) => (
-              <div key={i} className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-                <Lightbulb className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                <p className="text-sm text-muted-foreground" dangerouslySetInnerHTML={{
-                  __html: insight.replace(/\*\*(.*?)\*\*/g, '<strong class="text-foreground">$1</strong>')
-                }} />
-              </div>
-            ))}
+            {insightsLoading ? (
+              [0, 1, 2].map((i) => (
+                <div key={i} className="h-14 rounded-lg bg-muted animate-pulse" />
+              ))
+            ) : insightsEmpty ? (
+              <p className="text-sm text-muted-foreground px-4 py-6 text-center">
+                Insights will appear here once students start completing weekly quizzes, exams, or practice questions.
+              </p>
+            ) : insightsError && insights.length === 0 ? (
+              <p className="text-sm text-destructive px-4 py-3">{insightsError}</p>
+            ) : insights.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-4 py-6 text-center">No insights yet.</p>
+            ) : (
+              insights.map((ins, i) => {
+                const Icon = ins.severity === "action" ? AlertCircle : ins.severity === "warn" ? AlertTriangle : Lightbulb;
+                const tone =
+                  ins.severity === "action"
+                    ? "border-destructive/30 bg-destructive/5 text-destructive"
+                    : ins.severity === "warn"
+                      ? "border-mastery-progressing/40 bg-mastery-progressing/10 text-foreground"
+                      : "border-primary/20 bg-primary/5 text-primary";
+                return (
+                  <div key={i} className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${tone}`}>
+                    <Icon className="h-4 w-4 mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm text-foreground">{ins.text}</p>
+                      {ins.concept_code && (
+                        <Badge variant="outline" className="mt-1.5 text-[10px] font-normal">{ins.concept_code}</Badge>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </CardContent>
         </Card>
+
 
         {/* Collaborators */}
         <CourseCollaborators />
