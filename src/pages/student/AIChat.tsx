@@ -888,7 +888,7 @@ const AIChat = () => {
     setAssessmentActive(false);
     // Only auto-create a new chat for study mode; exam mode doesn't need empty chats
     if (targetMode === "learning") {
-      const welcome = WELCOME_LEARNING;
+      const welcome = getWelcomeLearning(courseContext?.courseName);
       await createSession("New Study Session", welcome, targetMode);
     }
   };
