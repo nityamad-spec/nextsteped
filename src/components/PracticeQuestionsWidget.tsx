@@ -49,11 +49,13 @@ type Phase = "prompt" | "loading" | "active" | "review" | "review-history";
 interface GeneratedQuestion {
   id: string;
   question: string;
-  type: "mcq" | "true_false" | "short_answer";
+  type: "mcq" | "true_false";
   options?: string[];
   answer: string;
   explanation: string;
   topic: string;
+  difficulty_estimate: number; // 0..1
+  bloom_level: number; // 1..6
 }
 
 const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], courseContext, enrolledCourseId, studentId, initialReviewSessionId = null }: PracticeQuestionsWidgetProps) => {
@@ -90,16 +92,23 @@ IMPORTANT RULES:
 - If the student doesn't specify a number of questions, generate exactly 5.
 - If the student doesn't specify topics/concepts, generate questions based on the course material they've covered so far (use the course context provided).
 - If the student mentions weak points or areas they struggle with, focus on those topics.
-- Mix question types naturally (MCQ, True/False, Short Answer) unless the student specifies otherwise.
+- ONLY generate Multiple Choice (mcq) and True/False (true_false) questions. Do NOT generate short answer, fill-in-the-blank, or code questions.
+- Mix mcq and true_false naturally; favor mcq unless the concept is binary.
 - Make questions progressively challenging.
+
+For each question, also rate:
+- "difficulty_estimate": a number from 0 to 1 (e.g. 0.2 = easy recall, 0.5 = applying concepts, 0.85 = analysis / tricky distractors).
+- "bloom_level": an integer 1–6 on Bloom's taxonomy (1 Remember, 2 Understand, 3 Apply, 4 Analyze, 5 Evaluate, 6 Create). Most practice items land at 2–4.
 
 Return ONLY a JSON array (no markdown fencing, no extra text) of question objects. Each object must have:
 - "question": the question text
-- "type": one of "mcq", "true_false", or "short_answer"
-- "options": array of 4 strings (required for mcq, omit for others)
+- "type": "mcq" or "true_false"
+- "options": array of 4 strings (required for mcq, omit for true_false)
 - "answer": the correct answer (for mcq, must match one option exactly; for true_false, must be "True" or "False")
 - "explanation": a clear explanation of why the answer is correct
-- "topic": the topic area`;
+- "topic": the topic area (use the course concept code/name when possible)
+- "difficulty_estimate": number 0..1
+- "bloom_level": integer 1..6`;
 
       const resp = await fetch(CHAT_URL, {
         method: "POST",
@@ -172,8 +181,37 @@ Return ONLY a JSON array (no markdown fencing, no extra text) of question object
         }
       }
 
-      const withIds = parsed.map((q, i) => ({ ...q, id: `pq-${Date.now()}-${i}` }));
-      setQuestions(withIds);
+      const clamp01 = (n: any) => {
+        const x = typeof n === "number" ? n : parseFloat(n);
+        if (!isFinite(x)) return 0.5;
+        return Math.min(1, Math.max(0, x));
+      };
+      const clampBloom = (n: any) => {
+        const x = typeof n === "number" ? n : parseFloat(n);
+        if (!isFinite(x)) return 3;
+        return Math.min(6, Math.max(1, Math.round(x)));
+      };
+      const sanitized: GeneratedQuestion[] = (parsed as any[])
+        .filter((q) => q && (q.type === "mcq" || q.type === "true_false"))
+        .map((q, i) => ({
+          id: `pq-${Date.now()}-${i}`,
+          question: String(q.question ?? ""),
+          type: q.type,
+          options: q.type === "mcq" ? (Array.isArray(q.options) ? q.options.map(String) : []) : undefined,
+          answer: String(q.answer ?? ""),
+          explanation: String(q.explanation ?? ""),
+          topic: String(q.topic ?? ""),
+          difficulty_estimate: clamp01(q.difficulty_estimate),
+          bloom_level: clampBloom(q.bloom_level),
+        }));
+
+      if (sanitized.length === 0) {
+        toast.error("No valid questions generated. Try rephrasing your request.");
+        setPhase("prompt");
+        return;
+      }
+
+      setQuestions(sanitized);
       setCurrentIndex(0);
       setAnswers({});
       setRevealed(new Set());
@@ -207,12 +245,7 @@ Return ONLY a JSON array (no markdown fencing, no extra text) of question object
       let correct = 0;
       const answerDetails = questions.map(q => {
         const userAnswer = answers[q.id] || "";
-        let isCorrect = false;
-        if (q.type === "short_answer") {
-          isCorrect = userAnswer.trim().toLowerCase() === q.answer.trim().toLowerCase();
-        } else {
-          isCorrect = userAnswer === q.answer;
-        }
+        const isCorrect = userAnswer === q.answer;
         if (isCorrect) correct++;
         return {
           question_id: q.id,
@@ -223,6 +256,8 @@ Return ONLY a JSON array (no markdown fencing, no extra text) of question object
           correct: q.answer,
           is_correct: isCorrect,
           explanation: q.explanation,
+          difficulty_estimate: q.difficulty_estimate,
+          bloom_level: q.bloom_level,
         };
       });
 
@@ -242,9 +277,6 @@ Return ONLY a JSON array (no markdown fencing, no extra text) of question object
 
   const getAnswerCorrectness = (q: GeneratedQuestion) => {
     const userAnswer = answers[q.id] || "";
-    if (q.type === "short_answer") {
-      return userAnswer.trim().toLowerCase() === q.answer.trim().toLowerCase();
-    }
     return userAnswer === q.answer;
   };
 
@@ -640,15 +672,6 @@ Return ONLY a JSON array (no markdown fencing, no extra text) of question object
             </div>
           )}
 
-          {currentQuestion.type === "short_answer" && (
-            <Textarea
-              placeholder="Type your answer here…"
-              value={answers[currentQuestion.id] || ""}
-              onChange={e => handleAnswer(currentQuestion.id, e.target.value)}
-              className="min-h-[80px]"
-              disabled={isRevealed}
-            />
-          )}
 
           {isAnswered && !isRevealed && (
             <Button onClick={handleReveal} className="w-full gap-2">

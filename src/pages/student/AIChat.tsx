@@ -245,11 +245,23 @@ const AIChat = () => {
         time_spent: result.timeSpent,
       }).select("id").single();
 
+      const questionMeta = new Map<string, { difficulty: number; bloom: number }>();
+      for (const a of result.answers ?? []) {
+        if (!a?.question_id) continue;
+        if (typeof a.difficulty_estimate === "number" && typeof a.bloom_level === "number") {
+          questionMeta.set(a.question_id, {
+            difficulty: a.difficulty_estimate,
+            bloom: a.bloom_level,
+          });
+        }
+      }
+
       void invokeUpdateMastery({
         courseId: enrolledCourseId,
         source: "practice",
         sourceId: inserted?.id ?? null,
         answers: result.answers,
+        questionMeta,
       });
 
       if (activeChat) {

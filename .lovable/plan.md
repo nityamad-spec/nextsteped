@@ -1,27 +1,36 @@
-# Render math formulas in student chat
+# Practice Questions: Add Difficulty + Bloom, Restrict to MCQ/TF
 
-Currently the student AI chat renders messages with `ReactMarkdown` + `remarkGfm` only, so LaTeX like `$$ P(A|B) = \frac{P(B|A)\,P(A)}{P(B)} $$` shows as raw text. We'll add proper math rendering so inline (`$...$`) and block (`$$...$$`) formulas display as typeset equations.
+Scope: `/student/chat` → Study mode → Practice widget only. No DB schema changes. Weekly quiz, exam, diagnostic untouched. Persistence into `assessment_questions` is **out of scope** (deferred until Option A/B decision).
 
 ## Changes
 
-1. **Add dependencies**
-   - `remark-math` — parses `$...$` and `$$...$$` in markdown
-   - `rehype-katex` — renders parsed math to HTML via KaTeX
-   - `katex` — provides the CSS stylesheet
+### 1. `src/components/PracticeQuestionsWidget.tsx`
+- **Restrict question types to MCQ + True/False.** Remove `short_answer` from generation, parsing, and rendering paths.
+- **Extend `GeneratedQuestion` type** with:
+  - `difficulty_estimate: number` (0–1; AI emits ~0.2 easy / 0.5 medium / 0.85 hard)
+  - `bloom_level: number` (1–6; default to 3 "Apply" if missing)
+- **Update system prompt** (lines 87–102) to:
+  - Generate ONLY `mcq` and `true_false` (drop `short_answer`)
+  - Require `difficulty_estimate` and `bloom_level` per question, mirroring `generate-weekly-quiz` instructions
+  - Add 1–2 sentence guidance on Bloom taxonomy (1 Remember → 6 Create) and difficulty calibration
+- **Sanitize on parse**: clamp `difficulty_estimate` to [0,1], clamp/round `bloom_level` to integer in [1,6], default to 0.5 / 3 if missing or invalid. Drop any returned `short_answer` items defensively.
+- **Pass meta through to answer rows** so each answer carries `difficulty_estimate` + `bloom_level` + `topic` to the parent.
 
-2. **`src/pages/student/AIChat.tsx`**
-   - Import `remarkMath`, `rehypeKatex`, and `katex/dist/katex.min.css`
-   - Pass `remarkPlugins={[remarkGfm, remarkMath]}` and `rehypePlugins={[rehypeKatex]}` to both `ReactMarkdown` instances (lines 944 and 953)
+### 2. `src/pages/student/AIChat.tsx` — `handlePracticeResult`
+- Build `questionMeta: Map<questionId, { difficulty, bloom }>` from the answer rows.
+- Call `invokeUpdateMastery({ source: "practice", course_id, source_id, questionMeta, perQuestion: [...] })` so the existing weighted `per_question` path is used (Bloom-weighted EMA), instead of the flat `per_concept` fallback.
+- Include `difficulty_estimate` and `bloom_level` inside each answer object stored in `assessment_results.answers` JSON (already `jsonb` — no migration).
 
-3. **Scope**
-   - Only the student chat, as requested. Teacher chat, practice questions, and quiz dialogs are left unchanged. (Happy to extend to those surfaces in a follow-up if you want consistent math rendering everywhere.)
+## Out of Scope
+- No teacher-visible surface for practice difficulty/bloom.
+- No persistence of generated questions into `assessment_questions` or a new table (deferred).
+- Weekly quiz, exam mode, diagnostic, professor chat: unchanged.
 
-## Notes / risks
+## Risks & Mitigations
+- AI may emit out-of-range or missing meta → clamp + defaults on parse.
+- AI may still return `short_answer` despite prompt → filtered out on parse; prompt explicitly forbids it.
+- Self-reported difficulty is noisier than teacher-curated weekly quiz items → acceptable; practice is a lighter signal blended via EMA α=0.4.
 
-- KaTeX CSS is ~25KB gzipped; imported once globally from the chat page.
-- The AI's existing output already uses `$$...$$` / `$...$`, so no edge-function prompt changes are needed. If a formula was written without delimiters (e.g. plain `P(A|B) = ...`), it will still render as text — that's a model-output issue, not a rendering one.
-- KaTeX is strict about syntax; malformed LaTeX renders a red error inline rather than crashing. Acceptable default.
-
-## Open question
-
-Do you want the same math rendering applied to the **teacher Course Assistant chat** and **weekly quiz / practice question explanations** too, or keep this strictly to `/student/chat` for now?
+## Files Touched
+- `src/components/PracticeQuestionsWidget.tsx`
+- `src/pages/student/AIChat.tsx`
