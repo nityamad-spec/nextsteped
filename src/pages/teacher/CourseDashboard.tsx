@@ -7,8 +7,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, MessageSquare, Shield, BarChart3, Lightbulb, Handshake } from "lucide-react";
+import { Users, MessageSquare, Shield, BarChart3, Lightbulb, Handshake, RefreshCw, AlertTriangle, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 import CourseCollaborators from "@/components/CourseCollaborators";
 import CourseStatusBanner from "@/components/CourseStatusBanner";
 
@@ -20,12 +22,18 @@ function bandFor(score: number): "beginner" | "developing" | "proficient" | "exp
   return "expert";
 }
 
-const insightsMock = [
-  "Consider dedicating extra time to **Functions** — most students have only touched this concept without deep exploration.",
-  "**Variables & Types** is well-explored. You can reference this as a foundation when introducing more advanced topics.",
-  "**File Handling** and **OOP Basics** have the highest 'Not Explored' rates. A targeted lab session could help accelerate engagement.",
-  "Students who deeply explored **Control Flow** tend to also explore **Functions** — consider linking these topics in your teaching.",
-];
+type TeachingInsight = { concept_code: string | null; severity: "info" | "warn" | "action"; text: string };
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
 
 const CourseDashboard = () => {
   const { currentCourse } = useApp();
