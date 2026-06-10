@@ -1583,6 +1583,13 @@ export type Database = {
         Args: { _scope: string; _scope_id: string }
         Returns: number
       }
+      course_dashboard_stats: {
+        Args: { _course_id: string }
+        Returns: {
+          active_students: number
+          total_sessions: number
+        }[]
+      }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_course_member: {
         Args: { _course_id: string; _user_id: string }
