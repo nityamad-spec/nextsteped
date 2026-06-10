@@ -56,6 +56,28 @@ const CourseDashboard = () => {
 
   const [lessonOrder, setLessonOrder] = useState<Map<string, number>>(new Map());
   const [masteryDist, setMasteryDist] = useState<Map<string, { beginner: number; developing: number; proficient: number; expert: number }>>(new Map());
+  const [stats, setStats] = useState<{ activeStudents: number; totalSessions: number } | null>(null);
+
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)("course_dashboard_stats", { _course_id: courseId });
+      if (cancelled) return;
+      if (error) {
+        console.error("course_dashboard_stats error", error);
+        return;
+      }
+      const row = Array.isArray(data) ? (data[0] as { active_students: number; total_sessions: number } | undefined) : (data as { active_students: number; total_sessions: number } | null);
+      if (row) {
+        setStats({
+          activeStudents: Number(row.active_students) || 0,
+          totalSessions: Number(row.total_sessions) || 0,
+        });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
 
   useEffect(() => {
     if (!courseId) { setConcepts([]); setLessonOrder(new Map()); setConceptsLoading(false); return; }
@@ -367,7 +389,7 @@ const CourseDashboard = () => {
               <Users className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold">45</p>
+              <p className="text-2xl font-bold">{stats ? stats.activeStudents : "—"}</p>
               <p className="text-xs text-muted-foreground">Active Students</p>
             </div>
           </CardContent>
@@ -378,7 +400,7 @@ const CourseDashboard = () => {
               <MessageSquare className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold">312</p>
+              <p className="text-2xl font-bold">{stats ? stats.totalSessions : "—"}</p>
               <p className="text-xs text-muted-foreground">Total Sessions</p>
             </div>
           </CardContent>
