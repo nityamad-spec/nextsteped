@@ -168,6 +168,72 @@ const CourseDashboard = () => {
     })();
     return () => { cancelled = true; };
   }, [courseId]);
+
+  // Teaching Insights — cached AI-generated bullets
+  const [insights, setInsights] = useState<TeachingInsight[]>([]);
+  const [insightsGeneratedAt, setInsightsGeneratedAt] = useState<string | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(true);
+  const [insightsRefreshing, setInsightsRefreshing] = useState(false);
+  const [insightsEmpty, setInsightsEmpty] = useState(false);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+
+  const loadInsights = async (force = false) => {
+    if (!courseId) return;
+    if (force) setInsightsRefreshing(true);
+    setInsightsError(null);
+    try {
+      // Short-circuit when there's no mastery data at all
+      const { count } = await supabase
+        .from("student_concept_mastery")
+        .select("*", { count: "exact", head: true })
+        .eq("course_id", courseId);
+      if ((count ?? 0) === 0) {
+        setInsights([]); setInsightsGeneratedAt(null); setInsightsEmpty(true); return;
+      }
+      setInsightsEmpty(false);
+
+      // Try cached row first (RLS-protected) unless forcing refresh
+      if (!force) {
+        const { data: cached } = await supabase
+          .from("course_teaching_insights")
+          .select("insights, generated_at")
+          .eq("course_id", courseId)
+          .maybeSingle();
+        if (cached && cached.generated_at && Date.now() - new Date(cached.generated_at as string).getTime() < 6 * 60 * 60 * 1000) {
+          setInsights((cached.insights as TeachingInsight[]) || []);
+          setInsightsGeneratedAt(cached.generated_at as string);
+          return;
+        }
+      }
+
+      const { data, error } = await supabase.functions.invoke("generate-teaching-insights", {
+        body: { course_id: courseId, force_refresh: force },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setInsights(((data as any)?.insights as TeachingInsight[]) || []);
+      setInsightsGeneratedAt(((data as any)?.generated_at as string | null) ?? null);
+      setInsightsEmpty(!!(data as any)?.empty);
+    } catch (e: any) {
+      const msg = e?.message || "Failed to load insights";
+      setInsightsError(msg);
+      if (force) toast({ title: "Couldn't refresh insights", description: msg, variant: "destructive" });
+    } finally {
+      setInsightsLoading(false);
+      setInsightsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    setInsightsLoading(true);
+    setInsights([]);
+    setInsightsGeneratedAt(null);
+    setInsightsEmpty(false);
+    if (!courseId) { setInsightsLoading(false); return; }
+    loadInsights(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseId]);
+
   const totalWeeks = courseSchedule.total_weeks ?? 16;
   const hasStartDate = !!courseSchedule.start_date;
   const currentWeek = hasStartDate
