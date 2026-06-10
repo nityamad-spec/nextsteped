@@ -324,36 +324,33 @@ const CourseDashboard = () => {
                 No concepts defined for this course yet. Add them in Concept Review.
               </p>
             ) : conceptRows.map((c) => {
-              const total = Math.max(1, c.touched + c.deeplyExplored + c.notExplored);
-              // Deterministic static distribution from concept name
-              let h = 0;
-              for (let i = 0; i < c.concept.length; i++) h = (h * 31 + c.concept.charCodeAt(i)) >>> 0;
-              const w1 = (h % 100) / 100;
-              const w2 = ((h >>> 7) % 100) / 100;
-              const w3 = ((h >>> 13) % 100) / 100;
-              const w4 = ((h >>> 19) % 100) / 100;
-              const sum = w1 + w2 + w3 + w4 || 1;
-              const beginner = Math.round((w1 / sum) * total);
-              const developing = Math.round((w2 / sum) * total);
-              const proficient = Math.round((w3 / sum) * total);
-              const expert = Math.max(0, total - beginner - developing - proficient);
-              const pct = (n: number) => (n / total) * 100;
+              const { beginner, developing, proficient, expert } = c;
+              const total = beginner + developing + proficient + expert;
+              const pct = (n: number) => (total === 0 ? 0 : (n / total) * 100);
               return (
-                <div key={c.concept} className="space-y-1.5 rounded-lg px-3 py-2">
+                <div key={c.id} className="space-y-1.5 rounded-lg px-3 py-2">
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-sm font-medium">{c.concept}</span>
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className="text-muted-foreground font-medium">{beginner} Beginner</span>
-                      <span className="text-muted-foreground font-medium">{developing} Developing</span>
-                      <span className="text-muted-foreground font-medium">{proficient} Proficient</span>
-                      <span className="text-muted-foreground font-medium">{expert} Expert</span>
-                    </div>
+                    {total === 0 ? (
+                      <span className="text-xs text-muted-foreground italic">No student data yet</span>
+                    ) : (
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="text-muted-foreground font-medium">{beginner} Beginner</span>
+                        <span className="text-muted-foreground font-medium">{developing} Developing</span>
+                        <span className="text-muted-foreground font-medium">{proficient} Proficient</span>
+                        <span className="text-muted-foreground font-medium">{expert} Expert</span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
-                    <div className="bg-mastery-beginner" style={{ width: `${pct(beginner)}%` }} />
-                    <div className="bg-mastery-progressing" style={{ width: `${pct(developing)}%` }} />
-                    <div className="bg-mastery-proficient" style={{ width: `${pct(proficient)}%` }} />
-                    <div className="bg-mastery-expert" style={{ width: `${pct(expert)}%` }} />
+                    {total > 0 && (
+                      <>
+                        <div className="bg-mastery-beginner" style={{ width: `${pct(beginner)}%` }} />
+                        <div className="bg-mastery-progressing" style={{ width: `${pct(developing)}%` }} />
+                        <div className="bg-mastery-proficient" style={{ width: `${pct(proficient)}%` }} />
+                        <div className="bg-mastery-expert" style={{ width: `${pct(expert)}%` }} />
+                      </>
+                    )}
                   </div>
                 </div>
               );
