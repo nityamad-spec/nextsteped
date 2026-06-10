@@ -435,20 +435,65 @@ const CourseDashboard = () => {
         {/* Teaching Insights */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Lightbulb className="h-5 w-5 text-primary" /> Teaching Insights</CardTitle>
-            <CardDescription>Suggestions to enhance learning based on student engagement patterns</CardDescription>
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <CardTitle className="flex items-center gap-2"><Lightbulb className="h-5 w-5 text-primary" /> Teaching Insights</CardTitle>
+                <CardDescription>AI-generated suggestions grounded in your students' real mastery data</CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                {insightsGeneratedAt && (
+                  <span className="text-xs text-muted-foreground">Updated {timeAgo(insightsGeneratedAt)}</span>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => loadInsights(true)}
+                  disabled={insightsRefreshing || insightsLoading || insightsEmpty}
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${insightsRefreshing ? "animate-spin" : ""}`} />
+                  <span className="ml-1.5">Refresh</span>
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {insightsMock.map((insight, i) => (
-              <div key={i} className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-                <Lightbulb className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                <p className="text-sm text-muted-foreground" dangerouslySetInnerHTML={{
-                  __html: insight.replace(/\*\*(.*?)\*\*/g, '<strong class="text-foreground">$1</strong>')
-                }} />
-              </div>
-            ))}
+            {insightsLoading ? (
+              [0, 1, 2].map((i) => (
+                <div key={i} className="h-14 rounded-lg bg-muted animate-pulse" />
+              ))
+            ) : insightsEmpty ? (
+              <p className="text-sm text-muted-foreground px-4 py-6 text-center">
+                Insights will appear here once students start completing weekly quizzes, exams, or practice questions.
+              </p>
+            ) : insightsError && insights.length === 0 ? (
+              <p className="text-sm text-destructive px-4 py-3">{insightsError}</p>
+            ) : insights.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-4 py-6 text-center">No insights yet.</p>
+            ) : (
+              insights.map((ins, i) => {
+                const Icon = ins.severity === "action" ? AlertCircle : ins.severity === "warn" ? AlertTriangle : Lightbulb;
+                const tone =
+                  ins.severity === "action"
+                    ? "border-destructive/30 bg-destructive/5 text-destructive"
+                    : ins.severity === "warn"
+                      ? "border-mastery-progressing/40 bg-mastery-progressing/10 text-foreground"
+                      : "border-primary/20 bg-primary/5 text-primary";
+                return (
+                  <div key={i} className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${tone}`}>
+                    <Icon className="h-4 w-4 mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm text-foreground">{ins.text}</p>
+                      {ins.concept_code && (
+                        <Badge variant="outline" className="mt-1.5 text-[10px] font-normal">{ins.concept_code}</Badge>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </CardContent>
         </Card>
+
 
         {/* Collaborators */}
         <CourseCollaborators />
