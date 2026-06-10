@@ -521,16 +521,16 @@ PROFESSOR STYLE
     }
     void userRole;
 
-    // If the question was classified as off-topic, append a relating instruction
+    // If the question was classified as off-topic, refuse and redirect
     if (
       relevanceContext &&
       relevanceContext.relevant === false &&
       relevanceContext.courseName
     ) {
       const conceptsList = relevanceContext.concepts?.length
-        ? ` Key course concepts include: ${relevanceContext.concepts.join(", ")}.`
+        ? ` Course concepts include: ${relevanceContext.concepts.join(", ")}.`
         : "";
-      systemPrompt = `${systemPrompt}\n\nIMPORTANT: The student's question is not directly about ${relevanceContext.courseName}.${conceptsList} Before answering, briefly and naturally connect their question to a real-world application of the course material. Then answer helpfully through that lens. Do not refuse to answer — always be helpful, but draw the connection first.`;
+      systemPrompt = `${systemPrompt}\n\nIMPORTANT: The user's question is not relevant to ${relevanceContext.courseName}.${conceptsList} Do NOT answer it. Reply in 1–2 short sentences saying it's outside the scope of this course and invite them to ask something related (you may suggest one of the listed concepts). Do not provide a partial answer, analogy, workaround, or "real-world bridge" — just decline politely and redirect.`;
     }
 
     const fullSystemPrompt = systemPrompt + ragContext;
