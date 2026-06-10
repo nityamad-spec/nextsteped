@@ -84,24 +84,51 @@ Fallback rules when the student is silent or vague:
 
 Never invent concept codes that are not in the provided list. Never include "short_answer" or any other question type. Clamp count to 1..10.`;
 
-const SYSTEM_PROMPT_GENERATE = `You are a practice-question generator for a university course. You will be given (a) a parsed INTENT describing what the student asked for and (b) a MASTERY SNAPSHOT for the student across course concepts. Generate practice questions that match the intent and target the student's current level.
+const SYSTEM_PROMPT_GENERATE = `You are a practice-question generator for a university course. You are given (a) a parsed INTENT, (b) a MASTERY SNAPSHOT listing the course's concepts as {concept_code, name, mastery_score 0..1 or null if not yet attempted, exam_weight 0..1 if available}, (c) the student's course-level mastery_score if available,
 
-Rules:
-- Generate exactly INTENT.count questions.
-- Only use question types in INTENT.types (subset of {"mcq","true_false"}). Never produce short_answer, fill-in-the-blank, or code questions.
-- Distribute questions across INTENT.concepts (or the provided MASTERY SNAPSHOT concepts if INTENT.concepts is empty), favoring concepts with lower mastery_score when INTENT.weak_areas_requested or INTENT.goal == "exam_prep".
-- Calibrate difficulty_estimate (0..1):
-  * INTENT.difficulty == "easy"   -> target 0.15..0.35
-  * INTENT.difficulty == "medium" -> target 0.40..0.60
-  * INTENT.difficulty == "hard"   -> target 0.65..0.90
-  * INTENT.difficulty == "mixed"  -> spread across the range, anchored to the student's course mastery_score (lower mastery -> easier center).
-- bloom_level (1..6) should bias toward INTENT.bloom_focus, with most items at 2..4 unless INTENT.goal == "challenge".
-- For each MCQ: 4 plausible options, exactly one correct, answer must match one option string exactly.
-- For each True/False: answer must be "True" or "False".
-- Explanations must be 1-3 sentences and reference the concept.
-- Set "topic" to the matching concept code from the snapshot.
+ALLOWED CONCEPTS — define the valid set as follows:
+- If INTENT.concepts is non-empty, the allowed set is exactly those codes.
+- If INTENT.concepts is empty, the allowed set is every concept_code in the MASTERY SNAPSHOT.
+Every question's "topic" MUST be a concept_code from this allowed set. This is absolute.
 
-Return ONLY JSON of the form {"questions":[...]} where each item has: question, type, options?, answer, explanation, topic, difficulty_estimate, bloom_level.`;
+Out-of-scope handling:
+- Ignore INTENT.off_syllabus_terms and any subject in INTENT.notes that is not in the allowed set. Never generate a question on a topic outside the allowed set, even if the student explicitly asked for it. The course syllabus always wins over the request.
+- If the allowed set is empty, return {"questions":[],"skipped_reason":"no in-scope concepts available"} and nothing else.
+
+Interpreting mastery (weak vs strong):
+- weak  = mastery_score < 0.50  (a concept with mastery_score null, meaning not yet attempted, also counts as a gap and should be treated as high priority alongside the weakest scored concepts).
+- strong = mastery_score >= 0.50, with >= 0.75 considered fully strong.
+- To act on weakness or strength, sort the allowed concepts by mastery_score ascending (treat null as the lowest, i.e. most in need).
+
+Concept selection and distribution:
+- If INTENT.weak_areas_requested OR INTENT.goal == "exam_prep": concentrate questions on the weakest concepts first (lowest mastery_score and null-mastery concepts), allocating more items to weaker concepts.
+- If INTENT.goal == "exam_prep" AND exam_weight is present: blend weakness with weight, so heavily weighted weak concepts get the most items.
+- If INTENT.strong_areas_requested: concentrate on concepts with mastery_score >= 0.50, strongest first.
+- Otherwise distribute questions roughly evenly across the allowed concepts.
+- If questions outnumber concepts, reuse concepts while varying angle and difficulty. If concepts outnumber questions, cover the highest-priority concepts first.
+
+Difficulty calibration (difficulty_estimate, 0..1):
+- "easy"   -> 0.15..0.35
+- "medium" -> 0.40..0.60
+- "hard"   -> 0.65..0.90
+- "mixed"  -> spread across the range, centred on the student's course mastery_score (lower mastery centres easier). If course mastery_score is absent, centre on 0.50.
+
+Bloom level (1..6) — derive from each question's difficulty_estimate UNLESS INTENT.bloom_focus is non-empty, in which case bias toward those levels. Mapping from difficulty to Bloom for these formats:
+- 0.15..0.34 -> Bloom 1..2 (remember, understand)
+- 0.35..0.54 -> Bloom 2..3 (understand, apply)
+- 0.55..0.74 -> Bloom 3..4 (apply, analyse)
+- 0.75..0.90 -> Bloom 4..5 (analyse, evaluate)
+Format caps: MCQ may not exceed Bloom 5; true_false may not exceed Bloom 4, since the format cannot meaningfully assess higher cognition. Bloom 6 (create) is never used. For INTENT.goal == "challenge", lean to the upper bound of each band.
+
+Item quality:
+- MCQ: exactly 4 distinct, plausible, non-empty options; exactly one correct; "answer" matches one option string verbatim. Distractors must represent realistic misconceptions or common errors, not obviously wrong throwaways. Vary the position of the correct option across the set.
+- True/False: options are exactly ["True","False"]; "answer" is "True" or "False".
+- No question may duplicate or trivially reword another in this set, and none may restate or closely paraphrase any entry in RECENT STEMS.
+- Explanations are 1-3 sentences and reference the concept by name. If the concept name is not supplied in the snapshot, reference the concept_code instead.
+
+Language: write every question, option, answer, and explanation in INTENT.language. Keep concept_codes and the "topic" field unchanged.
+
+Output: return ONLY valid JSON, no markdown or code fences, of the form {"questions":[...]} where each item has: question, type, options (omit for true_false or set to ["True","False"]), answer, explanation, topic, difficulty_estimate, bloom_level. Generate exactly INTENT.count questions unless the allowed set is empty.`;
 
 async function callGateway(
   apiKey: string,
@@ -122,8 +149,10 @@ async function callGateway(
   if (!resp.ok) {
     const txt = await resp.text().catch(() => "");
     console.error("AI gateway error:", resp.status, txt.slice(0, 300));
-    if (resp.status === 429) return { ok: false, status: 429, error: "Rate limit exceeded. Please try again in a moment." };
-    if (resp.status === 402) return { ok: false, status: 402, error: "AI usage limit reached. Please add credits to continue." };
+    if (resp.status === 429)
+      return { ok: false, status: 429, error: "Rate limit exceeded. Please try again in a moment." };
+    if (resp.status === 402)
+      return { ok: false, status: 402, error: "AI usage limit reached. Please add credits to continue." };
     return { ok: false, status: 502, error: "AI service unavailable. Please try again." };
   }
   const j = await resp.json();
@@ -146,21 +175,11 @@ function parseJsonLoose(content: string): any {
 
 function sanitizeIntent(raw: any, knownConcepts: Set<string>): Intent {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_INTENT };
-  const types = Array.isArray(raw.types)
-    ? (raw.types.filter((t: any) => ALLOWED_TYPES.includes(t)) as QType[])
-    : [];
-  const difficulty: Difficulty = ALLOWED_DIFFICULTY.includes(raw.difficulty)
-    ? raw.difficulty
-    : "mixed";
+  const types = Array.isArray(raw.types) ? (raw.types.filter((t: any) => ALLOWED_TYPES.includes(t)) as QType[]) : [];
+  const difficulty: Difficulty = ALLOWED_DIFFICULTY.includes(raw.difficulty) ? raw.difficulty : "mixed";
   const goal: Goal = ALLOWED_GOALS.includes(raw.goal) ? raw.goal : "general_practice";
   const bloomFocus = Array.isArray(raw.bloom_focus)
-    ? Array.from(
-        new Set(
-          raw.bloom_focus
-            .map((b: any) => clampBloom(b))
-            .filter((b: number) => Number.isInteger(b)),
-        ),
-      )
+    ? Array.from(new Set(raw.bloom_focus.map((b: any) => clampBloom(b)).filter((b: number) => Number.isInteger(b))))
     : [];
   const concepts = Array.isArray(raw.concepts)
     ? Array.from(new Set(raw.concepts.map((c: any) => String(c)).filter((c: string) => knownConcepts.has(c))))
@@ -259,7 +278,9 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") return json({ error: "Invalid body" }, 400);
-    const rawPrompt = String((body as any).prompt ?? "").replace(/[\x00-\x1F\x7F]/g, "").trim();
+    const rawPrompt = String((body as any).prompt ?? "")
+      .replace(/[\x00-\x1F\x7F]/g, "")
+      .trim();
     const courseId = String((body as any).courseId ?? "").trim();
     if (!rawPrompt || rawPrompt.length > 1000) return json({ error: "Prompt must be 1..1000 chars" }, 400);
     if (!UUID_RE.test(courseId)) return json({ error: "Invalid courseId" }, 400);
@@ -322,8 +343,7 @@ Deno.serve(async (req) => {
       { role: "system", content: SYSTEM_PROMPT_INTENT },
       {
         role: "user",
-        content:
-          `AVAILABLE_CONCEPTS: ${availableLine || "(none)"}\n\nSTUDENT_REQUEST:\n"""${rawPrompt}"""`,
+        content: `AVAILABLE_CONCEPTS: ${availableLine || "(none)"}\n\nSTUDENT_REQUEST:\n"""${rawPrompt}"""`,
       },
     ];
     const intentResp = await callGateway(LOVABLE_API_KEY, intentMessages);
@@ -374,7 +394,9 @@ Deno.serve(async (req) => {
     if (!Array.isArray(arr)) return json({ error: "Failed to generate questions" }, 502);
 
     const normalizeType = (t: any): QType | null => {
-      const s = String(t ?? "").toLowerCase().replace(/[\s-]/g, "_");
+      const s = String(t ?? "")
+        .toLowerCase()
+        .replace(/[\s-]/g, "_");
       if (s === "mcq" || s === "multiple_choice" || s === "multiple_choice_question") return "mcq";
       if (s === "true_false" || s === "truefalse" || s === "tf" || s === "boolean") return "true_false";
       return null;
@@ -393,7 +415,9 @@ Deno.serve(async (req) => {
         let options: string[] | undefined;
         let answer = String(q.answer ?? "").trim();
         if (type === "mcq") {
-          options = normalizeOptions(q.options).map((s) => s.trim()).filter(Boolean);
+          options = normalizeOptions(q.options)
+            .map((s) => s.trim())
+            .filter(Boolean);
           if (options.length < 2) return null;
           if (!options.includes(answer)) {
             // try letter answer like "A"
@@ -424,10 +448,7 @@ Deno.serve(async (req) => {
       .filter((q): q is NonNullable<typeof q> => q !== null);
 
     if (sanitized.length === 0) {
-      console.error(
-        "No valid questions after sanitize. Raw Stage 2 content:",
-        genResp.content.slice(0, 1500),
-      );
+      console.error("No valid questions after sanitize. Raw Stage 2 content:", genResp.content.slice(0, 1500));
       return json({ error: "No valid questions generated" }, 502);
     }
 
