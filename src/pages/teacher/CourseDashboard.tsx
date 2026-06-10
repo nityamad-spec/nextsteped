@@ -476,21 +476,40 @@ const CourseDashboard = () => {
               <p className="text-sm text-muted-foreground px-4 py-6 text-center">No insights yet.</p>
             ) : (
               insights.map((ins, i) => {
-                const Icon = ins.severity === "action" ? AlertCircle : ins.severity === "warn" ? AlertTriangle : Lightbulb;
+                const Icon =
+                  ins.type === "weak_spot" ? AlertCircle
+                  : ins.type === "split_class" ? AlertTriangle
+                  : ins.type === "strength" ? Lightbulb
+                  : Lightbulb;
                 const tone =
-                  ins.severity === "action"
-                    ? "border-destructive/30 bg-destructive/5 text-destructive"
-                    : ins.severity === "warn"
-                      ? "border-mastery-progressing/40 bg-mastery-progressing/10 text-foreground"
-                      : "border-primary/20 bg-primary/5 text-primary";
+                  ins.type === "weak_spot"
+                    ? "border-destructive/30 bg-destructive/5"
+                    : ins.type === "split_class"
+                      ? "border-mastery-progressing/40 bg-mastery-progressing/10"
+                      : ins.type === "strength"
+                        ? "border-mastery-expert/40 bg-mastery-expert/10"
+                        : "border-primary/20 bg-primary/5";
+                const iconColor =
+                  ins.type === "weak_spot" ? "text-destructive"
+                  : ins.type === "split_class" ? "text-mastery-progressing"
+                  : ins.type === "strength" ? "text-mastery-expert"
+                  : "text-primary";
+                const label =
+                  ins.type === "weak_spot" ? "Weak spot"
+                  : ins.type === "split_class" ? "Split class"
+                  : ins.type === "strength" ? "Strength"
+                  : "Overall trend";
                 return (
                   <div key={i} className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${tone}`}>
-                    <Icon className="h-4 w-4 mt-0.5 shrink-0" />
+                    <Icon className={`h-4 w-4 mt-0.5 shrink-0 ${iconColor}`} />
                     <div className="flex-1">
                       <p className="text-sm text-foreground">{ins.text}</p>
-                      {ins.concept_code && (
-                        <Badge variant="outline" className="mt-1.5 text-[10px] font-normal">{ins.concept_code}</Badge>
-                      )}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">{label}</Badge>
+                        {ins.concepts.map((c) => (
+                          <Badge key={c} variant="outline" className="text-[10px] font-normal">{c}</Badge>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 );
