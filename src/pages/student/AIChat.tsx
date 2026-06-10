@@ -389,7 +389,7 @@ const AIChat = () => {
 
   const createNewChat = async () => {
     setAssessmentActive(false);
-    const welcome = mode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
+    const welcome = mode === "learning" ? getWelcomeLearning(courseContext?.courseName) : WELCOME_EXAM;
     const title = mode === "learning" ? "New Study Session" : "New Exam Prep";
     await createSession(title, welcome);
     setShowHistory(false);
