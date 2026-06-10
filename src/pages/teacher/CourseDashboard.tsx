@@ -180,11 +180,12 @@ const CourseDashboard = () => {
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [insightsRefreshing, setInsightsRefreshing] = useState(false);
   const [insightsEmpty, setInsightsEmpty] = useState(false);
+  const [insightsNeverGenerated, setInsightsNeverGenerated] = useState(false);
   const [insightsError, setInsightsError] = useState<string | null>(null);
 
-  const loadInsights = async (force = false) => {
+  // Mount: only read the cached row. Never invoke the edge function.
+  const loadCachedInsights = async () => {
     if (!courseId) return;
-    if (force) setInsightsRefreshing(true);
     setInsightsError(null);
     try {
       // Short-circuit when there's no mastery data at all
@@ -193,38 +194,61 @@ const CourseDashboard = () => {
         .select("*", { count: "exact", head: true })
         .eq("course_id", courseId);
       if ((count ?? 0) === 0) {
-        setInsights([]); setInsightsGeneratedAt(null); setInsightsEmpty(true); return;
+        setInsights([]); setInsightsGeneratedAt(null); setInsightsEmpty(true); setInsightsNeverGenerated(false); return;
       }
       setInsightsEmpty(false);
 
-      // Try cached row first (RLS-protected) unless forcing refresh
-      if (!force) {
-        const { data: cached } = await supabase
-          .from("course_teaching_insights")
-          .select("insights, generated_at")
-          .eq("course_id", courseId)
-          .maybeSingle();
-        if (cached && cached.generated_at && Date.now() - new Date(cached.generated_at as string).getTime() < 6 * 60 * 60 * 1000) {
-          setInsights((cached.insights as TeachingInsight[]) || []);
-          setInsightsGeneratedAt(cached.generated_at as string);
-          return;
-        }
+      const { data: cached } = await supabase
+        .from("course_teaching_insights")
+        .select("insights, generated_at")
+        .eq("course_id", courseId)
+        .maybeSingle();
+
+      if (cached && cached.generated_at) {
+        setInsights((cached.insights as TeachingInsight[]) || []);
+        setInsightsGeneratedAt(cached.generated_at as string);
+        setInsightsNeverGenerated(false);
+      } else {
+        setInsights([]);
+        setInsightsGeneratedAt(null);
+        setInsightsNeverGenerated(true);
       }
+    } catch (e: any) {
+      setInsightsError(e?.message || "Failed to load insights");
+    } finally {
+      setInsightsLoading(false);
+    }
+  };
+
+  // Refresh button: invokes the edge function with force_refresh.
+  const refreshInsights = async () => {
+    if (!courseId) return;
+    setInsightsRefreshing(true);
+    setInsightsError(null);
+    try {
+      const { count } = await supabase
+        .from("student_concept_mastery")
+        .select("*", { count: "exact", head: true })
+        .eq("course_id", courseId);
+      if ((count ?? 0) === 0) {
+        setInsights([]); setInsightsGeneratedAt(null); setInsightsEmpty(true); setInsightsNeverGenerated(false); return;
+      }
+      setInsightsEmpty(false);
 
       const { data, error } = await supabase.functions.invoke("generate-teaching-insights", {
-        body: { course_id: courseId, force_refresh: force },
+        body: { course_id: courseId, force_refresh: true },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
       setInsights(((data as any)?.insights as TeachingInsight[]) || []);
       setInsightsGeneratedAt(((data as any)?.generated_at as string | null) ?? null);
       setInsightsEmpty(!!(data as any)?.empty);
+      setInsightsNeverGenerated(false);
     } catch (e: any) {
-      const msg = e?.message || "Failed to load insights";
+      const msg = e?.message || "Failed to refresh insights";
       setInsightsError(msg);
-      if (force) toast({ title: "Couldn't refresh insights", description: msg, variant: "destructive" });
+      toast({ title: "Couldn't refresh insights", description: msg, variant: "destructive" });
     } finally {
-      setInsightsLoading(false);
       setInsightsRefreshing(false);
     }
   };
@@ -234,10 +258,12 @@ const CourseDashboard = () => {
     setInsights([]);
     setInsightsGeneratedAt(null);
     setInsightsEmpty(false);
+    setInsightsNeverGenerated(false);
     if (!courseId) { setInsightsLoading(false); return; }
-    loadInsights(false);
+    loadCachedInsights();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
+
 
   const totalWeeks = courseSchedule.total_weeks ?? 16;
   const hasStartDate = !!courseSchedule.start_date;
