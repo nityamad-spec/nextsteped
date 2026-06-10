@@ -12,6 +12,7 @@ import {
   Lightbulb, BookOpen, X, History, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PracticeResult {
   id: string;
@@ -82,129 +83,25 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
 
   const generateQuestions = useCallback(async () => {
     if (!prompt.trim()) return;
+    if (!enrolledCourseId) {
+      toast.error("No enrolled course found.");
+      return;
+    }
     setPhase("loading");
 
     try {
-      const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
-      const systemPrompt = `You are a practice question generator for a university course. Generate practice questions based on the student's request.
-
-IMPORTANT RULES:
-- If the student doesn't specify a number of questions, generate exactly 5.
-- If the student doesn't specify topics/concepts, generate questions based on the course material they've covered so far (use the course context provided).
-- If the student mentions weak points or areas they struggle with, focus on those topics.
-- ONLY generate Multiple Choice (mcq) and True/False (true_false) questions. Do NOT generate short answer, fill-in-the-blank, or code questions.
-- Mix mcq and true_false naturally; favor mcq unless the concept is binary.
-- Make questions progressively challenging.
-
-For each question, also rate:
-- "difficulty_estimate": a number from 0 to 1 (e.g. 0.2 = easy recall, 0.5 = applying concepts, 0.85 = analysis / tricky distractors).
-- "bloom_level": an integer 1–6 on Bloom's taxonomy (1 Remember, 2 Understand, 3 Apply, 4 Analyze, 5 Evaluate, 6 Create). Most practice items land at 2–4.
-
-Return ONLY a JSON array (no markdown fencing, no extra text) of question objects. Each object must have:
-- "question": the question text
-- "type": "mcq" or "true_false"
-- "options": array of 4 strings (required for mcq, omit for true_false)
-- "answer": the correct answer (for mcq, must match one option exactly; for true_false, must be "True" or "False")
-- "explanation": a clear explanation of why the answer is correct
-- "topic": the topic area (use the course concept code/name when possible)
-- "difficulty_estimate": number 0..1
-- "bloom_level": integer 1..6`;
-
-      const resp = await fetch(CHAT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: prompt }],
-          mode: "learning",
-          studySystemPrompt: systemPrompt,
-          courseId: enrolledCourseId || undefined,
-          studentId: studentId || undefined,
-        }),
+      const { data, error } = await supabase.functions.invoke("generate-practice-questions", {
+        body: { prompt, courseId: enrolledCourseId },
       });
 
-      if (!resp.ok) {
-        toast.error("Failed to generate questions");
+      if (error || !data || (data as any).error) {
+        const msg = (data as any)?.error || error?.message || "Failed to generate questions";
+        toast.error(msg);
         setPhase("prompt");
         return;
       }
 
-      // Parse streaming response
-      const reader = resp.body!.getReader();
-      const decoder = new TextDecoder();
-      let textBuffer = "";
-      let fullContent = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        textBuffer += decoder.decode(value, { stream: true });
-
-        let newlineIndex: number;
-        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-          let line = textBuffer.slice(0, newlineIndex);
-          textBuffer = textBuffer.slice(newlineIndex + 1);
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (line.startsWith(":") || line.trim() === "") continue;
-          if (!line.startsWith("data: ")) continue;
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === "[DONE]") break;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (content) fullContent += content;
-          } catch {
-            textBuffer = line + "\n" + textBuffer;
-            break;
-          }
-        }
-      }
-
-      // Parse the JSON from the response
-      let parsed: GeneratedQuestion[];
-      try {
-        let cleaned = fullContent.trim();
-        if (cleaned.startsWith("```")) {
-          cleaned = cleaned.replace(/^```[a-z]*\n?/i, "").replace(/\n?```\s*$/, "");
-        }
-        parsed = JSON.parse(cleaned);
-      } catch {
-        const match = fullContent.match(/\[[\s\S]*\]/);
-        if (match) {
-          parsed = JSON.parse(match[0]);
-        } else {
-          toast.error("Failed to parse generated questions. Try rephrasing your request.");
-          setPhase("prompt");
-          return;
-        }
-      }
-
-      const clamp01 = (n: any) => {
-        const x = typeof n === "number" ? n : parseFloat(n);
-        if (!isFinite(x)) return 0.5;
-        return Math.min(1, Math.max(0, x));
-      };
-      const clampBloom = (n: any) => {
-        const x = typeof n === "number" ? n : parseFloat(n);
-        if (!isFinite(x)) return 3;
-        return Math.min(6, Math.max(1, Math.round(x)));
-      };
-      const sanitized: GeneratedQuestion[] = (parsed as any[])
-        .filter((q) => q && (q.type === "mcq" || q.type === "true_false"))
-        .map((q, i) => ({
-          id: `pq-${Date.now()}-${i}`,
-          question: String(q.question ?? ""),
-          type: q.type,
-          options: q.type === "mcq" ? (Array.isArray(q.options) ? q.options.map(String) : []) : undefined,
-          answer: String(q.answer ?? ""),
-          explanation: String(q.explanation ?? ""),
-          topic: String(q.topic ?? ""),
-          difficulty_estimate: clamp01(q.difficulty_estimate),
-          bloom_level: clampBloom(q.bloom_level),
-        }));
-
+      const sanitized = ((data as any).questions ?? []) as GeneratedQuestion[];
       if (sanitized.length === 0) {
         toast.error("No valid questions generated. Try rephrasing your request.");
         setPhase("prompt");
@@ -222,7 +119,7 @@ Return ONLY a JSON array (no markdown fencing, no extra text) of question object
       toast.error("Something went wrong. Please try again.");
       setPhase("prompt");
     }
-  }, [prompt, enrolledCourseId, courseContext, studentId]);
+  }, [prompt, enrolledCourseId]);
 
   const currentQuestion = questions[currentIndex];
   const isAnswered = currentQuestion ? !!answers[currentQuestion.id] : false;
