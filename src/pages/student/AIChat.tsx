@@ -361,10 +361,11 @@ const AIChat = () => {
   // Auto-create first session if none exist
   useEffect(() => {
     if (chatsLoading || chats.length > 0 || !user) return;
-    const welcome = mode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
+    if (mode === "learning" && !courseContext) return; // wait for course name before creating
+    const welcome = mode === "learning" ? getWelcomeLearning(courseContext?.courseName) : WELCOME_EXAM;
     const title = mode === "learning" ? "New Study Session" : "New Exam Prep";
     createSession(title, welcome);
-  }, [chatsLoading, chats.length, user, mode]);
+  }, [chatsLoading, chats.length, user, mode, courseContext]);
 
   // Handle ?newchat=true param
   useEffect(() => {
