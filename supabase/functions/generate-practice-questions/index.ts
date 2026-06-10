@@ -373,23 +373,45 @@ Deno.serve(async (req) => {
     const arr = Array.isArray(parsedObj) ? parsedObj : parsedObj?.questions;
     if (!Array.isArray(arr)) return json({ error: "Failed to generate questions" }, 502);
 
-    const allowedTypeSet = new Set<QType>(intent.types);
+    const normalizeType = (t: any): QType | null => {
+      const s = String(t ?? "").toLowerCase().replace(/[\s-]/g, "_");
+      if (s === "mcq" || s === "multiple_choice" || s === "multiple_choice_question") return "mcq";
+      if (s === "true_false" || s === "truefalse" || s === "tf" || s === "boolean") return "true_false";
+      return null;
+    };
+    const normalizeOptions = (o: any): string[] => {
+      if (Array.isArray(o)) return o.map((x) => String(x));
+      if (o && typeof o === "object") return Object.values(o).map((x) => String(x));
+      return [];
+    };
 
     const sanitized = arr
-      .filter((q: any) => q && (q.type === "mcq" || q.type === "true_false") && allowedTypeSet.has(q.type))
       .map((q: any, i: number) => {
-        const type = q.type as QType;
+        if (!q || typeof q !== "object") return null;
+        const type = normalizeType(q.type);
+        if (!type) return null;
         let options: string[] | undefined;
-        let answer = String(q.answer ?? "");
+        let answer = String(q.answer ?? "").trim();
         if (type === "mcq") {
-          options = Array.isArray(q.options) ? q.options.map(String) : [];
-          if (!options.includes(answer) && options.length > 0) answer = options[0];
+          options = normalizeOptions(q.options).map((s) => s.trim()).filter(Boolean);
+          if (options.length < 2) return null;
+          if (!options.includes(answer)) {
+            // try letter answer like "A"
+            const letter = answer.match(/^[A-Da-d]$/)?.[0];
+            if (letter) {
+              const idx = letter.toUpperCase().charCodeAt(0) - 65;
+              if (options[idx]) answer = options[idx];
+            }
+            if (!options.includes(answer)) answer = options[0];
+          }
         } else {
           answer = /^t/i.test(answer) ? "True" : "False";
         }
+        const question = String(q.question ?? "").trim();
+        if (!question || !answer) return null;
         return {
           id: `pq-${Date.now()}-${i}`,
-          question: String(q.question ?? ""),
+          question,
           type,
           options,
           answer,
@@ -399,12 +421,15 @@ Deno.serve(async (req) => {
           bloom_level: clampBloom(q.bloom_level),
         };
       })
-      .filter(
-        (q: any) =>
-          q.question && q.answer && (q.type === "true_false" || (q.options && q.options.length >= 2)),
-      );
+      .filter((q): q is NonNullable<typeof q> => q !== null);
 
-    if (sanitized.length === 0) return json({ error: "No valid questions generated" }, 502);
+    if (sanitized.length === 0) {
+      console.error(
+        "No valid questions after sanitize. Raw Stage 2 content:",
+        genResp.content.slice(0, 1500),
+      );
+      return json({ error: "No valid questions generated" }, 502);
+    }
 
     return json({ questions: sanitized });
   } catch (e) {
