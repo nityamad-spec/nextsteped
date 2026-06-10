@@ -42,6 +42,7 @@ const CourseDashboard = () => {
   const [conceptsError, setConceptsError] = useState<string | null>(null);
 
   const [lessonOrder, setLessonOrder] = useState<Map<string, number>>(new Map());
+  const [masteryDist, setMasteryDist] = useState<Map<string, { beginner: number; developing: number; proficient: number; expert: number }>>(new Map());
 
   useEffect(() => {
     if (!courseId) { setConcepts([]); setLessonOrder(new Map()); setConceptsLoading(false); return; }
