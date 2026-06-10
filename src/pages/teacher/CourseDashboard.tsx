@@ -400,7 +400,7 @@ const CourseDashboard = () => {
               <MessageSquare className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold">312</p>
+              <p className="text-2xl font-bold">{stats ? stats.totalSessions : "—"}</p>
               <p className="text-xs text-muted-foreground">Total Sessions</p>
             </div>
           </CardContent>
