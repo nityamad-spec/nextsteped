@@ -498,6 +498,10 @@ const CourseDashboard = () => {
               </p>
             ) : insightsError && insights.length === 0 ? (
               <p className="text-sm text-destructive px-4 py-3">{insightsError}</p>
+            ) : insightsNeverGenerated ? (
+              <p className="text-sm text-muted-foreground px-4 py-6 text-center">
+                No insights generated yet. Click Refresh to generate.
+              </p>
             ) : insights.length === 0 ? (
               <p className="text-sm text-muted-foreground px-4 py-6 text-center">No insights yet.</p>
             ) : (
