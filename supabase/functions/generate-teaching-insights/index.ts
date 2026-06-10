@@ -17,6 +17,9 @@ function bandFor(score: number): Band {
   if (score < 0.75) return "proficient";
   return "expert";
 }
+function levelFromAvg(avg: number): Band {
+  return bandFor(avg);
+}
 
 async function sha256Hex(s: string): Promise<string> {
   const data = new TextEncoder().encode(s);
@@ -32,6 +35,55 @@ function jsonResp(body: unknown, status = 200) {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
+
+const SYSTEM_PROMPT = `You generate concise, actionable teaching insights for a professor, grounded in real aggregate data about how their class is performing. A professor reads these to decide where to focus teaching time. Never produce generic advice that could have been written without the data.
+
+INPUTS (all data is class-level aggregate; you do NOT have individual student records)
+
+1. Concept mastery distribution (PER CONCEPT, COUNTS OF STUDENTS) — for each concept, the number of students at each of four mastery levels: beginner, developing, proficient, expert: {{CLASS_CONCEPT_MASTERY}}
+   Read each concept by the SHAPE of its distribution: skewed to beginner/developing = weak; skewed to proficient/expert = strong; wide spread = the class is split. Concepts with few or zero counted students indicate low engagement.
+
+2. Diagnostic result (CLASS-LEVEL, NOT per concept) — the class's initial diagnostic average and overall learned level: {{DIAGNOSTIC_PERFORMANCE}}
+
+3. Weekly quiz performance (CLASS-LEVEL, NOT per concept) — chronological list of class quiz averages and derived levels: {{QUIZ_PERFORMANCE}}
+
+USING EACH INPUT CORRECTLY
+- Concept-specific insights (about a named concept) must come from input 1. Only this input knows which concepts are strong or weak.
+- Inputs 2 and 3 are CLASS-WIDE only. Do NOT attribute a diagnostic or quiz score to a specific concept — that breakdown does not exist. Use them to judge the class's overall trajectory: compare the diagnostic level against the latest quiz level to see whether the class is improving, holding, or regressing overall, and compare quiz scores over time if more than one is given.
+- Never claim a concept-level trend from the quizzes (e.g. "quiz performance on Functions dropped"); the quiz data is not concept-tagged.
+
+HOW MANY INSIGHTS
+- Generate AT MOST 4 insights. Fewer is correct when the data supports fewer.
+- If there is NO usable data (inputs empty, or no students assessed and no quiz taken), return ZERO insights — an empty array. Never pad.
+- Only produce an insight that rests on a real signal.
+
+INSIGHT TYPES
+- WEAK SPOT (per concept, from input 1): a concept skewed to beginner/developing — flag for a targeted session or extra time.
+- STRENGTH (per concept, from input 1): a concept skewed to proficient/expert that can scaffold harder material.
+- SPLIT CLASS (per concept, from input 1): a concept with a wide spread across levels — suggest differentiated or paired approaches.
+- OVERALL TREND (class-wide, from inputs 2 and 3): the class improving, holding, or regressing from diagnostic to latest quiz — frame as overall momentum, not tied to one concept.
+
+Do NOT produce "students who learned X also learned Y" correlations; you have only per-concept counts, not per-student data.
+
+GROUNDING RULES — STRICT
+- Every insight MUST cite a specific signal: a beginner-heavy distribution, a proficient/expert majority, a wide spread, or an overall diagnostic-to-quiz change. Use concept names exactly as given.
+- Do NOT invent numbers, concepts, or patterns absent from the inputs.
+- Lead with the highest-impact insight; a beginner-heavy concept outranks a minor observation.
+
+TONE AND FORMAT
+- Address the professor directly. One sentence per insight, two at most, naming the concept(s) where applicable and a concrete action.
+- Be specific about the action ("dedicate a lab session to X", "use X to scaffold Y"), not vague.
+- Factual and supportive, never alarmist.
+- Translate data into a recommendation; reference signals qualitatively ("most students still at beginner level", "class average rose from developing to proficient since the diagnostic") rather than listing raw counts.
+
+OUTPUT
+Return strict JSON, one key "insights", an array of 0 to 4 objects, each with:
+- "text": the insight shown to the professor (1–2 sentences).
+- "concepts": array of concept name(s) it concerns, exactly as in input 1; empty array for a class-wide overall-trend insight.
+- "type": one of "weak_spot", "strength", "split_class", "overall_trend".
+- "basis": a brief phrase naming the signal (e.g. "32 of 48 at beginner on Functions", "class level rose developing→proficient since diagnostic"). For internal traceability.
+
+Output only the JSON. No prose, no markdown fences.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -92,90 +144,103 @@ serve(async (req) => {
         )
       : 1;
 
-    // Concepts
+    // Concepts (use concept_code as the human-facing "concept name" passed to the model)
     const { data: concepts } = await admin
       .from("concepts")
       .select("id, concept_code, weight")
       .eq("course_id", courseId);
     const conceptList = concepts ?? [];
     const conceptById = new Map(conceptList.map((c: any) => [c.id, c]));
-    const validCodes = new Set(conceptList.map((c: any) => c.concept_code));
+    const validNames = new Set(conceptList.map((c: any) => c.concept_code as string));
 
-    // Lesson plan -> visible-by-date concept codes
-    const { data: weeks } = await admin
-      .from("lesson_plan_weeks")
-      .select("week_number, concepts")
-      .eq("course_id", courseId)
-      .order("week_number", { ascending: true });
-    const visibleCodes = new Set<string>();
-    for (const w of weeks ?? []) {
-      if ((w.week_number as number) > currentWeek) continue;
-      const list = Array.isArray((w as any).concepts) ? (w as any).concepts : [];
-      for (const c of list) {
-        const name = typeof c?.name === "string" ? c.name.trim() : "";
-        if (name) visibleCodes.add(name);
-      }
-    }
-
-    // Mastery rows
+    // Per-concept mastery distribution
     const { data: masteryRows } = await admin
       .from("student_concept_mastery")
       .select("concept_id, student_id, mastery_score")
       .eq("course_id", courseId);
-
-    // Enrollment
-    const { count: enrolledCount } = await admin
-      .from("enrollments")
-      .select("*", { count: "exact", head: true })
-      .eq("course_id", courseId);
-
-    // Aggregate per concept
-    const perConcept = new Map<
-      string,
-      { code: string; n: number; sum: number; beginner: number; developing: number; proficient: number; expert: number }
-    >();
+    const perConcept = new Map<string, { beginner: number; developing: number; proficient: number; expert: number }>();
     const studentIds = new Set<string>();
     for (const r of masteryRows ?? []) {
       const c: any = conceptById.get((r as any).concept_id);
       if (!c) continue;
-      const code = c.concept_code as string;
-      const score = Number((r as any).mastery_score) || 0;
-      const cur = perConcept.get(code) ?? {
-        code, n: 0, sum: 0, beginner: 0, developing: 0, proficient: 0, expert: 0,
-      };
-      cur.n++;
-      cur.sum += score;
-      cur[bandFor(score)]++;
-      perConcept.set(code, cur);
+      const name = c.concept_code as string;
+      const cur = perConcept.get(name) ?? { beginner: 0, developing: 0, proficient: 0, expert: 0 };
+      cur[bandFor(Number((r as any).mastery_score) || 0)]++;
+      perConcept.set(name, cur);
       studentIds.add((r as any).student_id);
     }
-
-    const conceptStats = conceptList.map((c: any) => {
-      const agg = perConcept.get(c.concept_code);
-      return {
-        concept_code: c.concept_code,
-        weight: Number(c.weight) || 0,
-        in_scope: visibleCodes.has(c.concept_code),
-        n_students: agg?.n ?? 0,
-        avg_score: agg && agg.n ? Number((agg.sum / agg.n).toFixed(3)) : null,
-        beginner: agg?.beginner ?? 0,
-        developing: agg?.developing ?? 0,
-        proficient: agg?.proficient ?? 0,
-        expert: agg?.expert ?? 0,
-      };
+    const CLASS_CONCEPT_MASTERY = conceptList.map((c: any) => {
+      const d = perConcept.get(c.concept_code) ?? { beginner: 0, developing: 0, proficient: 0, expert: 0 };
+      return { concept: c.concept_code, ...d };
     });
+
+    // Diagnostic — class average + level
+    const { data: diagRows } = await admin
+      .from("diagnostic_results")
+      .select("score, total_questions, learner_level, mastery_score")
+      .eq("course_id", courseId);
+    let DIAGNOSTIC_PERFORMANCE: any = { taken_by: 0 };
+    if (diagRows && diagRows.length > 0) {
+      const avgPct = diagRows.reduce((s, r: any) => s + (r.total_questions ? r.score / r.total_questions : 0), 0) / diagRows.length;
+      const avgMastery = diagRows.reduce((s, r: any) => s + (Number(r.mastery_score) || (r.total_questions ? r.score / r.total_questions : 0)), 0) / diagRows.length;
+      const levelCounts: Record<Band, number> = { beginner: 0, developing: 0, proficient: 0, expert: 0 };
+      for (const r of diagRows as any[]) {
+        const lvl = (r.learner_level as Band) ?? bandFor(Number(r.mastery_score) || 0);
+        if (lvl in levelCounts) levelCounts[lvl]++;
+      }
+      DIAGNOSTIC_PERFORMANCE = {
+        taken_by: diagRows.length,
+        average_score_pct: Math.round(avgPct * 100),
+        class_level: levelFromAvg(avgMastery),
+        level_distribution: levelCounts,
+      };
+    }
+
+    // Weekly quizzes — chronological class averages
+    const { data: quizRows } = await admin
+      .from("assessment_results")
+      .select("mode, quiz_day, score, total_questions, mastery_score, learner_level, created_at")
+      .eq("course_id", courseId)
+      .eq("mode", "weekly_quiz")
+      .order("created_at", { ascending: true });
+    const quizzesByDay = new Map<number | string, { scores: number[]; mastery: number[]; first_at: string }>();
+    for (const r of quizRows ?? []) {
+      const key = (r as any).quiz_day ?? new Date((r as any).created_at).toISOString().slice(0, 10);
+      const cur = quizzesByDay.get(key) ?? { scores: [], mastery: [], first_at: (r as any).created_at };
+      const pct = (r as any).total_questions ? (r as any).score / (r as any).total_questions : 0;
+      cur.scores.push(pct);
+      cur.mastery.push(Number((r as any).mastery_score) || pct);
+      quizzesByDay.set(key, cur);
+    }
+    const QUIZ_PERFORMANCE = [...quizzesByDay.entries()]
+      .sort((a, b) => new Date(a[1].first_at).getTime() - new Date(b[1].first_at).getTime())
+      .map(([key, v]) => {
+        const avgPct = v.scores.reduce((s, x) => s + x, 0) / v.scores.length;
+        const avgMast = v.mastery.reduce((s, x) => s + x, 0) / v.mastery.length;
+        return {
+          quiz: typeof key === "number" ? `Week ${key}` : String(key),
+          taken_by: v.scores.length,
+          average_score_pct: Math.round(avgPct * 100),
+          class_level: levelFromAvg(avgMast),
+        };
+      });
 
     const summary = {
       course_name: course.name,
       current_week: currentWeek,
       total_weeks: totalWeeks,
-      enrolled_students: enrolledCount ?? 0,
       engaged_students: studentIds.size,
-      concepts: conceptStats,
+      CLASS_CONCEPT_MASTERY,
+      DIAGNOSTIC_PERFORMANCE,
+      QUIZ_PERFORMANCE,
     };
 
-    // Empty case: don't burn AI credits
-    if (studentIds.size === 0) {
+    // Empty case: no mastery, no diagnostic, no quiz → no AI call
+    const noData =
+      CLASS_CONCEPT_MASTERY.every((c) => c.beginner + c.developing + c.proficient + c.expert === 0) &&
+      (DIAGNOSTIC_PERFORMANCE?.taken_by ?? 0) === 0 &&
+      QUIZ_PERFORMANCE.length === 0;
+    if (noData) {
       return jsonResp({ insights: [], cached: false, generated_at: null, empty: true });
     }
 
@@ -201,14 +266,13 @@ serve(async (req) => {
       });
     }
 
-    // Call AI gateway
-    const systemPrompt = `You are a pedagogy coach for a 16-week university Intro to Python course. Produce 3 to 5 short, actionable teaching insights grounded ONLY in the supplied stats. Reference concepts by their concept_code exactly as given. Never invent numbers, never name individual students. Each insight must be one or two sentences, plain prose (no markdown), and recommend a concrete teaching action when severity is "warn" or "action".
+    // Inject placeholders
+    const systemPrompt = SYSTEM_PROMPT
+      .replace("{{CLASS_CONCEPT_MASTERY}}", JSON.stringify(CLASS_CONCEPT_MASTERY))
+      .replace("{{DIAGNOSTIC_PERFORMANCE}}", JSON.stringify(DIAGNOSTIC_PERFORMANCE))
+      .replace("{{QUIZ_PERFORMANCE}}", JSON.stringify(QUIZ_PERFORMANCE));
 
-Return ONLY valid JSON of the form:
-{"insights":[{"concept_code": string|null, "severity":"info"|"warn"|"action", "text": string}, ...]}
-No prose outside the JSON. 3 to 5 items.`;
-
-    const userPrompt = `Course stats (anonymized, aggregated):\n${JSON.stringify(summary)}`;
+    const userPrompt = `Course: ${course.name}. Current week: ${currentWeek} of ${totalWeeks}. Engaged students: ${studentIds.size}. Generate the insights now.`;
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -228,16 +292,10 @@ No prose outside the JSON. 3 to 5 items.`;
 
     if (!aiRes.ok) {
       if (aiRes.status === 429) {
-        return jsonResp(
-          { error: "Rate limit exceeded. Please try again in a moment.", cached_fallback: cached?.insights ?? null },
-          429,
-        );
+        return jsonResp({ error: "Rate limit exceeded. Please try again in a moment.", cached_fallback: cached?.insights ?? null }, 429);
       }
       if (aiRes.status === 402) {
-        return jsonResp(
-          { error: "AI credits exhausted. Please add funds in Settings > Workspace > Usage.", cached_fallback: cached?.insights ?? null },
-          402,
-        );
+        return jsonResp({ error: "AI credits exhausted. Please add funds in Settings > Workspace > Usage.", cached_fallback: cached?.insights ?? null }, 402);
       }
       const errText = await aiRes.text();
       console.error("AI gateway error:", aiRes.status, errText);
@@ -255,20 +313,19 @@ No prose outside the JSON. 3 to 5 items.`;
       return jsonResp({ error: "Model returned invalid JSON", cached_fallback: cached?.insights ?? null }, 502);
     }
 
+    const allowedTypes = new Set(["weak_spot", "strength", "split_class", "overall_trend"]);
     const rawInsights: any[] = Array.isArray(parsed?.insights) ? parsed.insights : [];
     const insights = rawInsights
-      .slice(0, 5)
+      .slice(0, 4)
       .map((it) => ({
-        concept_code:
-          it?.concept_code && validCodes.has(String(it.concept_code)) ? String(it.concept_code) : null,
-        severity: ["info", "warn", "action"].includes(it?.severity) ? it.severity : "info",
         text: typeof it?.text === "string" ? it.text.trim() : "",
+        concepts: Array.isArray(it?.concepts)
+          ? it.concepts.map((x: any) => String(x)).filter((n: string) => validNames.has(n))
+          : [],
+        type: allowedTypes.has(it?.type) ? it.type : "weak_spot",
+        basis: typeof it?.basis === "string" ? it.basis.trim() : "",
       }))
       .filter((it) => it.text.length > 0);
-
-    if (insights.length === 0) {
-      return jsonResp({ error: "Model returned no usable insights", cached_fallback: cached?.insights ?? null }, 502);
-    }
 
     const nowIso = new Date().toISOString();
     const { error: upsertErr } = await admin
