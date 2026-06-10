@@ -243,6 +243,8 @@ Deno.serve(async (req) => {
 
   const nowIso = new Date().toISOString();
   const conceptUpserts: Array<Record<string, unknown>> = [];
+  const alpha = MASTERY_CONFIG.EMA_ALPHA_BY_SOURCE[body.source]
+    ?? MASTERY_CONFIG.EMA_ALPHA_DEFAULT;
 
   for (const [conceptId, info] of agg) {
     if (info.attempted <= 0) continue;
@@ -252,7 +254,8 @@ Deno.serve(async (req) => {
     const prior = existingMap.get(conceptId);
     const newScore = !prior || prior.sample_count === 0
       ? signal
-      : clamp01(MASTERY_CONFIG.EMA_ALPHA * signal + (1 - MASTERY_CONFIG.EMA_ALPHA) * prior.mastery_score);
+      : clamp01(alpha * signal + (1 - alpha) * prior.mastery_score);
+
 
 
     conceptUpserts.push({
