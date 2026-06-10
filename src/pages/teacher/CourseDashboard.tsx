@@ -389,7 +389,7 @@ const CourseDashboard = () => {
               <Users className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold">45</p>
+              <p className="text-2xl font-bold">{stats ? stats.activeStudents : "—"}</p>
               <p className="text-xs text-muted-foreground">Active Students</p>
             </div>
           </CardContent>
