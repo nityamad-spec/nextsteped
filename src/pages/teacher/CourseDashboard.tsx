@@ -49,7 +49,7 @@ const CourseDashboard = () => {
     setConceptsLoading(true);
     setConceptsError(null);
     (async () => {
-      const [conceptsRes, weeksRes] = await Promise.all([
+      const [conceptsRes, weeksRes, masteryRes] = await Promise.all([
         supabase
           .from("concepts")
           .select("id, concept_code, weight")
@@ -59,6 +59,10 @@ const CourseDashboard = () => {
           .select("week_number, concepts")
           .eq("course_id", courseId)
           .order("week_number", { ascending: true }),
+        supabase
+          .from("student_concept_mastery")
+          .select("concept_id, mastery_score")
+          .eq("course_id", courseId),
       ]);
       if (cancelled) return;
 
@@ -81,6 +85,17 @@ const CourseDashboard = () => {
         }
       }
       setLessonOrder(order);
+
+      const dist = new Map<string, { beginner: number; developing: number; proficient: number; expert: number }>();
+      if (!masteryRes.error && Array.isArray(masteryRes.data)) {
+        for (const row of masteryRes.data as Array<{ concept_id: string; mastery_score: number }>) {
+          const cur = dist.get(row.concept_id) ?? { beginner: 0, developing: 0, proficient: 0, expert: 0 };
+          cur[bandFor(Number(row.mastery_score))]++;
+          dist.set(row.concept_id, cur);
+        }
+      }
+      setMasteryDist(dist);
+
       setConceptsLoading(false);
     })();
     return () => { cancelled = true; };
@@ -95,7 +110,10 @@ const CourseDashboard = () => {
       if (bi !== undefined) return 1;
       return a.concept_code.localeCompare(b.concept_code);
     })
-    .map((c) => ({ concept: c.concept_code, ...mockStatsFor(c.id) }));
+    .map((c) => {
+      const d = masteryDist.get(c.id) ?? { beginner: 0, developing: 0, proficient: 0, expert: 0 };
+      return { id: c.id, concept: c.concept_code, ...d };
+    });
 
   // Only need to know if the signed-in teacher is a collaborator (not the owner)
   // — owners get no banner, collaborators get the Handshake badge.
