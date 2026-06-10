@@ -279,6 +279,64 @@ async function fetchStudentProgressContext(
   }
 }
 
+// ---------- Course + mastery helpers ----------
+
+type MasteryBand = "beginner" | "developing" | "proficient" | "expert";
+function masteryBand(score: number): MasteryBand {
+  if (score < 0.25) return "beginner";
+  if (score < 0.5) return "developing";
+  if (score < 0.75) return "proficient";
+  return "expert";
+}
+
+async function fetchCourseName(
+  supabaseAdmin: any,
+  courseId: string,
+): Promise<string> {
+  const version = await getCacheVersion(supabaseAdmin, "syllabus", courseId);
+  return cached(`courseName:${courseId}:v${version}`, TTL_SYLLABUS_MS, async () => {
+    try {
+      const { data } = await supabaseAdmin
+        .from("courses")
+        .select("name")
+        .eq("id", courseId)
+        .maybeSingle();
+      return (data as any)?.name ?? "";
+    } catch {
+      return "";
+    }
+  });
+}
+
+async function fetchStudentMasterySnapshot(
+  supabaseAdmin: any,
+  studentId: string,
+  courseId: string,
+): Promise<{ courseLevel: MasteryBand; conceptList: string }> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("student_concept_mastery")
+      .select("mastery_score, concepts:concept_id(concept_code)")
+      .eq("student_id", studentId)
+      .eq("course_id", courseId);
+    if (error || !data || data.length === 0) {
+      return { courseLevel: "developing", conceptList: "" };
+    }
+    let sum = 0;
+    const lines: string[] = [];
+    for (const r of data as any[]) {
+      const score = Number(r.mastery_score) || 0;
+      sum += score;
+      const name = r.concepts?.concept_code;
+      if (name) lines.push(`${name}: ${masteryBand(score)}`);
+    }
+    const avg = sum / data.length;
+    return { courseLevel: masteryBand(avg), conceptList: lines.join("\n") };
+  } catch {
+    return { courseLevel: "developing", conceptList: "" };
+  }
+}
+
 // ---------- Main handler ----------
 
 serve(async (req) => {
