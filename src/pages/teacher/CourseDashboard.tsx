@@ -12,19 +12,12 @@ import { Badge } from "@/components/ui/badge";
 import CourseCollaborators from "@/components/CourseCollaborators";
 import CourseStatusBanner from "@/components/CourseStatusBanner";
 
-/* ── Static mock stats per concept (deterministic by id) ── */
-function hashStr(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-function mockStatsFor(id: string) {
-  const h = hashStr(id);
-  const touched = 5 + (h % 31); // 5..35
-  const deeplyExplored = 1 + ((h >> 3) % 25); // 1..25
-  const notExplored = 5 + ((h >> 6) % 46); // 5..50
-  const masteryPct = 30 + ((h >> 9) % 61); // 30..90
-  return { touched, deeplyExplored, notExplored, masteryPct };
+/* ── Mastery band thresholds (mirror update-mastery / DB CHECK constraint) ── */
+function bandFor(score: number): "beginner" | "developing" | "proficient" | "expert" {
+  if (score < 0.25) return "beginner";
+  if (score < 0.50) return "developing";
+  if (score < 0.75) return "proficient";
+  return "expert";
 }
 
 const insightsMock = [

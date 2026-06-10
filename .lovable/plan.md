@@ -1,58 +1,65 @@
-# Source-weighted mastery updates
+# Wire Concept Mastery Map to real data
 
-Replace the single `EMA_ALPHA = 0.4` in `supabase/functions/update-mastery/index.ts` with a per-source alpha map, so the same correct/incorrect signal moves a concept's score by different amounts depending on where it came from. Internal signal computation (difficulty × Bloom weight) is unchanged — a hard, high-Bloom practice question still outweighs an easy practice MCQ inside the practice submission itself.
+Replace the hash-based mock distribution on `/teacher/courses/dashboard` with a real aggregation of `student_concept_mastery` rows so the map updates as students complete weekly quizzes, exams, and practice questions (all of which already write to that table via `update-mastery`).
 
-## Alpha map
+## Scope (single file)
 
-```text
-weekly_quiz → 0.4
-exam        → 0.6
-practice    → 0.1
-diagnostic  → 0.4   (kept for back-compat; no live caller)
+`src/pages/teacher/CourseDashboard.tsx`
+
+No DB schema changes. RLS already allows course teachers/collaborators to read `student_concept_mastery` for their course (`is_course_member` policy).
+
+## Data fetch
+
+Add a third query alongside the existing `concepts` + `lesson_plan_weeks` fetch:
+
+```ts
+supabase
+  .from("student_concept_mastery")
+  .select("concept_id, mastery_score")
+  .eq("course_id", courseId)
 ```
 
-Effect per submission, given prior score `p` and signal `s`:
-`new_score = α_source · s + (1 − α_source) · p`
+One row per (student, concept). No PII selected — keeps the anonymized-data guarantee shown in the page banner.
 
-First-ever sample for a concept (`sample_count = 0`) still bypasses the blend and stores `s` directly — same as today.
+## Bucketing
 
-## Changes (single file)
+Use the same thresholds already encoded in `update-mastery` (mirrored in the `mastery_level` CHECK constraint), applied client-side from `mastery_score`:
 
-`supabase/functions/update-mastery/index.ts`
+```text
+< 0.25         → beginner
+0.25 .. < 0.50 → developing
+0.50 .. < 0.75 → proficient
+0.75 .. 1.00   → expert
+```
 
-1. Replace the constant:
-   ```ts
-   EMA_ALPHA: 0.4
-   ```
-   with:
-   ```ts
-   EMA_ALPHA_BY_SOURCE: {
-     weekly_quiz: 0.4,
-     exam:        0.6,
-     practice:    0.1,
-     diagnostic:  0.4,
-   } as Record<string, number>,
-   EMA_ALPHA_DEFAULT: 0.4,
-   ```
-2. In the per-concept update loop, resolve alpha from `body.source`:
-   ```ts
-   const alpha = MASTERY_CONFIG.EMA_ALPHA_BY_SOURCE[body.source]
-              ?? MASTERY_CONFIG.EMA_ALPHA_DEFAULT;
-   const newScore = !prior || prior.sample_count === 0
-     ? signal
-     : clamp01(alpha * signal + (1 - alpha) * prior.mastery_score);
-   ```
-3. Keep `signal` computation untouched (weighted `earned/max` when `per_question` is provided, legacy `correct/attempted` otherwise).
-4. Keep the course-mastery weighted-average step untouched (it already re-derives from all concept rows; no per-source logic needed there).
+Group rows by `concept_id`, count students per band. Concepts with zero rows render with all four counts = 0 and an empty bar (instead of fake distribution).
 
-## Non-changes
+## Render changes
 
-- No DB schema changes. `last_source` is already stored per concept row.
-- No changes to callers (`weekly_quiz`, `exam`, `practice` already send the correct `source` string).
-- No changes to `score-diagnostic` (diagnostic doesn't call this function).
-- Bloom weights and difficulty scaling inside `signal` are preserved verbatim.
+In the existing concept-row map:
+- Drop `mockStatsFor` and the hash-derived `w1..w4` distribution.
+- Read `{ beginner, developing, proficient, expert }` from the aggregated map keyed by `concept.id`.
+- `total = beginner + developing + proficient + expert`; if `total === 0`, render the row with a muted "No student data yet" label and an empty/striped track instead of percentage widths.
+- Keep the existing legend, color tokens (`bg-mastery-*`), sort order (lesson-plan order then concept_code), and loading/error skeletons.
+
+Remove the now-unused `hashStr` and `mockStatsFor` helpers.
+
+## Out of scope (kept as mocks, called out separately)
+
+- "45 Active Students" / "312 Total Sessions" stat cards — still hardcoded. Will flag in the closing message; not part of this change unless requested.
+- `insightsMock` Teaching Insights bullets — still hardcoded. Same.
+- Section filter (`selectedSection`) — `student_concept_mastery` has no section column today; filter remains visual-only for this map.
 
 ## Verification
 
-- Deploy the function and spot-check via `student_concept_mastery.last_source` + `mastery_score` after one practice submission vs one exam submission on the same concept: exam should move the score ~6× more than practice for the same signal delta.
-- Existing `WeeklyQuizDialog.test.tsx` / `StudentHome.test.tsx` paths remain valid (they don't assert on alpha math).
+1. Open `/teacher/courses/dashboard` for a course with no student activity → every concept row shows 0/0/0/0 and an empty bar.
+2. Submit one practice set as a student on one concept → that concept's bar shifts into the band matching the resulting `mastery_score`; other concepts remain empty.
+3. Submit an exam covering multiple concepts → bars update for each touched concept after refresh.
+4. Spot-check via `psql`:
+   ```sql
+   SELECT concept_code, mastery_score, mastery_level
+   FROM student_concept_mastery scm
+   JOIN concepts c ON c.id = scm.concept_id
+   WHERE scm.course_id = '<course>';
+   ```
+   Counts per band must match what the UI renders.
