@@ -44,7 +44,10 @@ interface Intent {
   bloom_focus: number[];
   concepts: string[];
   weak_areas_requested: boolean;
+  strong_areas_requested: boolean;
+  off_syllabus_terms: string[];
   goal: Goal;
+  language: string;
   notes: string;
 }
 
@@ -52,83 +55,157 @@ const DEFAULT_INTENT: Intent = {
   count: 5,
   types: ["mcq", "true_false"],
   difficulty: "mixed",
-  bloom_focus: [2, 3, 4],
+  bloom_focus: [],
   concepts: [],
   weak_areas_requested: false,
+  strong_areas_requested: false,
+  off_syllabus_terms: [],
   goal: "general_practice",
+  language: "en",
   notes: "",
 };
 
-const SYSTEM_PROMPT_INTENT = `You are an intent parser for a student practice-question request. Read the student's message and return a JSON object describing what they want.
-
-Output JSON schema (no prose, no markdown):
-{
-  "count": integer 1..10,
-  "types": array, subset of ["mcq","true_false"], non-empty,
-  "difficulty": "easy" | "medium" | "hard" | "mixed",
-  "bloom_focus": array of integers in 1..6 (Bloom levels to emphasize),
-  "concepts": array of concept codes from the provided list (may be empty),
-  "weak_areas_requested": boolean (true if student asks to focus on weak/struggling/unclear topics),
-  "goal": "review" | "challenge" | "exam_prep" | "general_practice",
-  "notes": short free-text restating the request in <=140 chars
+// ---- Helpers ----
+function humanizeConceptCode(code: string): string {
+  return code
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-Fallback rules when the student is silent or vague:
-- count: default 5
-- types: default ["mcq","true_false"]
-- difficulty: default "mixed"
-- bloom_focus: default [2,3,4]
-- concepts: []  (Stage 2 will pick from mastery)
-- weak_areas_requested: false unless clearly implied
+function renderTemplate(tpl: string, vars: Record<string, string>): string {
+  const rendered = tpl.replace(/\{(\w+)\}/g, (_m, k) =>
+    Object.prototype.hasOwnProperty.call(vars, k) ? vars[k] : `\u0000{${k}}\u0000`,
+  );
+  const missing = rendered.match(/\u0000\{(\w+)\}\u0000/g);
+  if (missing) {
+    throw new Error(
+      `Unsubstituted placeholders: ${missing.map((s) => s.replace(/\u0000/g, "")).join(", ")}`,
+    );
+  }
+  return rendered;
+}
+
+// ---- Prompt templates ----
+const SYSTEM_PROMPT_INTENT_TEMPLATE = `You are an intent parser for a student practice-question request in the course "{course_name}" (code: {course_code}). Today is {today_iso}. You are given the student's message and the CONCEPT LIST below. Return a single JSON object describing what they want.
+
+CONCEPT LIST (authoritative — only these concept_codes exist):
+{concept_list_json}
+
+STUDENT MESSAGE:
+"""{student_request}"""
+
+Output JSON only (no prose, no markdown, no code fences):
+{
+  "count": integer 1..10,
+  "types": array, non-empty subset of ["mcq","true_false"],
+  "difficulty": "easy" | "medium" | "hard" | "mixed",
+  "bloom_focus": array of integers in 1..6 (leave EMPTY unless the student explicitly signals a cognitive level),
+  "concepts": array of concept_codes drawn ONLY from CONCEPT LIST (may be empty),
+  "weak_areas_requested": boolean,
+  "strong_areas_requested": boolean,
+  "off_syllabus_terms": array of strings the student named that do NOT map to any concept_code,
+  "goal": "review" | "challenge" | "exam_prep" | "general_practice",
+  "language": BCP-47 code of the language the student wrote in; default "en",
+  "notes": short restatement of the request, <=140 chars
+}
+
+Concept matching:
+- Map a topic the student names to a concept_code only when it clearly corresponds to one in CONCEPT LIST (paraphrase and synonyms OK, never guesses).
+- If a named topic does not correspond to any concept, do NOT put it in "concepts" — record the student's wording in "off_syllabus_terms".
+- Never invent, abbreviate, or alter concept_codes.
+
+Weak-area detection — set "weak_areas_requested": true when the message implies focusing on weak, struggling, low, unclear, shaky, or not-yet-mastered material (e.g. "weakest", "struggling with", "where I'm weak", "needs work", "focus on my gaps").
+
+Strong-area detection — set "strong_areas_requested": true when the student wants to drill what they are already good at (e.g. "reinforce my strengths"). Uncommon; default false.
+
+When weak or strong areas are requested without naming specific in-list concepts, leave "concepts" empty so the generator selects from mastery data.
+
+Bloom focus — leave "bloom_focus" empty in almost all cases. Only populate it when the student explicitly signals a cognitive level (e.g. "just test definitions" -> [1,2], "make me apply and analyse" -> [3,4]). Do NOT infer Bloom from difficulty.
+
+Fallback defaults when the student is silent or vague:
+- count: 5
+- types: ["mcq","true_false"]
+- difficulty: "mixed"
+- bloom_focus: []
+- concepts: []
+- weak_areas_requested: false unless implied
+- strong_areas_requested: false unless implied
+- off_syllabus_terms: []
 - goal: "general_practice"
+- language: "en"
 
-Never invent concept codes that are not in the provided list. Never include "short_answer" or any other question type. Clamp count to 1..10.`;
+Hard rules: clamp count to 1..10; never include any question type other than "mcq" or "true_false"; output valid JSON and nothing else.`;
 
-const SYSTEM_PROMPT_GENERATE = `You are a practice-question generator for a university course. You are given (a) a parsed INTENT, (b) a MASTERY SNAPSHOT listing the course's concepts as {concept_code, name, mastery_score 0..1 or null if not yet attempted, exam_weight 0..1 if available}, (c) the student's course-level mastery_score if available,
+const SYSTEM_PROMPT_GENERATE_TEMPLATE = `You are a practice-question generator for the university course "{course_name}" (code: {course_code}). Write every question, option, answer, and explanation in language "{target_language}". Keep concept_codes and the "topic" field unchanged regardless of language.
 
-ALLOWED CONCEPTS — define the valid set as follows:
-- If INTENT.concepts is non-empty, the allowed set is exactly those codes.
-- If INTENT.concepts is empty, the allowed set is every concept_code in the MASTERY SNAPSHOT.
-Every question's "topic" MUST be a concept_code from this allowed set. This is absolute.
+You are given:
+(a) parsed INTENT
+(b) MASTERY SNAPSHOT — the allowed concepts with mastery data
+(c) COURSE-LEVEL MASTERY for this student
+(d) RECENT STEMS — questions already served to this student (do not repeat)
+(e) RECENT ASSESSMENTS — recent performance summary
+
+INTENT:
+{intent_json}
+
+MASTERY SNAPSHOT (each item: {concept_code, concept_name, mastery_score (0..1 or null), mastery_level, sample_count, exam_weight (0..1)}):
+{mastery_snapshot_json}
+
+ALLOWED CONCEPT CODES (the ONLY valid values for "topic"):
+{allowed_concept_codes}
+
+COURSE-LEVEL MASTERY:
+- mastery_score: {course_mastery_score}
+- learner_level: {course_learner_level}
+
+RECENT STEMS (avoid duplicating or closely paraphrasing any of these):
+{recent_stems_json}
+
+RECENT ASSESSMENTS:
+{recent_assessments_line}
+
+Rules:
+
+ALLOWED CONCEPTS:
+- Every question's "topic" MUST be a concept_code from ALLOWED CONCEPT CODES. This is absolute.
+- If ALLOWED CONCEPT CODES is empty, return {"questions":[],"skipped_reason":"no in-scope concepts available"} and nothing else.
 
 Out-of-scope handling:
 - Ignore INTENT.off_syllabus_terms and any subject in INTENT.notes that is not in the allowed set. Never generate a question on a topic outside the allowed set, even if the student explicitly asked for it. The course syllabus always wins over the request.
-- If the allowed set is empty, return {"questions":[],"skipped_reason":"no in-scope concepts available"} and nothing else.
 
-Interpreting mastery (weak vs strong):
-- weak  = mastery_score < 0.50  (a concept with mastery_score null, meaning not yet attempted, also counts as a gap and should be treated as high priority alongside the weakest scored concepts).
+Interpreting mastery:
+- weak = mastery_score < 0.50 (null mastery also counts as a gap, high priority alongside the weakest scored concepts).
 - strong = mastery_score >= 0.50, with >= 0.75 considered fully strong.
-- To act on weakness or strength, sort the allowed concepts by mastery_score ascending (treat null as the lowest, i.e. most in need).
+- To act on weakness or strength, sort allowed concepts by mastery_score ascending (treat null as the lowest).
 
 Concept selection and distribution:
-- If INTENT.weak_areas_requested OR INTENT.goal == "exam_prep": concentrate questions on the weakest concepts first (lowest mastery_score and null-mastery concepts), allocating more items to weaker concepts.
-- If INTENT.goal == "exam_prep" AND exam_weight is present: blend weakness with weight, so heavily weighted weak concepts get the most items.
+- If INTENT.weak_areas_requested OR INTENT.goal == "exam_prep": concentrate on the weakest concepts first, more items to weaker concepts.
+- If INTENT.goal == "exam_prep" AND exam_weight is present: blend weakness with weight — heavily weighted weak concepts get the most items.
 - If INTENT.strong_areas_requested: concentrate on concepts with mastery_score >= 0.50, strongest first.
-- Otherwise distribute questions roughly evenly across the allowed concepts.
+- Otherwise distribute roughly evenly across allowed concepts.
 - If questions outnumber concepts, reuse concepts while varying angle and difficulty. If concepts outnumber questions, cover the highest-priority concepts first.
 
 Difficulty calibration (difficulty_estimate, 0..1):
 - "easy"   -> 0.15..0.35
 - "medium" -> 0.40..0.60
 - "hard"   -> 0.65..0.90
-- "mixed"  -> spread across the range, centred on the student's course mastery_score (lower mastery centres easier). If course mastery_score is absent, centre on 0.50.
+- "mixed"  -> spread across the range, centred on COURSE-LEVEL MASTERY.mastery_score (lower mastery -> easier centre). If null, centre on 0.50.
 
-Bloom level (1..6) — derive from each question's difficulty_estimate UNLESS INTENT.bloom_focus is non-empty, in which case bias toward those levels. Mapping from difficulty to Bloom for these formats:
+Bloom level (1..6) — derive from each question's difficulty_estimate UNLESS INTENT.bloom_focus is non-empty (then bias toward those levels):
 - 0.15..0.34 -> Bloom 1..2 (remember, understand)
 - 0.35..0.54 -> Bloom 2..3 (understand, apply)
 - 0.55..0.74 -> Bloom 3..4 (apply, analyse)
 - 0.75..0.90 -> Bloom 4..5 (analyse, evaluate)
-Format caps: MCQ may not exceed Bloom 5; true_false may not exceed Bloom 4, since the format cannot meaningfully assess higher cognition. Bloom 6 (create) is never used. For INTENT.goal == "challenge", lean to the upper bound of each band.
+Format caps: MCQ <= Bloom 5; true_false <= Bloom 4. Bloom 6 (create) is never used. For INTENT.goal == "challenge", lean to the upper bound of each band.
 
 Item quality:
-- MCQ: exactly 4 distinct, plausible, non-empty options; exactly one correct; "answer" matches one option string verbatim. Distractors must represent realistic misconceptions or common errors, not obviously wrong throwaways. Vary the position of the correct option across the set.
+- MCQ: exactly 4 distinct, plausible, non-empty options; exactly one correct; "answer" matches one option string verbatim. Distractors must represent realistic misconceptions, not throwaways. Vary the position of the correct option across the set.
 - True/False: options are exactly ["True","False"]; "answer" is "True" or "False".
 - No question may duplicate or trivially reword another in this set, and none may restate or closely paraphrase any entry in RECENT STEMS.
-- Explanations are 1-3 sentences and reference the concept by name. If the concept name is not supplied in the snapshot, reference the concept_code instead.
+- Explanations are 1-3 sentences and reference the concept by its concept_name (fall back to concept_code if name unavailable).
 
-Language: write every question, option, answer, and explanation in INTENT.language. Keep concept_codes and the "topic" field unchanged.
-
-Output: return ONLY valid JSON, no markdown or code fences, of the form {"questions":[...]} where each item has: question, type, options (omit for true_false or set to ["True","False"]), answer, explanation, topic, difficulty_estimate, bloom_level. Generate exactly INTENT.count questions unless the allowed set is empty.`;
+Output: return ONLY valid JSON, no markdown or code fences, of the form {"questions":[...]} where each item has: question, type, options (omit for true_false or set to ["True","False"]), answer, explanation, topic, difficulty_estimate, bloom_level. Generate exactly INTENT.count questions unless ALLOWED CONCEPT CODES is empty.`;
 
 async function callGateway(
   apiKey: string,
@@ -184,14 +261,29 @@ function sanitizeIntent(raw: any, knownConcepts: Set<string>): Intent {
   const concepts = Array.isArray(raw.concepts)
     ? Array.from(new Set(raw.concepts.map((c: any) => String(c)).filter((c: string) => knownConcepts.has(c))))
     : [];
+  const offSyllabus = Array.isArray(raw.off_syllabus_terms)
+    ? Array.from(
+        new Set(
+          raw.off_syllabus_terms
+            .map((s: any) => String(s).trim())
+            .filter((s: string) => s.length > 0 && s.length <= 80),
+        ),
+      ).slice(0, 10)
+    : [];
+  const language = typeof raw.language === "string" && /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})?$/.test(raw.language)
+    ? raw.language
+    : "en";
   return {
     count: clampCount(raw.count),
     types: types.length > 0 ? types : ["mcq", "true_false"],
     difficulty,
-    bloom_focus: bloomFocus.length > 0 ? bloomFocus : [2, 3, 4],
+    bloom_focus: bloomFocus,
     concepts,
     weak_areas_requested: Boolean(raw.weak_areas_requested),
+    strong_areas_requested: Boolean(raw.strong_areas_requested),
+    off_syllabus_terms: offSyllabus,
     goal,
+    language,
     notes: typeof raw.notes === "string" ? raw.notes.slice(0, 140) : "",
   };
 }
@@ -205,8 +297,9 @@ type MasteryRow = {
 };
 
 interface SnapshotConcept {
-  code: string;
-  weight: number;
+  concept_code: string;
+  concept_name: string;
+  exam_weight: number;
   mastery_score: number | null;
   mastery_level: string | null;
   sample_count: number;
@@ -220,8 +313,9 @@ function selectConcepts(
   const all: SnapshotConcept[] = concepts.map((c) => {
     const m = masteryByCode.get(c.concept_code);
     return {
-      code: c.concept_code,
-      weight: Number(c.weight ?? 0),
+      concept_code: c.concept_code,
+      concept_name: humanizeConceptCode(c.concept_code),
+      exam_weight: Number(c.weight ?? 0),
       mastery_score: m?.mastery_score != null ? Number(m.mastery_score) : null,
       mastery_level: m?.mastery_level ?? null,
       sample_count: m?.sample_count ?? 0,
@@ -230,7 +324,7 @@ function selectConcepts(
 
   if (intent.concepts.length > 0) {
     const set = new Set(intent.concepts);
-    const picked = all.filter((c) => set.has(c.code));
+    const picked = all.filter((c) => set.has(c.concept_code));
     return picked.length > 0 ? picked : all.slice(0, Math.max(3, intent.count));
   }
 
@@ -238,19 +332,24 @@ function selectConcepts(
   if (intent.weak_areas_requested || intent.goal === "exam_prep") {
     return [...all]
       .sort((a, b) => {
-        const ams = a.mastery_score ?? 1.01; // unassessed -> deprioritized
+        const ams = a.mastery_score ?? 1.01;
         const bms = b.mastery_score ?? 1.01;
         if (ams !== bms) return ams - bms;
-        return (b.weight ?? 0) - (a.weight ?? 0);
+        return (b.exam_weight ?? 0) - (a.exam_weight ?? 0);
       })
       .slice(0, targetSize);
   }
 
-  // Default: weight-first, with mild bias toward lower mastery
+  if (intent.strong_areas_requested) {
+    return [...all]
+      .sort((a, b) => (b.mastery_score ?? -1) - (a.mastery_score ?? -1))
+      .slice(0, targetSize);
+  }
+
   return [...all]
     .sort((a, b) => {
-      const aScore = (a.weight ?? 0) - (a.mastery_score ?? 0.5) * 0.5;
-      const bScore = (b.weight ?? 0) - (b.mastery_score ?? 0.5) * 0.5;
+      const aScore = (a.exam_weight ?? 0) - (a.mastery_score ?? 0.5) * 0.5;
+      const bScore = (b.exam_weight ?? 0) - (b.mastery_score ?? 0.5) * 0.5;
       return bScore - aScore;
     })
     .slice(0, targetSize);
@@ -295,7 +394,8 @@ Deno.serve(async (req) => {
     if (enrollErr || !enrollment) return json({ error: "Not enrolled in course" }, 403);
 
     // Parallel fetches
-    const [conceptsRes, conceptMasteryRes, courseMasteryRes, recentRes] = await Promise.all([
+    const [courseRes, conceptsRes, conceptMasteryRes, courseMasteryRes, recentRes] = await Promise.all([
+      admin.from("courses").select("name, code").eq("id", courseId).maybeSingle(),
       admin
         .from("concepts")
         .select("concept_code, weight")
@@ -322,6 +422,10 @@ Deno.serve(async (req) => {
         .limit(5),
     ]);
 
+    const course = (courseRes.data ?? null) as { name: string | null; code: string | null } | null;
+    const courseName = course?.name?.trim() || "this course";
+    const courseCode = course?.code?.trim() || "n/a";
+
     const concepts: ConceptRow[] = (conceptsRes.data ?? []) as any;
     const masteryByCode = new Map<string, MasteryRow>();
     for (const m of (conceptMasteryRes.data ?? []) as MasteryRow[]) {
@@ -331,25 +435,33 @@ Deno.serve(async (req) => {
       mastery_score: number | null;
       learner_level: string | null;
     } | null;
-    const recentLine = ((recentRes.data ?? []) as any[])
-      .map((r) => `${r.mode}:${r.correct_answers}/${r.total_questions}(${r.score}%)`)
-      .join(", ");
+    const recentLine =
+      ((recentRes.data ?? []) as any[])
+        .map((r) => `${r.mode}:${r.correct_answers}/${r.total_questions}(${r.score}%)`)
+        .join(", ") || "(none)";
 
     const knownConceptCodes = new Set(concepts.map((c) => c.concept_code));
-    const availableLine = concepts.map((c) => c.concept_code).join(", ");
+    const conceptList = concepts.map((c) => ({
+      concept_code: c.concept_code,
+      concept_name: humanizeConceptCode(c.concept_code),
+    }));
+    const todayIso = new Date().toISOString().slice(0, 10);
 
     // ---- Stage 1: Intent extraction ----
-    const intentMessages = [
-      { role: "system", content: SYSTEM_PROMPT_INTENT },
-      {
-        role: "user",
-        content: `AVAILABLE_CONCEPTS: ${availableLine || "(none)"}\n\nSTUDENT_REQUEST:\n"""${rawPrompt}"""`,
-      },
-    ];
-    const intentResp = await callGateway(LOVABLE_API_KEY, intentMessages);
+    const intentSystem = renderTemplate(SYSTEM_PROMPT_INTENT_TEMPLATE, {
+      course_name: courseName,
+      course_code: courseCode,
+      today_iso: todayIso,
+      concept_list_json: JSON.stringify(conceptList),
+      student_request: rawPrompt,
+    });
+
+    const intentResp = await callGateway(LOVABLE_API_KEY, [
+      { role: "system", content: intentSystem },
+      { role: "user", content: rawPrompt },
+    ]);
     let intent: Intent;
     if (!intentResp.ok) {
-      // For 429/402 surface immediately; on 502 fall back to defaults so user still gets questions
       if (intentResp.status === 429 || intentResp.status === 402) {
         return json({ error: intentResp.error }, intentResp.status);
       }
@@ -363,25 +475,29 @@ Deno.serve(async (req) => {
 
     // ---- Build mastery snapshot ----
     const snapshotConcepts = selectConcepts(intent, concepts, masteryByCode);
-
-    const snapshotJson = {
-      course: {
-        mastery_score: courseMastery?.mastery_score ?? null,
-        learner_level: courseMastery?.learner_level ?? null,
-      },
-      concepts: snapshotConcepts,
-    };
+    const allowedCodes =
+      intent.concepts.length > 0
+        ? intent.concepts
+        : snapshotConcepts.map((c) => c.concept_code);
 
     // ---- Stage 2: Generation ----
-    const genUser =
-      `INTENT: ${JSON.stringify(intent)}\n` +
-      `MASTERY SNAPSHOT: ${JSON.stringify(snapshotJson)}\n` +
-      `RECENT ASSESSMENTS: ${recentLine || "(none)"}\n` +
-      `ORIGINAL REQUEST: "${rawPrompt}"`;
+    const genSystem = renderTemplate(SYSTEM_PROMPT_GENERATE_TEMPLATE, {
+      course_name: courseName,
+      course_code: courseCode,
+      target_language: intent.language,
+      intent_json: JSON.stringify(intent),
+      mastery_snapshot_json: JSON.stringify(snapshotConcepts),
+      allowed_concept_codes: allowedCodes.join(", ") || "(none)",
+      course_mastery_score:
+        courseMastery?.mastery_score != null ? String(courseMastery.mastery_score) : "null",
+      course_learner_level: courseMastery?.learner_level || "unknown",
+      recent_stems_json: "[]",
+      recent_assessments_line: recentLine,
+    });
 
     const genResp = await callGateway(LOVABLE_API_KEY, [
-      { role: "system", content: SYSTEM_PROMPT_GENERATE },
-      { role: "user", content: genUser },
+      { role: "system", content: genSystem },
+      { role: "user", content: "Generate the questions now." },
     ]);
     if (!genResp.ok) return json({ error: genResp.error }, genResp.status);
 
@@ -420,7 +536,6 @@ Deno.serve(async (req) => {
             .filter(Boolean);
           if (options.length < 2) return null;
           if (!options.includes(answer)) {
-            // try letter answer like "A"
             const letter = answer.match(/^[A-Da-d]$/)?.[0];
             if (letter) {
               const idx = letter.toUpperCase().charCodeAt(0) - 65;
