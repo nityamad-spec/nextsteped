@@ -22,7 +22,12 @@ function bandFor(score: number): "beginner" | "developing" | "proficient" | "exp
   return "expert";
 }
 
-type TeachingInsight = { concept_code: string | null; severity: "info" | "warn" | "action"; text: string };
+type TeachingInsight = {
+  text: string;
+  concepts: string[];
+  type: "weak_spot" | "strength" | "split_class" | "overall_trend";
+  basis: string;
+};
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
