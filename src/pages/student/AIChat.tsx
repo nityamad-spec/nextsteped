@@ -374,7 +374,7 @@ const AIChat = () => {
     const targetMode = (searchParams.get("mode") === "exam" || searchParams.get("mode") === "quiz") ? "exam" : "learning";
     setMode(targetMode);
     setAssessmentActive(false);
-    const welcome = targetMode === "learning" ? WELCOME_LEARNING : WELCOME_EXAM;
+    const welcome = targetMode === "learning" ? getWelcomeLearning(courseContext?.courseName) : WELCOME_EXAM;
     const title = targetMode === "learning" ? "New Study Session" : "New Exam Prep";
     createSession(title, welcome);
   }, []);
