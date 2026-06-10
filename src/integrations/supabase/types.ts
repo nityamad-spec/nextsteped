@@ -579,6 +579,47 @@ export type Database = {
           },
         ]
       }
+      course_teaching_insights: {
+        Row: {
+          course_id: string
+          created_at: string
+          generated_at: string
+          generated_by: string | null
+          inputs_hash: string
+          insights: Json
+          model: string
+          updated_at: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          generated_at?: string
+          generated_by?: string | null
+          inputs_hash: string
+          insights: Json
+          model: string
+          updated_at?: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          generated_at?: string
+          generated_by?: string | null
+          inputs_hash?: string
+          insights?: Json
+          model?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_teaching_insights_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: true
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_youtube_links: {
         Row: {
           course_id: string
