@@ -478,7 +478,7 @@ const CourseDashboard = () => {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => loadInsights(true)}
+                  onClick={refreshInsights}
                   disabled={insightsRefreshing || insightsLoading || insightsEmpty}
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${insightsRefreshing ? "animate-spin" : ""}`} />
