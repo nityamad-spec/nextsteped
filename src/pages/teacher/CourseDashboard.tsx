@@ -506,7 +506,7 @@ const CourseDashboard = () => {
                       <p className="text-sm text-foreground">{ins.text}</p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">{label}</Badge>
-                        {ins.concepts.map((c) => (
+                        {(ins.concepts ?? []).map((c) => (
                           <Badge key={c} variant="outline" className="text-[10px] font-normal">{c}</Badge>
                         ))}
                       </div>
