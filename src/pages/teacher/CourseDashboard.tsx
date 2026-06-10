@@ -12,19 +12,12 @@ import { Badge } from "@/components/ui/badge";
 import CourseCollaborators from "@/components/CourseCollaborators";
 import CourseStatusBanner from "@/components/CourseStatusBanner";
 
-/* ── Static mock stats per concept (deterministic by id) ── */
-function hashStr(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-function mockStatsFor(id: string) {
-  const h = hashStr(id);
-  const touched = 5 + (h % 31); // 5..35
-  const deeplyExplored = 1 + ((h >> 3) % 25); // 1..25
-  const notExplored = 5 + ((h >> 6) % 46); // 5..50
-  const masteryPct = 30 + ((h >> 9) % 61); // 30..90
-  return { touched, deeplyExplored, notExplored, masteryPct };
+/* ── Mastery band thresholds (mirror update-mastery / DB CHECK constraint) ── */
+function bandFor(score: number): "beginner" | "developing" | "proficient" | "expert" {
+  if (score < 0.25) return "beginner";
+  if (score < 0.50) return "developing";
+  if (score < 0.75) return "proficient";
+  return "expert";
 }
 
 const insightsMock = [
@@ -49,6 +42,7 @@ const CourseDashboard = () => {
   const [conceptsError, setConceptsError] = useState<string | null>(null);
 
   const [lessonOrder, setLessonOrder] = useState<Map<string, number>>(new Map());
+  const [masteryDist, setMasteryDist] = useState<Map<string, { beginner: number; developing: number; proficient: number; expert: number }>>(new Map());
 
   useEffect(() => {
     if (!courseId) { setConcepts([]); setLessonOrder(new Map()); setConceptsLoading(false); return; }
@@ -56,7 +50,7 @@ const CourseDashboard = () => {
     setConceptsLoading(true);
     setConceptsError(null);
     (async () => {
-      const [conceptsRes, weeksRes] = await Promise.all([
+      const [conceptsRes, weeksRes, masteryRes] = await Promise.all([
         supabase
           .from("concepts")
           .select("id, concept_code, weight")
@@ -66,6 +60,10 @@ const CourseDashboard = () => {
           .select("week_number, concepts")
           .eq("course_id", courseId)
           .order("week_number", { ascending: true }),
+        supabase
+          .from("student_concept_mastery")
+          .select("concept_id, mastery_score")
+          .eq("course_id", courseId),
       ]);
       if (cancelled) return;
 
@@ -88,6 +86,17 @@ const CourseDashboard = () => {
         }
       }
       setLessonOrder(order);
+
+      const dist = new Map<string, { beginner: number; developing: number; proficient: number; expert: number }>();
+      if (!masteryRes.error && Array.isArray(masteryRes.data)) {
+        for (const row of masteryRes.data as Array<{ concept_id: string; mastery_score: number }>) {
+          const cur = dist.get(row.concept_id) ?? { beginner: 0, developing: 0, proficient: 0, expert: 0 };
+          cur[bandFor(Number(row.mastery_score))]++;
+          dist.set(row.concept_id, cur);
+        }
+      }
+      setMasteryDist(dist);
+
       setConceptsLoading(false);
     })();
     return () => { cancelled = true; };
@@ -102,7 +111,10 @@ const CourseDashboard = () => {
       if (bi !== undefined) return 1;
       return a.concept_code.localeCompare(b.concept_code);
     })
-    .map((c) => ({ concept: c.concept_code, ...mockStatsFor(c.id) }));
+    .map((c) => {
+      const d = masteryDist.get(c.id) ?? { beginner: 0, developing: 0, proficient: 0, expert: 0 };
+      return { id: c.id, concept: c.concept_code, ...d };
+    });
 
   // Only need to know if the signed-in teacher is a collaborator (not the owner)
   // — owners get no banner, collaborators get the Handshake badge.
@@ -312,36 +324,33 @@ const CourseDashboard = () => {
                 No concepts defined for this course yet. Add them in Concept Review.
               </p>
             ) : conceptRows.map((c) => {
-              const total = Math.max(1, c.touched + c.deeplyExplored + c.notExplored);
-              // Deterministic static distribution from concept name
-              let h = 0;
-              for (let i = 0; i < c.concept.length; i++) h = (h * 31 + c.concept.charCodeAt(i)) >>> 0;
-              const w1 = (h % 100) / 100;
-              const w2 = ((h >>> 7) % 100) / 100;
-              const w3 = ((h >>> 13) % 100) / 100;
-              const w4 = ((h >>> 19) % 100) / 100;
-              const sum = w1 + w2 + w3 + w4 || 1;
-              const beginner = Math.round((w1 / sum) * total);
-              const developing = Math.round((w2 / sum) * total);
-              const proficient = Math.round((w3 / sum) * total);
-              const expert = Math.max(0, total - beginner - developing - proficient);
-              const pct = (n: number) => (n / total) * 100;
+              const { beginner, developing, proficient, expert } = c;
+              const total = beginner + developing + proficient + expert;
+              const pct = (n: number) => (total === 0 ? 0 : (n / total) * 100);
               return (
-                <div key={c.concept} className="space-y-1.5 rounded-lg px-3 py-2">
+                <div key={c.id} className="space-y-1.5 rounded-lg px-3 py-2">
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-sm font-medium">{c.concept}</span>
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className="text-muted-foreground font-medium">{beginner} Beginner</span>
-                      <span className="text-muted-foreground font-medium">{developing} Developing</span>
-                      <span className="text-muted-foreground font-medium">{proficient} Proficient</span>
-                      <span className="text-muted-foreground font-medium">{expert} Expert</span>
-                    </div>
+                    {total === 0 ? (
+                      <span className="text-xs text-muted-foreground italic">No student data yet</span>
+                    ) : (
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="text-muted-foreground font-medium">{beginner} Beginner</span>
+                        <span className="text-muted-foreground font-medium">{developing} Developing</span>
+                        <span className="text-muted-foreground font-medium">{proficient} Proficient</span>
+                        <span className="text-muted-foreground font-medium">{expert} Expert</span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
-                    <div className="bg-mastery-beginner" style={{ width: `${pct(beginner)}%` }} />
-                    <div className="bg-mastery-progressing" style={{ width: `${pct(developing)}%` }} />
-                    <div className="bg-mastery-proficient" style={{ width: `${pct(proficient)}%` }} />
-                    <div className="bg-mastery-expert" style={{ width: `${pct(expert)}%` }} />
+                    {total > 0 && (
+                      <>
+                        <div className="bg-mastery-beginner" style={{ width: `${pct(beginner)}%` }} />
+                        <div className="bg-mastery-progressing" style={{ width: `${pct(developing)}%` }} />
+                        <div className="bg-mastery-proficient" style={{ width: `${pct(proficient)}%` }} />
+                        <div className="bg-mastery-expert" style={{ width: `${pct(expert)}%` }} />
+                      </>
+                    )}
                   </div>
                 </div>
               );
