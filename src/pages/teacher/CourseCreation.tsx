@@ -1310,13 +1310,15 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   max={7}
                   value={sessionsPerWeek ?? ""}
                   onChange={(e) => {
+                    if (e.target.value === "") { setSessionsPerWeek(null); return; }
                     const v = parseInt(e.target.value, 10);
-                    if (Number.isFinite(v) && v >= 1 && v <= 7) {
-                      setSessionsPerWeek(v);
-                      persistSchedule({ sessions_per_week: v });
-                    } else if (e.target.value === "") {
-                      setSessionsPerWeek(null);
-                    }
+                    if (Number.isFinite(v)) setSessionsPerWeek(v);
+                  }}
+                  onBlur={() => {
+                    if (sessionsPerWeek == null) return;
+                    const clamped = Math.min(7, Math.max(1, sessionsPerWeek));
+                    if (clamped !== sessionsPerWeek) setSessionsPerWeek(clamped);
+                    persistSchedule({ sessions_per_week: clamped });
                   }}
                   className="mt-1 h-9"
                 />
