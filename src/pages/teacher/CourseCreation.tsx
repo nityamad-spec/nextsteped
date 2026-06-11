@@ -1285,17 +1285,18 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   max={24}
                   value={totalWeeks ?? ""}
                   onChange={(e) => {
+                    if (e.target.value === "") { setTotalWeeks(null); return; }
                     const v = parseInt(e.target.value, 10);
-                    if (Number.isFinite(v) && v >= 4 && v <= 24) {
-                      setTotalWeeks(v);
-                      // If midterm/final exceed new total, clear them
-                      const patch: any = { total_weeks: v };
-                      if (midtermWeek && midtermWeek > v) { setMidtermWeek(null); patch.midterm_week = null; }
-                      if (finalWeek && finalWeek > v) { setFinalWeek(null); patch.final_week = null; }
-                      persistSchedule(patch);
-                    } else if (e.target.value === "") {
-                      setTotalWeeks(null);
-                    }
+                    if (Number.isFinite(v)) setTotalWeeks(v);
+                  }}
+                  onBlur={() => {
+                    if (totalWeeks == null) return;
+                    const clamped = Math.min(24, Math.max(4, totalWeeks));
+                    if (clamped !== totalWeeks) setTotalWeeks(clamped);
+                    const patch: any = { total_weeks: clamped };
+                    if (midtermWeek && midtermWeek > clamped) { setMidtermWeek(null); patch.midterm_week = null; }
+                    if (finalWeek && finalWeek > clamped) { setFinalWeek(null); patch.final_week = null; }
+                    persistSchedule(patch);
                   }}
                   className="mt-1 h-9"
                 />
