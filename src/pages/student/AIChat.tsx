@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import ExamHistory from "@/components/ExamHistory";
 import ExamPrepPanel, { ExamCustomSettings } from "@/components/ExamPrepPanel";
-import { getQuizQuestions, getExamQuestions, Question } from "@/data/questionBank";
+import type { Question } from "@/data/questionBank";
 import { supabase } from "@/integrations/supabase/client";
 import { seededShuffle } from "@/lib/seededShuffle";
 import ReactMarkdown from "react-markdown";
