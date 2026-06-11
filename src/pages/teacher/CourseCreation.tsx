@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, type ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, Reorder, useDragControls, type DragControls } from "framer-motion";
 import { Button } from "@/components/ui/button";
