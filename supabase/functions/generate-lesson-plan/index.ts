@@ -800,7 +800,7 @@ ${assignmentBlock}`;
         is_exam_week: false,
         exam_type: null,
         concepts: wa.concept_names.map((name) => ({ name, brief_description: "", ai_suggested: false })),
-        resources: capResources(a.resources),
+        resources: await sanitizeResourceUrls(capResources(a.resources)),
       });
     }
 
