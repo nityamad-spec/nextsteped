@@ -9,6 +9,51 @@ const corsHeaders = {
 
 type ContextWeek = { week: number; week_name?: string; concept_names?: string[] };
 
+async function verifyUrl(rawUrl: string): Promise<string | null> {
+  try {
+    const u = new URL(rawUrl);
+    if (u.protocol !== "https:") return null;
+    const doFetch = (method: "HEAD" | "GET") =>
+      fetch(u.toString(), {
+        method,
+        redirect: "follow",
+        signal: AbortSignal.timeout(4000),
+        headers: method === "GET"
+          ? { Range: "bytes=0-0", "User-Agent": "Mozilla/5.0 (LessonPlanLinkCheck)" }
+          : { "User-Agent": "Mozilla/5.0 (LessonPlanLinkCheck)" },
+      });
+    let resp: Response;
+    try {
+      resp = await doFetch("HEAD");
+      if (resp.status === 405 || resp.status === 403 || resp.status === 501) {
+        resp = await doFetch("GET");
+      }
+    } catch {
+      resp = await doFetch("GET");
+    }
+    if (resp.ok) return resp.url || u.toString();
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function sanitizeResourceUrls(resources: any[]): Promise<any[]> {
+  if (!Array.isArray(resources) || resources.length === 0) return resources || [];
+  const checks = resources.map(async (r) => {
+    if (!r || typeof r.url !== "string" || !r.url.trim()) return;
+    const final = await verifyUrl(r.url.trim());
+    if (final) {
+      r.url = final;
+    } else {
+      console.log(`[regen-week link-check] dropping broken url: ${r.url}`);
+      delete r.url;
+    }
+  });
+  await Promise.allSettled(checks);
+  return resources;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -86,7 +131,7 @@ serve(async (req) => {
 You will be given ONE week with its concepts already locked. Your job is ONLY to write:
 - week_name: 3–6 word title.
 - overview: 3–5 sentences, grounded strictly in the assigned concepts. Cover (1) what the average undergraduate will be able to do by end of week, (2) how it builds on prior weeks (if any), (3) the most common misconception or stumbling block.
-- 1 coding-exercise + 1–2 article resources tied to those concepts. Articles must be REAL, well-known, freely accessible (e.g. official Python docs, Real Python, MDN, official framework docs) with working https URLs. If you are not certain a URL exists, OMIT the url field rather than inventing one.
+- 1 coding-exercise + 1–2 article resources tied to those concepts. Articles must be REAL, well-known, freely accessible resources with working https URLs. STRONGLY PREFER stable index/landing pages (e.g. https://docs.python.org/3/tutorial/, https://realpython.com/, https://developer.mozilla.org/en-US/docs/Web/JavaScript) over guessing deep article slugs. If you are not 100% certain a specific URL exists and is current, OMIT the url field entirely — a resource without a url is fine and preferred over a broken link.
 
 Tone: factual, pedagogical, realistic. Do not over-promise mastery. Avoid generic filler.
 You CANNOT change the assigned concepts. Return ONLY via the provided tool.`;
@@ -180,10 +225,12 @@ ${next || "(none)"}`;
     const exercises = resources.filter((r: any) => r?.type === "coding-exercise").slice(0, 1);
     const articles = resources.filter((r: any) => r?.type === "article").slice(0, 2);
 
+    const finalResources = await sanitizeResourceUrls([...exercises, ...articles]);
+
     return new Response(JSON.stringify({
       week_name: typeof parsed.week_name === "string" && parsed.week_name.trim() ? parsed.week_name.trim() : `Week ${weekNumber}`,
       overview: typeof parsed.overview === "string" ? parsed.overview : "",
-      resources: [...exercises, ...articles],
+      resources: finalResources,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     console.error("regenerate-lesson-plan-week error:", error);
