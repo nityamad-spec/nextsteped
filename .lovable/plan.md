@@ -1,44 +1,35 @@
-Root cause
+## Problem
 
-Backend log for the failing request:
+On `/teacher/setup/lesson-plan` (`src/pages/teacher/CourseCreation.tsx`), the week cards use `Reorder.Group` / `Reorder.Item` from framer-motion, but the entire card header is wrapped in a `<button>` (the expand/collapse toggle at line 1415), with more `<button>`s nested inside it (regenerate, delete, etc. — confirmed by the `validateDOMNesting: <button> cannot appear as a descendant of <button>` warning in the console).
 
-```text
-AI gateway error: 400 {"error":{"message":"Provider returned error","type":"upstream_error"}}
-```
+Two consequences:
+1. The native `<button>` swallows pointer-down for drag intent — pressing the row fires click/toggle instead of starting a drag.
+2. The `GripVertical` icon is purely decorative; framer-motion has no idea it should be the handle.
 
-In `supabase/functions/parse-syllabus/index.ts`, every uploaded syllabus file (PDF or DOCX) is wrapped as an OpenAI `image_url` data URL:
+So dragging a week never initiates a reorder.
 
-```ts
-{ type: "image_url", image_url: { url: `data:${mimeType};base64,${fileBase64}` } }
-```
+## Fix
 
-The Lovable AI Gateway is a passthrough. `image_url` is only valid for actual images. For PDFs the correct content block is `{"type":"file","file":{"filename":"doc.pdf","file_data":"data:application/pdf;base64,..."}}`. DOCX is not a modality Gemini accepts at all on the chat-completions path. Sending a PDF or DOCX as `image_url` makes the provider return 400, and the edge function re-wraps it as a generic 500 with the message "AI service unavailable. Please try again." surfaced in the UI.
+Convert the week list to framer-motion's **drag-handle pattern** so only the grip starts a drag, and clean up the nested-button structure that's also blocking pointer events.
 
-There is also a schema/prompt mismatch: the prompt asks for `units[].sequence`, `units[].label`, `units[].content`, while the tool schema declares `unit_number`, `title`, `topics`. This does not cause the 400 but produces inconsistent parsed output once the call succeeds.
+### Changes in `src/pages/teacher/CourseCreation.tsx`
 
-Fix
+1. Import `useDragControls` from `framer-motion`.
+2. Extract each week row into a small `WeekReorderItem` component (needed because `useDragControls` must be called per item).
+3. On each `Reorder.Item`, set `dragListener={false}` and `dragControls={controls}`.
+4. Replace the outer `<button onClick={toggleWeek}>` (line 1415) with a `<div role="button" tabIndex={0}>` that toggles on click / Enter / Space. This removes the nested-button DOM violation and lets pointer events flow to the grip.
+5. Turn the `GripVertical` icon into the drag handle:
+   - Wrap it in a span with `onPointerDown={(e) => controls.start(e)}`, `style={{ touchAction: "none" }}`, `cursor-grab active:cursor-grabbing`, plus `role="button"` + `aria-label="Drag to reorder"`.
+   - `e.stopPropagation()` on pointer-down so it doesn't also toggle expand.
+6. Keep `onReorder={(newOrder) => setWeeks(newOrder)}` and the existing week-number re-labelling logic that runs after reorder (per memory).
 
-1. `supabase/functions/parse-syllabus/index.ts`
-   - PDFs: send the binary using the `file` content block:
-     ```ts
-     { type: "file", file: { filename: fileName, file_data: `data:application/pdf;base64,${fileBase64}` } }
-     ```
-   - Real images (png/jpg/jpeg/gif/bmp/webp): keep `image_url`.
-   - DOCX / PPTX / TXT / CSV: do not send to the model as binary. Either require the client to send extracted text via `fileContent`, or return a clear 400 explaining the unsupported binary type so the UI shows a useful error instead of "AI service unavailable".
-   - Improve gateway error handling so the 400 body is forwarded to the client instead of being collapsed into a 500.
-   - Align the tool schema with the prompt: `units[].sequence` (integer), `units[].label` (string, nullable), `units[].content` (string array). Update the downstream code that consumes the parsed JSON only if it currently reads `unit_number/title/topics`.
+### Verification
 
-2. `src/components/FileUploadZone.tsx`
-   - For DOCX syllabus uploads, extract text on the client before invoking `parse-syllabus` and pass it via `fileContent` (the function already supports this branch).
-   - For PDF, continue sending `fileBase64` as today; the edge function will now route it correctly.
-   - No change to upload/storage behavior or other file flows.
+- Drag a week by the grip → list reorders, week numbers re-label, "unsaved changes" indicator appears.
+- Click anywhere else on the header → still expands/collapses.
+- Inner action buttons (regenerate, delete, exam toggle) still work and no longer trigger the nested-button warning.
+- Touch drag works on the 849px viewport the user is on (`touch-action: none` on the handle).
 
-3. Verify
-   - Upload a PDF syllabus → no AI gateway 400 in `parse-syllabus` logs → parsed JSON saved to `approved-syllabus.json` → UI status flips to Parsed.
-   - Upload a DOCX syllabus → text-extraction path succeeds → same outcome.
-   - Trigger an unsupported type → clear 400 message in the UI, not a generic 500.
+### Out of scope
 
-Technical notes
-
-- The Gateway is a passthrough. The right multimodal block per type is `image_url` for images, `input_audio` for audio, and `file` for PDFs. Anything else must be converted to text on the client first.
-- DOCX text extraction on the client can use a small library such as `mammoth` (browser build) — to be added only if you approve the DOCX path; otherwise this plan keeps DOCX out of the AI request and shows a clear error.
+`TeachingPlan.tsx` uses the same `Reorder` pattern for day cards; not touching it unless the user reports the same bug there.
