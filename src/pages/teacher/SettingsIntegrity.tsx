@@ -136,6 +136,34 @@ const SettingsIntegrity = () => {
       </div>
 
       <div className="space-y-6">
+        {/* Course Objectives */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Target className="h-5 w-5" /> Course Objectives</CardTitle>
+            <CardDescription>One objective per line. Saved as a list.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Textarea
+              value={objectivesText}
+              onChange={(e) => setObjectivesText(e.target.value)}
+              rows={8}
+              placeholder={objectivesLoading ? "Loading…" : "e.g. Understand variables and data types\nWrite functions and use control flow\n…"}
+              disabled={objectivesLoading || objectivesSaving}
+              className="font-mono text-sm"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>
+                {objectivesList.length} objective{objectivesList.length === 1 ? "" : "s"}
+                {objectivesSavedAt && ` · Saved ${objectivesSavedAt.toLocaleTimeString()}`}
+              </span>
+              <Button size="sm" onClick={saveObjectives} disabled={objectivesLoading || objectivesSaving || !courseId}>
+                {objectivesSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Objectives
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Publish Settings */}
         <Card>
           <CardHeader>
