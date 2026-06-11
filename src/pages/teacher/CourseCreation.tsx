@@ -67,6 +67,26 @@ type WeekPlan = {
   locked: boolean;
 };
 
+function DraggableWeekItem({
+  value,
+  children,
+}: {
+  value: WeekPlan;
+  children: (controls: DragControls) => React.ReactNode;
+}) {
+  const controls = useDragControls();
+  return (
+    <Reorder.Item
+      value={value}
+      dragListener={false}
+      dragControls={controls}
+      className="list-none"
+    >
+      {children(controls)}
+    </Reorder.Item>
+  );
+}
+
 type ScheduleSnapshot = {
   total_weeks: number | null;
   midterm_week: number | null;
