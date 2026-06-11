@@ -10,6 +10,53 @@ const corsHeaders = {
 const MAX_DOC_CHARS_PER_FILE = 8000;
 const MAX_TOTAL_DOC_CHARS = 30000;
 
+// Verify a URL actually resolves (2xx). Returns the (possibly redirected) final URL, or null.
+async function verifyUrl(rawUrl: string): Promise<string | null> {
+  try {
+    const u = new URL(rawUrl);
+    if (u.protocol !== "https:") return null;
+    const doFetch = (method: "HEAD" | "GET") =>
+      fetch(u.toString(), {
+        method,
+        redirect: "follow",
+        signal: AbortSignal.timeout(4000),
+        headers: method === "GET"
+          ? { Range: "bytes=0-0", "User-Agent": "Mozilla/5.0 (LessonPlanLinkCheck)" }
+          : { "User-Agent": "Mozilla/5.0 (LessonPlanLinkCheck)" },
+      });
+    let resp: Response;
+    try {
+      resp = await doFetch("HEAD");
+      if (resp.status === 405 || resp.status === 403 || resp.status === 501) {
+        resp = await doFetch("GET");
+      }
+    } catch {
+      resp = await doFetch("GET");
+    }
+    if (resp.ok) return resp.url || u.toString();
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Strip url from any resource whose URL doesn't resolve. Mutates and returns the array.
+async function sanitizeResourceUrls(resources: any[]): Promise<any[]> {
+  if (!Array.isArray(resources) || resources.length === 0) return resources || [];
+  const checks = resources.map(async (r) => {
+    if (!r || typeof r.url !== "string" || !r.url.trim()) return;
+    const final = await verifyUrl(r.url.trim());
+    if (final) {
+      r.url = final;
+    } else {
+      console.log(`[lesson-plan link-check] dropping broken url: ${r.url}`);
+      delete r.url;
+    }
+  });
+  await Promise.allSettled(checks);
+  return resources;
+}
+
 function decodeText(buffer: ArrayBuffer): string {
   try {
     return new TextDecoder("utf-8", { fatal: false }).decode(buffer);
