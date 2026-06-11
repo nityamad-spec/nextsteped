@@ -34,10 +34,14 @@ const TIER_SPEC: TierSpec[] = [
 ];
 const TOTAL_QUESTIONS = TIER_SPEC.reduce((s, t) => s + t.count, 0);
 
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 2;
 // Use flash (not pro) — pro runs 40-60s per call and with 4 parallel tiers ×
 // up to MAX_ATTEMPTS retries it blows past the 150s client invoke timeout.
 const MODEL = "google/gemini-2.5-flash";
+// Per-gateway-call timeout. Worst case per tier (parallel): MAX_ATTEMPTS ×
+// GATEWAY_RETRIES × GATEWAY_CALL_TIMEOUT_MS must stay under the 150s client
+// invoke timeout. 2 × 2 × 35s ≈ 140s + small backoff.
+const GATEWAY_CALL_TIMEOUT_MS = 35_000;
 const DIFFICULTY_BAND = 0.15;
 
 // Fixed categorization for bloom_justification (maps to bloom_level 1-6)
@@ -376,7 +380,7 @@ Examples:
 
   // Retry transient upstream errors (5xx, 429) with exponential backoff so a
   // brief gateway hiccup doesn't burn one of the tier's MAX_ATTEMPTS.
-  const GATEWAY_RETRIES = 4;
+  const GATEWAY_RETRIES = 2;
   const baseBody = JSON.stringify({
       model: MODEL,
       temperature: 0.3,
@@ -444,7 +448,7 @@ Examples:
     try {
       response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        signal: AbortSignal.timeout(120_000),
+        signal: AbortSignal.timeout(GATEWAY_CALL_TIMEOUT_MS),
         headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
         body: baseBody,
       });
