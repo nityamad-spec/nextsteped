@@ -98,6 +98,7 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard, examCount = 0, ne
             size="sm"
             className="h-8 text-xs gap-1"
             onClick={() => setShowSettings(!showSettings)}
+            disabled={noExamAvailable}
           >
             <Settings2 className="h-3.5 w-3.5" />
             {showSettings ? "Hide" : "Edit"} Settings
@@ -106,6 +107,7 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard, examCount = 0, ne
           <Button
             onClick={() => onStart({ timeLimit, questionCount, difficulty: "Mixed", questionMix: "mixed" })}
             className="gap-2"
+            disabled={noExamAvailable}
           >
             <Clock className="h-4 w-4" /> Start Exam Practice
           </Button>
