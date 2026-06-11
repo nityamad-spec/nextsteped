@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { mockCourse } from "@/data/mockData";
+
 import { toast } from "sonner";
 
 const availableYears = ["2027", "2028", "2029", "2030", "2031"];
