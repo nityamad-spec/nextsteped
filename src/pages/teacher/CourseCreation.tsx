@@ -1853,8 +1853,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   )}
                 </DraggableWeekItem>
               );
-            })}
-          </div>
+          })}
         </Reorder.Group>
 
         {/* Add week */}
