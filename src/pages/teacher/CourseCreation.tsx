@@ -72,7 +72,7 @@ function DraggableWeekItem({
   children,
 }: {
   value: WeekPlan;
-  children: (controls: DragControls) => React.ReactNode;
+  children: (controls: DragControls) => ReactNode;
 }) {
   const controls = useDragControls();
   return (
