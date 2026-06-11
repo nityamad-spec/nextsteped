@@ -82,7 +82,10 @@ function validateQuestion(
   diff = Math.max(0, Math.min(1, diff));
 
   const bloom = Math.round(Number(q.bloom_level));
-  const bloomSafe = Number.isInteger(bloom) && bloom >= 1 && bloom <= 6 ? bloom : 2;
+  if (!Number.isInteger(bloom) || bloom < 1 || bloom > 4) {
+    return { ok: false, reason: `bloom_level ${q.bloom_level} not allowed for MCQ/TF (must be 1-4)` };
+  }
+  const bloomSafe = bloom;
 
   const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
   if (!explanation) return { ok: false, reason: "empty explanation" };
@@ -130,7 +133,7 @@ STRICT RULES:
 - MCQ: exactly 4 distinct non-empty options (no "A)" prefixes). 'answer' is the FULL TEXT of the correct option.
 - True/False: options MUST be exactly ["True", "False"]. 'answer' must be "True" or "False".
 - difficulty_estimate: number near ${spec.difficulty} (±0.15).
-- bloom_level: integer 1-6.
+- bloom_level: integer 1-4 ONLY (1=Remember, 2=Understand, 3=Apply, 4=Analyze). Do NOT use 5 (Evaluate) or 6 (Create) — these cannot be fairly assessed with MCQ or True/False.
 - content_text: question stem only, ≤ 600 chars.
 - explanation: 1-2 sentences explaining the correct answer.
 - topic: MUST exactly match one of the concept codes above.
@@ -165,7 +168,7 @@ STRICT RULES:
                       options: { type: "array", items: { type: "string" } },
                       answer: { type: "string" },
                       difficulty_estimate: { type: "number" },
-                      bloom_level: { type: "integer", minimum: 1, maximum: 6 },
+                      bloom_level: { type: "integer", minimum: 1, maximum: 4 },
                       explanation: { type: "string" },
                       topic: { type: "string" },
                     },
