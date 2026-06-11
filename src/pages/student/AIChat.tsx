@@ -940,7 +940,7 @@ const AIChat = () => {
           {isUser ? userInitial : <Sparkles className="w-4 h-4" />}
         </div>
         {/* Bubble */}
-        <div className={`max-w-[85%] rounded-xl px-4 py-3 text-sm ${
+        <div className={`max-w-[85%] min-w-0 rounded-xl px-4 py-3 text-sm break-words [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:max-w-full ${
           isUser
             ? "bg-primary text-primary-foreground shadow-sm"
             : "bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm"
