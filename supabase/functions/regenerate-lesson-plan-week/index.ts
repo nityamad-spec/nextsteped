@@ -225,10 +225,12 @@ ${next || "(none)"}`;
     const exercises = resources.filter((r: any) => r?.type === "coding-exercise").slice(0, 1);
     const articles = resources.filter((r: any) => r?.type === "article").slice(0, 2);
 
+    const finalResources = await sanitizeResourceUrls([...exercises, ...articles]);
+
     return new Response(JSON.stringify({
       week_name: typeof parsed.week_name === "string" && parsed.week_name.trim() ? parsed.week_name.trim() : `Week ${weekNumber}`,
       overview: typeof parsed.overview === "string" ? parsed.overview : "",
-      resources: [...exercises, ...articles],
+      resources: finalResources,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     console.error("regenerate-lesson-plan-week error:", error);
