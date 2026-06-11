@@ -114,6 +114,9 @@ const normalizeWeeks = (list: WeekPlan[]): WeekPlan[] =>
     .sort((a, b) => (a.week || 0) - (b.week || 0))
     .map((w, i) => ({ ...w, week: i + 1 }));
 
+const renumberWeeksInCurrentOrder = (list: WeekPlan[]): WeekPlan[] =>
+  list.map((w, i) => ({ ...w, week: i + 1 }));
+
 interface CourseCreationProps {
   embedded?: boolean;
 }
@@ -1451,7 +1454,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         <Reorder.Group
           axis="y"
           values={weeks}
-          onReorder={(newOrder) => setWeeks(newOrder)}
+          onReorder={(newOrder) => {
+            setWeeksRaw(renumberWeeksInCurrentOrder(newOrder));
+            setPublished(false);
+          }}
           className="space-y-3 list-none p-0 m-0"
         >
           {weeks.map((w) => {
