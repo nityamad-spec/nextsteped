@@ -1,35 +1,40 @@
-## Problem
+# Increase Gemini API timeout to 300s across all edge functions
 
-On `/teacher/setup/lesson-plan` (`src/pages/teacher/CourseCreation.tsx`), the week cards use `Reorder.Group` / `Reorder.Item` from framer-motion, but the entire card header is wrapped in a `<button>` (the expand/collapse toggle at line 1415), with more `<button>`s nested inside it (regenerate, delete, etc. — confirmed by the `validateDOMNesting: <button> cannot appear as a descendant of <button>` warning in the console).
+## Goal
+Ensure every Gemini / Lovable AI Gateway fetch call in `supabase/functions/*` waits up to 300 seconds before aborting, instead of relying on the platform/runtime default.
 
-Two consequences:
-1. The native `<button>` swallows pointer-down for drag intent — pressing the row fires click/toggle instead of starting a drag.
-2. The `GripVertical` icon is purely decorative; framer-motion has no idea it should be the handle.
+## Approach
+Native `fetch` has no built-in per-request timeout, so add `signal: AbortSignal.timeout(300_000)` to each gateway fetch call. This is one-line, dependency-free, and consistent across all functions.
 
-So dragging a week never initiates a reorder.
+## Files to update (19 call sites across 18 functions)
+For each `fetch("https://ai.gateway.lovable.dev/v1/chat/completions", { ... })` call, add `signal: AbortSignal.timeout(300_000)` to the options object:
 
-## Fix
+- `supabase/functions/parse-syllabus/index.ts` (1)
+- `supabase/functions/suggest-lesson/index.ts` (1)
+- `supabase/functions/generate-weekly-quiz/index.ts` (1)
+- `supabase/functions/suggest-concepts/index.ts` (1)
+- `supabase/functions/explain-answers/index.ts` (1)
+- `supabase/functions/quality-check/index.ts` (1)
+- `supabase/functions/extract-lesson-plan/index.ts` (1)
+- `supabase/functions/extract-youtube-links/index.ts` (1)
+- `supabase/functions/regenerate-lesson-plan-week/index.ts` (1)
+- `supabase/functions/generate-lesson-plan/index.ts` (3 — lines 251, 401, 632)
+- `supabase/functions/generate-exam-questions/index.ts` (1)
+- `supabase/functions/generate-teaching-insights/index.ts` (1)
+- `supabase/functions/recommend-additional-concepts/index.ts` (1)
+- `supabase/functions/generate-diagnostic-questions/index.ts` (1)
+- `supabase/functions/generate-practice-questions/index.ts` (1)
+- `supabase/functions/chat/index.ts` (1)
+- `supabase/functions/classify-question/index.ts` (1)
 
-Convert the week list to framer-motion's **drag-handle pattern** so only the grip starts a drag, and clean up the nested-button structure that's also blocking pointer events.
+## Error handling
+Where each call is already wrapped in `try/catch`, the existing catch will surface `TimeoutError` / `AbortError` as the function's error response — no behavioral change beyond the longer wait. No new branches needed.
 
-### Changes in `src/pages/teacher/CourseCreation.tsx`
+## Out of scope
+- Platform-level edge function execution limit (Supabase enforces ~150s wall-clock on many tiers). The 300s client timeout is an upper bound; the function may still be terminated earlier by the platform. Not changing platform config here.
+- Frontend `supabase.functions.invoke` timeouts — not requested.
+- Retry/backoff logic — not requested.
 
-1. Import `useDragControls` from `framer-motion`.
-2. Extract each week row into a small `WeekReorderItem` component (needed because `useDragControls` must be called per item).
-3. On each `Reorder.Item`, set `dragListener={false}` and `dragControls={controls}`.
-4. Replace the outer `<button onClick={toggleWeek}>` (line 1415) with a `<div role="button" tabIndex={0}>` that toggles on click / Enter / Space. This removes the nested-button DOM violation and lets pointer events flow to the grip.
-5. Turn the `GripVertical` icon into the drag handle:
-   - Wrap it in a span with `onPointerDown={(e) => controls.start(e)}`, `style={{ touchAction: "none" }}`, `cursor-grab active:cursor-grabbing`, plus `role="button"` + `aria-label="Drag to reorder"`.
-   - `e.stopPropagation()` on pointer-down so it doesn't also toggle expand.
-6. Keep `onReorder={(newOrder) => setWeeks(newOrder)}` and the existing week-number re-labelling logic that runs after reorder (per memory).
-
-### Verification
-
-- Drag a week by the grip → list reorders, week numbers re-label, "unsaved changes" indicator appears.
-- Click anywhere else on the header → still expands/collapses.
-- Inner action buttons (regenerate, delete, exam toggle) still work and no longer trigger the nested-button warning.
-- Touch drag works on the 849px viewport the user is on (`touch-action: none` on the handle).
-
-### Out of scope
-
-`TeachingPlan.tsx` uses the same `Reorder` pattern for day cards; not touching it unless the user reports the same bug there.
+## Verification
+- Build passes.
+- Spot-check 2–3 functions to confirm `signal: AbortSignal.timeout(300_000)` is present in the fetch options and no syntax errors.
