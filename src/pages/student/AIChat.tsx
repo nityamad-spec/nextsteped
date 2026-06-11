@@ -1225,7 +1225,7 @@ const AIChat = () => {
 
 
         {/* Messages */}
-        <div className="flex-1 overflow-auto p-4 space-y-4">
+        <div className="flex-1 overflow-auto p-4 space-y-4 min-w-0">
           {chatsLoading ? (
             <div className="flex h-full items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
