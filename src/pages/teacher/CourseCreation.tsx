@@ -1333,13 +1333,15 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   step={5}
                   value={sessionLength ?? ""}
                   onChange={(e) => {
+                    if (e.target.value === "") { setSessionLength(null); return; }
                     const v = parseInt(e.target.value, 10);
-                    if (Number.isFinite(v) && v >= 30 && v <= 180) {
-                      setSessionLength(v);
-                      persistSchedule({ session_length_minutes: v });
-                    } else if (e.target.value === "") {
-                      setSessionLength(null);
-                    }
+                    if (Number.isFinite(v)) setSessionLength(v);
+                  }}
+                  onBlur={() => {
+                    if (sessionLength == null) return;
+                    const clamped = Math.min(180, Math.max(30, sessionLength));
+                    if (clamped !== sessionLength) setSessionLength(clamped);
+                    persistSchedule({ session_length_minutes: clamped });
                   }}
                   className="mt-1 h-9"
                 />
