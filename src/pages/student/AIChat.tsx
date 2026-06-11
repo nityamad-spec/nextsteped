@@ -544,13 +544,6 @@ const AIChat = () => {
   };
 
   const handleStartExamWithSettings = async (custom: ExamCustomSettings) => {
-    // Create a properly named exam session
-    const examDate = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
-    const examNumber = chats.filter(c => c.title.startsWith("Exam Practice")).length + 1;
-    const sessionTitle = `Exam Practice ${examNumber} — ${examDate}`;
-    const sessionId = await createSession(sessionTitle, WELCOME_EXAM, "exam");
-    setCurrentAssessmentSessionId(sessionId || activeChatId);
-
     const visibleTopics = await fetchVisibleTopics();
     const count = custom.questionCount;
     const ids = availableExamIds.length > 0 ? availableExamIds : await loadAvailableExamIds();
@@ -558,30 +551,36 @@ const AIChat = () => {
     const fetched = await fetchDBQuestions("exam", undefined, examId ?? undefined);
     // Option 2: trust the professor — skip week-visibility filter for generator-produced exams.
     let questions = examId ? fetched.questions : filterByVisibleTopics(fetched.questions, visibleTopics);
-    let meta = fetched.meta;
+    const meta = fetched.meta;
     if (questions.length === 0) {
-      let fallback = getExamQuestions(count, undefined, custom.questionMix);
-      fallback = filterByVisibleTopics(fallback, visibleTopics);
-      questions = fallback.length > 0 ? fallback : getExamQuestions(count, undefined, custom.questionMix);
-      meta = new Map();
-    } else {
-      const allowedTypes = custom.questionMix.includes(",")
-        ? custom.questionMix.split(",")
-        : {
-            mixed: ["mcq", "short_answer", "problem_solving", "true_false"],
-            mcq_only: ["mcq"],
-            true_false_only: ["true_false"],
-            short_answer: ["short_answer"],
-            problem_solving: ["problem_solving"],
-            mcq_short: ["mcq", "short_answer"],
-            mcq_problem: ["mcq", "problem_solving"],
-          }[custom.questionMix] || ["mcq", "short_answer", "problem_solving", "true_false"];
-      const filtered = questions.filter(q => allowedTypes.includes(q.type));
-      const pool = filtered.length > 0 ? filtered : questions;
-      const seed = (user?.id || "anon") + (enrolledCourseId || "") + (examId || "");
-      const shuffled = seededShuffle(pool, seed);
-      questions = shuffled.slice(0, Math.min(count, shuffled.length));
+      toast.info("Your professor hasn't published a practice exam for this course yet.");
+      return;
     }
+
+    // Only create a session once we know we have questions to serve.
+    const examDate = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const examNumber = chats.filter(c => c.title.startsWith("Exam Practice")).length + 1;
+    const sessionTitle = `Exam Practice ${examNumber} — ${examDate}`;
+    const sessionId = await createSession(sessionTitle, WELCOME_EXAM, "exam");
+    setCurrentAssessmentSessionId(sessionId || activeChatId);
+
+    const allowedTypes = custom.questionMix.includes(",")
+      ? custom.questionMix.split(",")
+      : {
+          mixed: ["mcq", "short_answer", "problem_solving", "true_false"],
+          mcq_only: ["mcq"],
+          true_false_only: ["true_false"],
+          short_answer: ["short_answer"],
+          problem_solving: ["problem_solving"],
+          mcq_short: ["mcq", "short_answer"],
+          mcq_problem: ["mcq", "problem_solving"],
+        }[custom.questionMix] || ["mcq", "short_answer", "problem_solving", "true_false"];
+    const filtered = questions.filter(q => allowedTypes.includes(q.type));
+    const pool = filtered.length > 0 ? filtered : questions;
+    const seed = (user?.id || "anon") + (enrolledCourseId || "") + (examId || "");
+    const shuffled = seededShuffle(pool, seed);
+    questions = shuffled.slice(0, Math.min(count, shuffled.length));
+
     setCustomExamTimeLimit(custom.timeLimit);
     setAssessmentQuestions(questions);
     setAssessmentQuestionMeta(meta);
@@ -596,21 +595,21 @@ const AIChat = () => {
     const quizDay = day || parseInt(searchParams.get("day") || "1") || 1;
     const fetched = await fetchDBQuestions("daily_quiz", quizDay);
     let questions = fetched.questions;
-    let meta = fetched.meta;
+    const meta = fetched.meta;
     if (questions.length === 0) {
-      questions = getQuizQuestions(quizDay, count);
-      meta = new Map();
-    } else {
-      const seed = (user?.id || "anon") + (enrolledCourseId || "");
-      const shuffled = seededShuffle(questions, seed);
-      questions = shuffled.slice(0, Math.min(count, shuffled.length));
+      toast.info("No quiz is available for this week yet.");
+      return;
     }
+    const seed = (user?.id || "anon") + (enrolledCourseId || "");
+    const shuffled = seededShuffle(questions, seed);
+    questions = shuffled.slice(0, Math.min(count, shuffled.length));
     setAssessmentQuestions(questions);
     setAssessmentQuestionMeta(meta);
     setAssessmentType("quiz");
     setAssessmentDay(quizDay);
     setAssessmentActive(true);
   };
+
 
   const handleAssessmentEnd = () => {
     setAssessmentActive(false);
