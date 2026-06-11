@@ -213,6 +213,7 @@ async function callGateway(
 ): Promise<{ ok: true; content: string } | { ok: false; status: number; error: string }> {
   const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
+    signal: AbortSignal.timeout(300_000),
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
