@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { ChatSession, Course, StudentProfile, TeacherProfile, UserRole } from "@/types";
-import { mockCourse } from "@/data/mockData";
+
 
 interface AppState {
   role: UserRole | null;

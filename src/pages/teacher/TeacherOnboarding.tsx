@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { availableDepartments, mockCourse } from "@/data/mockData";
+import { availableDepartments } from "@/data/mockData";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -249,12 +249,17 @@ const TeacherOnboarding = () => {
       // Defer context updates until after both DB writes succeeded.
       setTeacherProfile({ name, department, courses: [courseName] });
       setCurrentCourse({
-        ...mockCourse,
         id: courseId,
         name: courseName,
-        term: (term as any) || mockCourse.term,
-        objectives: learningObjective ? learningObjective.split("\n").filter(Boolean) : mockCourse.objectives,
+        term: (term as any) || "First Semester",
+        objectives: learningObjective ? learningObjective.split("\n").filter(Boolean) : [],
         enrollmentCode,
+        sections: [],
+        syllabusUploaded: false,
+        materialsUploaded: false,
+        published: false,
+        startDate: "",
+        endDate: "",
       });
 
       navigate("/teacher/setup");

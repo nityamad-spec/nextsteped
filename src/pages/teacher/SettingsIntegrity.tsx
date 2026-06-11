@@ -89,9 +89,13 @@ const SettingsIntegrity = () => {
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Sections</SelectItem>
-                    {(currentCourse?.sections || ["Section A", "Section B"]).map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
+                    {(currentCourse?.sections ?? []).length === 0 ? (
+                      <SelectItem value="__none__" disabled>No sections added yet</SelectItem>
+                    ) : (
+                      (currentCourse?.sections ?? []).map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
