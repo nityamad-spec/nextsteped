@@ -8,8 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Save, Calendar, UserPlus, Upload, Copy, FileText } from "lucide-react";
+import { Save, Calendar, UserPlus, Upload, Copy, FileText, Target, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 const SettingsIntegrity = () => {
   const { currentCourse } = useApp();
@@ -23,6 +25,65 @@ const SettingsIntegrity = () => {
   const [csvUploaded, setCsvUploaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dbEnrollmentCode, setDbEnrollmentCode] = useState<string | null>(null);
+
+  const [courseId, setCourseId] = useState<string | null>(null);
+  const [objectivesText, setObjectivesText] = useState("");
+  const [objectivesLoading, setObjectivesLoading] = useState(true);
+  const [objectivesSaving, setObjectivesSaving] = useState(false);
+  const [objectivesSavedAt, setObjectivesSavedAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    const loadObjectives = async () => {
+      setObjectivesLoading(true);
+      let id = currentCourse?.id ?? null;
+      if (!id && user?.id) {
+        const { data } = await supabase
+          .from("courses")
+          .select("id")
+          .eq("teacher_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        id = data?.id ?? null;
+      }
+      if (!id) { setObjectivesLoading(false); return; }
+      setCourseId(id);
+      const { data } = await supabase
+        .from("courses")
+        .select("objectives")
+        .eq("id", id)
+        .maybeSingle();
+      const arr = Array.isArray(data?.objectives) ? (data!.objectives as string[]) : [];
+      setObjectivesText(arr.join("\n"));
+      setObjectivesLoading(false);
+    };
+    loadObjectives();
+  }, [currentCourse?.id, user?.id]);
+
+  const objectivesList = objectivesText
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const saveObjectives = async () => {
+    if (!courseId) {
+      toast.error("No course found to update");
+      return;
+    }
+    setObjectivesSaving(true);
+    const { error } = await supabase
+      .from("courses")
+      .update({ objectives: objectivesList })
+      .eq("id", courseId);
+    setObjectivesSaving(false);
+    if (error) {
+      toast.error(`Failed to save: ${error.message}`);
+      return;
+    }
+    setObjectivesSavedAt(new Date());
+    toast.success("Course objectives saved");
+  };
+
 
   useEffect(() => {
     const fetchCode = async () => {
@@ -75,6 +136,34 @@ const SettingsIntegrity = () => {
       </div>
 
       <div className="space-y-6">
+        {/* Course Objectives */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Target className="h-5 w-5" /> Course Objectives</CardTitle>
+            <CardDescription>One objective per line. Saved as a list.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Textarea
+              value={objectivesText}
+              onChange={(e) => setObjectivesText(e.target.value)}
+              rows={8}
+              placeholder={objectivesLoading ? "Loading…" : "e.g. Understand variables and data types\nWrite functions and use control flow\n…"}
+              disabled={objectivesLoading || objectivesSaving}
+              className="font-mono text-sm"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>
+                {objectivesList.length} objective{objectivesList.length === 1 ? "" : "s"}
+                {objectivesSavedAt && ` · Saved ${objectivesSavedAt.toLocaleTimeString()}`}
+              </span>
+              <Button size="sm" onClick={saveObjectives} disabled={objectivesLoading || objectivesSaving || !courseId}>
+                {objectivesSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Objectives
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Publish Settings */}
         <Card>
           <CardHeader>
