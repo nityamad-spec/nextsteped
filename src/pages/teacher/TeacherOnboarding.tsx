@@ -249,12 +249,17 @@ const TeacherOnboarding = () => {
       // Defer context updates until after both DB writes succeeded.
       setTeacherProfile({ name, department, courses: [courseName] });
       setCurrentCourse({
-        ...mockCourse,
         id: courseId,
         name: courseName,
-        term: (term as any) || mockCourse.term,
-        objectives: learningObjective ? learningObjective.split("\n").filter(Boolean) : mockCourse.objectives,
+        term: (term as any) || "First Semester",
+        objectives: learningObjective ? learningObjective.split("\n").filter(Boolean) : [],
         enrollmentCode,
+        sections: [],
+        syllabusUploaded: false,
+        materialsUploaded: false,
+        published: false,
+        startDate: "",
+        endDate: "",
       });
 
       navigate("/teacher/setup");
