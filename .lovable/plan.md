@@ -1,40 +1,36 @@
-# Increase Gemini API timeout to 300s across all edge functions
+# Fix: Total Weeks input rejects typed digits
 
-## Goal
-Ensure every Gemini / Lovable AI Gateway fetch call in `supabase/functions/*` waits up to 300 seconds before aborting, instead of relying on the platform/runtime default.
+## Root cause
 
-## Approach
-Native `fetch` has no built-in per-request timeout, so add `signal: AbortSignal.timeout(300_000)` to each gateway fetch call. This is one-line, dependency-free, and consistent across all functions.
+In `src/pages/teacher/CourseCreation.tsx`, the Total Weeks `<Input type="number">` (lines ~972–991, and a duplicate at ~1275–1297) only updates state when the parsed value is **already** within `4–24`:
 
-## Files to update (19 call sites across 18 functions)
-For each `fetch("https://ai.gateway.lovable.dev/v1/chat/completions", { ... })` call, add `signal: AbortSignal.timeout(300_000)` to the options object:
+```ts
+if (Number.isFinite(v) && v >= 4 && v <= 24) {
+  setTotalWeeks(v);
+  ...
+} else if (e.target.value === "") {
+  setTotalWeeks(null);
+}
+```
 
-- `supabase/functions/parse-syllabus/index.ts` (1)
-- `supabase/functions/suggest-lesson/index.ts` (1)
-- `supabase/functions/generate-weekly-quiz/index.ts` (1)
-- `supabase/functions/suggest-concepts/index.ts` (1)
-- `supabase/functions/explain-answers/index.ts` (1)
-- `supabase/functions/quality-check/index.ts` (1)
-- `supabase/functions/extract-lesson-plan/index.ts` (1)
-- `supabase/functions/extract-youtube-links/index.ts` (1)
-- `supabase/functions/regenerate-lesson-plan-week/index.ts` (1)
-- `supabase/functions/generate-lesson-plan/index.ts` (3 — lines 251, 401, 632)
-- `supabase/functions/generate-exam-questions/index.ts` (1)
-- `supabase/functions/generate-teaching-insights/index.ts` (1)
-- `supabase/functions/recommend-additional-concepts/index.ts` (1)
-- `supabase/functions/generate-diagnostic-questions/index.ts` (1)
-- `supabase/functions/generate-practice-questions/index.ts` (1)
-- `supabase/functions/chat/index.ts` (1)
-- `supabase/functions/classify-question/index.ts` (1)
+When the user starts typing "16", the first keystroke produces `"1"` → fails the `>= 4` check → state is never updated → the input (controlled by `totalWeeks`) snaps back to empty/previous value. Typing "20" fails on the first `"2"` for the same reason. Pasting "16" works because the full value passes the range check in one event.
 
-## Error handling
-Where each call is already wrapped in `try/catch`, the existing catch will surface `TimeoutError` / `AbortError` as the function's error response — no behavioral change beyond the longer wait. No new branches needed.
+Midterm/Final selects don't have this problem (they're dropdowns); Classes per Week (min 1) and Duration also have the same "validate-on-each-keystroke" pattern and should be fixed consistently — Classes per Week happens to work for single-digit values but breaks if a user types "10".
+
+## Fix
+
+Relax both Total Weeks `onChange` handlers (and mirror the same fix for Classes per Week and Session Length where the min > 1 or the max is multi-digit) to:
+
+1. Accept any intermediate numeric input — set state to the parsed integer (or `null` if empty) without enforcing the min on each keystroke.
+2. Clamp / validate on `onBlur` instead: if the value is below min or above max, snap to the nearest bound (or clear it) and call `persistSchedule` then.
+3. Keep the dependent-field reset logic (clearing `midtermWeek` / `finalWeek` when they exceed the new `totalWeeks`) but run it inside the blur handler / when a valid value is committed.
+
+This preserves persistence semantics (we still only write valid values to the DB) while letting the user actually type a number.
+
+## Files
+
+- `src/pages/teacher/CourseCreation.tsx` — update both Total Weeks `<Input>` blocks (~lines 972 and ~1280) and apply the same onChange/onBlur pattern to Classes per Week and Session Length inputs in both schedule cards.
 
 ## Out of scope
-- Platform-level edge function execution limit (Supabase enforces ~150s wall-clock on many tiers). The 300s client timeout is an upper bound; the function may still be terminated earlier by the platform. Not changing platform config here.
-- Frontend `supabase.functions.invoke` timeouts — not requested.
-- Retry/backoff logic — not requested.
 
-## Verification
-- Build passes.
-- Spot-check 2–3 functions to confirm `signal: AbortSignal.timeout(300_000)` is present in the fetch options and no syntax errors.
+No backend, schema, or generation-flow changes. Pure input-handling fix.
