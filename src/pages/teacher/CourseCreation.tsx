@@ -203,6 +203,25 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     }
     setGeneratingQuizWeek(week.week);
     try {
+      // Ensure the lesson-plan week row exists in DB (edge function reads from it).
+      // Local plan may not yet be published, so upsert this single week first.
+      const { error: upsertErr } = await supabase
+        .from("lesson_plan_weeks")
+        .upsert(
+          {
+            course_id: courseId,
+            week_number: week.week,
+            week_name: week.week_name || `Week ${week.week}`,
+            overview: week.overview || "",
+            is_exam_week: !!week.is_exam_week,
+            locked: !!week.locked,
+            concepts: week.concepts || [],
+            resources: week.resources || [],
+          },
+          { onConflict: "course_id,week_number" },
+        );
+      if (upsertErr) throw upsertErr;
+
       const { data, error } = await supabase.functions.invoke("generate-weekly-quiz", {
         body: { course_id: courseId, week_number: week.week },
       });
