@@ -1452,9 +1452,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           axis="y"
           values={weeks}
           onReorder={(newOrder) => setWeeks(newOrder)}
+          className="space-y-3 list-none p-0 m-0"
         >
-          <div className="space-y-3">
-            {weeks.map((w) => {
+          {weeks.map((w) => {
               const isExpanded = expandedWeeks.includes(w.id);
               return (
                 <DraggableWeekItem key={w.id} value={w}>
@@ -1853,8 +1853,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   )}
                 </DraggableWeekItem>
               );
-            })}
-          </div>
+          })}
         </Reorder.Group>
 
         {/* Add week */}
