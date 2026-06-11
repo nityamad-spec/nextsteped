@@ -35,7 +35,9 @@ const TIER_SPEC: TierSpec[] = [
 const TOTAL_QUESTIONS = TIER_SPEC.reduce((s, t) => s + t.count, 0);
 
 const MAX_ATTEMPTS = 3;
-const MODEL = "google/gemini-2.5-pro";
+// Use flash (not pro) — pro runs 40-60s per call and with 4 parallel tiers ×
+// up to MAX_ATTEMPTS retries it blows past the 150s client invoke timeout.
+const MODEL = "google/gemini-2.5-flash";
 const DIFFICULTY_BAND = 0.15;
 
 // Fixed categorization for bloom_justification (maps to bloom_level 1-6)
