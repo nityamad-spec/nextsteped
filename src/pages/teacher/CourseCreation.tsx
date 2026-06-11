@@ -1820,7 +1820,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                       </motion.div>
                     )}
                   </Card>
-                </Reorder.Item>
+                  )}
+                </DraggableWeekItem>
               );
             })}
           </div>
