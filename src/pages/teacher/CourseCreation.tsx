@@ -1427,14 +1427,27 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             {weeks.map((w) => {
               const isExpanded = expandedWeeks.includes(w.id);
               return (
-                <Reorder.Item key={w.id} value={w} className="list-none">
+                <DraggableWeekItem key={w.id} value={w}>
+                  {(controls) => (
                   <Card className={`overflow-hidden transition-all ${isExpanded ? "shadow-md" : ""} ${w.is_exam_week ? "border-amber-500/40" : ""}`}>
                     {/* Header */}
                     <div className="flex items-center gap-1 px-2">
-                      <GripVertical className="h-4 w-4 text-muted-foreground/40 cursor-grab shrink-0" />
-                      <button
+                      <span
+                        role="button"
+                        aria-label="Drag to reorder week"
+                        tabIndex={-1}
+                        onPointerDown={(e) => { e.preventDefault(); controls.start(e); }}
+                        style={{ touchAction: "none" }}
+                        className="flex items-center justify-center p-1 cursor-grab active:cursor-grabbing shrink-0"
+                      >
+                        <GripVertical className="h-4 w-4 text-muted-foreground/60" />
+                      </span>
+                      <div
+                        role="button"
+                        tabIndex={0}
                         onClick={() => toggleWeek(w.id)}
-                        className="flex flex-1 items-center justify-between px-3 py-3.5 text-left hover:bg-muted/20 transition-colors rounded"
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleWeek(w.id); } }}
+                        className="flex flex-1 items-center justify-between px-3 py-3.5 text-left hover:bg-muted/20 transition-colors rounded cursor-pointer select-none"
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <div className={`flex h-9 w-9 items-center justify-center rounded-lg shrink-0 text-sm font-bold ${
@@ -1491,8 +1504,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                           </Button>
                           {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                         </div>
-                      </button>
+                      </div>
                     </div>
+
 
                     {/* Expanded body */}
                     {isExpanded && (
