@@ -1037,10 +1037,16 @@ const AIChat = () => {
   }
 
   return (
-    <div className="flex h-[calc(100vh-57px)] md:h-screen">
+    <div className="relative flex h-[calc(100vh-57px)] md:h-screen w-full min-w-0 overflow-x-hidden">
       {/* Chat History Sidebar */}
       {showHistory && (
-        <div className="w-72 border-r bg-sidebar p-4 space-y-3 overflow-auto">
+        <>
+          {/* Mobile backdrop */}
+          <div
+            className="md:hidden fixed inset-0 bg-black/40 z-30"
+            onClick={() => setShowHistory(false)}
+          />
+          <div className="absolute md:relative z-40 md:z-auto inset-y-0 left-0 w-72 max-w-[85vw] border-r bg-sidebar p-4 space-y-3 overflow-auto shrink-0">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold">
               {mode === "learning" ? "Study" : "Exam Prep"} History
