@@ -1163,29 +1163,29 @@ const AIChat = () => {
       {/* Main Chat Area */}
       <div className="flex flex-1 flex-col min-w-0">
         {/* Header */}
-        <div className="flex items-center justify-between border-b px-5 py-3">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setShowHistory(!showHistory)} className="rounded-lg p-2 hover:bg-muted transition-colors" title="Chat History">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 sm:px-5 py-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button onClick={() => setShowHistory(!showHistory)} className="rounded-lg p-2 hover:bg-muted transition-colors shrink-0" title="Chat History">
               <History className="h-5 w-5" />
             </button>
             <Tabs value={mode} onValueChange={handleModeSwitch}>
               <TabsList className="h-10">
-                <TabsTrigger value="learning" className="text-sm px-5 h-8 gap-2">
-                  <BookOpen className="h-4 w-4" /> Study
+                <TabsTrigger value="learning" className="text-sm px-3 sm:px-5 h-8 gap-2">
+                  <BookOpen className="h-4 w-4" /> <span className="hidden sm:inline">Study</span>
                 </TabsTrigger>
-                <TabsTrigger value="exam" className="text-sm px-5 h-8 gap-2">
-                  <Clock className="h-4 w-4" /> Exam Prep
+                <TabsTrigger value="exam" className="text-sm px-3 sm:px-5 h-8 gap-2">
+                  <Clock className="h-4 w-4" /> <span className="hidden sm:inline">Exam Prep</span>
                 </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
           {mode === "learning" && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowPractice(true)}>
-                <Dumbbell className="h-4 w-4" /> Practice Questions
+                <Dumbbell className="h-4 w-4" /> <span className="hidden sm:inline">Practice Questions</span>
               </Button>
               <Button variant="outline" size="sm" className="h-9 text-sm" onClick={createNewChat}>
-                <Plus className="mr-2 h-4 w-4" /> New Chat
+                <Plus className="sm:mr-2 h-4 w-4" /> <span className="hidden sm:inline">New Chat</span>
               </Button>
             </div>
           )}
