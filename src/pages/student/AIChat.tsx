@@ -1157,10 +1157,11 @@ const AIChat = () => {
             })()}
           </div>
         </div>
+        </>
       )}
 
       {/* Main Chat Area */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col min-w-0">
         {/* Header */}
         <div className="flex items-center justify-between border-b px-5 py-3">
           <div className="flex items-center gap-3">
