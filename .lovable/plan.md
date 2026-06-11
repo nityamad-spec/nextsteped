@@ -1,85 +1,42 @@
-# Eliminate remaining hardcoded / mock data dependencies
+# Fix horizontal scroll on `/student/chat`
 
-## Scan results
+When the page is zoomed (or viewed at a narrow width), the chat creates a horizontal scrollbar. Root causes are in `src/pages/student/AIChat.tsx`:
 
-Everything user-facing in the app reads from Supabase except the surfaces below. Three buckets: **fake numbers shown to users**, **stale defaults leaking through `currentCourse`**, and **dead static data still imported**.
+1. **Fixed-width sidebar (`w-72` = 288px)** sits side-by-side with the main chat area. As the effective viewport shrinks (zoom), 288px + main content overflows.
+2. **Header row** holds the history button + Tabs (`Study` / `Exam Prep`) on the left and two buttons (`Practice Questions`, `New Chat`) on the right with no wrap, no `min-w-0`, no shrinking — pushes width past the viewport.
+3. **Flex children missing `min-w-0`** on the main chat column → long content (code blocks, URLs, ExamPrepPanel inputs) prevents the column from shrinking.
+4. **ExamPrepPanel** and message bubbles can contain unbreakable strings (code, long tokens) that force width.
+5. Root container `flex h-[calc(100vh-57px)] md:h-screen` has no `overflow-x-hidden` / `w-full min-w-0` so overflow bubbles up to the page.
 
-### A. Fake numbers shown to users
+## Changes (all in `src/pages/student/AIChat.tsx`, plus tiny touch in `ExamPrepPanel.tsx`)
 
-| Surface | Hardcoded data | Source |
-|---|---|---|
-| `/student/progress` (StudentProgress) | "Overall Mastery", "Topic Strengths", "Areas to Improve" computed from `mockTopics` (Python-only, fake percentages). Plus literals: `62%` Exam Readiness, `4 days` Learning Streak, `learningJourney` Aug–Nov 2025 timeline. | `src/data/mockData.ts` + inline |
-| `src/pages/teacher/StudentInsights.tsx` | Entire page: `weeklyEngagement`, `masteryMovement`, `topicDetails`, `mockDashboard.activeStudents/atRiskCount`, `mockTopics` heatmap, literal `72%` Class Avg Mastery, `6.6` Avg Sessions/Student. **Imported in `App.tsx` but never routed — dead.** | `mockData.ts` + inline |
+### 1. Root chat container
+- Add `w-full min-w-0 overflow-x-hidden` to the top-level wrapper (both the active-assessment branch and the main return).
 
-### B. Stale defaults leaking via `currentCourse`
+### 2. Sidebar becomes responsive
+- Below `md` (≤768px), render the sidebar as an overlay (absolute-positioned drawer with backdrop) instead of taking layout width. At `md+`, keep the current inline `w-72` sidebar.
+- Keep the existing toggle button; just change layout classes so the sidebar no longer competes for width on small/zoomed viewports.
 
-`mockCourse` (Intro to Python, sections `["Section A","Section B"]`, `startDate "2025-08-25"`, `endDate "2025-12-15"`, `published: true`, `syllabusUploaded: true`, `materialsUploaded: true`, `enrollmentCode "NEXTPY101"`) is spread into `setCurrentCourse({...mockCourse, …})` in two places:
+### 3. Main column shrink-safe
+- Add `min-w-0` to the `Main Chat Area` wrapper (`flex flex-1 flex-col` → `flex flex-1 flex-col min-w-0`).
+- Add `min-w-0` to the messages container and ensure `break-words` on message bubbles (`max-w-[85%] … break-words overflow-wrap-anywhere`). Add `overflow-x-auto` only to `<pre>`/code inside prose via a small class so code scrolls inside the bubble, not the page.
 
-- `src/pages/teacher/TeacherOnboarding.tsx`
-- `src/pages/teacher/NewCoursePage.tsx`
+### 4. Header responsiveness
+- Wrap the header row: `flex flex-wrap items-center justify-between gap-2`.
+- Allow the Tabs group to shrink: `min-w-0` on its container; on very narrow widths drop the tab text labels to icon-only (`hidden sm:inline` on "Study" / "Exam Prep" text).
+- Right-side actions: allow wrap, shorten labels on `<sm` (icon-only buttons with `sr-only` text), and add `flex-wrap`.
 
-The bogus sections/dates then surface as defaults in `SettingsIntegrity`, `PublishEnrollment`, `EnrollmentSettings`, `CourseDashboard`, and (separately) a literal `["Section A","Section B"]` fallback in `SettingsIntegrity.tsx:92`.
+### 5. ExamPrepPanel containment
+- Ensure the panel itself uses `w-full min-w-0` and inputs/selects don't push beyond their container. The single `max-w-[140px]` input is fine; just confirm the surrounding flex rows use `flex-wrap gap-2` (already partially the case — add where missing).
 
-`src/contexts/AppContext.tsx` also imports `mockCourse` but doesn't reference it — dead import.
-
-### C. Dead static modules
-
-- `src/data/mockData.ts` exports — unreferenced: `mockQuizQuestions`, `mockSyllabusRecommendations`, `mockContentItems`, `mockLearningChatMessages`, `mockExamChatMessages`, `availableCourses`.
-- `src/data/workshopPlan.ts` — the `workshopPlan` array and `WorkshopResource/WorkshopDay/groupResourcesByConcept` exports are no longer imported anywhere; the legacy "Workshop" naming also violates the "Lesson Plan" memory rule.
-- `availableDepartments` — still used by `TeacherOnboarding` and `TeacherApplicationForm`. Real list, low-churn, fine to keep as a static constant; **not** treated as a bug here.
-- `defaultTASettings`, `defaultStudyPrompt`, `defaultExamPrompt` — these are legitimate seed defaults, **kept**.
-
-## Fix plan
-
-### 1. Stop spreading `mockCourse` into `currentCourse`
-
-In `TeacherOnboarding.tsx` and `NewCoursePage.tsx`, replace `setCurrentCourse({ ...mockCourse, id, name, term, objectives, enrollmentCode })` with an explicit, honest object:
-
-```ts
-setCurrentCourse({
-  id,
-  name,
-  term,
-  objectives,
-  enrollmentCode,
-  sections: [],          // populated when professor adds rosters
-  startDate: "",         // set in EnrollmentSettings
-  endDate: "",
-  syllabusUploaded: false,
-  materialsUploaded: false,
-  published: false,
-});
-```
-
-Make any required-but-missing fields in the `Course` type optional if the type currently forbids `""`/`[]` — already mostly nullable per the existing `currentCourse?.…` access patterns.
-
-In `src/pages/teacher/SettingsIntegrity.tsx` line 92, remove the literal `["Section A", "Section B"]` fallback; render an empty-state ("No sections added yet") when `currentCourse?.sections` is empty.
-
-Drop the unused `mockCourse` import from `src/contexts/AppContext.tsx`.
-
-### 2. Replace `/student/progress` content
-
-Per memory, Student Progress is marked "Soon" in the nav. Two options:
-
-- **Recommended:** Replace the routed component with a real "Coming Soon" placeholder card (matches the nav state). Removes every fake percentage and the `mockTopics` dependency in one shot. Tiny diff.
-- Alternative: rebuild the stats from `student_concept_mastery` / `student_course_mastery` / `chat_sessions` / `assessment_results` — heavier, but the data is already there. Reuse the same loader pattern already implemented on `StudentHome` for concept mastery.
-
-Pick **placeholder now**; revisit when the page is actually being built out.
-
-### 3. Delete dead code
-
-- Delete `src/pages/teacher/StudentInsights.tsx` and remove its `App.tsx` import (no route references it).
-- Delete `src/data/workshopPlan.ts`.
-- Remove these unused exports from `src/data/mockData.ts`: `mockCourse`, `mockTopics`, `mockQuizQuestions`, `mockSyllabusRecommendations`, `mockContentItems`, `mockDashboard`, `mockLearningChatMessages`, `mockExamChatMessages`, `availableCourses`. Keep only `defaultStudyPrompt`, `defaultExamPrompt`, `defaultTASettings`, `availableDepartments`. Consider renaming the file to `src/data/defaults.ts` for clarity, but that's optional.
-
-### 4. Verification
-
-- TypeScript build passes (the agent loop runs it automatically).
-- Grep `rg -n "mock|getQuizQuestions|getExamQuestions|workshopPlan|StudentInsights" src` returns nothing actionable.
-- Smoke check in preview: `/teacher/courses/new` and `/teacher/onboarding` create a course; `SettingsIntegrity` and `PublishEnrollment` no longer show ghost sections/dates; `/student/progress` shows the Coming Soon card.
+### 6. Suggested-prompts grid
+- Already `grid gap-2 sm:grid-cols-2`. Add `min-w-0` to the wrapper and `break-words` to the prompt text to prevent overflow on zoom.
 
 ## Out of scope
+- No business-logic changes, no message-handling changes, no backend changes.
+- No restyling beyond what's needed to remove horizontal overflow.
 
-- Building out a real Student Progress page (heavier feature; placeholder now keeps it honest).
-- Moving `availableDepartments` into the DB — present list is fine for now.
-- Backfilling existing local-storage `ns_current_course` entries that already carry stale mock fields. Next professor save will overwrite them; we accept one stale render per user as the migration cost.
+## Verification
+- Open `/student/chat` and zoom to 150% / 200%; confirm no horizontal scrollbar and content reflows.
+- Resize browser to ~360px width; sidebar opens as overlay, header wraps, no horizontal scroll.
+- Long code message inside an assistant bubble scrolls inside the bubble, not the page.

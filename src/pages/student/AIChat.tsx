@@ -1003,7 +1003,7 @@ const AIChat = () => {
       : (taSettings.quizTimeLimit || 10);
 
     return (
-      <div className="flex h-[calc(100vh-57px)] md:h-screen flex-col">
+      <div className="flex h-[calc(100vh-57px)] md:h-screen flex-col w-full min-w-0 overflow-x-hidden">
         <AssessmentView
           type={assessmentType}
           questions={assessmentQuestions}
