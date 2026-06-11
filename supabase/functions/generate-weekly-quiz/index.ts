@@ -82,7 +82,10 @@ function validateQuestion(
   diff = Math.max(0, Math.min(1, diff));
 
   const bloom = Math.round(Number(q.bloom_level));
-  const bloomSafe = Number.isInteger(bloom) && bloom >= 1 && bloom <= 6 ? bloom : 2;
+  if (!Number.isInteger(bloom) || bloom < 1 || bloom > 4) {
+    return { ok: false, reason: `bloom_level ${q.bloom_level} not allowed for MCQ/TF (must be 1-4)` };
+  }
+  const bloomSafe = bloom;
 
   const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
   if (!explanation) return { ok: false, reason: "empty explanation" };
