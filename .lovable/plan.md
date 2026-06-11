@@ -1,36 +1,12 @@
-# Fix: Weekly Breakdown weeks won't drag-reorder
+Root cause found: the drag interaction fires, but `onReorder` calls `setWeeks(newOrder)`, and the local `setWeeks` wrapper immediately calls `normalizeWeeks(next)`. `normalizeWeeks` sorts by the existing `week` number before renumbering, so the dragged array is sorted back into its original order every time.
 
-## Root cause
+Plan:
+1. Add a separate helper for preserving the current array order while renumbering weeks, e.g. `renumberWeeksInCurrentOrder(list)`.
+2. Keep `normalizeWeeks` for restore/database/generated-plan loading, where sorting by `week` is still useful.
+3. Change only the Weekly Breakdown `Reorder.Group` handler to use the new helper directly:
+   - accept `newOrder` from framer-motion
+   - renumber based on that dragged order
+   - mark the plan unpublished, matching current behavior
+4. Leave the existing drag handle, card layout, persistence effect, and publish flow unchanged.
 
-In `src/pages/teacher/CourseCreation.tsx` (lines ~1451–1858), the Weekly Breakdown uses framer-motion's `Reorder.Group` / `Reorder.Item`:
-
-```tsx
-<Reorder.Group axis="y" values={weeks} onReorder={...}>
-  <div className="space-y-3">          {/* ← wrapper breaks reorder */}
-    {weeks.map((w) => (
-      <DraggableWeekItem key={w.id} value={w}> ... </DraggableWeekItem>
-    ))}
-  </div>
-</Reorder.Group>
-```
-
-Framer-motion requires `Reorder.Item` to be a **direct child** of `Reorder.Group`. The intermediate `<div className="space-y-3">` means the Group can't track item positions, so:
-
-- The grip's `onPointerDown` does call `controls.start(e)` (that part is fine), but
-- The Group never sees the items as its children, so the drag has no siblings to swap with → the week visually doesn't move and `onReorder` never fires.
-
-The grip handler itself is correct (`dragListener={false}` + `dragControls` + `touchAction: "none"` + `e.preventDefault()` + `controls.start(e)`), and `Reorder.Item` is correctly receiving a stable `value={w}` keyed by `w.id`.
-
-## Fix
-
-1. Remove the wrapping `<div className="space-y-3">` so `Reorder.Item`s are direct children of `Reorder.Group`.
-2. Move the spacing onto `Reorder.Group` itself: `<Reorder.Group axis="y" values={weeks} onReorder={...} className="space-y-3 list-none p-0 m-0">` (Reorder.Group renders a `<ul>` by default — the list reset keeps the visual unchanged).
-3. No other changes needed — `DraggableWeekItem` (lines 70–88), the grip pointer handler (lines 1465–1474), and `onReorder={(newOrder) => setWeeks(newOrder)}` are already correct.
-
-## Files
-
-- `src/pages/teacher/CourseCreation.tsx` — lines ~1451–1456 and the matching closing tags at ~1856–1858.
-
-## Out of scope
-
-- No changes to drag handle styling, week-number resync logic, or persistence. Pure structural fix so framer-motion can see the items.
+Expected result: dragging Week 1 below Week 2 will immediately reorder the cards and relabel them sequentially, instead of snapping back.

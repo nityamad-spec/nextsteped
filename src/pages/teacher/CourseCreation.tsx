@@ -71,7 +71,7 @@ function DraggableWeekItem({
   value,
   children,
 }: {
-  value: WeekPlan;
+  value: string;
   children: (controls: DragControls) => ReactNode;
 }) {
   const controls = useDragControls();
@@ -113,6 +113,9 @@ const normalizeWeeks = (list: WeekPlan[]): WeekPlan[] =>
     .slice()
     .sort((a, b) => (a.week || 0) - (b.week || 0))
     .map((w, i) => ({ ...w, week: i + 1 }));
+
+const renumberWeeksInCurrentOrder = (list: WeekPlan[]): WeekPlan[] =>
+  list.map((w, i) => ({ ...w, week: i + 1 }));
 
 interface CourseCreationProps {
   embedded?: boolean;
@@ -1450,14 +1453,18 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         {/* Week Cards */}
         <Reorder.Group
           axis="y"
-          values={weeks}
-          onReorder={(newOrder) => setWeeks(newOrder)}
+          values={weeks.map((w) => w.id)}
+          onReorder={(newOrder) => {
+            const byId = new Map(weeks.map((w) => [w.id, w]));
+            setWeeksRaw(renumberWeeksInCurrentOrder(newOrder.map((id) => byId.get(id)).filter(Boolean) as WeekPlan[]));
+            setPublished(false);
+          }}
           className="space-y-3 list-none p-0 m-0"
         >
           {weeks.map((w) => {
               const isExpanded = expandedWeeks.includes(w.id);
               return (
-                <DraggableWeekItem key={w.id} value={w}>
+                <DraggableWeekItem key={w.id} value={w.id}>
                   {(controls) => (
                   <Card className={`overflow-hidden transition-all ${isExpanded ? "shadow-md" : ""} ${w.is_exam_week ? "border-amber-500/40" : ""}`}>
                     {/* Header */}
@@ -1466,7 +1473,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                         role="button"
                         aria-label="Drag to reorder week"
                         tabIndex={-1}
-                        onPointerDown={(e) => { e.preventDefault(); controls.start(e); }}
+                          onPointerDown={(e) => { controls.start(e); e.preventDefault(); }}
                         style={{ touchAction: "none" }}
                         className="flex items-center justify-center p-1 cursor-grab active:cursor-grabbing shrink-0"
                       >
