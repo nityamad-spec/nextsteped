@@ -133,7 +133,7 @@ STRICT RULES:
 - MCQ: exactly 4 distinct non-empty options (no "A)" prefixes). 'answer' is the FULL TEXT of the correct option.
 - True/False: options MUST be exactly ["True", "False"]. 'answer' must be "True" or "False".
 - difficulty_estimate: number near ${spec.difficulty} (±0.15).
-- bloom_level: integer 1-6.
+- bloom_level: integer 1-4 ONLY (1=Remember, 2=Understand, 3=Apply, 4=Analyze). Do NOT use 5 (Evaluate) or 6 (Create) — these cannot be fairly assessed with MCQ or True/False.
 - content_text: question stem only, ≤ 600 chars.
 - explanation: 1-2 sentences explaining the correct answer.
 - topic: MUST exactly match one of the concept codes above.
