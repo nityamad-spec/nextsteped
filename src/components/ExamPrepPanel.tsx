@@ -53,10 +53,11 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard, examCount = 0, ne
     setQuestionCount(Math.max(1, Math.min(100, parsed)));
   };
 
+  const noExamAvailable = examCount === 0;
   const upcomingExamPosition = examCount > 0 ? (nextExamIndex % examCount) + 1 : 0;
   const availabilityNote =
     examCount === 0
-      ? "Your professor hasn't published a practice exam yet — you'll get a sample set."
+      ? "Your professor hasn't published a practice exam yet."
       : examCount === 1
         ? "1 practice exam available from your professor — you can retake it as often as you like."
         : `${examCount} practice exams available from your professor — each Start Exam rotates to the next one (next up: Exam ${upcomingExamPosition} of ${examCount}).`;
