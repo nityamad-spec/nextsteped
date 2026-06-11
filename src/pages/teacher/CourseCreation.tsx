@@ -1473,7 +1473,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                         role="button"
                         aria-label="Drag to reorder week"
                         tabIndex={-1}
-                        onPointerDown={(e) => { e.preventDefault(); controls.start(e); }}
+                          onPointerDown={(e) => { controls.start(e); e.preventDefault(); }}
                         style={{ touchAction: "none" }}
                         className="flex items-center justify-center p-1 cursor-grab active:cursor-grabbing shrink-0"
                       >
