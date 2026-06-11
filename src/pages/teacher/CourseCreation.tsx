@@ -71,7 +71,7 @@ function DraggableWeekItem({
   value,
   children,
 }: {
-  value: WeekPlan;
+  value: string;
   children: (controls: DragControls) => ReactNode;
 }) {
   const controls = useDragControls();
@@ -1453,9 +1453,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         {/* Week Cards */}
         <Reorder.Group
           axis="y"
-          values={weeks}
+          values={weeks.map((w) => w.id)}
           onReorder={(newOrder) => {
-            setWeeksRaw(renumberWeeksInCurrentOrder(newOrder));
+            const byId = new Map(weeks.map((w) => [w.id, w]));
+            setWeeksRaw(renumberWeeksInCurrentOrder(newOrder.map((id) => byId.get(id)).filter(Boolean) as WeekPlan[]));
             setPublished(false);
           }}
           className="space-y-3 list-none p-0 m-0"
@@ -1463,7 +1464,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           {weeks.map((w) => {
               const isExpanded = expandedWeeks.includes(w.id);
               return (
-                <DraggableWeekItem key={w.id} value={w}>
+                <DraggableWeekItem key={w.id} value={w.id}>
                   {(controls) => (
                   <Card className={`overflow-hidden transition-all ${isExpanded ? "shadow-md" : ""} ${w.is_exam_week ? "border-amber-500/40" : ""}`}>
                     {/* Header */}
