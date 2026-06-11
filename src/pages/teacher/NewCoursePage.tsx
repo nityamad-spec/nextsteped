@@ -86,12 +86,17 @@ const NewCoursePage = () => {
 
       localStorage.setItem("currentCourseId", data.id);
       setCurrentCourse({
-        ...mockCourse,
         id: data.id,
         name: data.name,
-        term: (term as any) || mockCourse.term,
+        term: (term as any) || "First Semester",
         objectives: learningObjective.split("\n").filter(Boolean),
         enrollmentCode: data.enrollment_code,
+        sections: [],
+        syllabusUploaded: false,
+        materialsUploaded: false,
+        published: false,
+        startDate: "",
+        endDate: "",
       });
 
       toast.success(`"${data.name}" created`);
