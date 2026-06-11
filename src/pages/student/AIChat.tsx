@@ -940,7 +940,7 @@ const AIChat = () => {
           {isUser ? userInitial : <Sparkles className="w-4 h-4" />}
         </div>
         {/* Bubble */}
-        <div className={`max-w-[85%] rounded-xl px-4 py-3 text-sm ${
+        <div className={`max-w-[85%] min-w-0 rounded-xl px-4 py-3 text-sm break-words [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:max-w-full ${
           isUser
             ? "bg-primary text-primary-foreground shadow-sm"
             : "bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm"
@@ -1003,7 +1003,7 @@ const AIChat = () => {
       : (taSettings.quizTimeLimit || 10);
 
     return (
-      <div className="flex h-[calc(100vh-57px)] md:h-screen flex-col">
+      <div className="flex h-[calc(100vh-57px)] md:h-screen flex-col w-full min-w-0 overflow-x-hidden">
         <AssessmentView
           type={assessmentType}
           questions={assessmentQuestions}
@@ -1037,10 +1037,16 @@ const AIChat = () => {
   }
 
   return (
-    <div className="flex h-[calc(100vh-57px)] md:h-screen">
+    <div className="relative flex h-[calc(100vh-57px)] md:h-screen w-full min-w-0 overflow-x-hidden">
       {/* Chat History Sidebar */}
       {showHistory && (
-        <div className="w-72 border-r bg-sidebar p-4 space-y-3 overflow-auto">
+        <>
+          {/* Mobile backdrop */}
+          <div
+            className="md:hidden fixed inset-0 bg-black/40 z-30"
+            onClick={() => setShowHistory(false)}
+          />
+          <div className="absolute md:relative z-40 md:z-auto inset-y-0 left-0 w-72 max-w-[85vw] border-r bg-sidebar p-4 space-y-3 overflow-auto shrink-0">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold">
               {mode === "learning" ? "Study" : "Exam Prep"} History
@@ -1151,34 +1157,35 @@ const AIChat = () => {
             })()}
           </div>
         </div>
+        </>
       )}
 
       {/* Main Chat Area */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col min-w-0">
         {/* Header */}
-        <div className="flex items-center justify-between border-b px-5 py-3">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setShowHistory(!showHistory)} className="rounded-lg p-2 hover:bg-muted transition-colors" title="Chat History">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 sm:px-5 py-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button onClick={() => setShowHistory(!showHistory)} className="rounded-lg p-2 hover:bg-muted transition-colors shrink-0" title="Chat History">
               <History className="h-5 w-5" />
             </button>
             <Tabs value={mode} onValueChange={handleModeSwitch}>
               <TabsList className="h-10">
-                <TabsTrigger value="learning" className="text-sm px-5 h-8 gap-2">
-                  <BookOpen className="h-4 w-4" /> Study
+                <TabsTrigger value="learning" className="text-sm px-3 sm:px-5 h-8 gap-2">
+                  <BookOpen className="h-4 w-4" /> <span className="hidden sm:inline">Study</span>
                 </TabsTrigger>
-                <TabsTrigger value="exam" className="text-sm px-5 h-8 gap-2">
-                  <Clock className="h-4 w-4" /> Exam Prep
+                <TabsTrigger value="exam" className="text-sm px-3 sm:px-5 h-8 gap-2">
+                  <Clock className="h-4 w-4" /> <span className="hidden sm:inline">Exam Prep</span>
                 </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
           {mode === "learning" && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowPractice(true)}>
-                <Dumbbell className="h-4 w-4" /> Practice Questions
+                <Dumbbell className="h-4 w-4" /> <span className="hidden sm:inline">Practice Questions</span>
               </Button>
               <Button variant="outline" size="sm" className="h-9 text-sm" onClick={createNewChat}>
-                <Plus className="mr-2 h-4 w-4" /> New Chat
+                <Plus className="sm:mr-2 h-4 w-4" /> <span className="hidden sm:inline">New Chat</span>
               </Button>
             </div>
           )}
@@ -1218,7 +1225,7 @@ const AIChat = () => {
 
 
         {/* Messages */}
-        <div className="flex-1 overflow-auto p-4 space-y-4">
+        <div className="flex-1 overflow-auto p-4 space-y-4 min-w-0">
           {chatsLoading ? (
             <div className="flex h-full items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
