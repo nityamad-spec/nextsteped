@@ -374,14 +374,10 @@ Examples:
   difficulty_justification: "SINGLE_STEP: One indexing operation determines the output."${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
 
 
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    signal: AbortSignal.timeout(300_000),
-    headers: {
-      Authorization: `Bearer ${lovableKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  // Retry transient upstream errors (5xx, 429) with exponential backoff so a
+  // brief gateway hiccup doesn't burn one of the tier's MAX_ATTEMPTS.
+  const GATEWAY_RETRIES = 4;
+  const baseBody = JSON.stringify({
       model: MODEL,
       temperature: 0.3,
       messages: [
@@ -440,12 +436,37 @@ Examples:
         },
       ],
       tool_choice: { type: "function", function: { name: "submit_questions" } },
-    }),
-  });
+    });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`AI gateway ${response.status}: ${errText.slice(0, 200)}`);
+  let response: Response | null = null;
+  let lastErr = "";
+  for (let attempt = 0; attempt < GATEWAY_RETRIES; attempt++) {
+    try {
+      response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        signal: AbortSignal.timeout(120_000),
+        headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
+        body: baseBody,
+      });
+      if (response.ok) break;
+      // Retry on 429 / 5xx; fail fast on 4xx (client errors won't fix themselves)
+      if (response.status !== 429 && response.status < 500) {
+        const errText = await response.text();
+        throw new Error(`AI gateway ${response.status}: ${errText.slice(0, 200)}`);
+      }
+      lastErr = `${response.status}: ${(await response.text()).slice(0, 120)}`;
+    } catch (e) {
+      lastErr = (e as Error).message.slice(0, 160);
+      // network/timeout — fall through to backoff
+    }
+    if (attempt < GATEWAY_RETRIES - 1) {
+      const backoff = 1000 * Math.pow(2, attempt) + Math.floor(Math.random() * 500);
+      await new Promise((r) => setTimeout(r, backoff));
+    }
+  }
+
+  if (!response || !response.ok) {
+    throw new Error(`AI gateway transient failure after ${GATEWAY_RETRIES} retries: ${lastErr}`);
   }
 
   const data = await response.json();
