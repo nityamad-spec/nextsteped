@@ -65,13 +65,7 @@ Only return units as an empty array if the document contains no subject-matter c
 
     // Build messages based on whether we have base64 (binary file) or text content
     const userMessages: any[] = [];
-    const IMAGE_MIMES = new Set([
-      "image/png",
-      "image/jpeg",
-      "image/gif",
-      "image/bmp",
-      "image/webp",
-    ]);
+    const IMAGE_MIMES = new Set(["image/png", "image/jpeg", "image/gif", "image/bmp", "image/webp"]);
 
     if (fileBase64) {
       // Binary file — route by MIME type. The Lovable AI Gateway is a passthrough
@@ -130,13 +124,12 @@ ${fileContent}
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
-      signal: AbortSignal.timeout(300_000),
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-pro",
         messages: [{ role: "system", content: systemPrompt }, ...userMessages],
         tools: [
           {
@@ -159,7 +152,10 @@ ${fileContent}
                     items: {
                       type: "object",
                       properties: {
-                        unit_number: { type: "number", description: "Unit/module number, starting at 1 in document order" },
+                        unit_number: {
+                          type: "number",
+                          description: "Unit/module number, starting at 1 in document order",
+                        },
                         title: { type: "string", description: "Unit title/heading copied verbatim from the document" },
                         topics: {
                           type: "array",
@@ -170,8 +166,7 @@ ${fileContent}
                       required: ["unit_number", "title", "topics"],
                       additionalProperties: false,
                     },
-                    description:
-                      "Syllabus body organized by unit/module/week, in document order.",
+                    description: "Syllabus body organized by unit/module/week, in document order.",
                   },
                   outcomes: {
                     type: "array",
