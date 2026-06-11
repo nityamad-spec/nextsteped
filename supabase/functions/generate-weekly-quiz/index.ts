@@ -168,7 +168,7 @@ STRICT RULES:
                       options: { type: "array", items: { type: "string" } },
                       answer: { type: "string" },
                       difficulty_estimate: { type: "number" },
-                      bloom_level: { type: "integer", minimum: 1, maximum: 6 },
+                      bloom_level: { type: "integer", minimum: 1, maximum: 4 },
                       explanation: { type: "string" },
                       topic: { type: "string" },
                     },
