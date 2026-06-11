@@ -26,6 +26,65 @@ const SettingsIntegrity = () => {
   const [copied, setCopied] = useState(false);
   const [dbEnrollmentCode, setDbEnrollmentCode] = useState<string | null>(null);
 
+  const [courseId, setCourseId] = useState<string | null>(null);
+  const [objectivesText, setObjectivesText] = useState("");
+  const [objectivesLoading, setObjectivesLoading] = useState(true);
+  const [objectivesSaving, setObjectivesSaving] = useState(false);
+  const [objectivesSavedAt, setObjectivesSavedAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    const loadObjectives = async () => {
+      setObjectivesLoading(true);
+      let id = currentCourse?.id ?? null;
+      if (!id && user?.id) {
+        const { data } = await supabase
+          .from("courses")
+          .select("id")
+          .eq("teacher_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        id = data?.id ?? null;
+      }
+      if (!id) { setObjectivesLoading(false); return; }
+      setCourseId(id);
+      const { data } = await supabase
+        .from("courses")
+        .select("objectives")
+        .eq("id", id)
+        .maybeSingle();
+      const arr = Array.isArray(data?.objectives) ? (data!.objectives as string[]) : [];
+      setObjectivesText(arr.join("\n"));
+      setObjectivesLoading(false);
+    };
+    loadObjectives();
+  }, [currentCourse?.id, user?.id]);
+
+  const objectivesList = objectivesText
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const saveObjectives = async () => {
+    if (!courseId) {
+      toast.error("No course found to update");
+      return;
+    }
+    setObjectivesSaving(true);
+    const { error } = await supabase
+      .from("courses")
+      .update({ objectives: objectivesList })
+      .eq("id", courseId);
+    setObjectivesSaving(false);
+    if (error) {
+      toast.error(`Failed to save: ${error.message}`);
+      return;
+    }
+    setObjectivesSavedAt(new Date());
+    toast.success("Course objectives saved");
+  };
+
+
   useEffect(() => {
     const fetchCode = async () => {
       const courseId = currentCourse?.id;
