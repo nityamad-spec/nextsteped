@@ -32,6 +32,63 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_gateway_call_log: {
+        Row: {
+          attempt: number | null
+          context: Json
+          course_id: string | null
+          created_at: string
+          duration_ms: number | null
+          error_code: string | null
+          error_message: string | null
+          function_name: string
+          http_status: number | null
+          id: string
+          model: string | null
+          outcome: string
+          purpose: string | null
+          request_id: string | null
+          teacher_id: string | null
+          total_attempts: number | null
+        }
+        Insert: {
+          attempt?: number | null
+          context?: Json
+          course_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          function_name: string
+          http_status?: number | null
+          id?: string
+          model?: string | null
+          outcome: string
+          purpose?: string | null
+          request_id?: string | null
+          teacher_id?: string | null
+          total_attempts?: number | null
+        }
+        Update: {
+          attempt?: number | null
+          context?: Json
+          course_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          function_name?: string
+          http_status?: number | null
+          id?: string
+          model?: string | null
+          outcome?: string
+          purpose?: string | null
+          request_id?: string | null
+          teacher_id?: string | null
+          total_attempts?: number | null
+        }
+        Relationships: []
+      }
       assessment_questions: {
         Row: {
           answer: string
