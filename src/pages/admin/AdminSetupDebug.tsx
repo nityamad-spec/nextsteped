@@ -290,6 +290,10 @@ const AdminSetupDebug = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="ai">
+          <AiGatewayCallsTab />
+        </TabsContent>
       </Tabs>
     </div>
   );
