@@ -387,8 +387,6 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
 
       if (supabaseUrl && serviceRoleKey) {
         const supabaseAdmin: any = createClient(supabaseUrl, serviceRoleKey);
-        const latestUserMessage = messages?.[messages.length - 1]?.content || "";
-
         const ragPromises: Promise<string>[] = [
           fetchSyllabusContext(supabaseAdmin, courseId),
           fetchConceptsContext(supabaseAdmin, courseId),
