@@ -354,6 +354,7 @@ serve(async (req) => {
   try {
     const { messages, mode, studySystemPrompt, examSystemPrompt, relevanceContext, courseId, studentId } =
       await req.json();
+    const latestUserMessage: string = messages?.[messages.length - 1]?.content || "";
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
