@@ -344,6 +344,47 @@ async function classifyScope(args: {
   }
 }
 
+// ---------- Anti-decay history shaping (student path only) ----------
+const ANTI_DECAY_CONFIG = {
+  enabled: true,
+  reminderAfterStudentTurns: 8,
+  maxTurnsSent: 12,
+  reminderText:
+    "Reminder of standing rules: (1) only this course's subject, its concepts, and foundational prerequisites — anything else is out of scope, decline in one or two sentences; (2) keep responses short and matched to the question, no length creep; (3) at most one question per response; (4) never give direct exam or assignment answers.",
+  summaryTemplate:
+    "Summary of earlier conversation (topics only, details omitted): {{topics}}.",
+};
+
+function shapeStudentHistory(messages: Array<{ role: string; content: string }>): {
+  shapedMessages: Array<{ role: string; content: string }>;
+  studentTurns: number;
+} {
+  const studentTurns = messages.filter((m) => m?.role === "user").length;
+  const cap = ANTI_DECAY_CONFIG.maxTurnsSent;
+  if (messages.length <= cap) {
+    return { shapedMessages: messages, studentTurns };
+  }
+  const dropped = messages.slice(0, messages.length - cap);
+  const recent = messages.slice(messages.length - cap);
+  const topicsList = Array.from(
+    new Set(
+      dropped
+        .filter((m) => m?.role === "user")
+        .map((m) => {
+          const clean = (m.content || "").replace(/\s+/g, " ").trim();
+          return clean.length > 60 ? clean.slice(0, 59) + "…" : clean;
+        })
+        .filter(Boolean),
+    ),
+  );
+  const topics = topicsList.length > 0 ? topicsList.join("; ") : "earlier discussion";
+  const summary = ANTI_DECAY_CONFIG.summaryTemplate.replaceAll("{{topics}}", topics);
+  return {
+    shapedMessages: [{ role: "system", content: summary }, ...recent],
+    studentTurns,
+  };
+}
+
 // ---------- Main handler ----------
 
 serve(async (req) => {
