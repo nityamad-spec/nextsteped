@@ -400,6 +400,7 @@ async function callGateway(
   remainingQuota: Record<string, number>,
   lovableKey: string,
   retryHint: string | null,
+  logCtx: { requestId: string; teacherId: string | null; courseId: string | null },
 ): Promise<GeneratedQuestion[]> {
   const remainingList = Object.entries(remainingQuota)
     .filter(([, v]) => v > 0)
