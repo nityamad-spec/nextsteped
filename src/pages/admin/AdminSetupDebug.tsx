@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RefreshCw, Check, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
+import AiGatewayCallsTab from "@/components/admin/AiGatewayCallsTab";
 
 interface LogRow {
   id: string;
