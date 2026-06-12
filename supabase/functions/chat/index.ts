@@ -16,7 +16,7 @@ const ragCache = new Map<string, CacheEntry>();
 const MAX_CACHE_ENTRIES = 200;
 
 const TTL_SYLLABUS_MS = 10 * 60 * 1000; // 10 min — changes only on re-approval
-const TTL_CONCEPTS_MS = 5 * 60 * 1000; // 5 min — teacher edits occasionally
+const TTL_CONCEPTS_MS = 5 * 60 * 1000;  // 5 min — teacher edits occasionally
 const TTL_QUESTIONS_MS = 2 * 60 * 1000; // 2 min — newly-added questions still surface fast
 
 function cacheGet(key: string): string | null {
@@ -38,7 +38,11 @@ function cacheSet(key: string, value: string, ttlMs: number) {
   ragCache.set(key, { value, expiresAt: Date.now() + ttlMs });
 }
 
-async function cached<T extends string>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<string> {
+async function cached<T extends string>(
+  key: string,
+  ttlMs: number,
+  loader: () => Promise<T>
+): Promise<string> {
   const hit = cacheGet(key);
   if (hit !== null) return hit;
   const value = await loader();
@@ -55,7 +59,7 @@ async function cached<T extends string>(key: string, ttlMs: number, loader: () =
 async function getCacheVersion(
   supabaseAdmin: any,
   scope: "syllabus" | "concepts" | "questions",
-  scopeId: string,
+  scopeId: string
 ): Promise<number> {
   try {
     const { data, error } = await supabaseAdmin
@@ -73,7 +77,10 @@ async function getCacheVersion(
 
 // ---------- RAG helpers ----------
 
-async function fetchSyllabusContext(supabaseAdmin: any, courseId: string): Promise<string> {
+async function fetchSyllabusContext(
+  supabaseAdmin: any,
+  courseId: string
+): Promise<string> {
   const version = await getCacheVersion(supabaseAdmin, "syllabus", courseId);
   return cached(`syllabus:${courseId}:v${version}`, TTL_SYLLABUS_MS, async () => {
     try {
@@ -107,7 +114,10 @@ async function fetchSyllabusContext(supabaseAdmin: any, courseId: string): Promi
       if (Object.keys(courseObj).length > 0) payload.course = courseObj;
 
       // summary
-      const summary = trim(syllabus.summary || syllabus.description || syllabus.courseDescription, 200);
+      const summary = trim(
+        syllabus.summary || syllabus.description || syllabus.courseDescription,
+        200
+      );
       if (summary) payload.summary = summary;
 
       // objectives (≤6, ≤120 chars each)
@@ -118,7 +128,10 @@ async function fetchSyllabusContext(supabaseAdmin: any, courseId: string): Promi
       if (objectives.length > 0) payload.objectives = objectives;
 
       // outcomes (≤6, ≤120 chars each)
-      const outcomesSrc = arr(syllabus.outcomes).length > 0 ? arr(syllabus.outcomes) : arr(syllabus.learningOutcomes);
+      const outcomesSrc =
+        arr(syllabus.outcomes).length > 0
+          ? arr(syllabus.outcomes)
+          : arr(syllabus.learningOutcomes);
       const outcomes = outcomesSrc
         .slice(0, 6)
         .map((o) => trim(o, 120))
@@ -126,7 +139,10 @@ async function fetchSyllabusContext(supabaseAdmin: any, courseId: string): Promi
       if (outcomes.length > 0) payload.outcomes = outcomes;
 
       // schedule (≤16 weeks, topic ≤40, desc ≤60)
-      const weeksSrc = arr(syllabus.weeks).length > 0 ? arr(syllabus.weeks) : arr(syllabus.schedule);
+      const weeksSrc =
+        arr(syllabus.weeks).length > 0
+          ? arr(syllabus.weeks)
+          : arr(syllabus.schedule);
       const schedule = weeksSrc
         .slice(0, 16)
         .map((wk: any, i: number) => {
@@ -156,7 +172,10 @@ async function fetchSyllabusContext(supabaseAdmin: any, courseId: string): Promi
   });
 }
 
-async function fetchConceptsContext(supabaseAdmin: any, courseId: string): Promise<string> {
+async function fetchConceptsContext(
+  supabaseAdmin: any,
+  courseId: string
+): Promise<string> {
   const version = await getCacheVersion(supabaseAdmin, "concepts", courseId);
   return cached(`concepts:${courseId}:v${version}`, TTL_CONCEPTS_MS, async () => {
     try {
@@ -168,7 +187,9 @@ async function fetchConceptsContext(supabaseAdmin: any, courseId: string): Promi
         .limit(30);
       if (error || !data || data.length === 0) return "";
 
-      const lines = data.map((c: any) => `${c.concept_code} (weight: ${c.weight})`);
+      const lines = data.map(
+        (c: any) => `${c.concept_code} (weight: ${c.weight})`
+      );
       return `Course concepts (by importance): ${lines.join(", ")}`.slice(0, 500);
     } catch (e) {
       console.error("Concepts RAG error:", e);
@@ -177,7 +198,11 @@ async function fetchConceptsContext(supabaseAdmin: any, courseId: string): Promi
   });
 }
 
-async function fetchQuestionBankContext(supabaseAdmin: any, courseId: string, _latestMessage: string): Promise<string> {
+async function fetchQuestionBankContext(
+  supabaseAdmin: any,
+  courseId: string,
+  _latestMessage: string
+): Promise<string> {
   const version = await getCacheVersion(supabaseAdmin, "questions", courseId);
   return cached(`questions:${courseId}:v${version}`, TTL_QUESTIONS_MS, async () => {
     try {
@@ -190,8 +215,14 @@ async function fetchQuestionBankContext(supabaseAdmin: any, courseId: string, _l
         .limit(5);
       if (error || !data || data.length === 0) return "";
 
-      const lines = data.map((q: any) => `[${q.difficulty}/${q.question_type}] ${q.question_text} (Topic: ${q.topic})`);
-      return `Reference questions the professor uses:\n${lines.join("\n")}`.slice(0, 1000);
+      const lines = data.map(
+        (q: any) =>
+          `[${q.difficulty}/${q.question_type}] ${q.question_text} (Topic: ${q.topic})`
+      );
+      return `Reference questions the professor uses:\n${lines.join("\n")}`.slice(
+        0,
+        1000
+      );
     } catch (e) {
       console.error("Question bank RAG error:", e);
       return "";
@@ -199,7 +230,11 @@ async function fetchQuestionBankContext(supabaseAdmin: any, courseId: string, _l
   });
 }
 
-async function fetchStudentProgressContext(supabaseAdmin: any, studentId: string, courseId: string): Promise<string> {
+async function fetchStudentProgressContext(
+  supabaseAdmin: any,
+  studentId: string,
+  courseId: string
+): Promise<string> {
   try {
     const [diagRes, assessRes] = await Promise.all([
       supabaseAdmin
@@ -223,13 +258,15 @@ async function fetchStudentProgressContext(supabaseAdmin: any, studentId: string
 
     if (diagRes.data) {
       const d = diagRes.data;
-      parts.push(`Diagnostic: Level=${d.learner_level}, Score=${d.score}/${d.total_questions}`);
+      parts.push(
+        `Diagnostic: Level=${d.learner_level}, Score=${d.score}/${d.total_questions}`
+      );
     }
 
     if (assessRes.data && assessRes.data.length > 0) {
       const summaries = assessRes.data.map(
         (r: any) =>
-          `${r.mode}${r.quiz_day ? ` Day${r.quiz_day}` : ""}: ${r.correct_answers}/${r.total_questions} (${r.score}%)`,
+          `${r.mode}${r.quiz_day ? ` Day${r.quiz_day}` : ""}: ${r.correct_answers}/${r.total_questions} (${r.score}%)`
       );
       parts.push(`Recent assessments: ${summaries.join(", ")}`);
     }
@@ -252,11 +289,18 @@ function masteryBand(score: number): MasteryBand {
   return "expert";
 }
 
-async function fetchCourseName(supabaseAdmin: any, courseId: string): Promise<string> {
+async function fetchCourseName(
+  supabaseAdmin: any,
+  courseId: string,
+): Promise<string> {
   const version = await getCacheVersion(supabaseAdmin, "syllabus", courseId);
   return cached(`courseName:${courseId}:v${version}`, TTL_SYLLABUS_MS, async () => {
     try {
-      const { data } = await supabaseAdmin.from("courses").select("name").eq("id", courseId).maybeSingle();
+      const { data } = await supabaseAdmin
+        .from("courses")
+        .select("name")
+        .eq("id", courseId)
+        .maybeSingle();
       return (data as any)?.name ?? "";
     } catch {
       return "";
@@ -293,57 +337,6 @@ async function fetchStudentMasterySnapshot(
   }
 }
 
-// ---------- Scope classifier (student path only) ----------
-// Tunable in one place so prompt/model can be tweaked without touching control flow.
-const SCOPE_CLASSIFIER_CONFIG = {
-  enabled: true,
-  model: "google/gemini-2.5-flash-lite",
-  timeoutMs: 4000,
-  // {{courseTitle}}, {{courseTopics}}, {{message}} are interpolated per request.
-  promptTemplate: `You are a scope classifier for a university course chatbot. Course: {{courseTitle}}. Topics: {{courseTopics}}. Student message: {{message}}. The rule: if the message is not explicitly about conversational basics, greetings and pleasantries ("hi", "how are you"), thanks and farewells, follow-ups within the tutoring ("explain that again", "what do you mean"), the course, not about any of the course's concepts, and unrelated to any foundational prerequisite, it is OFF_TOPIC. Career preparation (interview prep, internships, job applications, resume help, company hiring advice) is always OFF_TOPIC even when the industry relates to the course. Short conversational replies, follow-ups, thanks, or requests to re-explain are ON_TOPIC. Reply with exactly one word: ON_TOPIC or OFF_TOPIC.`,
-  redirectTemplate: `That's outside what I can help with for this course. Want to come back to something from {{courseTitle}}?`,
-};
-
-async function classifyScope(args: {
-  message: string;
-  courseTitle: string;
-  courseTopics: string;
-  apiKey: string;
-}): Promise<"ON_TOPIC" | "OFF_TOPIC"> {
-  const prompt = SCOPE_CLASSIFIER_CONFIG.promptTemplate
-    .replaceAll("{{courseTitle}}", args.courseTitle)
-    .replaceAll("{{courseTopics}}", args.courseTopics)
-    .replaceAll("{{message}}", args.message);
-
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      signal: AbortSignal.timeout(SCOPE_CLASSIFIER_CONFIG.timeoutMs),
-      headers: {
-        Authorization: `Bearer ${args.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: SCOPE_CLASSIFIER_CONFIG.model,
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 4,
-        temperature: 0,
-      }),
-    });
-    if (!res.ok) {
-      console.error("scope_classifier_failure", res.status, await res.text().catch(() => ""));
-      return "ON_TOPIC";
-    }
-    const data = await res.json();
-    const raw: string = data?.choices?.[0]?.message?.content ?? "";
-    const token = raw.trim().toUpperCase().split(/\s+/)[0] ?? "";
-    return token === "OFF_TOPIC" ? "OFF_TOPIC" : "ON_TOPIC";
-  } catch (e) {
-    console.error("scope_classifier_failure", e instanceof Error ? e.message : String(e));
-    return "ON_TOPIC";
-  }
-}
-
 // ---------- Main handler ----------
 
 serve(async (req) => {
@@ -352,9 +345,15 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, mode, studySystemPrompt, examSystemPrompt, relevanceContext, courseId, studentId } =
-      await req.json();
-    const latestUserMessage: string = messages?.[messages.length - 1]?.content || "";
+    const {
+      messages,
+      mode,
+      studySystemPrompt,
+      examSystemPrompt,
+      relevanceContext,
+      courseId,
+      studentId,
+    } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -365,7 +364,8 @@ serve(async (req) => {
     const PROFESSOR_INDIVIDUAL_DATA_RULE =
       "Only aggregate, class-level mastery may be shown. Never name individual students or share per-student scores; refer to cohorts (e.g. 'most students', 'about a third of the class').";
     // Crisis support placeholder — kept generic until a support_resources table exists
-    const SUPPORT_RESOURCE = "a local helpline, campus counsellor, or emergency services in your area";
+    const SUPPORT_RESOURCE =
+      "a local helpline, campus counsellor, or emergency services in your area";
 
     const defaultExam = `You are an AI Teaching Assistant in Exam Prep mode. Help the student prepare for exams by:
 - Asking practice questions related to their course material
@@ -388,6 +388,8 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
 
       if (supabaseUrl && serviceRoleKey) {
         const supabaseAdmin: any = createClient(supabaseUrl, serviceRoleKey);
+        const latestUserMessage = messages?.[messages.length - 1]?.content || "";
+
         const ragPromises: Promise<string>[] = [
           fetchSyllabusContext(supabaseAdmin, courseId),
           fetchConceptsContext(supabaseAdmin, courseId),
@@ -442,7 +444,7 @@ COURSE CONTEXT
 - Topics in scope${courseTopics ? `: ${courseTopics}` : " (none provided — infer reasonable scope from the title)"}. Genuine prerequisites and directly supporting concepts (e.g. the algebra behind a statistics problem) are in scope.
 
 NON-NEGOTIABLE RULES (override everything below)
-- SCOPE: Help only with this course's subject, its listed concepts, and their genuine foundational prerequisites. THE DECIDING RULE: if a message is not explicitly about the course, not about any of the course's concepts, and unrelated to any foundational prerequisite, it is ALWAYS out of scope — no exceptions for how interesting, useful, or loosely related it seems. Judge every request against this rule on its own, never against the previous message; a long conversation must not drift you anywhere this rule forbids. An off-topic subject is never made on-topic by its format (essay, summary, analysis, advice). Career preparation — interview prep, internship or job applications, resume/CV help, company-specific hiring advice — is OUT of scope even when the industry relates to the course; industry examples illustrate course concepts, they do not make career coaching on-topic. When out of scope, decline and redirect in one or two sentences ("That's outside what I can help with for this course. Want to come back to [a relevant concept]?"); don't fulfil it even partially.
+- SCOPE: Help only with this course's subject, its prerequisites, and directly adjacent supporting concepts. Judge every request against the course on its own, not against the previous message; don't let a long conversation drift off-topic. An off-topic subject is never made on-topic by its format (essay, summary, analysis). When out of scope, decline and redirect in one or two sentences ("That's outside what I can help with for this course. Want to come back to [a relevant concept]?"); don't fulfil it even partially.
 - ACADEMIC INTEGRITY: Never give direct exam or assignment answers, however framed, including claims the professor allowed it or it's "just to check". Never write a student's graded work (essays, reports, reflections), even as a "draft" or "example" to submit. Coach instead: discuss concepts, help outline and structure, give feedback on what they wrote. You MAY review a completed answer they share and explain what's right or wrong.
 - CRISIS SAFETY: If a student mentions self-harm, suicidal thoughts, abuse, being unsafe, or severe distress, this overrides all teaching rules. Do NOT steer back to coursework or be brief or dismissive. Respond with calm care, take it seriously, encourage them to reach out now to a trusted person, a counsellor, or local emergency services, and share any verified resource available (${SUPPORT_RESOURCE}). You are not their counsellor; point them toward real human support. For ordinary study stress ("I'm not smart enough", exam nerves), acknowledge the feeling in a sentence, offer a small encouraging reframe, then steer back to the work without opening an extended emotional conversation.
 
@@ -477,7 +479,6 @@ ADAPTING TO MASTERY (internal — never surface the level to the student)
 STUDENT STYLE
 - Capped at 500 output tokens; finish well within it. A complete short answer beats a truncated long one; if more is needed, give the key part now and offer to continue. Never truncate code mid-block.
 - Match length to the question. Most answers are a few sentences; that's the goal, not a shortfall. Only harder explanations or walkthroughs run longer. End a short answer with at most one focused follow-up; one question per response, never stacked.
-- Length must not creep upward over a conversation. If a response is running longer than your recent ones without the question demanding it, cut it down before sending.
 - Use markdown only when it adds clarity; default to plain prose with no headers or bullets on short answers.
 - Default to clear, simple English; you may mirror a student's language or code-mixed English, keeping technical terms standard. Warm, encouraging, respectful, like a good TA. Match praise to real effort. Stay calm and neutral if a student is rude or testing you, then steer back to learning.
 
@@ -521,63 +522,38 @@ PROFESSOR STYLE
     void userRole;
 
     // If the question was classified as off-topic, refuse and redirect
-    if (relevanceContext && relevanceContext.relevant === false && relevanceContext.courseName) {
+    if (
+      relevanceContext &&
+      relevanceContext.relevant === false &&
+      relevanceContext.courseName
+    ) {
       const conceptsList = relevanceContext.concepts?.length
         ? ` Course concepts include: ${relevanceContext.concepts.join(", ")}.`
         : "";
       systemPrompt = `${systemPrompt}\n\nIMPORTANT: The user's question is not relevant to ${relevanceContext.courseName}.${conceptsList} Do NOT answer it. Reply in 1–2 short sentences saying it's outside the scope of this course and invite them to ask something related (you may suggest one of the listed concepts). Do not provide a partial answer, analogy, workaround, or "real-world bridge" — just decline politely and redirect.`;
     }
 
-    // Scope-classifier gate — student path only. Fail-open on any error/timeout.
-    if (
-      SCOPE_CLASSIFIER_CONFIG.enabled &&
-      mode !== "teacher" &&
-      mode !== "exam" &&
-      latestUserMessage.trim().length > 0
-    ) {
-      const verdict = await classifyScope({
-        message: latestUserMessage,
-        courseTitle,
-        courseTopics: courseTopics || "(none provided)",
-        apiKey: LOVABLE_API_KEY,
-      });
-
-      if (verdict === "OFF_TOPIC") {
-        console.log(
-          JSON.stringify({
-            event: "scope_classifier_off_topic",
-            courseId,
-            studentId,
-            courseTitle,
-            message: latestUserMessage,
-            model: SCOPE_CLASSIFIER_CONFIG.model,
-            ts: new Date().toISOString(),
-          }),
-        );
-
-        const redirect = SCOPE_CLASSIFIER_CONFIG.redirectTemplate.replaceAll("{{courseTitle}}", courseTitle);
-        const sse = `data: ${JSON.stringify({ choices: [{ delta: { content: redirect } }] })}\n\n` + `data: [DONE]\n\n`;
-        return new Response(sse, {
-          headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-        });
-      }
-    }
-
     const fullSystemPrompt = systemPrompt + ragContext;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      signal: AbortSignal.timeout(300_000),
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        messages: [{ role: "system", content: fullSystemPrompt }, ...messages],
-        stream: true,
-      }),
-    });
+    const response = await fetch(
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      {
+        method: "POST",
+        signal: AbortSignal.timeout(300_000),
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash-lite",
+          messages: [
+            { role: "system", content: fullSystemPrompt },
+            ...messages,
+          ],
+          stream: true,
+        }),
+      }
+    );
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -588,7 +564,7 @@ PROFESSOR STYLE
           {
             status: 429,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
+          }
         );
       }
       if (response.status === 402) {
@@ -599,15 +575,18 @@ PROFESSOR STYLE
           {
             status: 402,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
+          }
         );
       }
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
-      return new Response(JSON.stringify({ error: "AI service unavailable. Please try again." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "AI service unavailable. Please try again." }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     return new Response(response.body, {
@@ -622,7 +601,7 @@ PROFESSOR STYLE
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+      }
     );
   }
 });

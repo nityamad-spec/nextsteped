@@ -1,98 +1,91 @@
-# Scope-classifier gate for the student chat
+# Track AI Gateway call statuses on /admin/setup-debug
 
-Add a fast, single-message scope classifier inside `supabase/functions/chat/index.ts` that runs **only on the student path** (mode !== "teacher" && mode !== "exam"), right after `STUDENT_SECTION` is composed and before the main TA model call. It uses a lite model, sees only the incoming message + course context (no history), and decides ON_TOPIC vs OFF_TOPIC.
+Today the page only shows `setup_progress_log` (success/failure of `markStep*` writes). We will add a second telemetry stream for outbound calls to `ai.gateway.lovable.dev` so admins can see non-200 responses (429/5xx/timeout/abort) alongside the existing setup writes.
 
-Existing call sites do not need to change — this is purely server-side.
+## 1. New table: `ai_gateway_call_log`
 
-## 1. Tunable config block (top of file)
+Columns:
+- `id uuid pk`
+- `created_at timestamptz default now()`
+- `function_name text` — e.g. `generate-diagnostic-questions`
+- `model text` — e.g. `google/gemini-2.5-flash`
+- `purpose text` — short label set by caller (e.g. `tier:standard`, `week:3`, `classify`)
+- `http_status int` — null on network/timeout/abort
+- `outcome text` — `ok` | `retryable` (429/5xx) | `client_error` (4xx) | `timeout` | `network_error` | `aborted`
+- `attempt int`, `total_attempts int`
+- `duration_ms int`
+- `request_id text` — correlate retries within one user request
+- `teacher_id uuid null`, `course_id uuid null` — best-effort from JWT/body
+- `error_code text null`, `error_message text null` (first ~500 chars of upstream body)
+- `context jsonb default '{}'` — tier, week, prompt tokens estimate, etc.
 
-Add near the other constants so the prompt can be tweaked without touching control flow:
+Indexes: `(created_at desc)`, `(function_name, created_at desc)`, partial `(created_at desc) where outcome <> 'ok'`.
 
-```ts
-const SCOPE_CLASSIFIER_CONFIG = {
-  enabled: true,
-  model: "google/gemini-2.5-flash-lite",
-  timeoutMs: 4000,
-  // {{courseTitle}} and {{courseTopics}} are interpolated at request time.
-  promptTemplate: `You are a scope classifier for a university course chatbot. Course: {{courseTitle}}. Topics: {{courseTopics}}. Student message: {{message}}. The rule: if the message is not explicitly about the course, not about any of the course's concepts, and unrelated to any foundational prerequisite, it is OFF_TOPIC. Career preparation (interview prep, internships, job applications, resume help, company hiring advice) is always OFF_TOPIC even when the industry relates to the course. Short conversational replies, follow-ups, thanks, or requests to re-explain are ON_TOPIC. Reply with exactly one word: ON_TOPIC or OFF_TOPIC.`,
-  redirectTemplate: `That's outside what I can help with for this course. Want to come back to something from {{courseTitle}}?`,
-};
-```
+RLS:
+- Insert: `authenticated` and `service_role` (edge functions write with service role).
+- Select: admins only via `public.is_admin(auth.uid())`.
+- GRANTs: `INSERT` to `authenticated`, `ALL` to `service_role`, `SELECT` to `authenticated` (gated by RLS).
 
-## 2. Classifier helper
+## 2. Shared logger for edge functions
 
-New function `classifyScope({ message, courseTitle, courseTopics, apiKey })`:
-
-- Builds the prompt by substituting `{{courseTitle}}`, `{{courseTopics}}`, `{{message}}`.
-- POSTs to `https://ai.gateway.lovable.dev/v1/chat/completions` with:
-  - `model: SCOPE_CLASSIFIER_CONFIG.model`
-  - single user message (no system, no history)
-  - `max_tokens: 4`, `temperature: 0`
-  - `signal: AbortSignal.timeout(SCOPE_CLASSIFIER_CONFIG.timeoutMs)`
-- Parses the first token; returns `"OFF_TOPIC"` only on an exact case-insensitive match, otherwise `"ON_TOPIC"`.
-- On any throw / non-2xx / timeout: `console.error("scope_classifier_failure", ...)` and return `"ON_TOPIC"` (fail open).
-
-Also log every OFF_TOPIC verdict in a single structured line for audit:
+Create `supabase/functions/_shared/aiGatewayLog.ts` exporting:
 
 ```ts
-console.log(JSON.stringify({
-  event: "scope_classifier_off_topic",
-  courseId, studentId,
-  courseTitle, message,
-  model: SCOPE_CLASSIFIER_CONFIG.model,
-  ts: new Date().toISOString(),
-}));
+loggedGatewayFetch({
+  functionName, model, purpose, requestId, teacherId?, courseId?,
+  attempt, totalAttempts, body, timeoutMs, context?
+}) → Promise<Response>
 ```
 
-(Plain `console.log` is sufficient — it shows up in Edge Function logs and on the AI Gateway Calls tab via Supabase log search. No new table needed for v1.)
+Responsibilities:
+- Wrap the existing `fetch("https://ai.gateway.lovable.dev/...")` call.
+- Measure `duration_ms`, classify outcome from status / `AbortError` / network error.
+- Insert one row into `ai_gateway_call_log` via a service-role Supabase client (fire-and-forget, never blocks the response — wrap in `try/catch` and `EdgeRuntime.waitUntil` if available).
+- Return the original `Response` (or rethrow) so caller logic is unchanged.
 
-## 3. Wire it into the handler
+## 3. Instrument the high-value callers first
 
-In `serve(...)`, after `STUDENT_SECTION` is built and the `latestUserMessage` is known, but before the main `fetch("https://ai.gateway.lovable.dev/...")` call (around line 482):
+Wire `loggedGatewayFetch` into the functions where 4xx/5xx/timeouts have been biting us:
+- `generate-diagnostic-questions` (per tier × attempt)
+- `generate-lesson-plan`, `regenerate-lesson-plan-week`
+- `generate-exam-questions`, `generate-weekly-quiz`, `generate-practice-questions`
+- `classify-question`, `explain-answers`, `quality-check`, `parse-syllabus`
+- `chat`, `suggest-concepts`, `suggest-lesson`, `recommend-additional-concepts`, `score-diagnostic`, `generate-teaching-insights`, `extract-lesson-plan`, `extract-youtube-links`
 
-```ts
-if (
-  SCOPE_CLASSIFIER_CONFIG.enabled &&
-  mode !== "teacher" &&
-  mode !== "exam" &&
-  latestUserMessage.trim().length > 0
-) {
-  const verdict = await classifyScope({
-    message: latestUserMessage,
-    courseTitle,
-    courseTopics: courseTopics || "(none provided)",
-    apiKey: LOVABLE_API_KEY,
-  });
+Each call site passes a stable `requestId` (one per inbound request) and a `purpose` tag so retries collapse visually.
 
-  if (verdict === "OFF_TOPIC") {
-    const redirect = SCOPE_CLASSIFIER_CONFIG.redirectTemplate
-      .replaceAll("{{courseTitle}}", courseTitle);
+## 4. UI changes in `src/pages/admin/AdminSetupDebug.tsx`
 
-    // Stream-shaped SSE response so the existing client (which reads
-    // text/event-stream from this function) renders it without changes.
-    const sse =
-      `data: ${JSON.stringify({ choices: [{ delta: { content: redirect } }] })}\n\n` +
-      `data: [DONE]\n\n`;
+Add a third tab **"AI Gateway Calls"** next to the existing two. No changes to existing tabs.
 
-    return new Response(sse, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-    });
-  }
-}
-```
+Top strip (last 24h, computed from query):
+- counters: OK, 4xx, 5xx/429, timeout, network/aborted
+- avg + p95 latency per function (small table)
 
-Note: `latestUserMessage` is currently only computed inside the RAG block (line 339). Hoist it to a single `const latestUserMessage = messages?.[messages.length - 1]?.content || "";` declared once near the top of the try-block so both the RAG block and the classifier reuse it.
+Main table columns:
+`Time · Function · Model · Purpose · Attempt (n/N) · Status · Outcome (badge) · ms · Request · Teacher · Course · Error`
 
-## 4. Out of scope
+Filters:
+- text filter (function / purpose / request_id / teacher / course / error)
+- outcome multi-select (OK / retryable / client_error / timeout / network / aborted)
+- function dropdown (distinct values from results)
+- "Non-200 only" toggle
+- time range: 1h / 24h / 7d
 
-- No new DB table — verdicts log to Edge Function logs only. A `scope_classifier_log` table can be added later if false-positive review needs SQL queries.
-- No UI changes; redirect text is delivered through the existing chat stream.
-- Exam mode and professor mode keep their current relevance handling (`relevanceContext` and `PROFESSOR_SECTION`).
-- The old `relevanceContext`-based redirect (line 474) stays for backwards compatibility; the new classifier is independent and runs server-side regardless.
+Expandable row reveals: full upstream error message, `context` JSON, and all sibling attempts that share the same `request_id` (so a 504 followed by a successful retry is visible as one group).
+
+Auto-refresh every 15s (pausable) and a manual Refresh button matching the existing style.
+
+## 5. Out of scope (call out, do not build now)
+
+- No alerting/webhooks.
+- No per-user dashboards — admin-only.
+- No retention job yet; we'll revisit once volume is known. Suggest a follow-up to add a daily prune (>30 days) if rows grow large.
 
 ## Technical notes
 
-- Lite model + 4-token cap + temperature 0 keeps the extra latency to ~150–400 ms in the typical case.
-- Fail-open is enforced in `classifyScope` itself, so a Gateway outage cannot block legitimate students.
-- The classifier never sees prior messages — this is deliberate per spec, even though it means "thanks" / "can you re-explain" must be handled by the prompt's allow-list clause rather than by history.
-- Putting the prompt + model + timeout in `SCOPE_CLASSIFIER_CONFIG` means tuning is a single-constant edit, no control-flow change.
+- The logger must never throw into the caller; logging failures only `console.error`.
+- `error_message` is truncated to 500 chars to keep rows small.
+- `outcome` is derived in the logger, not the caller, so classification stays consistent.
+- Reuse the existing `corsHeaders` / Supabase service client pattern from other functions; do not edit `src/integrations/supabase/client.ts`.
+- No changes to `setup_progress_log` schema, so the existing tabs keep working unchanged.
