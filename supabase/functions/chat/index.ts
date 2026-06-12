@@ -300,7 +300,7 @@ const SCOPE_CLASSIFIER_CONFIG = {
   model: "google/gemini-2.5-flash-lite",
   timeoutMs: 4000,
   // {{courseTitle}}, {{courseTopics}}, {{message}} are interpolated per request.
-  promptTemplate: `You are a scope classifier for a university course chatbot. Course: {{courseTitle}}. Topics: {{courseTopics}}. Student message: {{message}}. The rule: if the message is not explicitly about the course, not about any of the course's concepts, and unrelated to any foundational prerequisite, it is OFF_TOPIC. Career preparation (interview prep, internships, job applications, resume help, company hiring advice) is always OFF_TOPIC even when the industry relates to the course. Short conversational replies, follow-ups, thanks, or requests to re-explain are ON_TOPIC. Reply with exactly one word: ON_TOPIC or OFF_TOPIC.`,
+  promptTemplate: `You are a scope classifier for a university course chatbot. Course: {{courseTitle}}. Topics: {{courseTopics}}. Student message: {{message}}. The rule: if the message is not explicitly about conversational basics, greetings and pleasantries ("hi", "how are you"), thanks and farewells, follow-ups within the tutoring ("explain that again", "what do you mean"), the course, not about any of the course's concepts, and unrelated to any foundational prerequisite, it is OFF_TOPIC. Career preparation (interview prep, internships, job applications, resume help, company hiring advice) is always OFF_TOPIC even when the industry relates to the course. Short conversational replies, follow-ups, thanks, or requests to re-explain are ON_TOPIC. Reply with exactly one word: ON_TOPIC or OFF_TOPIC.`,
   redirectTemplate: `That's outside what I can help with for this course. Want to come back to something from {{courseTitle}}?`,
 };
 
@@ -555,13 +555,8 @@ PROFESSOR STYLE
           }),
         );
 
-        const redirect = SCOPE_CLASSIFIER_CONFIG.redirectTemplate.replaceAll(
-          "{{courseTitle}}",
-          courseTitle,
-        );
-        const sse =
-          `data: ${JSON.stringify({ choices: [{ delta: { content: redirect } }] })}\n\n` +
-          `data: [DONE]\n\n`;
+        const redirect = SCOPE_CLASSIFIER_CONFIG.redirectTemplate.replaceAll("{{courseTitle}}", courseTitle);
+        const sse = `data: ${JSON.stringify({ choices: [{ delta: { content: redirect } }] })}\n\n` + `data: [DONE]\n\n`;
         return new Response(sse, {
           headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
         });
