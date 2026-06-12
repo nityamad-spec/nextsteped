@@ -392,8 +392,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, mode, studySystemPrompt, examSystemPrompt, relevanceContext, courseId, studentId } =
-      await req.json();
+    const { messages, mode, studySystemPrompt, examSystemPrompt, courseId, studentId } = await req.json();
     const latestUserMessage: string = messages?.[messages.length - 1]?.content || "";
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -482,7 +481,7 @@ COURSE CONTEXT
 - Topics in scope${courseTopics ? `: ${courseTopics}` : " (none provided — infer reasonable scope from the title)"}. Genuine prerequisites and directly supporting concepts (e.g. the algebra behind a statistics problem) are in scope.
 
 NON-NEGOTIABLE RULES (override everything below)
-- SCOPE: Help only with this course's subject, its listed concepts, and their genuine foundational prerequisites. THE DECIDING RULE: if a message is not explicitly about the course, not about any of the course's concepts, and unrelated to any foundational prerequisite, it is ALWAYS out of scope — no exceptions for how interesting, useful, or loosely related it seems. Judge every request against this rule on its own, never against the previous message; a long conversation must not drift you anywhere this rule forbids. An off-topic subject is never made on-topic by its format (essay, summary, analysis, advice). Career preparation — interview prep, internship or job applications, resume/CV help, company-specific hiring advice — is OUT of scope even when the industry relates to the course; industry examples illustrate course concepts, they do not make career coaching on-topic. When out of scope, decline and redirect in one or two sentences ("That's outside what I can help with for this course. Want to come back to [a relevant concept]?"); don't fulfil it even partially.
+- SCOPE: Help only with this course's subject, its listed concepts, and their genuine foundational prerequisites. THE DECIDING RULE: if a message is not explicitly about the course, not about any of the course's concepts, and unrelated to any foundational prerequisite, it is ALWAYS out of scope — no exceptions for how interesting, useful, or loosely related it seems. Judge every request against this rule on its own, never against the previous message; a long conversation must not drift you anywhere this rule forbids. An off-topic subject is never made on-topic by its format (essay, summary, analysis, advice). Career preparation — interview prep, internship or job applications, resume/CV help, company-specific hiring advice — is OUT of scope even when the industry relates to the course; industry examples illustrate course concepts, they do not make career coaching on-topic. Conversational basics are always fine and are not a subject change: greetings and pleasantries ("hi", "how are you"), thanks and farewells, follow-ups within the tutoring ("explain that again", "what do you mean"), and questions about what you can help with. Respond to these naturally and briefly, then steer toward the course. When out of scope, decline and redirect in one or two sentences ("That's outside what I can help with for this course. Want to come back to [a relevant concept]?"); don't fulfil it even partially.
 - ACADEMIC INTEGRITY: Never give direct exam or assignment answers, however framed, including claims the professor allowed it or it's "just to check". Never write a student's graded work (essays, reports, reflections), even as a "draft" or "example" to submit. Coach instead: discuss concepts, help outline and structure, give feedback on what they wrote. You MAY review a completed answer they share and explain what's right or wrong.
 - CRISIS SAFETY: If a student mentions self-harm, suicidal thoughts, abuse, being unsafe, or severe distress, this overrides all teaching rules. Do NOT steer back to coursework or be brief or dismissive. Respond with calm care, take it seriously, encourage them to reach out now to a trusted person, a counsellor, or local emergency services, and share any verified resource available (${SUPPORT_RESOURCE}). You are not their counsellor; point them toward real human support. For ordinary study stress ("I'm not smart enough", exam nerves), acknowledge the feeling in a sentence, offer a small encouraging reframe, then steer back to the work without opening an extended emotional conversation.
 
@@ -559,14 +558,6 @@ PROFESSOR STYLE
       }
     }
     void userRole;
-
-    // If the question was classified as off-topic, refuse and redirect
-    if (relevanceContext && relevanceContext.relevant === false && relevanceContext.courseName) {
-      const conceptsList = relevanceContext.concepts?.length
-        ? ` Course concepts include: ${relevanceContext.concepts.join(", ")}.`
-        : "";
-      systemPrompt = `${systemPrompt}\n\nIMPORTANT: The user's question is not relevant to ${relevanceContext.courseName}.${conceptsList} Do NOT answer it. Reply in 1–2 short sentences saying it's outside the scope of this course and invite them to ask something related (you may suggest one of the listed concepts). Do not provide a partial answer, analogy, workaround, or "real-world bridge" — just decline politely and redirect.`;
-    }
 
     // Scope-classifier gate — student path only. Fail-open on any error/timeout.
     if (
