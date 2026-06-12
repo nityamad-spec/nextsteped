@@ -293,6 +293,57 @@ async function fetchStudentMasterySnapshot(
   }
 }
 
+// ---------- Scope classifier (student path only) ----------
+// Tunable in one place so prompt/model can be tweaked without touching control flow.
+const SCOPE_CLASSIFIER_CONFIG = {
+  enabled: true,
+  model: "google/gemini-2.5-flash-lite",
+  timeoutMs: 4000,
+  // {{courseTitle}}, {{courseTopics}}, {{message}} are interpolated per request.
+  promptTemplate: `You are a scope classifier for a university course chatbot. Course: {{courseTitle}}. Topics: {{courseTopics}}. Student message: {{message}}. The rule: if the message is not explicitly about the course, not about any of the course's concepts, and unrelated to any foundational prerequisite, it is OFF_TOPIC. Career preparation (interview prep, internships, job applications, resume help, company hiring advice) is always OFF_TOPIC even when the industry relates to the course. Short conversational replies, follow-ups, thanks, or requests to re-explain are ON_TOPIC. Reply with exactly one word: ON_TOPIC or OFF_TOPIC.`,
+  redirectTemplate: `That's outside what I can help with for this course. Want to come back to something from {{courseTitle}}?`,
+};
+
+async function classifyScope(args: {
+  message: string;
+  courseTitle: string;
+  courseTopics: string;
+  apiKey: string;
+}): Promise<"ON_TOPIC" | "OFF_TOPIC"> {
+  const prompt = SCOPE_CLASSIFIER_CONFIG.promptTemplate
+    .replaceAll("{{courseTitle}}", args.courseTitle)
+    .replaceAll("{{courseTopics}}", args.courseTopics)
+    .replaceAll("{{message}}", args.message);
+
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      signal: AbortSignal.timeout(SCOPE_CLASSIFIER_CONFIG.timeoutMs),
+      headers: {
+        Authorization: `Bearer ${args.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: SCOPE_CLASSIFIER_CONFIG.model,
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 4,
+        temperature: 0,
+      }),
+    });
+    if (!res.ok) {
+      console.error("scope_classifier_failure", res.status, await res.text().catch(() => ""));
+      return "ON_TOPIC";
+    }
+    const data = await res.json();
+    const raw: string = data?.choices?.[0]?.message?.content ?? "";
+    const token = raw.trim().toUpperCase().split(/\s+/)[0] ?? "";
+    return token === "OFF_TOPIC" ? "OFF_TOPIC" : "ON_TOPIC";
+  } catch (e) {
+    console.error("scope_classifier_failure", e instanceof Error ? e.message : String(e));
+    return "ON_TOPIC";
+  }
+}
+
 // ---------- Main handler ----------
 
 serve(async (req) => {
