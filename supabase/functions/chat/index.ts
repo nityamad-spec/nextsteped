@@ -611,6 +611,18 @@ PROFESSOR STYLE
 
     const fullSystemPrompt = systemPrompt + ragContext;
 
+    let outgoingMessages: Array<{ role: string; content: string }> = messages;
+    if (mode !== "teacher" && mode !== "exam" && ANTI_DECAY_CONFIG.enabled) {
+      const { shapedMessages, studentTurns } = shapeStudentHistory(messages);
+      outgoingMessages = shapedMessages;
+      if (studentTurns > ANTI_DECAY_CONFIG.reminderAfterStudentTurns) {
+        outgoingMessages = [
+          ...outgoingMessages,
+          { role: "system", content: ANTI_DECAY_CONFIG.reminderText },
+        ];
+      }
+    }
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       signal: AbortSignal.timeout(300_000),
@@ -620,7 +632,7 @@ PROFESSOR STYLE
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash-lite",
-        messages: [{ role: "system", content: fullSystemPrompt }, ...messages],
+        messages: [{ role: "system", content: fullSystemPrompt }, ...outgoingMessages],
         stream: true,
       }),
     });
