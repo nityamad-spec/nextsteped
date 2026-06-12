@@ -6,6 +6,79 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// ------- AI gateway call logger (fire-and-forget) --------------------------
+const FUNCTION_NAME = "generate-diagnostic-questions";
+let _logClient: ReturnType<typeof createClient> | null = null;
+function logClient() {
+  if (_logClient) return _logClient;
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return null;
+  _logClient = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+  return _logClient;
+}
+
+type LogOutcome = "ok" | "retryable" | "client_error" | "timeout" | "network_error" | "aborted";
+function classifyOutcome(status: number | null, err: unknown): LogOutcome {
+  if (status != null) {
+    if (status >= 200 && status < 300) return "ok";
+    if (status === 429 || status >= 500) return "retryable";
+    return "client_error";
+  }
+  const msg = (err instanceof Error ? err.message : String(err ?? "")).toLowerCase();
+  if (msg.includes("abort") || msg.includes("timeout") || msg.includes("timed out")) return "timeout";
+  return "network_error";
+}
+
+interface LogRow {
+  model?: string;
+  purpose?: string;
+  http_status?: number | null;
+  outcome: LogOutcome;
+  attempt?: number;
+  total_attempts?: number;
+  duration_ms?: number;
+  request_id?: string;
+  teacher_id?: string | null;
+  course_id?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  context?: Record<string, unknown>;
+}
+function logGatewayCall(row: LogRow) {
+  try {
+    const c = logClient();
+    if (!c) return;
+    const payload = {
+      function_name: FUNCTION_NAME,
+      model: row.model ?? null,
+      purpose: row.purpose ?? null,
+      http_status: row.http_status ?? null,
+      outcome: row.outcome,
+      attempt: row.attempt ?? null,
+      total_attempts: row.total_attempts ?? null,
+      duration_ms: row.duration_ms ?? null,
+      request_id: row.request_id ?? null,
+      teacher_id: row.teacher_id ?? null,
+      course_id: row.course_id ?? null,
+      error_code: row.error_code ?? null,
+      error_message: row.error_message ? row.error_message.slice(0, 500) : null,
+      context: row.context ?? {},
+    };
+    const p = c.from("ai_gateway_call_log").insert(payload).then(({ error }: { error: unknown }) => {
+      if (error) console.error("ai_gateway_call_log insert failed:", (error as { message?: string })?.message);
+    });
+    // @ts-ignore EdgeRuntime is available in Supabase functions
+    if (typeof EdgeRuntime !== "undefined" && (EdgeRuntime as { waitUntil?: (p: Promise<unknown>) => void })?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(p);
+    }
+  } catch (e) {
+    console.error("ai_gateway_call_log threw:", e);
+  }
+}
+// ---------------------------------------------------------------------------
+
 interface GeneratedQuestion {
   content_text: string;
   format: string;
