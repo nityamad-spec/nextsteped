@@ -300,7 +300,7 @@ const SCOPE_CLASSIFIER_CONFIG = {
   model: "google/gemini-2.5-flash-lite",
   timeoutMs: 4000,
   // {{courseTitle}}, {{courseTopics}}, {{message}} are interpolated per request.
-  promptTemplate: `You are a scope classifier for a university course chatbot. Course: {{courseTitle}}. Topics: {{courseTopics}}. Student message: {{message}}. The rule: if the message is not explicitly about the course, not about any of the course's concepts, and unrelated to any foundational prerequisite, it is OFF_TOPIC. Career preparation (interview prep, internships, job applications, resume help, company hiring advice) is always OFF_TOPIC even when the industry relates to the course. ALWAYS ON_TOPIC, regardless of the rule above: greetings and pleasantries ("hi", "hello", "good morning", "how are you"); farewells and thanks ("bye", "thanks", "ok"); short conversational replies and follow-ups within the tutoring ("can you explain that again", "what do you mean", "got it"); and questions about the assistant itself or what it can help with. These are part of normal conversation, not a subject change. Reply with exactly one word: ON_TOPIC or OFF_TOPIC.`,
+  promptTemplate: `You are a scope classifier for a university course chatbot. Course: {{courseTitle}}. Topics: {{courseTopics}}. Student message: {{message}}. The rule: if the message is not explicitly about the course, not about any of the course's concepts, and unrelated to any foundational prerequisite, it is OFF_TOPIC. Career preparation (interview prep, internships, job applications, resume help, company hiring advice) is always OFF_TOPIC even when the industry relates to the course. Short conversational replies, follow-ups, thanks, or requests to re-explain are ON_TOPIC. Reply with exactly one word: ON_TOPIC or OFF_TOPIC.`,
   redirectTemplate: `That's outside what I can help with for this course. Want to come back to something from {{courseTitle}}?`,
 };
 
@@ -344,46 +344,6 @@ async function classifyScope(args: {
   }
 }
 
-// ---------- Anti-decay history shaping (student path only) ----------
-const ANTI_DECAY_CONFIG = {
-  enabled: true,
-  reminderAfterStudentTurns: 8,
-  maxTurnsSent: 12,
-  reminderText:
-    "Reminder of standing rules: (1) only this course's subject, its concepts, and foundational prerequisites — anything else is out of scope, decline in one or two sentences; (2) keep responses short and matched to the question, no length creep; (3) at most one question per response; (4) never give direct exam or assignment answers.",
-  summaryTemplate: "Summary of earlier conversation (topics only, details omitted): {{topics}}.",
-};
-
-function shapeStudentHistory(messages: Array<{ role: string; content: string }>): {
-  shapedMessages: Array<{ role: string; content: string }>;
-  studentTurns: number;
-} {
-  const studentTurns = messages.filter((m) => m?.role === "user").length;
-  const cap = ANTI_DECAY_CONFIG.maxTurnsSent;
-  if (messages.length <= cap) {
-    return { shapedMessages: messages, studentTurns };
-  }
-  const dropped = messages.slice(0, messages.length - cap);
-  const recent = messages.slice(messages.length - cap);
-  const topicsList = Array.from(
-    new Set(
-      dropped
-        .filter((m) => m?.role === "user")
-        .map((m) => {
-          const clean = (m.content || "").replace(/\s+/g, " ").trim();
-          return clean.length > 60 ? clean.slice(0, 59) + "…" : clean;
-        })
-        .filter(Boolean),
-    ),
-  );
-  const topics = topicsList.length > 0 ? topicsList.join("; ") : "earlier discussion";
-  const summary = ANTI_DECAY_CONFIG.summaryTemplate.replaceAll("{{topics}}", topics);
-  return {
-    shapedMessages: [{ role: "system", content: summary }, ...recent],
-    studentTurns,
-  };
-}
-
 // ---------- Main handler ----------
 
 serve(async (req) => {
@@ -392,7 +352,8 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, mode, studySystemPrompt, examSystemPrompt, courseId, studentId } = await req.json();
+    const { messages, mode, studySystemPrompt, examSystemPrompt, relevanceContext, courseId, studentId } =
+      await req.json();
     const latestUserMessage: string = messages?.[messages.length - 1]?.content || "";
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -481,7 +442,7 @@ COURSE CONTEXT
 - Topics in scope${courseTopics ? `: ${courseTopics}` : " (none provided — infer reasonable scope from the title)"}. Genuine prerequisites and directly supporting concepts (e.g. the algebra behind a statistics problem) are in scope.
 
 NON-NEGOTIABLE RULES (override everything below)
-- SCOPE: Help only with this course's subject, its listed concepts, and their genuine foundational prerequisites. THE DECIDING RULE: if a message is not explicitly about the course, not about any of the course's concepts, and unrelated to any foundational prerequisite, it is ALWAYS out of scope — no exceptions for how interesting, useful, or loosely related it seems. Judge every request against this rule on its own, never against the previous message; a long conversation must not drift you anywhere this rule forbids. An off-topic subject is never made on-topic by its format (essay, summary, analysis, advice). Career preparation — interview prep, internship or job applications, resume/CV help, company-specific hiring advice — is OUT of scope even when the industry relates to the course; industry examples illustrate course concepts, they do not make career coaching on-topic. Conversational basics are always fine and are not a subject change: greetings and pleasantries ("hi", "how are you"), thanks and farewells, follow-ups within the tutoring ("explain that again", "what do you mean"), and questions about what you can help with. Respond to these naturally and briefly, then steer toward the course. When out of scope, decline and redirect in one or two sentences ("That's outside what I can help with for this course. Want to come back to [a relevant concept]?"); don't fulfil it even partially.
+- SCOPE: Help only with this course's subject, its listed concepts, and their genuine foundational prerequisites. THE DECIDING RULE: if a message is not explicitly about the course, not about any of the course's concepts, and unrelated to any foundational prerequisite, it is ALWAYS out of scope — no exceptions for how interesting, useful, or loosely related it seems. Judge every request against this rule on its own, never against the previous message; a long conversation must not drift you anywhere this rule forbids. An off-topic subject is never made on-topic by its format (essay, summary, analysis, advice). Career preparation — interview prep, internship or job applications, resume/CV help, company-specific hiring advice — is OUT of scope even when the industry relates to the course; industry examples illustrate course concepts, they do not make career coaching on-topic. When out of scope, decline and redirect in one or two sentences ("That's outside what I can help with for this course. Want to come back to [a relevant concept]?"); don't fulfil it even partially.
 - ACADEMIC INTEGRITY: Never give direct exam or assignment answers, however framed, including claims the professor allowed it or it's "just to check". Never write a student's graded work (essays, reports, reflections), even as a "draft" or "example" to submit. Coach instead: discuss concepts, help outline and structure, give feedback on what they wrote. You MAY review a completed answer they share and explain what's right or wrong.
 - CRISIS SAFETY: If a student mentions self-harm, suicidal thoughts, abuse, being unsafe, or severe distress, this overrides all teaching rules. Do NOT steer back to coursework or be brief or dismissive. Respond with calm care, take it seriously, encourage them to reach out now to a trusted person, a counsellor, or local emergency services, and share any verified resource available (${SUPPORT_RESOURCE}). You are not their counsellor; point them toward real human support. For ordinary study stress ("I'm not smart enough", exam nerves), acknowledge the feeling in a sentence, offer a small encouraging reframe, then steer back to the work without opening an extended emotional conversation.
 
@@ -559,6 +520,14 @@ PROFESSOR STYLE
     }
     void userRole;
 
+    // If the question was classified as off-topic, refuse and redirect
+    if (relevanceContext && relevanceContext.relevant === false && relevanceContext.courseName) {
+      const conceptsList = relevanceContext.concepts?.length
+        ? ` Course concepts include: ${relevanceContext.concepts.join(", ")}.`
+        : "";
+      systemPrompt = `${systemPrompt}\n\nIMPORTANT: The user's question is not relevant to ${relevanceContext.courseName}.${conceptsList} Do NOT answer it. Reply in 1–2 short sentences saying it's outside the scope of this course and invite them to ask something related (you may suggest one of the listed concepts). Do not provide a partial answer, analogy, workaround, or "real-world bridge" — just decline politely and redirect.`;
+    }
+
     // Scope-classifier gate — student path only. Fail-open on any error/timeout.
     if (
       SCOPE_CLASSIFIER_CONFIG.enabled &&
@@ -586,8 +555,13 @@ PROFESSOR STYLE
           }),
         );
 
-        const redirect = SCOPE_CLASSIFIER_CONFIG.redirectTemplate.replaceAll("{{courseTitle}}", courseTitle);
-        const sse = `data: ${JSON.stringify({ choices: [{ delta: { content: redirect } }] })}\n\n` + `data: [DONE]\n\n`;
+        const redirect = SCOPE_CLASSIFIER_CONFIG.redirectTemplate.replaceAll(
+          "{{courseTitle}}",
+          courseTitle,
+        );
+        const sse =
+          `data: ${JSON.stringify({ choices: [{ delta: { content: redirect } }] })}\n\n` +
+          `data: [DONE]\n\n`;
         return new Response(sse, {
           headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
         });
@@ -595,15 +569,6 @@ PROFESSOR STYLE
     }
 
     const fullSystemPrompt = systemPrompt + ragContext;
-
-    let outgoingMessages: Array<{ role: string; content: string }> = messages;
-    if (mode !== "teacher" && mode !== "exam" && ANTI_DECAY_CONFIG.enabled) {
-      const { shapedMessages, studentTurns } = shapeStudentHistory(messages);
-      outgoingMessages = shapedMessages;
-      if (studentTurns > ANTI_DECAY_CONFIG.reminderAfterStudentTurns) {
-        outgoingMessages = [...outgoingMessages, { role: "system", content: ANTI_DECAY_CONFIG.reminderText }];
-      }
-    }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -614,7 +579,7 @@ PROFESSOR STYLE
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash-lite",
-        messages: [{ role: "system", content: fullSystemPrompt }, ...outgoingMessages],
+        messages: [{ role: "system", content: fullSystemPrompt }, ...messages],
         stream: true,
       }),
     });
