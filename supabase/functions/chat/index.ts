@@ -528,6 +528,46 @@ PROFESSOR STYLE
       systemPrompt = `${systemPrompt}\n\nIMPORTANT: The user's question is not relevant to ${relevanceContext.courseName}.${conceptsList} Do NOT answer it. Reply in 1–2 short sentences saying it's outside the scope of this course and invite them to ask something related (you may suggest one of the listed concepts). Do not provide a partial answer, analogy, workaround, or "real-world bridge" — just decline politely and redirect.`;
     }
 
+    // Scope-classifier gate — student path only. Fail-open on any error/timeout.
+    if (
+      SCOPE_CLASSIFIER_CONFIG.enabled &&
+      mode !== "teacher" &&
+      mode !== "exam" &&
+      latestUserMessage.trim().length > 0
+    ) {
+      const verdict = await classifyScope({
+        message: latestUserMessage,
+        courseTitle,
+        courseTopics: courseTopics || "(none provided)",
+        apiKey: LOVABLE_API_KEY,
+      });
+
+      if (verdict === "OFF_TOPIC") {
+        console.log(
+          JSON.stringify({
+            event: "scope_classifier_off_topic",
+            courseId,
+            studentId,
+            courseTitle,
+            message: latestUserMessage,
+            model: SCOPE_CLASSIFIER_CONFIG.model,
+            ts: new Date().toISOString(),
+          }),
+        );
+
+        const redirect = SCOPE_CLASSIFIER_CONFIG.redirectTemplate.replaceAll(
+          "{{courseTitle}}",
+          courseTitle,
+        );
+        const sse =
+          `data: ${JSON.stringify({ choices: [{ delta: { content: redirect } }] })}\n\n` +
+          `data: [DONE]\n\n`;
+        return new Response(sse, {
+          headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+        });
+      }
+    }
+
     const fullSystemPrompt = systemPrompt + ragContext;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
