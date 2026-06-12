@@ -300,7 +300,7 @@ const SCOPE_CLASSIFIER_CONFIG = {
   model: "google/gemini-2.5-flash-lite",
   timeoutMs: 4000,
   // {{courseTitle}}, {{courseTopics}}, {{message}} are interpolated per request.
-  promptTemplate: `You are a scope classifier for a university course chatbot. Course: {{courseTitle}}. Topics: {{courseTopics}}. Student message: {{message}}. The rule: if the message is not explicitly about the course, not about any of the course's concepts, and unrelated to any foundational prerequisite, it is OFF_TOPIC. Career preparation (interview prep, internships, job applications, resume help, company hiring advice) is always OFF_TOPIC even when the industry relates to the course. Short conversational replies, follow-ups, thanks, or requests to re-explain are ON_TOPIC. Reply with exactly one word: ON_TOPIC or OFF_TOPIC.`,
+  promptTemplate: `You are a scope classifier for a university course chatbot. Course: {{courseTitle}}. Topics: {{courseTopics}}. Student message: {{message}}. The rule: if the message is not explicitly about the course, not about any of the course's concepts, and unrelated to any foundational prerequisite, it is OFF_TOPIC. Career preparation (interview prep, internships, job applications, resume help, company hiring advice) is always OFF_TOPIC even when the industry relates to the course. ALWAYS ON_TOPIC, regardless of the rule above: greetings and pleasantries ("hi", "hello", "good morning", "how are you"); farewells and thanks ("bye", "thanks", "ok"); short conversational replies and follow-ups within the tutoring ("can you explain that again", "what do you mean", "got it"); and questions about the assistant itself or what it can help with. These are part of normal conversation, not a subject change. Reply with exactly one word: ON_TOPIC or OFF_TOPIC.`,
   redirectTemplate: `That's outside what I can help with for this course. Want to come back to something from {{courseTitle}}?`,
 };
 
@@ -351,8 +351,7 @@ const ANTI_DECAY_CONFIG = {
   maxTurnsSent: 12,
   reminderText:
     "Reminder of standing rules: (1) only this course's subject, its concepts, and foundational prerequisites — anything else is out of scope, decline in one or two sentences; (2) keep responses short and matched to the question, no length creep; (3) at most one question per response; (4) never give direct exam or assignment answers.",
-  summaryTemplate:
-    "Summary of earlier conversation (topics only, details omitted): {{topics}}.",
+  summaryTemplate: "Summary of earlier conversation (topics only, details omitted): {{topics}}.",
 };
 
 function shapeStudentHistory(messages: Array<{ role: string; content: string }>): {
@@ -596,13 +595,8 @@ PROFESSOR STYLE
           }),
         );
 
-        const redirect = SCOPE_CLASSIFIER_CONFIG.redirectTemplate.replaceAll(
-          "{{courseTitle}}",
-          courseTitle,
-        );
-        const sse =
-          `data: ${JSON.stringify({ choices: [{ delta: { content: redirect } }] })}\n\n` +
-          `data: [DONE]\n\n`;
+        const redirect = SCOPE_CLASSIFIER_CONFIG.redirectTemplate.replaceAll("{{courseTitle}}", courseTitle);
+        const sse = `data: ${JSON.stringify({ choices: [{ delta: { content: redirect } }] })}\n\n` + `data: [DONE]\n\n`;
         return new Response(sse, {
           headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
         });
@@ -616,10 +610,7 @@ PROFESSOR STYLE
       const { shapedMessages, studentTurns } = shapeStudentHistory(messages);
       outgoingMessages = shapedMessages;
       if (studentTurns > ANTI_DECAY_CONFIG.reminderAfterStudentTurns) {
-        outgoingMessages = [
-          ...outgoingMessages,
-          { role: "system", content: ANTI_DECAY_CONFIG.reminderText },
-        ];
+        outgoingMessages = [...outgoingMessages, { role: "system", content: ANTI_DECAY_CONFIG.reminderText }];
       }
     }
 
