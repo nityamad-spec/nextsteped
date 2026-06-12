@@ -519,6 +519,10 @@ Examples:
   let response: Response | null = null;
   let lastErr = "";
   for (let attempt = 0; attempt < GATEWAY_RETRIES; attempt++) {
+    const startedAt = Date.now();
+    let statusForLog: number | null = null;
+    let errMsgForLog: string | null = null;
+    let errCodeForLog: string | null = null;
     try {
       response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -526,15 +530,85 @@ Examples:
         headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
         body: baseBody,
       });
-      if (response.ok) break;
+      statusForLog = response.status;
+      if (response.ok) {
+        logGatewayCall({
+          model: MODEL,
+          purpose: `tier:${spec.tier}`,
+          http_status: statusForLog,
+          outcome: "ok",
+          attempt: attempt + 1,
+          total_attempts: GATEWAY_RETRIES,
+          duration_ms: Date.now() - startedAt,
+          request_id: logCtx.requestId,
+          teacher_id: logCtx.teacherId,
+          course_id: logCtx.courseId,
+          context: { needed, remaining_concepts: Object.keys(remainingQuota).length },
+        });
+        break;
+      }
       // Retry on 429 / 5xx; fail fast on 4xx (client errors won't fix themselves)
       if (response.status !== 429 && response.status < 500) {
         const errText = await response.text();
+        errMsgForLog = errText.slice(0, 500);
+        errCodeForLog = `http_${response.status}`;
+        logGatewayCall({
+          model: MODEL,
+          purpose: `tier:${spec.tier}`,
+          http_status: statusForLog,
+          outcome: "client_error",
+          attempt: attempt + 1,
+          total_attempts: GATEWAY_RETRIES,
+          duration_ms: Date.now() - startedAt,
+          request_id: logCtx.requestId,
+          teacher_id: logCtx.teacherId,
+          course_id: logCtx.courseId,
+          error_code: errCodeForLog,
+          error_message: errMsgForLog,
+          context: { needed },
+        });
         throw new Error(`AI gateway ${response.status}: ${errText.slice(0, 200)}`);
       }
-      lastErr = `${response.status}: ${(await response.text()).slice(0, 120)}`;
+      const txt = await response.text();
+      errMsgForLog = txt.slice(0, 500);
+      errCodeForLog = `http_${response.status}`;
+      lastErr = `${response.status}: ${txt.slice(0, 120)}`;
+      logGatewayCall({
+        model: MODEL,
+        purpose: `tier:${spec.tier}`,
+        http_status: statusForLog,
+        outcome: "retryable",
+        attempt: attempt + 1,
+        total_attempts: GATEWAY_RETRIES,
+        duration_ms: Date.now() - startedAt,
+        request_id: logCtx.requestId,
+        teacher_id: logCtx.teacherId,
+        course_id: logCtx.courseId,
+        error_code: errCodeForLog,
+        error_message: errMsgForLog,
+        context: { needed },
+      });
     } catch (e) {
-      lastErr = (e as Error).message.slice(0, 160);
+      const msg = (e as Error).message ?? String(e);
+      lastErr = msg.slice(0, 160);
+      if (statusForLog == null) {
+        const outcome = classifyOutcome(null, e);
+        logGatewayCall({
+          model: MODEL,
+          purpose: `tier:${spec.tier}`,
+          http_status: null,
+          outcome,
+          attempt: attempt + 1,
+          total_attempts: GATEWAY_RETRIES,
+          duration_ms: Date.now() - startedAt,
+          request_id: logCtx.requestId,
+          teacher_id: logCtx.teacherId,
+          course_id: logCtx.courseId,
+          error_code: outcome,
+          error_message: msg.slice(0, 500),
+          context: { needed },
+        });
+      }
       // network/timeout — fall through to backoff
     }
     if (attempt < GATEWAY_RETRIES - 1) {
