@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RefreshCw, Check, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
+import AiGatewayCallsTab from "@/components/admin/AiGatewayCallsTab";
 
 interface LogRow {
   id: string;
@@ -135,6 +136,7 @@ const AdminSetupDebug = () => {
         <TabsList>
           <TabsTrigger value="logs">Audit Log ({filteredLogs.length})</TabsTrigger>
           <TabsTrigger value="progress">Persisted Rows ({filteredProgress.length})</TabsTrigger>
+          <TabsTrigger value="ai">AI Gateway Calls</TabsTrigger>
         </TabsList>
 
         <TabsContent value="logs">
@@ -287,6 +289,10 @@ const AdminSetupDebug = () => {
               </table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="ai">
+          <AiGatewayCallsTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -6,6 +6,79 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// ------- AI gateway call logger (fire-and-forget) --------------------------
+const FUNCTION_NAME = "generate-diagnostic-questions";
+let _logClient: ReturnType<typeof createClient> | null = null;
+function logClient() {
+  if (_logClient) return _logClient;
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return null;
+  _logClient = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+  return _logClient;
+}
+
+type LogOutcome = "ok" | "retryable" | "client_error" | "timeout" | "network_error" | "aborted";
+function classifyOutcome(status: number | null, err: unknown): LogOutcome {
+  if (status != null) {
+    if (status >= 200 && status < 300) return "ok";
+    if (status === 429 || status >= 500) return "retryable";
+    return "client_error";
+  }
+  const msg = (err instanceof Error ? err.message : String(err ?? "")).toLowerCase();
+  if (msg.includes("abort") || msg.includes("timeout") || msg.includes("timed out")) return "timeout";
+  return "network_error";
+}
+
+interface LogRow {
+  model?: string;
+  purpose?: string;
+  http_status?: number | null;
+  outcome: LogOutcome;
+  attempt?: number;
+  total_attempts?: number;
+  duration_ms?: number;
+  request_id?: string;
+  teacher_id?: string | null;
+  course_id?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  context?: Record<string, unknown>;
+}
+function logGatewayCall(row: LogRow) {
+  try {
+    const c = logClient();
+    if (!c) return;
+    const payload = {
+      function_name: FUNCTION_NAME,
+      model: row.model ?? null,
+      purpose: row.purpose ?? null,
+      http_status: row.http_status ?? null,
+      outcome: row.outcome,
+      attempt: row.attempt ?? null,
+      total_attempts: row.total_attempts ?? null,
+      duration_ms: row.duration_ms ?? null,
+      request_id: row.request_id ?? null,
+      teacher_id: row.teacher_id ?? null,
+      course_id: row.course_id ?? null,
+      error_code: row.error_code ?? null,
+      error_message: row.error_message ? row.error_message.slice(0, 500) : null,
+      context: row.context ?? {},
+    };
+    const p = c.from("ai_gateway_call_log").insert(payload).then(({ error }: { error: unknown }) => {
+      if (error) console.error("ai_gateway_call_log insert failed:", (error as { message?: string })?.message);
+    });
+    // @ts-ignore EdgeRuntime is available in Supabase functions
+    if (typeof EdgeRuntime !== "undefined" && (EdgeRuntime as { waitUntil?: (p: Promise<unknown>) => void })?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(p);
+    }
+  } catch (e) {
+    console.error("ai_gateway_call_log threw:", e);
+  }
+}
+// ---------------------------------------------------------------------------
+
 interface GeneratedQuestion {
   content_text: string;
   format: string;
@@ -327,6 +400,7 @@ async function callGateway(
   remainingQuota: Record<string, number>,
   lovableKey: string,
   retryHint: string | null,
+  logCtx: { requestId: string; teacherId: string | null; courseId: string | null },
 ): Promise<GeneratedQuestion[]> {
   const remainingList = Object.entries(remainingQuota)
     .filter(([, v]) => v > 0)
@@ -445,6 +519,10 @@ Examples:
   let response: Response | null = null;
   let lastErr = "";
   for (let attempt = 0; attempt < GATEWAY_RETRIES; attempt++) {
+    const startedAt = Date.now();
+    let statusForLog: number | null = null;
+    let errMsgForLog: string | null = null;
+    let errCodeForLog: string | null = null;
     try {
       response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -452,15 +530,85 @@ Examples:
         headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
         body: baseBody,
       });
-      if (response.ok) break;
+      statusForLog = response.status;
+      if (response.ok) {
+        logGatewayCall({
+          model: MODEL,
+          purpose: `tier:${spec.tier}`,
+          http_status: statusForLog,
+          outcome: "ok",
+          attempt: attempt + 1,
+          total_attempts: GATEWAY_RETRIES,
+          duration_ms: Date.now() - startedAt,
+          request_id: logCtx.requestId,
+          teacher_id: logCtx.teacherId,
+          course_id: logCtx.courseId,
+          context: { needed, remaining_concepts: Object.keys(remainingQuota).length },
+        });
+        break;
+      }
       // Retry on 429 / 5xx; fail fast on 4xx (client errors won't fix themselves)
       if (response.status !== 429 && response.status < 500) {
         const errText = await response.text();
+        errMsgForLog = errText.slice(0, 500);
+        errCodeForLog = `http_${response.status}`;
+        logGatewayCall({
+          model: MODEL,
+          purpose: `tier:${spec.tier}`,
+          http_status: statusForLog,
+          outcome: "client_error",
+          attempt: attempt + 1,
+          total_attempts: GATEWAY_RETRIES,
+          duration_ms: Date.now() - startedAt,
+          request_id: logCtx.requestId,
+          teacher_id: logCtx.teacherId,
+          course_id: logCtx.courseId,
+          error_code: errCodeForLog,
+          error_message: errMsgForLog,
+          context: { needed },
+        });
         throw new Error(`AI gateway ${response.status}: ${errText.slice(0, 200)}`);
       }
-      lastErr = `${response.status}: ${(await response.text()).slice(0, 120)}`;
+      const txt = await response.text();
+      errMsgForLog = txt.slice(0, 500);
+      errCodeForLog = `http_${response.status}`;
+      lastErr = `${response.status}: ${txt.slice(0, 120)}`;
+      logGatewayCall({
+        model: MODEL,
+        purpose: `tier:${spec.tier}`,
+        http_status: statusForLog,
+        outcome: "retryable",
+        attempt: attempt + 1,
+        total_attempts: GATEWAY_RETRIES,
+        duration_ms: Date.now() - startedAt,
+        request_id: logCtx.requestId,
+        teacher_id: logCtx.teacherId,
+        course_id: logCtx.courseId,
+        error_code: errCodeForLog,
+        error_message: errMsgForLog,
+        context: { needed },
+      });
     } catch (e) {
-      lastErr = (e as Error).message.slice(0, 160);
+      const msg = (e as Error).message ?? String(e);
+      lastErr = msg.slice(0, 160);
+      if (statusForLog == null) {
+        const outcome = classifyOutcome(null, e);
+        logGatewayCall({
+          model: MODEL,
+          purpose: `tier:${spec.tier}`,
+          http_status: null,
+          outcome,
+          attempt: attempt + 1,
+          total_attempts: GATEWAY_RETRIES,
+          duration_ms: Date.now() - startedAt,
+          request_id: logCtx.requestId,
+          teacher_id: logCtx.teacherId,
+          course_id: logCtx.courseId,
+          error_code: outcome,
+          error_message: msg.slice(0, 500),
+          context: { needed },
+        });
+      }
       // network/timeout — fall through to backoff
     }
     if (attempt < GATEWAY_RETRIES - 1) {
@@ -495,6 +643,7 @@ async function runTier(
   units: UnitInfo[],
   conceptByCode: Record<string, ConceptInfo>,
   lovableKey: string,
+  logCtx: { requestId: string; teacherId: string | null; courseId: string | null },
 ): Promise<TierResult> {
   const seed = `${courseName}:${spec.tier}:${Date.now()}:${Math.random()}`;
   const quota = computeTierQuota(units, spec.count, seed);
@@ -523,7 +672,7 @@ async function runTier(
 
     let batch: GeneratedQuestion[] = [];
     try {
-      batch = await callGateway(spec, needed, courseName, quotaBlock, remaining, lovableKey, retryHint);
+      batch = await callGateway(spec, needed, courseName, quotaBlock, remaining, lovableKey, retryHint, logCtx);
     } catch (e) {
       reasons.push(`gateway error: ${(e as Error).message.slice(0, 80)}`);
       continue;
@@ -679,9 +828,16 @@ Deno.serve(async (req) => {
 
     const { units, conceptByCode } = buildUnits(concepts, weeks || []);
 
+    const requestId = crypto.randomUUID();
+    const logCtx = {
+      requestId,
+      teacherId: (course as { teacher_id?: string }).teacher_id ?? null,
+      courseId: courseId as string,
+    };
+
     // Run all tiers in parallel with retries
     const settled = await Promise.allSettled(
-      TIER_SPEC.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey)),
+      TIER_SPEC.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, logCtx)),
     );
 
     const tierResults: TierResult[] = settled.map((r, i) => {
