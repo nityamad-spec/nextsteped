@@ -672,7 +672,7 @@ async function runTier(
 
     let batch: GeneratedQuestion[] = [];
     try {
-      batch = await callGateway(spec, needed, courseName, quotaBlock, remaining, lovableKey, retryHint);
+      batch = await callGateway(spec, needed, courseName, quotaBlock, remaining, lovableKey, retryHint, logCtx);
     } catch (e) {
       reasons.push(`gateway error: ${(e as Error).message.slice(0, 80)}`);
       continue;
