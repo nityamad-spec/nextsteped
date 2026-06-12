@@ -828,9 +828,16 @@ Deno.serve(async (req) => {
 
     const { units, conceptByCode } = buildUnits(concepts, weeks || []);
 
+    const requestId = crypto.randomUUID();
+    const logCtx = {
+      requestId,
+      teacherId: (course as { teacher_id?: string }).teacher_id ?? null,
+      courseId: courseId as string,
+    };
+
     // Run all tiers in parallel with retries
     const settled = await Promise.allSettled(
-      TIER_SPEC.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey)),
+      TIER_SPEC.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, logCtx)),
     );
 
     const tierResults: TierResult[] = settled.map((r, i) => {
