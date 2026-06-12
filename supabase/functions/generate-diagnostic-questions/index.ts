@@ -643,6 +643,7 @@ async function runTier(
   units: UnitInfo[],
   conceptByCode: Record<string, ConceptInfo>,
   lovableKey: string,
+  logCtx: { requestId: string; teacherId: string | null; courseId: string | null },
 ): Promise<TierResult> {
   const seed = `${courseName}:${spec.tier}:${Date.now()}:${Math.random()}`;
   const quota = computeTierQuota(units, spec.count, seed);
