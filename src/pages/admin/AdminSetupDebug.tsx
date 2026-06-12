@@ -136,6 +136,7 @@ const AdminSetupDebug = () => {
         <TabsList>
           <TabsTrigger value="logs">Audit Log ({filteredLogs.length})</TabsTrigger>
           <TabsTrigger value="progress">Persisted Rows ({filteredProgress.length})</TabsTrigger>
+          <TabsTrigger value="ai">AI Gateway Calls</TabsTrigger>
         </TabsList>
 
         <TabsContent value="logs">
