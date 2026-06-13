@@ -538,7 +538,17 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         const file = new File([blob], "draft-plan-v2.json", { type: "application/json" });
         await supabase.storage.from("course-materials").upload(draftStoragePath, file, { upsert: true, cacheControl: "0" });
         // Record draft path on courses row (only if missing — avoids write amplification)
-        if (courseId) await recordDraftPathIfMissing(courseId, draftStoragePath);
+        if (courseId) {
+          await recordDraftPathIfMissing(courseId, draftStoragePath);
+          await upsertCourseMaterialFile({
+            course_id: courseId,
+            teacher_id: user.id,
+            storage_path: draftStoragePath,
+            file_name: "draft-plan-v2.json",
+            file_size: blob.size,
+            folder_type: "lesson-plan-draft",
+          });
+        }
       } catch (e) {
         console.error("draft persist failed:", e);
       }
