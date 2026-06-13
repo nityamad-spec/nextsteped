@@ -1,91 +1,106 @@
-# Track AI Gateway call statuses on /admin/setup-debug
+# Harden `wipe-syllabus-cascade`
 
-Today the page only shows `setup_progress_log` (success/failure of `markStep*` writes). We will add a second telemetry stream for outbound calls to `ai.gateway.lovable.dev` so admins can see non-200 responses (429/5xx/timeout/abort) alongside the existing setup writes.
+Bring the cascade wipe to parity with `delete-course` (minus the course row itself), add safety rails, and make every run observable.
 
-## 1. New table: `ai_gateway_call_log`
+## Goals
+1. Full FK coverage so no derived rows are orphaned.
+2. Deterministic delete order driven by the FK graph.
+3. Dry-run mode that reports impact without mutating.
+4. Structured per-run audit log persisted to DB.
+5. Robust error classification (no regex matching on driver messages).
+6. Tightened scoping (filter by `course_id` everywhere possible).
 
-Columns:
-- `id uuid pk`
-- `created_at timestamptz default now()`
-- `function_name text` — e.g. `generate-diagnostic-questions`
-- `model text` — e.g. `google/gemini-2.5-flash`
-- `purpose text` — short label set by caller (e.g. `tier:standard`, `week:3`, `classify`)
-- `http_status int` — null on network/timeout/abort
-- `outcome text` — `ok` | `retryable` (429/5xx) | `client_error` (4xx) | `timeout` | `network_error` | `aborted`
-- `attempt int`, `total_attempts int`
-- `duration_ms int`
-- `request_id text` — correlate retries within one user request
-- `teacher_id uuid null`, `course_id uuid null` — best-effort from JWT/body
-- `error_code text null`, `error_message text null` (first ~500 chars of upstream body)
-- `context jsonb default '{}'` — tier, week, prompt tokens estimate, etc.
+---
 
-Indexes: `(created_at desc)`, `(function_name, created_at desc)`, partial `(created_at desc) where outcome <> 'ok'`.
+## Stage-by-stage changes
 
-RLS:
-- Insert: `authenticated` and `service_role` (edge functions write with service role).
-- Select: admins only via `public.is_admin(auth.uid())`.
-- GRANTs: `INSERT` to `authenticated`, `ALL` to `service_role`, `SELECT` to `authenticated` (gated by RLS).
+### A. Deletion coverage (parity with `delete-course`)
+Add the following tables to the wipe pipeline, ordered by FK dependency:
 
-## 2. Shared logger for edge functions
-
-Create `supabase/functions/_shared/aiGatewayLog.ts` exporting:
-
-```ts
-loggedGatewayFetch({
-  functionName, model, purpose, requestId, teacherId?, courseId?,
-  attempt, totalAttempts, body, timeoutMs, context?
-}) → Promise<Response>
+```text
+assessment_results        (FK -> assessment_questions, concepts, course)
+assessment_questions      (FK -> concepts)
+diagnostic_results        (FK -> diagnostic_questions, course)
+diagnostic_questions      (FK -> concepts)
+student_concept_mastery   (FK -> concepts, student, course)
+student_course_mastery    (FK -> course)
+concepts                  (FK -> course)
+lesson_plan_weeks         (FK -> course)
+course_teaching_insights  (FK -> course)
+course_youtube_links      (FK -> course)
+course_ta_settings        (FK -> course)
+course_material_files     (filter by course_id AND storage_path)
+teacher_setup_progress    (FK -> course)
+cache_versions            (scope='course', scope_id=courseId)
+chat_messages / chat_sessions  (only when user opts into "wipe chat history")
 ```
 
-Responsibilities:
-- Wrap the existing `fetch("https://ai.gateway.lovable.dev/...")` call.
-- Measure `duration_ms`, classify outcome from status / `AbortError` / network error.
-- Insert one row into `ai_gateway_call_log` via a service-role Supabase client (fire-and-forget, never blocks the response — wrap in `try/catch` and `EdgeRuntime.waitUntil` if available).
-- Return the original `Response` (or rethrow) so caller logic is unchanged.
+Keep these out of scope (course itself is preserved):
+- `courses` row
+- `enrollments`, `course_teachers`, `pending_signups`, `profiles.active_course_id`, `teacher_applications.assigned_course_id`
 
-## 3. Instrument the high-value callers first
+Each table gets its own `runStep("delete_<table>")` so the report shows row-level granularity.
 
-Wire `loggedGatewayFetch` into the functions where 4xx/5xx/timeouts have been biting us:
-- `generate-diagnostic-questions` (per tier × attempt)
-- `generate-lesson-plan`, `regenerate-lesson-plan-week`
-- `generate-exam-questions`, `generate-weekly-quiz`, `generate-practice-questions`
-- `classify-question`, `explain-answers`, `quality-check`, `parse-syllabus`
-- `chat`, `suggest-concepts`, `suggest-lesson`, `recommend-additional-concepts`, `score-diagnostic`, `generate-teaching-insights`, `extract-lesson-plan`, `extract-youtube-links`
+### B. Order & FK safety
+Pre-compute the order from the FK graph (hard-coded constant in the file with a comment). Group into phases:
+1. **Results / mastery** (leaf rows)
+2. **Questions** (assessment + diagnostic)
+3. **Concepts**
+4. **Lesson plan + insights + youtube + TA settings**
+5. **Materials (DB + storage)**
+6. **Course flags reset + cache bump**
+7. **Setup progress**
 
-Each call site passes a stable `requestId` (one per inbound request) and a `purpose` tag so retries collapse visually.
+### C. Storage scoping
+- `course_material_files`: filter `eq("course_id", courseId).eq("storage_path", syllabusStoragePath)` before delete.
+- Add a `course_materials_orphans` cleanup step that deletes any `course_material_files` rows for the course whose `storage_path` is no longer in storage (best-effort, logged).
 
-## 4. UI changes in `src/pages/admin/AdminSetupDebug.tsx`
+### D. Error handling
+Replace `/not.*found/i.test(err.message)` with explicit checks:
+- Storage: treat HTTP 404 / `statusCode === '404'` / `error.name === 'NotFound'` as soft-skip.
+- DB: map Postgres `code` (`23503` FK violation, `23505` unique, `42501` permission) and surface as `errorCode` in `StepResult`.
 
-Add a third tab **"AI Gateway Calls"** next to the existing two. No changes to existing tabs.
+Extend `StepResult` to include `{ errorCode?: string, postgresCode?: string }`.
 
-Top strip (last 24h, computed from query):
-- counters: OK, 4xx, 5xx/429, timeout, network/aborted
-- avg + p95 latency per function (small table)
+### E. Dry-run mode
+Accept `{ dryRun: true }` in the body. When set:
+- All `delete()` calls become `select("id", { count: "exact", head: true })`.
+- Storage `remove` becomes `list` to count matching objects.
+- `course_flags`/`bump_cache_version` are skipped; response includes a `wouldUpdate` map.
+- Response shape unchanged (`steps[*].details.wouldDelete = N`).
 
-Main table columns:
-`Time · Function · Model · Purpose · Attempt (n/N) · Status · Outcome (badge) · ms · Request · Teacher · Course · Error`
+### F. Audit log
+New table `wipe_audit_log`:
+- `id`, `course_id`, `user_id`, `dry_run boolean`, `ok boolean`, `started_at`, `finished_at`, `duration_ms`, `steps jsonb`, `error text`.
+- Service-role insert at end of every run (success or failure).
+- RLS: admin select-all; teachers select rows for courses they own/collaborate on.
 
-Filters:
-- text filter (function / purpose / request_id / teacher / course / error)
-- outcome multi-select (OK / retryable / client_error / timeout / network / aborted)
-- function dropdown (distinct values from results)
-- "Non-200 only" toggle
-- time range: 1h / 24h / 7d
+### G. Verify step expansion
+Add to the existing `verify` step:
+- `assessment_results`, `diagnostic_results`, `student_concept_mastery`, `student_course_mastery`, `course_teaching_insights`, `course_youtube_links`, `course_ta_settings`, `cache_versions` (scope=course).
 
-Expandable row reveals: full upstream error message, `context` JSON, and all sibling attempts that share the same `request_id` (so a 504 followed by a successful retry is visible as one group).
+### H. Client invalidation
+Extend `WipeEventDetail.scopes` union with `"mastery" | "insights" | "ta_settings"` and emit them from the wipe call site so dependent views refresh.
 
-Auto-refresh every 15s (pausable) and a manual Refresh button matching the existing style.
+---
 
-## 5. Out of scope (call out, do not build now)
+## Files to change / add
 
-- No alerting/webhooks.
-- No per-user dashboards — admin-only.
-- No retention job yet; we'll revisit once volume is known. Suggest a follow-up to add a daily prune (>30 days) if rows grow large.
+- `supabase/functions/wipe-syllabus-cascade/index.ts` — full rewrite of step pipeline, dry-run support, structured errors, audit insert.
+- `supabase/migrations/<ts>_wipe_audit_log.sql` — new table + GRANTs + RLS + policies.
+- `src/lib/wipeEvents.ts` — extend scopes union.
+- Call site of `wipe-syllabus-cascade` (admin/setup-debug page) — pass new scopes; surface dry-run toggle + audit results.
+- `src/pages/admin/AdminSetupDebug.tsx` — add "Dry run" checkbox + "Recent wipes" tab reading from `wipe_audit_log`.
 
 ## Technical notes
+- Keep `runStep` continue-on-failure semantics — never abort mid-pipeline.
+- Wrap everything except `auth/validate_input/authorize` so a single bad step doesn't hide the rest.
+- Service-role client is unchanged; no schema-grant changes for existing tables.
+- Cache bump remains best-effort, but now also bumps `cache_versions` for `scope='concepts'` and `scope='questions'`.
 
-- The logger must never throw into the caller; logging failures only `console.error`.
-- `error_message` is truncated to 500 chars to keep rows small.
-- `outcome` is derived in the logger, not the caller, so classification stays consistent.
-- Reuse the existing `corsHeaders` / Supabase service client pattern from other functions; do not edit `src/integrations/supabase/client.ts`.
-- No changes to `setup_progress_log` schema, so the existing tabs keep working unchanged.
+## Out of scope
+- True DB transaction across all deletes (not feasible across storage + RPC + multiple tables).
+- Soft-delete / undo. Wipe remains destructive; dry-run is the safety net.
+
+## Open question
+Should chat history (`chat_sessions` + `chat_messages` for this course) be wiped by default, opt-in, or never? Current `delete-course` wipes it, but a syllabus re-upload may want to preserve student conversation history. **Default proposal: opt-in via `{ wipeChat: true }`.**
