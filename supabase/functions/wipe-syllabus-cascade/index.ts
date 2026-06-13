@@ -231,9 +231,18 @@ Deno.serve(async (req) => {
         .select("storage_path")
         .eq("course_id", courseId);
       if (selErr) throw selErr;
-      const paths = Array.from(
-        new Set((rows ?? []).map((r: any) => r.storage_path).filter(Boolean)),
-      ) as string[];
+      const registered = (rows ?? []).map((r: any) => r.storage_path).filter(Boolean) as string[];
+      // Belt-and-suspenders: also remove well-known canonical JSON paths even
+      // if they were never recorded in course_material_files (historical bug
+      // where the upsert failed silently against a partial unique index left
+      // orphaned files behind, and the lesson plan page kept rehydrating
+      // from them after a wipe).
+      const canonical = [
+        `${courseId}/lesson-plan/published-plan.json`,
+        `${courseId}/lesson-plan/draft-plan-v2.json`,
+        `${courseId}/syllabus/approved-syllabus.json`,
+      ];
+      const paths = Array.from(new Set([...registered, ...canonical]));
 
       if (dryRun) {
         return { wouldRemoveFiles: paths.length, wouldRemoveRows: rows?.length ?? 0, paths };
