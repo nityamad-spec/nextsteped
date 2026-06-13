@@ -277,6 +277,19 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         .upload(jsonPath, blob, { upsert: true, contentType: "application/json" });
       if (uploadErr) throw new Error(uploadErr.message);
 
+      // Register the parsed JSON in course_material_files so wipe/delete
+      // pipelines can derive its storage path from the table.
+      if (teacherId && courseId) {
+        await upsertCourseMaterialFile({
+          course_id: courseId,
+          teacher_id: teacherId,
+          storage_path: jsonPath,
+          file_name: "approved-syllabus.json",
+          file_size: blob.size,
+          folder_type: "syllabus-json",
+        });
+      }
+
       await supabase
         .from("courses")
         .update({ syllabus_json_path: jsonPath })
