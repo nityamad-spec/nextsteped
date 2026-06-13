@@ -167,8 +167,8 @@ const WipeAuditTab = () => {
                       <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.course_id}>
                         {r.course_id.slice(0, 8)}…
                       </td>
-                      <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.user_id}>
-                        {r.user_id.slice(0, 8)}…
+                      <td className="py-2 pr-3 text-muted-foreground" title={r.user_id}>
+                        {r.userEmail ?? <span className="font-mono">{r.user_id.slice(0, 8)}…</span>}
                       </td>
                       <td className="py-2 pr-3">
                         <Badge variant={r.dry_run ? "outline" : "secondary"}>
