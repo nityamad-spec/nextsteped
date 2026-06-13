@@ -221,56 +221,46 @@ Deno.serve(async (req) => {
     await runStep("course_youtube_links", () => deleteByCourse("course_youtube_links"));
     await runStep("course_ta_settings", () => deleteByCourse("course_ta_settings"));
 
-    // ─────────── Phase 5: materials (storage + db) ───────────
-    await runStep("syllabus_file", async () => {
+    // ─────────── Phase 5: storage files (driven by course_material_files) ───────────
+    // Single source of truth: every file we ever uploaded to course-materials
+    // for this course has a row here. Read paths, remove from storage, then
+    // delete the rows.
+    await runStep("storage_files", async () => {
+      const { data: rows, error: selErr } = await admin
+        .from("course_material_files")
+        .select("storage_path")
+        .eq("course_id", courseId);
+      if (selErr) throw selErr;
+      const paths = Array.from(
+        new Set((rows ?? []).map((r: any) => r.storage_path).filter(Boolean)),
+      ) as string[];
+
       if (dryRun) {
-        const { count, error } = await admin
-          .from("course_material_files")
-          .select("id", { count: "exact", head: true })
-          .eq("course_id", courseId)
-          .eq("storage_path", syllabusStoragePath);
-        if (error) throw error;
-        return { wouldRemoveRows: count ?? 0, storagePath: syllabusStoragePath };
+        return { wouldRemoveFiles: paths.length, wouldRemoveRows: rows?.length ?? 0, paths };
       }
-      const { error: rmErr } = await admin.storage.from("course-materials").remove([syllabusStoragePath]);
-      if (rmErr && !isStorageNotFound(rmErr)) throw rmErr;
+
+      let removedFiles = 0;
+      // Storage `remove` accepts arrays — chunk to stay well under any
+      // server-side limit.
+      const CHUNK = 500;
+      for (let i = 0; i < paths.length; i += CHUNK) {
+        const slice = paths.slice(i, i + CHUNK);
+        if (slice.length === 0) continue;
+        const { error: rmErr } = await admin.storage.from("course-materials").remove(slice);
+        if (rmErr && !isStorageNotFound(rmErr)) throw rmErr;
+        removedFiles += slice.length;
+      }
+
       const { error: delErr, count } = await admin
         .from("course_material_files")
         .delete({ count: "exact" })
-        .eq("course_id", courseId)
-        .eq("storage_path", syllabusStoragePath);
+        .eq("course_id", courseId);
       if (delErr) throw delErr;
-      return { removedRows: count ?? 0 };
+
+      return { removedFiles, removedRows: count ?? 0, paths };
     });
 
-    await runStep("syllabus_json", async () => {
-      const path = `${courseId}/syllabus/approved-syllabus.json`;
-      if (dryRun) {
-        const { data: list, error } = await admin.storage
-          .from("course-materials")
-          .list(`${courseId}/syllabus`, { search: "approved-syllabus.json", limit: 1 });
-        if (error) throw error;
-        const exists = !!list && list.some((f: any) => f.name === "approved-syllabus.json");
-        return { wouldRemove: exists ? 1 : 0, path };
-      }
-      const { error } = await admin.storage.from("course-materials").remove([path]);
-      if (error && !isStorageNotFound(error)) throw error;
-      return { path };
-    });
 
-    await runStep("lesson_plan_storage", async () => {
-      const canonicalPublished = `${courseId}/lesson-plan/published-plan.json`;
-      const canonicalDraft = `${courseId}/lesson-plan/draft-plan-v2.json`;
-      const paths = Array.from(new Set(
-        [lessonPlanPath, lessonPlanDraftPath, canonicalPublished, canonicalDraft]
-          .filter(Boolean) as string[],
-      ));
-      if (paths.length === 0) return { removedFiles: 0 };
-      if (dryRun) return { wouldRemoveFiles: paths.length, paths };
-      const { error: rmErr } = await admin.storage.from("course-materials").remove(paths);
-      if (rmErr && !isStorageNotFound(rmErr)) throw rmErr;
-      return { removedFiles: paths.length, paths };
-    });
 
     // ─────────── Phase 6: chat (opt-in) ───────────
     if (wipeChat) {
