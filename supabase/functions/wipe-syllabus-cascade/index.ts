@@ -137,19 +137,17 @@ Deno.serve(async (req) => {
     if (!authOk) return fail(401, "auth", steps.auth.error!);
 
     // ───── validate input ─────
-    let syllabusStoragePath = "";
     let wipeChat = false;
     const inputOk = await runStep("validate_input", async () => {
       const body = await req.json().catch(() => ({}));
       const cId = body?.courseId;
-      const sPath = body?.syllabusStoragePath;
       if (!cId || typeof cId !== "string") throw new Error("courseId (string) is required");
-      if (!sPath || typeof sPath !== "string") throw new Error("syllabusStoragePath (string) is required");
       courseId = cId;
-      syllabusStoragePath = sPath;
       dryRun = !!body?.dryRun;
       wipeChat = !!body?.wipeChat;
-      return { courseId: cId, syllabusStoragePath: sPath, dryRun, wipeChat };
+      // syllabusStoragePath / lessonPlanPath are accepted for back-compat but
+      // ignored — paths are now derived from course_material_files.
+      return { courseId: cId, dryRun, wipeChat };
     });
     if (!inputOk) return fail(400, "validate_input", steps.validate_input.error!);
 
