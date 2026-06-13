@@ -122,7 +122,7 @@ const WipeAuditTab = () => {
 
       <div className="flex items-center justify-between">
         <Input
-          placeholder="Filter by course_id / user_id / error / id…"
+          placeholder="Filter by course_id / user / error / id…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           className="max-w-md"
