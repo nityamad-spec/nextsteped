@@ -35,6 +35,8 @@ interface ProgressRow {
 const AdminSetupDebug = () => {
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [progress, setProgress] = useState<ProgressRow[]>([]);
+  const [emailById, setEmailById] = useState<Map<string, string>>(new Map());
+  const [courseNameById, setCourseNameById] = useState<Map<string, string>>(new Map());
   const [filter, setFilter] = useState("");
   const [onlyFailures, setOnlyFailures] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -55,8 +57,28 @@ const AdminSetupDebug = () => {
         .order("updated_at", { ascending: false })
         .limit(200),
     ]);
-    setLogs((logRes.data as LogRow[]) ?? []);
-    setProgress((progRes.data as ProgressRow[]) ?? []);
+    const logRows = (logRes.data as LogRow[]) ?? [];
+    const progRows = (progRes.data as ProgressRow[]) ?? [];
+    setLogs(logRows);
+    setProgress(progRows);
+
+    const teacherIds = Array.from(new Set(
+      [...logRows.map((r) => r.teacher_id), ...progRows.map((r) => r.teacher_id)].filter(Boolean),
+    ));
+    const courseIds = Array.from(new Set(
+      [...logRows.map((r) => r.course_id), ...progRows.map((r) => r.course_id)].filter((v): v is string => !!v),
+    ));
+
+    const [profRes, courseRes] = await Promise.all([
+      teacherIds.length
+        ? supabase.from("profiles").select("id, email").in("id", teacherIds)
+        : Promise.resolve({ data: [] as any[] }),
+      courseIds.length
+        ? supabase.from("courses").select("id, name").in("id", courseIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+    setEmailById(new Map(((profRes as any).data ?? []).filter((p: any) => p.email).map((p: any) => [p.id, p.email])));
+    setCourseNameById(new Map(((courseRes as any).data ?? []).filter((c: any) => c.name).map((c: any) => [c.id, c.name])));
     setLoading(false);
   };
 
@@ -70,7 +92,9 @@ const AdminSetupDebug = () => {
     const ctx = r.context || {};
     return (
       matchesFilter(r.teacher_id) ||
+      matchesFilter(emailById.get(r.teacher_id) ?? "") ||
       matchesFilter(r.course_id ?? "") ||
+      matchesFilter(r.course_id ? (courseNameById.get(r.course_id) ?? "") : "") ||
       matchesFilter(r.step_id) ||
       matchesFilter(r.error_message ?? "") ||
       matchesFilter(r.error_code ?? "") ||
@@ -81,7 +105,9 @@ const AdminSetupDebug = () => {
 
   const filteredProgress = progress.filter((r) =>
     matchesFilter(r.teacher_id) ||
+    matchesFilter(emailById.get(r.teacher_id) ?? "") ||
     matchesFilter(r.course_id ?? "") ||
+    matchesFilter(r.course_id ? (courseNameById.get(r.course_id) ?? "") : "") ||
     matchesFilter(r.step_id),
   );
 
@@ -119,7 +145,7 @@ const AdminSetupDebug = () => {
 
       <div className="flex gap-2 items-center">
         <Input
-          placeholder="Filter by teacher_id / course_id / step / error / request_id / caller…"
+          placeholder="Filter by teacher / course / step / error / request_id / caller…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           className="max-w-md"
@@ -184,9 +210,13 @@ const AdminSetupDebug = () => {
                           </td>
                           <td className="py-2 pr-3 font-mono">{r.action}</td>
                           <td className="py-2 pr-3 font-mono">{r.step_id}</td>
-                          <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.teacher_id}>{r.teacher_id.slice(0, 8)}…</td>
-                          <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.course_id ?? ""}>
-                            {r.course_id ? `${r.course_id.slice(0, 8)}…` : "—"}
+                          <td className="py-2 pr-3 text-muted-foreground" title={r.teacher_id}>
+                            {emailById.get(r.teacher_id) ?? <span className="font-mono">{r.teacher_id.slice(0, 8)}…</span>}
+                          </td>
+                          <td className="py-2 pr-3 text-muted-foreground" title={r.course_id ?? ""}>
+                            {r.course_id
+                              ? (courseNameById.get(r.course_id) ?? <span className="font-mono">{r.course_id.slice(0, 8)}…</span>)
+                              : "—"}
                           </td>
                           <td className="py-2 pr-3 font-mono text-muted-foreground" title={reqId}>
                             {reqId ? `${String(reqId).slice(0, 8)}…` : "—"}
@@ -267,9 +297,13 @@ const AdminSetupDebug = () => {
                 <tbody>
                   {filteredProgress.map((r, i) => (
                     <tr key={i} className="border-b last:border-0">
-                      <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.teacher_id}>{r.teacher_id.slice(0, 8)}…</td>
-                      <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.course_id ?? ""}>
-                        {r.course_id ? `${r.course_id.slice(0, 8)}…` : "—"}
+                      <td className="py-2 pr-3 text-muted-foreground" title={r.teacher_id}>
+                        {emailById.get(r.teacher_id) ?? <span className="font-mono">{r.teacher_id.slice(0, 8)}…</span>}
+                      </td>
+                      <td className="py-2 pr-3 text-muted-foreground" title={r.course_id ?? ""}>
+                        {r.course_id
+                          ? (courseNameById.get(r.course_id) ?? <span className="font-mono">{r.course_id.slice(0, 8)}…</span>)
+                          : "—"}
                       </td>
                       <td className="py-2 pr-3 font-mono">{r.step_id}</td>
                       <td className="py-2 pr-3 font-mono text-muted-foreground">
