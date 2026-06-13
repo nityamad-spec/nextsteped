@@ -907,6 +907,14 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         JSON.parse(await verify.data.text());
         // Record path + publish timestamp on the course row (best-effort).
         await recordPublishedPath(courseId, publishedPath);
+        await upsertCourseMaterialFile({
+          course_id: courseId,
+          teacher_id: user.id,
+          storage_path: publishedPath,
+          file_name: "published-plan.json",
+          file_size: blob.size,
+          folder_type: "lesson-plan-published",
+        });
         // Source of truth for student visibility: per-week rows in DB
         // (RLS hides locked + future weeks from students automatically).
         await upsertPublishedWeeks(
