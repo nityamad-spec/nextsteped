@@ -453,7 +453,7 @@ export type Database = {
       }
       course_material_files: {
         Row: {
-          course_id: string | null
+          course_id: string
           created_at: string
           file_name: string
           file_size: number
@@ -463,7 +463,7 @@ export type Database = {
           teacher_id: string
         }
         Insert: {
-          course_id?: string | null
+          course_id: string
           created_at?: string
           file_name: string
           file_size: number
@@ -473,7 +473,7 @@ export type Database = {
           teacher_id: string
         }
         Update: {
-          course_id?: string | null
+          course_id?: string
           created_at?: string
           file_name?: string
           file_size?: number
