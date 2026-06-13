@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
       if (dryRun) {
         const { count, error } = await admin
           .from(table)
-          .select("id", { count: "exact", head: true })
+          .select("course_id", { count: "exact", head: true })
           .eq("course_id", courseId);
         if (error) throw error;
         return { wouldDelete: count ?? 0, table };
