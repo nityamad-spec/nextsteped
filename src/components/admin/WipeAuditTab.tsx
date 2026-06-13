@@ -44,9 +44,20 @@ const WipeAuditTab = () => {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(100);
-    setRows((data as unknown as WipeRow[]) ?? []);
+    const baseRows = (data as unknown as WipeRow[]) ?? [];
+    const ids = Array.from(new Set(baseRows.map((r) => r.user_id).filter(Boolean)));
+    let emailById = new Map<string, string | null>();
+    if (ids.length > 0) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, email")
+        .in("id", ids);
+      emailById = new Map((profs ?? []).map((p: any) => [p.id, p.email ?? null]));
+    }
+    setRows(baseRows.map((r) => ({ ...r, userEmail: emailById.get(r.user_id) ?? null })));
     setLoading(false);
   };
+
 
   useEffect(() => { void load(); }, []);
 
