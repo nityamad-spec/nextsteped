@@ -182,24 +182,6 @@ Deno.serve(async (req) => {
       return fail(status, "authorize", steps.authorize.error!);
     }
 
-    // Pre-fetch lesson plan paths
-    let lessonPlanPath: string | null = null;
-    let lessonPlanDraftPath: string | null = null;
-    const fetchOk = await runStep("fetch_course_paths", async () => {
-      const { data, error } = await admin
-        .from("courses")
-        .select("lesson_plan_path, lesson_plan_draft_path")
-        .eq("id", courseId)
-        .maybeSingle();
-      if (error) throw new Error(`courses fetch failed: ${error.message}`);
-      lessonPlanPath = data?.lesson_plan_path ?? null;
-      lessonPlanDraftPath = data?.lesson_plan_draft_path ?? null;
-      return { lessonPlanPath, lessonPlanDraftPath };
-    });
-    if (!fetchOk) {
-      await writeAudit(admin, false, steps.fetch_course_paths.error!);
-      return fail(500, "fetch_course_paths", steps.fetch_course_paths.error!);
-    }
 
     // ─────────────────────────── Helpers ───────────────────────────
     // Generic "delete (or count, in dry-run) all rows in `table` for this course"
