@@ -13,13 +13,37 @@ function json(body: unknown, status: number) {
   });
 }
 
-// Per-step result tracker
+// ───────────────────────────── Types ─────────────────────────────
 type StepStatus = "ok" | "failed" | "skipped";
 interface StepResult {
   status: StepStatus;
   durationMs: number;
   error?: string;
+  errorCode?: string;       // generic: "FK_VIOLATION" | "PERMISSION" | "STORAGE_404" ...
+  postgresCode?: string;    // raw PG SQLSTATE if available
   details?: Record<string, unknown>;
+}
+
+// Classify a thrown driver/storage error into a stable error code we can show
+// in the audit UI without depending on free-text messages.
+function classifyError(err: any): { code?: string; pg?: string; message: string } {
+  const message = err?.message ?? String(err);
+  const pg = err?.code; // postgres SQLSTATE (string like '23503')
+  // Postgres
+  if (pg === "23503") return { code: "FK_VIOLATION", pg, message };
+  if (pg === "23505") return { code: "UNIQUE_VIOLATION", pg, message };
+  if (pg === "42501") return { code: "PERMISSION_DENIED", pg, message };
+  // Storage
+  const status = err?.statusCode ?? err?.status;
+  if (String(status) === "404" || err?.name === "NotFound" || err?.error === "Object not found") {
+    return { code: "STORAGE_NOT_FOUND", message };
+  }
+  return { message };
+}
+
+// Treat a storage remove that failed because the object is gone as success.
+function isStorageNotFound(err: any): boolean {
+  return classifyError(err).code === "STORAGE_NOT_FOUND";
 }
 
 Deno.serve(async (req) => {
@@ -27,8 +51,11 @@ Deno.serve(async (req) => {
 
   const steps: Record<string, StepResult> = {};
   let courseId = "<unknown>";
+  let userId = "";
+  let dryRun = false;
+  const startedAt = new Date();
+  const runStart = Date.now();
 
-  // Standardized step runner: every step's success/failure is captured here.
   const runStep = async (
     id: string,
     fn: () => Promise<Record<string, unknown> | void>,
@@ -39,9 +66,18 @@ Deno.serve(async (req) => {
       steps[id] = { status: "ok", durationMs: Date.now() - t0, details };
       return true;
     } catch (err: any) {
-      const message = err?.message ?? String(err);
-      steps[id] = { status: "failed", durationMs: Date.now() - t0, error: message };
-      console.error(`[wipe-syllabus-cascade] step="${id}" course="${courseId}" FAILED:`, message, err);
+      const { code, pg, message } = classifyError(err);
+      steps[id] = {
+        status: "failed",
+        durationMs: Date.now() - t0,
+        error: message,
+        errorCode: code,
+        postgresCode: pg,
+      };
+      console.error(
+        `[wipe-syllabus-cascade] step="${id}" course="${courseId}" code=${code ?? "—"} pg=${pg ?? "—"} FAILED:`,
+        message,
+      );
       return false;
     }
   };
@@ -51,8 +87,32 @@ Deno.serve(async (req) => {
     return json({ ok: false, stepId, error: message, steps, ...extra }, status);
   };
 
+  // We collect the audit insert payload to write at the end (best-effort).
+  const writeAudit = async (
+    admin: ReturnType<typeof createClient> | null,
+    ok: boolean,
+    error: string | null,
+  ) => {
+    if (!admin || !userId || courseId === "<unknown>") return;
+    try {
+      await admin.from("wipe_audit_log").insert({
+        course_id: courseId,
+        user_id: userId,
+        dry_run: dryRun,
+        ok,
+        started_at: startedAt.toISOString(),
+        finished_at: new Date().toISOString(),
+        duration_ms: Date.now() - runStart,
+        steps,
+        error,
+      });
+    } catch (e: any) {
+      console.error("[wipe-syllabus-cascade] audit insert failed:", e?.message ?? e);
+    }
+  };
+
   try {
-    // ---- Step: auth ----
+    // ───── auth ─────
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) return fail(401, "auth", "Missing or invalid Authorization header");
 
@@ -68,7 +128,6 @@ Deno.serve(async (req) => {
     });
     const token = authHeader.replace("Bearer ", "");
 
-    let userId = "";
     const authOk = await runStep("auth", async () => {
       const { data, error } = await userClient.auth.getClaims(token);
       if (error || !data?.claims?.sub) throw new Error(error?.message || "Invalid token");
@@ -77,7 +136,9 @@ Deno.serve(async (req) => {
     });
     if (!authOk) return fail(401, "auth", steps.auth.error!);
 
-    // ---- Step: validate input ----
+    // ───── validate input ─────
+    let syllabusStoragePath = "";
+    let wipeChat = false;
     const inputOk = await runStep("validate_input", async () => {
       const body = await req.json().catch(() => ({}));
       const cId = body?.courseId;
@@ -85,17 +146,16 @@ Deno.serve(async (req) => {
       if (!cId || typeof cId !== "string") throw new Error("courseId (string) is required");
       if (!sPath || typeof sPath !== "string") throw new Error("syllabusStoragePath (string) is required");
       courseId = cId;
-      (steps as any).__input = { courseId: cId, syllabusStoragePath: sPath };
-      return { courseId: cId };
+      syllabusStoragePath = sPath;
+      dryRun = !!body?.dryRun;
+      wipeChat = !!body?.wipeChat;
+      return { courseId: cId, syllabusStoragePath: sPath, dryRun, wipeChat };
     });
     if (!inputOk) return fail(400, "validate_input", steps.validate_input.error!);
 
-    const syllabusStoragePath: string = ((steps as any).__input).syllabusStoragePath;
-    delete (steps as any).__input;
-
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // ---- Step: authorize ----
+    // ───── authorize ─────
     const authzOk = await runStep("authorize", async () => {
       const { data: profile, error: pErr } = await admin
         .from("profiles").select("role").eq("id", userId).maybeSingle();
@@ -113,12 +173,18 @@ Deno.serve(async (req) => {
       if (ctErr) throw new Error(`course_teachers lookup failed: ${ctErr.message}`);
       if (collab?.id) return { via: "collaborator" };
 
-      throw new Error("Not authorized for this course");
+      const e = new Error("Not authorized for this course");
+      (e as any).code = "42501";
+      throw e;
     });
-    if (!authzOk) return fail(steps.authorize.error?.includes("Not authorized") ? 403 : 500, "authorize", steps.authorize.error!);
+    if (!authzOk) {
+      await writeAudit(admin, false, steps.authorize.error!);
+      const status = steps.authorize.errorCode === "PERMISSION_DENIED"
+        || steps.authorize.error?.includes("Not authorized") ? 403 : 500;
+      return fail(status, "authorize", steps.authorize.error!);
+    }
 
-    // Pre-fetch lesson plan paths (used by lesson_plan step). Wrapped so any
-    // failure here is also surfaced with a stepId rather than hidden.
+    // Pre-fetch lesson plan paths
     let lessonPlanPath: string | null = null;
     let lessonPlanDraftPath: string | null = null;
     const fetchOk = await runStep("fetch_course_paths", async () => {
@@ -132,72 +198,129 @@ Deno.serve(async (req) => {
       lessonPlanDraftPath = data?.lesson_plan_draft_path ?? null;
       return { lessonPlanPath, lessonPlanDraftPath };
     });
-    if (!fetchOk) return fail(500, "fetch_course_paths", steps.fetch_course_paths.error!);
+    if (!fetchOk) {
+      await writeAudit(admin, false, steps.fetch_course_paths.error!);
+      return fail(500, "fetch_course_paths", steps.fetch_course_paths.error!);
+    }
 
-    // ---- Wipe steps (continue-on-failure so the UI receives a full report) ----
-    await runStep("syllabus_file", async () => {
-      const { error: rmErr } = await admin.storage.from("course-materials").remove([syllabusStoragePath]);
-      if (rmErr && !/not.*found/i.test(rmErr.message)) {
-        throw new Error(`storage remove failed: ${rmErr.message}`);
+    // ─────────────────────────── Helpers ───────────────────────────
+    // Generic "delete (or count, in dry-run) all rows in `table` for this course"
+    const deleteByCourse = async (table: string) => {
+      if (dryRun) {
+        const { count, error } = await admin
+          .from(table)
+          .select("id", { count: "exact", head: true })
+          .eq("course_id", courseId);
+        if (error) throw error;
+        return { wouldDelete: count ?? 0, table };
       }
+      const { count, error } = await admin
+        .from(table)
+        .delete({ count: "exact" })
+        .eq("course_id", courseId);
+      if (error) throw error;
+      return { deleted: count ?? 0, table };
+    };
+
+    // ─────────── Phase 1: leaf rows (results + mastery) ───────────
+    await runStep("assessment_results", () => deleteByCourse("assessment_results"));
+    await runStep("diagnostic_results", () => deleteByCourse("diagnostic_results"));
+    await runStep("student_concept_mastery", () => deleteByCourse("student_concept_mastery"));
+    await runStep("student_course_mastery", () => deleteByCourse("student_course_mastery"));
+
+    // ─────────── Phase 2: questions ───────────
+    await runStep("assessment_questions", () => deleteByCourse("assessment_questions"));
+    await runStep("diagnostic_questions", () => deleteByCourse("diagnostic_questions"));
+
+    // ─────────── Phase 3: concepts (depends on phases 1+2) ───────────
+    await runStep("concepts", () => deleteByCourse("concepts"));
+
+    // ─────────── Phase 4: course-scoped resources ───────────
+    await runStep("lesson_plan_weeks", () => deleteByCourse("lesson_plan_weeks"));
+    await runStep("course_teaching_insights", () => deleteByCourse("course_teaching_insights"));
+    await runStep("course_youtube_links", () => deleteByCourse("course_youtube_links"));
+    await runStep("course_ta_settings", () => deleteByCourse("course_ta_settings"));
+
+    // ─────────── Phase 5: materials (storage + db) ───────────
+    await runStep("syllabus_file", async () => {
+      if (dryRun) {
+        const { count, error } = await admin
+          .from("course_material_files")
+          .select("id", { count: "exact", head: true })
+          .eq("course_id", courseId)
+          .eq("storage_path", syllabusStoragePath);
+        if (error) throw error;
+        return { wouldRemoveRows: count ?? 0, storagePath: syllabusStoragePath };
+      }
+      const { error: rmErr } = await admin.storage.from("course-materials").remove([syllabusStoragePath]);
+      if (rmErr && !isStorageNotFound(rmErr)) throw rmErr;
       const { error: delErr, count } = await admin
         .from("course_material_files")
         .delete({ count: "exact" })
+        .eq("course_id", courseId)
         .eq("storage_path", syllabusStoragePath);
-      if (delErr) throw new Error(`course_material_files delete failed: ${delErr.message}`);
+      if (delErr) throw delErr;
       return { removedRows: count ?? 0 };
     });
 
     await runStep("syllabus_json", async () => {
       const path = `${courseId}/syllabus/approved-syllabus.json`;
-      const { error } = await admin.storage.from("course-materials").remove([path]);
-      if (error && !/not.*found/i.test(error.message)) {
-        throw new Error(`storage remove failed: ${error.message}`);
+      if (dryRun) {
+        const { data: list, error } = await admin.storage
+          .from("course-materials")
+          .list(`${courseId}/syllabus`, { search: "approved-syllabus.json", limit: 1 });
+        if (error) throw error;
+        const exists = !!list && list.some((f: any) => f.name === "approved-syllabus.json");
+        return { wouldRemove: exists ? 1 : 0, path };
       }
+      const { error } = await admin.storage.from("course-materials").remove([path]);
+      if (error && !isStorageNotFound(error)) throw error;
       return { path };
     });
 
-    await runStep("diagnostic_questions", async () => {
-      const { count, error } = await admin
-        .from("diagnostic_questions").delete({ count: "exact" }).eq("course_id", courseId);
-      if (error) throw new Error(`diagnostic_questions delete failed: ${error.message}`);
-      return { diagnostic_questions: count ?? 0 };
-    });
-
-    await runStep("concepts", async () => {
-      // Delete assessment_questions FIRST (FK assessment_questions.concept_id -> concepts.id)
-      const { count: c2, error: e2 } = await admin
-        .from("assessment_questions").delete({ count: "exact" }).eq("course_id", courseId);
-      if (e2) throw new Error(`assessment_questions delete failed: ${e2.message}`);
-      const { count: c1, error: e1 } = await admin
-        .from("concepts").delete({ count: "exact" }).eq("course_id", courseId);
-      if (e1) throw new Error(`concepts delete failed: ${e1.message}`);
-      return { concepts: c1 ?? 0, assessment_questions: c2 ?? 0 };
-    });
-
-    await runStep("lesson_plan", async () => {
-      const { count, error } = await admin
-        .from("lesson_plan_weeks").delete({ count: "exact" }).eq("course_id", courseId);
-      if (error) throw new Error(`lesson_plan_weeks delete failed: ${error.message}`);
+    await runStep("lesson_plan_storage", async () => {
       const canonicalPublished = `${courseId}/lesson-plan/published-plan.json`;
       const canonicalDraft = `${courseId}/lesson-plan/draft-plan-v2.json`;
       const paths = Array.from(new Set(
         [lessonPlanPath, lessonPlanDraftPath, canonicalPublished, canonicalDraft]
           .filter(Boolean) as string[],
       ));
-      let removedFiles = 0;
-      if (paths.length > 0) {
-        const { error: rmErr } = await admin.storage.from("course-materials").remove(paths);
-        if (rmErr && !/not.*found/i.test(rmErr.message)) {
-          throw new Error(`lesson plan storage remove failed: ${rmErr.message}`);
-        }
-        removedFiles = paths.length;
-      }
-      return { lesson_plan_weeks: count ?? 0, removedFiles, paths };
+      if (paths.length === 0) return { removedFiles: 0 };
+      if (dryRun) return { wouldRemoveFiles: paths.length, paths };
+      const { error: rmErr } = await admin.storage.from("course-materials").remove(paths);
+      if (rmErr && !isStorageNotFound(rmErr)) throw rmErr;
+      return { removedFiles: paths.length, paths };
     });
 
+    // ─────────── Phase 6: chat (opt-in) ───────────
+    if (wipeChat) {
+      await runStep("chat_sessions", async () => {
+        const { data: sessions, error: sErr } = await admin
+          .from("chat_sessions").select("id").eq("course_id", courseId);
+        if (sErr) throw sErr;
+        const ids = (sessions ?? []).map((s: any) => s.id);
+        if (ids.length === 0) return { sessions: 0, messages: 0 };
+        if (dryRun) {
+          const { count: mCount, error: mErr } = await admin
+            .from("chat_messages").select("id", { count: "exact", head: true }).in("session_id", ids);
+          if (mErr) throw mErr;
+          return { wouldDeleteSessions: ids.length, wouldDeleteMessages: mCount ?? 0 };
+        }
+        const { error: dmErr, count: mCount } = await admin
+          .from("chat_messages").delete({ count: "exact" }).in("session_id", ids);
+        if (dmErr) throw dmErr;
+        const { error: dsErr, count: sCount } = await admin
+          .from("chat_sessions").delete({ count: "exact" }).in("id", ids);
+        if (dsErr) throw dsErr;
+        return { sessions: sCount ?? 0, messages: mCount ?? 0 };
+      });
+    } else {
+      steps.chat_sessions = { status: "skipped", durationMs: 0, details: { reason: "wipeChat=false" } };
+    }
 
+    // ─────────── Phase 7: course flags + cache bump ───────────
     await runStep("course_flags", async () => {
+      if (dryRun) return { wouldReset: true };
       const { error } = await admin
         .from("courses")
         .update({
@@ -210,27 +333,39 @@ Deno.serve(async (req) => {
           published: false,
         })
         .eq("id", courseId);
-      if (error) throw new Error(`courses flag update failed: ${error.message}`);
-      try {
-        await admin.rpc("bump_cache_version", { _scope: "course", _scope_id: courseId });
-      } catch (rpcErr: any) {
-        // Non-fatal — surface in details but don't fail the step.
-        return { cacheBump: "failed", cacheBumpError: rpcErr?.message ?? String(rpcErr) };
+      if (error) throw error;
+      const cacheResults: Record<string, string> = {};
+      for (const scope of ["course", "concepts", "questions"]) {
+        try {
+          await admin.rpc("bump_cache_version", { _scope: scope, _scope_id: courseId });
+          cacheResults[scope] = "ok";
+        } catch (rpcErr: any) {
+          cacheResults[scope] = `failed: ${rpcErr?.message ?? String(rpcErr)}`;
+        }
       }
-      return { cacheBump: "ok" };
+      return { cacheBump: cacheResults };
     });
 
-    await runStep("setup_progress", async () => {
-      const { count, error } = await admin
-        .from("teacher_setup_progress")
-        .delete({ count: "exact" })
-        .eq("course_id", courseId);
-      if (error) throw new Error(`teacher_setup_progress delete failed: ${error.message}`);
-      return { teacher_setup_progress: count ?? 0 };
+    await runStep("cache_versions", async () => {
+      if (dryRun) {
+        const { count, error } = await admin
+          .from("cache_versions")
+          .select("scope_id", { count: "exact", head: true })
+          .eq("scope", "course")
+          .eq("scope_id", courseId);
+        if (error) throw error;
+        return { wouldDelete: count ?? 0 };
+      }
+      // Leave the bumped rows in place; they're harmless. (No-op success.)
+      return { kept: true };
     });
 
-    // ---- Step: verify ----
+    // ─────────── Phase 8: setup progress ───────────
+    await runStep("setup_progress", () => deleteByCourse("teacher_setup_progress"));
+
+    // ─────────── verify ───────────
     await runStep("verify", async () => {
+      if (dryRun) return { skipped: "dry run" };
       const verification: Record<string, { remaining: number; ok: boolean }> = {};
       const checkTable = async (key: string, table: string) => {
         const { count, error } = await admin
@@ -240,12 +375,14 @@ Deno.serve(async (req) => {
         if (error) throw new Error(`verify ${table} failed: ${error.message}`);
         verification[key] = { remaining: count ?? 0, ok: (count ?? 0) === 0 };
       };
-      await checkTable("concepts", "concepts");
-      await checkTable("lesson_plan_weeks", "lesson_plan_weeks");
-      await checkTable("diagnostic_questions", "diagnostic_questions");
-      await checkTable("assessment_questions", "assessment_questions");
-      await checkTable("course_material_files", "course_material_files");
-      await checkTable("teacher_setup_progress", "teacher_setup_progress");
+      for (const t of [
+        "assessment_results", "assessment_questions",
+        "diagnostic_results", "diagnostic_questions",
+        "student_concept_mastery", "student_course_mastery",
+        "concepts", "lesson_plan_weeks",
+        "course_teaching_insights", "course_youtube_links", "course_ta_settings",
+        "course_material_files", "teacher_setup_progress",
+      ]) await checkTable(t, t);
 
       const { data: jsonList, error: listErr } = await admin.storage
         .from("course-materials")
@@ -276,22 +413,27 @@ Deno.serve(async (req) => {
       return { verification };
     });
 
-    // ---- Aggregate response ----
+    // ───── aggregate response ─────
     const failedSteps = Object.entries(steps).filter(([, r]) => r.status === "failed");
-    if (failedSteps.length > 0) {
+    const ok = failedSteps.length === 0;
+    await writeAudit(admin, ok, ok ? null : failedSteps[0][1].error ?? "failed");
+
+    if (!ok) {
       const [firstId, firstRes] = failedSteps[0];
       return json({
         ok: false,
+        dryRun,
         stepId: firstId,
         error: firstRes.error,
-        failedSteps: failedSteps.map(([id, r]) => ({ stepId: id, error: r.error })),
+        failedSteps: failedSteps.map(([id, r]) => ({
+          stepId: id, error: r.error, errorCode: r.errorCode, postgresCode: r.postgresCode,
+        })),
         steps,
       }, 500);
     }
 
-    return json({ ok: true, steps }, 200);
+    return json({ ok: true, dryRun, steps }, 200);
   } catch (err: any) {
-    // Last-resort catch — should be unreachable since every step is wrapped.
     console.error("[wipe-syllabus-cascade] unhandled:", err);
     return json({ ok: false, stepId: "unhandled", error: err?.message ?? "Unknown error", steps }, 500);
   }

@@ -1631,6 +1631,48 @@ export type Database = {
         }
         Relationships: []
       }
+      wipe_audit_log: {
+        Row: {
+          course_id: string
+          created_at: string
+          dry_run: boolean
+          duration_ms: number
+          error: string | null
+          finished_at: string
+          id: string
+          ok: boolean
+          started_at: string
+          steps: Json
+          user_id: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          dry_run?: boolean
+          duration_ms?: number
+          error?: string | null
+          finished_at?: string
+          id?: string
+          ok: boolean
+          started_at: string
+          steps?: Json
+          user_id: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          dry_run?: boolean
+          duration_ms?: number
+          error?: string | null
+          finished_at?: string
+          id?: string
+          ok?: boolean
+          started_at?: string
+          steps?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -7,11 +7,22 @@
 
 export const WIPE_EVENT = "course-wiped";
 
+export type WipeScope =
+  | "lesson_plan"
+  | "concepts"
+  | "diagnostic"
+  | "syllabus"
+  | "mastery"
+  | "insights"
+  | "ta_settings"
+  | "chat"
+  | "all";
+
 export type WipeEventDetail = {
   courseId: string;
   // Which buckets of derived data were wiped. Subscribers can ignore events
   // that don't affect them.
-  scopes: Array<"lesson_plan" | "concepts" | "diagnostic" | "syllabus" | "all">;
+  scopes: WipeScope[];
 };
 
 let bc: BroadcastChannel | null = null;
