@@ -11,6 +11,7 @@ import {
 } from "@/lib/lessonPlanPath";
 import { normalizeLessonPlan } from "@/lib/lessonPlanShape";
 import { upsertPublishedWeeks, setWeekLocked } from "@/lib/lessonPlanWeeks";
+import { upsertCourseMaterialFile } from "@/lib/courseMaterialFiles";
 import { markStepCompleted } from "@/lib/setupProgress";
 import { subscribeWipe } from "@/lib/wipeEvents";
 import { Card } from "@/components/ui/card";
