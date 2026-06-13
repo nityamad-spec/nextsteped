@@ -165,12 +165,13 @@ Deno.serve(async (req) => {
     });
 
     await runStep("concepts", async () => {
-      const { count: c1, error: e1 } = await admin
-        .from("concepts").delete({ count: "exact" }).eq("course_id", courseId);
-      if (e1) throw new Error(`concepts delete failed: ${e1.message}`);
+      // Delete assessment_questions FIRST (FK assessment_questions.concept_id -> concepts.id)
       const { count: c2, error: e2 } = await admin
         .from("assessment_questions").delete({ count: "exact" }).eq("course_id", courseId);
       if (e2) throw new Error(`assessment_questions delete failed: ${e2.message}`);
+      const { count: c1, error: e1 } = await admin
+        .from("concepts").delete({ count: "exact" }).eq("course_id", courseId);
+      if (e1) throw new Error(`concepts delete failed: ${e1.message}`);
       return { concepts: c1 ?? 0, assessment_questions: c2 ?? 0 };
     });
 
