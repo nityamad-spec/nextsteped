@@ -255,6 +255,14 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
       }
       // Record path + publish timestamp on the course row (best-effort).
       await recordPublishedPath(courseId, publishedPath);
+      await upsertCourseMaterialFile({
+        course_id: courseId,
+        teacher_id: user.id,
+        storage_path: publishedPath,
+        file_name: "published-plan.json",
+        file_size: blob.size,
+        folder_type: "lesson-plan-published",
+      });
       // Mirror per-week metadata into DB so RLS can hide locked weeks from students.
       await upsertPublishedWeeks(
         courseId,
