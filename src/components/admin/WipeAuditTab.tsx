@@ -21,6 +21,7 @@ interface WipeRow {
   steps: Record<string, { status: string; durationMs: number; error?: string; errorCode?: string; details?: any }>;
   error: string | null;
   created_at: string;
+  userEmail?: string | null;
 }
 
 const WipeAuditTab = () => {
@@ -43,9 +44,20 @@ const WipeAuditTab = () => {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(100);
-    setRows((data as unknown as WipeRow[]) ?? []);
+    const baseRows = (data as unknown as WipeRow[]) ?? [];
+    const ids = Array.from(new Set(baseRows.map((r) => r.user_id).filter(Boolean)));
+    let emailById = new Map<string, string | null>();
+    if (ids.length > 0) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, email")
+        .in("id", ids);
+      emailById = new Map((profs ?? []).map((p: any) => [p.id, p.email ?? null]));
+    }
+    setRows(baseRows.map((r) => ({ ...r, userEmail: emailById.get(r.user_id) ?? null })));
     setLoading(false);
   };
+
 
   useEffect(() => { void load(); }, []);
 
@@ -72,8 +84,9 @@ const WipeAuditTab = () => {
 
   const matches = (s: string) => !filter || s.toLowerCase().includes(filter.toLowerCase());
   const filtered = rows.filter((r) =>
-    matches(r.course_id) || matches(r.user_id) || matches(r.error ?? "") || matches(r.id),
+    matches(r.course_id) || matches(r.user_id) || matches(r.userEmail ?? "") || matches(r.error ?? "") || matches(r.id),
   );
+
 
   return (
     <div className="space-y-4">
@@ -109,7 +122,7 @@ const WipeAuditTab = () => {
 
       <div className="flex items-center justify-between">
         <Input
-          placeholder="Filter by course_id / user_id / error / id…"
+          placeholder="Filter by course_id / user / error / id…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           className="max-w-md"
@@ -154,8 +167,8 @@ const WipeAuditTab = () => {
                       <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.course_id}>
                         {r.course_id.slice(0, 8)}…
                       </td>
-                      <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.user_id}>
-                        {r.user_id.slice(0, 8)}…
+                      <td className="py-2 pr-3 text-muted-foreground" title={r.user_id}>
+                        {r.userEmail ?? <span className="font-mono">{r.user_id.slice(0, 8)}…</span>}
                       </td>
                       <td className="py-2 pr-3">
                         <Badge variant={r.dry_run ? "outline" : "secondary"}>
