@@ -450,7 +450,10 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         return next;
       });
       if (courseId) {
-        emitWipe({ courseId, scopes: ["all"] });
+        emitWipe({
+          courseId,
+          scopes: ["syllabus", "lesson_plan", "concepts", "diagnostic", "mastery", "insights", "ta_settings", "all"],
+        });
       }
       toast.success("Syllabus and generated data wiped");
     } catch (e: any) {
