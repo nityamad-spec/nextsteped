@@ -84,8 +84,9 @@ const WipeAuditTab = () => {
 
   const matches = (s: string) => !filter || s.toLowerCase().includes(filter.toLowerCase());
   const filtered = rows.filter((r) =>
-    matches(r.course_id) || matches(r.user_id) || matches(r.error ?? "") || matches(r.id),
+    matches(r.course_id) || matches(r.user_id) || matches(r.userEmail ?? "") || matches(r.error ?? "") || matches(r.id),
   );
+
 
   return (
     <div className="space-y-4">
