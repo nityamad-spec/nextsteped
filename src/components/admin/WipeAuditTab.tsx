@@ -22,6 +22,7 @@ interface WipeRow {
   error: string | null;
   created_at: string;
   userEmail?: string | null;
+  courseName?: string | null;
 }
 
 const WipeAuditTab = () => {
@@ -46,7 +47,9 @@ const WipeAuditTab = () => {
       .limit(100);
     const baseRows = (data as unknown as WipeRow[]) ?? [];
     const ids = Array.from(new Set(baseRows.map((r) => r.user_id).filter(Boolean)));
+    const courseIds = Array.from(new Set(baseRows.map((r) => r.course_id).filter(Boolean)));
     let emailById = new Map<string, string | null>();
+    let nameById = new Map<string, string | null>();
     if (ids.length > 0) {
       const { data: profs } = await supabase
         .from("profiles")
@@ -54,7 +57,18 @@ const WipeAuditTab = () => {
         .in("id", ids);
       emailById = new Map((profs ?? []).map((p: any) => [p.id, p.email ?? null]));
     }
-    setRows(baseRows.map((r) => ({ ...r, userEmail: emailById.get(r.user_id) ?? null })));
+    if (courseIds.length > 0) {
+      const { data: courses } = await supabase
+        .from("courses")
+        .select("id, name")
+        .in("id", courseIds);
+      nameById = new Map((courses ?? []).map((c: any) => [c.id, c.name ?? null]));
+    }
+    setRows(baseRows.map((r) => ({
+      ...r,
+      userEmail: emailById.get(r.user_id) ?? null,
+      courseName: nameById.get(r.course_id) ?? null,
+    })));
     setLoading(false);
   };
 
@@ -84,7 +98,7 @@ const WipeAuditTab = () => {
 
   const matches = (s: string) => !filter || s.toLowerCase().includes(filter.toLowerCase());
   const filtered = rows.filter((r) =>
-    matches(r.course_id) || matches(r.user_id) || matches(r.userEmail ?? "") || matches(r.error ?? "") || matches(r.id),
+    matches(r.course_id) || matches(r.courseName ?? "") || matches(r.user_id) || matches(r.userEmail ?? "") || matches(r.error ?? "") || matches(r.id),
   );
 
 
@@ -122,7 +136,7 @@ const WipeAuditTab = () => {
 
       <div className="flex items-center justify-between">
         <Input
-          placeholder="Filter by course_id / user / error / id…"
+          placeholder="Filter by course / user / error / id…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           className="max-w-md"
@@ -164,8 +178,8 @@ const WipeAuditTab = () => {
                       <td className="py-2 pr-3 whitespace-nowrap font-mono">
                         {new Date(r.created_at).toLocaleString()}
                       </td>
-                      <td className="py-2 pr-3 font-mono text-muted-foreground" title={r.course_id}>
-                        {r.course_id.slice(0, 8)}…
+                      <td className="py-2 pr-3 text-muted-foreground" title={r.course_id}>
+                        {r.courseName ?? <span className="font-mono">{r.course_id.slice(0, 8)}…</span>}
                       </td>
                       <td className="py-2 pr-3 text-muted-foreground" title={r.user_id}>
                         {r.userEmail ?? <span className="font-mono">{r.user_id.slice(0, 8)}…</span>}

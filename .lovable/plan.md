@@ -1,31 +1,15 @@
-# Show user email instead of user_id in Admin Setup Debug audit logs
+## Goal
+In `/admin/setup-debug` → Audit Log tab, replace the truncated `course_id` in the "Course" column with the course name (admin has select access on `courses`). User email already shown.
 
-The only audit log shown on `/admin/setup-debug` is the wipe audit table in `src/components/admin/WipeAuditTab.tsx`. It currently renders `user_id.slice(0,8)…`. Replace with the user's email from `profiles.email`.
+## Changes — `src/components/admin/WipeAuditTab.tsx`
 
-## Changes
+1. Add `courseName?: string | null` to `WipeRow`.
+2. In `load()`, after fetching `wipe_audit_log`:
+   - Collect distinct `course_id`s
+   - `supabase.from("courses").select("id, name").in("id", courseIds)` → `nameById` map
+   - Enrich rows with `courseName: nameById.get(r.course_id) ?? null`
+3. Course cell: render `r.courseName ?? <span className="font-mono">{r.course_id.slice(0,8)}…</span>`, keep `title={r.course_id}` for hover.
+4. Extend `matches()` filter to include `r.courseName ?? ""`.
+5. Update filter placeholder to `"Filter by course / user / error / id…"`.
 
-**`src/components/admin/WipeAuditTab.tsx`**
-
-1. Extend `Row` type with `userEmail?: string`.
-2. After fetching the page of `wipe_audit_log` rows, collect the distinct `user_id`s and run one lookup:
-   ```ts
-   const { data: profs } = await supabase
-     .from("profiles")
-     .select("id, email")
-     .in("id", uniqueIds);
-   const emailById = new Map(profs?.map(p => [p.id, p.email]));
-   const enriched = rows.map(r => ({ ...r, userEmail: emailById.get(r.user_id) }));
-   ```
-3. Render in the "User" cell: `r.userEmail ?? r.user_id.slice(0,8)+"…"`, with `title={r.user_id}` preserved so the full id is still available on hover.
-4. Update the search filter (line 75) and placeholder (line 112) to also match against `userEmail` and read "Filter by course_id / user / error / id…".
-
-No schema or RLS change — admin already has select access to `profiles`.
-
-## Files
-
-- `src/components/admin/WipeAuditTab.tsx` — single file.
-
-## Out of scope
-
-- Other admin pages (no other audit tables surface `user_id` today).
-- Caching the profile lookup across renders (page is small, refetch on each load is fine).
+No schema, RLS, or backend changes. Admin-initiated wipes use the same lookup so admin email + course name both render.
