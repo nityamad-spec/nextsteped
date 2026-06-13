@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
       if (dryRun) {
         const { count, error } = await admin
           .from(table)
-          .select("id", { count: "exact", head: true })
+          .select("course_id", { count: "exact", head: true })
           .eq("course_id", courseId);
         if (error) throw error;
         return { wouldDelete: count ?? 0, table };
@@ -367,10 +367,12 @@ Deno.serve(async (req) => {
     await runStep("verify", async () => {
       if (dryRun) return { skipped: "dry run" };
       const verification: Record<string, { remaining: number; ok: boolean }> = {};
+      // Some tables (e.g. course_teaching_insights) have no `id` column —
+      // count by course_id which every wiped table has.
       const checkTable = async (key: string, table: string) => {
         const { count, error } = await admin
           .from(table)
-          .select("id", { count: "exact", head: true })
+          .select("course_id", { count: "exact", head: true })
           .eq("course_id", courseId);
         if (error) throw new Error(`verify ${table} failed: ${error.message}`);
         verification[key] = { remaining: count ?? 0, ok: (count ?? 0) === 0 };
