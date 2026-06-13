@@ -33,6 +33,7 @@ import {
   LESSON_PLAN_BUCKET,
 } from "@/lib/lessonPlanPath";
 import { upsertPublishedWeeks, setWeekLocked } from "@/lib/lessonPlanWeeks";
+import { upsertCourseMaterialFile } from "@/lib/courseMaterialFiles";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
