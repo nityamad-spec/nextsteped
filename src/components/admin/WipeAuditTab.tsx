@@ -21,6 +21,7 @@ interface WipeRow {
   steps: Record<string, { status: string; durationMs: number; error?: string; errorCode?: string; details?: any }>;
   error: string | null;
   created_at: string;
+  userEmail?: string | null;
 }
 
 const WipeAuditTab = () => {
