@@ -258,6 +258,22 @@ Rules:
       .upload(jsonPath, out, { upsert: true, contentType: "application/json" });
     if (upErr) throw new Error(upErr.message);
 
+    // Register in course_material_files so wipe/delete pipelines pick it up.
+    const { error: regErr } = await admin
+      .from("course_material_files")
+      .upsert(
+        {
+          course_id: courseId,
+          teacher_id: userId,
+          storage_path: jsonPath,
+          file_name: "uploaded-lesson-plan.json",
+          file_size: out.size,
+          folder_type: "lesson-plan-draft",
+        },
+        { onConflict: "course_id,storage_path" },
+      );
+    if (regErr) console.error("course_material_files upsert failed:", regErr.message);
+
     return new Response(
       JSON.stringify({
         path: jsonPath,

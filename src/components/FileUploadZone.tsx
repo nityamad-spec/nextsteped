@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { markStepCompleted } from "@/lib/setupProgress";
 import { emitWipe } from "@/lib/wipeEvents";
+import { upsertCourseMaterialFile } from "@/lib/courseMaterialFiles";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -275,6 +276,19 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         .from("course-materials")
         .upload(jsonPath, blob, { upsert: true, contentType: "application/json" });
       if (uploadErr) throw new Error(uploadErr.message);
+
+      // Register the parsed JSON in course_material_files so wipe/delete
+      // pipelines can derive its storage path from the table.
+      if (teacherId && courseId) {
+        await upsertCourseMaterialFile({
+          course_id: courseId,
+          teacher_id: teacherId,
+          storage_path: jsonPath,
+          file_name: "approved-syllabus.json",
+          file_size: blob.size,
+          folder_type: "syllabus-json",
+        });
+      }
 
       await supabase
         .from("courses")

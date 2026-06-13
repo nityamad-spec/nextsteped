@@ -1,106 +1,100 @@
-# Harden `wipe-syllabus-cascade`
+# Single source of truth for course storage files
 
-Bring the cascade wipe to parity with `delete-course` (minus the course row itself), add safety rails, and make every run observable.
+Today `course_material_files` only tracks files uploaded through `FileUploadZone` (syllabus PDFs, materials, lesson-plan docs). Several system-generated artifacts in the `course-materials` bucket bypass the table, so wipes/deletes rely on hardcoded paths and can leak storage objects.
 
-## Goals
-1. Full FK coverage so no derived rows are orphaned.
-2. Deterministic delete order driven by the FK graph.
-3. Dry-run mode that reports impact without mutating.
-4. Structured per-run audit log persisted to DB.
-5. Robust error classification (no regex matching on driver messages).
-6. Tightened scoping (filter by `course_id` everywhere possible).
+## Files currently NOT tracked
 
----
+| File | Written by | Path |
+|---|---|---|
+| Parsed syllabus JSON | `FileUploadZone.parseSyllabusInBackground` | `${courseId}/syllabus/approved-syllabus.json` |
+| Parsed syllabus JSON (server) | `extract-lesson-plan` edge function | `${courseId}/syllabus/approved-syllabus.json` |
+| Lesson plan draft | `CourseCreation` (`draftStoragePath`) | `${courseId}/lesson-plan/draft-plan-v2.json` |
+| Lesson plan published | `TeachingPlan` + `CourseCreation` | `${courseId}/lesson-plan/published-plan.json` |
+
+## Goal
+
+1. Every write to the `course-materials` bucket inserts/upserts a row in `course_material_files` with `course_id` FK.
+2. Every delete (`wipe-syllabus-cascade`, `delete-course`, per-file UI delete) fetches storage paths from `course_material_files` for the course, removes them from storage, then deletes the rows.
+3. No hardcoded canonical paths in delete logic.
 
 ## Stage-by-stage changes
 
-### A. Deletion coverage (parity with `delete-course`)
-Add the following tables to the wipe pipeline, ordered by FK dependency:
+### A. Schema (migration)
 
-```text
-assessment_results        (FK -> assessment_questions, concepts, course)
-assessment_questions      (FK -> concepts)
-diagnostic_results        (FK -> diagnostic_questions, course)
-diagnostic_questions      (FK -> concepts)
-student_concept_mastery   (FK -> concepts, student, course)
-student_course_mastery    (FK -> course)
-concepts                  (FK -> course)
-lesson_plan_weeks         (FK -> course)
-course_teaching_insights  (FK -> course)
-course_youtube_links      (FK -> course)
-course_ta_settings        (FK -> course)
-course_material_files     (filter by course_id AND storage_path)
-teacher_setup_progress    (FK -> course)
-cache_versions            (scope='course', scope_id=courseId)
-chat_messages / chat_sessions  (only when user opts into "wipe chat history")
+Add two derived `folder_type` values used by system artifacts (string column today — no enum change needed, just convention):
+
+- `syllabus-json` — parsed syllabus JSON
+- `lesson-plan-draft` — draft plan JSON
+- `lesson-plan-published` — published plan JSON
+
+Add a partial unique index so re-uploads upsert cleanly instead of duplicating rows:
+
+```sql
+CREATE UNIQUE INDEX course_material_files_course_path_uniq
+  ON public.course_material_files (course_id, storage_path);
 ```
 
-Keep these out of scope (course itself is preserved):
-- `courses` row
-- `enrollments`, `course_teachers`, `pending_signups`, `profiles.active_course_id`, `teacher_applications.assigned_course_id`
+No new tables; existing RLS already covers teacher/admin access.
 
-Each table gets its own `runStep("delete_<table>")` so the report shows row-level granularity.
+### B. Register system-generated uploads
 
-### B. Order & FK safety
-Pre-compute the order from the FK graph (hard-coded constant in the file with a comment). Group into phases:
-1. **Results / mastery** (leaf rows)
-2. **Questions** (assessment + diagnostic)
-3. **Concepts**
-4. **Lesson plan + insights + youtube + TA settings**
-5. **Materials (DB + storage)**
-6. **Course flags reset + cache bump**
-7. **Setup progress**
+Add a small helper used by both client and edge functions:
 
-### C. Storage scoping
-- `course_material_files`: filter `eq("course_id", courseId).eq("storage_path", syllabusStoragePath)` before delete.
-- Add a `course_materials_orphans` cleanup step that deletes any `course_material_files` rows for the course whose `storage_path` is no longer in storage (best-effort, logged).
+```ts
+// register a file row after a successful storage upload
+upsertCourseMaterialFile({ course_id, teacher_id, storage_path, file_name, file_size, folder_type })
+// onConflict: (course_id, storage_path) → updates file_size + updated_at
+```
 
-### D. Error handling
-Replace `/not.*found/i.test(err.message)` with explicit checks:
-- Storage: treat HTTP 404 / `statusCode === '404'` / `error.name === 'NotFound'` as soft-skip.
-- DB: map Postgres `code` (`23503` FK violation, `23505` unique, `42501` permission) and surface as `errorCode` in `StepResult`.
+Wire it into every existing storage write:
 
-Extend `StepResult` to include `{ errorCode?: string, postgresCode?: string }`.
+- `src/components/FileUploadZone.tsx` line 270-282 — after uploading `approved-syllabus.json`, upsert row with `folder_type='syllabus-json'`.
+- `src/pages/teacher/CourseCreation.tsx` lines 538 (draft) and 891 (published) — upsert with `lesson-plan-draft` / `lesson-plan-published`.
+- `src/pages/teacher/TeachingPlan.tsx` line 242 (published) — same as above.
+- `supabase/functions/extract-lesson-plan/index.ts` line 258 — service-role upsert with `syllabus-json` after writing parsed JSON.
 
-### E. Dry-run mode
-Accept `{ dryRun: true }` in the body. When set:
-- All `delete()` calls become `select("id", { count: "exact", head: true })`.
-- Storage `remove` becomes `list` to count matching objects.
-- `course_flags`/`bump_cache_version` are skipped; response includes a `wouldUpdate` map.
-- Response shape unchanged (`steps[*].details.wouldDelete = N`).
+### C. Delete logic — derive paths from the table
 
-### F. Audit log
-New table `wipe_audit_log`:
-- `id`, `course_id`, `user_id`, `dry_run boolean`, `ok boolean`, `started_at`, `finished_at`, `duration_ms`, `steps jsonb`, `error text`.
-- Service-role insert at end of every run (success or failure).
-- RLS: admin select-all; teachers select rows for courses they own/collaborate on.
+**`supabase/functions/wipe-syllabus-cascade/index.ts`**
+Replace the three hardcoded storage steps (`syllabus_file`, `syllabus_json`, `lesson_plan_storage`) with a single `storage_files` step:
 
-### G. Verify step expansion
-Add to the existing `verify` step:
-- `assessment_results`, `diagnostic_results`, `student_concept_mastery`, `student_course_mastery`, `course_teaching_insights`, `course_youtube_links`, `course_ta_settings`, `cache_versions` (scope=course).
+1. `SELECT storage_path FROM course_material_files WHERE course_id = ?` → `paths[]`.
+2. `dryRun` → return `{ wouldRemoveFiles: paths.length, paths }`.
+3. Else `storage.from("course-materials").remove(paths)` (chunk to 1000 if needed); ignore per-file `NotFound`.
+4. `DELETE FROM course_material_files WHERE course_id = ?` (count rows removed).
 
-### H. Client invalidation
-Extend `WipeEventDetail.scopes` union with `"mastery" | "insights" | "ta_settings"` and emit them from the wipe call site so dependent views refresh.
+Drop the `syllabusStoragePath`, `lessonPlanPath`, `lessonPlanDraftPath` inputs from the request body (or accept-and-ignore for back-compat). Update the verify step to also assert `course_material_files` count is `0`.
 
----
+**`supabase/functions/delete-course/index.ts`**
+Already fetches `storage_path` from the table — keep that pattern, just no behavioral change needed beyond confirming it now picks up the newly-registered system files.
+
+**`src/pages/teacher/ContentLibrary.tsx`** per-file delete — unchanged (already row-driven).
+
+### D. Client invalidation
+
+Extend `WipeEventDetail.scopes` already includes `materials`; no new scope needed. The wipe call site (`AdminSetupDebug` / `FileUploadZone`) keeps emitting `materials` after the consolidated step succeeds.
 
 ## Files to change / add
 
-- `supabase/functions/wipe-syllabus-cascade/index.ts` — full rewrite of step pipeline, dry-run support, structured errors, audit insert.
-- `supabase/migrations/<ts>_wipe_audit_log.sql` — new table + GRANTs + RLS + policies.
-- `src/lib/wipeEvents.ts` — extend scopes union.
-- Call site of `wipe-syllabus-cascade` (admin/setup-debug page) — pass new scopes; surface dry-run toggle + audit results.
-- `src/pages/admin/AdminSetupDebug.tsx` — add "Dry run" checkbox + "Recent wipes" tab reading from `wipe_audit_log`.
-
-## Technical notes
-- Keep `runStep` continue-on-failure semantics — never abort mid-pipeline.
-- Wrap everything except `auth/validate_input/authorize` so a single bad step doesn't hide the rest.
-- Service-role client is unchanged; no schema-grant changes for existing tables.
-- Cache bump remains best-effort, but now also bumps `cache_versions` for `scope='concepts'` and `scope='questions'`.
+- `supabase/migrations/<ts>_course_material_files_unique.sql` — partial unique index.
+- `src/lib/courseMaterialFiles.ts` (new) — `upsertCourseMaterialFile` helper for client.
+- `src/components/FileUploadZone.tsx` — register `approved-syllabus.json`.
+- `src/pages/teacher/CourseCreation.tsx` — register draft + published lesson plan JSON.
+- `src/pages/teacher/TeachingPlan.tsx` — register published lesson plan JSON.
+- `supabase/functions/extract-lesson-plan/index.ts` — register parsed JSON server-side.
+- `supabase/functions/wipe-syllabus-cascade/index.ts` — collapse storage steps; drive from table.
+- `supabase/functions/delete-course/index.ts` — no logic change; add verify log line.
 
 ## Out of scope
-- True DB transaction across all deletes (not feasible across storage + RPC + multiple tables).
-- Soft-delete / undo. Wipe remains destructive; dry-run is the safety net.
+
+- Backfill of existing courses whose syllabus JSON / lesson plan JSON were uploaded before this change. (Optional follow-up: one-off admin button "Reconcile storage" that lists the bucket prefix and inserts missing rows.)
+- Renaming `folder_type` to an enum.
+- Tracking lesson-plan source documents uploaded to a different bucket (`LESSON_PLAN_BUCKET`) — confirm whether that bucket should also be reconciled; if yes, add a `bucket` column. **Open question below.**
 
 ## Open question
-Should chat history (`chat_sessions` + `chat_messages` for this course) be wiped by default, opt-in, or never? Current `delete-course` wipes it, but a syllabus re-upload may want to preserve student conversation history. **Default proposal: opt-in via `{ wipeChat: true }`.**
+
+The lesson-plan JSON in `TeachingPlan.tsx` / `CourseCreation.tsx` is uploaded to `LESSON_PLAN_BUCKET` (not `course-materials`). Two options:
+1. **Add a `bucket` column** to `course_material_files` (default `'course-materials'`) and register cross-bucket. Deletes group by bucket.
+2. **Keep table single-bucket** and continue handling `LESSON_PLAN_BUCKET` separately in delete code.
+
+Recommended: option 1 — true single source of truth, minimal schema change, future-proof.
