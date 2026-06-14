@@ -989,17 +989,23 @@ Deno.serve(async (req) => {
     const requestId = crypto.randomUUID();
     const runId = crypto.randomUUID();
     const abortController = new AbortController();
+    // Single-tier regen: give it the whole Supabase invoke budget (minus
+    // headroom) and drop in-call retries to 1 so worst case fits comfortably.
+    const isSingleTier = activeSpecs.length === 1;
+    const deadlineBudgetMs = isSingleTier ? 145_000 : GLOBAL_DEADLINE_MS;
+    const gatewayRetries = isSingleTier ? 1 : 2;
     const ctx: RunCtx = {
       requestId,
       teacherId: (course as { teacher_id?: string }).teacher_id ?? null,
       courseId: courseId as string,
-      deadlineAt: Date.now() + GLOBAL_DEADLINE_MS,
+      deadlineAt: Date.now() + deadlineBudgetMs,
       abortSignal: abortController.signal,
       abort: (reason: Error) => {
         if (!abortController.signal.aborted) abortController.abort(reason);
       },
       runId,
       admin,
+      gatewayRetries,
     };
 
     // Seed one progress row per active tier so the client can render live status.
