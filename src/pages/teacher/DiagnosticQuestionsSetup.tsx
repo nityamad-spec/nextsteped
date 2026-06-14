@@ -166,27 +166,33 @@ const DiagnosticQuestionsSetup = () => {
     toast({ title: "Question removed" });
   };
 
-  const handleGenerate = async () => {
+  const QUOTA: Record<typeof TIERS[number], number> = {
+    standard: 10, easy: 10, medium: 10, hard: 10,
+  };
+
+  const runGeneration = async (tiers?: typeof TIERS[number][]) => {
     if (!courseId) {
       toast({ title: "No course selected", variant: "destructive" });
       return;
     }
     setGenerating(true);
     try {
+      const body: { courseId: string; tiers?: string[] } = { courseId };
+      if (tiers && tiers.length > 0) body.tiers = tiers;
       const { data, error } = await supabase.functions.invoke("generate-diagnostic-questions", {
-        body: { courseId },
+        body,
       });
 
       // Edge function returned non-2xx (e.g. 422 partial)
       if (error) {
         const ctx: any = (error as any).context;
-        let body: any = null;
+        let parsedBody: any = null;
         try {
-          if (ctx?.json) body = await ctx.json();
-          else if (ctx?.text) body = JSON.parse(await ctx.text());
+          if (ctx?.json) parsedBody = await ctx.json();
+          else if (ctx?.text) parsedBody = JSON.parse(await ctx.text());
         } catch { /* ignore */ }
-        if (body?.breakdown) {
-          const short = body.breakdown
+        if (parsedBody?.breakdown) {
+          const short = parsedBody.breakdown
             .filter((b: any) => b.accepted < b.requested)
             .map((b: any) => `${b.tier}: ${b.accepted}/${b.requested}`)
             .join(", ");
@@ -241,7 +247,7 @@ const DiagnosticQuestionsSetup = () => {
         });
       } else {
         toast({
-          title: "Question bank generated",
+          title: tiers ? "Tier regenerated" : "Question bank generated",
           description: data?.message
             ? `${data.message}${attemptsSummary ? ` (attempts ${attemptsSummary})` : ""}`
             : "Diagnostic questions are ready to review.",
@@ -257,6 +263,9 @@ const DiagnosticQuestionsSetup = () => {
       setGenerating(false);
     }
   };
+
+  const handleGenerate = () => runGeneration();
+  const handleRegenerateTiers = (tiers: typeof TIERS[number][]) => runGeneration(tiers);
 
 
   // Partition by item_code tier (STANDARD / EASY / MEDIUM / HARD).
@@ -279,6 +288,34 @@ const DiagnosticQuestionsSetup = () => {
   const filteredAdaptive = adaptiveQuestions.filter(
     q => tierOf(q) === adaptiveFilter.toUpperCase(),
   );
+
+  // Live per-tier counts derived from the current bank (drives "Regenerate tier"
+  // buttons even after a page reload — not just from the last response).
+  const countByTier: Record<typeof TIERS[number], number> = {
+    standard: standardQuestions.length,
+    easy: adaptiveQuestions.filter(q => tierOf(q) === "EASY").length,
+    medium: adaptiveQuestions.filter(q => tierOf(q) === "MEDIUM").length,
+    hard: adaptiveQuestions.filter(q => tierOf(q) === "HARD").length,
+  };
+  const shortTiersLive = TIERS.filter(t => countByTier[t] < QUOTA[t]);
+
+  const renderTierRegenButton = (tier: typeof TIERS[number]) => {
+    if (countByTier[tier] >= QUOTA[tier]) return null;
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={generating || conceptCount === 0}
+        onClick={() => handleRegenerateTiers([tier])}
+      >
+        {generating ? (
+          <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Regenerating…</>
+        ) : (
+          <><Sparkles className="mr-2 h-3.5 w-3.5" /> Regenerate {tier}</>
+        )}
+      </Button>
+    );
+  };
 
   // Concept coverage from questions
   const allTopics = [...new Set(questions.map(q => q.topic).filter(Boolean))] as string[];
@@ -419,43 +456,60 @@ const DiagnosticQuestionsSetup = () => {
                     : `No questions yet. Generate a template based on your ${conceptCount} course concepts.`}
                 </CardDescription>
               </div>
-              {questions.length > 0 ? (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button disabled={generating || conceptCount === 0} size="sm" variant="outline">
-                      {generating ? (
-                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating…</>
-                      ) : (
-                        <><Sparkles className="mr-2 h-4 w-4" /> Regenerate</>
-                      )}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Replace existing questions?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will delete all current diagnostic questions for this course and generate a fresh set of 20 MCQs. Any edits or manual deletions will be lost. The replacement only happens if generation succeeds for all tiers.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleGenerate}>Regenerate</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              ) : (
-                <Button
-                  onClick={handleGenerate}
-                  disabled={generating || conceptCount === 0}
-                  size="sm"
-                >
-                  {generating ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating…</>
-                  ) : (
-                    <><Sparkles className="mr-2 h-4 w-4" /> Generate Question Bank</>
-                  )}
-                </Button>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {questions.length > 0 && shortTiersLive.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={generating || conceptCount === 0}
+                    onClick={() => handleRegenerateTiers(shortTiersLive)}
+                    title={`Regenerate only: ${shortTiersLive.join(", ")}`}
+                  >
+                    {generating ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Regenerating…</>
+                    ) : (
+                      <><Sparkles className="mr-2 h-4 w-4" /> Regenerate short tiers ({shortTiersLive.length})</>
+                    )}
+                  </Button>
+                )}
+                {questions.length > 0 ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button disabled={generating || conceptCount === 0} size="sm" variant="outline">
+                        {generating ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating…</>
+                        ) : (
+                          <><Sparkles className="mr-2 h-4 w-4" /> Regenerate all</>
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Replace existing questions?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will delete all current diagnostic questions for this course and generate a fresh set of 40 MCQs. Any edits or manual deletions will be lost. Use “Regenerate short tiers” to top up only the tiers that fell short without touching the rest.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleGenerate}>Regenerate</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : (
+                  <Button
+                    onClick={handleGenerate}
+                    disabled={generating || conceptCount === 0}
+                    size="sm"
+                  >
+                    {generating ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating…</>
+                    ) : (
+                      <><Sparkles className="mr-2 h-4 w-4" /> Generate Question Bank</>
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
             {conceptCount === 0 && (
               <p className="text-xs text-amber-600 mt-2">
@@ -520,12 +574,17 @@ const DiagnosticQuestionsSetup = () => {
 
             {/* Standard Questions */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div>
                   <p className="text-sm font-medium">Standard Questions</p>
                   <p className="text-xs text-muted-foreground">Common to all students — covering core concepts</p>
                 </div>
-                <Badge variant="outline" className="font-mono">{standardQuestions.length} questions</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="font-mono">
+                    {countByTier.standard}/{QUOTA.standard} questions
+                  </Badge>
+                  {renderTierRegenButton("standard")}
+                </div>
               </div>
               {standardQuestions.length > 0 ? (
                 <div className="space-y-2">
@@ -542,32 +601,37 @@ const DiagnosticQuestionsSetup = () => {
 
             {/* Adaptive Questions */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div>
                   <p className="text-sm font-medium">Adaptive Tier Questions</p>
                   <p className="text-xs text-muted-foreground">Students receive Easy, Medium, or Hard questions based on standard performance</p>
                 </div>
-                <Badge variant="outline" className="font-mono">{adaptiveQuestions.length} questions</Badge>
+                <Badge variant="outline" className="font-mono">{adaptiveQuestions.length}/30 questions</Badge>
               </div>
-              {/* Tier filters */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">View tier:</span>
-                {(["Easy", "Medium", "Hard"] as const).map(tier => {
-                  const count = adaptiveQuestions.filter(q => tierOf(q) === tier.toUpperCase()).length;
-                  return (
-                    <button
-                      key={tier}
-                      onClick={() => setAdaptiveFilter(tier)}
-                      className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-                        adaptiveFilter === tier
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-background border-border hover:bg-muted"
-                      }`}
-                    >
-                      {tier} ({count})
-                    </button>
-                  );
-                })}
+              {/* Tier filters + per-tier regenerate */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground">View tier:</span>
+                  {(["Easy", "Medium", "Hard"] as const).map(tier => {
+                    const key = tier.toLowerCase() as "easy" | "medium" | "hard";
+                    const count = countByTier[key];
+                    const quota = QUOTA[key];
+                    return (
+                      <button
+                        key={tier}
+                        onClick={() => setAdaptiveFilter(tier)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                          adaptiveFilter === tier
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background border-border hover:bg-muted"
+                        }`}
+                      >
+                        {tier} ({count}/{quota})
+                      </button>
+                    );
+                  })}
+                </div>
+                {renderTierRegenButton(adaptiveFilter.toLowerCase() as "easy" | "medium" | "hard")}
               </div>
               {filteredAdaptive.length > 0 ? (
                 <div className="space-y-2">

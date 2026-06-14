@@ -1,58 +1,65 @@
-# Fix: "Generation incomplete — hard tier 0/10"
+# Tier-wise regeneration for incomplete diagnostic tiers
 
-## Root cause
+## Goal
 
-Live DB row for the last run:
+After the initial "Generate Question Bank" run produces a partial bank (e.g. standard/easy/medium done, hard short), let the teacher top up only the short tiers without re-running the tiers that already succeeded — and without wiping the existing questions.
 
-| tier     | status     | accepted/req | attempts | error_code |
-|----------|------------|--------------|----------|------------|
-| standard | validating | 10/10        | 1        | —          |
-| easy     | validating | 10/10        | 1        | —          |
-| medium   | done       | 10/10        | 1        | —          |
-| **hard** | **failed** | **0/10**     | **2**    | **incomplete** |
+## UX
 
-Hard tier (`difficulty 0.85 ±0.15` → required band **0.70–1.00**) consistently produces zero accepted questions. Two compounding reasons in `validateMcq`:
+On the Diagnostic Questions Setup page, when the response comes back with `partial: true` (or whenever a tier has fewer than its requested count of questions in the bank), render a small **"Regenerate short tiers"** action next to each short tier in the partial-success toast and in the tier section header:
 
-1. **`difficulty_justification` category band is over-constrained for hard.** Only two categories overlap the required difficulty band: `EDGE_CASE` (0.60–0.80) and `COMPOSITE_REASONING` (0.75–0.95). Any model output landing at e.g. `diff=0.82, EDGE_CASE` or `diff=0.78, COMPOSITE_REASONING` near the edges is rejected. With `bloom ≥ 3` also required, the model fails the joint constraint at high rate.
-2. **All-or-nothing insert.** Even though 30/40 questions were valid, the function returns 422 and **inserts nothing**, so the teacher sees an empty bank after 2 minutes of generation.
+```text
+Hard tier — 0/10 questions   [Regenerate hard tier]
+Medium tier — 8/10 questions [Regenerate medium tier]
+```
 
-`MAX_ATTEMPTS = 2` then guarantees we stop after only 2 hard-tier batches, locking in the failure.
+Plus a single **"Regenerate all short tiers"** button that fires one call covering every short tier in parallel (same edge function, one invocation).
 
-## Fix (three small, surgical changes)
+While regenerating:
+- Disable the affected tier's button, show the existing live `diagnostic_generation_runs` progress UI scoped to those tiers only.
+- Other tiers' existing questions stay visible and untouched.
 
-### 1. Make the hard-tier validation band achievable
-In `supabase/functions/generate-diagnostic-questions/index.ts`:
+On success: toast `"Hard tier topped up: 10/10"`. On another partial: same UI re-appears for whatever is still short.
 
-- Lower hard target from `0.85` → `0.80` and widen `DIFFICULTY_BAND` from `0.15` → `0.20` **for hard only** (keep ±0.15 for other tiers via a per-tier `band` field on `TierSpec`). Resulting hard band: 0.60–1.00 — covers `EDGE_CASE` cleanly and overlaps `COMPOSITE_REASONING` fully.
-- Update the prompt's `±0.15` line to use the spec's band.
+## Edge function change (`generate-diagnostic-questions/index.ts`)
 
-### 2. Give hard tier one more attempt
-- Replace global `MAX_ATTEMPTS = 2` with a per-spec `maxAttempts` (standard/easy/medium = 2, hard = 3). Budget impact: hard still bounded by the 130s `GLOBAL_DEADLINE_MS`; each call is ≤35s, so 3 × 35s = 105s worst case for hard, well within budget (it runs in parallel with the others).
+Add an optional `tiers?: ("standard"|"easy"|"medium"|"hard")[]` field to the request body. Behavior:
 
-### 3. Per-tier resilient insert (no more all-or-nothing)
-Replace the `allComplete` 422 gate with:
+1. **Filter `TIER_SPEC`** to only the requested tiers (default: all four, unchanged).
+2. **Seed `diagnostic_generation_runs`** rows only for the filtered tiers — the per-tier polling UI keeps working.
+3. **Run `runTier` in parallel** for the filtered tiers only.
+4. **Targeted delete + insert** instead of the current `delete WHERE course_id = X` blanket wipe:
+   - For each tier that completed its quota in this run, delete existing rows where `course_id = X AND tier = <tier>`, then insert the new rows for that tier.
+   - Tiers not in the request are left alone entirely.
+   - Use a single transaction-ish pattern: delete-then-insert per tier inside the loop; if an insert fails, log and continue with other tiers (matches today's resilience model).
+5. **Response shape unchanged** — `partial`, `shortTiers`, `breakdown`, `runId`. `partial` is computed against the *requested* tiers only, so a successful hard-only top-up returns `partial: false`.
+6. **Item code counter** — keep the existing `${course_code}-${TIER}-${NNN}` numbering but restart the counter per tier (already effectively per-tier since codes embed the tier name; just confirm no collisions by including tier in the prefix, which it already does).
 
-- Insert **every tier that hit its quota** (so a successful standard+easy+medium persists even if hard falls short).
-- If at least one tier completed, return `200` with `{ inserted, breakdown, partial: true }`.
-- Only return `422` when **zero** tiers completed.
-- Client (`DiagnosticQuestionsSetup.tsx`) shows an amber "Partial bank generated — N/40 questions. Hard tier short, regenerate to top up." toast on `partial: true`, instead of the current destructive toast.
+The deadline (`GLOBAL_DEADLINE_MS = 130s`) and per-tier attempt budgets are unchanged. A single-tier call has far more budget headroom, which is the whole point — hard's 3 attempts × 35s fits comfortably.
 
-A future "regenerate just the failed tiers" button can reuse the same edge function with an optional `tiers: ["hard"]` param — out of scope here.
+## Frontend change (`DiagnosticQuestionsSetup.tsx`)
+
+1. **Compute short tiers from the live bank** (not just the last response): `shortByTier[t] = TIER_SPEC[t].count - currentCountInBank[t]`. This drives the "Regenerate X tier" buttons so they appear even after a page reload.
+2. **Add `handleRegenerateTiers(tiers: string[])`** — mirrors `handleGenerate` but passes `{ courseId, tiers }`, and only refetches/updates UI for those tiers. Re-uses the existing toast logic and `diagnostic_generation_runs` poller (which already keys off `runId`).
+3. **Tier section header** gets a `Regenerate` button when `acceptedInBank < requested`.
+4. **Partial-success toast** gains an inline `Regenerate short tiers` action that calls `handleRegenerateTiers(data.shortTiers)`.
+5. **Step-completion gate** (`markStepCompleted ... "diagnostic"`) is already strict (20 total + 5/tier). It will fire automatically once a regenerate fills the gap — no logic change needed there.
 
 ## Files touched
 
-- `supabase/functions/generate-diagnostic-questions/index.ts` — `TierSpec` adds `band`/`maxAttempts`; `validateMcq` uses `spec.band`; `runTier` uses `spec.maxAttempts`; top-level handler switches to per-tier insert + partial response.
-- `src/pages/teacher/DiagnosticQuestionsSetup.tsx` — handle `partial: true` 200 response with a warning (not error) toast; refresh the question list on partial success.
+- `supabase/functions/generate-diagnostic-questions/index.ts` — accept `tiers` in body, filter `TIER_SPEC`, per-tier delete-then-insert, scope `partial` to requested tiers.
+- `src/pages/teacher/DiagnosticQuestionsSetup.tsx` — `handleRegenerateTiers`, per-tier "Regenerate" buttons in tier headers and partial toast, derive short tiers from live bank.
 
 ## Out of scope
 
-- Switching hard tier to `gemini-2.5-pro` (slower, would risk timeout).
-- A "regenerate failed tiers only" UI button.
-- Changing the bloom ≥ 3 constraint for hard (intentional pedagogy rule).
+- Background/queued regeneration (still synchronous, single invoke).
+- Changing the validation bands or attempt counts.
+- A "regenerate one specific question" action (different problem).
+- Migration changes — `diagnostic_generation_runs` already supports partial-tier seeding because rows are inserted per tier per `run_id`.
 
 ## Validation
 
-After deploy, click **Generate Question Bank** once and confirm:
-- Either all 40 land (ideal), or
-- At least 30 land with an amber partial-success toast and the question bank populated.
-- `diagnostic_generation_runs` rows show `done`/`done`/`done`/`done` or three `done` + one `failed`.
+1. Run initial generate → land with hard short (current bug pattern). Confirm bank shows standard/easy/medium full, hard 0.
+2. Click "Regenerate hard tier" → confirm only one tier row appears in the progress UI, other tiers' questions are untouched, and hard fills to 10/10.
+3. Click "Regenerate all short tiers" with two tiers short → confirm both run in parallel, both update, others untouched.
+4. After successful top-up to 5/5 per tier (20 total), confirm `diagnostic` setup step auto-marks complete.

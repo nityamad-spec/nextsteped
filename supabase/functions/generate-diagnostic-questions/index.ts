@@ -919,13 +919,35 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { courseId } = await req.json();
+    const body = await req.json();
+    const courseId: string | undefined = body?.courseId;
+    const requestedTiersRaw: unknown = body?.tiers;
     if (!courseId) {
       return new Response(JSON.stringify({ error: "courseId is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Optional tier filter — when provided, regenerate only those tiers and
+    // leave existing rows for the other tiers untouched. Default: all tiers.
+    const ALL_TIERS = TIER_SPEC.map((s) => s.tier);
+    let activeSpecs: TierSpec[] = TIER_SPEC;
+    if (Array.isArray(requestedTiersRaw) && requestedTiersRaw.length > 0) {
+      const allowed = new Set(ALL_TIERS);
+      const requested = (requestedTiersRaw as unknown[])
+        .filter((t): t is string => typeof t === "string")
+        .map((t) => t.toLowerCase())
+        .filter((t) => allowed.has(t as TierSpec["tier"]));
+      if (requested.length === 0) {
+        return new Response(JSON.stringify({
+          error: `tiers must be a subset of ${ALL_TIERS.join(", ")}`,
+        }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const set = new Set(requested);
+      activeSpecs = TIER_SPEC.filter((s) => set.has(s.tier));
+    }
+    const isPartialRun = activeSpecs.length < TIER_SPEC.length;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -974,8 +996,8 @@ Deno.serve(async (req) => {
       admin,
     };
 
-    // Seed one progress row per tier so the client can render live status.
-    const seedRows = TIER_SPEC.map((spec) => ({
+    // Seed one progress row per active tier so the client can render live status.
+    const seedRows = activeSpecs.map((spec) => ({
       run_id: runId,
       course_id: courseId,
       tier: spec.tier,
@@ -987,9 +1009,9 @@ Deno.serve(async (req) => {
     const { error: seedErr } = await admin.from("diagnostic_generation_runs").insert(seedRows);
     if (seedErr) console.warn("dgr seed failed:", seedErr.message);
 
-    // Run all tiers in parallel with retries
+    // Run only the active tiers in parallel with retries
     const settled = await Promise.allSettled(
-      TIER_SPEC.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, ctx)),
+      activeSpecs.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, ctx)),
     );
 
     // If any tier failed with CreditsExhaustedError, short-circuit with a
@@ -1018,10 +1040,10 @@ Deno.serve(async (req) => {
     const tierResults: TierResult[] = settled.map((r, i) => {
       if (r.status === "fulfilled") return r.value;
       return {
-        tier: TIER_SPEC[i].tier,
+        tier: activeSpecs[i].tier,
         accepted: [],
-        attempts: TIER_SPEC[i].maxAttempts,
-        requested: TIER_SPEC[i].count,
+        attempts: activeSpecs[i].maxAttempts,
+        requested: activeSpecs[i].count,
         sampleReasons: [`tier failed: ${(r.reason as Error)?.message?.slice(0, 80) || "unknown"}`],
         distribution: {},
       };
@@ -1055,12 +1077,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Build rows for insertion (only from tiers that hit their full quota)
-    const rows: any[] = [];
-    let counter = 1;
+    // Build rows per tier (only tiers that hit full quota), then delete+insert
+    // per tier. Tiers NOT in `activeSpecs` are never touched.
+    const rowsByTier = new Map<string, any[]>();
     for (const t of tierResults) {
       if (!completeTiers.has(t.tier)) continue;
       const spec = TIER_SPEC.find((s) => s.tier === t.tier)!;
+      let counter = 1;
+      const list: any[] = [];
       for (const q of t.accepted) {
         const recheck = validateMcq(q, spec, conceptByCode);
         if (!recheck.ok) {
@@ -1072,7 +1096,7 @@ Deno.serve(async (req) => {
           console.warn("pre-insert: missing concept_id for topic", recheck.normalized.topic);
           continue;
         }
-        rows.push({
+        list.push({
           item_code: `${course.course_code || "Q"}-${t.tier.toUpperCase()}-${String(counter).padStart(3, "0")}`,
           content_text: recheck.normalized.content_text,
           format: recheck.normalized.format,
@@ -1094,9 +1118,11 @@ Deno.serve(async (req) => {
         });
         counter++;
       }
+      if (list.length > 0) rowsByTier.set(t.tier, list);
     }
 
-    if (rows.length === 0) {
+    const totalRows = Array.from(rowsByTier.values()).reduce((s, l) => s + l.length, 0);
+    if (totalRows === 0) {
       return new Response(
         JSON.stringify({
           error: "Pre-insert revalidation dropped every row.",
@@ -1108,9 +1134,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    await admin.from("diagnostic_questions").delete().eq("course_id", course.id);
-    const { error: insertErr } = await admin.from("diagnostic_questions").insert(rows);
-    if (insertErr) throw insertErr;
+    // Per-tier delete + insert. Only tiers that successfully regenerated are
+    // touched; other tiers' existing questions remain intact.
+    for (const [tier, list] of rowsByTier) {
+      const { error: delErr } = await admin
+        .from("diagnostic_questions")
+        .delete()
+        .eq("course_id", course.id)
+        .eq("tier", tier);
+      if (delErr) {
+        console.error(`per-tier delete failed (${tier}):`, delErr.message);
+        continue;
+      }
+      const { error: insertErr } = await admin.from("diagnostic_questions").insert(list);
+      if (insertErr) {
+        console.error(`per-tier insert failed (${tier}):`, insertErr.message);
+      }
+    }
 
     const { count: orphanCount } = await admin
       .from("diagnostic_questions")
@@ -1152,18 +1192,25 @@ Deno.serve(async (req) => {
       });
 
 
+    // `partial` is scoped to THIS run's requested tiers. A successful
+    // hard-only top-up returns partial=false even if other tiers were skipped.
+    const requestedQuota = activeSpecs.reduce((s, sp) => s + sp.count, 0);
     const partial = !allComplete;
     const shortTiers = tierResults
       .filter((t) => t.accepted.length < t.requested)
       .map((t) => t.tier);
+    const requestedTiers = activeSpecs.map((s) => s.tier);
 
     return new Response(
       JSON.stringify({
         message: partial
-          ? `Generated ${rows.length}/${TOTAL_QUESTIONS} diagnostic questions (short on: ${shortTiers.join(", ")}). Regenerate to top up.`
-          : `Generated ${rows.length} diagnostic questions across ${distributionByUnit.length} units`,
+          ? `Generated ${totalRows}/${requestedQuota} diagnostic questions (short on: ${shortTiers.join(", ")}). Regenerate to top up.`
+          : isPartialRun
+            ? `Topped up ${requestedTiers.join(", ")} tier${requestedTiers.length === 1 ? "" : "s"} — ${totalRows} questions.`
+            : `Generated ${totalRows} diagnostic questions across ${distributionByUnit.length} units`,
         partial,
         shortTiers,
+        requestedTiers,
         breakdown,
         distributionByUnit,
         runId,
