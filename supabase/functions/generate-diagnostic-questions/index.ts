@@ -712,7 +712,7 @@ async function runTier(
   units: UnitInfo[],
   conceptByCode: Record<string, ConceptInfo>,
   lovableKey: string,
-  logCtx: { requestId: string; teacherId: string | null; courseId: string | null },
+  ctx: RunCtx,
 ): Promise<TierResult> {
   const seed = `${courseName}:${spec.tier}:${Date.now()}:${Math.random()}`;
   const quota = computeTierQuota(units, spec.count, seed);
@@ -725,6 +725,15 @@ async function runTier(
   let lastInvalidCount = 0;
 
   while (accepted.length < spec.count && attempts < MAX_ATTEMPTS) {
+    // Stop retry loop if global deadline or shared abort fired.
+    if (ctx.abortSignal.aborted) {
+      reasons.push(`aborted: ${(ctx.abortSignal.reason as Error)?.message || "sibling failure"}`);
+      break;
+    }
+    if (Date.now() >= ctx.deadlineAt) {
+      reasons.push("global deadline exceeded before next attempt");
+      break;
+    }
     attempts++;
     // Compute remaining quota
     const remaining: Record<string, number> = {};
@@ -741,8 +750,14 @@ async function runTier(
 
     let batch: GeneratedQuestion[] = [];
     try {
-      batch = await callGateway(spec, needed, courseName, quotaBlock, remaining, lovableKey, retryHint, logCtx);
+      batch = await callGateway(spec, needed, courseName, quotaBlock, remaining, lovableKey, retryHint, ctx);
     } catch (e) {
+      // Propagate fatal typed errors so the top-level handler can respond properly.
+      if (e instanceof CreditsExhaustedError) throw e;
+      if (e instanceof DeadlineExceededError) {
+        reasons.push(`deadline: ${(e as Error).message.slice(0, 80)}`);
+        break;
+      }
       reasons.push(`gateway error: ${(e as Error).message.slice(0, 80)}`);
       continue;
     }
