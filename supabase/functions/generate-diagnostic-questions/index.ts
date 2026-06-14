@@ -1382,20 +1382,45 @@ Deno.serve(async (req) => {
     // Per-tier delete + insert. Only tiers that successfully regenerated are
     // touched; other tiers' existing questions remain intact.
     for (const [tier, list] of rowsByTier) {
-      const { error: delErr } = await admin
+      const dbStart = Date.now();
+      const { error: delErr, count: deletedCount } = await admin
         .from("diagnostic_questions")
-        .delete()
+        .delete({ count: "exact" })
         .eq("course_id", course.id)
         .eq("tier", tier);
       if (delErr) {
         console.error(`per-tier delete failed (${tier}):`, delErr.message);
+        logEvent(ctx, "db_replace", {
+          tier,
+          status: "error",
+          message: `delete failed: ${delErr.message}`,
+          reason: delErr.message,
+          duration_ms: Date.now() - dbStart,
+        });
         continue;
       }
       const { error: insertErr } = await admin.from("diagnostic_questions").insert(list);
       if (insertErr) {
         console.error(`per-tier insert failed (${tier}):`, insertErr.message);
+        logEvent(ctx, "db_replace", {
+          tier,
+          status: "error",
+          message: `insert failed: ${insertErr.message}`,
+          reason: insertErr.message,
+          duration_ms: Date.now() - dbStart,
+          data: { deleted: deletedCount ?? null, attempted_insert: list.length },
+        });
+      } else {
+        logEvent(ctx, "db_replace", {
+          tier,
+          status: "ok",
+          message: `replaced tier ${tier}: deleted ${deletedCount ?? "?"} / inserted ${list.length}`,
+          duration_ms: Date.now() - dbStart,
+          data: { deleted: deletedCount ?? null, inserted: list.length },
+        });
       }
     }
+
 
     const { count: orphanCount } = await admin
       .from("diagnostic_questions")
