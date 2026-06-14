@@ -115,7 +115,35 @@ const MODEL = "google/gemini-2.5-flash";
 // GATEWAY_RETRIES × GATEWAY_CALL_TIMEOUT_MS must stay under the 150s client
 // invoke timeout. 2 × 2 × 35s ≈ 140s + small backoff.
 const GATEWAY_CALL_TIMEOUT_MS = 35_000;
+// Global wall-clock budget for the whole function. Supabase invoke timeout is
+// 150s; leave headroom for DB writes + JSON serialization.
+const GLOBAL_DEADLINE_MS = 130_000;
 const DIFFICULTY_BAND = 0.15;
+
+// Sentinel error thrown when the AI Gateway returns 402 (credits exhausted).
+// Caught at the top level and converted into a structured response so the UI
+// can show an actionable "Add credits" message instead of an opaque 500.
+class CreditsExhaustedError extends Error {
+  constructor(msg = "AI credits exhausted") {
+    super(msg);
+    this.name = "CreditsExhaustedError";
+  }
+}
+class DeadlineExceededError extends Error {
+  constructor(msg = "Global deadline exceeded") {
+    super(msg);
+    this.name = "DeadlineExceededError";
+  }
+}
+
+interface RunCtx {
+  requestId: string;
+  teacherId: string | null;
+  courseId: string | null;
+  deadlineAt: number;       // epoch ms
+  abortSignal: AbortSignal; // shared across tiers; aborted on 402
+  abort: (reason: Error) => void;
+}
 
 // Fixed categorization for bloom_justification (maps to bloom_level 1-6)
 const BLOOM_CATEGORY_BY_LEVEL: Record<number, string> = {
