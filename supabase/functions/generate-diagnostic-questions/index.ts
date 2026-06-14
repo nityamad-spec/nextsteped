@@ -143,6 +143,32 @@ interface RunCtx {
   deadlineAt: number;       // epoch ms
   abortSignal: AbortSignal; // shared across tiers; aborted on 402
   abort: (reason: Error) => void;
+  // Live per-tier progress tracking — used by the UI to render real progress.
+  runId: string;
+  admin: ReturnType<typeof createClient>;
+}
+
+type DgrStatus = "pending" | "calling_model" | "validating" | "done" | "failed" | "skipped";
+
+// Fire-and-forget progress update; never block the generation pipeline on it.
+function updateRunRow(
+  ctx: RunCtx,
+  tier: string,
+  patch: { status?: DgrStatus; accepted?: number; attempts?: number; error_code?: string | null },
+) {
+  const promise = ctx.admin
+    .from("diagnostic_generation_runs")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("run_id", ctx.runId)
+    .eq("tier", tier)
+    .then(({ error }) => {
+      if (error) console.warn("dgr update failed", tier, error.message);
+    });
+  if (typeof (globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime !== "undefined") {
+    (globalThis as { EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime.waitUntil(promise);
+  } else {
+    void promise.catch(() => {});
+  }
 }
 
 // Fixed categorization for bloom_justification (maps to bloom_level 1-6)
@@ -569,6 +595,7 @@ Examples:
       const combinedSignal = AbortSignal.any
         ? AbortSignal.any([timeoutSignal, ctx.abortSignal])
         : timeoutSignal;
+      updateRunRow(ctx, spec.tier, { status: "calling_model" });
       response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         signal: combinedSignal,
@@ -753,15 +780,21 @@ async function runTier(
       batch = await callGateway(spec, needed, courseName, quotaBlock, remaining, lovableKey, retryHint, ctx);
     } catch (e) {
       // Propagate fatal typed errors so the top-level handler can respond properly.
-      if (e instanceof CreditsExhaustedError) throw e;
+      if (e instanceof CreditsExhaustedError) {
+        updateRunRow(ctx, spec.tier, { status: "failed", attempts, error_code: "credits_exhausted" });
+        throw e;
+      }
       if (e instanceof DeadlineExceededError) {
         reasons.push(`deadline: ${(e as Error).message.slice(0, 80)}`);
+        updateRunRow(ctx, spec.tier, { status: "skipped", attempts, error_code: "deadline" });
         break;
       }
       reasons.push(`gateway error: ${(e as Error).message.slice(0, 80)}`);
+      updateRunRow(ctx, spec.tier, { attempts });
       continue;
     }
 
+    updateRunRow(ctx, spec.tier, { status: "validating", attempts });
     lastInvalidCount = 0;
     for (const q of batch) {
       const v = validateMcq(q, spec, conceptByCode);
@@ -792,7 +825,16 @@ async function runTier(
       acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
       if (accepted.length >= spec.count) break;
     }
+    updateRunRow(ctx, spec.tier, { accepted: accepted.length, attempts });
   }
+
+  const finalStatus: DgrStatus = accepted.length >= spec.count ? "done" : "failed";
+  updateRunRow(ctx, spec.tier, {
+    status: finalStatus,
+    accepted: accepted.length,
+    attempts,
+    error_code: finalStatus === "failed" ? "incomplete" : null,
+  });
 
   return {
     tier: spec.tier,
@@ -913,6 +955,7 @@ Deno.serve(async (req) => {
     const { units, conceptByCode } = buildUnits(concepts, weeks || []);
 
     const requestId = crypto.randomUUID();
+    const runId = crypto.randomUUID();
     const abortController = new AbortController();
     const ctx: RunCtx = {
       requestId,
@@ -923,7 +966,22 @@ Deno.serve(async (req) => {
       abort: (reason: Error) => {
         if (!abortController.signal.aborted) abortController.abort(reason);
       },
+      runId,
+      admin,
     };
+
+    // Seed one progress row per tier so the client can render live status.
+    const seedRows = TIER_SPEC.map((spec) => ({
+      run_id: runId,
+      course_id: courseId,
+      tier: spec.tier,
+      status: "pending" as DgrStatus,
+      requested: spec.count,
+      accepted: 0,
+      attempts: 0,
+    }));
+    const { error: seedErr } = await admin.from("diagnostic_generation_runs").insert(seedRows);
+    if (seedErr) console.warn("dgr seed failed:", seedErr.message);
 
     // Run all tiers in parallel with retries
     const settled = await Promise.allSettled(
@@ -936,11 +994,18 @@ Deno.serve(async (req) => {
       (r) => r.status === "rejected" && r.reason instanceof CreditsExhaustedError,
     );
     if (creditsRejected && creditsRejected.status === "rejected") {
+      // Mark any tiers still 'pending'/'calling_model' as failed so the UI shows it immediately.
+      await admin
+        .from("diagnostic_generation_runs")
+        .update({ status: "failed", error_code: "credits_exhausted", updated_at: new Date().toISOString() })
+        .eq("run_id", runId)
+        .in("status", ["pending", "calling_model", "validating"]);
       return new Response(
         JSON.stringify({
           error: "credits_exhausted",
           message: "AI credits are exhausted for this workspace. Add credits and try again.",
           detail: (creditsRejected.reason as Error).message.slice(0, 200),
+          runId,
         }),
         { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -973,6 +1038,7 @@ Deno.serve(async (req) => {
         JSON.stringify({
           error: "Could not produce a complete diagnostic set after retries.",
           breakdown,
+          runId,
         }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -1082,6 +1148,7 @@ Deno.serve(async (req) => {
         message: `Generated ${rows.length} diagnostic questions across ${distributionByUnit.length} units`,
         breakdown,
         distributionByUnit,
+        runId,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

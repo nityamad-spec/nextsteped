@@ -57,10 +57,19 @@ const DiagnosticQuestionsSetup = () => {
   const [elapsed, setElapsed] = useState(0);
   const [distribution, setDistribution] = useState<Array<{ unit: string; count: number; quota: number }>>([]);
 
-  const TIERS = ["Standard", "Easy", "Medium", "Hard"] as const;
-  const ESTIMATED_SECONDS = 75; // Gemini Pro: 4 parallel tiers + validation, ~60-90s typical
+  type TierRow = {
+    tier: "standard" | "easy" | "medium" | "hard";
+    status: "pending" | "calling_model" | "validating" | "done" | "failed" | "skipped";
+    requested: number;
+    accepted: number;
+    attempts: number;
+    error_code: string | null;
+  };
+  const [tierRows, setTierRows] = useState<TierRow[]>([]);
 
-  // Tick the elapsed timer while generating
+  const TIERS = ["standard", "easy", "medium", "hard"] as const;
+
+  // Elapsed timer (used purely for "Xs elapsed" display).
   useEffect(() => {
     if (!generating) { setElapsed(0); return; }
     const start = Date.now();
@@ -68,20 +77,63 @@ const DiagnosticQuestionsSetup = () => {
     return () => clearInterval(id);
   }, [generating]);
 
-  // Per-tier simulated status: tiers run in parallel on the server, so we ramp
-  // each one toward "validating" then "done" based on elapsed time.
-  const tierStatus = (idx: number): { label: string; pct: number } => {
-    const phase = ESTIMATED_SECONDS / 3; // generate / validate / finalize
-    const offset = idx * 1.5; // small stagger so it feels alive
-    const t = Math.max(0, elapsed - offset);
-    if (t < phase) return { label: "Generating questions…", pct: Math.min(40, (t / phase) * 40) };
-    if (t < phase * 2) return { label: "Validating MCQs…", pct: 40 + Math.min(40, ((t - phase) / phase) * 40) };
-    if (t < ESTIMATED_SECONDS) return { label: "Finalizing…", pct: 80 + Math.min(15, ((t - phase * 2) / phase) * 15) };
-    return { label: "Waiting for server…", pct: 95 };
+  // Poll the live progress table while generating. The edge function seeds 4
+  // rows per run and updates them at each lifecycle step; we render real state.
+  useEffect(() => {
+    if (!generating || !courseId) return;
+    let cancelled = false;
+    const pollOnce = async () => {
+      const { data } = await supabase
+        .from("diagnostic_generation_runs")
+        .select("tier, status, requested, accepted, attempts, error_code, run_id, created_at")
+        .eq("course_id", courseId)
+        .order("created_at", { ascending: false })
+        .limit(8);
+      if (cancelled || !data || data.length === 0) return;
+      // Latest run_id wins (created within this generation).
+      const latestRunId = (data[0] as { run_id: string }).run_id;
+      const rows = data
+        .filter((r) => (r as { run_id: string }).run_id === latestRunId)
+        .map((r) => ({
+          tier: r.tier as TierRow["tier"],
+          status: r.status as TierRow["status"],
+          requested: r.requested as number,
+          accepted: r.accepted as number,
+          attempts: r.attempts as number,
+          error_code: (r.error_code as string | null) ?? null,
+        }));
+      setTierRows(rows);
+    };
+    void pollOnce();
+    const id = setInterval(pollOnce, 1500);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [generating, courseId]);
+
+  // Per-tier display derived from real DB state.
+  const tierDisplay = (tier: typeof TIERS[number]): { pct: number; label: string; tone: "info" | "success" | "warn" | "error" } => {
+    const row = tierRows.find((r) => r.tier === tier);
+    if (!row) return { pct: 4, label: "Queued…", tone: "info" };
+    const ratio = row.requested > 0 ? row.accepted / row.requested : 0;
+    switch (row.status) {
+      case "pending":
+        return { pct: 6, label: "Queued…", tone: "info" };
+      case "calling_model":
+        return { pct: Math.max(15, ratio * 60), label: `Calling model${row.attempts > 1 ? ` (attempt ${row.attempts})` : ""}…`, tone: "info" };
+      case "validating":
+        return { pct: Math.max(60, 60 + ratio * 35), label: `Validating ${row.accepted}/${row.requested}…`, tone: "info" };
+      case "done":
+        return { pct: 100, label: `Done — ${row.accepted}/${row.requested}`, tone: "success" };
+      case "failed":
+        return { pct: Math.max(8, ratio * 100), label: row.error_code === "credits_exhausted" ? "Failed — credits exhausted" : `Failed — ${row.accepted}/${row.requested}`, tone: "error" };
+      case "skipped":
+        return { pct: Math.max(8, ratio * 100), label: "Skipped — deadline exceeded", tone: "warn" };
+    }
   };
 
-  const overallPct = Math.min(95, (elapsed / ESTIMATED_SECONDS) * 95);
-  const etaSeconds = Math.max(0, ESTIMATED_SECONDS - elapsed);
+  const overallPct = tierRows.length === 0
+    ? Math.min(15, elapsed * 2) // gentle ramp before first poll lands
+    : Math.round(TIERS.reduce((sum, t) => sum + tierDisplay(t).pct, 0) / TIERS.length);
+
 
 
   useEffect(() => {
@@ -415,23 +467,26 @@ const DiagnosticQuestionsSetup = () => {
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="h-3 w-3" />
-                    <span>
-                      {elapsed}s elapsed · ~{etaSeconds}s remaining
-                    </span>
+                    <span>{elapsed}s elapsed</span>
                   </div>
                 </div>
                 <Progress value={overallPct} className="h-2" />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {TIERS.map((tier, i) => {
-                    const s = tierStatus(i);
+                  {TIERS.map((tier) => {
+                    const s = tierDisplay(tier);
+                    const toneClass =
+                      s.tone === "success" ? "text-emerald-600"
+                      : s.tone === "error" ? "text-destructive"
+                      : s.tone === "warn" ? "text-amber-600"
+                      : "text-muted-foreground";
                     return (
                       <div key={tier} className="rounded-md border bg-background/60 px-3 py-2">
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-xs font-medium">{tier} tier</span>
+                          <span className="text-xs font-medium capitalize">{tier} tier</span>
                           <span className="text-[10px] text-muted-foreground">{Math.round(s.pct)}%</span>
                         </div>
                         <Progress value={s.pct} className="h-1.5" />
-                        <p className="text-[10px] text-muted-foreground mt-1">{s.label}</p>
+                        <p className={`text-[10px] mt-1 ${toneClass}`}>{s.label}</p>
                       </div>
                     );
                   })}

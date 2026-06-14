@@ -829,6 +829,56 @@ export type Database = {
         }
         Relationships: []
       }
+      diagnostic_generation_runs: {
+        Row: {
+          accepted: number
+          attempts: number
+          course_id: string
+          created_at: string
+          error_code: string | null
+          id: string
+          requested: number
+          run_id: string
+          status: string
+          tier: string
+          updated_at: string
+        }
+        Insert: {
+          accepted?: number
+          attempts?: number
+          course_id: string
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          requested?: number
+          run_id: string
+          status: string
+          tier: string
+          updated_at?: string
+        }
+        Update: {
+          accepted?: number
+          attempts?: number
+          course_id?: string
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          requested?: number
+          run_id?: string
+          status?: string
+          tier?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diagnostic_generation_runs_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diagnostic_questions: {
         Row: {
           answer: string
