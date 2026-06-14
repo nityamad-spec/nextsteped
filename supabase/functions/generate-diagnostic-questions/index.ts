@@ -150,6 +150,9 @@ interface RunCtx {
   // Live per-tier progress tracking — used by the UI to render real progress.
   runId: string;
   admin: ReturnType<typeof createClient>;
+  // Number of in-callGateway transient-error retries. Single-tier regen runs
+  // set this to 1 so the worst-case wall-clock fits inside the deadline.
+  gatewayRetries: number;
 }
 
 type DgrStatus = "pending" | "calling_model" | "validating" | "done" | "failed" | "skipped";
@@ -273,7 +276,7 @@ function validateMcq(
     return { ok: false, reason: "bloom_level out of range" };
   }
   if (spec.tier === "easy" && bloom > 4) return { ok: false, reason: `bloom ${bloom} too high for easy tier` };
-  if (spec.tier === "hard" && bloom < 3) return { ok: false, reason: `bloom ${bloom} too low for hard tier` };
+  // Hard tier: bloom floor removed — difficulty + category band is sufficient signal.
 
   const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
   if (!explanation) return { ok: false, reason: "empty explanation" };
@@ -461,12 +464,15 @@ async function callGateway(
   ctx: RunCtx,
 ): Promise<GeneratedQuestion[]> {
   const logCtx = { requestId: ctx.requestId, teacherId: ctx.teacherId, courseId: ctx.courseId };
+  // Hard tier over-generation: validation drops a higher share of hard
+  // candidates, so ask for 1.5× needed (capped at 15) to absorb losses.
+  const askFor = spec.tier === "hard" ? Math.min(15, Math.ceil(needed * 1.5)) : needed;
   const remainingList = Object.entries(remainingQuota)
     .filter(([, v]) => v > 0)
     .map(([k, v]) => `  - ${k}: ${v} more`)
     .join("\n");
 
-  const systemPrompt = `You are an expert assessment designer creating diagnostic quiz questions for a course titled "${courseName}". Generate exactly ${needed} ${spec.tier} tier diagnostic questions.
+  const systemPrompt = `You are an expert assessment designer creating diagnostic quiz questions for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier} tier diagnostic questions.
 
 Tier: ${spec.label}
 Target difficulty (0=easy, 1=hard): ${spec.difficulty}
@@ -513,13 +519,13 @@ Examples:
 
   // Retry transient upstream errors (5xx, 429) with exponential backoff so a
   // brief gateway hiccup doesn't burn one of the tier's MAX_ATTEMPTS.
-  const GATEWAY_RETRIES = 2;
+  const GATEWAY_RETRIES = ctx.gatewayRetries;
   const baseBody = JSON.stringify({
       model: MODEL,
       temperature: 0.3,
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Generate ${needed} ${spec.tier} tier MCQ diagnostic questions now, respecting the concept quota.` },
+        { role: "user", content: `Generate ${askFor} ${spec.tier} tier MCQ diagnostic questions now, respecting the concept quota.` },
       ],
       tools: [
         {
@@ -744,13 +750,29 @@ async function runTier(
   conceptByCode: Record<string, ConceptInfo>,
   lovableKey: string,
   ctx: RunCtx,
+  preSeed: ValidatedQuestion[] = [],
 ): Promise<TierResult> {
   const seed = `${courseName}:${spec.tier}:${Date.now()}:${Math.random()}`;
   const quota = computeTierQuota(units, spec.count, seed);
   const quotaBlock = formatQuotaForPrompt(units, quota);
 
+  // Pre-seed with existing accepted rows so tier-only regens accumulate
+  // instead of restarting from zero. Filter to entries that still satisfy
+  // current validation + quota constraints.
   const accepted: ValidatedQuestion[] = [];
   const acceptedByCode: Record<string, number> = {};
+  for (const ex of preSeed) {
+    const v = validateMcq(ex, spec, conceptByCode);
+    if (!v.ok) continue;
+    const code = v.normalized.topic;
+    const cap = quota[code] || 0;
+    if (cap === 0) continue;
+    if ((acceptedByCode[code] || 0) >= cap) continue;
+    if (isDuplicate(v.normalized, accepted)) continue;
+    accepted.push(v.normalized);
+    acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
+    if (accepted.length >= spec.count) break;
+  }
   const reasons: string[] = [];
   let attempts = 0;
   let lastInvalidCount = 0;
@@ -983,17 +1005,23 @@ Deno.serve(async (req) => {
     const requestId = crypto.randomUUID();
     const runId = crypto.randomUUID();
     const abortController = new AbortController();
+    // Single-tier regen: give it the whole Supabase invoke budget (minus
+    // headroom) and drop in-call retries to 1 so worst case fits comfortably.
+    const isSingleTier = activeSpecs.length === 1;
+    const deadlineBudgetMs = isSingleTier ? 145_000 : GLOBAL_DEADLINE_MS;
+    const gatewayRetries = isSingleTier ? 1 : 2;
     const ctx: RunCtx = {
       requestId,
       teacherId: (course as { teacher_id?: string }).teacher_id ?? null,
       courseId: courseId as string,
-      deadlineAt: Date.now() + GLOBAL_DEADLINE_MS,
+      deadlineAt: Date.now() + deadlineBudgetMs,
       abortSignal: abortController.signal,
       abort: (reason: Error) => {
         if (!abortController.signal.aborted) abortController.abort(reason);
       },
       runId,
       admin,
+      gatewayRetries,
     };
 
     // Seed one progress row per active tier so the client can render live status.
@@ -1009,9 +1037,38 @@ Deno.serve(async (req) => {
     const { error: seedErr } = await admin.from("diagnostic_generation_runs").insert(seedRows);
     if (seedErr) console.warn("dgr seed failed:", seedErr.message);
 
+    // Pre-seed accepted bank for tier-only regens: load existing rows for the
+    // requested tiers so successive regens accumulate (e.g. 0 → 6 → 10) instead
+    // of restarting from zero each time. Full-run regens (all 4 tiers) skip
+    // this — they always replace the whole bank.
+    const preSeedByTier: Record<string, ValidatedQuestion[]> = {};
+    if (isPartialRun) {
+      const { data: existing } = await admin
+        .from("diagnostic_questions")
+        .select("content_text, format, options, answer, difficulty_estimate, bloom_level, explanation, topic, bloom_justification, difficulty_justification, tier")
+        .eq("course_id", courseId)
+        .in("tier", activeSpecs.map((s) => s.tier));
+      for (const r of (existing || []) as Array<Record<string, unknown>>) {
+        const tier = r.tier as string | null;
+        if (!tier) continue;
+        (preSeedByTier[tier] ||= []).push({
+          content_text: String(r.content_text ?? ""),
+          format: "mcq",
+          options: (r.options as string[]) || [],
+          answer: String(r.answer ?? ""),
+          difficulty_estimate: Number(r.difficulty_estimate ?? 0),
+          bloom_level: Number(r.bloom_level ?? 1),
+          explanation: String(r.explanation ?? ""),
+          topic: String(r.topic ?? ""),
+          bloom_justification: String(r.bloom_justification ?? ""),
+          difficulty_justification: String(r.difficulty_justification ?? ""),
+        });
+      }
+    }
+
     // Run only the active tiers in parallel with retries
     const settled = await Promise.allSettled(
-      activeSpecs.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, ctx)),
+      activeSpecs.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, ctx, preSeedByTier[spec.tier] || [])),
     );
 
     // If any tier failed with CreditsExhaustedError, short-circuit with a
@@ -1059,11 +1116,13 @@ Deno.serve(async (req) => {
       distribution: t.distribution,
     }));
 
-    // Per-tier resilient insert: keep every question from tiers that hit
-    // their quota, even if a sibling tier (typically hard) fell short.
-    // Only reject everything when ZERO tiers completed.
+    // Per-tier resilient insert: persist EVERY tier that produced any accepted
+    // questions, even if it fell short of its quota. The teacher can click
+    // "Regenerate <tier>" again; pre-seeding will load these rows so the next
+    // attempt fills the remainder instead of restarting from zero.
+    // Only reject everything when ZERO tiers produced any accepts.
     const completeTiers = new Set(
-      tierResults.filter((t) => t.accepted.length === t.requested).map((t) => t.tier),
+      tierResults.filter((t) => t.accepted.length > 0).map((t) => t.tier),
     );
 
     if (completeTiers.size === 0) {

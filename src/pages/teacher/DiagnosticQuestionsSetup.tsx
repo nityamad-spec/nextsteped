@@ -241,9 +241,13 @@ const DiagnosticQuestionsSetup = () => {
         ? data.breakdown.map((b: any) => `${b.tier[0].toUpperCase()}:${b.attempts}`).join(" ")
         : "";
       if (data?.partial) {
+        const stillShort = (data?.shortTiers || []) as string[];
+        const advice = stillShort.length > 0
+          ? `Click "Regenerate ${stillShort.join(", ")}" again to top up — your existing questions are preserved.`
+          : "Regenerate to top up.";
         toast({
-          title: "Partial bank generated",
-          description: data?.message || `Some tiers fell short: ${(data?.shortTiers || []).join(", ")}. Regenerate to top up.`,
+          title: "Partial bank — topped up",
+          description: data?.message ? `${data.message} ${advice}` : advice,
         });
       } else {
         toast({
