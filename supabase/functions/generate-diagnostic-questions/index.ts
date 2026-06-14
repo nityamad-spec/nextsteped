@@ -1471,6 +1471,17 @@ Deno.serve(async (req) => {
       .map((t) => t.tier);
     const requestedTiers = activeSpecs.map((s) => s.tier);
 
+    logEvent(ctx, "run_finished", {
+      status: partial ? "warn" : "ok",
+      message: partial
+        ? `partial: ${totalRows}/${requestedQuota} (short: ${shortTiers.join(", ")})`
+        : `complete: ${totalRows}/${requestedQuota} across ${requestedTiers.join(", ")}`,
+      duration_ms: Date.now() - runStartedAt,
+      data: { partial, short_tiers: shortTiers, requested_tiers: requestedTiers, breakdown, total_rows: totalRows },
+    });
+
+
+
     return new Response(
       JSON.stringify({
         message: partial
