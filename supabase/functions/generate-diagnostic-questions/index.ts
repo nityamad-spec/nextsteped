@@ -595,6 +595,7 @@ Examples:
       const combinedSignal = AbortSignal.any
         ? AbortSignal.any([timeoutSignal, ctx.abortSignal])
         : timeoutSignal;
+      updateRunRow(ctx, spec.tier, { status: "calling_model" });
       response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         signal: combinedSignal,
