@@ -996,8 +996,8 @@ Deno.serve(async (req) => {
       admin,
     };
 
-    // Seed one progress row per tier so the client can render live status.
-    const seedRows = TIER_SPEC.map((spec) => ({
+    // Seed one progress row per active tier so the client can render live status.
+    const seedRows = activeSpecs.map((spec) => ({
       run_id: runId,
       course_id: courseId,
       tier: spec.tier,
@@ -1009,9 +1009,9 @@ Deno.serve(async (req) => {
     const { error: seedErr } = await admin.from("diagnostic_generation_runs").insert(seedRows);
     if (seedErr) console.warn("dgr seed failed:", seedErr.message);
 
-    // Run all tiers in parallel with retries
+    // Run only the active tiers in parallel with retries
     const settled = await Promise.allSettled(
-      TIER_SPEC.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, ctx)),
+      activeSpecs.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, ctx)),
     );
 
     // If any tier failed with CreditsExhaustedError, short-circuit with a
