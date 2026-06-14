@@ -829,6 +829,54 @@ export type Database = {
         }
         Relationships: []
       }
+      diagnostic_generation_events: {
+        Row: {
+          attempt: number | null
+          course_id: string
+          created_at: string
+          data: Json | null
+          duration_ms: number | null
+          gateway_call_id: string | null
+          id: string
+          message: string | null
+          reason: string | null
+          run_id: string
+          status: string
+          step: string
+          tier: string | null
+        }
+        Insert: {
+          attempt?: number | null
+          course_id: string
+          created_at?: string
+          data?: Json | null
+          duration_ms?: number | null
+          gateway_call_id?: string | null
+          id?: string
+          message?: string | null
+          reason?: string | null
+          run_id: string
+          status?: string
+          step: string
+          tier?: string | null
+        }
+        Update: {
+          attempt?: number | null
+          course_id?: string
+          created_at?: string
+          data?: Json | null
+          duration_ms?: number | null
+          gateway_call_id?: string | null
+          id?: string
+          message?: string | null
+          reason?: string | null
+          run_id?: string
+          status?: string
+          step?: string
+          tier?: string | null
+        }
+        Relationships: []
+      }
       diagnostic_generation_runs: {
         Row: {
           accepted: number
