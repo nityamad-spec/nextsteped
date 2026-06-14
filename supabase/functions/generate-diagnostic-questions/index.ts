@@ -1037,9 +1037,38 @@ Deno.serve(async (req) => {
     const { error: seedErr } = await admin.from("diagnostic_generation_runs").insert(seedRows);
     if (seedErr) console.warn("dgr seed failed:", seedErr.message);
 
+    // Pre-seed accepted bank for tier-only regens: load existing rows for the
+    // requested tiers so successive regens accumulate (e.g. 0 → 6 → 10) instead
+    // of restarting from zero each time. Full-run regens (all 4 tiers) skip
+    // this — they always replace the whole bank.
+    const preSeedByTier: Record<string, ValidatedQuestion[]> = {};
+    if (isPartialRun) {
+      const { data: existing } = await admin
+        .from("diagnostic_questions")
+        .select("content_text, format, options, answer, difficulty_estimate, bloom_level, explanation, topic, bloom_justification, difficulty_justification, tier")
+        .eq("course_id", courseId)
+        .in("tier", activeSpecs.map((s) => s.tier));
+      for (const r of (existing || []) as Array<Record<string, unknown>>) {
+        const tier = r.tier as string | null;
+        if (!tier) continue;
+        (preSeedByTier[tier] ||= []).push({
+          content_text: String(r.content_text ?? ""),
+          format: "mcq",
+          options: (r.options as string[]) || [],
+          answer: String(r.answer ?? ""),
+          difficulty_estimate: Number(r.difficulty_estimate ?? 0),
+          bloom_level: Number(r.bloom_level ?? 1),
+          explanation: String(r.explanation ?? ""),
+          topic: String(r.topic ?? ""),
+          bloom_justification: String(r.bloom_justification ?? ""),
+          difficulty_justification: String(r.difficulty_justification ?? ""),
+        });
+      }
+    }
+
     // Run only the active tiers in parallel with retries
     const settled = await Promise.allSettled(
-      activeSpecs.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, ctx)),
+      activeSpecs.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, ctx, preSeedByTier[spec.tier] || [])),
     );
 
     // If any tier failed with CreditsExhaustedError, short-circuit with a
