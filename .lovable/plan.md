@@ -1,69 +1,62 @@
-# Root cause
+# Stage 4 Risk Mitigation — Options
 
-The lesson plan JSON survives the cascade wipe and gets re-loaded by `/teacher/setup/lesson-plan` on next mount.
+Stage 4 is the `callGateway` function (L395-629). It issues the AI Gateway call per tier, with 2 retries × 35s timeout × 4 tiers × 2 outer MAX_ATTEMPTS — up to ~140s worst case. Three concrete risks; each has independent options.
 
-Chain of events:
+---
 
-1. `TeachingPlan.savePlan` / `handlePublish` uploads `{courseId}/lesson-plan/published-plan.json` to storage, then calls `upsertCourseMaterialFile({ folder_type: "lesson-plan-published", ... })` to register it in `course_material_files`.
-2. That upsert **always fails** with:
-   ```
-   there is no unique or exclusion constraint matching the ON CONFLICT specification
-   ```
-   The supporting index `course_material_files_course_path_uniq` is a **partial** unique index (`WHERE course_id IS NOT NULL`). PostgREST's `onConflict: "course_id,storage_path"` cannot infer a partial index without the predicate, so the upsert is rejected and the row is never written. (The console logs confirm this for `approved-syllabus.json` and `draft-plan-v2.json` too — same root cause for all of them.)
-3. `wipe-syllabus-cascade` phase 5 ("storage_files") only removes objects whose paths are listed in `course_material_files`. Because the published plan JSON was never registered, it is **left in the bucket**.
-4. `courses.lesson_plan_path` is cleared by the cascade, but `resolvePublishedPath` falls back to the canonical path `{courseId}/lesson-plan/published-plan.json` — which is exactly the orphaned file. `TeachingPlan` downloads and renders it, so the previous plan reappears.
+## Risk A — Worst-case time budget approaches Supabase 150s limit
 
-The in-tab `subscribeWipe` listener works correctly; it triggers the same load path, which still finds the leftover file.
+**Current:** 4 tiers × 2 outer attempts × 2 gateway retries × 35s = ~140s. A single slow tier can push the function over the limit, killing the whole run.
 
-# Fix
+**Options:**
 
-Two complementary changes — neither alone is sufficient long-term:
+1. **Tighten per-call timeout + cap retries** — Drop `GATEWAY_CALL_TIMEOUT_MS` to 25s, `GATEWAY_RETRIES` to 1 (no inner retry). Max ≈ 4×2×25 = 200s still over; combine with #2 or #3.
+2. **Run tiers in parallel with `Promise.allSettled`** — Stage 7 already does this. Confirm/keep parallel; worst case becomes max(tier), not sum. ~70s ceiling.
+3. **Global deadline** — Track `startedAt` at request entry, pass `deadlineMs` into `callGateway`. Skip remaining retries when budget < required. Return partial result with `warning: "tier X skipped"` rather than 500.
+4. **Per-tier soft fail + background continuation** — On deadline hit, return what we have and finish remaining tiers via `EdgeRuntime.waitUntil` (writes directly to DB when done). Requires UI polling.
 
-### 1. Make the unique index a real (non-partial) unique constraint
+Recommended combo: **#2 + #3** (parallel + deadline-aware) — minimal surface area, no UX change.
 
-`course_id` is `NOT NULL` in practice for every row we write, so the `WHERE course_id IS NOT NULL` predicate adds nothing but breaks `ON CONFLICT` inference.
+---
 
-Migration:
+## Risk B — No explicit 402 (credits exhausted) handling
 
-```sql
--- Drop the partial index and replace with a true unique constraint so
--- PostgREST upserts with onConflict=(course_id,storage_path) succeed.
-DROP INDEX IF EXISTS public.course_material_files_course_path_uniq;
+**Current:** L551 treats 402 as "client error" → throws generic `AI gateway 402: ...`. UI surfaces as opaque failure; teacher cannot tell credits are the issue.
 
-ALTER TABLE public.course_material_files
-  ALTER COLUMN course_id SET NOT NULL;
+**Options:**
 
-ALTER TABLE public.course_material_files
-  ADD CONSTRAINT course_material_files_course_path_uniq
-  UNIQUE (course_id, storage_path);
-```
+1. **Typed error path** — Detect `response.status === 402` before the generic 4xx branch, throw `new Error("AI_CREDITS_EXHAUSTED")`. Top-level handler returns structured `{ error: "credits_exhausted", message }` and the UI shows a "Add credits" CTA.
+2. **Same as #1 + short-circuit other tiers** — On 402 from any tier, cancel siblings (AbortController) so we don't burn more failed calls.
+3. **Pre-flight credit check** — Cheap GET to gateway/billing endpoint before generation. Heavier and gateway doesn't expose this today; skip.
 
-(If any existing rows have `course_id IS NULL` we'll first delete them — none expected based on current writers, but the migration will check.)
+Recommended: **#1 + #2**.
 
-After this, the existing `upsertCourseMaterialFile` calls succeed, so every published/draft plan + approved syllabus JSON written from now on is registered and therefore wiped by the cascade.
+---
 
-### 2. Belt-and-suspenders cleanup in `wipe-syllabus-cascade`
+## Risk C — `EdgeRuntime.waitUntil` not always available
 
-Even after the constraint is fixed, orphaned files from before today exist in many courses. Extend the `storage_files` step to also explicitly remove the well-known canonical lesson-plan and syllabus-JSON paths, regardless of whether they appear in `course_material_files`:
+**Current:** Used for fire-and-forget logging (`logGatewayCall`). On local Deno or older runtimes, `EdgeRuntime` is undefined → throws inside log path → can mask real errors.
 
-```ts
-const extraPaths = [
-  `${courseId}/lesson-plan/published-plan.json`,
-  `${courseId}/lesson-plan/draft-plan-v2.json`,
-  `${courseId}/syllabus/approved-syllabus.json`,
-];
-const allPaths = Array.from(new Set([...paths, ...extraPaths]));
-```
+**Options:**
 
-Use `allPaths` for the storage `remove` call. `STORAGE_NOT_FOUND` is already treated as success, so listing paths that don't exist is harmless.
+1. **Feature-detect once** — `const waitUntil = typeof EdgeRuntime !== "undefined" ? EdgeRuntime.waitUntil.bind(EdgeRuntime) : (p) => { p.catch(()=>{}); };` Use the shim everywhere.
+2. **Await logs inline** — Simpler, but adds ~50-200ms per call to the time budget. Conflicts with Risk A.
+3. **Queue logs and flush at end** — Push log rows into an array, single `insert` before responding. One round-trip, fully deterministic. Best fit if logs are insert-only.
 
-### 3. (Optional safety) Defensive client behaviour
+Recommended: **#1** (zero latency, safe everywhere) or **#3** (cleaner, one insert).
 
-No change required in `TeachingPlan.tsx` — once the file is gone, the existing load path correctly falls through to `setDays([])`. The `?t=${Date.now()}` "cache-bust" appended inside `download(...)` is a no-op (Supabase storage treats the whole string as the object key), but it doesn't cause this bug; it can be cleaned up separately if desired, not part of this fix.
+---
 
-# Files touched
+## Suggested bundle
 
-- New SQL migration (constraint swap on `course_material_files`).
-- `supabase/functions/wipe-syllabus-cascade/index.ts` — extend storage step path list.
+If you want a single coherent change set:
 
-No UI/component changes needed.
+- **A2 + A3:** Parallel tiers + global deadline with partial-success response.
+- **B1 + B2:** 402 detection, cancel siblings, structured error.
+- **C1:** `waitUntil` shim in a shared helper.
+
+Net effect: worst case drops from ~140s to ~70s, hard 500s on credits become actionable UI errors, log path safe in all runtimes. ~120-180 LOC change, isolated to `generate-diagnostic-questions/index.ts`.
+
+---
+
+**Which option(s) do you want me to turn into an implementation plan?** Pick by letter+number (e.g. "A2, A3, B1, C1") or say "the suggested bundle".
