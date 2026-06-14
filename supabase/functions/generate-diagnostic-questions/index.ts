@@ -994,11 +994,18 @@ Deno.serve(async (req) => {
       (r) => r.status === "rejected" && r.reason instanceof CreditsExhaustedError,
     );
     if (creditsRejected && creditsRejected.status === "rejected") {
+      // Mark any tiers still 'pending'/'calling_model' as failed so the UI shows it immediately.
+      await admin
+        .from("diagnostic_generation_runs")
+        .update({ status: "failed", error_code: "credits_exhausted", updated_at: new Date().toISOString() })
+        .eq("run_id", runId)
+        .in("status", ["pending", "calling_model", "validating"]);
       return new Response(
         JSON.stringify({
           error: "credits_exhausted",
           message: "AI credits are exhausted for this workspace. Add credits and try again.",
           detail: (creditsRejected.reason as Error).message.slice(0, 200),
+          runId,
         }),
         { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
