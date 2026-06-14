@@ -178,6 +178,50 @@ function updateRunRow(
   }
 }
 
+// Fire-and-forget event log for the admin diagnostic-runs viewer. Captures
+// the full reasoning behind every step (start, gateway call, each validation
+// reject, tier complete, etc.). Failures are swallowed — never block the run.
+type EvtStatus = "info" | "ok" | "warn" | "error";
+interface EvtRow {
+  tier?: string | null;
+  attempt?: number | null;
+  status?: EvtStatus;
+  message?: string;
+  reason?: string;
+  data?: Record<string, unknown>;
+  gateway_call_id?: string | null;
+  duration_ms?: number | null;
+}
+function logEvent(ctx: RunCtx | null, step: string, row: EvtRow = {}) {
+  try {
+    const c = logClient();
+    if (!c || !ctx) return;
+    const payload = {
+      run_id: ctx.runId,
+      course_id: ctx.courseId,
+      tier: row.tier ?? null,
+      attempt: row.attempt ?? null,
+      step,
+      status: row.status ?? "info",
+      message: row.message ?? null,
+      reason: row.reason ?? null,
+      data: row.data ?? null,
+      gateway_call_id: row.gateway_call_id ?? null,
+      duration_ms: row.duration_ms ?? null,
+    };
+    const p = c.from("diagnostic_generation_events").insert(payload).then(({ error }: { error: unknown }) => {
+      if (error) console.warn("dge insert failed:", (error as { message?: string })?.message);
+    });
+    if (typeof (globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime !== "undefined") {
+      (globalThis as { EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime.waitUntil(p);
+    } else {
+      void p.catch(() => {});
+    }
+  } catch (e) {
+    console.warn("dge threw:", e);
+  }
+}
+
 // Fixed categorization for bloom_justification (maps to bloom_level 1-6)
 const BLOOM_CATEGORY_BY_LEVEL: Record<number, string> = {
   1: "RECALL",
