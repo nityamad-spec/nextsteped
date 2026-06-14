@@ -115,7 +115,35 @@ const MODEL = "google/gemini-2.5-flash";
 // GATEWAY_RETRIES × GATEWAY_CALL_TIMEOUT_MS must stay under the 150s client
 // invoke timeout. 2 × 2 × 35s ≈ 140s + small backoff.
 const GATEWAY_CALL_TIMEOUT_MS = 35_000;
+// Global wall-clock budget for the whole function. Supabase invoke timeout is
+// 150s; leave headroom for DB writes + JSON serialization.
+const GLOBAL_DEADLINE_MS = 130_000;
 const DIFFICULTY_BAND = 0.15;
+
+// Sentinel error thrown when the AI Gateway returns 402 (credits exhausted).
+// Caught at the top level and converted into a structured response so the UI
+// can show an actionable "Add credits" message instead of an opaque 500.
+class CreditsExhaustedError extends Error {
+  constructor(msg = "AI credits exhausted") {
+    super(msg);
+    this.name = "CreditsExhaustedError";
+  }
+}
+class DeadlineExceededError extends Error {
+  constructor(msg = "Global deadline exceeded") {
+    super(msg);
+    this.name = "DeadlineExceededError";
+  }
+}
+
+interface RunCtx {
+  requestId: string;
+  teacherId: string | null;
+  courseId: string | null;
+  deadlineAt: number;       // epoch ms
+  abortSignal: AbortSignal; // shared across tiers; aborted on 402
+  abort: (reason: Error) => void;
+}
 
 // Fixed categorization for bloom_justification (maps to bloom_level 1-6)
 const BLOOM_CATEGORY_BY_LEVEL: Record<number, string> = {
@@ -400,8 +428,9 @@ async function callGateway(
   remainingQuota: Record<string, number>,
   lovableKey: string,
   retryHint: string | null,
-  logCtx: { requestId: string; teacherId: string | null; courseId: string | null },
+  ctx: RunCtx,
 ): Promise<GeneratedQuestion[]> {
+  const logCtx = { requestId: ctx.requestId, teacherId: ctx.teacherId, courseId: ctx.courseId };
   const remainingList = Object.entries(remainingQuota)
     .filter(([, v]) => v > 0)
     .map(([k, v]) => `  - ${k}: ${v} more`)
@@ -519,14 +548,30 @@ Examples:
   let response: Response | null = null;
   let lastErr = "";
   for (let attempt = 0; attempt < GATEWAY_RETRIES; attempt++) {
+    // Bail out early if a sibling tier triggered global abort (e.g. 402).
+    if (ctx.abortSignal.aborted) {
+      throw new Error(`aborted: ${(ctx.abortSignal.reason as Error)?.message || "sibling failure"}`);
+    }
+    // Reserve enough budget for at least one attempt; otherwise stop retrying.
+    const budgetLeft = ctx.deadlineAt - Date.now();
+    if (budgetLeft < GATEWAY_CALL_TIMEOUT_MS / 2) {
+      throw new DeadlineExceededError(`tier ${spec.tier}: ${budgetLeft}ms left, need ≥${GATEWAY_CALL_TIMEOUT_MS / 2}ms`);
+    }
+    // Use the smaller of per-call timeout and remaining global budget.
+    const perCallTimeout = Math.min(GATEWAY_CALL_TIMEOUT_MS, Math.max(5_000, budgetLeft - 1_000));
     const startedAt = Date.now();
     let statusForLog: number | null = null;
     let errMsgForLog: string | null = null;
     let errCodeForLog: string | null = null;
     try {
+      // Combine per-call timeout with shared abort signal.
+      const timeoutSignal = AbortSignal.timeout(perCallTimeout);
+      const combinedSignal = AbortSignal.any
+        ? AbortSignal.any([timeoutSignal, ctx.abortSignal])
+        : timeoutSignal;
       response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        signal: AbortSignal.timeout(GATEWAY_CALL_TIMEOUT_MS),
+        signal: combinedSignal,
         headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
         body: baseBody,
       });
@@ -547,7 +592,29 @@ Examples:
         });
         break;
       }
-      // Retry on 429 / 5xx; fail fast on 4xx (client errors won't fix themselves)
+      // 402: credits exhausted — abort all sibling tiers + propagate typed error.
+      if (response.status === 402) {
+        const errText = await response.text();
+        const credErr = new CreditsExhaustedError(errText.slice(0, 200) || "AI credits exhausted");
+        logGatewayCall({
+          model: MODEL,
+          purpose: `tier:${spec.tier}`,
+          http_status: 402,
+          outcome: "client_error",
+          attempt: attempt + 1,
+          total_attempts: GATEWAY_RETRIES,
+          duration_ms: Date.now() - startedAt,
+          request_id: logCtx.requestId,
+          teacher_id: logCtx.teacherId,
+          course_id: logCtx.courseId,
+          error_code: "credits_exhausted",
+          error_message: errText.slice(0, 500),
+          context: { needed },
+        });
+        ctx.abort(credErr);
+        throw credErr;
+      }
+      // Retry on 429 / 5xx; fail fast on other 4xx (client errors won't fix themselves)
       if (response.status !== 429 && response.status < 500) {
         const errText = await response.text();
         errMsgForLog = errText.slice(0, 500);
@@ -589,6 +656,8 @@ Examples:
         context: { needed },
       });
     } catch (e) {
+      // Re-throw fatal typed errors immediately so retries don't swallow them.
+      if (e instanceof CreditsExhaustedError || e instanceof DeadlineExceededError) throw e;
       const msg = (e as Error).message ?? String(e);
       lastErr = msg.slice(0, 160);
       if (statusForLog == null) {
@@ -643,7 +712,7 @@ async function runTier(
   units: UnitInfo[],
   conceptByCode: Record<string, ConceptInfo>,
   lovableKey: string,
-  logCtx: { requestId: string; teacherId: string | null; courseId: string | null },
+  ctx: RunCtx,
 ): Promise<TierResult> {
   const seed = `${courseName}:${spec.tier}:${Date.now()}:${Math.random()}`;
   const quota = computeTierQuota(units, spec.count, seed);
@@ -656,6 +725,15 @@ async function runTier(
   let lastInvalidCount = 0;
 
   while (accepted.length < spec.count && attempts < MAX_ATTEMPTS) {
+    // Stop retry loop if global deadline or shared abort fired.
+    if (ctx.abortSignal.aborted) {
+      reasons.push(`aborted: ${(ctx.abortSignal.reason as Error)?.message || "sibling failure"}`);
+      break;
+    }
+    if (Date.now() >= ctx.deadlineAt) {
+      reasons.push("global deadline exceeded before next attempt");
+      break;
+    }
     attempts++;
     // Compute remaining quota
     const remaining: Record<string, number> = {};
@@ -672,8 +750,14 @@ async function runTier(
 
     let batch: GeneratedQuestion[] = [];
     try {
-      batch = await callGateway(spec, needed, courseName, quotaBlock, remaining, lovableKey, retryHint, logCtx);
+      batch = await callGateway(spec, needed, courseName, quotaBlock, remaining, lovableKey, retryHint, ctx);
     } catch (e) {
+      // Propagate fatal typed errors so the top-level handler can respond properly.
+      if (e instanceof CreditsExhaustedError) throw e;
+      if (e instanceof DeadlineExceededError) {
+        reasons.push(`deadline: ${(e as Error).message.slice(0, 80)}`);
+        break;
+      }
       reasons.push(`gateway error: ${(e as Error).message.slice(0, 80)}`);
       continue;
     }
@@ -829,16 +913,38 @@ Deno.serve(async (req) => {
     const { units, conceptByCode } = buildUnits(concepts, weeks || []);
 
     const requestId = crypto.randomUUID();
-    const logCtx = {
+    const abortController = new AbortController();
+    const ctx: RunCtx = {
       requestId,
       teacherId: (course as { teacher_id?: string }).teacher_id ?? null,
       courseId: courseId as string,
+      deadlineAt: Date.now() + GLOBAL_DEADLINE_MS,
+      abortSignal: abortController.signal,
+      abort: (reason: Error) => {
+        if (!abortController.signal.aborted) abortController.abort(reason);
+      },
     };
 
     // Run all tiers in parallel with retries
     const settled = await Promise.allSettled(
-      TIER_SPEC.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, logCtx)),
+      TIER_SPEC.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, ctx)),
     );
+
+    // If any tier failed with CreditsExhaustedError, short-circuit with a
+    // typed response so the UI can show an actionable billing message.
+    const creditsRejected = settled.find(
+      (r) => r.status === "rejected" && r.reason instanceof CreditsExhaustedError,
+    );
+    if (creditsRejected && creditsRejected.status === "rejected") {
+      return new Response(
+        JSON.stringify({
+          error: "credits_exhausted",
+          message: "AI credits are exhausted for this workspace. Add credits and try again.",
+          detail: (creditsRejected.reason as Error).message.slice(0, 200),
+        }),
+        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const tierResults: TierResult[] = settled.map((r, i) => {
       if (r.status === "fulfilled") return r.value;
