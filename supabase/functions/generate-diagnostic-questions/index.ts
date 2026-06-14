@@ -525,7 +525,7 @@ Examples:
       temperature: 0.3,
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Generate ${needed} ${spec.tier} tier MCQ diagnostic questions now, respecting the concept quota.` },
+        { role: "user", content: `Generate ${askFor} ${spec.tier} tier MCQ diagnostic questions now, respecting the concept quota.` },
       ],
       tools: [
         {
