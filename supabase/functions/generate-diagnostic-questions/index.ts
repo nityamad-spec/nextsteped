@@ -913,16 +913,38 @@ Deno.serve(async (req) => {
     const { units, conceptByCode } = buildUnits(concepts, weeks || []);
 
     const requestId = crypto.randomUUID();
-    const logCtx = {
+    const abortController = new AbortController();
+    const ctx: RunCtx = {
       requestId,
       teacherId: (course as { teacher_id?: string }).teacher_id ?? null,
       courseId: courseId as string,
+      deadlineAt: Date.now() + GLOBAL_DEADLINE_MS,
+      abortSignal: abortController.signal,
+      abort: (reason: Error) => {
+        if (!abortController.signal.aborted) abortController.abort(reason);
+      },
     };
 
     // Run all tiers in parallel with retries
     const settled = await Promise.allSettled(
-      TIER_SPEC.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, logCtx)),
+      TIER_SPEC.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, ctx)),
     );
+
+    // If any tier failed with CreditsExhaustedError, short-circuit with a
+    // typed response so the UI can show an actionable billing message.
+    const creditsRejected = settled.find(
+      (r) => r.status === "rejected" && r.reason instanceof CreditsExhaustedError,
+    );
+    if (creditsRejected && creditsRejected.status === "rejected") {
+      return new Response(
+        JSON.stringify({
+          error: "credits_exhausted",
+          message: "AI credits are exhausted for this workspace. Add credits and try again.",
+          detail: (creditsRejected.reason as Error).message.slice(0, 200),
+        }),
+        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const tierResults: TierResult[] = settled.map((r, i) => {
       if (r.status === "fulfilled") return r.value;
