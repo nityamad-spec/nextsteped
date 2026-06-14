@@ -467,23 +467,26 @@ const DiagnosticQuestionsSetup = () => {
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="h-3 w-3" />
-                    <span>
-                      {elapsed}s elapsed · ~{etaSeconds}s remaining
-                    </span>
+                    <span>{elapsed}s elapsed</span>
                   </div>
                 </div>
                 <Progress value={overallPct} className="h-2" />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {TIERS.map((tier, i) => {
-                    const s = tierStatus(i);
+                  {TIERS.map((tier) => {
+                    const s = tierDisplay(tier);
+                    const toneClass =
+                      s.tone === "success" ? "text-emerald-600"
+                      : s.tone === "error" ? "text-destructive"
+                      : s.tone === "warn" ? "text-amber-600"
+                      : "text-muted-foreground";
                     return (
                       <div key={tier} className="rounded-md border bg-background/60 px-3 py-2">
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-xs font-medium">{tier} tier</span>
+                          <span className="text-xs font-medium capitalize">{tier} tier</span>
                           <span className="text-[10px] text-muted-foreground">{Math.round(s.pct)}%</span>
                         </div>
                         <Progress value={s.pct} className="h-1.5" />
-                        <p className="text-[10px] text-muted-foreground mt-1">{s.label}</p>
+                        <p className={`text-[10px] mt-1 ${toneClass}`}>{s.label}</p>
                       </div>
                     );
                   })}
