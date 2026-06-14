@@ -1077,12 +1077,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Build rows for insertion (only from tiers that hit their full quota)
-    const rows: any[] = [];
-    let counter = 1;
+    // Build rows per tier (only tiers that hit full quota), then delete+insert
+    // per tier. Tiers NOT in `activeSpecs` are never touched.
+    const rowsByTier = new Map<string, any[]>();
     for (const t of tierResults) {
       if (!completeTiers.has(t.tier)) continue;
       const spec = TIER_SPEC.find((s) => s.tier === t.tier)!;
+      let counter = 1;
+      const list: any[] = [];
       for (const q of t.accepted) {
         const recheck = validateMcq(q, spec, conceptByCode);
         if (!recheck.ok) {
@@ -1094,7 +1096,7 @@ Deno.serve(async (req) => {
           console.warn("pre-insert: missing concept_id for topic", recheck.normalized.topic);
           continue;
         }
-        rows.push({
+        list.push({
           item_code: `${course.course_code || "Q"}-${t.tier.toUpperCase()}-${String(counter).padStart(3, "0")}`,
           content_text: recheck.normalized.content_text,
           format: recheck.normalized.format,
@@ -1116,9 +1118,11 @@ Deno.serve(async (req) => {
         });
         counter++;
       }
+      if (list.length > 0) rowsByTier.set(t.tier, list);
     }
 
-    if (rows.length === 0) {
+    const totalRows = Array.from(rowsByTier.values()).reduce((s, l) => s + l.length, 0);
+    if (totalRows === 0) {
       return new Response(
         JSON.stringify({
           error: "Pre-insert revalidation dropped every row.",
@@ -1130,9 +1134,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    await admin.from("diagnostic_questions").delete().eq("course_id", course.id);
-    const { error: insertErr } = await admin.from("diagnostic_questions").insert(rows);
-    if (insertErr) throw insertErr;
+    // Per-tier delete + insert. Only tiers that successfully regenerated are
+    // touched; other tiers' existing questions remain intact.
+    for (const [tier, list] of rowsByTier) {
+      const { error: delErr } = await admin
+        .from("diagnostic_questions")
+        .delete()
+        .eq("course_id", course.id)
+        .eq("tier", tier);
+      if (delErr) {
+        console.error(`per-tier delete failed (${tier}):`, delErr.message);
+        continue;
+      }
+      const { error: insertErr } = await admin.from("diagnostic_questions").insert(list);
+      if (insertErr) {
+        console.error(`per-tier insert failed (${tier}):`, insertErr.message);
+      }
+    }
 
     const { count: orphanCount } = await admin
       .from("diagnostic_questions")
