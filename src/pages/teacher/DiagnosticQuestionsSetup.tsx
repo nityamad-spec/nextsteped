@@ -601,32 +601,37 @@ const DiagnosticQuestionsSetup = () => {
 
             {/* Adaptive Questions */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div>
                   <p className="text-sm font-medium">Adaptive Tier Questions</p>
                   <p className="text-xs text-muted-foreground">Students receive Easy, Medium, or Hard questions based on standard performance</p>
                 </div>
-                <Badge variant="outline" className="font-mono">{adaptiveQuestions.length} questions</Badge>
+                <Badge variant="outline" className="font-mono">{adaptiveQuestions.length}/30 questions</Badge>
               </div>
-              {/* Tier filters */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">View tier:</span>
-                {(["Easy", "Medium", "Hard"] as const).map(tier => {
-                  const count = adaptiveQuestions.filter(q => tierOf(q) === tier.toUpperCase()).length;
-                  return (
-                    <button
-                      key={tier}
-                      onClick={() => setAdaptiveFilter(tier)}
-                      className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-                        adaptiveFilter === tier
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-background border-border hover:bg-muted"
-                      }`}
-                    >
-                      {tier} ({count})
-                    </button>
-                  );
-                })}
+              {/* Tier filters + per-tier regenerate */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground">View tier:</span>
+                  {(["Easy", "Medium", "Hard"] as const).map(tier => {
+                    const key = tier.toLowerCase() as "easy" | "medium" | "hard";
+                    const count = countByTier[key];
+                    const quota = QUOTA[key];
+                    return (
+                      <button
+                        key={tier}
+                        onClick={() => setAdaptiveFilter(tier)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                          adaptiveFilter === tier
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background border-border hover:bg-muted"
+                        }`}
+                      >
+                        {tier} ({count}/{quota})
+                      </button>
+                    );
+                  })}
+                </div>
+                {renderTierRegenButton(adaptiveFilter.toLowerCase() as "easy" | "medium" | "hard")}
               </div>
               {filteredAdaptive.length > 0 ? (
                 <div className="space-y-2">
