@@ -1040,10 +1040,10 @@ Deno.serve(async (req) => {
     const tierResults: TierResult[] = settled.map((r, i) => {
       if (r.status === "fulfilled") return r.value;
       return {
-        tier: TIER_SPEC[i].tier,
+        tier: activeSpecs[i].tier,
         accepted: [],
-        attempts: TIER_SPEC[i].maxAttempts,
-        requested: TIER_SPEC[i].count,
+        attempts: activeSpecs[i].maxAttempts,
+        requested: activeSpecs[i].count,
         sampleReasons: [`tier failed: ${(r.reason as Error)?.message?.slice(0, 80) || "unknown"}`],
         distribution: {},
       };
