@@ -780,15 +780,21 @@ async function runTier(
       batch = await callGateway(spec, needed, courseName, quotaBlock, remaining, lovableKey, retryHint, ctx);
     } catch (e) {
       // Propagate fatal typed errors so the top-level handler can respond properly.
-      if (e instanceof CreditsExhaustedError) throw e;
+      if (e instanceof CreditsExhaustedError) {
+        updateRunRow(ctx, spec.tier, { status: "failed", attempts, error_code: "credits_exhausted" });
+        throw e;
+      }
       if (e instanceof DeadlineExceededError) {
         reasons.push(`deadline: ${(e as Error).message.slice(0, 80)}`);
+        updateRunRow(ctx, spec.tier, { status: "skipped", attempts, error_code: "deadline" });
         break;
       }
       reasons.push(`gateway error: ${(e as Error).message.slice(0, 80)}`);
+      updateRunRow(ctx, spec.tier, { attempts });
       continue;
     }
 
+    updateRunRow(ctx, spec.tier, { status: "validating", attempts });
     lastInvalidCount = 0;
     for (const q of batch) {
       const v = validateMcq(q, spec, conceptByCode);
@@ -819,7 +825,16 @@ async function runTier(
       acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
       if (accepted.length >= spec.count) break;
     }
+    updateRunRow(ctx, spec.tier, { accepted: accepted.length, attempts });
   }
+
+  const finalStatus: DgrStatus = accepted.length >= spec.count ? "done" : "failed";
+  updateRunRow(ctx, spec.tier, {
+    status: finalStatus,
+    accepted: accepted.length,
+    attempts,
+    error_code: finalStatus === "failed" ? "incomplete" : null,
+  });
 
   return {
     tier: spec.tier,
