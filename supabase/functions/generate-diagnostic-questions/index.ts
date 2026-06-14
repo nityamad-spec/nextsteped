@@ -1020,7 +1020,7 @@ Deno.serve(async (req) => {
       return {
         tier: TIER_SPEC[i].tier,
         accepted: [],
-        attempts: MAX_ATTEMPTS,
+        attempts: TIER_SPEC[i].maxAttempts,
         requested: TIER_SPEC[i].count,
         sampleReasons: [`tier failed: ${(r.reason as Error)?.message?.slice(0, 80) || "unknown"}`],
         distribution: {},
@@ -1037,7 +1037,14 @@ Deno.serve(async (req) => {
       distribution: t.distribution,
     }));
 
-    if (!allComplete) {
+    // Per-tier resilient insert: keep every question from tiers that hit
+    // their quota, even if a sibling tier (typically hard) fell short.
+    // Only reject everything when ZERO tiers completed.
+    const completeTiers = new Set(
+      tierResults.filter((t) => t.accepted.length === t.requested).map((t) => t.tier),
+    );
+
+    if (completeTiers.size === 0) {
       return new Response(
         JSON.stringify({
           error: "Could not produce a complete diagnostic set after retries.",
@@ -1048,14 +1055,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Note: Unit selection is randomized per tier (weighted reservoir sampling),
-    // so we intentionally do NOT enforce a per-unit quota floor here. Coverage
-    // across the full 20 questions is probabilistic by design.
-
-    // Build rows for insertion
+    // Build rows for insertion (only from tiers that hit their full quota)
     const rows: any[] = [];
     let counter = 1;
     for (const t of tierResults) {
+      if (!completeTiers.has(t.tier)) continue;
       const spec = TIER_SPEC.find((s) => s.tier === t.tier)!;
       for (const q of t.accepted) {
         const recheck = validateMcq(q, spec, conceptByCode);
@@ -1092,12 +1096,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (rows.length !== TOTAL_QUESTIONS) {
+    if (rows.length === 0) {
       return new Response(
         JSON.stringify({
-          error: `Pre-insert revalidation reduced row count below ${TOTAL_QUESTIONS}.`,
-          finalCount: rows.length,
+          error: "Pre-insert revalidation dropped every row.",
+          finalCount: 0,
           breakdown,
+          runId,
         }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
