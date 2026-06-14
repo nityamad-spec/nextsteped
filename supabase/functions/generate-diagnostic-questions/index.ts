@@ -516,7 +516,7 @@ Examples:
 
   // Retry transient upstream errors (5xx, 429) with exponential backoff so a
   // brief gateway hiccup doesn't burn one of the tier's MAX_ATTEMPTS.
-  const GATEWAY_RETRIES = 2;
+  const GATEWAY_RETRIES = ctx.gatewayRetries;
   const baseBody = JSON.stringify({
       model: MODEL,
       temperature: 0.3,
