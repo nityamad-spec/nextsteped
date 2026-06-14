@@ -53,6 +53,7 @@ import AdminStudents from "./pages/admin/AdminStudents";
 import AdminTeachers from "./pages/admin/AdminTeachers";
 import AdminSetupDebug from "./pages/admin/AdminSetupDebug";
 import AdminSetupTrace from "./pages/admin/AdminSetupTrace";
+import AdminDiagnosticRuns from "./pages/admin/AdminDiagnosticRuns";
 import ResetPassword from "./pages/ResetPassword";
 import ContentLibrary from "./pages/teacher/ContentLibrary";
 import TeacherChat from "./pages/teacher/TeacherChat";
@@ -329,6 +330,7 @@ const App = () => (
                 <Route path="teachers" element={<AdminTeachers />} />
                 <Route path="setup-debug" element={<AdminSetupDebug />} />
                 <Route path="setup-trace" element={<AdminSetupTrace />} />
+                <Route path="diagnostic-runs" element={<AdminDiagnosticRuns />} />
               </Route>
 
 
