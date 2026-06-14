@@ -955,6 +955,7 @@ Deno.serve(async (req) => {
     const { units, conceptByCode } = buildUnits(concepts, weeks || []);
 
     const requestId = crypto.randomUUID();
+    const runId = crypto.randomUUID();
     const abortController = new AbortController();
     const ctx: RunCtx = {
       requestId,
@@ -965,7 +966,22 @@ Deno.serve(async (req) => {
       abort: (reason: Error) => {
         if (!abortController.signal.aborted) abortController.abort(reason);
       },
+      runId,
+      admin,
     };
+
+    // Seed one progress row per tier so the client can render live status.
+    const seedRows = TIER_SPEC.map((spec) => ({
+      run_id: runId,
+      course_id: courseId,
+      tier: spec.tier,
+      status: "pending" as DgrStatus,
+      requested: spec.count,
+      accepted: 0,
+      attempts: 0,
+    }));
+    const { error: seedErr } = await admin.from("diagnostic_generation_runs").insert(seedRows);
+    if (seedErr) console.warn("dgr seed failed:", seedErr.message);
 
     // Run all tiers in parallel with retries
     const settled = await Promise.allSettled(
