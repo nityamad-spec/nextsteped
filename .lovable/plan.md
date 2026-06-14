@@ -1,83 +1,58 @@
+# Fix: "Generation incomplete — hard tier 0/10"
+
 ## Root cause
 
-The 95% ceiling is **not** the edge function stalling — it is a hardcoded cap in the client-side progress simulation.
+Live DB row for the last run:
 
-In `src/pages/teacher/DiagnosticQuestionsSetup.tsx`:
+| tier     | status     | accepted/req | attempts | error_code |
+|----------|------------|--------------|----------|------------|
+| standard | validating | 10/10        | 1        | —          |
+| easy     | validating | 10/10        | 1        | —          |
+| medium   | done       | 10/10        | 1        | —          |
+| **hard** | **failed** | **0/10**     | **2**    | **incomplete** |
 
-- **L61** `ESTIMATED_SECONDS = 75` — a guessed total runtime.
-- **L73-81** `tierStatus()` ramps each tier through "Generating → Validating → Finalizing" purely from `elapsed` time. Once `elapsed >= ESTIMATED_SECONDS` it returns the literal `{ label: "Waiting for server…", pct: 95 }`.
-- **L83** `overallPct = Math.min(95, (elapsed / ESTIMATED_SECONDS) * 95)` — overall bar is also capped at 95%.
-- The component only flips to 100% when `supabase.functions.invoke(...)` resolves (L124) and `setGenerating(false)` runs.
+Hard tier (`difficulty 0.85 ±0.15` → required band **0.70–1.00**) consistently produces zero accepted questions. Two compounding reasons in `validateMcq`:
 
-So whenever the edge function takes longer than 75s — which is almost always, because Gemini 2.5 Pro with 4 parallel tiers + retries + DB writes commonly takes 90-130s — **every** tier bar snaps to 95% at the same instant and parks there until the server replies. The bars carry no information about real server progress; they're a stopwatch dressed up as a progress bar.
+1. **`difficulty_justification` category band is over-constrained for hard.** Only two categories overlap the required difficulty band: `EDGE_CASE` (0.60–0.80) and `COMPOSITE_REASONING` (0.75–0.95). Any model output landing at e.g. `diff=0.82, EDGE_CASE` or `diff=0.78, COMPOSITE_REASONING` near the edges is rejected. With `bloom ≥ 3` also required, the model fails the joint constraint at high rate.
+2. **All-or-nothing insert.** Even though 30/40 questions were valid, the function returns 422 and **inserts nothing**, so the teacher sees an empty bank after 2 minutes of generation.
 
-The screenshot (96s elapsed, "~0s remaining", all 4 tiers at 95%) is exactly the expected output of this simulation, not a server bug.
+`MAX_ATTEMPTS = 2` then guarantees we stop after only 2 hard-tier batches, locking in the failure.
 
-## Goal
+## Fix (three small, surgical changes)
 
-Make the progress bars reflect what the server is actually doing, or at minimum stop lying once the simulation runs out.
+### 1. Make the hard-tier validation band achievable
+In `supabase/functions/generate-diagnostic-questions/index.ts`:
 
-## Options (pick one — I recommend B)
+- Lower hard target from `0.85` → `0.80` and widen `DIFFICULTY_BAND` from `0.15` → `0.20` **for hard only** (keep ±0.15 for other tiers via a per-tier `band` field on `TierSpec`). Resulting hard band: 0.60–1.00 — covers `EDGE_CASE` cleanly and overlaps `COMPOSITE_REASONING` fully.
+- Update the prompt's `±0.15` line to use the spec's band.
 
-**Option A — Honest simulation (smallest change, ~20 LOC)**
-- Remove the 95% cap. After `ESTIMATED_SECONDS`, keep ramping slowly (e.g. logistic curve toward 99%) and change the label from "Waiting for server…" to "Still working — tiers run up to ~130s".
-- Keep per-tier bars but mark them all "In progress" rather than fake phase transitions.
-- Pros: zero backend work. Cons: still fake.
+### 2. Give hard tier one more attempt
+- Replace global `MAX_ATTEMPTS = 2` with a per-spec `maxAttempts` (standard/easy/medium = 2, hard = 3). Budget impact: hard still bounded by the 130s `GLOBAL_DEADLINE_MS`; each call is ≤35s, so 3 × 35s = 105s worst case for hard, well within budget (it runs in parallel with the others).
 
-**Option B — Real progress via a status table + polling (recommended)**
-- New table `diagnostic_generation_runs(course_id, run_id, tier, status, accepted, requested, attempts, updated_at)` with RLS scoped to course members.
-- `generate-diagnostic-questions` writes one row per tier at start, then UPDATEs `status`/`accepted`/`attempts` at each lifecycle event inside `runTier` (start → gateway_call → validating → done/failed).
-- Client subscribes (Supabase Realtime) or polls every 2s on the run's rows and computes each tier's `pct` from real state (`accepted/requested`).
-- Overall bar = mean of tier pcts.
-- Pros: actual truth; surfaces stuck tiers and 402s immediately; reusable for future long-running generation. Cons: ~80 LOC server + small migration + ~40 LOC client.
+### 3. Per-tier resilient insert (no more all-or-nothing)
+Replace the `allComplete` 422 gate with:
 
-**Option C — Streaming response (medium)**
-- Switch the edge function to a streamed SSE/NDJSON response that pushes `{tier, status, accepted}` events; client reads the stream via `fetch` + `getReader`.
-- Pros: no extra table. Cons: `supabase.functions.invoke` doesn't expose the stream — must switch to raw `fetch` with the anon key + auth header; harder to reason about with the existing AbortController/credits-exhausted path we just added.
+- Insert **every tier that hit its quota** (so a successful standard+easy+medium persists even if hard falls short).
+- If at least one tier completed, return `200` with `{ inserted, breakdown, partial: true }`.
+- Only return `422` when **zero** tiers completed.
+- Client (`DiagnosticQuestionsSetup.tsx`) shows an amber "Partial bank generated — N/40 questions. Hard tier short, regenerate to top up." toast on `partial: true`, instead of the current destructive toast.
 
-## Recommended plan (Option B)
+A future "regenerate just the failed tiers" button can reuse the same edge function with an optional `tiers: ["hard"]` param — out of scope here.
 
-### Migration
-```sql
-CREATE TABLE public.diagnostic_generation_runs (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  course_id uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
-  run_id uuid NOT NULL,
-  tier text NOT NULL CHECK (tier IN ('standard','easy','medium','hard')),
-  status text NOT NULL CHECK (status IN ('pending','calling_model','validating','done','failed','skipped')),
-  requested int NOT NULL DEFAULT 0,
-  accepted int NOT NULL DEFAULT 0,
-  attempts int NOT NULL DEFAULT 0,
-  error_code text,
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(run_id, tier)
-);
-GRANT SELECT ON public.diagnostic_generation_runs TO authenticated;
-GRANT ALL ON public.diagnostic_generation_runs TO service_role;
-ALTER TABLE public.diagnostic_generation_runs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "course members read runs"
-  ON public.diagnostic_generation_runs FOR SELECT TO authenticated
-  USING (public.is_course_member(course_id, auth.uid()));
-```
+## Files touched
 
-### Edge function (`generate-diagnostic-questions/index.ts`)
-- Generate `runId = crypto.randomUUID()` at request entry; return it immediately in the JSON response and also include it in the initial seed rows.
-- Before launching tiers: `INSERT` 4 rows `(run_id, course_id, tier, status='pending', requested=<quota>)`.
-- Inside `runTier`, after each lifecycle transition, `UPDATE` the row (`status='calling_model'` → `'validating'` → `'done'`, plus `accepted` and `attempts`).
-- On `CreditsExhaustedError`: mark all non-done rows as `failed` with `error_code='credits_exhausted'`.
-- On `DeadlineExceededError`: mark remaining as `skipped`.
+- `supabase/functions/generate-diagnostic-questions/index.ts` — `TierSpec` adds `band`/`maxAttempts`; `validateMcq` uses `spec.band`; `runTier` uses `spec.maxAttempts`; top-level handler switches to per-tier insert + partial response.
+- `src/pages/teacher/DiagnosticQuestionsSetup.tsx` — handle `partial: true` 200 response with a warning (not error) toast; refresh the question list on partial success.
 
-### Client (`DiagnosticQuestionsSetup.tsx`)
-- Remove `tierStatus`, `overallPct`, and `ESTIMATED_SECONDS`.
-- When user clicks Generate: call the edge function but **don't await** the body for progress — instead, immediately subscribe to `diagnostic_generation_runs` filtered by `course_id` (latest run_id wins) and render each tier's bar from real `(accepted/requested)*100` plus a status label.
-- When the invoke promise resolves (success, partial 422, or 402), do the existing toast/refetch logic.
-- Keep the existing 130s deadline; tiers that come back `failed/skipped` render in red rather than parked at 95%.
+## Out of scope
 
-### Net effect
-- Bars move when real work happens, not on a stopwatch.
-- A stuck tier shows itself (status stays `calling_model` for >35s → user can see which tier is the problem).
-- 402 / deadline / partial-success states are reflected in the bars, not just the toast.
+- Switching hard tier to `gemini-2.5-pro` (slower, would risk timeout).
+- A "regenerate failed tiers only" UI button.
+- Changing the bloom ≥ 3 constraint for hard (intentional pedagogy rule).
 
----
+## Validation
 
-Pick **A**, **B**, or **C** and I'll implement.
+After deploy, click **Generate Question Bank** once and confirm:
+- Either all 40 land (ideal), or
+- At least 30 land with an amber partial-success toast and the question bank populated.
+- `diagnostic_generation_runs` rows show `done`/`done`/`done`/`done` or three `done` + one `failed`.

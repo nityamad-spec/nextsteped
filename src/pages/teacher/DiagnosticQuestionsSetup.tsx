@@ -234,12 +234,19 @@ const DiagnosticQuestionsSetup = () => {
       const attemptsSummary = Array.isArray(data?.breakdown)
         ? data.breakdown.map((b: any) => `${b.tier[0].toUpperCase()}:${b.attempts}`).join(" ")
         : "";
-      toast({
-        title: "Question bank generated",
-        description: data?.message
-          ? `${data.message}${attemptsSummary ? ` (attempts ${attemptsSummary})` : ""}`
-          : "Diagnostic questions are ready to review.",
-      });
+      if (data?.partial) {
+        toast({
+          title: "Partial bank generated",
+          description: data?.message || `Some tiers fell short: ${(data?.shortTiers || []).join(", ")}. Regenerate to top up.`,
+        });
+      } else {
+        toast({
+          title: "Question bank generated",
+          description: data?.message
+            ? `${data.message}${attemptsSummary ? ` (attempts ${attemptsSummary})` : ""}`
+            : "Diagnostic questions are ready to review.",
+        });
+      }
     } catch (e: any) {
       toast({
         title: "Generation failed",
