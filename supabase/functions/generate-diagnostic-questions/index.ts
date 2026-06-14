@@ -1147,6 +1147,7 @@ Deno.serve(async (req) => {
         message: `Generated ${rows.length} diagnostic questions across ${distributionByUnit.length} units`,
         breakdown,
         distributionByUnit,
+        runId,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
