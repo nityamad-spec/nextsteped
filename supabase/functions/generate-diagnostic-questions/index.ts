@@ -821,14 +821,35 @@ async function runTier(
   let attempts = 0;
   let lastInvalidCount = 0;
 
+  logEvent(ctx, "tier_started", {
+    tier: spec.tier,
+    message: `tier ${spec.tier}: need ${spec.count}, pre-seeded ${accepted.length}, maxAttempts ${spec.maxAttempts}`,
+    data: {
+      requested: spec.count,
+      pre_seeded: accepted.length,
+      max_attempts: spec.maxAttempts,
+      difficulty: spec.difficulty,
+      band: spec.band,
+      quota,
+    },
+  });
+
   while (accepted.length < spec.count && attempts < spec.maxAttempts) {
     // Stop retry loop if global deadline or shared abort fired.
     if (ctx.abortSignal.aborted) {
-      reasons.push(`aborted: ${(ctx.abortSignal.reason as Error)?.message || "sibling failure"}`);
+      const m = `aborted: ${(ctx.abortSignal.reason as Error)?.message || "sibling failure"}`;
+      reasons.push(m);
+      logEvent(ctx, "tier_aborted", { tier: spec.tier, status: "warn", message: m });
       break;
     }
     if (Date.now() >= ctx.deadlineAt) {
       reasons.push("global deadline exceeded before next attempt");
+      logEvent(ctx, "deadline_check", {
+        tier: spec.tier,
+        status: "warn",
+        message: "global deadline exceeded before next attempt",
+        data: { deadline_at: ctx.deadlineAt, now: Date.now() },
+      });
       break;
     }
     attempts++;
@@ -841,61 +862,143 @@ async function runTier(
     const needed = Object.values(remaining).reduce((a, b) => a + b, 0);
     if (needed === 0) break;
 
+    const budgetLeft = ctx.deadlineAt - Date.now();
+    logEvent(ctx, "attempt_started", {
+      tier: spec.tier,
+      attempt: attempts,
+      message: `attempt ${attempts}/${spec.maxAttempts}: need ${needed}, budget ${budgetLeft}ms`,
+      data: { needed, remaining, budget_ms: budgetLeft, accepted_so_far: accepted.length },
+    });
+
     const retryHint = attempts > 1
       ? `Previous batch had ${lastInvalidCount} invalid or over-quota questions. Common issues: ${[...new Set(reasons)].slice(0, 3).join("; ")}. Generate exactly the REMAINING NEED counts shown above.`
       : null;
 
     let batch: GeneratedQuestion[] = [];
+    const gwStart = Date.now();
     try {
       batch = await callGateway(spec, needed, courseName, quotaBlock, remaining, lovableKey, retryHint, ctx);
+      logEvent(ctx, "gateway_response", {
+        tier: spec.tier,
+        attempt: attempts,
+        status: "ok",
+        message: `gateway returned ${batch.length} candidates in ${Date.now() - gwStart}ms`,
+        duration_ms: Date.now() - gwStart,
+        data: { candidates: batch.length, needed },
+      });
     } catch (e) {
       // Propagate fatal typed errors so the top-level handler can respond properly.
       if (e instanceof CreditsExhaustedError) {
         updateRunRow(ctx, spec.tier, { status: "failed", attempts, error_code: "credits_exhausted" });
+        logEvent(ctx, "tier_skipped", {
+          tier: spec.tier,
+          attempt: attempts,
+          status: "error",
+          message: "credits exhausted",
+          reason: (e as Error).message,
+        });
         throw e;
       }
       if (e instanceof DeadlineExceededError) {
-        reasons.push(`deadline: ${(e as Error).message.slice(0, 80)}`);
+        const m = `deadline: ${(e as Error).message.slice(0, 120)}`;
+        reasons.push(m);
         updateRunRow(ctx, spec.tier, { status: "skipped", attempts, error_code: "deadline" });
+        logEvent(ctx, "tier_skipped", {
+          tier: spec.tier,
+          attempt: attempts,
+          status: "error",
+          message: m,
+          reason: (e as Error).message,
+        });
         break;
       }
-      reasons.push(`gateway error: ${(e as Error).message.slice(0, 80)}`);
+      const m = `gateway error: ${(e as Error).message.slice(0, 200)}`;
+      reasons.push(m);
       updateRunRow(ctx, spec.tier, { attempts });
+      logEvent(ctx, "gateway_response", {
+        tier: spec.tier,
+        attempt: attempts,
+        status: "error",
+        message: m,
+        reason: (e as Error).message,
+        duration_ms: Date.now() - gwStart,
+      });
       continue;
     }
 
     updateRunRow(ctx, spec.tier, { status: "validating", attempts });
     lastInvalidCount = 0;
+    const rejectBreakdown: Record<string, number> = {};
+    const recordReject = (reasonText: string, candidate: GeneratedQuestion) => {
+      const key = reasonText.split(":")[0].trim().slice(0, 60) || "unknown";
+      rejectBreakdown[key] = (rejectBreakdown[key] || 0) + 1;
+      logEvent(ctx, "validation_reject", {
+        tier: spec.tier,
+        attempt: attempts,
+        status: "warn",
+        message: reasonText.slice(0, 200),
+        reason: reasonText,
+        data: {
+          topic: candidate?.topic,
+          difficulty_estimate: candidate?.difficulty_estimate,
+          bloom_level: candidate?.bloom_level,
+          difficulty_justification: candidate?.difficulty_justification,
+          bloom_justification: candidate?.bloom_justification,
+          content_preview: String(candidate?.content_text ?? "").slice(0, 160),
+        },
+      });
+    };
+    const acceptedThisAttempt: string[] = [];
     for (const q of batch) {
       const v = validateMcq(q, spec, conceptByCode);
       if (!v.ok) {
         reasons.push(v.reason);
         lastInvalidCount++;
+        recordReject(v.reason, q);
         continue;
       }
       // Quota enforcement
       const code = v.normalized.topic;
       const cap = quota[code] || 0;
       if (cap === 0) {
-        reasons.push(`concept ${code} not in tier quota`);
+        const r = `concept ${code} not in tier quota`;
+        reasons.push(r);
         lastInvalidCount++;
+        recordReject(r, q);
         continue;
       }
       if ((acceptedByCode[code] || 0) >= cap) {
-        reasons.push(`over-quota for ${code}`);
+        const r = `over-quota for ${code}`;
+        reasons.push(r);
         lastInvalidCount++;
+        recordReject(r, q);
         continue;
       }
       if (isDuplicate(v.normalized, accepted)) {
         reasons.push("duplicate content");
         lastInvalidCount++;
+        recordReject("duplicate content", q);
         continue;
       }
       accepted.push(v.normalized);
       acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
+      acceptedThisAttempt.push(code);
       if (accepted.length >= spec.count) break;
     }
     updateRunRow(ctx, spec.tier, { accepted: accepted.length, attempts });
+    logEvent(ctx, "validation_summary", {
+      tier: spec.tier,
+      attempt: attempts,
+      status: lastInvalidCount > 0 ? "warn" : "ok",
+      message: `accepted ${acceptedThisAttempt.length} / rejected ${lastInvalidCount} (cumulative ${accepted.length}/${spec.count})`,
+      data: {
+        accepted_this_attempt: acceptedThisAttempt.length,
+        rejected_this_attempt: lastInvalidCount,
+        cumulative_accepted: accepted.length,
+        reject_breakdown: rejectBreakdown,
+        accepted_topics: acceptedThisAttempt,
+      },
+    });
   }
 
   const finalStatus: DgrStatus = accepted.length >= spec.count ? "done" : "failed";
@@ -905,6 +1008,20 @@ async function runTier(
     attempts,
     error_code: finalStatus === "failed" ? "incomplete" : null,
   });
+  logEvent(ctx, finalStatus === "done" ? "tier_complete" : "tier_partial", {
+    tier: spec.tier,
+    status: finalStatus === "done" ? "ok" : "error",
+    message: `tier ${spec.tier}: ${accepted.length}/${spec.count} after ${attempts} attempt${attempts === 1 ? "" : "s"}`,
+    reason: finalStatus === "failed" ? [...new Set(reasons)].slice(0, 8).join(" | ") : undefined,
+    data: {
+      accepted: accepted.length,
+      requested: spec.count,
+      attempts,
+      distribution: acceptedByCode,
+      sample_reasons: [...new Set(reasons)].slice(0, 8),
+    },
+  });
+
 
   return {
     tier: spec.tier,
