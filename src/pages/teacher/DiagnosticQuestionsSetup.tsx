@@ -166,27 +166,33 @@ const DiagnosticQuestionsSetup = () => {
     toast({ title: "Question removed" });
   };
 
-  const handleGenerate = async () => {
+  const QUOTA: Record<typeof TIERS[number], number> = {
+    standard: 10, easy: 10, medium: 10, hard: 10,
+  };
+
+  const runGeneration = async (tiers?: typeof TIERS[number][]) => {
     if (!courseId) {
       toast({ title: "No course selected", variant: "destructive" });
       return;
     }
     setGenerating(true);
     try {
+      const body: { courseId: string; tiers?: string[] } = { courseId };
+      if (tiers && tiers.length > 0) body.tiers = tiers;
       const { data, error } = await supabase.functions.invoke("generate-diagnostic-questions", {
-        body: { courseId },
+        body,
       });
 
       // Edge function returned non-2xx (e.g. 422 partial)
       if (error) {
         const ctx: any = (error as any).context;
-        let body: any = null;
+        let parsedBody: any = null;
         try {
-          if (ctx?.json) body = await ctx.json();
-          else if (ctx?.text) body = JSON.parse(await ctx.text());
+          if (ctx?.json) parsedBody = await ctx.json();
+          else if (ctx?.text) parsedBody = JSON.parse(await ctx.text());
         } catch { /* ignore */ }
-        if (body?.breakdown) {
-          const short = body.breakdown
+        if (parsedBody?.breakdown) {
+          const short = parsedBody.breakdown
             .filter((b: any) => b.accepted < b.requested)
             .map((b: any) => `${b.tier}: ${b.accepted}/${b.requested}`)
             .join(", ");
@@ -241,7 +247,7 @@ const DiagnosticQuestionsSetup = () => {
         });
       } else {
         toast({
-          title: "Question bank generated",
+          title: tiers ? "Tier regenerated" : "Question bank generated",
           description: data?.message
             ? `${data.message}${attemptsSummary ? ` (attempts ${attemptsSummary})` : ""}`
             : "Diagnostic questions are ready to review.",
@@ -257,6 +263,9 @@ const DiagnosticQuestionsSetup = () => {
       setGenerating(false);
     }
   };
+
+  const handleGenerate = () => runGeneration();
+  const handleRegenerateTiers = (tiers: typeof TIERS[number][]) => runGeneration(tiers);
 
 
   // Partition by item_code tier (STANDARD / EASY / MEDIUM / HARD).
