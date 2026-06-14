@@ -150,6 +150,9 @@ interface RunCtx {
   // Live per-tier progress tracking — used by the UI to render real progress.
   runId: string;
   admin: ReturnType<typeof createClient>;
+  // Number of in-callGateway transient-error retries. Single-tier regen runs
+  // set this to 1 so the worst-case wall-clock fits inside the deadline.
+  gatewayRetries: number;
 }
 
 type DgrStatus = "pending" | "calling_model" | "validating" | "done" | "failed" | "skipped";
