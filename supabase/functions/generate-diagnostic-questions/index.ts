@@ -1152,9 +1152,18 @@ Deno.serve(async (req) => {
       });
 
 
+    const partial = !allComplete;
+    const shortTiers = tierResults
+      .filter((t) => t.accepted.length < t.requested)
+      .map((t) => t.tier);
+
     return new Response(
       JSON.stringify({
-        message: `Generated ${rows.length} diagnostic questions across ${distributionByUnit.length} units`,
+        message: partial
+          ? `Generated ${rows.length}/${TOTAL_QUESTIONS} diagnostic questions (short on: ${shortTiers.join(", ")}). Regenerate to top up.`
+          : `Generated ${rows.length} diagnostic questions across ${distributionByUnit.length} units`,
+        partial,
+        shortTiers,
         breakdown,
         distributionByUnit,
         runId,
