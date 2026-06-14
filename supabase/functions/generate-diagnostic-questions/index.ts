@@ -1198,6 +1198,21 @@ Deno.serve(async (req) => {
     const { error: seedErr } = await admin.from("diagnostic_generation_runs").insert(seedRows);
     if (seedErr) console.warn("dgr seed failed:", seedErr.message);
 
+    const runStartedAt = Date.now();
+    logEvent(ctx, "run_started", {
+      message: `run ${runId.slice(0, 8)}: ${activeSpecs.map((s) => s.tier).join(",")} (deadline ${deadlineBudgetMs}ms)`,
+      data: {
+        course_id: courseId,
+        course_name: course.name,
+        requested_tiers: activeSpecs.map((s) => s.tier),
+        is_partial_run: isPartialRun,
+        deadline_ms: deadlineBudgetMs,
+        gateway_retries: gatewayRetries,
+        concepts: concepts.length,
+        weeks: (weeks || []).length,
+      },
+    });
+
     // Pre-seed accepted bank for tier-only regens: load existing rows for the
     // requested tiers so successive regens accumulate (e.g. 0 → 6 → 10) instead
     // of restarting from zero each time. Full-run regens (all 4 tiers) skip
@@ -1225,12 +1240,22 @@ Deno.serve(async (req) => {
           difficulty_justification: String(r.difficulty_justification ?? ""),
         });
       }
+      logEvent(ctx, "preseed_loaded", {
+        message: `preseed counts: ${Object.entries(preSeedByTier).map(([t, a]) => `${t}:${a.length}`).join(", ") || "none"}`,
+        data: Object.fromEntries(activeSpecs.map((s) => [s.tier, (preSeedByTier[s.tier] || []).length])),
+      });
     }
+
+    logEvent(ctx, "specs_built", {
+      message: `running ${activeSpecs.length} tier${activeSpecs.length === 1 ? "" : "s"}`,
+      data: { specs: activeSpecs.map((s) => ({ tier: s.tier, count: s.count, max_attempts: s.maxAttempts })) },
+    });
 
     // Run only the active tiers in parallel with retries
     const settled = await Promise.allSettled(
       activeSpecs.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, ctx, preSeedByTier[spec.tier] || [])),
     );
+
 
     // If any tier failed with CreditsExhaustedError, short-circuit with a
     // typed response so the UI can show an actionable billing message.
