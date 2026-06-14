@@ -750,13 +750,29 @@ async function runTier(
   conceptByCode: Record<string, ConceptInfo>,
   lovableKey: string,
   ctx: RunCtx,
+  preSeed: ValidatedQuestion[] = [],
 ): Promise<TierResult> {
   const seed = `${courseName}:${spec.tier}:${Date.now()}:${Math.random()}`;
   const quota = computeTierQuota(units, spec.count, seed);
   const quotaBlock = formatQuotaForPrompt(units, quota);
 
+  // Pre-seed with existing accepted rows so tier-only regens accumulate
+  // instead of restarting from zero. Filter to entries that still satisfy
+  // current validation + quota constraints.
   const accepted: ValidatedQuestion[] = [];
   const acceptedByCode: Record<string, number> = {};
+  for (const ex of preSeed) {
+    const v = validateMcq(ex, spec, conceptByCode);
+    if (!v.ok) continue;
+    const code = v.normalized.topic;
+    const cap = quota[code] || 0;
+    if (cap === 0) continue;
+    if ((acceptedByCode[code] || 0) >= cap) continue;
+    if (isDuplicate(v.normalized, accepted)) continue;
+    accepted.push(v.normalized);
+    acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
+    if (accepted.length >= spec.count) break;
+  }
   const reasons: string[] = [];
   let attempts = 0;
   let lastInvalidCount = 0;
