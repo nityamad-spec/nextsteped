@@ -464,12 +464,15 @@ async function callGateway(
   ctx: RunCtx,
 ): Promise<GeneratedQuestion[]> {
   const logCtx = { requestId: ctx.requestId, teacherId: ctx.teacherId, courseId: ctx.courseId };
+  // Hard tier over-generation: validation drops a higher share of hard
+  // candidates, so ask for 1.5× needed (capped at 15) to absorb losses.
+  const askFor = spec.tier === "hard" ? Math.min(15, Math.ceil(needed * 1.5)) : needed;
   const remainingList = Object.entries(remainingQuota)
     .filter(([, v]) => v > 0)
     .map(([k, v]) => `  - ${k}: ${v} more`)
     .join("\n");
 
-  const systemPrompt = `You are an expert assessment designer creating diagnostic quiz questions for a course titled "${courseName}". Generate exactly ${needed} ${spec.tier} tier diagnostic questions.
+  const systemPrompt = `You are an expert assessment designer creating diagnostic quiz questions for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier} tier diagnostic questions.
 
 Tier: ${spec.label}
 Target difficulty (0=easy, 1=hard): ${spec.difficulty}
