@@ -143,6 +143,32 @@ interface RunCtx {
   deadlineAt: number;       // epoch ms
   abortSignal: AbortSignal; // shared across tiers; aborted on 402
   abort: (reason: Error) => void;
+  // Live per-tier progress tracking — used by the UI to render real progress.
+  runId: string;
+  admin: ReturnType<typeof createClient>;
+}
+
+type DgrStatus = "pending" | "calling_model" | "validating" | "done" | "failed" | "skipped";
+
+// Fire-and-forget progress update; never block the generation pipeline on it.
+function updateRunRow(
+  ctx: RunCtx,
+  tier: string,
+  patch: { status?: DgrStatus; accepted?: number; attempts?: number; error_code?: string | null },
+) {
+  const promise = ctx.admin
+    .from("diagnostic_generation_runs")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("run_id", ctx.runId)
+    .eq("tier", tier)
+    .then(({ error }) => {
+      if (error) console.warn("dgr update failed", tier, error.message);
+    });
+  if (typeof (globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime !== "undefined") {
+    (globalThis as { EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime.waitUntil(promise);
+  } else {
+    void promise.catch(() => {});
+  }
 }
 
 // Fixed categorization for bloom_justification (maps to bloom_level 1-6)
