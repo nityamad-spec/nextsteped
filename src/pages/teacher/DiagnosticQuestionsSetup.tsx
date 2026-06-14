@@ -289,6 +289,34 @@ const DiagnosticQuestionsSetup = () => {
     q => tierOf(q) === adaptiveFilter.toUpperCase(),
   );
 
+  // Live per-tier counts derived from the current bank (drives "Regenerate tier"
+  // buttons even after a page reload — not just from the last response).
+  const countByTier: Record<typeof TIERS[number], number> = {
+    standard: standardQuestions.length,
+    easy: adaptiveQuestions.filter(q => tierOf(q) === "EASY").length,
+    medium: adaptiveQuestions.filter(q => tierOf(q) === "MEDIUM").length,
+    hard: adaptiveQuestions.filter(q => tierOf(q) === "HARD").length,
+  };
+  const shortTiersLive = TIERS.filter(t => countByTier[t] < QUOTA[t]);
+
+  const renderTierRegenButton = (tier: typeof TIERS[number]) => {
+    if (countByTier[tier] >= QUOTA[tier]) return null;
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={generating || conceptCount === 0}
+        onClick={() => handleRegenerateTiers([tier])}
+      >
+        {generating ? (
+          <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Regenerating…</>
+        ) : (
+          <><Sparkles className="mr-2 h-3.5 w-3.5" /> Regenerate {tier}</>
+        )}
+      </Button>
+    );
+  };
+
   // Concept coverage from questions
   const allTopics = [...new Set(questions.map(q => q.topic).filter(Boolean))] as string[];
 
