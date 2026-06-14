@@ -548,14 +548,30 @@ Examples:
   let response: Response | null = null;
   let lastErr = "";
   for (let attempt = 0; attempt < GATEWAY_RETRIES; attempt++) {
+    // Bail out early if a sibling tier triggered global abort (e.g. 402).
+    if (ctx.abortSignal.aborted) {
+      throw new Error(`aborted: ${(ctx.abortSignal.reason as Error)?.message || "sibling failure"}`);
+    }
+    // Reserve enough budget for at least one attempt; otherwise stop retrying.
+    const budgetLeft = ctx.deadlineAt - Date.now();
+    if (budgetLeft < GATEWAY_CALL_TIMEOUT_MS / 2) {
+      throw new DeadlineExceededError(`tier ${spec.tier}: ${budgetLeft}ms left, need ≥${GATEWAY_CALL_TIMEOUT_MS / 2}ms`);
+    }
+    // Use the smaller of per-call timeout and remaining global budget.
+    const perCallTimeout = Math.min(GATEWAY_CALL_TIMEOUT_MS, Math.max(5_000, budgetLeft - 1_000));
     const startedAt = Date.now();
     let statusForLog: number | null = null;
     let errMsgForLog: string | null = null;
     let errCodeForLog: string | null = null;
     try {
+      // Combine per-call timeout with shared abort signal.
+      const timeoutSignal = AbortSignal.timeout(perCallTimeout);
+      const combinedSignal = AbortSignal.any
+        ? AbortSignal.any([timeoutSignal, ctx.abortSignal])
+        : timeoutSignal;
       response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        signal: AbortSignal.timeout(GATEWAY_CALL_TIMEOUT_MS),
+        signal: combinedSignal,
         headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
         body: baseBody,
       });
@@ -576,7 +592,29 @@ Examples:
         });
         break;
       }
-      // Retry on 429 / 5xx; fail fast on 4xx (client errors won't fix themselves)
+      // 402: credits exhausted — abort all sibling tiers + propagate typed error.
+      if (response.status === 402) {
+        const errText = await response.text();
+        const credErr = new CreditsExhaustedError(errText.slice(0, 200) || "AI credits exhausted");
+        logGatewayCall({
+          model: MODEL,
+          purpose: `tier:${spec.tier}`,
+          http_status: 402,
+          outcome: "client_error",
+          attempt: attempt + 1,
+          total_attempts: GATEWAY_RETRIES,
+          duration_ms: Date.now() - startedAt,
+          request_id: logCtx.requestId,
+          teacher_id: logCtx.teacherId,
+          course_id: logCtx.courseId,
+          error_code: "credits_exhausted",
+          error_message: errText.slice(0, 500),
+          context: { needed },
+        });
+        ctx.abort(credErr);
+        throw credErr;
+      }
+      // Retry on 429 / 5xx; fail fast on other 4xx (client errors won't fix themselves)
       if (response.status !== 429 && response.status < 500) {
         const errText = await response.text();
         errMsgForLog = errText.slice(0, 500);
@@ -618,6 +656,8 @@ Examples:
         context: { needed },
       });
     } catch (e) {
+      // Re-throw fatal typed errors immediately so retries don't swallow them.
+      if (e instanceof CreditsExhaustedError || e instanceof DeadlineExceededError) throw e;
       const msg = (e as Error).message ?? String(e);
       lastErr = msg.slice(0, 160);
       if (statusForLog == null) {
