@@ -97,28 +97,32 @@ interface TierSpec {
   count: number;
   difficulty: number;
   label: string;
+  band: number;          // ± allowed delta around `difficulty` during validation
+  maxAttempts: number;   // per-tier retry budget
 }
 
 const TIER_SPEC: TierSpec[] = [
-  { tier: "standard", count: 10, difficulty: 0.5, label: "Standard (medium difficulty, common to all students)" },
-  { tier: "easy", count: 10, difficulty: 0.2, label: "Easy adaptive tier (for struggling students)" },
-  { tier: "medium", count: 10, difficulty: 0.5, label: "Medium adaptive tier (for average students)" },
-  { tier: "hard", count: 10, difficulty: 0.85, label: "Hard adaptive tier (for advanced students)" },
+  { tier: "standard", count: 10, difficulty: 0.5, band: 0.15, maxAttempts: 2, label: "Standard (medium difficulty, common to all students)" },
+  { tier: "easy", count: 10, difficulty: 0.2, band: 0.15, maxAttempts: 2, label: "Easy adaptive tier (for struggling students)" },
+  { tier: "medium", count: 10, difficulty: 0.5, band: 0.15, maxAttempts: 2, label: "Medium adaptive tier (for average students)" },
+  // Hard tier widened: difficulty 0.80 ± 0.20 → [0.60, 1.00] covers both
+  // EDGE_CASE (0.60-0.80) and COMPOSITE_REASONING (0.75-0.95) categories.
+  // One extra attempt because hard joint constraints (difficulty + bloom ≥ 3
+  // + category band) reject more candidates per batch.
+  { tier: "hard", count: 10, difficulty: 0.80, band: 0.20, maxAttempts: 3, label: "Hard adaptive tier (for advanced students)" },
 ];
 const TOTAL_QUESTIONS = TIER_SPEC.reduce((s, t) => s + t.count, 0);
 
-const MAX_ATTEMPTS = 2;
 // Use flash (not pro) — pro runs 40-60s per call and with 4 parallel tiers ×
-// up to MAX_ATTEMPTS retries it blows past the 150s client invoke timeout.
+// retries it blows past the 150s client invoke timeout.
 const MODEL = "google/gemini-2.5-flash";
-// Per-gateway-call timeout. Worst case per tier (parallel): MAX_ATTEMPTS ×
+// Per-gateway-call timeout. Worst case per tier (parallel): maxAttempts ×
 // GATEWAY_RETRIES × GATEWAY_CALL_TIMEOUT_MS must stay under the 150s client
-// invoke timeout. 2 × 2 × 35s ≈ 140s + small backoff.
+// invoke timeout. Hard tier: 3 × 2 × 35s ≈ 210s — bounded by GLOBAL_DEADLINE_MS.
 const GATEWAY_CALL_TIMEOUT_MS = 35_000;
 // Global wall-clock budget for the whole function. Supabase invoke timeout is
 // 150s; leave headroom for DB writes + JSON serialization.
 const GLOBAL_DEADLINE_MS = 130_000;
-const DIFFICULTY_BAND = 0.15;
 
 // Sentinel error thrown when the AI Gateway returns 402 (credits exhausted).
 // Caught at the top level and converted into a structured response so the UI
@@ -260,8 +264,8 @@ function validateMcq(
   let diff = Number(q.difficulty_estimate);
   if (!Number.isFinite(diff)) return { ok: false, reason: "difficulty not numeric" };
   diff = Math.max(0, Math.min(1, diff));
-  if (diff < spec.difficulty - DIFFICULTY_BAND || diff > spec.difficulty + DIFFICULTY_BAND) {
-    return { ok: false, reason: `difficulty ${diff.toFixed(2)} outside ±${DIFFICULTY_BAND} band` };
+  if (diff < spec.difficulty - spec.band || diff > spec.difficulty + spec.band) {
+    return { ok: false, reason: `difficulty ${diff.toFixed(2)} outside ±${spec.band} band` };
   }
 
   const bloom = Math.round(Number(q.bloom_level));
@@ -480,7 +484,7 @@ STRICT RULES:
 - The answer field MUST be the FULL TEXT of one of the 4 options, character-for-character identical.
 - The topic field MUST be one of the concept codes shown in the QUOTA above (exact match).
 - Respect the per-concept quota above: do NOT over-generate for any concept.
-- difficulty_estimate must be a number close to ${spec.difficulty} (within ±0.15).
+- difficulty_estimate must be a number close to ${spec.difficulty} (within ±${spec.band}).
 - bloom_level: integer 1-6 (1=Remember, 2=Understand, 3=Apply, 4=Analyze, 5=Evaluate, 6=Create).
 - content_text: the question stem only, ≤ 600 characters, no embedded options.
 - explanation: 1-2 sentences explaining why the correct option is correct.
@@ -751,7 +755,7 @@ async function runTier(
   let attempts = 0;
   let lastInvalidCount = 0;
 
-  while (accepted.length < spec.count && attempts < MAX_ATTEMPTS) {
+  while (accepted.length < spec.count && attempts < spec.maxAttempts) {
     // Stop retry loop if global deadline or shared abort fired.
     if (ctx.abortSignal.aborted) {
       reasons.push(`aborted: ${(ctx.abortSignal.reason as Error)?.message || "sibling failure"}`);
