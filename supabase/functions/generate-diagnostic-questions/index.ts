@@ -1192,18 +1192,25 @@ Deno.serve(async (req) => {
       });
 
 
+    // `partial` is scoped to THIS run's requested tiers. A successful
+    // hard-only top-up returns partial=false even if other tiers were skipped.
+    const requestedQuota = activeSpecs.reduce((s, sp) => s + sp.count, 0);
     const partial = !allComplete;
     const shortTiers = tierResults
       .filter((t) => t.accepted.length < t.requested)
       .map((t) => t.tier);
+    const requestedTiers = activeSpecs.map((s) => s.tier);
 
     return new Response(
       JSON.stringify({
         message: partial
-          ? `Generated ${rows.length}/${TOTAL_QUESTIONS} diagnostic questions (short on: ${shortTiers.join(", ")}). Regenerate to top up.`
-          : `Generated ${rows.length} diagnostic questions across ${distributionByUnit.length} units`,
+          ? `Generated ${totalRows}/${requestedQuota} diagnostic questions (short on: ${shortTiers.join(", ")}). Regenerate to top up.`
+          : isPartialRun
+            ? `Topped up ${requestedTiers.join(", ")} tier${requestedTiers.length === 1 ? "" : "s"} — ${totalRows} questions.`
+            : `Generated ${totalRows} diagnostic questions across ${distributionByUnit.length} units`,
         partial,
         shortTiers,
+        requestedTiers,
         breakdown,
         distributionByUnit,
         runId,
