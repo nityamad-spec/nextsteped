@@ -919,13 +919,35 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { courseId } = await req.json();
+    const body = await req.json();
+    const courseId: string | undefined = body?.courseId;
+    const requestedTiersRaw: unknown = body?.tiers;
     if (!courseId) {
       return new Response(JSON.stringify({ error: "courseId is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Optional tier filter — when provided, regenerate only those tiers and
+    // leave existing rows for the other tiers untouched. Default: all tiers.
+    const ALL_TIERS = TIER_SPEC.map((s) => s.tier);
+    let activeSpecs: TierSpec[] = TIER_SPEC;
+    if (Array.isArray(requestedTiersRaw) && requestedTiersRaw.length > 0) {
+      const allowed = new Set(ALL_TIERS);
+      const requested = (requestedTiersRaw as unknown[])
+        .filter((t): t is string => typeof t === "string")
+        .map((t) => t.toLowerCase())
+        .filter((t) => allowed.has(t as TierSpec["tier"]));
+      if (requested.length === 0) {
+        return new Response(JSON.stringify({
+          error: `tiers must be a subset of ${ALL_TIERS.join(", ")}`,
+        }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const set = new Set(requested);
+      activeSpecs = TIER_SPEC.filter((s) => set.has(s.tier));
+    }
+    const isPartialRun = activeSpecs.length < TIER_SPEC.length;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
