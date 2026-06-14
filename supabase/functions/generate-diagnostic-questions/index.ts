@@ -1038,6 +1038,7 @@ Deno.serve(async (req) => {
         JSON.stringify({
           error: "Could not produce a complete diagnostic set after retries.",
           breakdown,
+          runId,
         }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
