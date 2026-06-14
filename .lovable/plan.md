@@ -1,63 +1,117 @@
+## Goal
 
-# Fix: hard-tier diagnostic regeneration keeps failing
+Make every step of a diagnostic-question generation run traceable from the admin dashboard, with the reasoning behind each success, drop, or failure visible at a glance.
 
-## Diagnosis (from `diagnostic_generation_runs` history)
+Today we only persist one row per `(run, tier)` in `diagnostic_generation_runs` (final status, accepted count, error_code). When a tier "fails as incomplete" there is no way to see *which* questions were rejected, *why*, what the model returned, or where the deadline was spent. We will add a fine-grained event log + an admin viewer.
 
-Hard tier fails in two ways:
+## 1. New table: `diagnostic_generation_events`
 
-- **`deadline`** (recent tier-only regens): `GLOBAL_DEADLINE_MS = 130s` but worst-case hard run is `maxAttempts(3) × GATEWAY_RETRIES(2) × GATEWAY_CALL_TIMEOUT_MS(35s) = 210s`. Attempts 2-3 get cut off mid-call.
-- **`incomplete`** (initial full runs): flash mislabels difficulty/bloom; per-batch validation drops most questions; 3 attempts not enough.
-- **No accumulation across regens**: only tiers that hit `accepted === requested` are inserted, so a regen that produced 6/10 hard questions is discarded — the next regen restarts from zero. The teacher can never "fill up" hard incrementally.
+One row per meaningful step inside a run. Append-only, scoped to a `run_id`.
 
-## Proposed fixes (layered — apply 1+2+3 together; 4/5 are optional escalations)
+Columns:
+- `id uuid pk`
+- `run_id uuid` (matches `diagnostic_generation_runs.run_id`)
+- `course_id uuid`
+- `tier text null` (null for run-level events like `run_started`, `preseed_loaded`, `run_finished`)
+- `attempt int null`
+- `step text` — enum-like string, see catalog below
+- `status text` — `info` | `ok` | `warn` | `error`
+- `message text` — short human-readable summary
+- `reason text null` — long explanation / model snippet / validator output
+- `data jsonb null` — structured payload (counts, ids, ms, prompt size, gateway request_id, rejected question excerpt, etc.)
+- `gateway_call_id uuid null` — FK-style link to `ai_gateway_call_log.id` when the event wraps a model call
+- `duration_ms int null`
+- `created_at timestamptz default now()`
 
-### 1. Persist partial hard accepts and seed next regen from them
+Indexes: `(run_id, created_at)`, `(course_id, created_at desc)`, `(tier)`, `(status)`.
 
-- After `runTier`, also insert tiers where `0 < accepted < requested` (currently dropped). Keep `tier` column scoped so subsequent regens replace just that tier's existing rows for *that* run.
-- On regen, before calling `runTier`, **load existing accepted questions for the requested tier** from `diagnostic_questions` and pre-populate `accepted[]` / `acceptedByCode` so the model is only asked for the remainder. Adjust `quota` so per-concept caps subtract what's already in the bank.
-- Net effect: clicking "Regenerate hard" two or three times incrementally fills the tier from 0 → 4 → 8 → 10 instead of always restarting.
+RLS: admin-only read (via `is_admin(auth.uid())`); service_role full access. Edge function writes with service role.
 
-### 2. Right-size the deadline and per-call budget for single-tier runs
+## 2. Step catalog (what gets logged inside `generate-diagnostic-questions`)
 
-- When `activeSpecs.length === 1`, raise `GLOBAL_DEADLINE_MS` to 150 s (Supabase invoke max) minus 5 s headroom = 145 s, and **drop `GATEWAY_RETRIES` from 2 → 1** inside that path so the worst case is `3 × 1 × 35s = 105s`, comfortably inside budget.
-- Update `updateRunRow` deadline-check path to mark the run `failed` with `error_code: "deadline"` only if zero accepts; otherwise mark `done_partial` so the UI can show progress instead of an error toast.
+Run-level
+- `run_started` — params: course_id, requested tiers, single-tier flag, deadline_ms, gateway_retries
+- `preseed_loaded` — per tier: existing accepted count pulled from bank, ids
+- `specs_built` — final per-tier quotas after subtracting preseed
+- `run_finished` — totals per tier, overall outcome, duration
 
-### 3. Over-generate per batch and loosen one hard-tier validation rule
+Per tier / attempt
+- `tier_started` — spec, remaining needed, maxAttempts
+- `attempt_started` — attempt #, retry hint, time remaining vs deadline
+- `gateway_request` — model, count requested, prompt char length, gateway attempt
+- `gateway_response` — http status, ms, request_id (link to `ai_gateway_call_log.id`), parsed candidate count, raw text length; on error: `outcome`, snippet
+- `validation_summary` — accepted N / rejected M with breakdown by reason
+- `validation_reject` (status=warn) — one row per dropped candidate: `reason` = which rule failed (difficulty band, bloom level, category band, dedupe, missing concept_id, malformed options, etc.), `data` = the candidate JSON excerpt
+- `concept_cap_hit` — per-concept quota saturated
+- `tier_partial` — accepted < requested after all attempts, with reason summary
+- `tier_complete` — accepted == requested
+- `tier_skipped` — deadline / credits exhausted, with remaining budget
+- `db_replace` — delete count + insert count for that tier
+- `deadline_check` (status=warn) — when remaining budget < estimated next call
 
-- Ask the gateway for `Math.ceil(needed × 1.5)` questions per hard attempt so validation losses are absorbed. Cap at 15 per call so token cost stays bounded.
-- Drop the `bloom_level ≥ 3` requirement for hard tier (keep difficulty band only). Bloom is justified separately in the model output and is the main reason validated batches under-fill; difficulty + category band is sufficient signal for "hard."
+All existing `console.log/warn/error` paths get a parallel event insert. `updateRunRow` keeps writing the coarse summary; events are additive, not a replacement.
 
-### 4. (Optional) Halve hard batch size and run two sub-calls in parallel
+Writes are best-effort (fire-and-forget like `ai_gateway_call_log`); insert failures only `console.warn`, never break the run.
 
-- Split hard tier into two parallel `callGateway` invocations of `count: 5` each. Wall-clock per attempt drops to ~one gateway call, so attempts 2-3 fit easily. Merge results before validation. Only enable for hard since it's the slow path.
+## 3. Admin UI: new tab "Diagnostic Runs"
 
-### 5. (Optional, last resort) Escalate model on final hard attempt
+Add to `AdminLayout` sidebar nav: `Diagnostic Runs → /admin/diagnostics-runs`, icon `Activity`. Page is admin-gated like the other admin routes.
 
-- On the final hard attempt only, switch from `google/gemini-2.5-flash` to `google/gemini-2.5-pro` for a higher-fidelity batch. Pro is 2-3× slower so this only fits if (2) and (4) above are also applied.
+Layout (two panes):
 
-### Frontend (`DiagnosticQuestionsSetup.tsx`)
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ Filters: course • tier • status • time range • search       │
+├──────────────── Runs list (left) ───────────────────────────┤
+│ ▸ 2026-06-14 19:44  course X  hard  failed (incomplete) 0/10│
+│ ▸ 2026-06-14 10:00  course X  all   partial  27/40          │
+│ ...                                                         │
+├──────────────── Run timeline (right, on select) ────────────┤
+│ 19:44:13  info  run_started      4 tiers, deadline 130s     │
+│ 19:44:13  info  preseed_loaded   easy:6 medium:4 hard:0     │
+│ 19:44:14  info  tier_started     hard  needs 10 in 3 atts   │
+│ 19:44:14  info  attempt_started  #1 budget 128s             │
+│ 19:44:14  info  gateway_request  flash, 15 asked, 9.4KB     │
+│ 19:44:31  ok    gateway_response 200 17234ms req=ab12…      │
+│ 19:44:31  warn  validation_reject difficulty=medium (band)  │
+│ 19:44:31  warn  validation_reject bloom_level=2 < 3         │
+│ 19:44:31  info  validation_summary accepted 3 / rejected 12 │
+│ ...                                                         │
+│ 19:45:58  error tier_partial     0/10 — all attempts under  │
+│ 19:45:58  info  run_finished     hard failed, others n/a    │
+└─────────────────────────────────────────────────────────────┘
+```
 
-- When response says `partial: true` but `accepted > 0` for the requested tier, change toast from destructive "Generation incomplete" to amber "Topped up X/10 hard — click Regenerate hard again to fill the rest." Suppress the red "Some tiers fell short" message entirely once at least one question was added.
-- Add a small "Hard: 6/10 (incremental)" indicator next to the Regenerate hard button driven by live bank count.
+Behaviour:
+- Runs list: newest first, polls every 15s (like `AiGatewayCallsTab`), shows run_id, course name, tiers, final accepted/requested, error_code, total duration.
+- Selecting a run loads its events ordered by `created_at`, grouped collapsibly by tier.
+- Each event row shows time, status badge (color-coded), step, one-line message; expandable to show `reason` + pretty-printed `data` + a "View gateway call" link when `gateway_call_id` is set (jumps to existing `AiGatewayCallsTab` row).
+- Top-of-page mini-stats: last 24 h run count, success rate, partial rate, avg ms per tier.
+- "Copy as JSON" button on a run for support handoff.
 
-## Recommended path
+## 4. Minimal code touchpoints
 
-Ship **1 + 2 + 3** together — they address both the `deadline` and `incomplete` root causes and give the teacher an incremental top-up workflow. Hold **4** and **5** in reserve if hard still misses after this.
+- Migration: create `diagnostic_generation_events` with GRANTs + RLS (admin select, service_role all).
+- `supabase/functions/generate-diagnostic-questions/index.ts`: add a single `logEvent(ctx, step, {...})` helper sitting next to `updateRunRow`, then call it at the catalog points above (no logic changes).
+- `src/pages/admin/AdminDiagnosticRuns.tsx`: new page, paginated list + timeline detail.
+- `src/App.tsx` route + `src/layouts/AdminLayout.tsx` nav entry.
 
 ## Out of scope
 
-- Switching default model project-wide.
-- Migration changes (schema already supports per-tier rows + run progress).
-- Reworking categorization bands beyond the hard-tier loosening above.
+- Editing the generation algorithm itself (covered by the existing hard-tier plan).
+- Surfacing the log to teachers — admin-only for now.
+- Long-term retention/archival; events stay in the table until we decide a TTL.
 
 ## Validation
 
-1. Empty bank, click "Regenerate hard" → expect 5-8/10 inserted, toast: "Topped up — click again to finish."
-2. Click again → expect 10/10, no destructive toast.
-3. Run full "Regenerate all" → no tier deadline errors, all 4 tiers reach 10/10 in ≤130 s.
-4. Inspect `diagnostic_generation_runs` for the last 3 runs — `error_code` should be null on hard for tier-only regens once bank is full.
+1. Trigger a tier-only "Regenerate hard" run → admin page shows a new run within 15s with full timeline incl. each rejected candidate's reason.
+2. Force a deadline (set tiny deadline locally) → `deadline_check` warn appears before `tier_skipped`.
+3. Cause a gateway 429 → `gateway_response` event status=error with linked `ai_gateway_call_log` row.
+4. Successful full generation → every tier ends with `tier_complete` + `db_replace` showing insert count == 10.
 
-## Files touched
+## Files
 
-- `supabase/functions/generate-diagnostic-questions/index.ts` — partial-tier insert, seed-from-existing, single-tier deadline/retry tuning, hard validation loosening, optional sub-batching/model escalation.
-- `src/pages/teacher/DiagnosticQuestionsSetup.tsx` — incremental toast wording, live "X/10" indicator on per-tier Regenerate buttons.
+- New: `supabase/migrations/<ts>_diagnostic_generation_events.sql`
+- New: `src/pages/admin/AdminDiagnosticRuns.tsx`
+- Edit: `supabase/functions/generate-diagnostic-questions/index.ts` (add `logEvent` + call sites)
+- Edit: `src/App.tsx`, `src/layouts/AdminLayout.tsx` (route + nav)
