@@ -574,12 +574,17 @@ const DiagnosticQuestionsSetup = () => {
 
             {/* Standard Questions */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div>
                   <p className="text-sm font-medium">Standard Questions</p>
                   <p className="text-xs text-muted-foreground">Common to all students — covering core concepts</p>
                 </div>
-                <Badge variant="outline" className="font-mono">{standardQuestions.length} questions</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="font-mono">
+                    {countByTier.standard}/{QUOTA.standard} questions
+                  </Badge>
+                  {renderTierRegenButton("standard")}
+                </div>
               </div>
               {standardQuestions.length > 0 ? (
                 <div className="space-y-2">
