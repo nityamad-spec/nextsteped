@@ -456,43 +456,60 @@ const DiagnosticQuestionsSetup = () => {
                     : `No questions yet. Generate a template based on your ${conceptCount} course concepts.`}
                 </CardDescription>
               </div>
-              {questions.length > 0 ? (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button disabled={generating || conceptCount === 0} size="sm" variant="outline">
-                      {generating ? (
-                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating…</>
-                      ) : (
-                        <><Sparkles className="mr-2 h-4 w-4" /> Regenerate</>
-                      )}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Replace existing questions?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will delete all current diagnostic questions for this course and generate a fresh set of 20 MCQs. Any edits or manual deletions will be lost. The replacement only happens if generation succeeds for all tiers.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleGenerate}>Regenerate</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              ) : (
-                <Button
-                  onClick={handleGenerate}
-                  disabled={generating || conceptCount === 0}
-                  size="sm"
-                >
-                  {generating ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating…</>
-                  ) : (
-                    <><Sparkles className="mr-2 h-4 w-4" /> Generate Question Bank</>
-                  )}
-                </Button>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {questions.length > 0 && shortTiersLive.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={generating || conceptCount === 0}
+                    onClick={() => handleRegenerateTiers(shortTiersLive)}
+                    title={`Regenerate only: ${shortTiersLive.join(", ")}`}
+                  >
+                    {generating ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Regenerating…</>
+                    ) : (
+                      <><Sparkles className="mr-2 h-4 w-4" /> Regenerate short tiers ({shortTiersLive.length})</>
+                    )}
+                  </Button>
+                )}
+                {questions.length > 0 ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button disabled={generating || conceptCount === 0} size="sm" variant="outline">
+                        {generating ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating…</>
+                        ) : (
+                          <><Sparkles className="mr-2 h-4 w-4" /> Regenerate all</>
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Replace existing questions?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will delete all current diagnostic questions for this course and generate a fresh set of 40 MCQs. Any edits or manual deletions will be lost. Use “Regenerate short tiers” to top up only the tiers that fell short without touching the rest.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleGenerate}>Regenerate</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : (
+                  <Button
+                    onClick={handleGenerate}
+                    disabled={generating || conceptCount === 0}
+                    size="sm"
+                  >
+                    {generating ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating…</>
+                    ) : (
+                      <><Sparkles className="mr-2 h-4 w-4" /> Generate Question Bank</>
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
             {conceptCount === 0 && (
               <p className="text-xs text-amber-600 mt-2">
