@@ -1116,11 +1116,13 @@ Deno.serve(async (req) => {
       distribution: t.distribution,
     }));
 
-    // Per-tier resilient insert: keep every question from tiers that hit
-    // their quota, even if a sibling tier (typically hard) fell short.
-    // Only reject everything when ZERO tiers completed.
+    // Per-tier resilient insert: persist EVERY tier that produced any accepted
+    // questions, even if it fell short of its quota. The teacher can click
+    // "Regenerate <tier>" again; pre-seeding will load these rows so the next
+    // attempt fills the remainder instead of restarting from zero.
+    // Only reject everything when ZERO tiers produced any accepts.
     const completeTiers = new Set(
-      tierResults.filter((t) => t.accepted.length === t.requested).map((t) => t.tier),
+      tierResults.filter((t) => t.accepted.length > 0).map((t) => t.tier),
     );
 
     if (completeTiers.size === 0) {
