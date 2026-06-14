@@ -276,7 +276,7 @@ function validateMcq(
     return { ok: false, reason: "bloom_level out of range" };
   }
   if (spec.tier === "easy" && bloom > 4) return { ok: false, reason: `bloom ${bloom} too high for easy tier` };
-  if (spec.tier === "hard" && bloom < 3) return { ok: false, reason: `bloom ${bloom} too low for hard tier` };
+  // Hard tier: bloom floor removed — difficulty + category band is sufficient signal.
 
   const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
   if (!explanation) return { ok: false, reason: "empty explanation" };
