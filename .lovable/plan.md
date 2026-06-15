@@ -1,42 +1,77 @@
-# Fix hard-tier "Signal timed out" failures
+# Fix: `generate-weekly-quiz` returns 401 "Not authenticated"
 
-## Root cause (recap)
-Per-call `AbortSignal.timeout(35_000)` in `generate-diagnostic-questions/index.ts` fires before `gemini-2.5-flash` finishes the 10-question hard-tier batch. Every attempt dies at ~35 000 ms with `"Signal timed out."` Retries don't help because the limit is deterministic.
+## Root cause
 
-## Changes
+The runtime error fires from `supabase/functions/generate-weekly-quiz/index.ts` line ~236–241:
 
-### 1. Per-tier timeout (instead of one global 35 s cap)
-In `supabase/functions/generate-diagnostic-questions/index.ts`:
-- Replace the constant `GATEWAY_CALL_TIMEOUT_MS = 35_000` with a per-tier resolver:
-  - `easy / medium / standard`: 35 000 ms (unchanged — already succeed)
-  - `hard`: 80 000 ms
-- Update the comment block (lines 119–125) so the worst-case math still fits inside `GLOBAL_DEADLINE_MS = 130_000`:
-  - Hard regen: 1 outer attempt × 1 in-call retry × 80 s = 80 s ✓
-  - Full run (4 tiers parallel): hard dominates at ≤ 80 s + DB writes ✓
+```ts
+const { data: userData, error: userErr } = await userClient.auth.getUser();
+if (userErr || !userData?.user) {
+  return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401, ... });
+}
+```
 
-### 2. Batch the hard tier into 2×5 instead of 1×10
-Hard tier's joint constraints (difficulty 0.60–1.00 + bloom ≥ 3 + category band) make 10-at-once both slow and reject-prone. Splitting halves per-call latency and improves accept rate.
+`auth.getUser()` calls the Auth server's `/user` endpoint, which looks up the **session row** for the bearer token. The auth logs for this exact window show:
 
-- Add a `batchSize` field to `TierSpec` (default = `count`, hard = `5`).
-- In the tier loop (around lines 600–780, function that calls `callGateway`), when `spec.batchSize < spec.count`, issue `Math.ceil(needed / batchSize)` sequential calls per attempt instead of one, accumulating accepted questions until `needed` is met or the attempt budget runs out.
-- Each sub-call still uses the per-tier timeout (80 s for hard) and is logged as its own `gateway_response` event so the audit dashboard shows the breakdown.
+```
+GET /user  →  403  session_not_found
+"session id (f91a4bf4-…) doesn't exist"
+```
 
-### 3. No schema / UI changes
-- `diagnostic_generation_events` already records `attempt`, `tier`, `duration_ms`, and `data` JSON — sub-batches just appear as additional rows under the same attempt.
-- Admin Diagnostic Runs page renders them automatically; no edits needed.
+The teacher logged out and back in (`teacher.nextstep@gmail.com` logout @ 05:53:23, prior login @ 05:53:02), invalidating that session row. The CourseCreation / lesson-plan page still held the **previous** access token in the in-flight Supabase client and used it when the user clicked "Generate weekly quiz". The JWT itself is still cryptographically valid (signed, unexpired) — only the server-side session lookup fails — so `getUser()` returns 403 and the function maps it to 401.
+
+This is the same fragility pattern other edge functions in this project already avoid by using `auth.getClaims(token)`, which verifies the JWT signature locally and does **not** require a live session row (see `resend-teacher-invite/index.ts` for the existing pattern).
+
+## Fix
+
+Replace the session-bound `getUser()` check in `generate-weekly-quiz` with the JWT-claims check used elsewhere in the codebase.
+
+### File: `supabase/functions/generate-weekly-quiz/index.ts`
+
+1. Read the bearer token from the `Authorization` header. Return 401 if missing/malformed.
+2. Use `userClient.auth.getClaims(token)` to verify and decode the JWT.
+3. Take `userId` from `claims.sub` instead of `userData.user.id`.
+4. Keep the existing authorization (teacher / collaborator / admin) logic unchanged — it already uses the service-role `admin` client and `userId`.
+
+Sketch of the replacement block (replaces lines ~232–242):
+
+```ts
+const authHeader = req.headers.get("Authorization") ?? "";
+if (!authHeader.startsWith("Bearer ")) {
+  return new Response(JSON.stringify({ error: "Not authenticated" }), {
+    status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+const token = authHeader.slice("Bearer ".length);
+
+const userClient = createClient(supabaseUrl, anonKey, {
+  global: { headers: { Authorization: authHeader } },
+});
+const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+if (claimsErr || !claimsData?.claims?.sub) {
+  return new Response(JSON.stringify({ error: "Not authenticated" }), {
+    status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+const userId = claimsData.claims.sub as string;
+```
+
+No schema, no client-side, no other function changes.
 
 ## Out of scope
-- Switching models (kept on `gemini-2.5-flash`).
-- Queue/background-worker refactor (overkill — single tier now fits comfortably under the 150 s invoke limit).
-- Streaming responses.
+
+- Forcing a client-side session refresh before each invoke (broader change, not the root cause here).
+- Auditing every other edge function for the same `getUser()` pattern (do it as a follow-up if desired).
+- The earlier hard-tier timeout/batching work on `generate-diagnostic-questions` is unrelated and stays as-is.
 
 ## Validation
-1. Trigger "Regenerate hard" on `/teacher/setup/diagnostic`.
-2. Open `/admin/diagnostic-runs`, select the new run, confirm:
-   - Two `gateway_response` events per attempt with `status: ok` and `duration_ms` ~30–50 s each.
-   - `tier_complete` for `hard` with `accepted = 10`.
-3. Re-run a full generation and confirm all four tiers complete; total wall-clock < 130 s.
-4. If the gateway is genuinely slow that minute, the run should still degrade gracefully — `tier_partial` with `accepted` between 0 and 10 (no more "Signal timed out" at exactly 35 s).
 
-## Files
-- `supabase/functions/generate-diagnostic-questions/index.ts` — only file changed.
+1. Deploy `generate-weekly-quiz`.
+2. While logged in as the teacher on `/teacher/setup/lesson-plan`, click "Generate weekly quiz" on a week with concepts.
+3. Confirm response is 200 with `{ ok: true, generated: N }` and toast shows success.
+4. Log out, log back in (same browser tab) without hard-refresh, repeat step 2 — should no longer 401.
+5. Negative case: call the function with no `Authorization` header (via curl) — should still return 401.
+
+## Files touched
+
+- `supabase/functions/generate-weekly-quiz/index.ts` — auth check only.
