@@ -513,7 +513,59 @@ function formatQuotaForPrompt(units: UnitInfo[], quota: Record<string, number>):
   return lines.join("\n");
 }
 
+// Public entry: orchestrates chunking when spec.batchSize is set, otherwise
+// delegates to a single gateway call. Splitting the hard tier into 2×5 calls
+// keeps each call's wall-clock well under its per-call timeout and improves
+// validation accept rate.
 async function callGateway(
+  spec: TierSpec,
+  needed: number,
+  courseName: string,
+  quotaBlock: string,
+  remainingQuota: Record<string, number>,
+  lovableKey: string,
+  retryHint: string | null,
+  ctx: RunCtx,
+): Promise<GeneratedQuestion[]> {
+  const batchSize = spec.batchSize ?? needed;
+  if (batchSize >= needed) {
+    return callGatewaySingle(spec, needed, courseName, quotaBlock, remainingQuota, lovableKey, retryHint, ctx);
+  }
+  const all: GeneratedQuestion[] = [];
+  let remaining = needed;
+  let chunkIdx = 0;
+  while (remaining > 0) {
+    if (ctx.abortSignal.aborted) {
+      throw new Error(`aborted: ${(ctx.abortSignal.reason as Error)?.message || "sibling failure"}`);
+    }
+    const ask = Math.min(batchSize, remaining);
+    chunkIdx++;
+    try {
+      const sub = await callGatewaySingle(spec, ask, courseName, quotaBlock, remainingQuota, lovableKey, retryHint, ctx);
+      all.push(...sub);
+      remaining -= ask;
+    } catch (e) {
+      // Re-throw fatal typed errors immediately.
+      if (e instanceof CreditsExhaustedError || e instanceof DeadlineExceededError) throw e;
+      // If we already have some candidates, return partial so the outer
+      // validation/retry loop can use them and decide whether to retry.
+      if (all.length > 0) {
+        logEvent(ctx, "gateway_response", {
+          tier: spec.tier,
+          status: "warn",
+          message: `chunk ${chunkIdx} failed; returning ${all.length} partial candidates`,
+          reason: (e as Error).message,
+          data: { chunk: chunkIdx, partial: all.length, needed },
+        });
+        return all;
+      }
+      throw e;
+    }
+  }
+  return all;
+}
+
+async function callGatewaySingle(
   spec: TierSpec,
   needed: number,
   courseName: string,
@@ -525,8 +577,10 @@ async function callGateway(
 ): Promise<GeneratedQuestion[]> {
   const logCtx = { requestId: ctx.requestId, teacherId: ctx.teacherId, courseId: ctx.courseId };
   // Hard tier over-generation: validation drops a higher share of hard
-  // candidates, so ask for 1.5× needed (capped at 15) to absorb losses.
-  const askFor = spec.tier === "hard" ? Math.min(15, Math.ceil(needed * 1.5)) : needed;
+  // candidates, so ask for 1.5× needed (capped at batchSize+5 or 15) to
+  // absorb losses within this single sub-call.
+  const overgenCap = Math.min(15, (spec.batchSize ?? needed) + 5);
+  const askFor = spec.tier === "hard" ? Math.min(overgenCap, Math.ceil(needed * 1.5)) : needed;
   const remainingList = Object.entries(remainingQuota)
     .filter(([, v]) => v > 0)
     .map(([k, v]) => `  - ${k}: ${v} more`)
