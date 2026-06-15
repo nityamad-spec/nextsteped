@@ -532,7 +532,7 @@ function CourseDrillDown({
           {course.attempts} attempts · {course.uniqueStudents} students · avg {pct(course.avgScorePct)}
         </DialogDescription>
       </DialogHeader>
-      <ScrollArea className="flex-1 min-h-0 pr-4">
+      <div className="flex-1 min-h-0 overflow-auto pr-2">
         <Tabs defaultValue="concepts" className="space-y-4">
           <TabsList>
             <TabsTrigger value="concepts">Concept performance</TabsTrigger>
@@ -600,8 +600,8 @@ function CourseDrillDown({
                 <Download className="h-4 w-4" /> Export CSV
               </Button>
             </div>
-            <div className="w-full overflow-x-auto rounded-md border">
             <Table className="min-w-[760px]">
+
 
               <TableHeader>
                 <TableRow>
