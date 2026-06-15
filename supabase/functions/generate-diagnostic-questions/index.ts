@@ -99,6 +99,15 @@ interface TierSpec {
   label: string;
   band: number;          // ± allowed delta around `difficulty` during validation
   maxAttempts: number;   // per-tier retry budget
+  // Max questions to request per single gateway call. Larger values produce
+  // more output tokens per call and increase wall-clock latency. When
+  // `batchSize < count`, callGateway issues multiple sequential sub-calls
+  // and concatenates results. Defaults to `count` (single call) when unset.
+  batchSize?: number;
+  // Per-call gateway timeout override. Hard tier needs more headroom because
+  // a 10-question (or even 5-question) batch with joint constraints + JSON
+  // tool-call output frequently exceeds the 35s default on flash.
+  perCallTimeoutMs?: number;
 }
 
 const TIER_SPEC: TierSpec[] = [
@@ -109,16 +118,23 @@ const TIER_SPEC: TierSpec[] = [
   // EDGE_CASE (0.60-0.80) and COMPOSITE_REASONING (0.75-0.95) categories.
   // One extra attempt because hard joint constraints (difficulty + bloom ≥ 3
   // + category band) reject more candidates per batch.
-  { tier: "hard", count: 10, difficulty: 0.80, band: 0.20, maxAttempts: 3, label: "Hard adaptive tier (for advanced students)" },
+  // Split into 2×5 sub-calls per attempt: each call finishes well under 35s
+  // typically, total per-attempt wall-clock ≤ ~90s (within 130s deadline).
+  // Per-call timeout raised to 80s as a safety ceiling for slow gateway
+  // moments — the 35s cap was the deterministic root cause of every
+  // "Signal timed out" failure on hard.
+  { tier: "hard", count: 10, difficulty: 0.80, band: 0.20, maxAttempts: 3, label: "Hard adaptive tier (for advanced students)", batchSize: 5, perCallTimeoutMs: 80_000 },
 ];
 const TOTAL_QUESTIONS = TIER_SPEC.reduce((s, t) => s + t.count, 0);
 
 // Use flash (not pro) — pro runs 40-60s per call and with 4 parallel tiers ×
 // retries it blows past the 150s client invoke timeout.
 const MODEL = "google/gemini-2.5-flash";
-// Per-gateway-call timeout. Worst case per tier (parallel): maxAttempts ×
-// GATEWAY_RETRIES × GATEWAY_CALL_TIMEOUT_MS must stay under the 150s client
-// invoke timeout. Hard tier: 3 × 2 × 35s ≈ 210s — bounded by GLOBAL_DEADLINE_MS.
+// Default per-gateway-call timeout. Individual tiers can override via
+// `spec.perCallTimeoutMs` (see hard tier). Worst case per tier (parallel):
+// maxAttempts × GATEWAY_RETRIES × per-tier timeout must stay under the 150s
+// client invoke timeout; hard tier is additionally bounded by
+// GLOBAL_DEADLINE_MS and run sequentially as 2×5 chunks per attempt.
 const GATEWAY_CALL_TIMEOUT_MS = 35_000;
 // Global wall-clock budget for the whole function. Supabase invoke timeout is
 // 150s; leave headroom for DB writes + JSON serialization.
@@ -497,7 +513,59 @@ function formatQuotaForPrompt(units: UnitInfo[], quota: Record<string, number>):
   return lines.join("\n");
 }
 
+// Public entry: orchestrates chunking when spec.batchSize is set, otherwise
+// delegates to a single gateway call. Splitting the hard tier into 2×5 calls
+// keeps each call's wall-clock well under its per-call timeout and improves
+// validation accept rate.
 async function callGateway(
+  spec: TierSpec,
+  needed: number,
+  courseName: string,
+  quotaBlock: string,
+  remainingQuota: Record<string, number>,
+  lovableKey: string,
+  retryHint: string | null,
+  ctx: RunCtx,
+): Promise<GeneratedQuestion[]> {
+  const batchSize = spec.batchSize ?? needed;
+  if (batchSize >= needed) {
+    return callGatewaySingle(spec, needed, courseName, quotaBlock, remainingQuota, lovableKey, retryHint, ctx);
+  }
+  const all: GeneratedQuestion[] = [];
+  let remaining = needed;
+  let chunkIdx = 0;
+  while (remaining > 0) {
+    if (ctx.abortSignal.aborted) {
+      throw new Error(`aborted: ${(ctx.abortSignal.reason as Error)?.message || "sibling failure"}`);
+    }
+    const ask = Math.min(batchSize, remaining);
+    chunkIdx++;
+    try {
+      const sub = await callGatewaySingle(spec, ask, courseName, quotaBlock, remainingQuota, lovableKey, retryHint, ctx);
+      all.push(...sub);
+      remaining -= ask;
+    } catch (e) {
+      // Re-throw fatal typed errors immediately.
+      if (e instanceof CreditsExhaustedError || e instanceof DeadlineExceededError) throw e;
+      // If we already have some candidates, return partial so the outer
+      // validation/retry loop can use them and decide whether to retry.
+      if (all.length > 0) {
+        logEvent(ctx, "gateway_response", {
+          tier: spec.tier,
+          status: "warn",
+          message: `chunk ${chunkIdx} failed; returning ${all.length} partial candidates`,
+          reason: (e as Error).message,
+          data: { chunk: chunkIdx, partial: all.length, needed },
+        });
+        return all;
+      }
+      throw e;
+    }
+  }
+  return all;
+}
+
+async function callGatewaySingle(
   spec: TierSpec,
   needed: number,
   courseName: string,
@@ -509,8 +577,10 @@ async function callGateway(
 ): Promise<GeneratedQuestion[]> {
   const logCtx = { requestId: ctx.requestId, teacherId: ctx.teacherId, courseId: ctx.courseId };
   // Hard tier over-generation: validation drops a higher share of hard
-  // candidates, so ask for 1.5× needed (capped at 15) to absorb losses.
-  const askFor = spec.tier === "hard" ? Math.min(15, Math.ceil(needed * 1.5)) : needed;
+  // candidates, so ask for 1.5× needed (capped at batchSize+5 or 15) to
+  // absorb losses within this single sub-call.
+  const overgenCap = Math.min(15, (spec.batchSize ?? needed) + 5);
+  const askFor = spec.tier === "hard" ? Math.min(overgenCap, Math.ceil(needed * 1.5)) : needed;
   const remainingList = Object.entries(remainingQuota)
     .filter(([, v]) => v > 0)
     .map(([k, v]) => `  - ${k}: ${v} more`)
@@ -633,12 +703,13 @@ Examples:
       throw new Error(`aborted: ${(ctx.abortSignal.reason as Error)?.message || "sibling failure"}`);
     }
     // Reserve enough budget for at least one attempt; otherwise stop retrying.
+    const perCallTimeoutCap = spec.perCallTimeoutMs ?? GATEWAY_CALL_TIMEOUT_MS;
     const budgetLeft = ctx.deadlineAt - Date.now();
-    if (budgetLeft < GATEWAY_CALL_TIMEOUT_MS / 2) {
-      throw new DeadlineExceededError(`tier ${spec.tier}: ${budgetLeft}ms left, need ≥${GATEWAY_CALL_TIMEOUT_MS / 2}ms`);
+    if (budgetLeft < perCallTimeoutCap / 2) {
+      throw new DeadlineExceededError(`tier ${spec.tier}: ${budgetLeft}ms left, need ≥${perCallTimeoutCap / 2}ms`);
     }
     // Use the smaller of per-call timeout and remaining global budget.
-    const perCallTimeout = Math.min(GATEWAY_CALL_TIMEOUT_MS, Math.max(5_000, budgetLeft - 1_000));
+    const perCallTimeout = Math.min(perCallTimeoutCap, Math.max(5_000, budgetLeft - 1_000));
     const startedAt = Date.now();
     let statusForLog: number | null = null;
     let errMsgForLog: string | null = null;
