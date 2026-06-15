@@ -48,30 +48,26 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Validate JWT claims locally (avoids session-lookup 403s after logout/login cycles).
-    // Identity is derived ONLY from the verified token; body fields are never trusted.
-    const token = authHeader.slice("Bearer ".length).trim();
+    // Authenticated client (uses caller's JWT) — to identify the user.
+    // We deliberately do NOT trust any body field for identity.
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
-    const claims = claimsData?.claims as Record<string, unknown> | undefined;
-    if (claimsError || !claims?.sub) {
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+    if (userError || !user) {
       return json(401, { error: "Not authenticated" });
     }
-    const user = { id: claims.sub as string };
 
-    const email = String(claims.email ?? "").toLowerCase().trim();
+    const email = (user.email || "").toLowerCase().trim();
     if (!email) {
       return json(400, { error: "User has no email" });
     }
 
-    // Require a verified email. Supabase JWTs carry email_verified (boolean)
-    // once the invite/verify flow has confirmed the address.
-    const emailVerified = claims.email_verified === true
-      || !!claims.email_confirmed_at
-      || !!claims.confirmed_at;
+    // Require a verified email. Supabase's invite/verify flow sets
+    // email_confirmed_at on first sign-in; without it, an unverified token
+    // could try to claim a pending row.
+    const emailVerified = !!(user.email_confirmed_at || (user as any).confirmed_at);
     if (!emailVerified) {
       return json(403, { error: "Email is not verified yet." });
     }

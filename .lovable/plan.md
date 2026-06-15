@@ -1,34 +1,77 @@
-# Fix: Admin & teacher views empty after security migration
+# Fix: `generate-weekly-quiz` returns 401 "Not authenticated"
 
 ## Root cause
 
-The previous hardening migration ran `REVOKE EXECUTE ... FROM PUBLIC, anon, authenticated` on every `SECURITY DEFINER` helper. That was correct for trigger-only functions, but four of those helpers are actually called **from RLS policy expressions** or **directly from the client via `supabase.rpc(...)`**. Without `EXECUTE`, the policy bodies silently evaluate to false for the calling role, so:
+The runtime error fires from `supabase/functions/generate-weekly-quiz/index.ts` line ~236–241:
 
-- Admin pages (`/admin/students`, `/admin/teachers`, `/admin/courses`) return zero rows — every admin SELECT policy is gated by `is_admin(auth.uid())`.
-- Teacher collaborator views (courses, concepts, assessment_questions, TA settings, etc.) return zero rows — those policies call `is_course_member(course_id, auth.uid())`.
-- `CourseDashboard` shows no stats — it calls `rpc("course_dashboard_stats", ...)` directly.
-- Cache busting after edits fails — `src/lib/cacheVersion.ts` calls `rpc("bump_cache_version", ...)`.
+```ts
+const { data: userData, error: userErr } = await userClient.auth.getUser();
+if (userErr || !userData?.user) {
+  return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401, ... });
+}
+```
+
+`auth.getUser()` calls the Auth server's `/user` endpoint, which looks up the **session row** for the bearer token. The auth logs for this exact window show:
+
+```
+GET /user  →  403  session_not_found
+"session id (f91a4bf4-…) doesn't exist"
+```
+
+The teacher logged out and back in (`teacher.nextstep@gmail.com` logout @ 05:53:23, prior login @ 05:53:02), invalidating that session row. The CourseCreation / lesson-plan page still held the **previous** access token in the in-flight Supabase client and used it when the user clicked "Generate weekly quiz". The JWT itself is still cryptographically valid (signed, unexpired) — only the server-side session lookup fails — so `getUser()` returns 403 and the function maps it to 401.
+
+This is the same fragility pattern other edge functions in this project already avoid by using `auth.getClaims(token)`, which verifies the JWT signature locally and does **not** require a live session row (see `resend-teacher-invite/index.ts` for the existing pattern).
 
 ## Fix
 
-Single migration that re-grants `EXECUTE` on only the four functions that need it. Trigger-only validators (`assessment_questions_validate_topic`, `diagnostic_questions_validate_topic`, `set_created_at_if_null`, `update_updated_at_column`) stay revoked — they run as the trigger owner and don't need role-level execute.
+Replace the session-bound `getUser()` check in `generate-weekly-quiz` with the JWT-claims check used elsewhere in the codebase.
 
-```sql
-GRANT EXECUTE ON FUNCTION public.is_admin(uuid)                       TO authenticated;
-GRANT EXECUTE ON FUNCTION public.is_course_member(uuid, uuid)         TO authenticated;
-GRANT EXECUTE ON FUNCTION public.course_dashboard_stats(uuid)         TO authenticated;
-GRANT EXECUTE ON FUNCTION public.bump_cache_version(text, uuid)       TO authenticated;
+### File: `supabase/functions/generate-weekly-quiz/index.ts`
+
+1. Read the bearer token from the `Authorization` header. Return 401 if missing/malformed.
+2. Use `userClient.auth.getClaims(token)` to verify and decode the JWT.
+3. Take `userId` from `claims.sub` instead of `userData.user.id`.
+4. Keep the existing authorization (teacher / collaborator / admin) logic unchanged — it already uses the service-role `admin` client and `userId`.
+
+Sketch of the replacement block (replaces lines ~232–242):
+
+```ts
+const authHeader = req.headers.get("Authorization") ?? "";
+if (!authHeader.startsWith("Bearer ")) {
+  return new Response(JSON.stringify({ error: "Not authenticated" }), {
+    status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+const token = authHeader.slice("Bearer ".length);
+
+const userClient = createClient(supabaseUrl, anonKey, {
+  global: { headers: { Authorization: authHeader } },
+});
+const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+if (claimsErr || !claimsData?.claims?.sub) {
+  return new Response(JSON.stringify({ error: "Not authenticated" }), {
+    status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+const userId = claimsData.claims.sub as string;
 ```
 
-`anon` is intentionally excluded — none of these are needed pre-login.
-
-## Validation
-
-After the migration:
-1. Reload `/admin/students`, `/admin/teachers`, `/admin/courses` as the bypass admin — rows should reappear.
-2. Open a teacher course dashboard — `course_dashboard_stats` returns active_students/total_sessions without a 403.
-3. Re-run `supabase--linter` — the two intentionally-public policies remain the only findings; the security-definer warnings stay resolved for the trigger validators.
+No schema, no client-side, no other function changes.
 
 ## Out of scope
 
-No changes to RLS policies, edge functions, or client code. Pure permission restoration.
+- Forcing a client-side session refresh before each invoke (broader change, not the root cause here).
+- Auditing every other edge function for the same `getUser()` pattern (do it as a follow-up if desired).
+- The earlier hard-tier timeout/batching work on `generate-diagnostic-questions` is unrelated and stays as-is.
+
+## Validation
+
+1. Deploy `generate-weekly-quiz`.
+2. While logged in as the teacher on `/teacher/setup/lesson-plan`, click "Generate weekly quiz" on a week with concepts.
+3. Confirm response is 200 with `{ ok: true, generated: N }` and toast shows success.
+4. Log out, log back in (same browser tab) without hard-refresh, repeat step 2 — should no longer 401.
+5. Negative case: call the function with no `Authorization` header (via curl) — should still return 401.
+
+## Files touched
+
+- `supabase/functions/generate-weekly-quiz/index.ts` — auth check only.

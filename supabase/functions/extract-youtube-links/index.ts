@@ -92,19 +92,18 @@ serve(async (req) => {
       });
     }
 
-    // Validate JWT claims locally — avoids session-lookup 403s after logout/login cycles.
-    const token = authHeader.slice("Bearer ".length).trim();
+    // Validate user via anon client + provided JWT.
     const userClient = createClient(SUPABASE_URL, ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
-    if (claimsErr || !claimsData?.claims?.sub) {
+    const { data: userRes, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userRes?.user) {
       return new Response(JSON.stringify({ error: "Invalid auth" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const userId = claimsData.claims.sub as string;
+    const userId = userRes.user.id;
 
     const body = await req.json();
     const { courseId, fileId, storagePath, fileName, mode = "extract", links: providedLinks } = body;
