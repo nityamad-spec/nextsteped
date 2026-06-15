@@ -99,6 +99,15 @@ interface TierSpec {
   label: string;
   band: number;          // ± allowed delta around `difficulty` during validation
   maxAttempts: number;   // per-tier retry budget
+  // Max questions to request per single gateway call. Larger values produce
+  // more output tokens per call and increase wall-clock latency. When
+  // `batchSize < count`, callGateway issues multiple sequential sub-calls
+  // and concatenates results. Defaults to `count` (single call) when unset.
+  batchSize?: number;
+  // Per-call gateway timeout override. Hard tier needs more headroom because
+  // a 10-question (or even 5-question) batch with joint constraints + JSON
+  // tool-call output frequently exceeds the 35s default on flash.
+  perCallTimeoutMs?: number;
 }
 
 const TIER_SPEC: TierSpec[] = [
@@ -109,16 +118,23 @@ const TIER_SPEC: TierSpec[] = [
   // EDGE_CASE (0.60-0.80) and COMPOSITE_REASONING (0.75-0.95) categories.
   // One extra attempt because hard joint constraints (difficulty + bloom ≥ 3
   // + category band) reject more candidates per batch.
-  { tier: "hard", count: 10, difficulty: 0.80, band: 0.20, maxAttempts: 3, label: "Hard adaptive tier (for advanced students)" },
+  // Split into 2×5 sub-calls per attempt: each call finishes well under 35s
+  // typically, total per-attempt wall-clock ≤ ~90s (within 130s deadline).
+  // Per-call timeout raised to 80s as a safety ceiling for slow gateway
+  // moments — the 35s cap was the deterministic root cause of every
+  // "Signal timed out" failure on hard.
+  { tier: "hard", count: 10, difficulty: 0.80, band: 0.20, maxAttempts: 3, label: "Hard adaptive tier (for advanced students)", batchSize: 5, perCallTimeoutMs: 80_000 },
 ];
 const TOTAL_QUESTIONS = TIER_SPEC.reduce((s, t) => s + t.count, 0);
 
 // Use flash (not pro) — pro runs 40-60s per call and with 4 parallel tiers ×
 // retries it blows past the 150s client invoke timeout.
 const MODEL = "google/gemini-2.5-flash";
-// Per-gateway-call timeout. Worst case per tier (parallel): maxAttempts ×
-// GATEWAY_RETRIES × GATEWAY_CALL_TIMEOUT_MS must stay under the 150s client
-// invoke timeout. Hard tier: 3 × 2 × 35s ≈ 210s — bounded by GLOBAL_DEADLINE_MS.
+// Default per-gateway-call timeout. Individual tiers can override via
+// `spec.perCallTimeoutMs` (see hard tier). Worst case per tier (parallel):
+// maxAttempts × GATEWAY_RETRIES × per-tier timeout must stay under the 150s
+// client invoke timeout; hard tier is additionally bounded by
+// GLOBAL_DEADLINE_MS and run sequentially as 2×5 chunks per attempt.
 const GATEWAY_CALL_TIMEOUT_MS = 35_000;
 // Global wall-clock budget for the whole function. Supabase invoke timeout is
 // 150s; leave headroom for DB writes + JSON serialization.
