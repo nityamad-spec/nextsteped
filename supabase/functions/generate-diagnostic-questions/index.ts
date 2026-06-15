@@ -703,12 +703,13 @@ Examples:
       throw new Error(`aborted: ${(ctx.abortSignal.reason as Error)?.message || "sibling failure"}`);
     }
     // Reserve enough budget for at least one attempt; otherwise stop retrying.
+    const perCallTimeoutCap = spec.perCallTimeoutMs ?? GATEWAY_CALL_TIMEOUT_MS;
     const budgetLeft = ctx.deadlineAt - Date.now();
-    if (budgetLeft < GATEWAY_CALL_TIMEOUT_MS / 2) {
-      throw new DeadlineExceededError(`tier ${spec.tier}: ${budgetLeft}ms left, need ≥${GATEWAY_CALL_TIMEOUT_MS / 2}ms`);
+    if (budgetLeft < perCallTimeoutCap / 2) {
+      throw new DeadlineExceededError(`tier ${spec.tier}: ${budgetLeft}ms left, need ≥${perCallTimeoutCap / 2}ms`);
     }
     // Use the smaller of per-call timeout and remaining global budget.
-    const perCallTimeout = Math.min(GATEWAY_CALL_TIMEOUT_MS, Math.max(5_000, budgetLeft - 1_000));
+    const perCallTimeout = Math.min(perCallTimeoutCap, Math.max(5_000, budgetLeft - 1_000));
     const startedAt = Date.now();
     let statusForLog: number | null = null;
     let errMsgForLog: string | null = null;
