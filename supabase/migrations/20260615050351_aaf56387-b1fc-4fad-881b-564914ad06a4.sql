@@ -1,0 +1,1 @@
+CREATE POLICY "Admins can read diagnostic generation runs" ON public.diagnostic_generation_runs FOR SELECT USING (public.is_admin(auth.uid()));
