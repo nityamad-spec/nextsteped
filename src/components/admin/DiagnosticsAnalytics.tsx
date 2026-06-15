@@ -660,11 +660,11 @@ function CourseDrillDown({
                 })}
               </TableBody>
             </Table>
-            </div>
           </TabsContent>
 
         </Tabs>
-      </ScrollArea>
+      </div>
+
     </>
   );
 }
