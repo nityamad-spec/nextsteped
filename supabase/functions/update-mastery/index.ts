@@ -125,9 +125,9 @@ Deno.serve(async (req) => {
   const userClient = createClient(SUPABASE_URL, ANON, {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
-  const { data: userRes, error: userErr } = await userClient.auth.getUser();
-  if (userErr || !userRes?.user) return json({ error: "invalid_auth" }, 401);
-  const studentId = userRes.user.id;
+  const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(jwt);
+  if (claimsErr || !claimsData?.claims?.sub) return json({ error: "invalid_auth" }, 401);
+  const studentId = claimsData.claims.sub as string;
 
   let body: z.infer<typeof BodySchema>;
   try {

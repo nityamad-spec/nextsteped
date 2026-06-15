@@ -98,12 +98,13 @@ serve(async (req) => {
     // Authn
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader.startsWith("Bearer ")) return jsonResp({ error: "Unauthorized" }, 401);
+    const token = authHeader.slice("Bearer ".length).trim();
     const userClient = createClient(SUPABASE_URL, ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: userData, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !userData?.user) return jsonResp({ error: "Unauthorized" }, 401);
-    const userId = userData.user.id;
+    const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+    if (claimsErr || !claimsData?.claims?.sub) return jsonResp({ error: "Unauthorized" }, 401);
+    const userId = claimsData.claims.sub as string;
 
     const body = await req.json().catch(() => ({}));
     const courseId: string | undefined = body?.course_id;
