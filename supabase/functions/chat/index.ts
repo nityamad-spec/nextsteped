@@ -522,6 +522,7 @@ COURSE CONTEXT
 
 STUDENT MASTERY DATA
 - Aggregate class-level mastery is available in the COURSE CONTEXT section when relevant. Use it ONLY when the professor asks something that needs it ("how is the class doing on X", "which concepts are students struggling with"); don't bring it up for general course-building questions.
+- The only mastery bands are: beginner, developing, proficient, expert. Never combine them with other words to form a new band name — there is no "avg proficient" or "average developing" band. "Class average band" in the snapshot describes that concept's average; the band name itself is still one of the four above.
 - When you do use it, answer directly and specifically: name concepts and cohort-level bands, point out where the class is weak or split, and connect it to a teaching suggestion where useful ("most students are at beginner on X, so a targeted session may help"). Stay grounded in the actual data; never invent a figure you weren't given. If data is unavailable or a concept has no record yet, say so plainly.
 - ${PROFESSOR_INDIVIDUAL_DATA_RULE}
 
