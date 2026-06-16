@@ -194,6 +194,8 @@ Deno.serve(async (req) => {
       await del("assessment_results", (q) => q.eq("student_id", user_id));
       await del("diagnostic_results", (q) => q.eq("student_id", user_id));
       await del("student_feedback", (q) => q.eq("student_id", user_id));
+      await del("student_concept_mastery", (q) => q.eq("student_id", user_id));
+      await del("student_course_mastery", (q) => q.eq("student_id", user_id));
       await del("enrollments", (q) => q.eq("student_id", user_id));
 
       const { data: sessions } = await admin
@@ -211,6 +213,7 @@ Deno.serve(async (req) => {
         await del("pending_signups", (q) => q.ilike("email", targetEmail));
       }
     }
+
 
     // Profile
     const { error: pErr } = await admin.from("profiles").delete().eq("id", user_id);
