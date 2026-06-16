@@ -54,7 +54,7 @@ async function cached<T extends string>(key: string, ttlMs: number, loader: () =
  */
 async function getCacheVersion(
   supabaseAdmin: any,
-  scope: "syllabus" | "concepts" | "questions",
+  scope: "syllabus" | "concepts" | "questions" | "mastery",
   scopeId: string,
 ): Promise<number> {
   try {
