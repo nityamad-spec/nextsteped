@@ -56,6 +56,7 @@ const CourseDashboard = () => {
 
   const [lessonOrder, setLessonOrder] = useState<Map<string, number>>(new Map());
   const [masteryDist, setMasteryDist] = useState<Map<string, { beginner: number; developing: number; proficient: number; expert: number }>>(new Map());
+  const [courseDist, setCourseDist] = useState<{ beginner: number; developing: number; proficient: number; expert: number; total: number }>({ beginner: 0, developing: 0, proficient: 0, expert: 0, total: 0 });
   const [stats, setStats] = useState<{ activeStudents: number; totalSessions: number } | null>(null);
 
   useEffect(() => {
