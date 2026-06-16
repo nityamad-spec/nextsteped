@@ -345,13 +345,13 @@ async function fetchClassMasterySnapshot(supabaseAdmin: any, courseId: string): 
         .slice(0, 30)
         .map(
           (c) =>
-            `  ${c.code}: beginner ${c.b.beginner}, developing ${c.b.developing}, proficient ${c.b.proficient}, expert ${c.b.expert} (avg ${masteryBand(c.avg)})`,
+            `  ${c.code} — beginner ${c.b.beginner}, developing ${c.b.developing}, proficient ${c.b.proficient}, expert ${c.b.expert} (class average band: ${masteryBand(c.avg)})`,
         )
         .join("\n");
 
-      const header = `Class mastery snapshot (N=${totalStudents} students):`;
-      const courseLine = `- Course level: beginner ${courseBuckets.beginner}, developing ${courseBuckets.developing}, proficient ${courseBuckets.proficient}, expert ${courseBuckets.expert}`;
-      const conceptBlock = conceptLines ? `- Per-concept (weakest first):\n${conceptLines}` : "- Per-concept: (no concept mastery recorded yet)";
+      const header = `Class mastery snapshot (N=${totalStudents} students). The only mastery bands are: beginner, developing, proficient, expert.`;
+      const courseLine = `- Course level distribution: beginner ${courseBuckets.beginner}, developing ${courseBuckets.developing}, proficient ${courseBuckets.proficient}, expert ${courseBuckets.expert}`;
+      const conceptBlock = conceptLines ? `- Per-concept distribution (weakest first; counts are number of students in each band):\n${conceptLines}` : "- Per-concept: (no concept mastery recorded yet)";
       return `${header}\n${courseLine}\n${conceptBlock}`;
     } catch (e) {
       console.error("class mastery snapshot error:", e);
