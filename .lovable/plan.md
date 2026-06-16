@@ -1,23 +1,20 @@
-Implement a focused fix for `/student/chat?mode=exam` so unfinished Exam Prep attempts cannot be resumed after a browser tab close or refresh.
+Implement a focused anti-resume guard for Exam Prep assessments.
 
-1. **Stop auto-resuming Exam Prep on page load**
-   - Remove the mount-time auto-start behavior that calls `handleStartExam()` whenever the URL has `mode=exam`.
-   - This prevents a refresh from reconstructing an active exam with the same questions and letting the student continue.
+1. **Detect browser-tab cheating events only during an active exam**
+   - Add listeners for `document.visibilitychange`, `window.blur`, and `pagehide` while the Exam Prep assessment phase is active.
+   - Do not rely on `beforeunload` alone, because it only warns on refresh/close and does not fire for normal browser tab switching.
 
-2. **Keep only completed attempts persistent**
-   - Leave completed exam submissions unchanged: results will still save after the student submits/finishes.
-   - Do not persist mid-exam answers, current question position, timer, or skipped-question state.
+2. **Immediately discard the in-progress attempt**
+   - When the browser tab becomes hidden or loses focus, clear the active assessment state, questions, metadata, timer settings, and current assessment session id.
+   - Do not submit answers and do not save a result.
+   - Returning to `/student/chat?mode=exam` will show the Exam Prep start panel, not the partially answered exam.
 
-3. **Discard all mid-exam state when leaving**
-   - When the student confirms navigation away, switch modes, cancels, refreshes, or closes the browser tab, the active assessment component unmounts and its local state is lost.
-   - This includes answered questions, skipped questions, current question index, and remaining time.
+3. **Keep existing in-app navigation behavior**
+   - Leave the current Home/Feedback app-tab warning dialog intact.
+   - Confirming “Leave & End” will still discard progress and navigate as it does now.
 
-4. **Preserve the normal Exam Prep entry flow**
-   - Opening Exam Prep will show the setup panel/welcome state.
-   - The student must explicitly click **Start Exam** again to begin a fresh attempt.
+4. **Avoid false triggers before the actual exam begins**
+   - Wire the browser-tab guard from `AssessmentView` so it only activates after the student clicks the inner “Start Exam” button and the assessment phase is `active`, not on the intro/setup screen.
 
-**Technical details**
-- Main change: `src/pages/student/AIChat.tsx`.
-- Remove the `useEffect` that runs once on mount and calls `handleStartExam()` for `?mode=exam`.
-- No database migration is needed because unfinished progress is currently component state, not a backend record.
-- `AssessmentView` already keeps answers/skipped position/timer in local React state, so unmounting it discards progress by design.
+5. **Update the student-facing warning text**
+   - Adjust the Exam Prep warning copy to explicitly mention switching browser tabs/windows will end and discard the attempt.
