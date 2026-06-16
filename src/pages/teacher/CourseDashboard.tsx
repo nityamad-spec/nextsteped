@@ -56,6 +56,7 @@ const CourseDashboard = () => {
 
   const [lessonOrder, setLessonOrder] = useState<Map<string, number>>(new Map());
   const [masteryDist, setMasteryDist] = useState<Map<string, { beginner: number; developing: number; proficient: number; expert: number }>>(new Map());
+  const [courseDist, setCourseDist] = useState<{ beginner: number; developing: number; proficient: number; expert: number; total: number }>({ beginner: 0, developing: 0, proficient: 0, expert: 0, total: 0 });
   const [stats, setStats] = useState<{ activeStudents: number; totalSessions: number } | null>(null);
 
   useEffect(() => {
@@ -99,7 +100,7 @@ const CourseDashboard = () => {
     setConceptsLoading(true);
     setConceptsError(null);
     (async () => {
-      const [conceptsRes, weeksRes, masteryRes] = await Promise.all([
+      const [conceptsRes, weeksRes, masteryRes, courseMasteryRes] = await Promise.all([
         supabase
           .from("concepts")
           .select("id, concept_code, weight")
@@ -112,6 +113,10 @@ const CourseDashboard = () => {
         supabase
           .from("student_concept_mastery")
           .select("concept_id, mastery_score")
+          .eq("course_id", courseId),
+        supabase
+          .from("student_course_mastery")
+          .select("mastery_score")
           .eq("course_id", courseId),
       ]);
       if (cancelled) return;
@@ -145,6 +150,15 @@ const CourseDashboard = () => {
         }
       }
       setMasteryDist(dist);
+
+      const cDist = { beginner: 0, developing: 0, proficient: 0, expert: 0, total: 0 };
+      if (!courseMasteryRes.error && Array.isArray(courseMasteryRes.data)) {
+        for (const row of courseMasteryRes.data as Array<{ mastery_score: number }>) {
+          cDist[bandFor(Number(row.mastery_score))]++;
+          cDist.total++;
+        }
+      }
+      setCourseDist(cDist);
 
       setConceptsLoading(false);
     })();
@@ -430,6 +444,33 @@ const CourseDashboard = () => {
             <CardDescription>Aggregate anonymous view — student mastery distribution per concept</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold text-foreground">Course-level student distribution</span>
+                <span className="text-xs text-muted-foreground">Total students: {courseDist.total}</span>
+              </div>
+              {courseDist.total === 0 ? (
+                <p className="text-xs text-muted-foreground">No student mastery data yet</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {([
+                    { key: "beginner", label: "Beginner", color: "bg-mastery-beginner" },
+                    { key: "developing", label: "Developing", color: "bg-mastery-progressing" },
+                    { key: "proficient", label: "Proficient", color: "bg-mastery-proficient" },
+                    { key: "expert", label: "Expert", color: "bg-mastery-expert" },
+                  ] as const).map((b) => (
+                    <div key={b.key} className="rounded-md border bg-background px-3 py-2">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <div className={`h-2.5 w-2.5 rounded-sm ${b.color}`} />
+                        <span className="text-xs text-muted-foreground">{b.label}</span>
+                      </div>
+                      <p className="text-xl font-semibold text-foreground">{courseDist[b.key]}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="flex flex-wrap items-center gap-4 rounded-lg border bg-muted/30 px-4 py-2.5">
               <span className="text-xs font-medium text-muted-foreground">Legend:</span>
               <div className="flex items-center gap-1.5">
