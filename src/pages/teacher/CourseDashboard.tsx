@@ -151,6 +151,15 @@ const CourseDashboard = () => {
       }
       setMasteryDist(dist);
 
+      const cDist = { beginner: 0, developing: 0, proficient: 0, expert: 0, total: 0 };
+      if (!courseMasteryRes.error && Array.isArray(courseMasteryRes.data)) {
+        for (const row of courseMasteryRes.data as Array<{ mastery_score: number }>) {
+          cDist[bandFor(Number(row.mastery_score))]++;
+          cDist.total++;
+        }
+      }
+      setCourseDist(cDist);
+
       setConceptsLoading(false);
     })();
     return () => { cancelled = true; };
