@@ -100,7 +100,7 @@ const CourseDashboard = () => {
     setConceptsLoading(true);
     setConceptsError(null);
     (async () => {
-      const [conceptsRes, weeksRes, masteryRes] = await Promise.all([
+      const [conceptsRes, weeksRes, masteryRes, courseMasteryRes] = await Promise.all([
         supabase
           .from("concepts")
           .select("id, concept_code, weight")
@@ -113,6 +113,10 @@ const CourseDashboard = () => {
         supabase
           .from("student_concept_mastery")
           .select("concept_id, mastery_score")
+          .eq("course_id", courseId),
+        supabase
+          .from("student_course_mastery")
+          .select("mastery_score")
           .eq("course_id", courseId),
       ]);
       if (cancelled) return;
