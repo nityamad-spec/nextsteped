@@ -95,6 +95,23 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     return () => clearInterval(t);
   }, [phase, timeLeft]);
 
+  // Anti-cheat: discard the in-progress attempt if the student switches
+  // browser tabs/windows, minimizes, or closes the page while the exam is
+  // active. No answers are submitted; returning shows the Exam Prep start panel.
+  useEffect(() => {
+    if (phase !== "active") return;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") onEnd();
+    };
+    const onPageHide = () => onEnd();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [phase, onEnd]);
+
   const handleAnswer = (questionId: string, answer: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
   };
@@ -321,7 +338,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             </div>
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
               <p className="text-xs text-muted-foreground">
-                ⚠️ Once started, navigating away will <strong className="text-destructive">discard</strong> your progress.
+                ⚠️ Once started, navigating away — including <strong className="text-destructive">switching browser tabs or windows</strong> — will <strong className="text-destructive">discard</strong> your progress.
               </p>
             </div>
             <div className="flex items-center justify-center gap-1.5 pt-1">
