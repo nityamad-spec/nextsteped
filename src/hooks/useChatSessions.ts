@@ -122,7 +122,7 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher", courseId?
         return null;
       }
     },
-    [user, mode]
+    [user, mode, courseId]
   );
 
   // Add a message to the active session in DB
