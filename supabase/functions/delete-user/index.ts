@@ -164,6 +164,18 @@ Deno.serve(async (req) => {
 
       await del("assessment_questions", (q) => q.eq("teacher_id", user_id));
       await del("diagnostic_questions", (q) => q.eq("teacher_id", user_id));
+      await del("course_teaching_insights", (q) => q.eq("generated_by", user_id));
+      await del("course_youtube_links", (q) => q.eq("teacher_id", user_id));
+      await del("setup_progress_log", (q) => q.eq("teacher_id", user_id));
+
+      // Null out admin reference on teacher_applications this user reviewed
+      {
+        const { error: revErr } = await admin
+          .from("teacher_applications")
+          .update({ reviewed_by: null })
+          .eq("reviewed_by", user_id);
+        if (revErr) console.error("teacher_applications.reviewed_by null-out:", revErr.message);
+      }
 
       // Chat
       const { data: sessions } = await admin
@@ -176,6 +188,7 @@ Deno.serve(async (req) => {
       }
       await del("chat_sessions", (q) => q.eq("user_id", user_id));
       await del("chat_messages", (q) => q.eq("user_id", user_id));
+
     } else {
       // student
       await del("assessment_results", (q) => q.eq("student_id", user_id));
