@@ -335,6 +335,13 @@ Deno.serve(async (req) => {
     return json({ error: "course_upsert_failed", details: courseErr.message }, 500);
   }
 
+  // Invalidate professor-chat class mastery cache so the next teacher chat reflects fresh numbers.
+  try {
+    await admin.rpc("bump_cache_version", { _scope: "mastery", _scope_id: body.course_id });
+  } catch (e) {
+    console.warn("bump_cache_version(mastery) failed", e);
+  }
+
   return json({
     course_mastery: courseScore,
     course_level: courseLevel,
