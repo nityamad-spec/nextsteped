@@ -173,6 +173,26 @@ const StudentHome = () => {
     return () => { cancelled = true; };
   }, [enrolledCourseId]);
 
+  // Has the student taken the diagnostic for this course?
+  const [diagnosticTaken, setDiagnosticTaken] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!enrolledCourseId || !user?.id) { setDiagnosticTaken(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("diagnostic_results")
+        .select("id")
+        .eq("student_id", user.id)
+        .eq("course_id", enrolledCourseId)
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) { console.error("Diagnostic status load error:", error); setDiagnosticTaken(false); return; }
+      setDiagnosticTaken(!!data);
+    })();
+    return () => { cancelled = true; };
+  }, [enrolledCourseId, user?.id]);
+
 
   useEffect(() => {
     const loadPlan = async () => {
