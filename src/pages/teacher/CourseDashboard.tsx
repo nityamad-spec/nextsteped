@@ -61,7 +61,7 @@ const CourseDashboard = () => {
   useEffect(() => {
     if (!courseId) return;
     let cancelled = false;
-    (async () => {
+    const fetchStats = async () => {
       const { data, error } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)("course_dashboard_stats", { _course_id: courseId });
       if (cancelled) return;
       if (error) {
@@ -75,8 +75,22 @@ const CourseDashboard = () => {
           totalSessions: Number(row.total_sessions) || 0,
         });
       }
-    })();
-    return () => { cancelled = true; };
+    };
+    fetchStats();
+
+    const channel = supabase
+      .channel(`course-sessions-${courseId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "chat_sessions", filter: `course_id=eq.${courseId}` },
+        () => { fetchStats(); }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
   }, [courseId]);
 
   useEffect(() => {

@@ -73,7 +73,7 @@ const TeacherChat = () => {
     addMessageLocally,
     updateLastMessage,
     updateSessionTitle,
-  } = useChatSessions("teacher");
+  } = useChatSessions("teacher", courseId);
 
   // Fetch course context
   useEffect(() => {
