@@ -345,13 +345,13 @@ async function fetchClassMasterySnapshot(supabaseAdmin: any, courseId: string): 
         .slice(0, 30)
         .map(
           (c) =>
-            `  ${c.code}: beginner ${c.b.beginner}, developing ${c.b.developing}, proficient ${c.b.proficient}, expert ${c.b.expert} (avg ${masteryBand(c.avg)})`,
+            `  ${c.code} — beginner ${c.b.beginner}, developing ${c.b.developing}, proficient ${c.b.proficient}, expert ${c.b.expert} (class average band: ${masteryBand(c.avg)})`,
         )
         .join("\n");
 
-      const header = `Class mastery snapshot (N=${totalStudents} students):`;
-      const courseLine = `- Course level: beginner ${courseBuckets.beginner}, developing ${courseBuckets.developing}, proficient ${courseBuckets.proficient}, expert ${courseBuckets.expert}`;
-      const conceptBlock = conceptLines ? `- Per-concept (weakest first):\n${conceptLines}` : "- Per-concept: (no concept mastery recorded yet)";
+      const header = `Class mastery snapshot (N=${totalStudents} students). The only mastery bands are: beginner, developing, proficient, expert.`;
+      const courseLine = `- Course level distribution: beginner ${courseBuckets.beginner}, developing ${courseBuckets.developing}, proficient ${courseBuckets.proficient}, expert ${courseBuckets.expert}`;
+      const conceptBlock = conceptLines ? `- Per-concept distribution (weakest first; counts are number of students in each band):\n${conceptLines}` : "- Per-concept: (no concept mastery recorded yet)";
       return `${header}\n${courseLine}\n${conceptBlock}`;
     } catch (e) {
       console.error("class mastery snapshot error:", e);
@@ -522,6 +522,7 @@ COURSE CONTEXT
 
 STUDENT MASTERY DATA
 - Aggregate class-level mastery is available in the COURSE CONTEXT section when relevant. Use it ONLY when the professor asks something that needs it ("how is the class doing on X", "which concepts are students struggling with"); don't bring it up for general course-building questions.
+- The only mastery bands are: beginner, developing, proficient, expert. Never combine them with other words to form a new band name — there is no "avg proficient" or "average developing" band. "Class average band" in the snapshot describes that concept's average; the band name itself is still one of the four above.
 - When you do use it, answer directly and specifically: name concepts and cohort-level bands, point out where the class is weak or split, and connect it to a teaching suggestion where useful ("most students are at beginner on X, so a targeted session may help"). Stay grounded in the actual data; never invent a figure you weren't given. If data is unavailable or a concept has no record yet, say so plainly.
 - ${PROFESSOR_INDIVIDUAL_DATA_RULE}
 
