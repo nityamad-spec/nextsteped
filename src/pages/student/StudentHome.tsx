@@ -502,22 +502,32 @@ const StudentHome = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {nextActions.slice(0, 3).map((action, i) => (
-              <button
-                key={i}
-                onClick={action.action}
-                className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-                  <action.icon className="h-4 w-4" />
+            {nextActionsLoading ? (
+              <div className="flex w-full items-center gap-3 rounded-lg border p-3">
+                <div className="h-8 w-8 rounded-lg bg-muted animate-pulse shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-2/3 bg-muted animate-pulse rounded" />
+                  <div className="h-2 w-1/2 bg-muted animate-pulse rounded" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{action.title}</p>
-                  <p className="text-xs text-muted-foreground">{action.description}</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-              </button>
-            ))}
+              </div>
+            ) : (
+              nextActions.slice(0, 3).map((action, i) => (
+                <button
+                  key={i}
+                  onClick={action.action}
+                  className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
+                    <action.icon className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{action.title}</p>
+                    <p className="text-xs text-muted-foreground">{action.description}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                </button>
+              ))
+            )}
           </CardContent>
         </Card>
       </motion.div>
