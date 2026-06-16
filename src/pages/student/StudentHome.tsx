@@ -173,6 +173,26 @@ const StudentHome = () => {
     return () => { cancelled = true; };
   }, [enrolledCourseId]);
 
+  // Has the student taken the diagnostic for this course?
+  const [diagnosticTaken, setDiagnosticTaken] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!enrolledCourseId || !user?.id) { setDiagnosticTaken(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("diagnostic_results")
+        .select("id")
+        .eq("student_id", user.id)
+        .eq("course_id", enrolledCourseId)
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) { console.error("Diagnostic status load error:", error); setDiagnosticTaken(false); return; }
+      setDiagnosticTaken(!!data);
+    })();
+    return () => { cancelled = true; };
+  }, [enrolledCourseId, user?.id]);
+
 
   useEffect(() => {
     const loadPlan = async () => {
@@ -283,24 +303,154 @@ const StudentHome = () => {
     setExpandedWeeks(prev => prev.includes(week) ? prev.filter(w => w !== week) : [...prev, week]);
   };
 
-  // Dynamic "What to do next" suggestions
-  const nextActions = [];
-  if (concepts.length > 0) {
-    nextActions.push({
-      icon: MessageSquare,
-      title: `Start learning: ${concepts[0].name}`,
-      description: "Use the Study Chat to explore this concept",
-      action: () => navigate("/student/chat?newchat=true"),
-      variant: "default" as const,
+  // Dynamic "What to do next" — prioritised from real signals.
+  const nextActionsLoading =
+    planLoading || diagnosticTaken === null || (!!enrolledCourseId && concepts.length === 0 && lessonPlanPublished);
+
+  type NextAction = { icon: any; title: string; description: string; action: () => void };
+  const nextActions: NextAction[] = [];
+
+  // Build a lookup of concept_code -> concept id for the current course
+  const conceptIdByName = new Map<string, string>();
+  concepts.forEach((c) => conceptIdByName.set(c.name, c.id));
+
+  // Concept ids that appear in any visible lesson-plan week
+  const visibleConceptIds = new Set<string>();
+  // Current-week concept names (in order) from the lesson plan
+  const currentWeekConcepts: { id?: string; name: string }[] = [];
+  lessonPlan.forEach((wk: any) => {
+    (wk.concepts || []).forEach((c: any) => {
+      const name = typeof c?.name === "string" ? c.name : "";
+      const id = name ? conceptIdByName.get(name) : undefined;
+      if (id) visibleConceptIds.add(id);
+      if (wk.day === currentWeek && name) currentWeekConcepts.push({ id, name });
     });
-  }
-  nextActions.push({
-    icon: ClipboardCheck,
-    title: "Practice Exam",
-    description: "Test your knowledge with a timed exam simulation",
-    action: () => navigate("/student/chat?mode=exam"),
-    variant: "outline" as const,
   });
+
+  const currentWeekRow = lessonPlan.find((wk: any) => wk.day === currentWeek);
+  const isExamWeek = !!currentWeekRow?.is_exam_week;
+
+  // Rule 1 — no lesson plan published
+  if (!lessonPlanPublished) {
+    nextActions.push({
+      icon: BookOpen,
+      title: "Lesson plan not published yet",
+      description: "Your professor hasn't published the lesson plan. Check back soon.",
+      action: () => { /* no-op */ },
+    });
+  } else {
+    // Rule 2 — diagnostic not taken
+    if (diagnosticTaken === false) {
+      nextActions.push({
+        icon: Brain,
+        title: "Take the diagnostic quiz",
+        description: "Helps the assistant calibrate to your level",
+        action: () => navigate(`/student/diagnostic?course=${enrolledCourseId ?? ""}`),
+      });
+    }
+
+    const currentWeekQuizAvailable = availableQuizDays.has(currentWeek) && !takenQuizzes[currentWeek];
+
+    // Rule 3 (normal) — this week's untaken quiz; bumps down on exam weeks
+    if (currentWeekQuizAvailable && !isExamWeek) {
+      nextActions.push({
+        icon: ClipboardCheck,
+        title: `Take this week's quiz: ${currentWeekRow?.topic || `Week ${currentWeek}`}`,
+        description: "Quick check-in on this week's concepts",
+        action: () => setQuizDialog({ open: true, day: currentWeek }),
+      });
+    }
+
+    // On exam weeks, surface Practice Exam earlier
+    if (isExamWeek && taSettings?.examEnabled !== false) {
+      nextActions.push({
+        icon: ClipboardCheck,
+        title: "Practice Exam",
+        description: "Exam week — simulate a timed exam in chat",
+        action: () => navigate("/student/chat?mode=exam"),
+      });
+    }
+
+    // Rule 4 — weakest touched concept within visible scope
+    const touchedVisible = Object.entries(conceptMastery)
+      .filter(([id, m]) => visibleConceptIds.has(id) && m.attempted > 0)
+      .sort(([, a], [, b]) => a.score - b.score);
+    if (touchedVisible.length > 0) {
+      const [weakestId] = touchedVisible[0];
+      const weakest = concepts.find((c) => c.id === weakestId);
+      if (weakest) {
+        nextActions.push({
+          icon: Sparkles,
+          title: `Strengthen: ${weakest.name}`,
+          description: "Revisit this concept in the Study Chat",
+          action: () => navigate(`/student/chat?newchat=true&concept=${encodeURIComponent(weakest.name)}`),
+        });
+      }
+    }
+
+    // Rule 5 — first unexplored current-week concept
+    const unexploredThisWeek = currentWeekConcepts.find(
+      (c) => !c.id || !conceptMastery[c.id] || conceptMastery[c.id].attempted === 0,
+    );
+    if (unexploredThisWeek) {
+      nextActions.push({
+        icon: BookOpen,
+        title: `Start this week: ${unexploredThisWeek.name}`,
+        description: `Week ${currentWeek} — open a new chat to dig in`,
+        action: () => navigate("/student/chat?newchat=true"),
+      });
+    }
+
+    // Rule 6 — earliest missed earlier weekly quiz
+    const visibleWeekNumbers = lessonPlan
+      .map((wk: any) => Number(wk.day))
+      .filter((d: number) => Number.isFinite(d) && d < currentWeek)
+      .sort((a: number, b: number) => a - b);
+    const missedEarlier = visibleWeekNumbers.find((w: number) => availableQuizDays.has(w) && !takenQuizzes[w]);
+    if (missedEarlier != null) {
+      nextActions.push({
+        icon: ClipboardCheck,
+        title: `Catch up on Week ${missedEarlier} quiz`,
+        description: "You haven't taken this one yet",
+        action: () => setQuizDialog({ open: true, day: missedEarlier }),
+      });
+    }
+
+    // Rule 7 — practice exam (default fallback when exam enabled and not already pushed)
+    if (!isExamWeek && taSettings?.examEnabled !== false) {
+      nextActions.push({
+        icon: ClipboardCheck,
+        title: "Practice Exam",
+        description: "Test your knowledge with a timed exam simulation",
+        action: () => navigate("/student/chat?mode=exam"),
+      });
+    }
+
+    // Rule 8 — everything done
+    const allQuizzesTaken = Array.from(availableQuizDays).every((w) => !!takenQuizzes[w]);
+    const allVisibleConceptsTouched =
+      visibleConceptIds.size > 0 &&
+      Array.from(visibleConceptIds).every((id) => (conceptMastery[id]?.attempted ?? 0) > 0);
+    if (nextActions.length === 0 && allQuizzesTaken && allVisibleConceptsTouched) {
+      nextActions.push({
+        icon: Sparkles,
+        title: "You're caught up — keep practising in chat",
+        description: "Try a deeper question or revisit a concept",
+        action: () => navigate("/student/chat?newchat=true"),
+      });
+    }
+
+    // Always have at least one card to show as a safe default
+    if (nextActions.length === 0) {
+      nextActions.push({
+        icon: MessageSquare,
+        title: "Open the Study Chat",
+        description: "Ask a question or explore a concept",
+        action: () => navigate("/student/chat?newchat=true"),
+      });
+    }
+  }
+
 
   const parseList = (text: string) =>
     text.split("\n").map(l => l.replace(/^[-•]\s*/, "").trim()).filter(Boolean);
@@ -352,22 +502,32 @@ const StudentHome = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {nextActions.slice(0, 3).map((action, i) => (
-              <button
-                key={i}
-                onClick={action.action}
-                className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-                  <action.icon className="h-4 w-4" />
+            {nextActionsLoading ? (
+              <div className="flex w-full items-center gap-3 rounded-lg border p-3">
+                <div className="h-8 w-8 rounded-lg bg-muted animate-pulse shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-2/3 bg-muted animate-pulse rounded" />
+                  <div className="h-2 w-1/2 bg-muted animate-pulse rounded" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{action.title}</p>
-                  <p className="text-xs text-muted-foreground">{action.description}</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-              </button>
-            ))}
+              </div>
+            ) : (
+              nextActions.slice(0, 3).map((action, i) => (
+                <button
+                  key={i}
+                  onClick={action.action}
+                  className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
+                    <action.icon className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{action.title}</p>
+                    <p className="text-xs text-muted-foreground">{action.description}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                </button>
+              ))
+            )}
           </CardContent>
         </Card>
       </motion.div>
