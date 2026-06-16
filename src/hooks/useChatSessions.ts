@@ -83,7 +83,7 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher", courseId?
       try {
         const { data: session, error: sessErr } = await supabase
           .from("chat_sessions")
-          .insert({ user_id: user.id, mode: sessionMode, title })
+          .insert({ user_id: user.id, mode: sessionMode, title, course_id: courseId ?? null })
           .select()
           .single();
 
