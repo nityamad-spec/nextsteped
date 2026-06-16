@@ -307,12 +307,9 @@ const AIChat = () => {
   };
 
 
-  useEffect(() => {
-    const urlMode = searchParams.get("mode");
-    if (urlMode === "exam") {
-      handleStartExam();
-    }
-  }, []);
+  // Note: do NOT auto-start an exam on mount based on ?mode=exam.
+  // Mid-exam progress must be discarded on refresh/tab close — students
+  // must explicitly click "Start Exam" again to begin a fresh attempt.
 
   // Intercept navigation during assessment
   useEffect(() => {
