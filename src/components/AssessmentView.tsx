@@ -95,6 +95,23 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     return () => clearInterval(t);
   }, [phase, timeLeft]);
 
+  // Anti-cheat: discard the in-progress attempt if the student switches
+  // browser tabs/windows, minimizes, or closes the page while the exam is
+  // active. No answers are submitted; returning shows the Exam Prep start panel.
+  useEffect(() => {
+    if (phase !== "active") return;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") onEnd();
+    };
+    const onPageHide = () => onEnd();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [phase, onEnd]);
+
   const handleAnswer = (questionId: string, answer: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
   };
