@@ -43,6 +43,7 @@ interface EditableQuestion {
   type: QuestionType;
   options?: string[];
   correctIndex?: number;
+  exam_id?: string | null;
 }
 
 // Map internal type keys to display labels
