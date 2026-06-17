@@ -282,6 +282,58 @@ const ExamMode = () => {
     setConfirmRemoveId(null);
   };
 
+  const requestDeleteExam = (id: string) => {
+    if (examSchedule.length <= 1) {
+      toast.error("At least one mock test is required.");
+      return;
+    }
+    setConfirmDeleteExamId(id);
+  };
+
+  const executeDeleteExam = async () => {
+    const id = confirmDeleteExamId;
+    if (!id || !courseId) return;
+    setDeletingExam(true);
+    try {
+      // Delete AI-generated questions for this exam
+      const { data: existing } = await supabase
+        .from("assessment_questions")
+        .select("id, item_code")
+        .eq("course_id", courseId)
+        .eq("mode", "exam")
+        .eq("exam_id", id);
+      const generatedIds = ((existing as any[]) ?? [])
+        .filter(r => typeof r.item_code === "string" && r.item_code.startsWith("exam-"))
+        .map(r => r.id);
+      if (generatedIds.length > 0) {
+        const { error: delErr } = await supabase
+          .from("assessment_questions").delete().in("id", generatedIds);
+        if (delErr) throw delErr;
+      }
+      // Unassign manual questions previously linked to this exam
+      const { error: updErr } = await supabase
+        .from("assessment_questions")
+        .update({ exam_id: null })
+        .eq("course_id", courseId)
+        .eq("mode", "exam")
+        .eq("exam_id", id);
+      if (updErr) throw updErr;
+
+      setExamSchedule(prev => prev.filter(e => e.id !== id));
+      setEditingCardIds(prev => { const { [id]: _, ...rest } = prev; return rest; });
+      setExamQuestionCounts(prev => { const { [id]: _, ...rest } = prev; return rest; });
+      setQuestions(prev => prev.map(q => q.exam_id === id ? { ...q, exam_id: null } : q));
+      bumpCacheVersion("questions", courseId);
+      toast.success("Mock test deleted");
+    } catch (e: any) {
+      console.error("delete exam failed:", e);
+      toast.error(e?.message ?? "Failed to delete mock test");
+    } finally {
+      setDeletingExam(false);
+      setConfirmDeleteExamId(null);
+    }
+  };
+
   const handleLengthChange = (id: string, v: number) => {
     const exam = examSchedule.find(e => e.id === id);
     if (!exam) return;
