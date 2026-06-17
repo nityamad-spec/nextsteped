@@ -158,7 +158,7 @@ const WeeklyQuizDialog = ({
           }
         }
 
-        const combined = seededShuffle([...standard, ...adaptive], seed + ":order");
+        const combined = [...standard, ...adaptive];
         qs = combined.map(({ _tier, ...rest }) => rest as Question);
       } else {
         qs = [];
