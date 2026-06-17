@@ -177,17 +177,19 @@ const ExamMode = () => {
       ]);
       if (error) { console.error(error); toast.error("Failed to load custom exam questions"); }
       else if (data) {
-        // Manually-added questions (exam_id NULL) keep showing in the list below.
-        // AI-generated rows (exam_id set) are excluded here and surfaced via the per-exam View dialog.
-        const manual = (data as any[]).filter((row) => !row.exam_id);
+        // Manual rows = anything NOT created by the AI generator (which sets item_code = "exam-...").
+        // Manual rows may have exam_id set (assigned to a specific exam) or null (library only).
+        const manual = (data as any[]).filter((row) => !(typeof row.item_code === "string" && row.item_code.startsWith("exam-")));
         setQuestions(manual.map((row: any) => ({
           id: row.id, question: row.question_text, answer: row.answer, topic: row.topic,
           difficulty: row.difficulty, type: row.question_type,
           options: row.options, correctIndex: row.correct_index ?? undefined,
+          exam_id: row.exam_id ?? null,
         })));
         const counts: Record<string, number> = {};
         for (const row of data as any[]) {
-          if (row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
+          const isGenerated = typeof row.item_code === "string" && row.item_code.startsWith("exam-");
+          if (isGenerated && row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
         }
         setExamQuestionCounts(counts);
       }
