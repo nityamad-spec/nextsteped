@@ -667,18 +667,31 @@ const ExamMode = () => {
                       <div key={exam.id} className={`rounded-lg border p-4 space-y-3 ${exam.approved ? "border-primary/40 bg-primary/5" : ""}`}>
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-semibold">{exam.label}</p>
-                          <Select
-                            value={exam.source ?? "generated"}
-                            onValueChange={(v) => handleSourceChange(exam.id, v as "generated" | "manual")}
-                          >
-                            <SelectTrigger className="h-8 w-[160px] text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="generated">AI-Generated</SelectItem>
-                              <SelectItem value="manual">Manual (Teacher)</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <div className="flex items-center gap-2">
+                            <Select
+                              value={exam.source ?? "generated"}
+                              onValueChange={(v) => handleSourceChange(exam.id, v as "generated" | "manual")}
+                            >
+                              <SelectTrigger className="h-8 w-[160px] text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="generated">AI-Generated</SelectItem>
+                                <SelectItem value="manual">Manual (Teacher)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => requestDeleteExam(exam.id)}
+                              disabled={examSchedule.length <= 1}
+                              aria-label={`Delete ${exam.label}`}
+                              title={examSchedule.length <= 1 ? "At least one mock test is required" : "Delete this mock test"}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
 
                         <div className="space-y-2">
