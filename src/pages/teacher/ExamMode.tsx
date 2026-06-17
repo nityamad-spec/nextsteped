@@ -43,6 +43,7 @@ interface EditableQuestion {
   type: QuestionType;
   options?: string[];
   correctIndex?: number;
+  exam_id?: string | null;
 }
 
 // Map internal type keys to display labels
@@ -103,7 +104,7 @@ const ExamMode = () => {
   // Multi-exam schedule (replaces single examLength + single estimate)
   const buildInitialSchedule = (): ExamScheduleItem[] => {
     if (taSettings.examSchedule && taSettings.examSchedule.length > 0) {
-      return taSettings.examSchedule;
+      return taSettings.examSchedule.map(e => ({ ...e, source: e.source ?? "generated" }));
     }
     const legacyLength = taSettings.examTimeLimit ?? 60;
     const legacyMix = taSettings.examQuestionMix || "mixed";
@@ -113,6 +114,7 @@ const ExamMode = () => {
       lengthMin: legacyLength,
       breakdown: questionEstimate(legacyLength, legacyMix).breakdown,
       approved: taSettings.examApproved ?? false,
+      source: "generated",
     }];
   };
   const [examSchedule, setExamSchedule] = useState<ExamScheduleItem[]>(buildInitialSchedule);
@@ -133,6 +135,7 @@ const ExamMode = () => {
   const [formType, setFormType] = useState<QuestionType>("MCQ");
   const [formOptions, setFormOptions] = useState<string[]>(["", "", "", ""]);
   const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
+  const [formExamId, setFormExamId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [concepts, setConcepts] = useState<{ id: string; concept_code: string; concept_name: string }[]>([]);
 
@@ -174,17 +177,19 @@ const ExamMode = () => {
       ]);
       if (error) { console.error(error); toast.error("Failed to load custom exam questions"); }
       else if (data) {
-        // Manually-added questions (exam_id NULL) keep showing in the list below.
-        // AI-generated rows (exam_id set) are excluded here and surfaced via the per-exam View dialog.
-        const manual = (data as any[]).filter((row) => !row.exam_id);
+        // Manual rows = anything NOT created by the AI generator (which sets item_code = "exam-...").
+        // Manual rows may have exam_id set (assigned to a specific exam) or null (library only).
+        const manual = (data as any[]).filter((row) => !(typeof row.item_code === "string" && row.item_code.startsWith("exam-")));
         setQuestions(manual.map((row: any) => ({
           id: row.id, question: row.question_text, answer: row.answer, topic: row.topic,
           difficulty: row.difficulty, type: row.question_type,
           options: row.options, correctIndex: row.correct_index ?? undefined,
+          exam_id: row.exam_id ?? null,
         })));
         const counts: Record<string, number> = {};
         for (const row of data as any[]) {
-          if (row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
+          const isGenerated = typeof row.item_code === "string" && row.item_code.startsWith("exam-");
+          if (isGenerated && row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
         }
         setExamQuestionCounts(counts);
       }
@@ -198,12 +203,13 @@ const ExamMode = () => {
     if (!courseId) return;
     const { data } = await supabase
       .from("assessment_questions")
-      .select("exam_id")
+      .select("exam_id, item_code")
       .eq("course_id", courseId)
       .eq("mode", "exam");
     const counts: Record<string, number> = {};
     for (const row of (data as any[]) ?? []) {
-      if (row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
+      const isGenerated = typeof row.item_code === "string" && row.item_code.startsWith("exam-");
+      if (isGenerated && row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
     }
     setExamQuestionCounts(counts);
   };
@@ -219,7 +225,7 @@ const ExamMode = () => {
   // When the global question types change, refresh each card's breakdown
   // (preserve approved state only if the type set is unchanged for that card)
   useEffect(() => {
-    setExamSchedule(prev => prev.map(e => ({
+    setExamSchedule(prev => prev.map(e => e.source === "manual" ? e : ({
       ...e,
       breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
       approved: false,
@@ -239,7 +245,12 @@ const ExamMode = () => {
       lengthMin,
       breakdown: questionEstimate(lengthMin, examQuestionTypes).breakdown,
       approved: false,
+      source: "generated",
     }]);
+  };
+
+  const handleSourceChange = (id: string, source: "generated" | "manual") => {
+    updateExam(id, { source, approved: false });
   };
 
   const handleRemoveExamRequest = () => {
@@ -295,9 +306,20 @@ const ExamMode = () => {
     let n = 0;
     return examSchedule.map(e => {
       n += 1;
-      return { ...e, label: `Final ${n}` };
+      return { ...e, label: `Final ${n}`, source: e.source ?? "generated" };
     });
   }, [examSchedule]);
+
+  // Count manual questions assigned to each exam
+  const manualExamCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const q of questions) {
+      if (q.exam_id) counts[q.exam_id] = (counts[q.exam_id] ?? 0) + 1;
+    }
+    return counts;
+  }, [questions]);
+
+  const manualExams = labeledSchedule.filter(e => e.source === "manual");
 
   const typesSelected = parseMix(examQuestionTypes).length > 0;
   const allExamsApproved = examSchedule.length > 0 && examSchedule.every(e => e.approved);
@@ -407,10 +429,12 @@ const ExamMode = () => {
   };
 
   // ── Custom question handlers ──
-  const openAddDialog = () => {
+  const openAddDialog = (preselectExamId?: string) => {
     setEditingId(null);
     setFormQuestion(""); setFormAnswer(""); setFormTopic("");
     setFormType("MCQ"); setFormOptions(["", "", "", ""]); setFormCorrectIndex(0);
+    // Default: preselected exam, else first manual exam if any, else null
+    setFormExamId(preselectExamId ?? (manualExams[0]?.id ?? null));
     setDialogOpen(true);
   };
 
@@ -420,6 +444,7 @@ const ExamMode = () => {
     setFormType(q.type);
     setFormOptions(q.options?.length ? [...q.options] : ["", "", "", ""]);
     setFormCorrectIndex(q.correctIndex ?? 0);
+    setFormExamId(q.exam_id ?? null);
     setDialogOpen(true);
   };
 
@@ -445,6 +470,7 @@ const ExamMode = () => {
       options: isMCQ ? filteredOptions : isTF ? ["True", "False"] : null,
       correct_index: isMCQ ? formCorrectIndex : isTF ? (formAnswer === "True" ? 0 : 1) : null,
       explanation: null as string | null, quiz_day: null as number | null,
+      exam_id: formExamId,
     };
 
     try {
@@ -453,7 +479,7 @@ const ExamMode = () => {
         if (error) throw error;
         setQuestions(prev => prev.map(q => q.id === editingId ? {
           id: editingId, question: formQuestion, answer, topic: formTopic,
-          difficulty: "Medium", type: formType,
+          difficulty: "Medium", type: formType, exam_id: formExamId,
           ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
         } : q));
         toast.success("Question updated");
@@ -462,7 +488,7 @@ const ExamMode = () => {
         if (error) throw error;
         setQuestions(prev => [...prev, {
           id: data.id, question: formQuestion, answer, topic: formTopic,
-          difficulty: "Medium", type: formType,
+          difficulty: "Medium", type: formType, exam_id: formExamId,
           ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
         }]);
         toast.success("Question added");
@@ -565,13 +591,25 @@ const ExamMode = () => {
                     const total = Object.values(exam.breakdown).reduce<number>((s, n) => s + (n as number), 0);
                     const isEditing = !!editingCardIds[exam.id];
                     const breakdownEntries = Object.entries(exam.breakdown);
+                    const isManual = exam.source === "manual";
+                    const manualCount = manualExamCounts[exam.id] ?? 0;
+                    const canApprove = isManual ? manualCount >= 1 : breakdownEntries.length > 0;
                     return (
                       <div key={exam.id} className={`rounded-lg border p-4 space-y-3 ${exam.approved ? "border-primary/40 bg-primary/5" : ""}`}>
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-semibold">{exam.label}</p>
-                          <span className="inline-flex items-center rounded-md border bg-muted/50 px-2 py-1 text-xs font-medium text-muted-foreground">
-                            Final
-                          </span>
+                          <Select
+                            value={exam.source ?? "generated"}
+                            onValueChange={(v) => handleSourceChange(exam.id, v as "generated" | "manual")}
+                          >
+                            <SelectTrigger className="h-8 w-[160px] text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="generated">AI-Generated</SelectItem>
+                              <SelectItem value="manual">Manual (Teacher)</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
 
                         <div className="space-y-2">
@@ -586,97 +624,127 @@ const ExamMode = () => {
                           </div>
                         </div>
 
-                        <div className="rounded-md border bg-muted/30 p-3 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Calculator className="h-3.5 w-3.5 text-primary" />
-                            <span className="text-xs text-muted-foreground">
-                              Estimated <span className="font-bold text-foreground">{total} questions</span>
-                              {breakdownEntries.length > 0 && (
-                                <>
-                                  {" "}({breakdownEntries.map(([t, c]) => `${t} ${c}`).join(" · ")})
-                                </>
-                              )}
-                            </span>
-                          </div>
-                          {breakdownEntries.length === 0 ? (
-                            <p className="text-xs text-destructive">Select at least one question type above.</p>
-                          ) : (
-                            <div className="space-y-1">
-                              {breakdownEntries.map(([type, count]) => (
-                                <div key={type} className="flex items-center justify-between">
-                                  <span className="text-xs text-muted-foreground">{type}</span>
-                                  {isEditing ? (
-                                    <Input
-                                      type="number" min={0}
-                                      className="h-7 w-16 text-xs text-right"
-                                      value={count as number}
-                                      onChange={(e) => handleBreakdownNumberChange(exam.id, type, parseInt(e.target.value))}
-                                    />
-                                  ) : (
-                                    <span className="text-sm font-bold">{count as number}</span>
-                                  )}
-                                </div>
-                              ))}
+                        {isManual ? (
+                          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <ClipboardCheck className="h-3.5 w-3.5 text-primary" />
+                              <span className="text-xs text-muted-foreground">
+                                <span className="font-bold text-foreground">{manualCount}</span> manual question{manualCount === 1 ? "" : "s"} assigned
+                              </span>
                             </div>
-                          )}
-                          <div className="flex items-center gap-2 pt-1">
-                            {!isEditing && breakdownEntries.length > 0 && (
-                              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleEditBreakdown(exam.id)}>
-                                <Pencil className="mr-1 h-3 w-3" /> Edit Breakdown
-                              </Button>
+                            {manualCount === 0 && (
+                              <p className="text-xs text-muted-foreground">Add at least 1 question below to approve this exam.</p>
                             )}
-                            <Button
-                              variant={exam.approved ? "outline" : "default"}
-                              size="sm" className="h-7 text-xs"
-                              disabled={breakdownEntries.length === 0}
-                              onClick={() => handleApproveExam(exam.id)}
-                            >
-                              {exam.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve Estimate"}
-                            </Button>
-                            {(() => {
-                              const generatedCount = examQuestionCounts[exam.id] ?? 0;
-                              const isGenerating = generatingExamId === exam.id;
-                              const hasExisting = generatedCount > 0;
-                              if (hasExisting && !isGenerating) {
-                                return (
-                                  <>
-                                    <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs font-medium text-primary">
-                                      <Check className="h-3 w-3" /> {generatedCount} questions generated
-                                    </span>
-                                    <Button
-                                      variant="outline" size="sm" className="h-7 text-xs"
-                                      onClick={() => setViewExamId(exam.id)}
-                                    >
-                                      View
-                                    </Button>
-                                  </>
-                                );
-                              }
-                              return (
-                                <Button
-                                  variant="outline" size="sm" className="h-7 text-xs"
-                                  disabled={
-                                    breakdownEntries.length === 0 ||
-                                    !exam.approved ||
-                                    !!generatingExamId
-                                  }
-                                  onClick={() => handleGenerateQuestions(exam.id)}
-                                >
-                                  {isGenerating ? (
-                                    <>
-                                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                      Generating {genProgress?.current ?? 0}/{genProgress?.total ?? 0}…
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Sparkles className="mr-1 h-3 w-3" /> Generate Questions
-                                    </>
-                                  )}
-                                </Button>
-                              );
-                            })()}
+                            <div className="flex items-center gap-2 pt-1">
+                              <Button
+                                variant="outline" size="sm" className="h-7 text-xs"
+                                onClick={() => openAddDialog(exam.id)}
+                              >
+                                <Plus className="mr-1 h-3 w-3" /> Add Question
+                              </Button>
+                              <Button
+                                variant={exam.approved ? "outline" : "default"}
+                                size="sm" className="h-7 text-xs"
+                                disabled={!canApprove}
+                                onClick={() => handleApproveExam(exam.id)}
+                              >
+                                {exam.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve Exam"}
+                              </Button>
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Calculator className="h-3.5 w-3.5 text-primary" />
+                              <span className="text-xs text-muted-foreground">
+                                Estimated <span className="font-bold text-foreground">{total} questions</span>
+                                {breakdownEntries.length > 0 && (
+                                  <>
+                                    {" "}({breakdownEntries.map(([t, c]) => `${t} ${c}`).join(" · ")})
+                                  </>
+                                )}
+                              </span>
+                            </div>
+                            {breakdownEntries.length === 0 ? (
+                              <p className="text-xs text-destructive">Select at least one question type above.</p>
+                            ) : (
+                              <div className="space-y-1">
+                                {breakdownEntries.map(([type, count]) => (
+                                  <div key={type} className="flex items-center justify-between">
+                                    <span className="text-xs text-muted-foreground">{type}</span>
+                                    {isEditing ? (
+                                      <Input
+                                        type="number" min={0}
+                                        className="h-7 w-16 text-xs text-right"
+                                        value={count as number}
+                                        onChange={(e) => handleBreakdownNumberChange(exam.id, type, parseInt(e.target.value))}
+                                      />
+                                    ) : (
+                                      <span className="text-sm font-bold">{count as number}</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 pt-1">
+                              {!isEditing && breakdownEntries.length > 0 && (
+                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleEditBreakdown(exam.id)}>
+                                  <Pencil className="mr-1 h-3 w-3" /> Edit Breakdown
+                                </Button>
+                              )}
+                              <Button
+                                variant={exam.approved ? "outline" : "default"}
+                                size="sm" className="h-7 text-xs"
+                                disabled={!canApprove}
+                                onClick={() => handleApproveExam(exam.id)}
+                              >
+                                {exam.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve Estimate"}
+                              </Button>
+                              {(() => {
+                                const generatedCount = examQuestionCounts[exam.id] ?? 0;
+                                const isGenerating = generatingExamId === exam.id;
+                                const hasExisting = generatedCount > 0;
+                                if (hasExisting && !isGenerating) {
+                                  return (
+                                    <>
+                                      <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs font-medium text-primary">
+                                        <Check className="h-3 w-3" /> {generatedCount} questions generated
+                                      </span>
+                                      <Button
+                                        variant="outline" size="sm" className="h-7 text-xs"
+                                        onClick={() => setViewExamId(exam.id)}
+                                      >
+                                        View
+                                      </Button>
+                                    </>
+                                  );
+                                }
+                                return (
+                                  <Button
+                                    variant="outline" size="sm" className="h-7 text-xs"
+                                    disabled={
+                                      breakdownEntries.length === 0 ||
+                                      !exam.approved ||
+                                      !!generatingExamId
+                                    }
+                                    onClick={() => handleGenerateQuestions(exam.id)}
+                                  >
+                                    {isGenerating ? (
+                                      <>
+                                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                        Generating {genProgress?.current ?? 0}/{genProgress?.total ?? 0}…
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Sparkles className="mr-1 h-3 w-3" /> Generate Questions
+                                      </>
+                                    )}
+                                  </Button>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -710,7 +778,7 @@ const ExamMode = () => {
                   </CardTitle>
                   <CardDescription>Add any custom exam questions you want students to see during their practice exams. These appear alongside AI-generated questions.</CardDescription>
                 </div>
-                <Button size="sm" onClick={openAddDialog}><Plus className="mr-1 h-4 w-4" /> Add Question</Button>
+                <Button size="sm" onClick={() => openAddDialog()}><Plus className="mr-1 h-4 w-4" /> Add Question</Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -750,6 +818,11 @@ const ExamMode = () => {
                           <div className="flex items-center gap-2 flex-wrap">
                             <Badge variant="outline" className={`text-[10px] ${typeBadgeColor(q.type)}`}>{q.type}</Badge>
                             <span className="text-xs text-muted-foreground">{q.topic}</span>
+                            <Badge variant="outline" className="text-[10px]">
+                              {q.exam_id
+                                ? (labeledSchedule.find(e => e.id === q.exam_id)?.label ?? "Unknown exam")
+                                : "Unassigned"}
+                            </Badge>
                           </div>
                           <div className="flex items-center gap-1">
                             <button onClick={() => openEditDialog(q)} className="rounded p-1.5 hover:bg-muted"><Pencil className="h-3.5 w-3.5 text-muted-foreground" /></button>
@@ -799,6 +872,26 @@ const ExamMode = () => {
             <div className="space-y-2">
               <Label>Question</Label>
               <Textarea value={formQuestion} onChange={e => setFormQuestion(e.target.value)} placeholder="Enter question text..." rows={3} />
+            </div>
+            <div className="space-y-2">
+              <Label>Assign to Exam</Label>
+              <Select
+                value={formExamId ?? "__unassigned"}
+                onValueChange={(v) => setFormExamId(v === "__unassigned" ? null : v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Select an exam" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__unassigned">Unassigned (library only)</SelectItem>
+                  {manualExams.map(e => (
+                    <SelectItem key={e.id} value={e.id}>{e.label} — Manual</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {manualExams.length === 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  No manual exams yet. Switch an exam above to "Manual" to assign this question to it; otherwise it stays in the library and won't appear in any student exam.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Concept</Label>
