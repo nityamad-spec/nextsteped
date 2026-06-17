@@ -1089,6 +1089,33 @@ const ExamMode = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={!!confirmDeleteExamId} onOpenChange={(o) => !o && !deletingExam && setConfirmDeleteExamId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this mock test?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const exam = labeledSchedule.find(e => e.id === confirmDeleteExamId);
+                if (!exam) return "This will permanently remove the mock test.";
+                const isManual = exam.source === "manual";
+                const generatedCount = examQuestionCounts[exam.id] ?? 0;
+                const manualCount = manualExamCounts[exam.id] ?? 0;
+                if (isManual) {
+                  return `${exam.label} will be removed. ${manualCount} manual question${manualCount === 1 ? "" : "s"} assigned to it will be returned to the library (unassigned).`;
+                }
+                return `${exam.label} will be removed${generatedCount > 0 ? ` along with its ${generatedCount} generated question${generatedCount === 1 ? "" : "s"}` : ""}. This cannot be undone.`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingExam}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); executeDeleteExam(); }} disabled={deletingExam}>
+              {deletingExam ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
