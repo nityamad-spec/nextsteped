@@ -122,6 +122,8 @@ const ExamMode = () => {
   const [editingCardIds, setEditingCardIds] = useState<Record<string, boolean>>({});
   // Pending removal confirmation (when popping an approved card)
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  const [confirmDeleteExamId, setConfirmDeleteExamId] = useState<string | null>(null);
+  const [deletingExam, setDeletingExam] = useState(false);
 
   // ── Custom exam questions state (merged from Assessments) ──
   const [questions, setQuestions] = useState<EditableQuestion[]>([]);
@@ -278,6 +280,58 @@ const ExamMode = () => {
   const confirmRemoveExam = () => {
     setExamSchedule(prev => prev.slice(0, -1));
     setConfirmRemoveId(null);
+  };
+
+  const requestDeleteExam = (id: string) => {
+    if (examSchedule.length <= 1) {
+      toast.error("At least one mock test is required.");
+      return;
+    }
+    setConfirmDeleteExamId(id);
+  };
+
+  const executeDeleteExam = async () => {
+    const id = confirmDeleteExamId;
+    if (!id || !courseId) return;
+    setDeletingExam(true);
+    try {
+      // Delete AI-generated questions for this exam
+      const { data: existing } = await supabase
+        .from("assessment_questions")
+        .select("id, item_code")
+        .eq("course_id", courseId)
+        .eq("mode", "exam")
+        .eq("exam_id", id);
+      const generatedIds = ((existing as any[]) ?? [])
+        .filter(r => typeof r.item_code === "string" && r.item_code.startsWith("exam-"))
+        .map(r => r.id);
+      if (generatedIds.length > 0) {
+        const { error: delErr } = await supabase
+          .from("assessment_questions").delete().in("id", generatedIds);
+        if (delErr) throw delErr;
+      }
+      // Unassign manual questions previously linked to this exam
+      const { error: updErr } = await supabase
+        .from("assessment_questions")
+        .update({ exam_id: null })
+        .eq("course_id", courseId)
+        .eq("mode", "exam")
+        .eq("exam_id", id);
+      if (updErr) throw updErr;
+
+      setExamSchedule(prev => prev.filter(e => e.id !== id));
+      setEditingCardIds(prev => { const { [id]: _, ...rest } = prev; return rest; });
+      setExamQuestionCounts(prev => { const { [id]: _, ...rest } = prev; return rest; });
+      setQuestions(prev => prev.map(q => q.exam_id === id ? { ...q, exam_id: null } : q));
+      bumpCacheVersion("questions", courseId);
+      toast.success("Mock test deleted");
+    } catch (e: any) {
+      console.error("delete exam failed:", e);
+      toast.error(e?.message ?? "Failed to delete mock test");
+    } finally {
+      setDeletingExam(false);
+      setConfirmDeleteExamId(null);
+    }
   };
 
   const handleLengthChange = (id: string, v: number) => {
@@ -613,18 +667,31 @@ const ExamMode = () => {
                       <div key={exam.id} className={`rounded-lg border p-4 space-y-3 ${exam.approved ? "border-primary/40 bg-primary/5" : ""}`}>
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-semibold">{exam.label}</p>
-                          <Select
-                            value={exam.source ?? "generated"}
-                            onValueChange={(v) => handleSourceChange(exam.id, v as "generated" | "manual")}
-                          >
-                            <SelectTrigger className="h-8 w-[160px] text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="generated">AI-Generated</SelectItem>
-                              <SelectItem value="manual">Manual (Teacher)</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <div className="flex items-center gap-2">
+                            <Select
+                              value={exam.source ?? "generated"}
+                              onValueChange={(v) => handleSourceChange(exam.id, v as "generated" | "manual")}
+                            >
+                              <SelectTrigger className="h-8 w-[160px] text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="generated">AI-Generated</SelectItem>
+                                <SelectItem value="manual">Manual (Teacher)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => requestDeleteExam(exam.id)}
+                              disabled={examSchedule.length <= 1}
+                              aria-label={`Delete ${exam.label}`}
+                              title={examSchedule.length <= 1 ? "At least one mock test is required" : "Delete this mock test"}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
 
                         <div className="space-y-2">
@@ -1019,6 +1086,33 @@ const ExamMode = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmRemoveExam}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmDeleteExamId} onOpenChange={(o) => !o && !deletingExam && setConfirmDeleteExamId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this mock test?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const exam = labeledSchedule.find(e => e.id === confirmDeleteExamId);
+                if (!exam) return "This will permanently remove the mock test.";
+                const isManual = exam.source === "manual";
+                const generatedCount = examQuestionCounts[exam.id] ?? 0;
+                const manualCount = manualExamCounts[exam.id] ?? 0;
+                if (isManual) {
+                  return `${exam.label} will be removed. ${manualCount} manual question${manualCount === 1 ? "" : "s"} assigned to it will be returned to the library (unassigned).`;
+                }
+                return `${exam.label} will be removed${generatedCount > 0 ? ` along with its ${generatedCount} generated question${generatedCount === 1 ? "" : "s"}` : ""}. This cannot be undone.`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingExam}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); executeDeleteExam(); }} disabled={deletingExam}>
+              {deletingExam ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
