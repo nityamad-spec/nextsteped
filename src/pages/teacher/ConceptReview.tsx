@@ -331,6 +331,27 @@ const ConceptReview = () => {
     if (courseId) bumpCacheVersion("concepts", courseId);
   };
 
+  const handleUpdateWeight = async (id: string, pct: number) => {
+    const clamped = Math.max(0, Math.min(100, Math.round(Number.isFinite(pct) ? pct : 0)));
+    const prev = concepts;
+    const target = prev.find((c) => c.id === id);
+    if (!target) return;
+    const prevPct = Math.round(Number(target.weight) * 100);
+    if (prevPct === clamped) return;
+    setConcepts((cs) => cs.map((c) => (c.id === id ? { ...c, weight: clamped / 100 } : c)));
+    const { error } = await supabase
+      .from("concepts")
+      .update({ weight: clamped / 100 })
+      .eq("id", id);
+    if (error) {
+      toast.error("Failed to update weight: " + error.message);
+      setConcepts(prev);
+      return;
+    }
+    if (courseId) bumpCacheVersion("concepts", courseId);
+  };
+
+
   const handleContinue = () => {
     if (concepts.length === 0) {
       toast.error("Please confirm at least one concept before continuing.");

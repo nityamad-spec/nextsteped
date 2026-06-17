@@ -1,33 +1,25 @@
 ## Goal
-On the student diagnostic quiz, remove the auto-default of "Somewhat Confident" for each question's confidence selector. Force the student to manually pick a confidence level before they can advance.
+In the "Confirmed Concepts" section on `/teacher/setup/concept-review`, allow editing the weightage (percent) of each concept, persisting to the `concepts.weight` column.
 
 ## Changes
 
-**File: `src/pages/student/DiagnosticQuiz.tsx`**
+**File: `src/pages/teacher/ConceptReview.tsx`**
 
-1. **Remove the auto-default effect** (lines 295–299). The `useEffect` that sets `confidence` to `1` once `hasAnswer` becomes true is what creates the "Somewhat Confident" default. Delete it entirely.
+1. **Add a `handleUpdateWeight` function** near the existing `handleDelete`:
+   - Signature: `async (id: string, pct: number) => void`
+   - Clamps `pct` to 0–100, optimistically updates `concepts` state, then writes `weight: pct / 100` to the `concepts` row via Supabase. On error, reverts and shows a toast. On success, calls `bumpCacheVersion("concepts", courseId)`.
 
-2. **Block Next until confidence is chosen** — update `canProceed` (line 291):
-   - From: `const canProceed = hasAnswer;`
-   - To: `const canProceed = hasAnswer && confidence !== null;`
-   This keeps the existing answer requirement and adds an explicit confidence requirement. The Next/Finish button (line 688) already uses `canProceed`, so it will disable automatically.
+2. **Replace the read-only weight `Badge`** at lines 723–725 with an inline editable number input:
+   - Small `<Input type="number" min={0} max={100} step={1}>` (≈ `w-14 h-7 text-xs tabular-nums`) followed by a `%` suffix.
+   - Local state per-row not needed — bind directly to `Math.round(Number(c.weight) * 100)`, use an `onChange` to update local concept state immediately, and call `handleUpdateWeight` on `onBlur` and Enter keypress (debounce-free; save on commit).
+   - Place inside the existing row, before the delete button. Keep the row layout intact so the number input stays compact and right-aligned on the left cluster.
 
-3. **Render the slider in an unselected state** (lines 663–680):
-   - Change `value={[confidence ?? 1]}` → omit `value` and use `defaultValue={undefined}` with a controlled pattern that only passes `value` when `confidence !== null`. Concretely: when `confidence === null`, render the slider with no thumb highlighted by using `value={undefined}` (uncontrolled) and an `onValueChange` that sets the chosen value. Simpler alternative: keep it controlled but render the slider only after confidence !== null, and show three clickable pill buttons (Not / Somewhat / Very Confident) before any selection. Pick the radio/pill approach for clarity since shadcn Slider always renders a thumb.
-   - Replace the Slider block with a 3-button segmented selector: three buttons "Not Confident", "Somewhat Confident", "Very Confident" laid out horizontally. The selected one uses `variant="default"`, unselected use `variant="outline"`. Clicking sets `confidence` to 0/1/2.
-   - Remove the "current label" line (lines 678–680) since the selected button already shows the choice.
-   - Add a small helper text above the buttons: "Select your confidence level to continue." shown only when `confidence === null`.
-
-4. **Back-navigation** (line 685) — already restores `prevConfidence ?? null`, so no change needed. When navigating back to a previously-answered question, the student's prior confidence stays selected.
-
-5. **Resume from localStorage** — `setConfidence(typeof saved.confidence === "number" ? saved.confidence : null)` (lines 229, 270) is already correct; if the saved confidence was null, the student will see the question with no selection and must re-pick before advancing.
+3. **No DB schema changes** — `concepts.weight` is already a numeric 0–1 field with RLS that lets the course's teacher update.
 
 ## Out of scope
-- No changes to `score-diagnostic` edge function. It already accepts confidence 0–2 and falls back to `CONFIDENCE_DEFAULT = 1` when a value is missing, but with this change every submitted question will have an explicit confidence value, so the fallback won't trigger.
-- No changes to weekly quiz / exam flows — confidence collection there was already removed.
-- No DB or schema changes.
+- No bulk-edit, no auto-normalization so weights sum to 100, no validation that totals add to 100 (existing flow allows arbitrary weights).
+- Suggestions/recommendations sections already support weight editing via `weights` state, unchanged.
 
 ## Verification
-- Open `/student/diagnostic-quiz` (or resume an existing in-progress run): after answering a question, the Next button should stay disabled until one of the three confidence buttons is clicked.
-- Refresh mid-question: the chosen answer and (if previously selected) confidence should restore; otherwise no confidence is pre-selected.
-- Back to a previous question: the previously chosen confidence reappears as selected.
+- Open `/teacher/setup/concept-review`, edit a confirmed concept's percent, blur the field → value persists after refresh.
+- Invalid values (negative, >100, non-numeric) clamp to a valid range and the DB write reflects the clamped value.
