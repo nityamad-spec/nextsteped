@@ -653,26 +653,28 @@ const DiagnosticQuiz = () => {
                   <p className="mb-3 text-xs font-medium text-muted-foreground">
                     How confident are you in your answer?
                   </p>
-                  <div className="px-2">
-                    <Slider
-                      value={[confidence ?? 1]}
-                      onValueChange={(val) => setConfidence(val[0])}
-                      min={0}
-                      max={2}
-                      step={1}
-                      className="mb-2"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Not Confident</span>
-                      <span>Somewhat Confident</span>
-                      <span>Very Confident</span>
-                    </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[0, 1, 2].map((lvl) => (
+                      <Button
+                        key={lvl}
+                        type="button"
+                        variant={confidence === lvl ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setConfidence(lvl)}
+                        className="h-auto whitespace-normal py-2 text-xs"
+                      >
+                        {confidenceLabels[lvl]}
+                      </Button>
+                    ))}
                   </div>
-                  <p className="mt-2 text-center text-sm font-medium text-primary">
-                    {confidenceLabels[confidence ?? 1] || "Somewhat Confident"}
-                  </p>
+                  {confidence === null && (
+                    <p className="mt-2 text-center text-xs text-muted-foreground">
+                      Select your confidence level to continue.
+                    </p>
+                  )}
                 </div>
               )}
+
             </motion.div>
             <div className="mt-4 flex justify-between">
               <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; const prevConfidence = confidences[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setConfidence(prevConfidence ?? null); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { if (user && activeCourseId) { try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {} } navigate("/student/onboarding"); } }}>
