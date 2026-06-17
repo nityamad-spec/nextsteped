@@ -92,7 +92,7 @@ const WeeklyQuizDialog = ({
         .eq("quiz_day", day);
 
       if (!error && data && data.length > 0) {
-        qs = data.map((row: any) => {
+        const mapRow = (row: any): Question & { _tier: string } => {
           meta.set(row.id, {
             difficulty: Number(row.difficulty_estimate ?? 0.5),
             bloom: Number(row.bloom_level ?? 1),
@@ -112,10 +112,54 @@ const WeeklyQuizDialog = ({
             topic: row.topic,
             difficulty: row.difficulty as "Easy" | "Medium" | "Hard",
             day: row.quiz_day || 0,
-          };
-        });
+            _tier: String(row.tier ?? "standard"),
+          } as Question & { _tier: string };
+        };
+        const all = data.map(mapRow);
+
+        // Determine adaptive tier from learner_level
+        let adaptiveTier: "easy" | "medium" | "hard" = "medium";
+        if (studentId) {
+          const { data: cm } = await supabase
+            .from("student_course_mastery")
+            .select("learner_level")
+            .eq("student_id", studentId)
+            .eq("course_id", courseId)
+            .maybeSingle();
+          const lvl = (cm?.learner_level ?? "").toString().toLowerCase();
+          if (lvl === "beginner") adaptiveTier = "easy";
+          else if (lvl === "expert") adaptiveTier = "hard";
+          else adaptiveTier = "medium"; // developing, proficient, or unknown
+        }
+
         const seed = (studentId || "anon") + courseId;
-        qs = seededShuffle(qs, seed).slice(0, Math.min(numQuestions, qs.length));
+        const byTier: Record<string, (Question & { _tier: string })[]> = {};
+        for (const q of all) {
+          (byTier[q._tier] ||= []).push(q);
+        }
+        for (const k of Object.keys(byTier)) {
+          byTier[k] = seededShuffle(byTier[k], seed + ":" + k);
+        }
+
+        const standard = (byTier["standard"] ?? []).slice(0, 5);
+        const adaptiveOrder: Array<"easy" | "medium" | "hard"> =
+          adaptiveTier === "medium"
+            ? ["medium", "easy", "hard"]
+            : adaptiveTier === "easy"
+            ? ["easy", "medium", "hard"]
+            : ["hard", "medium", "easy"];
+        const adaptive: (Question & { _tier: string })[] = [];
+        for (const t of adaptiveOrder) {
+          if (adaptive.length >= 5) break;
+          const pool = byTier[t] ?? [];
+          for (const q of pool) {
+            if (adaptive.length >= 5) break;
+            adaptive.push(q);
+          }
+        }
+
+        const combined = seededShuffle([...standard, ...adaptive], seed + ":order");
+        qs = combined.map(({ _tier, ...rest }) => rest as Question);
       } else {
         qs = [];
       }
@@ -126,7 +170,7 @@ const WeeklyQuizDialog = ({
     })();
 
     return () => { cancelled = true; };
-  }, [open, courseId, day, studentId, numQuestions]);
+  }, [open, courseId, day, studentId]);
 
   const handleSubmit = async (results: AssessmentResults) => {
     setSubmitted(true);
