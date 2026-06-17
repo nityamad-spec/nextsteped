@@ -591,13 +591,25 @@ const ExamMode = () => {
                     const total = Object.values(exam.breakdown).reduce<number>((s, n) => s + (n as number), 0);
                     const isEditing = !!editingCardIds[exam.id];
                     const breakdownEntries = Object.entries(exam.breakdown);
+                    const isManual = exam.source === "manual";
+                    const manualCount = manualExamCounts[exam.id] ?? 0;
+                    const canApprove = isManual ? manualCount >= 1 : breakdownEntries.length > 0;
                     return (
                       <div key={exam.id} className={`rounded-lg border p-4 space-y-3 ${exam.approved ? "border-primary/40 bg-primary/5" : ""}`}>
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-semibold">{exam.label}</p>
-                          <span className="inline-flex items-center rounded-md border bg-muted/50 px-2 py-1 text-xs font-medium text-muted-foreground">
-                            Final
-                          </span>
+                          <Select
+                            value={exam.source ?? "generated"}
+                            onValueChange={(v) => handleSourceChange(exam.id, v as "generated" | "manual")}
+                          >
+                            <SelectTrigger className="h-8 w-[160px] text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="generated">AI-Generated</SelectItem>
+                              <SelectItem value="manual">Manual (Teacher)</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
 
                         <div className="space-y-2">
@@ -612,97 +624,127 @@ const ExamMode = () => {
                           </div>
                         </div>
 
-                        <div className="rounded-md border bg-muted/30 p-3 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Calculator className="h-3.5 w-3.5 text-primary" />
-                            <span className="text-xs text-muted-foreground">
-                              Estimated <span className="font-bold text-foreground">{total} questions</span>
-                              {breakdownEntries.length > 0 && (
-                                <>
-                                  {" "}({breakdownEntries.map(([t, c]) => `${t} ${c}`).join(" · ")})
-                                </>
-                              )}
-                            </span>
-                          </div>
-                          {breakdownEntries.length === 0 ? (
-                            <p className="text-xs text-destructive">Select at least one question type above.</p>
-                          ) : (
-                            <div className="space-y-1">
-                              {breakdownEntries.map(([type, count]) => (
-                                <div key={type} className="flex items-center justify-between">
-                                  <span className="text-xs text-muted-foreground">{type}</span>
-                                  {isEditing ? (
-                                    <Input
-                                      type="number" min={0}
-                                      className="h-7 w-16 text-xs text-right"
-                                      value={count as number}
-                                      onChange={(e) => handleBreakdownNumberChange(exam.id, type, parseInt(e.target.value))}
-                                    />
-                                  ) : (
-                                    <span className="text-sm font-bold">{count as number}</span>
-                                  )}
-                                </div>
-                              ))}
+                        {isManual ? (
+                          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <ClipboardCheck className="h-3.5 w-3.5 text-primary" />
+                              <span className="text-xs text-muted-foreground">
+                                <span className="font-bold text-foreground">{manualCount}</span> manual question{manualCount === 1 ? "" : "s"} assigned
+                              </span>
                             </div>
-                          )}
-                          <div className="flex items-center gap-2 pt-1">
-                            {!isEditing && breakdownEntries.length > 0 && (
-                              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleEditBreakdown(exam.id)}>
-                                <Pencil className="mr-1 h-3 w-3" /> Edit Breakdown
-                              </Button>
+                            {manualCount === 0 && (
+                              <p className="text-xs text-muted-foreground">Add at least 1 question below to approve this exam.</p>
                             )}
-                            <Button
-                              variant={exam.approved ? "outline" : "default"}
-                              size="sm" className="h-7 text-xs"
-                              disabled={breakdownEntries.length === 0}
-                              onClick={() => handleApproveExam(exam.id)}
-                            >
-                              {exam.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve Estimate"}
-                            </Button>
-                            {(() => {
-                              const generatedCount = examQuestionCounts[exam.id] ?? 0;
-                              const isGenerating = generatingExamId === exam.id;
-                              const hasExisting = generatedCount > 0;
-                              if (hasExisting && !isGenerating) {
-                                return (
-                                  <>
-                                    <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs font-medium text-primary">
-                                      <Check className="h-3 w-3" /> {generatedCount} questions generated
-                                    </span>
-                                    <Button
-                                      variant="outline" size="sm" className="h-7 text-xs"
-                                      onClick={() => setViewExamId(exam.id)}
-                                    >
-                                      View
-                                    </Button>
-                                  </>
-                                );
-                              }
-                              return (
-                                <Button
-                                  variant="outline" size="sm" className="h-7 text-xs"
-                                  disabled={
-                                    breakdownEntries.length === 0 ||
-                                    !exam.approved ||
-                                    !!generatingExamId
-                                  }
-                                  onClick={() => handleGenerateQuestions(exam.id)}
-                                >
-                                  {isGenerating ? (
-                                    <>
-                                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                      Generating {genProgress?.current ?? 0}/{genProgress?.total ?? 0}…
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Sparkles className="mr-1 h-3 w-3" /> Generate Questions
-                                    </>
-                                  )}
-                                </Button>
-                              );
-                            })()}
+                            <div className="flex items-center gap-2 pt-1">
+                              <Button
+                                variant="outline" size="sm" className="h-7 text-xs"
+                                onClick={() => openAddDialog(exam.id)}
+                              >
+                                <Plus className="mr-1 h-3 w-3" /> Add Question
+                              </Button>
+                              <Button
+                                variant={exam.approved ? "outline" : "default"}
+                                size="sm" className="h-7 text-xs"
+                                disabled={!canApprove}
+                                onClick={() => handleApproveExam(exam.id)}
+                              >
+                                {exam.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve Exam"}
+                              </Button>
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Calculator className="h-3.5 w-3.5 text-primary" />
+                              <span className="text-xs text-muted-foreground">
+                                Estimated <span className="font-bold text-foreground">{total} questions</span>
+                                {breakdownEntries.length > 0 && (
+                                  <>
+                                    {" "}({breakdownEntries.map(([t, c]) => `${t} ${c}`).join(" · ")})
+                                  </>
+                                )}
+                              </span>
+                            </div>
+                            {breakdownEntries.length === 0 ? (
+                              <p className="text-xs text-destructive">Select at least one question type above.</p>
+                            ) : (
+                              <div className="space-y-1">
+                                {breakdownEntries.map(([type, count]) => (
+                                  <div key={type} className="flex items-center justify-between">
+                                    <span className="text-xs text-muted-foreground">{type}</span>
+                                    {isEditing ? (
+                                      <Input
+                                        type="number" min={0}
+                                        className="h-7 w-16 text-xs text-right"
+                                        value={count as number}
+                                        onChange={(e) => handleBreakdownNumberChange(exam.id, type, parseInt(e.target.value))}
+                                      />
+                                    ) : (
+                                      <span className="text-sm font-bold">{count as number}</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 pt-1">
+                              {!isEditing && breakdownEntries.length > 0 && (
+                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleEditBreakdown(exam.id)}>
+                                  <Pencil className="mr-1 h-3 w-3" /> Edit Breakdown
+                                </Button>
+                              )}
+                              <Button
+                                variant={exam.approved ? "outline" : "default"}
+                                size="sm" className="h-7 text-xs"
+                                disabled={!canApprove}
+                                onClick={() => handleApproveExam(exam.id)}
+                              >
+                                {exam.approved ? <><Check className="mr-1 h-3 w-3" /> Approved</> : "Approve Estimate"}
+                              </Button>
+                              {(() => {
+                                const generatedCount = examQuestionCounts[exam.id] ?? 0;
+                                const isGenerating = generatingExamId === exam.id;
+                                const hasExisting = generatedCount > 0;
+                                if (hasExisting && !isGenerating) {
+                                  return (
+                                    <>
+                                      <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs font-medium text-primary">
+                                        <Check className="h-3 w-3" /> {generatedCount} questions generated
+                                      </span>
+                                      <Button
+                                        variant="outline" size="sm" className="h-7 text-xs"
+                                        onClick={() => setViewExamId(exam.id)}
+                                      >
+                                        View
+                                      </Button>
+                                    </>
+                                  );
+                                }
+                                return (
+                                  <Button
+                                    variant="outline" size="sm" className="h-7 text-xs"
+                                    disabled={
+                                      breakdownEntries.length === 0 ||
+                                      !exam.approved ||
+                                      !!generatingExamId
+                                    }
+                                    onClick={() => handleGenerateQuestions(exam.id)}
+                                  >
+                                    {isGenerating ? (
+                                      <>
+                                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                        Generating {genProgress?.current ?? 0}/{genProgress?.total ?? 0}…
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Sparkles className="mr-1 h-3 w-3" /> Generate Questions
+                                      </>
+                                    )}
+                                  </Button>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
