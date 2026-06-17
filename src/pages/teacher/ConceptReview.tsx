@@ -741,10 +741,37 @@ const ConceptReview = () => {
                         {idx + 1}
                       </span>
                       <span className="text-sm font-medium truncate">{c.concept_code}</span>
-                      <Badge variant="secondary" className="text-[10px] shrink-0 tabular-nums">
-                        {Math.round(Number(c.weight) * 100)}%
-                      </Badge>
                     </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={Math.round(Number(c.weight) * 100)}
+                          onChange={(e) => {
+                            const v = Number(e.target.value);
+                            setConcepts((cs) =>
+                              cs.map((x) =>
+                                x.id === c.id
+                                  ? { ...x, weight: Math.max(0, Math.min(100, Number.isFinite(v) ? v : 0)) / 100 }
+                                  : x,
+                              ),
+                            );
+                          }}
+                          onBlur={(e) => handleUpdateWeight(c.id, Number(e.target.value))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="h-7 w-14 px-1.5 text-xs tabular-nums text-right"
+                          aria-label={`Weight for ${c.concept_code}`}
+                        />
+                        <span className="text-[11px] text-muted-foreground">%</span>
+                      </div>
                     {confirmDeleteId === c.id ? (
                       <div className="flex items-center gap-1 shrink-0">
                         <span className="text-[11px] text-muted-foreground mr-1">Remove?</span>
@@ -765,6 +792,7 @@ const ConceptReview = () => {
                           Cancel
                         </Button>
                       </div>
+
                     ) : (
                       <button
                         type="button"
