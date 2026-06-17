@@ -908,7 +908,11 @@ ${assignmentBlock}`;
       return [...exercises, ...articles];
     };
 
-    emit({ type: "phase", step: "validate", message: "Verifying coverage & deduping…" });
+    emit({ type: "phase", step: "validate", message: "Sourcing real article links & verifying…" });
+    const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY") || null;
+    if (!FIRECRAWL_API_KEY) {
+      console.warn("[lesson-plan] FIRECRAWL_API_KEY not set — article URLs will be omitted instead of search-sourced.");
+    }
     // ─── STEP 4: Merge locked assignment + authored metadata, validate, persist ───
     const normalized: any[] = [];
     for (const wa of weekAssign) {
@@ -925,6 +929,8 @@ ${assignmentBlock}`;
         });
         continue;
       }
+      const capped = capResources(a.resources);
+      const enriched = await enrichAndVerifyResources(capped, wa.concept_names, FIRECRAWL_API_KEY);
       normalized.push({
         week: wa.week,
         week_name: typeof a.week_name === "string" && a.week_name.trim() ? a.week_name.trim() : `Week ${wa.week}`,
@@ -932,7 +938,7 @@ ${assignmentBlock}`;
         is_exam_week: false,
         exam_type: null,
         concepts: wa.concept_names.map((name) => ({ name, brief_description: "", ai_suggested: false })),
-        resources: await sanitizeResourceUrls(capResources(a.resources)),
+        resources: enriched,
       });
     }
 
