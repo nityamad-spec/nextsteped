@@ -72,6 +72,7 @@ export interface ExamScheduleItem {
   lengthMin: number;
   breakdown: Record<string, number>;
   approved: boolean;
+  source?: "generated" | "manual";
 }
 
 export interface TASettings {
