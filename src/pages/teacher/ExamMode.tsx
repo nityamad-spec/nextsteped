@@ -159,22 +159,36 @@ const ExamMode = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, taSettings]);
 
+  const refetchConcepts = async () => {
+    if (!courseId) return;
+    const { data, error } = await supabase
+      .from("concepts")
+      .select("id, concept_code, concept_name")
+      .eq("course_id", courseId)
+      .order("concept_code");
+    if (error) {
+      console.error("Failed to load concepts:", error);
+      toast.error("Failed to load concepts");
+      return;
+    }
+    setConcepts((data as any[]) || []);
+  };
+
+  useEffect(() => {
+    if (!courseId) return;
+    refetchConcepts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseId]);
+
   useEffect(() => {
     if (!courseId) { setQuestionsLoading(false); return; }
     const fetchQuestions = async () => {
       setQuestionsLoading(true);
-      const [{ data, error }, conceptsRes] = await Promise.all([
-        supabase
-          .from("assessment_questions")
-          .select("*")
-          .eq("course_id", courseId)
-          .eq("mode", "exam"),
-        supabase
-          .from("concepts")
-          .select("id, concept_code, concept_name")
-          .eq("course_id", courseId)
-          .order("concept_code"),
-      ]);
+      const { data, error } = await supabase
+        .from("assessment_questions")
+        .select("*")
+        .eq("course_id", courseId)
+        .eq("mode", "exam");
       if (error) { console.error(error); toast.error("Failed to load custom exam questions"); }
       else if (data) {
         // Manual rows = anything NOT created by the AI generator (which sets item_code = "exam-...").
@@ -193,7 +207,6 @@ const ExamMode = () => {
         }
         setExamQuestionCounts(counts);
       }
-      setConcepts((conceptsRes.data as any[]) || []);
       setQuestionsLoading(false);
     };
     fetchQuestions();
@@ -436,6 +449,8 @@ const ExamMode = () => {
     // Default: preselected exam, else first manual exam if any, else null
     setFormExamId(preselectExamId ?? (manualExams[0]?.id ?? null));
     setDialogOpen(true);
+    // Refresh concepts so newly-added ones show up without page reload
+    refetchConcepts();
   };
 
   const openEditDialog = (q: EditableQuestion) => {
@@ -894,18 +909,42 @@ const ExamMode = () => {
               )}
             </div>
             <div className="space-y-2">
-              <Label>Concept</Label>
+              <Label>
+                Concept <span className="text-destructive">*</span>
+              </Label>
+              <Select value={formTopic} onValueChange={setFormTopic} disabled={concepts.length === 0}>
+                <SelectTrigger>
+                  <SelectValue placeholder={concepts.length === 0 ? "No concepts yet" : "Select a concept"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {concepts.map(c => (
+                    <SelectItem key={c.id} value={c.concept_code}>{c.concept_code} — {c.concept_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {concepts.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No concepts yet — add some in Concept Management first.</p>
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <span>No concepts found for this course.</span>
+                  <button
+                    type="button"
+                    className="underline hover:text-foreground"
+                    onClick={() => navigate("/teacher/setup/concept-review")}
+                  >
+                    Add concepts
+                  </button>
+                  <span>·</span>
+                  <button
+                    type="button"
+                    className="underline hover:text-foreground"
+                    onClick={() => refetchConcepts()}
+                  >
+                    Refresh
+                  </button>
+                </div>
               ) : (
-                <Select value={formTopic} onValueChange={setFormTopic}>
-                  <SelectTrigger><SelectValue placeholder="Select a concept" /></SelectTrigger>
-                  <SelectContent>
-                    {concepts.map(c => (
-                      <SelectItem key={c.id} value={c.concept_code}>{c.concept_code} — {c.concept_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Used to track concept mastery for this question.
+                </p>
               )}
             </div>
 
