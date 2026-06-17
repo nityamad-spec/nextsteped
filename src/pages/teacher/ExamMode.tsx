@@ -909,18 +909,42 @@ const ExamMode = () => {
               )}
             </div>
             <div className="space-y-2">
-              <Label>Concept</Label>
+              <Label>
+                Concept <span className="text-destructive">*</span>
+              </Label>
+              <Select value={formTopic} onValueChange={setFormTopic} disabled={concepts.length === 0}>
+                <SelectTrigger>
+                  <SelectValue placeholder={concepts.length === 0 ? "No concepts yet" : "Select a concept"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {concepts.map(c => (
+                    <SelectItem key={c.id} value={c.concept_code}>{c.concept_code} — {c.concept_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {concepts.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No concepts yet — add some in Concept Management first.</p>
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <span>No concepts found for this course.</span>
+                  <button
+                    type="button"
+                    className="underline hover:text-foreground"
+                    onClick={() => navigate("/teacher/setup/concept-review")}
+                  >
+                    Add concepts
+                  </button>
+                  <span>·</span>
+                  <button
+                    type="button"
+                    className="underline hover:text-foreground"
+                    onClick={() => refetchConcepts()}
+                  >
+                    Refresh
+                  </button>
+                </div>
               ) : (
-                <Select value={formTopic} onValueChange={setFormTopic}>
-                  <SelectTrigger><SelectValue placeholder="Select a concept" /></SelectTrigger>
-                  <SelectContent>
-                    {concepts.map(c => (
-                      <SelectItem key={c.id} value={c.concept_code}>{c.concept_code} — {c.concept_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Used to track concept mastery for this question.
+                </p>
               )}
             </div>
 
