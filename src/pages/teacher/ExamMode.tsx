@@ -163,7 +163,7 @@ const ExamMode = () => {
     if (!courseId) return;
     const { data, error } = await supabase
       .from("concepts")
-      .select("id, concept_code, concept_name")
+      .select("id, concept_code")
       .eq("course_id", courseId)
       .order("concept_code");
     if (error) {
