@@ -122,6 +122,8 @@ const ExamMode = () => {
   const [editingCardIds, setEditingCardIds] = useState<Record<string, boolean>>({});
   // Pending removal confirmation (when popping an approved card)
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  const [confirmDeleteExamId, setConfirmDeleteExamId] = useState<string | null>(null);
+  const [deletingExam, setDeletingExam] = useState(false);
 
   // ── Custom exam questions state (merged from Assessments) ──
   const [questions, setQuestions] = useState<EditableQuestion[]>([]);
