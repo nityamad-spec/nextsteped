@@ -918,7 +918,7 @@ const ExamMode = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {concepts.map(c => (
-                    <SelectItem key={c.id} value={c.concept_code}>{c.concept_code} — {c.concept_name}</SelectItem>
+                    <SelectItem key={c.id} value={c.concept_code}>{c.concept_code}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
