@@ -245,7 +245,12 @@ const ExamMode = () => {
       lengthMin,
       breakdown: questionEstimate(lengthMin, examQuestionTypes).breakdown,
       approved: false,
+      source: "generated",
     }]);
+  };
+
+  const handleSourceChange = (id: string, source: "generated" | "manual") => {
+    updateExam(id, { source, approved: false });
   };
 
   const handleRemoveExamRequest = () => {
