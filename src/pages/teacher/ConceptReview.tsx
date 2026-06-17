@@ -331,6 +331,27 @@ const ConceptReview = () => {
     if (courseId) bumpCacheVersion("concepts", courseId);
   };
 
+  const handleUpdateWeight = async (id: string, pct: number) => {
+    const clamped = Math.max(0, Math.min(100, Math.round(Number.isFinite(pct) ? pct : 0)));
+    const prev = concepts;
+    const target = prev.find((c) => c.id === id);
+    if (!target) return;
+    const prevPct = Math.round(Number(target.weight) * 100);
+    if (prevPct === clamped) return;
+    setConcepts((cs) => cs.map((c) => (c.id === id ? { ...c, weight: clamped / 100 } : c)));
+    const { error } = await supabase
+      .from("concepts")
+      .update({ weight: clamped / 100 })
+      .eq("id", id);
+    if (error) {
+      toast.error("Failed to update weight: " + error.message);
+      setConcepts(prev);
+      return;
+    }
+    if (courseId) bumpCacheVersion("concepts", courseId);
+  };
+
+
   const handleContinue = () => {
     if (concepts.length === 0) {
       toast.error("Please confirm at least one concept before continuing.");
@@ -720,10 +741,37 @@ const ConceptReview = () => {
                         {idx + 1}
                       </span>
                       <span className="text-sm font-medium truncate">{c.concept_code}</span>
-                      <Badge variant="secondary" className="text-[10px] shrink-0 tabular-nums">
-                        {Math.round(Number(c.weight) * 100)}%
-                      </Badge>
                     </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={Math.round(Number(c.weight) * 100)}
+                          onChange={(e) => {
+                            const v = Number(e.target.value);
+                            setConcepts((cs) =>
+                              cs.map((x) =>
+                                x.id === c.id
+                                  ? { ...x, weight: Math.max(0, Math.min(100, Number.isFinite(v) ? v : 0)) / 100 }
+                                  : x,
+                              ),
+                            );
+                          }}
+                          onBlur={(e) => handleUpdateWeight(c.id, Number(e.target.value))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="h-7 w-14 px-1.5 text-xs tabular-nums text-right"
+                          aria-label={`Weight for ${c.concept_code}`}
+                        />
+                        <span className="text-[11px] text-muted-foreground">%</span>
+                      </div>
                     {confirmDeleteId === c.id ? (
                       <div className="flex items-center gap-1 shrink-0">
                         <span className="text-[11px] text-muted-foreground mr-1">Remove?</span>
@@ -744,6 +792,7 @@ const ConceptReview = () => {
                           Cancel
                         </Button>
                       </div>
+
                     ) : (
                       <button
                         type="button"
@@ -754,7 +803,9 @@ const ConceptReview = () => {
                         <X className="h-4 w-4" />
                       </button>
                     )}
+                    </div>
                   </div>
+
                 ))}
               </div>
             )}
