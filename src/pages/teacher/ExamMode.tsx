@@ -104,7 +104,7 @@ const ExamMode = () => {
   // Multi-exam schedule (replaces single examLength + single estimate)
   const buildInitialSchedule = (): ExamScheduleItem[] => {
     if (taSettings.examSchedule && taSettings.examSchedule.length > 0) {
-      return taSettings.examSchedule;
+      return taSettings.examSchedule.map(e => ({ ...e, source: e.source ?? "generated" }));
     }
     const legacyLength = taSettings.examTimeLimit ?? 60;
     const legacyMix = taSettings.examQuestionMix || "mixed";
@@ -114,6 +114,7 @@ const ExamMode = () => {
       lengthMin: legacyLength,
       breakdown: questionEstimate(legacyLength, legacyMix).breakdown,
       approved: taSettings.examApproved ?? false,
+      source: "generated",
     }];
   };
   const [examSchedule, setExamSchedule] = useState<ExamScheduleItem[]>(buildInitialSchedule);
