@@ -736,7 +736,7 @@ const ExamMode = () => {
                   </CardTitle>
                   <CardDescription>Add any custom exam questions you want students to see during their practice exams. These appear alongside AI-generated questions.</CardDescription>
                 </div>
-                <Button size="sm" onClick={openAddDialog}><Plus className="mr-1 h-4 w-4" /> Add Question</Button>
+                <Button size="sm" onClick={() => openAddDialog()}><Plus className="mr-1 h-4 w-4" /> Add Question</Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
