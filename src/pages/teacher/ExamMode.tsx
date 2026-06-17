@@ -137,7 +137,7 @@ const ExamMode = () => {
   const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
   const [formExamId, setFormExamId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [concepts, setConcepts] = useState<{ id: string; concept_code: string; concept_name: string }[]>([]);
+  const [concepts, setConcepts] = useState<{ id: string; concept_code: string }[]>([]);
 
   // Per-exam generated-question state
   const [examQuestionCounts, setExamQuestionCounts] = useState<Record<string, number>>({});
