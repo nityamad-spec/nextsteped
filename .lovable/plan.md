@@ -1,52 +1,33 @@
-## Problem
+## Goal
+On the student diagnostic quiz, remove the auto-default of "Somewhat Confident" for each question's confidence selector. Force the student to manually pick a confidence level before they can advance.
 
-In `/teacher/setup/lesson-plan`, articles under "Industry-Relevant Exercise & Suggested Articles" frequently 404. Today, `generate-lesson-plan` asks Gemini to *invent* article URLs from memory, then runs a light `HEAD`/`GET` check (`sanitizeResourceUrls`). The LLM hallucinates plausible-looking deep links, and the verifier misses "soft 404s" — pages that return HTTP 200 but render a "404. That's an error." body (common on Google/Medium/legacy blogs).
+## Changes
 
-## Fix
+**File: `src/pages/student/DiagnosticQuiz.tsx`**
 
-Stop asking the LLM to invent URLs. Instead, retrieve real article URLs via web search per concept, then verify them harder before persisting.
+1. **Remove the auto-default effect** (lines 295–299). The `useEffect` that sets `confidence` to `1` once `hasAnswer` becomes true is what creates the "Somewhat Confident" default. Delete it entirely.
 
-### 1. Replace AI-invented URLs with real search results
+2. **Block Next until confidence is chosen** — update `canProceed` (line 291):
+   - From: `const canProceed = hasAnswer;`
+   - To: `const canProceed = hasAnswer && confidence !== null;`
+   This keeps the existing answer requirement and adds an explicit confidence requirement. The Next/Finish button (line 688) already uses `canProceed`, so it will disable automatically.
 
-In `supabase/functions/generate-lesson-plan/index.ts` (Step 3 — author):
+3. **Render the slider in an unselected state** (lines 663–680):
+   - Change `value={[confidence ?? 1]}` → omit `value` and use `defaultValue={undefined}` with a controlled pattern that only passes `value` when `confidence !== null`. Concretely: when `confidence === null`, render the slider with no thumb highlighted by using `value={undefined}` (uncontrolled) and an `onValueChange` that sets the chosen value. Simpler alternative: keep it controlled but render the slider only after confidence !== null, and show three clickable pill buttons (Not / Somewhat / Very Confident) before any selection. Pick the radio/pill approach for clarity since shadcn Slider always renders a thumb.
+   - Replace the Slider block with a 3-button segmented selector: three buttons "Not Confident", "Somewhat Confident", "Very Confident" laid out horizontally. The selected one uses `variant="default"`, unselected use `variant="outline"`. Clicking sets `confidence` to 0/1/2.
+   - Remove the "current label" line (lines 678–680) since the selected button already shows the choice.
+   - Add a small helper text above the buttons: "Select your confidence level to continue." shown only when `confidence === null`.
 
-- Remove the `url` field from the author LLM's `resources` schema. The LLM only produces `title` + `description` candidates (and ideally a 2–4 word search query) per article slot.
-- After authoring, for each week with `article` resources, call a new `searchArticleUrl(query, conceptName)` helper that uses the **Firecrawl connector** (`/v2/search`, `limit: 5`, `tbs: 'qdr:y'` to bias toward last-year results) to fetch candidate URLs.
-- Prefer results from an allowlist of high-trust, stable domains: `jstor.org`, `arxiv.org`, `plato.stanford.edu`, `nature.com`, `ssrn.com`, `ourworldindata.org`, `technologyreview.com`, `quantamagazine.org`, `ocw.mit.edu`, `news.mit.edu`, `nptel.ac.in`, `reuters.com`,`medium.com` (only if it resolves), `apnews.com`, `bbc.com`, `economist.com`,`ft.com`,`bloomberg.com`, `theguardian.com`,`npr.org`, `nytimes.com`,`wsj.com`. Skip any result outside the allowlist unless nothing else qualifies.
-- Gating: only enable the search path when a `FIRECRAWL_API_KEY` connector secret exists. If absent, fall back to current behavior but force `url` to be omitted (title-only article cards) so we never ship invented links.
+4. **Back-navigation** (line 685) — already restores `prevConfidence ?? null`, so no change needed. When navigating back to a previously-answered question, the student's prior confidence stays selected.
 
-### 2. Harden `verifyUrl` against soft-404s
-
-In the same file, upgrade `verifyUrl`:
-
-- Always do a `GET` with `Range: bytes=0-2048` plus a real browser `User-Agent`; drop the HEAD-first shortcut.
-- After fetch, inspect the first ~2KB of HTML for soft-404 markers: `<title>` containing `404`, `Page not found`, `That's an error`, `Sorry, we couldn't find`, or a `<meta name="robots" content="noindex">` on suspicious paths.
-- Treat redirects to a domain's root (`/`) or `/404`, `/not-found` paths as failures.
-- Reject non-HTML content-types unless they're `application/pdf` (allowed).
-- Bump the timeout to 6s and run checks with concurrency 4 to stay under edge-function limits.
-
-### 3. Drop the whole article card when its URL fails
-
-Currently `sanitizeResourceUrls` only deletes the `url` field, leaving the student-facing card with a useless title. Change behavior: if an `article` resource fails verification AND we have no replacement from search, drop the entire resource from the array. Keep coding-exercise resources (they're usually offline activities, not links).
-
-### 4. Connector setup
-
-Firecrawl is the project's default scraping/search connector. Before the code change ships:
-
-- Use `standard_connectors--connect` with `firecrawl` so `FIRECRAWL_API_KEY` is injected into edge functions.
-- Document a `LESSON_PLAN_LINK_ALLOWLIST` constant inside `generate-lesson-plan/index.ts` (no new secret needed).
-
-### 5. UI safety net
-
-No required changes in `CourseCreation.tsx`, but confirm the renderer skips article entries without a `url` and without a meaningful title rather than rendering a dead heading. Add a small fallback: if a week ends up with zero `article` resources after sanitization, show a single italic line ("No verified article available yet — add your own under Edit") instead of an empty section.
-
-## Files touched
-
-- `supabase/functions/generate-lesson-plan/index.ts` — author prompt/schema (drop `url`), new `searchArticleUrl` helper, upgraded `verifyUrl`, updated `sanitizeResourceUrls` to drop dead articles, allowlist constant.
-- `src/pages/teacher/CourseCreation.tsx` — small renderer guard + empty-state fallback for the articles section.
-- Connector link: Firecrawl (no code, done via `standard_connectors--connect`).
+5. **Resume from localStorage** — `setConfidence(typeof saved.confidence === "number" ? saved.confidence : null)` (lines 229, 270) is already correct; if the saved confidence was null, the student will see the question with no selection and must re-pick before advancing.
 
 ## Out of scope
+- No changes to `score-diagnostic` edge function. It already accepts confidence 0–2 and falls back to `CONFIDENCE_DEFAULT = 1` when a value is missing, but with this change every submitted question will have an explicit confidence value, so the fallback won't trigger.
+- No changes to weekly quiz / exam flows — confidence collection there was already removed.
+- No DB or schema changes.
 
-- Re-generating links for already-saved lesson plans. The fix applies on next "Generate Lesson Plan" / "Update Plan" click. We can offer a one-click "Re-verify links" action later if you want.
-- Replacing the author LLM with a research agent — kept the same 3-step pipeline.
+## Verification
+- Open `/student/diagnostic-quiz` (or resume an existing in-progress run): after answering a question, the Next button should stay disabled until one of the three confidence buttons is clicked.
+- Refresh mid-question: the chosen answer and (if previously selected) confidence should restore; otherwise no confidence is pre-selected.
+- Back to a previous question: the previously chosen confidence reappears as selected.

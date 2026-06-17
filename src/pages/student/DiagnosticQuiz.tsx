@@ -288,15 +288,8 @@ const DiagnosticQuiz = () => {
   const question = questions[currentQ];
   const isShortAnswer = question?.format === "short_answer";
   const hasAnswer = isShortAnswer ? textAnswer.trim().length > 0 : selected !== null;
-  const canProceed = hasAnswer;
+  const canProceed = hasAnswer && confidence !== null;
 
-  // Auto-initialize confidence to "Somewhat Confident" once the student has answered,
-  // so the slider position reflects a real selection and Next is enabled.
-  useEffect(() => {
-    if (hasAnswer && confidence === null) {
-      setConfidence(1);
-    }
-  }, [hasAnswer, confidence]);
 
   // Persist in-progress quiz state so a refresh resumes at the same place.
   useEffect(() => {
