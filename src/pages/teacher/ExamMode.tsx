@@ -225,7 +225,7 @@ const ExamMode = () => {
   // When the global question types change, refresh each card's breakdown
   // (preserve approved state only if the type set is unchanged for that card)
   useEffect(() => {
-    setExamSchedule(prev => prev.map(e => ({
+    setExamSchedule(prev => prev.map(e => e.source === "manual" ? e : ({
       ...e,
       breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
       approved: false,
