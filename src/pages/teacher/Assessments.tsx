@@ -80,7 +80,7 @@ const Assessments = () => {
       const [{ data, error }, diagnosticRes, conceptsRes] = await Promise.all([
         supabase.from("assessment_questions").select("*").eq("course_id", courseId),
         supabase.from("diagnostic_questions").select("id", { count: "exact" }).eq("course_id", courseId),
-        supabase.from("concepts").select("id, concept_code, concept_name").eq("course_id", courseId).order("concept_code"),
+        supabase.from("concepts").select("id, concept_code").eq("course_id", courseId).order("concept_code"),
       ]);
       if (error) { console.error(error); toast.error("Failed to load questions"); }
 
