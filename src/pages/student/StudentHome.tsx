@@ -618,18 +618,36 @@ const StudentHome = () => {
                                     <p className="text-sm font-semibold text-foreground">{concept}</p>
                                   </div>
                                   <div className="space-y-1.5 pl-3 border-l-2 border-muted ml-0.5">
-                                    {activities.map((r: any, i: number) => (
-                                      <div key={r.id || i} className="flex items-start gap-3 rounded-lg bg-muted/20 p-2.5">
-                                        <div className="flex h-6 w-6 items-center justify-center rounded bg-primary/10 text-primary shrink-0">
-                                          <BookOpen className="h-3 w-3" />
+                                    {activities.map((r: any, i: number) => {
+                                      const hasUrl = typeof r.url === "string" && r.url.length > 0;
+                                      const inner = (
+                                        <>
+                                          <div className="flex h-6 w-6 items-center justify-center rounded bg-primary/10 text-primary shrink-0">
+                                            <BookOpen className="h-3 w-3" />
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <p className={`text-sm font-medium ${hasUrl ? "text-primary group-hover:underline" : ""}`}>{r.title}</p>
+                                            <p className="text-xs text-muted-foreground">{r.action}</p>
+                                          </div>
+                                          <Badge variant="outline" className="text-[10px] shrink-0">{r.type}</Badge>
+                                        </>
+                                      );
+                                      return hasUrl ? (
+                                        <a
+                                          key={r.id || i}
+                                          href={r.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="group flex items-start gap-3 rounded-lg bg-muted/20 p-2.5 hover:bg-muted/40 transition-colors"
+                                        >
+                                          {inner}
+                                        </a>
+                                      ) : (
+                                        <div key={r.id || i} className="flex items-start gap-3 rounded-lg bg-muted/20 p-2.5">
+                                          {inner}
                                         </div>
-                                        <div className="min-w-0 flex-1">
-                                          <p className="text-sm font-medium">{r.title}</p>
-                                          <p className="text-xs text-muted-foreground">{r.action}</p>
-                                        </div>
-                                        <Badge variant="outline" className="text-[10px] shrink-0">{r.type}</Badge>
-                                      </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               ))}
