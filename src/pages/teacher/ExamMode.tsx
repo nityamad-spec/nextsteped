@@ -203,12 +203,13 @@ const ExamMode = () => {
     if (!courseId) return;
     const { data } = await supabase
       .from("assessment_questions")
-      .select("exam_id")
+      .select("exam_id, item_code")
       .eq("course_id", courseId)
       .eq("mode", "exam");
     const counts: Record<string, number> = {};
     for (const row of (data as any[]) ?? []) {
-      if (row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
+      const isGenerated = typeof row.item_code === "string" && row.item_code.startsWith("exam-");
+      if (isGenerated && row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
     }
     setExamQuestionCounts(counts);
   };
