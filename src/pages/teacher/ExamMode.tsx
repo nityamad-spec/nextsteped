@@ -429,10 +429,12 @@ const ExamMode = () => {
   };
 
   // ── Custom question handlers ──
-  const openAddDialog = () => {
+  const openAddDialog = (preselectExamId?: string) => {
     setEditingId(null);
     setFormQuestion(""); setFormAnswer(""); setFormTopic("");
     setFormType("MCQ"); setFormOptions(["", "", "", ""]); setFormCorrectIndex(0);
+    // Default: preselected exam, else first manual exam if any, else null
+    setFormExamId(preselectExamId ?? (manualExams[0]?.id ?? null));
     setDialogOpen(true);
   };
 
@@ -442,6 +444,7 @@ const ExamMode = () => {
     setFormType(q.type);
     setFormOptions(q.options?.length ? [...q.options] : ["", "", "", ""]);
     setFormCorrectIndex(q.correctIndex ?? 0);
+    setFormExamId(q.exam_id ?? null);
     setDialogOpen(true);
   };
 
@@ -467,6 +470,7 @@ const ExamMode = () => {
       options: isMCQ ? filteredOptions : isTF ? ["True", "False"] : null,
       correct_index: isMCQ ? formCorrectIndex : isTF ? (formAnswer === "True" ? 0 : 1) : null,
       explanation: null as string | null, quiz_day: null as number | null,
+      exam_id: formExamId,
     };
 
     try {
