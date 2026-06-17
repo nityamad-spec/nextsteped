@@ -874,6 +874,26 @@ const ExamMode = () => {
               <Textarea value={formQuestion} onChange={e => setFormQuestion(e.target.value)} placeholder="Enter question text..." rows={3} />
             </div>
             <div className="space-y-2">
+              <Label>Assign to Exam</Label>
+              <Select
+                value={formExamId ?? "__unassigned"}
+                onValueChange={(v) => setFormExamId(v === "__unassigned" ? null : v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Select an exam" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__unassigned">Unassigned (library only)</SelectItem>
+                  {manualExams.map(e => (
+                    <SelectItem key={e.id} value={e.id}>{e.label} — Manual</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {manualExams.length === 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  No manual exams yet. Switch an exam above to "Manual" to assign this question to it; otherwise it stays in the library and won't appear in any student exam.
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
               <Label>Concept</Label>
               {concepts.length === 0 ? (
                 <p className="text-xs text-muted-foreground">No concepts yet — add some in Concept Management first.</p>
