@@ -60,7 +60,7 @@ const Assessments = () => {
   const [examManualQuestions, setExamManualQuestions] = useState(false);
   const [examManualCount, setExamManualCount] = useState(20);
   const [diagnosticCount, setDiagnosticCount] = useState(0);
-  const [concepts, setConcepts] = useState<{ id: string; concept_code: string; concept_name: string }[]>([]);
+  const [concepts, setConcepts] = useState<{ id: string; concept_code: string }[]>([]);
 
 
   useEffect(() => {
@@ -80,7 +80,7 @@ const Assessments = () => {
       const [{ data, error }, diagnosticRes, conceptsRes] = await Promise.all([
         supabase.from("assessment_questions").select("*").eq("course_id", courseId),
         supabase.from("diagnostic_questions").select("id", { count: "exact" }).eq("course_id", courseId),
-        supabase.from("concepts").select("id, concept_code, concept_name").eq("course_id", courseId).order("concept_code"),
+        supabase.from("concepts").select("id, concept_code").eq("course_id", courseId).order("concept_code"),
       ]);
       if (error) { console.error(error); toast.error("Failed to load questions"); }
 
@@ -445,7 +445,7 @@ const Assessments = () => {
                   <SelectTrigger><SelectValue placeholder="Select a concept" /></SelectTrigger>
                   <SelectContent>
                     {concepts.map(c => (
-                      <SelectItem key={c.id} value={c.concept_code}>{c.concept_code} — {c.concept_name}</SelectItem>
+                      <SelectItem key={c.id} value={c.concept_code}>{c.concept_code}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

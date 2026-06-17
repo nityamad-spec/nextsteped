@@ -137,7 +137,7 @@ const ExamMode = () => {
   const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
   const [formExamId, setFormExamId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [concepts, setConcepts] = useState<{ id: string; concept_code: string; concept_name: string }[]>([]);
+  const [concepts, setConcepts] = useState<{ id: string; concept_code: string }[]>([]);
 
   // Per-exam generated-question state
   const [examQuestionCounts, setExamQuestionCounts] = useState<Record<string, number>>({});
@@ -163,7 +163,7 @@ const ExamMode = () => {
     if (!courseId) return;
     const { data, error } = await supabase
       .from("concepts")
-      .select("id, concept_code, concept_name")
+      .select("id, concept_code")
       .eq("course_id", courseId)
       .order("concept_code");
     if (error) {
@@ -918,7 +918,7 @@ const ExamMode = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {concepts.map(c => (
-                    <SelectItem key={c.id} value={c.concept_code}>{c.concept_code} — {c.concept_name}</SelectItem>
+                    <SelectItem key={c.id} value={c.concept_code}>{c.concept_code}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

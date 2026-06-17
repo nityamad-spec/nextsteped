@@ -1,46 +1,33 @@
-## Goal
-On `/teacher/setup/exam-mode`, when a teacher opens **Add Question** for a Manual exam, ensure a working **Concept** dropdown is always shown so every manual question is mapped to a course concept (used to update concept mastery).
-
 ## Diagnosis
-The Add Question dialog (`src/pages/teacher/ExamMode.tsx`, ~lines 896–910) already has a Concept field, but it conditionally renders:
+The "Failed to load concepts" toast comes from `refetchConcepts()` in `src/pages/teacher/ExamMode.tsx`, which runs:
 
+```ts
+supabase.from("concepts").select("id, concept_code, concept_name")
 ```
-{concepts.length === 0 ? <p>No concepts yet…</p> : <Select … />}
-```
 
-The user reports seeing the "Concept" label but no dropdown. Two likely causes:
-1. `concepts` is empty at the moment the dialog opens because the initial fetch (in the same `useEffect` as `assessment_questions`) hasn't resolved or silently failed — there is no error toast on the concepts side of the `Promise.all`.
-2. Concepts exist for the course but the user is on a course whose `concepts` rows haven't loaded yet, so the fallback text appears instead of a dropdown.
+But the `concepts` table has **no `concept_name` column**. Actual columns: `id, course_id, concept_code, weight, created_at`. PostgREST returns an error → toast fires → `concepts` stays empty → no dropdown.
 
-## Changes (all in `src/pages/teacher/ExamMode.tsx`)
+The display name for a concept lives on the lesson plan (and on `assessment_questions.topic`), not on the concepts table. `concept_code` is the human-readable label used everywhere else (e.g. "Generative AI Foundations and Prompting" stored as the code).
 
-1. **Split the concepts fetch from the questions fetch** and add error handling:
-   - Move concept loading into its own `useEffect` keyed on `courseId`.
-   - Log + toast on error (`"Failed to load concepts"`).
-   - Expose a `refetchConcepts()` helper.
+The same bug exists in `src/pages/teacher/Assessments.tsx`, but it's been silently masked because that page never shows an error toast on its concepts fetch.
 
-2. **Re-fetch concepts when the Add Question dialog opens** (in `openAddDialog`) so a teacher who just added concepts in another tab sees them immediately.
+## Fix (all in `src/pages/teacher/ExamMode.tsx`)
+1. Change the concepts query to:
+   ```ts
+   .select("id, concept_code")
+   ```
+2. Update the `concepts` state type to `{ id: string; concept_code: string }[]`.
+3. Update the dropdown item to show just `{c.concept_code}` (drop the ` — {c.concept_name}` half).
 
-3. **Always render the dropdown** in the dialog:
-   - Replace the `concepts.length === 0 ? <p>…</p> : <Select/>` branch with a single `<Select>` that's always rendered.
-   - When `concepts.length === 0`: show a disabled trigger with placeholder "No concepts yet" plus a small helper line linking to Concept Management (`/teacher/setup/concept-review`) and a "Refresh" button that calls `refetchConcepts()`.
-   - When concepts exist: render the existing list (`{concept_code} — {concept_name}`).
-
-4. **Make Concept required and visible as required**:
-   - Add a red `*` to the `Label` ("Concept *").
-   - Save button stays disabled until `formTopic` is set (already enforced at line 956).
-   - Add inline helper text: "Used to track concept mastery for this question."
-
-5. **Keep the question→concept mapping intact** on save:
-   - `handleSaveQuestion` already resolves `concept_id` from `formTopic` via the `concepts` table (lines 458–467) and writes both `concept_id` and `topic`. No change needed there.
+## Also fix `src/pages/teacher/Assessments.tsx` (same bug)
+1. Same three changes: drop `concept_name` from the `select`, from the state type, and from the `SelectItem` label.
 
 ## Out of scope
-- No DB schema changes.
-- No changes to the generated (AI) flow — only the manual Add Question dialog UI and concept loading.
-- No edge function changes.
+- No schema change. `concept_code` already holds the readable name in this project; introducing a separate `concept_name` column would touch onboarding, lesson-plan sync, mastery analytics, and every other concept reference — not needed to fix this bug.
+- No RLS / GRANT changes.
 
 ## Verification
-1. Open `/teacher/setup/exam-mode`, switch a mock to **Manual**, click **Add Question** from that exam card.
-2. Concept field shows a populated dropdown listing every course concept; selecting one enables Save.
-3. If a course has no concepts: dropdown trigger is disabled with "No concepts yet" and a link to Concept Management; Refresh re-pulls without reloading the page.
-4. After saving, the question row in the Custom Exam Questions list shows the chosen topic, and the assessment_questions row has the matching `concept_id`.
+1. Reload `/teacher/setup/exam-mode` → no "Failed to load concepts" toast.
+2. Switch a mock to Manual → Add Question → Concept dropdown is populated with the course's concept codes and is selectable.
+3. Save a question → row appears tagged with the chosen concept; mastery linkage (`assessment_questions.concept_id`) is set correctly.
+4. `/teacher/assessments` concept filter dropdown still shows the same list without errors.
