@@ -159,22 +159,36 @@ const ExamMode = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, taSettings]);
 
+  const refetchConcepts = async () => {
+    if (!courseId) return;
+    const { data, error } = await supabase
+      .from("concepts")
+      .select("id, concept_code, concept_name")
+      .eq("course_id", courseId)
+      .order("concept_code");
+    if (error) {
+      console.error("Failed to load concepts:", error);
+      toast.error("Failed to load concepts");
+      return;
+    }
+    setConcepts((data as any[]) || []);
+  };
+
+  useEffect(() => {
+    if (!courseId) return;
+    refetchConcepts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseId]);
+
   useEffect(() => {
     if (!courseId) { setQuestionsLoading(false); return; }
     const fetchQuestions = async () => {
       setQuestionsLoading(true);
-      const [{ data, error }, conceptsRes] = await Promise.all([
-        supabase
-          .from("assessment_questions")
-          .select("*")
-          .eq("course_id", courseId)
-          .eq("mode", "exam"),
-        supabase
-          .from("concepts")
-          .select("id, concept_code, concept_name")
-          .eq("course_id", courseId)
-          .order("concept_code"),
-      ]);
+      const { data, error } = await supabase
+        .from("assessment_questions")
+        .select("*")
+        .eq("course_id", courseId)
+        .eq("mode", "exam");
       if (error) { console.error(error); toast.error("Failed to load custom exam questions"); }
       else if (data) {
         // Manual rows = anything NOT created by the AI generator (which sets item_code = "exam-...").
@@ -193,7 +207,6 @@ const ExamMode = () => {
         }
         setExamQuestionCounts(counts);
       }
-      setConcepts((conceptsRes.data as any[]) || []);
       setQuestionsLoading(false);
     };
     fetchQuestions();
