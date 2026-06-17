@@ -818,6 +818,11 @@ const ExamMode = () => {
                           <div className="flex items-center gap-2 flex-wrap">
                             <Badge variant="outline" className={`text-[10px] ${typeBadgeColor(q.type)}`}>{q.type}</Badge>
                             <span className="text-xs text-muted-foreground">{q.topic}</span>
+                            <Badge variant="outline" className="text-[10px]">
+                              {q.exam_id
+                                ? (labeledSchedule.find(e => e.id === q.exam_id)?.label ?? "Unknown exam")
+                                : "Unassigned"}
+                            </Badge>
                           </div>
                           <div className="flex items-center gap-1">
                             <button onClick={() => openEditDialog(q)} className="rounded p-1.5 hover:bg-muted"><Pencil className="h-3.5 w-3.5 text-muted-foreground" /></button>
