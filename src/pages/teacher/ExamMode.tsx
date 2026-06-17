@@ -449,6 +449,8 @@ const ExamMode = () => {
     // Default: preselected exam, else first manual exam if any, else null
     setFormExamId(preselectExamId ?? (manualExams[0]?.id ?? null));
     setDialogOpen(true);
+    // Refresh concepts so newly-added ones show up without page reload
+    refetchConcepts();
   };
 
   const openEditDialog = (q: EditableQuestion) => {
