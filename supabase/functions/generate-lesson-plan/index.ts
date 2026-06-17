@@ -10,51 +10,183 @@ const corsHeaders = {
 const MAX_DOC_CHARS_PER_FILE = 8000;
 const MAX_TOTAL_DOC_CHARS = 30000;
 
-// Verify a URL actually resolves (2xx). Returns the (possibly redirected) final URL, or null.
+// Allowlist of high-trust, stable domains for article URLs. Search results outside
+// this list are deprioritized but still allowed as a last resort.
+const LESSON_PLAN_LINK_ALLOWLIST = [
+  "docs.python.org", "developer.mozilla.org", "realpython.com", "geeksforgeeks.org",
+  "freecodecamp.org", "w3schools.com", "programiz.com", "digitalocean.com",
+  "dev.to", "stackoverflow.com", "github.com", "medium.com",
+  "ocw.mit.edu", "news.mit.edu", "nptel.ac.in", "arxiv.org",
+  "nature.com", "technologyreview.com", "quantamagazine.org",
+  "reuters.com", "apnews.com", "bbc.com", "theguardian.com", "npr.org",
+];
+
+const SOFT_404_MARKERS = [
+  "404", "not found", "page not found", "that's an error", "that’s an error",
+  "sorry, we couldn", "page doesn't exist", "page does not exist",
+  "this page is no longer", "we can't find the page",
+];
+
+const BAD_REDIRECT_PATHS = new Set(["/", "/404", "/not-found", "/404.html", "/error"]);
+
+// Verify a URL actually resolves AND isn't a soft-404. Returns final URL or null.
 async function verifyUrl(rawUrl: string): Promise<string | null> {
   try {
     const u = new URL(rawUrl);
     if (u.protocol !== "https:") return null;
-    const doFetch = (method: "HEAD" | "GET") =>
-      fetch(u.toString(), {
-        method,
-        redirect: "follow",
-        signal: AbortSignal.timeout(4000),
-        headers: method === "GET"
-          ? { Range: "bytes=0-0", "User-Agent": "Mozilla/5.0 (LessonPlanLinkCheck)" }
-          : { "User-Agent": "Mozilla/5.0 (LessonPlanLinkCheck)" },
-      });
-    let resp: Response;
-    try {
-      resp = await doFetch("HEAD");
-      if (resp.status === 405 || resp.status === 403 || resp.status === 501) {
-        resp = await doFetch("GET");
-      }
-    } catch {
-      resp = await doFetch("GET");
+    const resp = await fetch(u.toString(), {
+      method: "GET",
+      redirect: "follow",
+      signal: AbortSignal.timeout(6000),
+      headers: {
+        Range: "bytes=0-2048",
+        "User-Agent": "Mozilla/5.0 (compatible; LessonPlanLinkCheck/1.0)",
+        Accept: "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.5",
+      },
+    });
+    if (!resp.ok && resp.status !== 206) return null;
+
+    const finalUrl = resp.url || u.toString();
+    const finalU = new URL(finalUrl);
+
+    // Redirected to a generic landing/error path that doesn't match the source path.
+    if (finalU.pathname !== u.pathname && BAD_REDIRECT_PATHS.has(finalU.pathname)) {
+      return null;
     }
-    if (resp.ok) return resp.url || u.toString();
-    return null;
+
+    const ct = (resp.headers.get("content-type") || "").toLowerCase();
+    if (ct.includes("application/pdf")) {
+      try { await resp.body?.cancel(); } catch { /* ignore */ }
+      return finalUrl;
+    }
+    if (!ct.includes("text/html") && !ct.includes("application/xhtml")) {
+      try { await resp.body?.cancel(); } catch { /* ignore */ }
+      return null;
+    }
+
+    // Inspect the first ~2KB for soft-404 markers in <title> or near top of body.
+    const buf = new Uint8Array(await resp.arrayBuffer().catch(() => new ArrayBuffer(0)));
+    const snippet = new TextDecoder().decode(buf).toLowerCase();
+    const titleMatch = snippet.match(/<title[^>]*>([^<]*)<\/title>/i);
+    const title = (titleMatch?.[1] || "").trim();
+    if (title && SOFT_404_MARKERS.some((m) => title.includes(m))) return null;
+    // Body-level check: only treat as soft-404 if marker appears very early.
+    const bodyHead = snippet.slice(0, 1500);
+    if (SOFT_404_MARKERS.some((m) => bodyHead.includes(`>${m}<`) || bodyHead.includes(`> ${m}`))) {
+      return null;
+    }
+
+    return finalUrl;
   } catch {
     return null;
   }
 }
 
-// Strip url from any resource whose URL doesn't resolve. Mutates and returns the array.
-async function sanitizeResourceUrls(resources: any[]): Promise<any[]> {
-  if (!Array.isArray(resources) || resources.length === 0) return resources || [];
-  const checks = resources.map(async (r) => {
-    if (!r || typeof r.url !== "string" || !r.url.trim()) return;
-    const final = await verifyUrl(r.url.trim());
-    if (final) {
-      r.url = final;
-    } else {
-      console.log(`[lesson-plan link-check] dropping broken url: ${r.url}`);
-      delete r.url;
+// Concurrency-limited map.
+async function pMap<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const idx = i++;
+      if (idx >= items.length) return;
+      out[idx] = await fn(items[idx]);
     }
   });
-  await Promise.allSettled(checks);
-  return resources;
+  await Promise.all(workers);
+  return out;
+}
+
+// Use Firecrawl /v2/search to find a real, recent article URL for a concept.
+// Returns first verified allowlisted URL, then first verified URL of any kind.
+async function searchArticleUrl(
+  query: string,
+  apiKey: string,
+): Promise<{ url: string; title?: string } | null> {
+  try {
+    const resp = await fetch("https://api.firecrawl.dev/v2/search", {
+      method: "POST",
+      signal: AbortSignal.timeout(12000),
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query, limit: 6, tbs: "qdr:y" }),
+    });
+    if (!resp.ok) {
+      console.log(`[firecrawl search] ${resp.status} for "${query}"`);
+      return null;
+    }
+    const data = await resp.json();
+    const raw: any[] = Array.isArray(data?.data)
+      ? data.data
+      : (Array.isArray(data?.data?.web) ? data.data.web : []);
+    const candidates = raw
+      .map((r) => ({ url: String(r?.url || ""), title: r?.title ? String(r.title) : undefined }))
+      .filter((r) => r.url.startsWith("https://"));
+    if (!candidates.length) return null;
+
+    const isAllow = (u: string) => {
+      try {
+        const host = new URL(u).hostname.toLowerCase();
+        return LESSON_PLAN_LINK_ALLOWLIST.some((d) => host === d || host.endsWith("." + d));
+      } catch { return false; }
+    };
+    const ordered = [...candidates.filter((c) => isAllow(c.url)), ...candidates.filter((c) => !isAllow(c.url))];
+
+    for (const c of ordered) {
+      const verified = await verifyUrl(c.url);
+      if (verified) return { url: verified, title: c.title };
+    }
+    return null;
+  } catch (e) {
+    console.log(`[firecrawl search] error for "${query}":`, (e as Error)?.message);
+    return null;
+  }
+}
+
+// For each article resource, try to fetch a real URL via Firecrawl search.
+// If a URL is already present and verifies, keep it; otherwise replace via search.
+// Drops article resources that still have no working URL after search.
+// Coding-exercise resources are kept regardless of URL state.
+async function enrichAndVerifyResources(
+  resources: any[],
+  weekConceptNames: string[],
+  firecrawlKey: string | null,
+): Promise<any[]> {
+  if (!Array.isArray(resources) || resources.length === 0) return [];
+  const articles = resources.filter((r) => r?.type === "article");
+  const exercises = resources.filter((r) => r?.type !== "article");
+
+  await pMap(articles, 3, async (r) => {
+    const existing = typeof r.url === "string" ? r.url.trim() : "";
+    if (existing) {
+      const verified = await verifyUrl(existing);
+      if (verified) { r.url = verified; return; }
+      delete r.url;
+    }
+    if (!firecrawlKey) return;
+    const concept = weekConceptNames[0] || "";
+    const q = [r.title, concept, "tutorial article"].filter(Boolean).join(" ").slice(0, 120);
+    if (!q) return;
+    const found = await searchArticleUrl(q, firecrawlKey);
+    if (found) {
+      r.url = found.url;
+      if (found.title && (!r.title || r.title.length < 4)) r.title = found.title;
+    }
+  });
+
+  const keptArticles = articles.filter((r) => typeof r.url === "string" && r.url.trim());
+  // Strip url from exercises if unverifiable (best-effort, but keep the resource).
+  await pMap(exercises, 3, async (r) => {
+    if (typeof r.url === "string" && r.url.trim()) {
+      const verified = await verifyUrl(r.url.trim());
+      if (verified) r.url = verified;
+      else delete r.url;
+    }
+  });
+
+  return [...exercises, ...keptArticles];
 }
 
 function decodeText(buffer: ArrayBuffer): string {
@@ -661,7 +793,7 @@ ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000)
 You will be given EXACTLY ${totalWeeks} weeks with their assigned concepts already locked. Your job is ONLY to write:
 - week_name (3–6 word title) for each non-exam week
 - overview (3–5 sentences) for each non-exam week, grounded strictly in the assigned concepts. Cover: (1) what the average student will be able to do by the end of the week, (2) how it builds on prior weeks, (3) the most common misconception or stumbling block to watch for.
-- 1 coding-exercise + 1–2 article resources per non-exam week, tied to those concepts. Articles must be REAL, well-known, freely accessible resources with working https URLs. STRONGLY PREFER stable index/landing pages (e.g. https://docs.python.org/3/tutorial/, https://realpython.com/, https://developer.mozilla.org/en-US/docs/Web/JavaScript) over guessing deep article slugs. If you are not 100% certain a specific URL exists and is current, OMIT the url field entirely rather than inventing one — a resource without a url is fine and preferred over a broken link.
+- 1 coding-exercise + 1–2 article resources per non-exam week, tied to those concepts. For each article, provide ONLY a descriptive title and a one-sentence summary — DO NOT include a url field. URLs will be sourced from a live web search after authoring; any url you invent will be discarded.
 - one short paragraph (3–5 sentences) of overall course learning outcomes, calibrated to an average undergraduate.
 
 Tone: factual, pedagogical, realistic. Do not over-promise mastery. Avoid repetitive phrasing across weeks.
@@ -776,7 +908,11 @@ ${assignmentBlock}`;
       return [...exercises, ...articles];
     };
 
-    emit({ type: "phase", step: "validate", message: "Verifying coverage & deduping…" });
+    emit({ type: "phase", step: "validate", message: "Sourcing real article links & verifying…" });
+    const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY") || null;
+    if (!FIRECRAWL_API_KEY) {
+      console.warn("[lesson-plan] FIRECRAWL_API_KEY not set — article URLs will be omitted instead of search-sourced.");
+    }
     // ─── STEP 4: Merge locked assignment + authored metadata, validate, persist ───
     const normalized: any[] = [];
     for (const wa of weekAssign) {
@@ -793,6 +929,8 @@ ${assignmentBlock}`;
         });
         continue;
       }
+      const capped = capResources(a.resources);
+      const enriched = await enrichAndVerifyResources(capped, wa.concept_names, FIRECRAWL_API_KEY);
       normalized.push({
         week: wa.week,
         week_name: typeof a.week_name === "string" && a.week_name.trim() ? a.week_name.trim() : `Week ${wa.week}`,
@@ -800,7 +938,7 @@ ${assignmentBlock}`;
         is_exam_week: false,
         exam_type: null,
         concepts: wa.concept_names.map((name) => ({ name, brief_description: "", ai_suggested: false })),
-        resources: await sanitizeResourceUrls(capResources(a.resources)),
+        resources: enriched,
       });
     }
 
