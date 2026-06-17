@@ -306,9 +306,20 @@ const ExamMode = () => {
     let n = 0;
     return examSchedule.map(e => {
       n += 1;
-      return { ...e, label: `Final ${n}` };
+      return { ...e, label: `Final ${n}`, source: e.source ?? "generated" };
     });
   }, [examSchedule]);
+
+  // Count manual questions assigned to each exam
+  const manualExamCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const q of questions) {
+      if (q.exam_id) counts[q.exam_id] = (counts[q.exam_id] ?? 0) + 1;
+    }
+    return counts;
+  }, [questions]);
+
+  const manualExams = labeledSchedule.filter(e => e.source === "manual");
 
   const typesSelected = parseMix(examQuestionTypes).length > 0;
   const allExamsApproved = examSchedule.length > 0 && examSchedule.every(e => e.approved);
