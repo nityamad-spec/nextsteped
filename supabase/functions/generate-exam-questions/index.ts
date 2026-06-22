@@ -519,13 +519,14 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Replace existing rows for this exam
+        // Replace existing AI-generated rows for this exam (preserve teacher-added manual rows)
         await admin
           .from("assessment_questions")
           .delete()
           .eq("course_id", courseId)
           .eq("mode", "exam")
-          .eq("exam_id", examId);
+          .eq("exam_id", examId)
+          .like("item_code", "exam-%");
 
         const rows = results.map((q, i) => {
           const concept = conceptByCode[q.topic];
