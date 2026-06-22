@@ -434,7 +434,9 @@ const AIChat = () => {
     ? `examPrepRotation:${enrolledCourseId}:${user.id}`
     : null;
 
-  /** Load distinct exam_id values that have generated questions for this course. */
+  /** Load distinct exam_id values that have generated questions for this course,
+   *  reconciled against the professor's current exam schedule so orphaned ids
+   *  from previously-removed exams don't inflate the student count. */
   const loadAvailableExamIds = useCallback(async () => {
     if (!enrolledCourseId) {
       setAvailableExamIds([]);
@@ -450,14 +452,24 @@ const AIChat = () => {
       setAvailableExamIds([]);
       return [] as string[];
     }
-    const ids = Array.from(new Set(data.map((r: any) => r.exam_id).filter(Boolean))).sort();
+    let ids = Array.from(new Set(data.map((r: any) => r.exam_id).filter(Boolean))).sort();
+    // Intersect with the professor's saved schedule when available. If the
+    // schedule hasn't loaded yet, fall back to the raw list to avoid blanking
+    // the panel during initial load — the effect below re-runs when taSettings
+    // resolves.
+    const scheduleIds = Array.isArray(taSettings.examSchedule) && taSettings.examSchedule.length > 0
+      ? new Set(taSettings.examSchedule.map((e: any) => e?.id).filter(Boolean))
+      : null;
+    if (scheduleIds) {
+      ids = ids.filter(id => scheduleIds.has(id));
+    }
     setAvailableExamIds(ids);
     if (rotationKey) {
       const stored = parseInt(localStorage.getItem(rotationKey) || "0", 10);
       setNextExamIndex(Number.isFinite(stored) ? stored : 0);
     }
     return ids;
-  }, [enrolledCourseId, rotationKey]);
+  }, [enrolledCourseId, rotationKey, taSettings.examSchedule]);
 
   // Load whenever course resolves or mode flips to exam
   useEffect(() => {
