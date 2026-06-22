@@ -319,7 +319,34 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
     if (accepted.length < batch.count && rejects.length) {
       retryHint = `Previous attempt had ${rejects.length} rejected questions. Reasons: ${rejects.slice(0, 3).join("; ")}`;
     }
+
+    // Position-skew check: if any single correct-answer index dominates (>50%), drop surplus and retry.
+    if (accepted.length >= batch.count) {
+      const mcq = accepted.filter((a) => a.format === "mcq");
+      if (mcq.length >= 4) {
+        const counts = [0, 0, 0, 0];
+        for (const a of mcq) {
+          const idx = a.options.indexOf(a.answer);
+          if (idx >= 0 && idx < 4) counts[idx]++;
+        }
+        const maxC = Math.max(...counts);
+        if (maxC / mcq.length > 0.5) {
+          const skewIdx = counts.indexOf(maxC);
+          const allowed = Math.floor(mcq.length * 0.5);
+          let toRemove = maxC - allowed;
+          for (let i = accepted.length - 1; i >= 0 && toRemove > 0; i--) {
+            const a = accepted[i];
+            if (a.format === "mcq" && a.options.indexOf(a.answer) === skewIdx) {
+              accepted.splice(i, 1);
+              toRemove--;
+            }
+          }
+          retryHint = `Correct-answer position was skewed to index ${skewIdx} (${maxC}/${mcq.length}). Rotate correct positions across 0-3.`;
+        }
+      }
+    }
   }
+
 
   if (accepted.length === 0) {
     throw new Error(`Batch ${batch.index}: generated 0 valid questions after ${MAX_ATTEMPTS} attempts`);
