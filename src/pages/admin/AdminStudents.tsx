@@ -114,6 +114,9 @@ const AdminStudents = () => {
   const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
+  const [courseFilter, setCourseFilter] = useState<Set<string>>(new Set());
+  const [masteryFilter, setMasteryFilter] = useState<Set<string>>(new Set());
+  const [masteryMode, setMasteryMode] = useState<"all" | "any">("all");
   const { toast } = useToast();
 
   const toggleRow = (key: string) => {
@@ -234,18 +237,51 @@ const AdminStudents = () => {
     setConfirmText("");
   };
 
+  const courseOptions = useMemo(() => {
+    const s = new Set<string>();
+    students.forEach(st => st.courses.forEach(c => s.add(c.name)));
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [students]);
+
+  const masteryOptions = useMemo(() => {
+    const s = new Set<string>();
+    students.forEach(st => st.courses.forEach(c => c.mastery && s.add(c.mastery)));
+    return [...s].sort(sortMastery);
+  }, [students]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter(s =>
-      s.name?.toLowerCase().includes(q) ||
-      s.email?.toLowerCase().includes(q) ||
-      s.roll_number?.toLowerCase().includes(q) ||
-      s.courses.some(c => c.name.toLowerCase().includes(q))
-    );
-  }, [students, search]);
+    return students.filter(s => {
+      if (q) {
+        const hit = s.name?.toLowerCase().includes(q) ||
+          s.email?.toLowerCase().includes(q) ||
+          s.roll_number?.toLowerCase().includes(q) ||
+          s.courses.some(c => c.name.toLowerCase().includes(q));
+        if (!hit) return false;
+      }
+      if (courseFilter.size > 0) {
+        if (!s.courses.some(c => courseFilter.has(c.name))) return false;
+      }
+      if (masteryFilter.size > 0) {
+        if (s.courses.length === 0) return false;
+        if (masteryMode === "all") {
+          if (!s.courses.every(c => c.mastery && masteryFilter.has(c.mastery))) return false;
+        } else {
+          if (!s.courses.some(c => c.mastery && masteryFilter.has(c.mastery))) return false;
+        }
+      }
+      return true;
+    });
+  }, [students, search, courseFilter, masteryFilter, masteryMode]);
 
   const hasMultiAccount = useMemo(() => students.some(s => s.profileIds.length > 1), [students]);
+  const filtersActive = search.length > 0 || courseFilter.size > 0 || masteryFilter.size > 0;
+  const clearAll = () => {
+    setSearch("");
+    setCourseFilter(new Set());
+    setMasteryFilter(new Set());
+    setMasteryMode("all");
+  };
 
   if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
 
