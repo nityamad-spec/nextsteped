@@ -1,33 +1,26 @@
-Switch course and mastery filters in `/admin/students` (`src/pages/admin/AdminStudents.tsx`) to strict AND semantics, and remove the All/Any toggle.
+Change mastery filter on `/admin/students` from strict AND to OR semantics in `src/pages/admin/AdminStudents.tsx`.
 
-## Filter behavior
+## New behavior
 
-- **Course filter (AND):** student must be enrolled in every selected course. Selecting Course A + Course B shows only students enrolled in both.
-- **Mastery filter (strict AND):**
-  - Every selected mastery level must appear in the student's courses, AND
-  - Every course the student has must have a mastery level within the selected set.
-  - Picking only `expert` therefore shows students whose courses are all at expert level (the original example from earlier).
-  - Students with zero enrollments are excluded when a mastery filter is active.
+- **Mastery filter (OR):** student passes if at least one of their courses has a mastery level in the selected set.
+- When the course filter is also active, mastery is evaluated only against the courses that match the selected course filter (so "selected courses" in the user's phrasing is honored). When no course filter is set, mastery is evaluated across all of the student's courses.
+- Students with zero matching courses are excluded when a mastery filter is active.
+- Course filter behavior unchanged (still AND — student must be in every selected course).
 
-## UI changes
+## Code change
 
-- Remove the `ToggleGroup` ("All courses match" / "At least one") and its surrounding Tooltip.
-- Remove `masteryMode` state and its references in `clearAll`.
-- Keep the popovers, multi-select chips, "Showing X of Y" count, and Clear button as-is.
-- Add small helper text under each filter button (or a short inline note) clarifying AND semantics: "Matches students in all selected courses" / "Matches students whose courses all fall within the selected levels".
+Replace the current strict-AND mastery block in the `filtered` `useMemo` with:
 
-## Filtering logic (replaces current block)
-
-```text
-courses (AND): every c in selected → student.courses contains course named c
-mastery (strict AND, only when set non-empty):
-  student.courses.length > 0
-  every m in selected → student.courses some c.mastery == m
-  every c in student.courses → c.mastery in selected
-search: unchanged
+```ts
+if (masteryFilter.size > 0) {
+  const pool = courseFilter.size > 0
+    ? s.courses.filter(c => courseFilter.has(c.name))
+    : s.courses;
+  if (!pool.some(c => c.mastery && masteryFilter.has(c.mastery))) return false;
+}
 ```
 
-## Risks / notes
+Update the helper text under the filter row to reflect mixed logic:
+"Courses use AND (must be in all selected). Mastery uses OR (any selected level matches)."
 
-- Strict mastery AND is exclusionary — a student with one course outside the selected set is filtered out even if they also have a matching expert course. This matches the user-stated "students whose courses are all at the expert level" example, but should be reflected in the helper text so admins don't think the filter is broken.
-- No data, schema, or backend changes.
+No data, schema, or backend changes.
