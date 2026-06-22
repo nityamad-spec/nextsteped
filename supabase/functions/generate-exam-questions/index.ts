@@ -465,15 +465,59 @@ Deno.serve(async (req) => {
 
         send(controller, { event: "start", total: totalQuestions, batches: batches.length });
 
-        // Generate batches in parallel but emit progress as each finishes
+        // Generate batches in parallel but emit progress as each finishes; allSettled so one failure doesn't lose siblings.
         let generated = 0;
         const results: GeneratedQuestion[] = [];
-        await Promise.all(batches.map(async (b) => {
+        const settled = await Promise.allSettled(batches.map(async (b) => {
           const qs = await generateBatch(b, course.name ?? "Course", lengthMin, conceptByCode, lovableKey);
           results.push(...qs);
           generated += qs.length;
           send(controller, { event: "progress", generated, total: totalQuestions });
+          return qs;
         }));
+        const batchErrors = settled.filter((s) => s.status === "rejected").map((s: any) => String(s.reason?.message ?? s.reason));
+        if (results.length === 0) {
+          throw new Error(`All batches failed: ${batchErrors.slice(0, 2).join(" | ")}`);
+        }
+
+        // Top-up: if any batch came back short, run a single residual batch to close the gap.
+        const shortfall = totalQuestions - results.length;
+        if (shortfall > 0) {
+          // Residual per-concept: how much each concept is still missing vs target.
+          const producedByConcept: Record<string, number> = {};
+          for (const r of results) producedByConcept[r.topic] = (producedByConcept[r.topic] ?? 0) + 1;
+          const residualConcept: Record<string, number> = {};
+          for (const code of Object.keys(perConcept)) {
+            const miss = perConcept[code] - (producedByConcept[code] ?? 0);
+            if (miss > 0) residualConcept[code] = miss;
+          }
+          // If residual sums to less than shortfall (e.g. over-produced elsewhere), pad with weighted hamilton.
+          const residualSum = Object.values(residualConcept).reduce((s, n) => s + n, 0);
+          let topUpPerConcept = residualConcept;
+          if (residualSum < shortfall) {
+            topUpPerConcept = hamilton(shortfall, weights);
+          } else if (residualSum > shortfall) {
+            topUpPerConcept = hamilton(shortfall, residualConcept);
+          }
+          // Residual difficulty mix: re-derive against the shortfall size.
+          const residualDifficulty = difficultyMixFromLength(lengthMin, shortfall);
+          const topUpBatches = buildBatches(topUpPerConcept, residualDifficulty, types);
+          try {
+            const topUpSettled = await Promise.allSettled(topUpBatches.map(async (b) => {
+              const qs = await generateBatch(b, course.name ?? "Course", lengthMin, conceptByCode, lovableKey);
+              // Stop overshooting if multiple top-up batches together exceed remaining gap.
+              const remaining = totalQuestions - results.length;
+              const take = qs.slice(0, Math.max(0, remaining));
+              results.push(...take);
+              generated = results.length;
+              send(controller, { event: "progress", generated, total: totalQuestions });
+            }));
+            const topUpErrs = topUpSettled.filter((s) => s.status === "rejected").map((s: any) => String(s.reason?.message ?? s.reason));
+            if (topUpErrs.length) console.warn("top-up batch errors:", topUpErrs);
+          } catch (e) {
+            console.warn("top-up generation failed:", e);
+          }
+        }
 
         // Replace existing rows for this exam
         await admin
