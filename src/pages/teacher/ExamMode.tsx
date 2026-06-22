@@ -549,7 +549,7 @@ const ExamMode = () => {
         if (error) throw error;
         setQuestions(prev => prev.map(q => q.id === editingId ? {
           id: editingId, question: formQuestion, answer, topic: formTopic,
-          difficulty: "Medium", type: formType, exam_id: formExamId,
+          difficulty: formDifficulty, type: formType, exam_id: formExamId,
           ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
         } : q));
         toast.success("Question updated");
