@@ -499,8 +499,9 @@ const ExamMode = () => {
     setEditingId(null);
     setFormQuestion(""); setFormAnswer(""); setFormTopic("");
     setFormType("MCQ"); setFormOptions(["", "", "", ""]); setFormCorrectIndex(0);
-    // Default: preselected exam, else first manual exam if any, else null
-    setFormExamId(preselectExamId ?? (manualExams[0]?.id ?? null));
+    setFormDifficulty("Medium");
+    // Default: preselected exam, else first exam if any, else null
+    setFormExamId(preselectExamId ?? (labeledSchedule[0]?.id ?? null));
     setDialogOpen(true);
     // Refresh concepts so newly-added ones show up without page reload
     refetchConcepts();
@@ -513,6 +514,7 @@ const ExamMode = () => {
     setFormOptions(q.options?.length ? [...q.options] : ["", "", "", ""]);
     setFormCorrectIndex(q.correctIndex ?? 0);
     setFormExamId(q.exam_id ?? null);
+    setFormDifficulty((q.difficulty as "Easy" | "Medium" | "Hard") ?? "Medium");
     setDialogOpen(true);
   };
 
