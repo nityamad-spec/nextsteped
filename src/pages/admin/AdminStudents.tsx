@@ -319,6 +319,57 @@ const AdminStudents = () => {
               />
             </div>
           </div>
+          <div className="flex items-center gap-2 flex-wrap pt-1">
+            <MultiSelectFilter
+              label="Courses"
+              options={courseOptions}
+              selected={courseFilter}
+              onChange={setCourseFilter}
+              width="w-64"
+            />
+            <MultiSelectFilter
+              label="Mastery"
+              options={masteryOptions}
+              selected={masteryFilter}
+              onChange={setMasteryFilter}
+            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <ToggleGroup
+                    type="single"
+                    size="sm"
+                    value={masteryMode}
+                    onValueChange={(v) => v && setMasteryMode(v as "all" | "any")}
+                    disabled={masteryFilter.size === 0}
+                    className="border rounded-md"
+                  >
+                    <ToggleGroupItem value="all" className="h-9 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+                      All courses match
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="any" className="h-9 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+                      At least one
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                {masteryFilter.size === 0
+                  ? "Select a mastery level to enable"
+                  : "Students with no enrollments are excluded when a mastery filter is active"}
+              </TooltipContent>
+            </Tooltip>
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-xs text-muted-foreground tabular-nums">
+                Showing {filtered.length} of {students.length}
+              </span>
+              {filtersActive && (
+                <Button variant="ghost" size="sm" className="h-8 gap-1" onClick={clearAll}>
+                  <X className="h-3.5 w-3.5" /> Clear filters
+                </Button>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {filtered.length === 0 ? (
