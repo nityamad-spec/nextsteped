@@ -375,7 +375,7 @@ const AdminStudents = () => {
           {filtered.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center text-muted-foreground">
               <GraduationCap className="h-8 w-8 mb-2 opacity-60" />
-              <p className="text-sm">{students.length === 0 ? "No students registered yet" : "No students match your search"}</p>
+              <p className="text-sm">{students.length === 0 ? "No students registered yet" : "No students match your filters"}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
