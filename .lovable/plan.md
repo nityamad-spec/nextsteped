@@ -1,34 +1,44 @@
-## Root cause
+# Make weekly quiz & exam MCQs harder and non-obvious
 
-In `supabase/functions/generate-diagnostic-questions/index.ts` (line 114), the `standard` tier has no `batchSize` and no `perCallTimeoutMs`, so it issues a single gateway call asking for all 10 questions with the default 35s `GATEWAY_CALL_TIMEOUT_MS` cap. When that call exceeds 35s (frequent for 10 MCQs with the joint quota + categorized-justifications + tool-call JSON schema), `callGatewaySingle` throws, and because there's only one chunk, `callGateway` has no partial candidates to return — the tier ends at 0/10. Hard tier already avoids this via `batchSize: 5` + `perCallTimeoutMs: 80_000`, which is why hard reached 10/10 while standard reached 0/10.
+## Problem
 
-`easy` and `medium` share the same fragile single-call config and only succeeded this run by luck.
+In both `generate-weekly-quiz` and `generate-exam-questions`, the model is told to produce 4 options but given no guidance on distractor quality or length parity. LLMs default to writing the correct answer as a fully-qualified, hedged sentence and the distractors as terse wrong labels — so the longest option is almost always correct. There's also no constraint on rotating the correct-answer position or on plausibility of distractors.
 
-## Change
+## Fix (prompt + validator changes only — no schema or UI changes)
 
-Edit `TIER_SPEC` in `supabase/functions/generate-diagnostic-questions/index.ts` (lines 113–127) to apply the hard-tier partial-generation pattern to all 10-question tiers:
+### 1. `supabase/functions/generate-weekly-quiz/index.ts`
 
-- `standard`: add `batchSize: 5`, `perCallTimeoutMs: 80_000`. Keep `count: 10`, `maxAttempts: 2`. (No over-generation — only hard tier has the 1.5× over-gen branch in `callGatewaySingle` line 583, and that's intentional.)
-- `easy`: add `batchSize: 5`, `perCallTimeoutMs: 80_000` for the same robustness.
-- `medium`: add `batchSize: 5`, `perCallTimeoutMs: 80_000`.
-- `hard`: unchanged.
+**Prompt additions (`generateTier`, the `STRICT RULES` block):**
 
-Update the comment block above `TIER_SPEC` to reflect that all tiers now chunk into 2×5 sub-calls per attempt.
+- **Length parity rule:** "All 4 options must be within ±20% character length of each other. Do NOT make the correct answer the longest or most-qualified option."
+- **Distractor quality rule:** "Each distractor must reflect a *specific, elaborated* misconception a student could plausibly hold — wrong-but-reasoned, not obviously absurd. Write distractors with the same syntactic structure, specificity, and hedging level as the correct answer."
+- **Position rotation:** "Across the batch, distribute the correct answer's index roughly evenly across positions 0–3. No more than 2 questions in a row may share the same correct index."
+- **Complexity lift:** `bloom_level` for `medium` tier is bloom 2-3 and `hard` is bloom 3-4.  Add: "Prefer scenario/code-trace/comparison stems over single-fact recall."
+- Slightly lower `temperature` to 0.35 to keep adherence high.
 
-## Why this is safe within the global budget
+**Validator additions (`validateQuestion`) for MCQ:**
 
-- Per-tier worst case stays well under `GLOBAL_DEADLINE_MS = 130_000`: 2 chunks × ~35s typical + retry headroom is comfortably below 80s per attempt, × `maxAttempts = 2` ≈ 160s upper bound — but tiers run in parallel (see `Promise.all` orchestration), so the global wall clock is dominated by the slowest tier, not the sum.
-- `callGateway` already handles partial chunk failure: if chunk 2 fails after chunk 1 succeeds, the 5 candidates from chunk 1 are returned and the outer `runTier` loop can retry just the remainder on the next attempt.
-- `perCallTimeoutMs` is an upper bound — `callGatewaySingle` line 712 still clamps to remaining global budget, so we won't blow the 130s deadline.
+- Compute option lengths; reject if `max(len)/min(len) > 1.6` OR if the correct option is the strictly longest AND longer than the average by >25%.
+- (Keep all existing checks.)
 
-## Out of scope
+**Post-batch check in `generateTier`:**
 
-- No prompt or validation changes — failure mode is timeout, not rejection.
-- No changes to `GLOBAL_DEADLINE_MS`, `GATEWAY_CALL_TIMEOUT_MS`, retry counts, or the `runTier` orchestrator.
-- No UI changes; the "Generation incomplete" banner already surfaces the right message when a tier under-delivers.
+- After accepting `spec.count` questions, compute distribution of `options.indexOf(answer)`. If any single index holds >50% of correct answers, drop the over-represented surplus and request a top-up attempt with `retryHint = "Correct-answer position was skewed to index N — rotate positions"`.
+
+### 2. `supabase/functions/generate-exam-questions/index.ts`
+
+Mirror the same three prompt additions, validator length check, and post-batch position-rotation check in `generateBatch` / `validateQuestion`. Keep existing batching, difficulty mix, and concept targets untouched.
+
+### 3. Out of scope
+
+- No DB schema changes, no UI changes, no student-facing component edits.
+- Existing tier counts, difficulty mix, and concept distribution preserved.
+- `score-diagnostic` and weekly-quiz scoring unchanged (answers still match by full text).
 
 ## Verification
 
-1. Open `/teacher/setup/diagnostic`, click **Regenerate standard**, confirm it reaches 10/10.
-2. Click full regeneration, confirm all four tiers reach 10/10.
-3. Check `diagnostic_generation_events` for the run: standard should show two `gateway_response` events per attempt (one per 5-Q chunk) instead of one.
+1. Regenerate one week's quiz for a test course; inspect rows in `assessment_questions` and confirm:
+  - For each MCQ, `max(opt_len)/min(opt_len) ≤ 1.6`.
+  - Correct-answer index distribution across the 20 questions is not >50% on any single index.
+2. Regenerate a short exam (10 questions) and run the same two checks.
+3. Spot-check 3 MCQs to confirm distractors are elaborated (not one-word wrongs against a long correct).
