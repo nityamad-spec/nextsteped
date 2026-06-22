@@ -264,12 +264,10 @@ const AdminStudents = () => {
         for (const c of courseFilter) if (!names.has(c)) return false;
       }
       if (masteryFilter.size > 0) {
-        if (s.courses.length === 0) return false;
-        // every course's mastery must be within the selected set
-        if (!s.courses.every(c => c.mastery && masteryFilter.has(c.mastery))) return false;
-        // every selected level must appear in the student's courses
-        const present = new Set(s.courses.map(c => c.mastery).filter(Boolean) as string[]);
-        for (const m of masteryFilter) if (!present.has(m)) return false;
+        const pool = courseFilter.size > 0
+          ? s.courses.filter(c => courseFilter.has(c.name))
+          : s.courses;
+        if (!pool.some(c => c.mastery && masteryFilter.has(c.mastery))) return false;
       }
       return true;
     });
