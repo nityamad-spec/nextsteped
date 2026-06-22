@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 const MODEL = "google/gemini-2.5-flash";
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 4;
 const BATCH_SIZE = 5;
 
 type Format = "mcq" | "true_false";
