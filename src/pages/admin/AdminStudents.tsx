@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, ChevronDown, GraduationCap, MoreHorizontal, Search, Trash2 } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Filter, GraduationCap, MoreHorizontal, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -12,8 +12,70 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+
+const MASTERY_ORDER = ["beginner", "developing", "proficient", "expert"];
+const sortMastery = (a: string, b: string) => {
+  const ai = MASTERY_ORDER.indexOf(a.toLowerCase());
+  const bi = MASTERY_ORDER.indexOf(b.toLowerCase());
+  if (ai !== -1 && bi !== -1) return ai - bi;
+  if (ai !== -1) return -1;
+  if (bi !== -1) return 1;
+  return a.localeCompare(b);
+};
+
+interface MultiSelectProps {
+  label: string;
+  options: string[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+  width?: string;
+}
+
+const MultiSelectFilter = ({ label, options, selected, onChange, width = "w-56" }: MultiSelectProps) => {
+  const toggle = (v: string) => {
+    const next = new Set(selected);
+    if (next.has(v)) next.delete(v); else next.add(v);
+    onChange(next);
+  };
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-9 gap-2">
+          <Filter className="h-3.5 w-3.5" />
+          <span>{label}</span>
+          {selected.size > 0 && <Badge variant="secondary" className="h-5 px-1.5">{selected.size}</Badge>}
+          <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className={cn("p-0", width)} align="start">
+        <Command>
+          <CommandInput placeholder={`Search ${label.toLowerCase()}…`} />
+          <CommandList>
+            <CommandEmpty>None found.</CommandEmpty>
+            <CommandGroup>
+              {options.map(opt => {
+                const checked = selected.has(opt);
+                return (
+                  <CommandItem key={opt} onSelect={() => toggle(opt)} className="cursor-pointer">
+                    <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded border", checked ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/40")}>
+                      {checked && <Check className="h-3 w-3" />}
+                    </div>
+                    <span className="capitalize">{opt}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 interface CourseEnrollment {
   courseId: string;

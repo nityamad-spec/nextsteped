@@ -1,30 +1,47 @@
-## Goal
-Make the Courses column compact (collapsible dropdown per row) and clean up the overall report UI on `/admin/students`.
+Add a filter panel to `/admin/students` (`src/pages/admin/AdminStudents.tsx`) that updates the table live.
 
-## Changes (single file: `src/pages/admin/AdminStudents.tsx`)
+## New filter controls (in the Card header, below the existing search row)
 
-1. **Courses cell → dropdown.**
-   - Replace the inline stacked list with a `Collapsible` (shadcn) trigger: `<Button variant="outline" size="sm">` showing `<BookOpen /> N courses <ChevronDown />` (chevron rotates on open).
-   - Open state holds an indented panel directly under the trigger (same cell) listing each course on its own row: course name (font-medium), mastery `<Badge>` (or muted "no mastery"), joined date (muted, small).
-   - Zero-enrollment students show a muted "Not enrolled" pill instead of the trigger.
-   - Per-row open state stored in a `Set<string>` keyed by `group.key`.
+1. **Course filter — multi-select**
+   - Popover trigger button: "Courses" + count badge when active.
+   - Content: searchable checklist of every distinct course name across all students (sorted alphabetically). Built from `students` via `useMemo`.
+   - Empty selection = all courses considered.
 
-2. **Report UI polish (visual only, no data changes).**
-   - Card: add subtle header description ("Grouped by email — each student appears once with all enrollments") and a search input (filters by name / email / roll number, client-side).
-   - Header row: count badge ("12 students") moved to the right of the title; add a small "Multiple accounts" legend chip when any merged row exists.
-   - Table: zebra rows (`even:bg-muted/30`), sticky header, tighter vertical rhythm, hover highlight, top-aligned cells.
-   - Email cell: monospace + truncate with title attr for long addresses.
-   - Joined column: relative date ("3d ago") with full date in tooltip.
-   - Action button: keep `MoreHorizontal`; multi-account rows show the existing disabled tooltip unchanged.
-   - Empty state: keep current copy, add `GraduationCap` icon centered.
+2. **Mastery level filter — multi-select**
+   - Same popover-checklist pattern as the course filter.
+   - Options are the distinct non-null `mastery` values across all enrollments (e.g. beginner, developing, proficient, expert). Sorted using the canonical mastery order when known, alphabetical otherwise.
 
-3. **No changes** to the data fetch, grouping logic, delete flow, RLS, schema, edge functions, or routes.
+3. **Match-logic toggle** (only enabled when ≥1 mastery level selected)
+   - Two-button segmented toggle:
+     - "All courses must match" (default) — every enrolled course's mastery is in the selected set.
+     - "At least one course matches" — at least one enrolled course has mastery in the selected set.
+   - Students with zero enrollments are excluded whenever a mastery filter is active.
 
-## Risks
-- Search is client-side only — fine at admin scale, will need server-side filtering if student count grows large.
-- `Collapsible` adds vertical height per row when expanded; long course lists will push siblings down (expected behavior of an inline dropdown). If you'd rather use a popover overlay instead, say so.
-- Relative-date helper is a tiny inline util (no new dependency).
+4. **Match count + Clear button**
+   - Inline summary: `Showing X of Y students`.
+   - "Clear filters" button (ghost, shows only when any filter is active including the existing search) resets course set, mastery set, match mode (back to "all"), and search.
 
-## Questions
-1. Inline collapsible (expands the row, multiple can be open) — or a popover overlay (floats above, one at a time)? Default: inline collapsible.
-2. Keep the per-course "joined" date inside the dropdown, or drop it to keep the panel minimal? Default: keep it.
+## Filtering logic (single `useMemo` replacing the current `filtered`)
+
+Applied in order, all combined with AND:
+
+```text
+search       → existing name/email/roll/course substring match
+courses      → student has at least one enrollment whose course name is in selected set
+mastery+mode → "all": student has ≥1 course AND every course.mastery ∈ selected set
+               "any": student has ≥1 course with course.mastery ∈ selected set
+```
+
+The count badge next to "Students" stays as total; a new muted `Showing X of Y` line appears next to the filters.
+
+## UI notes
+
+- Reuse shadcn `Popover` + `Command` (already in project) for the checklist UIs, or simple `Popover` + checkboxes if Command feels heavy — leaning Command for the built-in search.
+- Match-logic uses `ToggleGroup` (type=single) for the two modes.
+- Layout: filters live in a single flex-wrap row below the title/search row so the header stays clean on mobile.
+- No data-fetching, schema, RLS, or backend changes. Pure client-side filtering over already-loaded `students`.
+
+## Risks / notes
+
+- Distinct course/mastery options are derived from currently-loaded students only — a course no one is enrolled in won't appear (matches the report's "complete set of courses per student" framing).
+- "All courses must match" treats students with zero enrollments as non-matching when a mastery filter is active; called out in the toggle's tooltip so the behavior is explicit.
