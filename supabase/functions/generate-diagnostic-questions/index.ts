@@ -110,19 +110,22 @@ interface TierSpec {
   perCallTimeoutMs?: number;
 }
 
+// All 10-question tiers chunk into 2×5 sub-calls per attempt with an 80s
+// per-call timeout. A single 10-question call frequently exceeds the 35s
+// default on flash (joint quota + categorized justifications + tool-call
+// JSON schema); without chunking a single timeout zeros out the tier
+// (observed root cause of the standard-tier 0/10 failure). Splitting into
+// 2×5 lets `callGateway` return partial candidates when the second chunk
+// fails, and keeps each call's wall-clock well under 80s.
+// Hard tier keeps the extra attempt + over-generation (in callGatewaySingle)
+// because its joint constraints (difficulty + bloom ≥ 3 + category band)
+// reject more candidates per batch.
 const TIER_SPEC: TierSpec[] = [
-  { tier: "standard", count: 10, difficulty: 0.5, band: 0.15, maxAttempts: 2, label: "Standard (medium difficulty, common to all students)" },
-  { tier: "easy", count: 10, difficulty: 0.2, band: 0.15, maxAttempts: 2, label: "Easy adaptive tier (for struggling students)" },
-  { tier: "medium", count: 10, difficulty: 0.5, band: 0.15, maxAttempts: 2, label: "Medium adaptive tier (for average students)" },
+  { tier: "standard", count: 10, difficulty: 0.5, band: 0.15, maxAttempts: 2, label: "Standard (medium difficulty, common to all students)", batchSize: 5, perCallTimeoutMs: 80_000 },
+  { tier: "easy", count: 10, difficulty: 0.2, band: 0.15, maxAttempts: 2, label: "Easy adaptive tier (for struggling students)", batchSize: 5, perCallTimeoutMs: 80_000 },
+  { tier: "medium", count: 10, difficulty: 0.5, band: 0.15, maxAttempts: 2, label: "Medium adaptive tier (for average students)", batchSize: 5, perCallTimeoutMs: 80_000 },
   // Hard tier widened: difficulty 0.80 ± 0.20 → [0.60, 1.00] covers both
   // EDGE_CASE (0.60-0.80) and COMPOSITE_REASONING (0.75-0.95) categories.
-  // One extra attempt because hard joint constraints (difficulty + bloom ≥ 3
-  // + category band) reject more candidates per batch.
-  // Split into 2×5 sub-calls per attempt: each call finishes well under 35s
-  // typically, total per-attempt wall-clock ≤ ~90s (within 130s deadline).
-  // Per-call timeout raised to 80s as a safety ceiling for slow gateway
-  // moments — the 35s cap was the deterministic root cause of every
-  // "Signal timed out" failure on hard.
   { tier: "hard", count: 10, difficulty: 0.80, band: 0.20, maxAttempts: 3, label: "Hard adaptive tier (for advanced students)", batchSize: 5, perCallTimeoutMs: 80_000 },
 ];
 const TOTAL_QUESTIONS = TIER_SPEC.reduce((s, t) => s + t.count, 0);
