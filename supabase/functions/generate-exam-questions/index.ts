@@ -558,7 +558,7 @@ Deno.serve(async (req) => {
         const byType: Record<string, number> = {};
         for (const q of results) byType[q.format] = (byType[q.format] ?? 0) + 1;
 
-        send(controller, { event: "done", ok: true, generated: rows.length, by_type: byType });
+        send(controller, { event: "done", ok: true, generated: rows.length, requested: totalQuestions, partial: rows.length < totalQuestions, by_type: byType });
         controller.close();
       } catch (e: any) {
         console.error("generate-exam-questions error:", e);
