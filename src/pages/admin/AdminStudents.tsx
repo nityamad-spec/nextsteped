@@ -333,32 +333,9 @@ const AdminStudents = () => {
               selected={masteryFilter}
               onChange={setMasteryFilter}
             />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <ToggleGroup
-                    type="single"
-                    size="sm"
-                    value={masteryMode}
-                    onValueChange={(v) => v && setMasteryMode(v as "all" | "any")}
-                    disabled={masteryFilter.size === 0}
-                    className="border rounded-md"
-                  >
-                    <ToggleGroupItem value="all" className="h-9 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
-                      All courses match
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="any" className="h-9 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
-                      At least one
-                    </ToggleGroupItem>
-                  </ToggleGroup>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                {masteryFilter.size === 0
-                  ? "Select a mastery level to enable"
-                  : "Students with no enrollments are excluded when a mastery filter is active"}
-              </TooltipContent>
-            </Tooltip>
+            <span className="text-[11px] text-muted-foreground">
+              AND logic: students must match every selected course and have all courses within the selected mastery levels.
+            </span>
             <div className="flex items-center gap-2 ml-auto">
               <span className="text-xs text-muted-foreground tabular-nums">
                 Showing {filtered.length} of {students.length}
