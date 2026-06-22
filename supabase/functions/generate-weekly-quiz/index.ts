@@ -59,9 +59,24 @@ function validateQuestion(
     options = q.options.map((o: any) => String(o ?? "").trim());
     if (options.some((o) => !o)) return { ok: false, reason: "empty option" };
     if (new Set(options).size !== 4) return { ok: false, reason: "duplicate options" };
+    // Length parity: prevent "longest = correct" giveaway.
+    const lens = options.map((o) => o.length);
+    const maxLen = Math.max(...lens);
+    const minLen = Math.min(...lens);
+    if (minLen > 0 && maxLen / minLen > 1.6) {
+      return { ok: false, reason: `option length imbalance ${minLen}->${maxLen} (>1.6x)` };
+    }
+    const answerStr = typeof q.answer === "string" ? q.answer.trim() : "";
+    const answerLen = answerStr.length;
+    const avgLen = lens.reduce((s, n) => s + n, 0) / 4;
+    const strictlyLongest = lens.filter((l) => l === maxLen).length === 1 && answerLen === maxLen;
+    if (strictlyLongest && answerLen > avgLen * 1.25) {
+      return { ok: false, reason: "correct option is strictly longest and >25% above avg length" };
+    }
   } else {
     options = ["True", "False"];
   }
+
 
   const answer = typeof q.answer === "string" ? q.answer.trim() : "";
   if (!options.includes(answer)) return { ok: false, reason: "answer not in options" };
@@ -134,10 +149,17 @@ STRICT RULES:
 - True/False: options MUST be exactly ["True", "False"]. 'answer' must be "True" or "False".
 - difficulty_estimate: number near ${spec.difficulty} (±0.15).
 - bloom_level: integer 1-4 ONLY (1=Remember, 2=Understand, 3=Apply, 4=Analyze). Do NOT use 5 (Evaluate) or 6 (Create) — these cannot be fairly assessed with MCQ or True/False.
+${spec.tier === "easy" ? "- Bloom target: mostly 1-2 (Remember/Understand)." : spec.tier === "medium" || spec.tier === "standard" ? "- Bloom target: mostly 2-3 (Understand/Apply); at least 40% at bloom 3." : "- Bloom target: 3-4 (Apply/Analyze); at least 60% at bloom 3-4. Prefer scenario, code-trace, or comparison stems over single-fact recall."}
 - content_text: question stem only, ≤ 600 chars.
 - explanation: 1-2 sentences explaining the correct answer.
 - topic: MUST exactly match one of the concept codes above.
-- Distribute questions across the listed concepts (don't pile all on one).${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+- Distribute questions across the listed concepts (don't pile all on one).
+
+ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
+- LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
+- ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible student misconception (a wrong rule, a swapped operator, an off-by-one, a confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer. No obviously absurd choices.
+- POSITION ROTATION: across this batch of ${need} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -145,7 +167,7 @@ STRICT RULES:
       headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: MODEL,
-        temperature: 0.4,
+        temperature: 0.35,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Generate ${need} ${spec.tier}-tier questions now.` },
@@ -210,7 +232,35 @@ STRICT RULES:
     if (accepted.length < spec.count && rejects.length) {
       retryHint = `Previous attempt had ${rejects.length} rejected questions. Reasons: ${rejects.slice(0, 3).join("; ")}`;
     }
+
+    // Position-skew check: if any single correct-answer index dominates (>50%), drop surplus and retry.
+    if (accepted.length >= spec.count) {
+      const mcq = accepted.filter((a) => a.format === "mcq");
+      if (mcq.length >= 4) {
+        const counts = [0, 0, 0, 0];
+        for (const a of mcq) {
+          const idx = a.options.indexOf(a.answer);
+          if (idx >= 0 && idx < 4) counts[idx]++;
+        }
+        const maxC = Math.max(...counts);
+        if (maxC / mcq.length > 0.5) {
+          const skewIdx = counts.indexOf(maxC);
+          // Drop the most recent over-represented MCQs back to threshold.
+          const allowed = Math.floor(mcq.length * 0.5);
+          let toRemove = maxC - allowed;
+          for (let i = accepted.length - 1; i >= 0 && toRemove > 0; i--) {
+            const a = accepted[i];
+            if (a.format === "mcq" && a.options.indexOf(a.answer) === skewIdx) {
+              accepted.splice(i, 1);
+              toRemove--;
+            }
+          }
+          retryHint = `Correct-answer position was skewed to index ${skewIdx} (${maxC}/${mcq.length}). Rotate correct positions across 0-3.`;
+        }
+      }
+    }
   }
+
 
   if (accepted.length < spec.count) {
     throw new Error(`Only generated ${accepted.length}/${spec.count} valid ${spec.tier}-tier questions after ${MAX_ATTEMPTS} attempts`);
