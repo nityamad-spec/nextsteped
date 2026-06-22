@@ -1,48 +1,48 @@
-## Problems
+## Goal
 
-In `src/pages/teacher/ExamMode.tsx`, the "Add Custom Question" dialog (lines ~948–1060):
+Prevent the "longest option = correct" giveaway in diagnostic question generation, mirroring the guardrails already in `generate-weekly-quiz`.
 
-1. **Dropdown only shows manual exams.** Line 967 maps `manualExams` (filtered at line 389: `labeledSchedule.filter(e => e.source === "manual")`). Exams whose source is `"generated"` (AI) never appear, so teachers cannot assign a custom question to them.
-2. **No difficulty input.** `difficulty` is hardcoded to `"Medium"` at lines 538, 551, 560. The dialog has no control for it, even though `assessment_questions.difficulty` supports Easy / Medium / Hard and the type union already enumerates the three values (line 42).
+## Changes (single file: `supabase/functions/generate-diagnostic-questions/index.ts`)
 
-## Fix
+### 1. Add length-parity validation in `validateMcq` (around lines 306-313)
 
-### 1. Show all exams in "Assign to Exam"
-- Replace the `manualExams.map(...)` source with `labeledSchedule` (all exams).
-- Render each item as `{label} — {AI-Generated | Manual}` so the source is still visible.
-- Keep the "Unassigned (library only)" option at the top.
-- Remove the "No manual exams yet" helper (lines 972–976) and replace with a neutral note when `labeledSchedule.length === 0` ("Add an exam above to assign this question.").
-- Update the default in `openAddDialog` (line 504): preselect `preselectExamId ?? labeledSchedule[0]?.id ?? null` instead of `manualExams[0]`.
+After the duplicate-options check, add:
 
-### 2. Add a Difficulty selector
-- New state: `const [formDifficulty, setFormDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium")`.
-- Reset it in `openAddDialog` (default `"Medium"`) and when editing, hydrate from the row (`q.difficulty ?? "Medium"`).
-- Add a `<Select>` field in the dialog (placed right after "Assign to Exam"):
-  - Label: "Difficulty"
-  - Options: Easy / Medium / Hard
-- Replace the three hardcoded `"Medium"` strings (lines 538, 551, 560) with `formDifficulty`.
-- Ensure the local `Question` type already includes Easy/Medium/Hard (it does — line 42).
+```ts
+const lens = opts.map((o) => o.length);
+const maxLen = Math.max(...lens);
+const minLen = Math.min(...lens);
+if (minLen > 0 && maxLen / minLen > 1.6) {
+  return { ok: false, reason: `option length imbalance ${minLen}->${maxLen} (>1.6x)` };
+}
+```
 
-### 3. Surface difficulty in the view dialog (optional, low risk)
-- `ExamQuestionsViewDialog` already receives `difficulty` per row; verify it renders it. If not, add a small badge. (Confirm during implementation; skip if already shown.)
+Then after the `answer` matches check (line 313), add the "strictly-longest correct" rejection:
 
-## Risks to flag
+```ts
+const answerLen = answer.length;
+const avgLen = lens.reduce((s, n) => s + n, 0) / 4;
+const strictlyLongest = lens.filter((l) => l === maxLen).length === 1 && answerLen === maxLen;
+if (strictlyLongest && answerLen > avgLen * 1.25) {
+  return { ok: false, reason: "correct option is strictly longest and >25% above avg length" };
+}
+```
 
-1. **Mixing manual questions into AI-generated exams.** Today, generated exams are populated only by the `generate-exam-questions` edge function (rows with `item_code` starting `exam-`). After this fix, a teacher can hand-write a question and attach it to a generated exam. This is the user's stated goal, but:
-   - The "questions per exam" count shown to teachers (lines 207–210, 226–229) only counts AI-generated rows (`item_code` startsWith `"exam-"`). Manually-added rows attached to a generated exam will be **delivered to students but not counted in the dashboard**. Recommend updating the counter to include manual rows assigned to that exam — flagging here, will include in implementation.
-   - Re-running "Generate questions" for that exam may delete/replace AI rows. Need to verify the regeneration path does NOT also delete manual rows. Will inspect `generate-exam-questions` and the surrounding delete logic during implementation and adjust if needed.
-2. **Exam length / time budget.** A manually added question doesn't change the configured `lengthMin` or estimated counts on the schedule. If a teacher adds many, the exam will run over the planned length. Out of scope to auto-adjust; surface only via the count (risk 1).
-3. **Editing existing questions** created before this change have `difficulty = "Medium"` in the DB; hydration falls back to "Medium" so no migration is needed.
-4. **No schema/DB changes.** `difficulty` and `exam_id` already exist on `assessment_questions`. No migration required.
+### 2. Add prompt guidance under STRICT RULES (around line 606)
+
+Add two rules matching the weekly-quiz language:
+
+- `LENGTH PARITY: all 4 options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.`
+- `ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible misconception (a wrong rule, swapped operator, off-by-one, confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer.`
+
+## Risks
+
+- **Higher rejection rate / more retries.** The diagnostic generator already runs against MAX_ATTEMPTS budgets per tier. Stricter validation could push some tiers (especially hard) closer to partial completion. Mitigated by the prompt guidance reducing bad outputs upstream; weekly quiz uses the same thresholds successfully.
+- **Pre-seeded questions** (already-stored DB rows loaded at lines ~1298-1307) bypass new validation since they aren't re-checked. Acceptable — they were previously approved; we're only constraining new generation. (Flagging in case you'd like a one-time cleanup pass — out of scope here.)
+- No schema or position-rotation changes; we are not touching answer-index distribution (diagnostic doesn't have weekly-quiz's position-rotation enforcement, and you didn't ask for it).
 
 ## Out of scope
 
-- Changing how AI generation counts questions or rebalances after manual additions (beyond the counter fix in risk 1).
-- Adding difficulty to AI-generated questions' UI.
-- Any backend/edge function rewrite.
-
-## Verification
-
-- Open Add Custom Question with a mix of AI-generated and manual exams configured: all exams appear in the dropdown with their source suffix.
-- Add a question with Difficulty = Hard, reopen via Edit, confirm Hard is preselected and the DB row stores `"Hard"`.
-- Assign a manual question to an AI-generated exam, open the exam's question list, confirm it appears alongside generated ones.
+- Backfilling/repairing existing diagnostic_questions rows.
+- Position rotation across batches.
+- Changing tier difficulty bands or attempt budgets.
