@@ -965,16 +965,29 @@ const ExamMode = () => {
                 <SelectTrigger><SelectValue placeholder="Select an exam" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__unassigned">Unassigned (library only)</SelectItem>
-                  {manualExams.map(e => (
-                    <SelectItem key={e.id} value={e.id}>{e.label} — Manual</SelectItem>
+                  {labeledSchedule.map(e => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.label} — {e.source === "manual" ? "Manual" : "AI-Generated"}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {manualExams.length === 0 && (
+              {labeledSchedule.length === 0 && (
                 <p className="text-[11px] text-muted-foreground">
-                  No manual exams yet. Switch an exam above to "Manual" to assign this question to it; otherwise it stays in the library and won't appear in any student exam.
+                  Add an exam above to assign this question to it; otherwise it stays in the library and won't appear in any student exam.
                 </p>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label>Difficulty</Label>
+              <Select value={formDifficulty} onValueChange={(v) => setFormDifficulty(v as "Easy" | "Medium" | "Hard")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Easy">Easy</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="Hard">Hard</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>
