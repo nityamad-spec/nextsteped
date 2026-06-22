@@ -267,18 +267,64 @@ const ExamMode = () => {
     updateExam(id, { source, approved: false });
   };
 
+  /** Delete AI-generated questions for an exam and unassign manual ones. Safe
+   *  to call even when the exam has no questions yet. */
+  const cleanupExamQuestions = async (examId: string) => {
+    if (!courseId) return;
+    const { data: existing, error: selErr } = await supabase
+      .from("assessment_questions")
+      .select("id, item_code")
+      .eq("course_id", courseId)
+      .eq("mode", "exam")
+      .eq("exam_id", examId);
+    if (selErr) throw selErr;
+    const generatedIds = ((existing as any[]) ?? [])
+      .filter(r => typeof r.item_code === "string" && r.item_code.startsWith("exam-"))
+      .map(r => r.id);
+    if (generatedIds.length > 0) {
+      const { error: delErr } = await supabase
+        .from("assessment_questions").delete().in("id", generatedIds);
+      if (delErr) throw delErr;
+    }
+    const { error: updErr } = await supabase
+      .from("assessment_questions")
+      .update({ exam_id: null })
+      .eq("course_id", courseId)
+      .eq("mode", "exam")
+      .eq("exam_id", examId);
+    if (updErr) throw updErr;
+    bumpCacheVersion("questions", courseId);
+  };
+
   const handleRemoveExamRequest = () => {
     if (examSchedule.length <= 1) return;
     const last = examSchedule[examSchedule.length - 1];
-    if (last.approved) {
+    const hasQuestions = (examQuestionCounts[last.id] ?? 0) > 0;
+    if (last.approved || hasQuestions) {
       setConfirmRemoveId(last.id);
     } else {
+      // No questions and unapproved — safe to drop immediately. Still run
+      // cleanup as a no-op safeguard against stale rows.
+      const id = last.id;
       setExamSchedule(prev => prev.slice(0, -1));
+      cleanupExamQuestions(id).catch(e => console.error("cleanup failed:", e));
     }
   };
-  const confirmRemoveExam = () => {
-    setExamSchedule(prev => prev.slice(0, -1));
-    setConfirmRemoveId(null);
+  const confirmRemoveExam = async () => {
+    const id = confirmRemoveId;
+    if (!id) { setConfirmRemoveId(null); return; }
+    try {
+      await cleanupExamQuestions(id);
+      setExamSchedule(prev => prev.filter(e => e.id !== id));
+      setEditingCardIds(prev => { const { [id]: _, ...rest } = prev; return rest; });
+      setExamQuestionCounts(prev => { const { [id]: _, ...rest } = prev; return rest; });
+      setQuestions(prev => prev.map(q => q.exam_id === id ? { ...q, exam_id: null } : q));
+    } catch (e: any) {
+      console.error("remove exam failed:", e);
+      toast.error(e?.message ?? "Failed to remove exam");
+    } finally {
+      setConfirmRemoveId(null);
+    }
   };
 
   const requestDeleteExam = (id: string) => {
@@ -294,35 +340,11 @@ const ExamMode = () => {
     if (!id || !courseId) return;
     setDeletingExam(true);
     try {
-      // Delete AI-generated questions for this exam
-      const { data: existing } = await supabase
-        .from("assessment_questions")
-        .select("id, item_code")
-        .eq("course_id", courseId)
-        .eq("mode", "exam")
-        .eq("exam_id", id);
-      const generatedIds = ((existing as any[]) ?? [])
-        .filter(r => typeof r.item_code === "string" && r.item_code.startsWith("exam-"))
-        .map(r => r.id);
-      if (generatedIds.length > 0) {
-        const { error: delErr } = await supabase
-          .from("assessment_questions").delete().in("id", generatedIds);
-        if (delErr) throw delErr;
-      }
-      // Unassign manual questions previously linked to this exam
-      const { error: updErr } = await supabase
-        .from("assessment_questions")
-        .update({ exam_id: null })
-        .eq("course_id", courseId)
-        .eq("mode", "exam")
-        .eq("exam_id", id);
-      if (updErr) throw updErr;
-
+      await cleanupExamQuestions(id);
       setExamSchedule(prev => prev.filter(e => e.id !== id));
       setEditingCardIds(prev => { const { [id]: _, ...rest } = prev; return rest; });
       setExamQuestionCounts(prev => { const { [id]: _, ...rest } = prev; return rest; });
       setQuestions(prev => prev.map(q => q.exam_id === id ? { ...q, exam_id: null } : q));
-      bumpCacheVersion("questions", courseId);
       toast.success("Mock test deleted");
     } catch (e: any) {
       console.error("delete exam failed:", e);
