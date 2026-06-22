@@ -461,35 +461,41 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
               return (
                 <Card key={a.question_id} className={`border ${a.is_correct ? "border-primary/30" : "border-destructive/30"}`}>
                   <CardContent className="p-4 space-y-2">
-                    <button onClick={() => toggleQuestion(i)} className="w-full text-left">
-                      <div className="flex items-start gap-2">
+                    <button onClick={() => toggleQuestion(i)} className="w-full text-left space-y-2">
+                      <div className="flex items-center gap-2">
                         {a.is_correct
-                          ? <CheckCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                          : <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                          ? <CheckCircle className="h-4 w-4 text-primary shrink-0" />
+                          : <XCircle className="h-4 w-4 text-destructive shrink-0" />
                         }
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium whitespace-pre-wrap">Q{i + 1}: {a.question_text}</p>
-                          <div className="mt-1 space-y-0.5">
-                            <p className="text-xs">
-                              <span className="text-muted-foreground">Your answer: </span>
-                              <span className={a.is_correct ? "text-primary font-medium" : "text-destructive font-medium"}>
-                                {a.selected || "Not answered"}
-                              </span>
-                            </p>
-                            {!a.is_correct && (
-                              <p className="text-xs">
-                                <span className="text-muted-foreground">Correct answer: </span>
-                                <span className="text-primary font-medium">{a.correct}</span>
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Badge variant="outline" className="text-[10px]">{a.topic}</Badge>
+                        <Badge
+                          variant="outline"
+                          title={a.topic}
+                          className="text-[10px] max-w-[70%] truncate inline-block"
+                        >
+                          {a.topic}
+                        </Badge>
+                        <div className="ml-auto shrink-0">
                           {isExpanded
                             ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
                             : <ChevronDown className="h-4 w-4 text-muted-foreground" />
                           }
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium whitespace-pre-wrap break-words">Q{i + 1}: {a.question_text}</p>
+                        <div className="mt-1 space-y-0.5">
+                          <p className="text-xs">
+                            <span className="text-muted-foreground">Your answer: </span>
+                            <span className={a.is_correct ? "text-primary font-medium" : "text-destructive font-medium"}>
+                              {a.selected || "Not answered"}
+                            </span>
+                          </p>
+                          {!a.is_correct && (
+                            <p className="text-xs">
+                              <span className="text-muted-foreground">Correct answer: </span>
+                              <span className="text-primary font-medium">{a.correct}</span>
+                            </p>
+                          )}
                         </div>
                       </div>
                     </button>
