@@ -153,9 +153,23 @@ function validateQuestion(
     options = q.options.map((o: any) => String(o ?? "").trim());
     if (options.some((o) => !o)) return { ok: false, reason: "empty option" };
     if (new Set(options).size !== 4) return { ok: false, reason: "duplicate options" };
+    const lens = options.map((o) => o.length);
+    const maxLen = Math.max(...lens);
+    const minLen = Math.min(...lens);
+    if (minLen > 0 && maxLen / minLen > 1.6) {
+      return { ok: false, reason: `option length imbalance ${minLen}->${maxLen} (>1.6x)` };
+    }
+    const answerStr = typeof q.answer === "string" ? q.answer.trim() : "";
+    const answerLen = answerStr.length;
+    const avgLen = lens.reduce((s, n) => s + n, 0) / 4;
+    const strictlyLongest = lens.filter((l) => l === maxLen).length === 1 && answerLen === maxLen;
+    if (strictlyLongest && answerLen > avgLen * 1.25) {
+      return { ok: false, reason: "correct option is strictly longest and >25% above avg length" };
+    }
   } else {
     options = ["True", "False"];
   }
+
 
   const answer = typeof q.answer === "string" ? q.answer.trim() : "";
   if (!options.includes(answer)) return { ok: false, reason: "answer not in options" };
