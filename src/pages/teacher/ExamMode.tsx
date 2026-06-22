@@ -205,8 +205,7 @@ const ExamMode = () => {
         })));
         const counts: Record<string, number> = {};
         for (const row of data as any[]) {
-          const isGenerated = typeof row.item_code === "string" && row.item_code.startsWith("exam-");
-          if (isGenerated && row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
+          if (row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
         }
         setExamQuestionCounts(counts);
       }
