@@ -536,7 +536,7 @@ const ExamMode = () => {
     const row = {
       course_id: courseId, teacher_id: user.id, concept_id: conceptRow.id,
       mode: "exam" as const, question_type: formType,
-      question_text: formQuestion, answer, topic: formTopic, difficulty: "Medium" as const,
+      question_text: formQuestion, answer, topic: formTopic, difficulty: formDifficulty,
       options: isMCQ ? filteredOptions : isTF ? ["True", "False"] : null,
       correct_index: isMCQ ? formCorrectIndex : isTF ? (formAnswer === "True" ? 0 : 1) : null,
       explanation: null as string | null, quiz_day: null as number | null,
