@@ -116,7 +116,7 @@ const AdminStudents = () => {
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const [courseFilter, setCourseFilter] = useState<Set<string>>(new Set());
   const [masteryFilter, setMasteryFilter] = useState<Set<string>>(new Set());
-  const [masteryMode, setMasteryMode] = useState<"all" | "any">("all");
+  
   const { toast } = useToast();
 
   const toggleRow = (key: string) => {
