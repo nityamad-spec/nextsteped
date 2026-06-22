@@ -260,19 +260,20 @@ const AdminStudents = () => {
         if (!hit) return false;
       }
       if (courseFilter.size > 0) {
-        if (!s.courses.some(c => courseFilter.has(c.name))) return false;
+        const names = new Set(s.courses.map(c => c.name));
+        for (const c of courseFilter) if (!names.has(c)) return false;
       }
       if (masteryFilter.size > 0) {
         if (s.courses.length === 0) return false;
-        if (masteryMode === "all") {
-          if (!s.courses.every(c => c.mastery && masteryFilter.has(c.mastery))) return false;
-        } else {
-          if (!s.courses.some(c => c.mastery && masteryFilter.has(c.mastery))) return false;
-        }
+        // every course's mastery must be within the selected set
+        if (!s.courses.every(c => c.mastery && masteryFilter.has(c.mastery))) return false;
+        // every selected level must appear in the student's courses
+        const present = new Set(s.courses.map(c => c.mastery).filter(Boolean) as string[]);
+        for (const m of masteryFilter) if (!present.has(m)) return false;
       }
       return true;
     });
-  }, [students, search, courseFilter, masteryFilter, masteryMode]);
+  }, [students, search, courseFilter, masteryFilter]);
 
   const hasMultiAccount = useMemo(() => students.some(s => s.profileIds.length > 1), [students]);
   const filtersActive = search.length > 0 || courseFilter.size > 0 || masteryFilter.size > 0;
