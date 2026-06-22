@@ -1,17 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { GraduationCap, MoreHorizontal, Trash2 } from "lucide-react";
+import { BookOpen, ChevronDown, GraduationCap, MoreHorizontal, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface CourseEnrollment {
   courseId: string;
@@ -22,14 +24,25 @@ interface CourseEnrollment {
 
 interface StudentGroup {
   key: string;
-  profileIds: string[]; // all profile ids merged into this row
-  primaryProfileId: string; // most recent profile id (used for delete)
+  profileIds: string[];
+  primaryProfileId: string;
   name: string;
   email: string | null;
   roll_number: string | null;
-  created_at: string; // earliest profile creation
+  created_at: string;
   courses: CourseEnrollment[];
 }
+
+const relativeDate = (iso: string) => {
+  const d = new Date(iso).getTime();
+  const diff = Date.now() - d;
+  const day = 86_400_000;
+  if (diff < day) return "today";
+  if (diff < 7 * day) return `${Math.floor(diff / day)}d ago`;
+  if (diff < 30 * day) return `${Math.floor(diff / (7 * day))}w ago`;
+  if (diff < 365 * day) return `${Math.floor(diff / (30 * day))}mo ago`;
+  return `${Math.floor(diff / (365 * day))}y ago`;
+};
 
 const AdminStudents = () => {
   const [students, setStudents] = useState<StudentGroup[]>([]);
@@ -37,7 +50,17 @@ const AdminStudents = () => {
   const [target, setTarget] = useState<StudentGroup | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+
+  const toggleRow = (key: string) => {
+    setOpenRows(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   useEffect(() => {
     const fetch = async () => {
@@ -86,9 +109,7 @@ const AdminStudents = () => {
         enrollmentsByStudent.set(e.student_id, arr);
       });
 
-      // Group profiles by lowercased email (fallback to profile id when null).
       const groups = new Map<string, StudentGroup>();
-      // profiles ordered created_at desc → first occurrence is the most recent.
       for (const p of profiles) {
         const key = p.email ? `email:${p.email.trim().toLowerCase()}` : `id:${p.id}`;
         const existing = groups.get(key);
@@ -107,16 +128,13 @@ const AdminStudents = () => {
         } else {
           existing.profileIds.push(p.id);
           existing.courses.push(...profileCourses);
-          // keep earliest created_at
           if (new Date(p.created_at) < new Date(existing.created_at)) {
             existing.created_at = p.created_at;
           }
-          // fill missing roll number from another profile if needed
           if (!existing.roll_number && p.roll_number) existing.roll_number = p.roll_number;
         }
       }
 
-      // Sort each student's courses by enrolledAt desc and dedupe by courseId.
       const final = Array.from(groups.values()).map(g => {
         const seen = new Set<string>();
         const deduped: CourseEnrollment[] = [];
@@ -129,7 +147,6 @@ const AdminStudents = () => {
         return g;
       });
 
-      // Sort students by most recent profile creation desc
       final.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setStudents(final);
@@ -155,110 +172,176 @@ const AdminStudents = () => {
     setConfirmText("");
   };
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter(s =>
+      s.name?.toLowerCase().includes(q) ||
+      s.email?.toLowerCase().includes(q) ||
+      s.roll_number?.toLowerCase().includes(q) ||
+      s.courses.some(c => c.name.toLowerCase().includes(q))
+    );
+  }, [students, search]);
+
+  const hasMultiAccount = useMemo(() => students.some(s => s.profileIds.length > 1), [students]);
+
   if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
 
   const expectedConfirm = (target?.email || target?.name || "").trim();
   const confirmOk = confirmText.trim().toLowerCase() === expectedConfirm.toLowerCase() && expectedConfirm.length > 0;
 
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={200}>
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-bold tracking-tight text-foreground">All Students</h2>
-        <p className="text-muted-foreground">Browse all registered students</p>
+        <p className="text-muted-foreground">Grouped by email — each student appears once with all their enrollments.</p>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><GraduationCap className="h-5 w-5" />{students.length} Students</CardTitle>
+        <CardHeader className="gap-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <CardTitle className="flex items-center gap-2">
+              <GraduationCap className="h-5 w-5" />
+              Students
+              <Badge variant="secondary" className="ml-1">{students.length}</Badge>
+              {hasMultiAccount && (
+                <Badge variant="outline" className="text-[10px] font-normal">
+                  some emails share multiple accounts
+                </Badge>
+              )}
+            </CardTitle>
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search name, email, roll, course…"
+                className="pl-8 h-9"
+              />
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
-          {students.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">No students registered yet</p>
+        <CardContent className="p-0">
+          {filtered.length === 0 ? (
+            <div className="py-12 flex flex-col items-center justify-center text-muted-foreground">
+              <GraduationCap className="h-8 w-8 mb-2 opacity-60" />
+              <p className="text-sm">{students.length === 0 ? "No students registered yet" : "No students match your search"}</p>
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Roll Number</TableHead>
-                  <TableHead>Courses</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {students.map(s => {
-                  const multiAccount = s.profileIds.length > 1;
-                  return (
-                  <TableRow key={s.key}>
-                    <TableCell className="font-medium align-top">{s.name}</TableCell>
-                    <TableCell className="text-muted-foreground align-top">
-                      {s.email || "—"}
-                      {multiAccount && (
-                        <Badge variant="outline" className="ml-2 text-[10px]">{s.profileIds.length} accounts</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="align-top">{s.roll_number || "—"}</TableCell>
-                    <TableCell className="align-top">
-                      {s.courses.length === 0 ? (
-                        <span className="text-muted-foreground">Not enrolled</span>
-                      ) : (
-                        <div className="space-y-1">
-                          {s.courses.map(c => (
-                            <div key={c.courseId} className="flex items-center gap-2 text-sm">
-                              <span className="font-medium">{c.name}</span>
-                              {c.mastery ? (
-                                <Badge variant="outline" className="text-[10px]">{c.mastery}</Badge>
-                              ) : (
-                                <span className="text-[10px] text-muted-foreground">no mastery</span>
-                              )}
-                              <span className="text-xs text-muted-foreground">
-                                joined {new Date(c.enrolledAt).toLocaleDateString()}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm align-top">
-                      {new Date(s.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="align-top">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {multiAccount ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div>
-                                  <DropdownMenuItem disabled className="text-muted-foreground">
-                                    <Trash2 className="h-4 w-4 mr-2" /> Delete user
-                                  </DropdownMenuItem>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent>Multiple accounts share this email — resolve in DB</TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => { setTarget(s); setConfirmText(""); }}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" /> Delete user
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted/40">
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Roll Number</TableHead>
+                    <TableHead>Courses</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((s, idx) => {
+                    const multiAccount = s.profileIds.length > 1;
+                    const isOpen = openRows.has(s.key);
+                    return (
+                      <TableRow key={s.key} className={cn(idx % 2 === 1 && "bg-muted/20", "hover:bg-muted/40 transition-colors")}>
+                        <TableCell className="font-medium align-top">{s.name}</TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs text-muted-foreground truncate max-w-[200px]" title={s.email || ""}>
+                              {s.email || "—"}
+                            </span>
+                            {multiAccount && (
+                              <Badge variant="outline" className="text-[10px]">{s.profileIds.length}×</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top text-sm">{s.roll_number || <span className="text-muted-foreground">—</span>}</TableCell>
+                        <TableCell className="align-top">
+                          {s.courses.length === 0 ? (
+                            <Badge variant="outline" className="text-muted-foreground font-normal">Not enrolled</Badge>
+                          ) : (
+                            <Collapsible open={isOpen} onOpenChange={() => toggleRow(s.key)}>
+                              <CollapsibleTrigger asChild>
+                                <Button variant="outline" size="sm" className="h-7 gap-1.5">
+                                  <BookOpen className="h-3.5 w-3.5" />
+                                  <span className="text-xs">{s.courses.length} course{s.courses.length === 1 ? "" : "s"}</span>
+                                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isOpen && "rotate-180")} />
+                                </Button>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="mt-2">
+                                <div className="rounded-md border bg-muted/30 divide-y">
+                                  {s.courses.map(c => (
+                                    <div key={c.courseId} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                                      <span className="font-medium text-foreground">{c.name}</span>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        {c.mastery ? (
+                                          <Badge variant="secondary" className="text-[10px]">{c.mastery}</Badge>
+                                        ) : (
+                                          <span className="text-[10px] text-muted-foreground italic">no mastery yet</span>
+                                        )}
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <span className="text-[10px] text-muted-foreground tabular-nums">
+                                              {relativeDate(c.enrolledAt)}
+                                            </span>
+                                          </TooltipTrigger>
+                                          <TooltipContent>joined {new Date(c.enrolledAt).toLocaleString()}</TooltipContent>
+                                        </Tooltip>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          )}
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-xs text-muted-foreground tabular-nums">{relativeDate(s.created_at)}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>{new Date(s.created_at).toLocaleString()}</TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {multiAccount ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div>
+                                      <DropdownMenuItem disabled className="text-muted-foreground">
+                                        <Trash2 className="h-4 w-4 mr-2" /> Delete user
+                                      </DropdownMenuItem>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Multiple accounts share this email — resolve in DB</TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => { setTarget(s); setConfirmText(""); }}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" /> Delete user
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
