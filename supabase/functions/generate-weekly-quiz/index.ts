@@ -13,17 +13,33 @@ interface TierSpec {
   count: number;
   difficulty: number;
   label: string;
+  batchSize: number;          // max questions requested per gateway sub-call
+  perCallTimeoutMs: number;   // per-sub-call abort timeout
+  maxAttempts: number;        // tier-level retry budget
 }
 
+// Chunked sub-calls + over-generation buffer mirror the diagnostic pattern.
+// Small batches (≤3) finish well under the 45-60s per-call timeout on flash,
+// and partial salvage across sub-calls/attempts prevents one slow or
+// rejected response from zeroing out the tier.
 const TIER_SPEC: TierSpec[] = [
-  { tier: "standard", count: 5, difficulty: 0.5, label: "Standard tier (common to all students, medium difficulty)" },
-  { tier: "easy", count: 5, difficulty: 0.2, label: "Easy adaptive tier (for struggling students)" },
-  { tier: "medium", count: 5, difficulty: 0.5, label: "Medium adaptive tier (for average students)" },
-  { tier: "hard", count: 5, difficulty: 0.85, label: "Hard adaptive tier (for advanced students)" },
+  { tier: "standard", count: 5, difficulty: 0.5,  label: "Standard tier (common to all students, medium difficulty)", batchSize: 3, perCallTimeoutMs: 45_000, maxAttempts: 3 },
+  { tier: "easy",     count: 5, difficulty: 0.2,  label: "Easy adaptive tier (for struggling students)",              batchSize: 3, perCallTimeoutMs: 45_000, maxAttempts: 3 },
+  { tier: "medium",   count: 5, difficulty: 0.5,  label: "Medium adaptive tier (for average students)",               batchSize: 3, perCallTimeoutMs: 45_000, maxAttempts: 3 },
+  { tier: "hard",     count: 5, difficulty: 0.85, label: "Hard adaptive tier (for advanced students)",                batchSize: 3, perCallTimeoutMs: 60_000, maxAttempts: 4 },
 ];
 
-const MAX_ATTEMPTS = 3;
 const MODEL = "google/gemini-2.5-flash";
+// Global wall-clock budget. Supabase edge invoke is bounded at ~150s; leave
+// headroom for auth, DB reads, insert, and JSON serialization.
+const GLOBAL_DEADLINE_MS = 130_000;
+
+class CreditsExhaustedError extends Error {
+  constructor(msg = "AI credits exhausted") { super(msg); this.name = "CreditsExhaustedError"; }
+}
+class DeadlineExceededError extends Error {
+  constructor(msg = "Global deadline exceeded") { super(msg); this.name = "DeadlineExceededError"; }
+}
 
 interface GeneratedQuestion {
   content_text: string;
