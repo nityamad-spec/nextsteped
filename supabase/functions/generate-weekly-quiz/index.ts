@@ -143,15 +143,23 @@ async function generateTier(
   weekName: string,
   conceptByCode: Record<string, ConceptRow>,
   lovableKey: string,
+  deadlineAt: number,
 ): Promise<GeneratedQuestion[]> {
   const conceptList = Object.keys(conceptByCode).map((c) => `  - ${c}`).join("\n");
   const accepted: GeneratedQuestion[] = [];
   let retryHint: string | null = null;
 
-  for (let attempt = 0; attempt < MAX_ATTEMPTS && accepted.length < spec.count; attempt++) {
-    const need = spec.count - accepted.length;
+  outer: for (let attempt = 0; attempt < spec.maxAttempts && accepted.length < spec.count; attempt++) {
+    // Within an attempt, chunk into sub-calls. Each sub-call asks for a small
+    // batch (≤spec.batchSize) plus a +1 over-generation buffer so validator
+    // rejections don't immediately force a new full round-trip.
+    while (accepted.length < spec.count) {
+      if (Date.now() >= deadlineAt) break outer;
+      const remaining = spec.count - accepted.length;
+      const subNeed = Math.min(spec.batchSize, remaining);
+      const askFor = subNeed + 1; // over-generation buffer
 
-    const systemPrompt = `You are an expert assessment designer for a course titled "${courseName}". Generate exactly ${need} ${spec.tier}-tier WEEKLY QUIZ questions for Week ${weekNumber}${weekName ? ` — ${weekName}` : ""}.
+      const systemPrompt = `You are an expert assessment designer for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier}-tier WEEKLY QUIZ questions for Week ${weekNumber}${weekName ? ` — ${weekName}` : ""}.
 
 Tier: ${spec.label}
 Target difficulty (0=easy, 1=hard): ${spec.difficulty}
@@ -174,113 +182,127 @@ ${spec.tier === "easy" ? "- Bloom target: mostly 1-2 (Remember/Understand)." : s
 ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 - LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
 - ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible student misconception (a wrong rule, a swapped operator, an off-by-one, a confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer. No obviously absurd choices.
-- POSITION ROTATION: across this batch of ${need} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
 
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      signal: AbortSignal.timeout(300_000),
-      headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: MODEL,
-        temperature: 0.35,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate ${need} ${spec.tier}-tier questions now.` },
-        ],
-        tools: [{
-          type: "function",
-          function: {
-            name: "submit_questions",
-            description: "Submit weekly quiz questions",
-            parameters: {
-              type: "object",
-              properties: {
-                questions: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      content_text: { type: "string" },
-                      format: { type: "string", enum: ["mcq", "true_false"] },
-                      options: { type: "array", items: { type: "string" } },
-                      answer: { type: "string" },
-                      difficulty_estimate: { type: "number" },
-                      bloom_level: { type: "integer", minimum: 1, maximum: 4 },
-                      explanation: { type: "string" },
-                      topic: { type: "string" },
+      let response: Response;
+      try {
+        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          signal: AbortSignal.timeout(spec.perCallTimeoutMs),
+          headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: MODEL,
+            temperature: 0.35,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Generate ${askFor} ${spec.tier}-tier questions now.` },
+            ],
+            tools: [{
+              type: "function",
+              function: {
+                name: "submit_questions",
+                description: "Submit weekly quiz questions",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    questions: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          content_text: { type: "string" },
+                          format: { type: "string", enum: ["mcq", "true_false"] },
+                          options: { type: "array", items: { type: "string" } },
+                          answer: { type: "string" },
+                          difficulty_estimate: { type: "number" },
+                          bloom_level: { type: "integer", minimum: 1, maximum: 4 },
+                          explanation: { type: "string" },
+                          topic: { type: "string" },
+                        },
+                        required: ["content_text", "format", "options", "answer", "difficulty_estimate", "bloom_level", "explanation", "topic"],
+                      },
                     },
-                    required: ["content_text", "format", "options", "answer", "difficulty_estimate", "bloom_level", "explanation", "topic"],
                   },
+                  required: ["questions"],
                 },
               },
-              required: ["questions"],
-            },
-          },
-        }],
-        tool_choice: { type: "function", function: { name: "submit_questions" } },
-      }),
-    });
+            }],
+            tool_choice: { type: "function", function: { name: "submit_questions" } },
+          }),
+        });
+      } catch (err) {
+        // Timeout / abort / network — log, break to next attempt.
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[weekly-quiz] ${spec.tier} sub-call failed (attempt ${attempt + 1}):`, msg);
+        retryHint = `Previous sub-call timed out or errored: ${msg.slice(0, 120)}`;
+        break; // next attempt
+      }
 
-    if (!response.ok) {
-      const txt = await response.text();
-      if (response.status === 429) throw new Error("Rate limited by AI gateway");
-      if (response.status === 402) throw new Error("AI credits exhausted");
-      throw new Error(`AI gateway error ${response.status}: ${txt.slice(0, 200)}`);
-    }
-
-    const data = await response.json();
-    const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) { retryHint = "no tool call returned"; continue; }
-    let parsed: any;
-    try { parsed = JSON.parse(toolCall.function.arguments); } catch { retryHint = "invalid JSON"; continue; }
-    const arr: any[] = Array.isArray(parsed?.questions) ? parsed.questions : [];
-
-    const rejects: string[] = [];
-    for (const q of arr) {
-      if (accepted.length >= spec.count) break;
-      const v = validateQuestion(q, spec, conceptByCode);
-      if (!v.ok) { rejects.push(v.reason); continue; }
-      const key = v.q.content_text.slice(0, 120).toLowerCase();
-      if (accepted.some((a) => a.content_text.slice(0, 120).toLowerCase() === key)) continue;
-      accepted.push(v.q);
-    }
-    if (accepted.length < spec.count && rejects.length) {
-      retryHint = `Previous attempt had ${rejects.length} rejected questions. Reasons: ${rejects.slice(0, 3).join("; ")}`;
-    }
-
-    // Position-skew check: if any single correct-answer index dominates (>50%), drop surplus and retry.
-    if (accepted.length >= spec.count) {
-      const mcq = accepted.filter((a) => a.format === "mcq");
-      if (mcq.length >= 4) {
-        const counts = [0, 0, 0, 0];
-        for (const a of mcq) {
-          const idx = a.options.indexOf(a.answer);
-          if (idx >= 0 && idx < 4) counts[idx]++;
+      if (!response.ok) {
+        const txt = await response.text().catch(() => "");
+        if (response.status === 429) {
+          retryHint = "Rate limited by gateway";
+          break; // next attempt (small backoff is implicit)
         }
-        const maxC = Math.max(...counts);
-        if (maxC / mcq.length > 0.5) {
-          const skewIdx = counts.indexOf(maxC);
-          // Drop the most recent over-represented MCQs back to threshold.
-          const allowed = Math.floor(mcq.length * 0.5);
-          let toRemove = maxC - allowed;
-          for (let i = accepted.length - 1; i >= 0 && toRemove > 0; i--) {
-            const a = accepted[i];
-            if (a.format === "mcq" && a.options.indexOf(a.answer) === skewIdx) {
-              accepted.splice(i, 1);
-              toRemove--;
-            }
+        if (response.status === 402) throw new CreditsExhaustedError();
+        console.warn(`[weekly-quiz] ${spec.tier} gateway ${response.status}:`, txt.slice(0, 200));
+        retryHint = `Gateway returned ${response.status}`;
+        break;
+      }
+
+      const data = await response.json().catch(() => null);
+      const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
+      if (!toolCall) { retryHint = "no tool call returned"; continue; }
+      let parsed: any;
+      try { parsed = JSON.parse(toolCall.function.arguments); } catch { retryHint = "invalid JSON"; continue; }
+      const arr: any[] = Array.isArray(parsed?.questions) ? parsed.questions : [];
+
+      const rejects: string[] = [];
+      for (const q of arr) {
+        if (accepted.length >= spec.count) break;
+        const v = validateQuestion(q, spec, conceptByCode);
+        if (!v.ok) { rejects.push(v.reason); continue; }
+        const key = v.q.content_text.slice(0, 120).toLowerCase();
+        if (accepted.some((a) => a.content_text.slice(0, 120).toLowerCase() === key)) continue;
+        accepted.push(v.q);
+      }
+      if (accepted.length < spec.count && rejects.length) {
+        retryHint = `Previous sub-call had ${rejects.length} rejected questions. Reasons: ${rejects.slice(0, 3).join("; ")}`;
+      }
+
+      // If the sub-call produced zero survivors, break out to start a fresh
+      // attempt rather than spinning on the same prompt with identical hint.
+      if (arr.length > 0 && accepted.length === 0) break;
+
+      // Post-batch position-skew check — only meaningful once tier is full.
+      if (accepted.length >= spec.count) {
+        const mcq = accepted.filter((a) => a.format === "mcq");
+        if (mcq.length >= 4) {
+          const counts = [0, 0, 0, 0];
+          for (const a of mcq) {
+            const idx = a.options.indexOf(a.answer);
+            if (idx >= 0 && idx < 4) counts[idx]++;
           }
-          retryHint = `Correct-answer position was skewed to index ${skewIdx} (${maxC}/${mcq.length}). Rotate correct positions across 0-3.`;
+          const maxC = Math.max(...counts);
+          if (maxC / mcq.length > 0.5) {
+            const skewIdx = counts.indexOf(maxC);
+            const allowed = Math.floor(mcq.length * 0.5);
+            let toRemove = maxC - allowed;
+            for (let i = accepted.length - 1; i >= 0 && toRemove > 0; i--) {
+              const a = accepted[i];
+              if (a.format === "mcq" && a.options.indexOf(a.answer) === skewIdx) {
+                accepted.splice(i, 1);
+                toRemove--;
+              }
+            }
+            retryHint = `Correct-answer position was skewed to index ${skewIdx} (${maxC}/${mcq.length}). Rotate correct positions across 0-3.`;
+          }
         }
       }
     }
   }
 
-
-  if (accepted.length < spec.count) {
-    throw new Error(`Only generated ${accepted.length}/${spec.count} valid ${spec.tier}-tier questions after ${MAX_ATTEMPTS} attempts`);
-  }
+  // Return whatever we have — caller decides whether to accept a partial tier.
   return accepted;
 }
 
