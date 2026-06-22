@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, ChevronDown, GraduationCap, MoreHorizontal, Search, Trash2 } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Filter, GraduationCap, MoreHorizontal, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -12,8 +12,70 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+
+const MASTERY_ORDER = ["beginner", "developing", "proficient", "expert"];
+const sortMastery = (a: string, b: string) => {
+  const ai = MASTERY_ORDER.indexOf(a.toLowerCase());
+  const bi = MASTERY_ORDER.indexOf(b.toLowerCase());
+  if (ai !== -1 && bi !== -1) return ai - bi;
+  if (ai !== -1) return -1;
+  if (bi !== -1) return 1;
+  return a.localeCompare(b);
+};
+
+interface MultiSelectProps {
+  label: string;
+  options: string[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+  width?: string;
+}
+
+const MultiSelectFilter = ({ label, options, selected, onChange, width = "w-56" }: MultiSelectProps) => {
+  const toggle = (v: string) => {
+    const next = new Set(selected);
+    if (next.has(v)) next.delete(v); else next.add(v);
+    onChange(next);
+  };
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-9 gap-2">
+          <Filter className="h-3.5 w-3.5" />
+          <span>{label}</span>
+          {selected.size > 0 && <Badge variant="secondary" className="h-5 px-1.5">{selected.size}</Badge>}
+          <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className={cn("p-0", width)} align="start">
+        <Command>
+          <CommandInput placeholder={`Search ${label.toLowerCase()}…`} />
+          <CommandList>
+            <CommandEmpty>None found.</CommandEmpty>
+            <CommandGroup>
+              {options.map(opt => {
+                const checked = selected.has(opt);
+                return (
+                  <CommandItem key={opt} onSelect={() => toggle(opt)} className="cursor-pointer">
+                    <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded border", checked ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/40")}>
+                      {checked && <Check className="h-3 w-3" />}
+                    </div>
+                    <span className="capitalize">{opt}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 interface CourseEnrollment {
   courseId: string;
@@ -52,6 +114,9 @@ const AdminStudents = () => {
   const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
+  const [courseFilter, setCourseFilter] = useState<Set<string>>(new Set());
+  const [masteryFilter, setMasteryFilter] = useState<Set<string>>(new Set());
+  const [masteryMode, setMasteryMode] = useState<"all" | "any">("all");
   const { toast } = useToast();
 
   const toggleRow = (key: string) => {
@@ -172,18 +237,51 @@ const AdminStudents = () => {
     setConfirmText("");
   };
 
+  const courseOptions = useMemo(() => {
+    const s = new Set<string>();
+    students.forEach(st => st.courses.forEach(c => s.add(c.name)));
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [students]);
+
+  const masteryOptions = useMemo(() => {
+    const s = new Set<string>();
+    students.forEach(st => st.courses.forEach(c => c.mastery && s.add(c.mastery)));
+    return [...s].sort(sortMastery);
+  }, [students]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter(s =>
-      s.name?.toLowerCase().includes(q) ||
-      s.email?.toLowerCase().includes(q) ||
-      s.roll_number?.toLowerCase().includes(q) ||
-      s.courses.some(c => c.name.toLowerCase().includes(q))
-    );
-  }, [students, search]);
+    return students.filter(s => {
+      if (q) {
+        const hit = s.name?.toLowerCase().includes(q) ||
+          s.email?.toLowerCase().includes(q) ||
+          s.roll_number?.toLowerCase().includes(q) ||
+          s.courses.some(c => c.name.toLowerCase().includes(q));
+        if (!hit) return false;
+      }
+      if (courseFilter.size > 0) {
+        if (!s.courses.some(c => courseFilter.has(c.name))) return false;
+      }
+      if (masteryFilter.size > 0) {
+        if (s.courses.length === 0) return false;
+        if (masteryMode === "all") {
+          if (!s.courses.every(c => c.mastery && masteryFilter.has(c.mastery))) return false;
+        } else {
+          if (!s.courses.some(c => c.mastery && masteryFilter.has(c.mastery))) return false;
+        }
+      }
+      return true;
+    });
+  }, [students, search, courseFilter, masteryFilter, masteryMode]);
 
   const hasMultiAccount = useMemo(() => students.some(s => s.profileIds.length > 1), [students]);
+  const filtersActive = search.length > 0 || courseFilter.size > 0 || masteryFilter.size > 0;
+  const clearAll = () => {
+    setSearch("");
+    setCourseFilter(new Set());
+    setMasteryFilter(new Set());
+    setMasteryMode("all");
+  };
 
   if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
 
@@ -221,12 +319,63 @@ const AdminStudents = () => {
               />
             </div>
           </div>
+          <div className="flex items-center gap-2 flex-wrap pt-1">
+            <MultiSelectFilter
+              label="Courses"
+              options={courseOptions}
+              selected={courseFilter}
+              onChange={setCourseFilter}
+              width="w-64"
+            />
+            <MultiSelectFilter
+              label="Mastery"
+              options={masteryOptions}
+              selected={masteryFilter}
+              onChange={setMasteryFilter}
+            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <ToggleGroup
+                    type="single"
+                    size="sm"
+                    value={masteryMode}
+                    onValueChange={(v) => v && setMasteryMode(v as "all" | "any")}
+                    disabled={masteryFilter.size === 0}
+                    className="border rounded-md"
+                  >
+                    <ToggleGroupItem value="all" className="h-9 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+                      All courses match
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="any" className="h-9 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+                      At least one
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                {masteryFilter.size === 0
+                  ? "Select a mastery level to enable"
+                  : "Students with no enrollments are excluded when a mastery filter is active"}
+              </TooltipContent>
+            </Tooltip>
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-xs text-muted-foreground tabular-nums">
+                Showing {filtered.length} of {students.length}
+              </span>
+              {filtersActive && (
+                <Button variant="ghost" size="sm" className="h-8 gap-1" onClick={clearAll}>
+                  <X className="h-3.5 w-3.5" /> Clear filters
+                </Button>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {filtered.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center text-muted-foreground">
               <GraduationCap className="h-8 w-8 mb-2 opacity-60" />
-              <p className="text-sm">{students.length === 0 ? "No students registered yet" : "No students match your search"}</p>
+              <p className="text-sm">{students.length === 0 ? "No students registered yet" : "No students match your filters"}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
