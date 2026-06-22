@@ -138,6 +138,7 @@ const ExamMode = () => {
   const [formOptions, setFormOptions] = useState<string[]>(["", "", "", ""]);
   const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
   const [formExamId, setFormExamId] = useState<string | null>(null);
+  const [formDifficulty, setFormDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
   const [saving, setSaving] = useState(false);
   const [concepts, setConcepts] = useState<{ id: string; concept_code: string }[]>([]);
 
@@ -204,8 +205,7 @@ const ExamMode = () => {
         })));
         const counts: Record<string, number> = {};
         for (const row of data as any[]) {
-          const isGenerated = typeof row.item_code === "string" && row.item_code.startsWith("exam-");
-          if (isGenerated && row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
+          if (row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
         }
         setExamQuestionCounts(counts);
       }
@@ -223,8 +223,7 @@ const ExamMode = () => {
       .eq("mode", "exam");
     const counts: Record<string, number> = {};
     for (const row of (data as any[]) ?? []) {
-      const isGenerated = typeof row.item_code === "string" && row.item_code.startsWith("exam-");
-      if (isGenerated && row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
+      if (row.exam_id) counts[row.exam_id] = (counts[row.exam_id] ?? 0) + 1;
     }
     setExamQuestionCounts(counts);
   };
@@ -500,8 +499,9 @@ const ExamMode = () => {
     setEditingId(null);
     setFormQuestion(""); setFormAnswer(""); setFormTopic("");
     setFormType("MCQ"); setFormOptions(["", "", "", ""]); setFormCorrectIndex(0);
-    // Default: preselected exam, else first manual exam if any, else null
-    setFormExamId(preselectExamId ?? (manualExams[0]?.id ?? null));
+    setFormDifficulty("Medium");
+    // Default: preselected exam, else first exam if any, else null
+    setFormExamId(preselectExamId ?? (labeledSchedule[0]?.id ?? null));
     setDialogOpen(true);
     // Refresh concepts so newly-added ones show up without page reload
     refetchConcepts();
@@ -514,6 +514,7 @@ const ExamMode = () => {
     setFormOptions(q.options?.length ? [...q.options] : ["", "", "", ""]);
     setFormCorrectIndex(q.correctIndex ?? 0);
     setFormExamId(q.exam_id ?? null);
+    setFormDifficulty((q.difficulty as "Easy" | "Medium" | "Hard") ?? "Medium");
     setDialogOpen(true);
   };
 
@@ -535,7 +536,7 @@ const ExamMode = () => {
     const row = {
       course_id: courseId, teacher_id: user.id, concept_id: conceptRow.id,
       mode: "exam" as const, question_type: formType,
-      question_text: formQuestion, answer, topic: formTopic, difficulty: "Medium" as const,
+      question_text: formQuestion, answer, topic: formTopic, difficulty: formDifficulty,
       options: isMCQ ? filteredOptions : isTF ? ["True", "False"] : null,
       correct_index: isMCQ ? formCorrectIndex : isTF ? (formAnswer === "True" ? 0 : 1) : null,
       explanation: null as string | null, quiz_day: null as number | null,
@@ -548,7 +549,7 @@ const ExamMode = () => {
         if (error) throw error;
         setQuestions(prev => prev.map(q => q.id === editingId ? {
           id: editingId, question: formQuestion, answer, topic: formTopic,
-          difficulty: "Medium", type: formType, exam_id: formExamId,
+          difficulty: formDifficulty, type: formType, exam_id: formExamId,
           ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
         } : q));
         toast.success("Question updated");
@@ -557,7 +558,7 @@ const ExamMode = () => {
         if (error) throw error;
         setQuestions(prev => [...prev, {
           id: data.id, question: formQuestion, answer, topic: formTopic,
-          difficulty: "Medium", type: formType, exam_id: formExamId,
+          difficulty: formDifficulty, type: formType, exam_id: formExamId,
           ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
         }]);
         toast.success("Question added");
@@ -964,16 +965,29 @@ const ExamMode = () => {
                 <SelectTrigger><SelectValue placeholder="Select an exam" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__unassigned">Unassigned (library only)</SelectItem>
-                  {manualExams.map(e => (
-                    <SelectItem key={e.id} value={e.id}>{e.label} — Manual</SelectItem>
+                  {labeledSchedule.map(e => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.label} — {e.source === "manual" ? "Manual" : "AI-Generated"}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {manualExams.length === 0 && (
+              {labeledSchedule.length === 0 && (
                 <p className="text-[11px] text-muted-foreground">
-                  No manual exams yet. Switch an exam above to "Manual" to assign this question to it; otherwise it stays in the library and won't appear in any student exam.
+                  Add an exam above to assign this question to it; otherwise it stays in the library and won't appear in any student exam.
                 </p>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label>Difficulty</Label>
+              <Select value={formDifficulty} onValueChange={(v) => setFormDifficulty(v as "Easy" | "Medium" | "Hard")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Easy">Easy</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="Hard">Hard</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>
