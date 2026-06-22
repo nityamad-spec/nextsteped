@@ -1,48 +1,32 @@
 ## Goal
+Fix `/admin/students` so each student appears once (keyed by email) and shows every course they're enrolled in with per-course mastery level and join date — instead of only the most recent enrollment.
 
-Prevent the "longest option = correct" giveaway in diagnostic question generation, mirroring the guardrails already in `generate-weekly-quiz`.
+## Changes (single file: `src/pages/admin/AdminStudents.tsx`)
 
-## Changes (single file: `supabase/functions/generate-diagnostic-questions/index.ts`)
+1. **Fetch all enrollments, not just one per student.**
+   - Query `enrollments` with `student_id, course_id, enrolled_at` for all student profiles (no implicit dedupe).
+   - Resolve course names from `courses` as today.
+   - Fetch `student_course_mastery` (`student_id, course_id, learner_level`) for the same `(student_id, course_id)` pairs to get per-course mastery (the profile-level `learner_level` is a single value and can't represent per-course mastery).
 
-### 1. Add length-parity validation in `validateMcq` (around lines 306-313)
+2. **Group by email.**
+   - Build a map keyed by lowercased email. If two profile rows share an email (edge case), merge their enrollments under one row. Display: name + roll number from the most recently created profile; fall back to profile id as key when email is null.
+   - Each grouped row carries `courses: Array<{ courseId, name, mastery, enrolledAt }>` sorted by `enrolledAt` desc.
 
-After the duplicate-options check, add:
+3. **Table layout.**
+   - Columns: Name, Email, Roll Number, Courses (count badge + expandable list), Joined (earliest enrollment or profile created_at).
+   - Replace the single "Course" + "Level" cells with one "Courses" cell rendering a stacked list: `Course name — <mastery badge> — joined date`. Keep it compact; wrap in a small `<div className="space-y-1">`.
+   - Remove the top-level `Level` column (mastery is now per-course).
 
-```ts
-const lens = opts.map((o) => o.length);
-const maxLen = Math.max(...lens);
-const minLen = Math.min(...lens);
-if (minLen > 0 && maxLen / minLen > 1.6) {
-  return { ok: false, reason: `option length imbalance ${minLen}->${maxLen} (>1.6x)` };
-}
-```
+4. **Delete action.**
+   - Still deletes a single auth user. When a grouped row maps to one profile id, behavior is unchanged. If multiple profile ids share an email, disable delete on that row and show a tooltip "Multiple accounts share this email — resolve in DB" to avoid deleting the wrong account.
 
-Then after the `answer` matches check (line 313), add the "strictly-longest correct" rejection:
+## Risks / things to flag
+- **Memory rule conflict:** project memory says mastery level is "stored in backend but NEVER shown to students/professors." Admin view is not students/professors, so showing it here is consistent — confirming you want it visible to admins.
+- **Email collisions:** the schema does not enforce unique email on `profiles`. Grouping by email merges any duplicates into one visible row; the delete affordance is gated as described above. If you'd rather keep one row per profile id (and just list all courses for that profile), say so.
+- **Missing mastery rows:** `student_course_mastery` may have no row for a freshly-enrolled student. Those courses will show "—" for mastery.
+- **Payload size:** fetching all enrollments + mastery for every student is fine at current scale (admin-only page, small N) but will grow linearly. No pagination is added in this pass.
+- **No schema changes, no RLS changes, no edge-function changes.**
 
-```ts
-const answerLen = answer.length;
-const avgLen = lens.reduce((s, n) => s + n, 0) / 4;
-const strictlyLongest = lens.filter((l) => l === maxLen).length === 1 && answerLen === maxLen;
-if (strictlyLongest && answerLen > avgLen * 1.25) {
-  return { ok: false, reason: "correct option is strictly longest and >25% above avg length" };
-}
-```
-
-### 2. Add prompt guidance under STRICT RULES (around line 606)
-
-Add two rules matching the weekly-quiz language:
-
-- `LENGTH PARITY: all 4 options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.`
-- `ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible misconception (a wrong rule, swapped operator, off-by-one, confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer.`
-
-## Risks
-
-- **Higher rejection rate / more retries.** The diagnostic generator already runs against MAX_ATTEMPTS budgets per tier. Stricter validation could push some tiers (especially hard) closer to partial completion. Mitigated by the prompt guidance reducing bad outputs upstream; weekly quiz uses the same thresholds successfully.
-- **Pre-seeded questions** (already-stored DB rows loaded at lines ~1298-1307) bypass new validation since they aren't re-checked. Acceptable — they were previously approved; we're only constraining new generation. (Flagging in case you'd like a one-time cleanup pass — out of scope here.)
-- No schema or position-rotation changes; we are not touching answer-index distribution (diagnostic doesn't have weekly-quiz's position-rotation enforcement, and you didn't ask for it).
-
-## Out of scope
-
-- Backfilling/repairing existing diagnostic_questions rows.
-- Position rotation across batches.
-- Changing tier difficulty bands or attempt budgets.
+## Questions
+1. Group strictly by email even when emails collide across profile ids (merge), or keep one row per profile id and just expand its course list? Default: merge by email.
+2. Show mastery as the per-course `student_course_mastery.learner_level`, or compute/show something else (e.g., `mastery_score` %)? Default: `learner_level` badge to match current UI.
