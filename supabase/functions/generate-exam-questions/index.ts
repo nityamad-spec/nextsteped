@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 const MODEL = "google/gemini-2.5-flash";
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 4;
 const BATCH_SIZE = 5;
 
 type Format = "mcq" | "true_false";
@@ -221,10 +221,13 @@ async function generateBatch(
     .map(([code, c]) => `  - ${code}: ${c}`).join("\n");
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS && accepted.length < batch.count; attempt++) {
+    const isLastAttempt = attempt === MAX_ATTEMPTS - 1;
     const need = batch.count - accepted.length;
+    // Over-generate by 1 to absorb a rejection/dup without forcing another round-trip.
+    const askFor = need + 1;
 
     const systemPrompt = `You are an expert assessment designer for the course "${courseName}".
-Generate exactly ${need} exam questions for a final exam (recommended duration: ${lengthMin} minutes).
+Generate exactly ${askFor} exam questions for a final exam (recommended duration: ${lengthMin} minutes).
 
 ALLOWED FORMATS: ${formatList}
 
@@ -245,7 +248,7 @@ STRICT RULES:
 ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 - LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
 - ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible student misconception (a wrong rule, a swapped operator, an off-by-one, a confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer. No obviously absurd choices.
-- POSITION ROTATION: across this batch of ${need} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
 
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -257,7 +260,7 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
         temperature: 0.35,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate ${need} exam questions now matching the targets above.` },
+          { role: "user", content: `Generate ${askFor} exam questions now matching the targets above.` },
         ],
         tools: [{
           type: "function",
@@ -308,12 +311,17 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
     const arr: any[] = Array.isArray(parsed?.questions) ? parsed.questions : [];
 
     const rejects: string[] = [];
+    // Allow up to batch.count + 2 so over-generated items can survive the skew-rebalancer.
+    const acceptCap = batch.count + 2;
     for (const q of arr) {
-      if (accepted.length >= batch.count) break;
+      if (accepted.length >= acceptCap) break;
       const v = validateQuestion(q, conceptByCode, batch.formats);
       if (!v.ok) { rejects.push(v.reason); continue; }
       const key = v.q.content_text.slice(0, 120).toLowerCase();
-      if (accepted.some((a) => a.content_text.slice(0, 120).toLowerCase() === key)) continue;
+      if (accepted.some((a) => a.content_text.slice(0, 120).toLowerCase() === key)) {
+        rejects.push("duplicate stem");
+        continue;
+      }
       accepted.push(v.q);
     }
     if (accepted.length < batch.count && rejects.length) {
@@ -321,7 +329,8 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
     }
 
     // Position-skew check: if any single correct-answer index dominates (>50%), drop surplus and retry.
-    if (accepted.length >= batch.count) {
+    // Skip on the last attempt to avoid returning short.
+    if (!isLastAttempt && accepted.length >= batch.count) {
       const mcq = accepted.filter((a) => a.format === "mcq");
       if (mcq.length >= 4) {
         const counts = [0, 0, 0, 0];
@@ -347,6 +356,8 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
     }
   }
 
+  // Trim any over-generated surplus down to the batch target.
+  if (accepted.length > batch.count) accepted.length = batch.count;
 
   if (accepted.length === 0) {
     throw new Error(`Batch ${batch.index}: generated 0 valid questions after ${MAX_ATTEMPTS} attempts`);
@@ -454,15 +465,59 @@ Deno.serve(async (req) => {
 
         send(controller, { event: "start", total: totalQuestions, batches: batches.length });
 
-        // Generate batches in parallel but emit progress as each finishes
+        // Generate batches in parallel but emit progress as each finishes; allSettled so one failure doesn't lose siblings.
         let generated = 0;
         const results: GeneratedQuestion[] = [];
-        await Promise.all(batches.map(async (b) => {
+        const settled = await Promise.allSettled(batches.map(async (b) => {
           const qs = await generateBatch(b, course.name ?? "Course", lengthMin, conceptByCode, lovableKey);
           results.push(...qs);
           generated += qs.length;
           send(controller, { event: "progress", generated, total: totalQuestions });
+          return qs;
         }));
+        const batchErrors = settled.filter((s) => s.status === "rejected").map((s: any) => String(s.reason?.message ?? s.reason));
+        if (results.length === 0) {
+          throw new Error(`All batches failed: ${batchErrors.slice(0, 2).join(" | ")}`);
+        }
+
+        // Top-up: if any batch came back short, run a single residual batch to close the gap.
+        const shortfall = totalQuestions - results.length;
+        if (shortfall > 0) {
+          // Residual per-concept: how much each concept is still missing vs target.
+          const producedByConcept: Record<string, number> = {};
+          for (const r of results) producedByConcept[r.topic] = (producedByConcept[r.topic] ?? 0) + 1;
+          const residualConcept: Record<string, number> = {};
+          for (const code of Object.keys(perConcept)) {
+            const miss = perConcept[code] - (producedByConcept[code] ?? 0);
+            if (miss > 0) residualConcept[code] = miss;
+          }
+          // If residual sums to less than shortfall (e.g. over-produced elsewhere), pad with weighted hamilton.
+          const residualSum = Object.values(residualConcept).reduce((s, n) => s + n, 0);
+          let topUpPerConcept = residualConcept;
+          if (residualSum < shortfall) {
+            topUpPerConcept = hamilton(shortfall, weights);
+          } else if (residualSum > shortfall) {
+            topUpPerConcept = hamilton(shortfall, residualConcept);
+          }
+          // Residual difficulty mix: re-derive against the shortfall size.
+          const residualDifficulty = difficultyMixFromLength(lengthMin, shortfall);
+          const topUpBatches = buildBatches(topUpPerConcept, residualDifficulty, types);
+          try {
+            const topUpSettled = await Promise.allSettled(topUpBatches.map(async (b) => {
+              const qs = await generateBatch(b, course.name ?? "Course", lengthMin, conceptByCode, lovableKey);
+              // Stop overshooting if multiple top-up batches together exceed remaining gap.
+              const remaining = totalQuestions - results.length;
+              const take = qs.slice(0, Math.max(0, remaining));
+              results.push(...take);
+              generated = results.length;
+              send(controller, { event: "progress", generated, total: totalQuestions });
+            }));
+            const topUpErrs = topUpSettled.filter((s) => s.status === "rejected").map((s: any) => String(s.reason?.message ?? s.reason));
+            if (topUpErrs.length) console.warn("top-up batch errors:", topUpErrs);
+          } catch (e) {
+            console.warn("top-up generation failed:", e);
+          }
+        }
 
         // Replace existing rows for this exam
         await admin
@@ -503,7 +558,7 @@ Deno.serve(async (req) => {
         const byType: Record<string, number> = {};
         for (const q of results) byType[q.format] = (byType[q.format] ?? 0) + 1;
 
-        send(controller, { event: "done", ok: true, generated: rows.length, by_type: byType });
+        send(controller, { event: "done", ok: true, generated: rows.length, requested: totalQuestions, partial: rows.length < totalQuestions, by_type: byType });
         controller.close();
       } catch (e: any) {
         console.error("generate-exam-questions error:", e);
