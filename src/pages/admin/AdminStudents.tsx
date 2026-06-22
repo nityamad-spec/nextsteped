@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -116,7 +116,7 @@ const AdminStudents = () => {
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const [courseFilter, setCourseFilter] = useState<Set<string>>(new Set());
   const [masteryFilter, setMasteryFilter] = useState<Set<string>>(new Set());
-  const [masteryMode, setMasteryMode] = useState<"all" | "any">("all");
+  
   const { toast } = useToast();
 
   const toggleRow = (key: string) => {
@@ -260,19 +260,20 @@ const AdminStudents = () => {
         if (!hit) return false;
       }
       if (courseFilter.size > 0) {
-        if (!s.courses.some(c => courseFilter.has(c.name))) return false;
+        const names = new Set(s.courses.map(c => c.name));
+        for (const c of courseFilter) if (!names.has(c)) return false;
       }
       if (masteryFilter.size > 0) {
         if (s.courses.length === 0) return false;
-        if (masteryMode === "all") {
-          if (!s.courses.every(c => c.mastery && masteryFilter.has(c.mastery))) return false;
-        } else {
-          if (!s.courses.some(c => c.mastery && masteryFilter.has(c.mastery))) return false;
-        }
+        // every course's mastery must be within the selected set
+        if (!s.courses.every(c => c.mastery && masteryFilter.has(c.mastery))) return false;
+        // every selected level must appear in the student's courses
+        const present = new Set(s.courses.map(c => c.mastery).filter(Boolean) as string[]);
+        for (const m of masteryFilter) if (!present.has(m)) return false;
       }
       return true;
     });
-  }, [students, search, courseFilter, masteryFilter, masteryMode]);
+  }, [students, search, courseFilter, masteryFilter]);
 
   const hasMultiAccount = useMemo(() => students.some(s => s.profileIds.length > 1), [students]);
   const filtersActive = search.length > 0 || courseFilter.size > 0 || masteryFilter.size > 0;
@@ -280,7 +281,6 @@ const AdminStudents = () => {
     setSearch("");
     setCourseFilter(new Set());
     setMasteryFilter(new Set());
-    setMasteryMode("all");
   };
 
   if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
@@ -333,32 +333,9 @@ const AdminStudents = () => {
               selected={masteryFilter}
               onChange={setMasteryFilter}
             />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <ToggleGroup
-                    type="single"
-                    size="sm"
-                    value={masteryMode}
-                    onValueChange={(v) => v && setMasteryMode(v as "all" | "any")}
-                    disabled={masteryFilter.size === 0}
-                    className="border rounded-md"
-                  >
-                    <ToggleGroupItem value="all" className="h-9 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
-                      All courses match
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="any" className="h-9 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
-                      At least one
-                    </ToggleGroupItem>
-                  </ToggleGroup>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                {masteryFilter.size === 0
-                  ? "Select a mastery level to enable"
-                  : "Students with no enrollments are excluded when a mastery filter is active"}
-              </TooltipContent>
-            </Tooltip>
+            <span className="text-[11px] text-muted-foreground">
+              AND logic: students must match every selected course and have all courses within the selected mastery levels.
+            </span>
             <div className="flex items-center gap-2 ml-auto">
               <span className="text-xs text-muted-foreground tabular-nums">
                 Showing {filtered.length} of {students.length}
