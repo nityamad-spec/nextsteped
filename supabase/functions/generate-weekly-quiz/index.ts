@@ -232,7 +232,35 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
     if (accepted.length < spec.count && rejects.length) {
       retryHint = `Previous attempt had ${rejects.length} rejected questions. Reasons: ${rejects.slice(0, 3).join("; ")}`;
     }
+
+    // Position-skew check: if any single correct-answer index dominates (>50%), drop surplus and retry.
+    if (accepted.length >= spec.count) {
+      const mcq = accepted.filter((a) => a.format === "mcq");
+      if (mcq.length >= 4) {
+        const counts = [0, 0, 0, 0];
+        for (const a of mcq) {
+          const idx = a.options.indexOf(a.answer);
+          if (idx >= 0 && idx < 4) counts[idx]++;
+        }
+        const maxC = Math.max(...counts);
+        if (maxC / mcq.length > 0.5) {
+          const skewIdx = counts.indexOf(maxC);
+          // Drop the most recent over-represented MCQs back to threshold.
+          const allowed = Math.floor(mcq.length * 0.5);
+          let toRemove = maxC - allowed;
+          for (let i = accepted.length - 1; i >= 0 && toRemove > 0; i--) {
+            const a = accepted[i];
+            if (a.format === "mcq" && a.options.indexOf(a.answer) === skewIdx) {
+              accepted.splice(i, 1);
+              toRemove--;
+            }
+          }
+          retryHint = `Correct-answer position was skewed to index ${skewIdx} (${maxC}/${mcq.length}). Rotate correct positions across 0-3.`;
+        }
+      }
+    }
   }
+
 
   if (accepted.length < spec.count) {
     throw new Error(`Only generated ${accepted.length}/${spec.count} valid ${spec.tier}-tier questions after ${MAX_ATTEMPTS} attempts`);
