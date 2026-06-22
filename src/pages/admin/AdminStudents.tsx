@@ -332,7 +332,7 @@ const AdminStudents = () => {
               onChange={setMasteryFilter}
             />
             <span className="text-[11px] text-muted-foreground">
-              AND logic: students must match every selected course and have all courses within the selected mastery levels.
+              Courses use AND (must be in all selected). Mastery uses OR (any selected level matches).
             </span>
             <div className="flex items-center gap-2 ml-auto">
               <span className="text-xs text-muted-foreground tabular-nums">
