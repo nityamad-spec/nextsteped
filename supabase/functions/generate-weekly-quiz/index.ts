@@ -167,7 +167,7 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
       headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: MODEL,
-        temperature: 0.4,
+        temperature: 0.35,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Generate ${need} ${spec.tier}-tier questions now.` },
