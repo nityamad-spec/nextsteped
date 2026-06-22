@@ -482,13 +482,32 @@ Deno.serve(async (req) => {
 
     const byTier: Record<string, number> = {};
     for (const { spec } of allQuestions) byTier[spec.tier] = (byTier[spec.tier] ?? 0) + 1;
+    const expected = TIER_SPEC.reduce((s, t) => s + t.count, 0);
+    const partial = rows.length < expected;
 
-    return new Response(JSON.stringify({ ok: true, generated: rows.length, by_tier: byTier }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      generated: rows.length,
+      requested: expected,
+      partial,
+      by_tier: byTier,
+      tier_errors: Object.keys(tierErrors).length ? tierErrors : undefined,
+    }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
     console.error("generate-weekly-quiz error:", e);
-    return new Response(JSON.stringify({ error: e?.message ?? String(e) }), {
+    if (e instanceof CreditsExhaustedError) {
+      return new Response(JSON.stringify({ error: e.message, code: "CREDITS_EXHAUSTED" }), {
+        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (e instanceof DeadlineExceededError) {
+      return new Response(JSON.stringify({ error: e.message, code: "DEADLINE" }), {
+        status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    return new Response(JSON.stringify({ error: e?.message ?? String(e), code: "INTERNAL" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
