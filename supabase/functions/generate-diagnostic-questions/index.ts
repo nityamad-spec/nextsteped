@@ -307,10 +307,25 @@ function validateMcq(
   if (opts.some((o) => !o)) return { ok: false, reason: "empty option" };
   if (new Set(opts).size !== 4) return { ok: false, reason: "duplicate options" };
 
+  // Length parity: prevent "longest = correct" giveaway.
+  const lens = opts.map((o) => o.length);
+  const maxLen = Math.max(...lens);
+  const minLen = Math.min(...lens);
+  if (minLen > 0 && maxLen / minLen > 1.6) {
+    return { ok: false, reason: `option length imbalance ${minLen}->${maxLen} (>1.6x)` };
+  }
+
   const answer = typeof q.answer === "string" ? q.answer.trim() : "";
   if (!answer) return { ok: false, reason: "empty answer" };
   const matches = opts.filter((o) => o === answer);
   if (matches.length !== 1) return { ok: false, reason: "answer not in options" };
+
+  const answerLen = answer.length;
+  const avgLen = lens.reduce((s, n) => s + n, 0) / 4;
+  const strictlyLongest = lens.filter((l) => l === maxLen).length === 1 && answerLen === maxLen;
+  if (strictlyLongest && answerLen > avgLen * 1.25) {
+    return { ok: false, reason: "correct option is strictly longest and >25% above avg length" };
+  }
 
   const rawTopic = typeof q.topic === "string" ? q.topic.trim() : "";
   if (!rawTopic) return { ok: false, reason: "empty topic" };
@@ -611,6 +626,8 @@ STRICT RULES:
 - bloom_level: integer 1-6 (1=Remember, 2=Understand, 3=Apply, 4=Analyze, 5=Evaluate, 6=Create).
 - content_text: the question stem only, ≤ 600 characters, no embedded options.
 - explanation: 1-2 sentences explaining why the correct option is correct.
+- LENGTH PARITY: all 4 options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
+- ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible misconception (a wrong rule, swapped operator, off-by-one, confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer.
 
 CATEGORIZED JUSTIFICATIONS (required, ≤ 300 chars each, format "CATEGORY: 1-sentence rationale"):
 
