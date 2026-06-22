@@ -237,10 +237,16 @@ STRICT RULES:
 - MCQ (format="mcq"): exactly 4 distinct non-empty options (no "A)" prefixes). 'answer' is the FULL TEXT of the correct option.
 - True/False (format="true_false"): options MUST be exactly ["True","False"]. 'answer' must be "True" or "False".
 - difficulty_estimate: number in [0,1]. Easy ≈ 0.2, Medium ≈ 0.5, Hard ≈ 0.85.
-- bloom_level: integer 1–4 only (Remember/Understand/Apply/Analyze). Do NOT use 5 or 6.
-- content_text: question stem only, ≤ 600 chars, exam-appropriate complexity for a ${lengthMin}-minute exam.
+- bloom_level: integer 1–4 only (Remember/Understand/Apply/Analyze). Do NOT use 5 or 6. Medium items should target bloom 2-3; hard items should target bloom 3-4.
+- content_text: question stem only, ≤ 600 chars, exam-appropriate complexity for a ${lengthMin}-minute exam. Prefer scenario, code-trace, and comparison stems over single-fact recall, especially for medium/hard.
 - explanation: 1-2 sentences explaining the correct answer.
-- topic: MUST exactly match one of the concept codes above.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+- topic: MUST exactly match one of the concept codes above.
+
+ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
+- LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
+- ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible student misconception (a wrong rule, a swapped operator, an off-by-one, a confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer. No obviously absurd choices.
+- POSITION ROTATION: across this batch of ${need} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
