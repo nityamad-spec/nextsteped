@@ -98,7 +98,8 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard, examCount = 0, ne
             size="sm"
             className="h-8 text-xs gap-1"
             onClick={() => setShowSettings(!showSettings)}
-            disabled={noExamAvailable}
+            disabled
+            title="Settings are fixed by your professor"
           >
             <Settings2 className="h-3.5 w-3.5" />
             {showSettings ? "Hide" : "Edit"} Settings
