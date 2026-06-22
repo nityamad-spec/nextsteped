@@ -1,47 +1,33 @@
-Add a filter panel to `/admin/students` (`src/pages/admin/AdminStudents.tsx`) that updates the table live.
+Switch course and mastery filters in `/admin/students` (`src/pages/admin/AdminStudents.tsx`) to strict AND semantics, and remove the All/Any toggle.
 
-## New filter controls (in the Card header, below the existing search row)
+## Filter behavior
 
-1. **Course filter — multi-select**
-   - Popover trigger button: "Courses" + count badge when active.
-   - Content: searchable checklist of every distinct course name across all students (sorted alphabetically). Built from `students` via `useMemo`.
-   - Empty selection = all courses considered.
+- **Course filter (AND):** student must be enrolled in every selected course. Selecting Course A + Course B shows only students enrolled in both.
+- **Mastery filter (strict AND):**
+  - Every selected mastery level must appear in the student's courses, AND
+  - Every course the student has must have a mastery level within the selected set.
+  - Picking only `expert` therefore shows students whose courses are all at expert level (the original example from earlier).
+  - Students with zero enrollments are excluded when a mastery filter is active.
 
-2. **Mastery level filter — multi-select**
-   - Same popover-checklist pattern as the course filter.
-   - Options are the distinct non-null `mastery` values across all enrollments (e.g. beginner, developing, proficient, expert). Sorted using the canonical mastery order when known, alphabetical otherwise.
+## UI changes
 
-3. **Match-logic toggle** (only enabled when ≥1 mastery level selected)
-   - Two-button segmented toggle:
-     - "All courses must match" (default) — every enrolled course's mastery is in the selected set.
-     - "At least one course matches" — at least one enrolled course has mastery in the selected set.
-   - Students with zero enrollments are excluded whenever a mastery filter is active.
+- Remove the `ToggleGroup` ("All courses match" / "At least one") and its surrounding Tooltip.
+- Remove `masteryMode` state and its references in `clearAll`.
+- Keep the popovers, multi-select chips, "Showing X of Y" count, and Clear button as-is.
+- Add small helper text under each filter button (or a short inline note) clarifying AND semantics: "Matches students in all selected courses" / "Matches students whose courses all fall within the selected levels".
 
-4. **Match count + Clear button**
-   - Inline summary: `Showing X of Y students`.
-   - "Clear filters" button (ghost, shows only when any filter is active including the existing search) resets course set, mastery set, match mode (back to "all"), and search.
-
-## Filtering logic (single `useMemo` replacing the current `filtered`)
-
-Applied in order, all combined with AND:
+## Filtering logic (replaces current block)
 
 ```text
-search       → existing name/email/roll/course substring match
-courses      → student has at least one enrollment whose course name is in selected set
-mastery+mode → "all": student has ≥1 course AND every course.mastery ∈ selected set
-               "any": student has ≥1 course with course.mastery ∈ selected set
+courses (AND): every c in selected → student.courses contains course named c
+mastery (strict AND, only when set non-empty):
+  student.courses.length > 0
+  every m in selected → student.courses some c.mastery == m
+  every c in student.courses → c.mastery in selected
+search: unchanged
 ```
-
-The count badge next to "Students" stays as total; a new muted `Showing X of Y` line appears next to the filters.
-
-## UI notes
-
-- Reuse shadcn `Popover` + `Command` (already in project) for the checklist UIs, or simple `Popover` + checkboxes if Command feels heavy — leaning Command for the built-in search.
-- Match-logic uses `ToggleGroup` (type=single) for the two modes.
-- Layout: filters live in a single flex-wrap row below the title/search row so the header stays clean on mobile.
-- No data-fetching, schema, RLS, or backend changes. Pure client-side filtering over already-loaded `students`.
 
 ## Risks / notes
 
-- Distinct course/mastery options are derived from currently-loaded students only — a course no one is enrolled in won't appear (matches the report's "complete set of courses per student" framing).
-- "All courses must match" treats students with zero enrollments as non-matching when a mastery filter is active; called out in the toggle's tooltip so the behavior is explicit.
+- Strict mastery AND is exclusionary — a student with one course outside the selected set is filtered out even if they also have a matching expert course. This matches the user-stated "students whose courses are all at the expert level" example, but should be reflected in the helper text so admins don't think the filter is broken.
+- No data, schema, or backend changes.
