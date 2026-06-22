@@ -408,16 +408,40 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Generate all tiers in parallel (sequential = 4× latency, blows past 150s edge limit)
+    // Generate all tiers in parallel with a shared deadline. allSettled lets
+    // us salvage partial tiers when one tier throws (e.g., 402 / timeout),
+    // matching the diagnostic generator's behavior.
+    const deadlineAt = Date.now() + GLOBAL_DEADLINE_MS;
     const allQuestions: { spec: TierSpec; q: GeneratedQuestion }[] = [];
-    const tierResults = await Promise.all(
+    const tierResults = await Promise.allSettled(
       TIER_SPEC.map((spec) =>
-        generateTier(spec, course.name ?? "Course", weekNumber, weekRow.week_name ?? "", conceptByCode, lovableKey)
+        generateTier(spec, course.name ?? "Course", weekNumber, weekRow.week_name ?? "", conceptByCode, lovableKey, deadlineAt)
           .then((qs) => ({ spec, qs })),
       ),
     );
-    for (const { spec, qs } of tierResults) {
-      for (const q of qs) allQuestions.push({ spec, q });
+    let creditsExhausted = false;
+    const tierErrors: Record<string, string> = {};
+    for (let i = 0; i < tierResults.length; i++) {
+      const r = tierResults[i];
+      const spec = TIER_SPEC[i];
+      if (r.status === "fulfilled") {
+        for (const q of r.value.qs) allQuestions.push({ spec, q });
+      } else {
+        const err = r.reason;
+        if (err instanceof CreditsExhaustedError) creditsExhausted = true;
+        tierErrors[spec.tier] = err instanceof Error ? err.message : String(err);
+        console.warn(`[weekly-quiz] tier ${spec.tier} failed:`, tierErrors[spec.tier]);
+      }
+    }
+    if (creditsExhausted && allQuestions.length === 0) {
+      return new Response(JSON.stringify({ error: "AI credits exhausted", code: "CREDITS_EXHAUSTED" }), {
+        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (allQuestions.length === 0) {
+      return new Response(JSON.stringify({ error: "Failed to generate any questions", code: "GENERATION_FAILED", tier_errors: tierErrors }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Replace existing rows for this week
