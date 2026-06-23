@@ -74,6 +74,12 @@ const StudentHome = () => {
     ? Math.max(0, Math.min(100, Math.round((passedQuizCount / publishedQuizCount) * 100)))
     : 0;
 
+  // Displayed unit = next unit after the last passed quiz, clamped to totalWeeks
+  const lastPassedUnit = Object.entries(takenQuizzes)
+    .filter(([, q]) => q.score > 50)
+    .reduce((max, [day]) => Math.max(max, Number(day) || 0), 0);
+  const displayedUnit = Math.max(1, Math.min(totalWeeks, lastPassedUnit + 1));
+
   useEffect(() => {
     if (!enrolledCourseId) { setConcepts([]); return; }
     let cancelled = false;
