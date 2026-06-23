@@ -289,7 +289,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
                     <div>
                       <div className="text-muted-foreground mb-1">Mastery score</div>
                       <div className="font-semibold text-foreground tabular-nums">
-                        {d.masteryScore != null ? `${Math.floor(d.masteryScore)}%` : "—"}
+                        {d.masteryScore != null ? `${Math.floor(d.masteryScore * 100)}%` : "—"}
                       </div>
                     </div>
                     <div>
