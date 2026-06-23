@@ -1,17 +1,36 @@
-## Make "Unit X of Y" reflect the next unit after the last passed quiz
+## Goal
+On `/student/home`, the "Concept Exploration & Mastery Map" tiles currently show only the concept name + percentage (or "—") with a generic status ("Not explored" / "Touched" / "Deeply explored"). Replace this with the real mastery **level** (Beginner / Developing / Proficient / Expert) already computed in the backend.
 
-**Current behavior** (`src/pages/student/StudentHome.tsx` ~line 52): `currentWeek` is computed from `course.start_date` as elapsed-weeks-since-start, clamped to `[1, totalWeeks]`. The header (~line 495) renders `Unit {currentWeek} of {totalWeeks}` from that value.
+## Changes (UI only, `src/pages/student/StudentHome.tsx`)
 
-**New behavior:** the displayed unit advances with the student's progress.
-- `lastPassedUnit = max(day)` across `takenQuizzes` where `score > 50` (uses the already-loaded `takenQuizzes` state, which keeps the highest score per day so retakes auto-promote).
-- `displayedUnit = clamp(1, totalWeeks, lastPassedUnit + 1)` — i.e. the unit they should tackle next.
-- If no quiz has been passed yet, `displayedUnit = 1`.
-- If every published unit's quiz has been passed and `lastPassedUnit === totalWeeks`, cap at `totalWeeks` (do not exceed Y).
+1. **Add a level helper** that mirrors the backend `bandFor` thresholds (`update-mastery/index.ts`):
+   - score ≤ 0.25 → Beginner
+   - ≤ 0.50 → Developing
+   - ≤ 0.75 → Proficient
+   - > 0.75 → Expert
+   - `attempted === 0` → Not explored
 
-**Where this label changes (header only):**
-- `src/pages/student/StudentHome.tsx` line ~495: replace `Unit {currentWeek} of {totalWeeks}` with `Unit {displayedUnit} of {totalWeeks}` using a new derived `displayedUnit` constant computed alongside `progressPct` (after `takenQuizzes` state is declared).
+2. **Tile rendering (lines 746–768):** replace the existing `MasteryStatus` derivation so each tile shows:
+   - Line 1: concept name (unchanged)
+   - Line 2: the level label (e.g. "Proficient") instead of the bare `%`
+   - Keep `%` as small secondary text under the label when attempted (otherwise hidden)
+   - Color mapping:
+     - Not explored → existing muted background
+     - Beginner → soft destructive tint
+     - Developing → amber/warning tint
+     - Proficient → primary/20
+     - Expert → solid primary
 
-**Out of scope / unchanged:**
-- The progress bar formula (passed quizzes ÷ published quizzes) stays as-is.
-- `currentWeek` keeps its calendar definition because other surfaces still rely on it: Lesson Plan "Current" badge, default `expandedWeeks`, "What to Do Next" rules, exam-week detection, and the "not yet published" fallback text. Those are not touched.
-- No new queries, no schema changes.
+3. **Legend (lines 771–784):** swap the 3-item legend (Not explored / Touched / Deeply explored) for a 5-item legend matching the new levels and their swatches.
+
+4. **Tooltip (line 763):** show `"<concept>: <Level> (<pct>% mastery)"` when attempted, else `"<concept>: Not explored"`.
+
+5. **Remove now-unused** `MasteryStatus` type, `getMasteryColor`, `getMasteryLabel` (or repurpose them to the new level-based helpers).
+
+## Out of scope
+- No backend / schema / query changes — `student_concept_mastery.mastery_score` is already fetched into `conceptMastery`.
+- No changes to course-level mastery display, progress bar, or other surfaces.
+- Professor-facing views are not touched (rule stays: not shown to professors).
+
+## Memory update
+Update `mem://index.md` Core rule: mastery level names are now visible to **students** on the home heatmap; still hidden from professors.
