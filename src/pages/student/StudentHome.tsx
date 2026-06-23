@@ -555,7 +555,7 @@ const StudentHome = () => {
                 ) : (
                   <>
                     <p className="text-sm font-medium text-muted-foreground">Lesson plan not yet available</p>
-                    <p className="text-xs text-muted-foreground">Your professor hasn't published the lesson plan yet. You're currently on Week {currentWeek} of {totalWeeks}.</p>
+                    <p className="text-xs text-muted-foreground">Your professor hasn't published the lesson plan yet. You're currently on Unit {currentWeek} of {totalWeeks}.</p>
                   </>
                 )}
               </div>
