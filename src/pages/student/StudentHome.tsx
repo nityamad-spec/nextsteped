@@ -575,7 +575,7 @@ const StudentHome = () => {
                       onClick={() => toggleWeek(dp.day)}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <Badge variant={dp.day === currentWeek ? "default" : "outline"} className="shrink-0 text-xs w-16 justify-center">
+                        <Badge variant={dp.day === currentWeek ? "default" : "outline"} className="shrink-0 text-xs w-[72px] justify-center whitespace-nowrap">
                           Week {dp.day}
                         </Badge>
                         <span className="text-sm font-medium truncate">{dp.topic}</span>

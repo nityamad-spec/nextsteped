@@ -1,11 +1,18 @@
-Disable the "Edit Settings" toggle in `src/components/ExamPrepPanel.tsx` so students can't customize practice exam time/question count.
+## Fix: "Week 4" badge wrapping on Lesson Plan
 
-Changes:
-- Set `disabled` to `true` on the Edit/Hide Settings button (≈L96–106), keeping it visible but inert. Add a `title` tooltip ("Settings are fixed by your professor") for clarity.
-- Force `showSettings` to stay `false` (remove the toggle handler effect) so the expandable panel never renders. Keep the rendering block intact behind `showSettings` in case we re-enable later.
-- Leave `Start Exam Practice`, the badges, and rotation logic unchanged. Time/question count fall back to the professor-recommended values.
+**File:** `src/pages/student/StudentHome.tsx` (~line 583)
 
-Risks:
-- Students lose ability to shorten/lengthen practice exams. Acceptable per request.
-- `Customized` badge logic becomes unreachable but harmless.
-- No backend or schema changes.
+The Week badge in the Lesson Plan accordion uses `w-16` with default badge padding, causing "Week 4" to wrap onto two lines on narrower widths.
+
+**Change:** Add `whitespace-nowrap` to the badge and widen it slightly so single- and double-digit weeks both fit on one line.
+
+```tsx
+<Badge
+  variant={dp.day === currentWeek ? "default" : "outline"}
+  className="shrink-0 text-xs w-[72px] justify-center whitespace-nowrap"
+>
+  Week {dp.day}
+</Badge>
+```
+
+No other UI or logic changes.
