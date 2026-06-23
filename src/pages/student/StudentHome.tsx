@@ -769,19 +769,24 @@ const StudentHome = () => {
                   const m = conceptMastery[concept.id];
                   const attempted = m?.attempted ?? 0;
                   const score = m?.score ?? 0;
-                  const status: MasteryStatus =
-                    attempted === 0 ? "not_explored" : score >= 0.75 ? "deeply_explored" : "touched";
+                  const level = getMasteryLevel(attempted, score);
                   const pct = attempted > 0 ? Math.round(score * 100) : null;
                   return (
                     <Tooltip key={concept.id}>
                       <TooltipTrigger asChild>
-                        <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${getMasteryColor(status)}`}>
+                        <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${MASTERY_TILE_CLASS[level]}`}>
                           <p className="text-xs font-medium truncate">{concept.name}</p>
-                          <p className="text-lg font-bold mt-1">{pct !== null ? `${pct}%` : "—"}</p>
+                          <p className="text-sm font-semibold mt-1">{MASTERY_LABEL[level]}</p>
+                          {pct !== null && (
+                            <p className="text-[10px] opacity-80 mt-0.5">{pct}%</p>
+                          )}
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>{concept.name}: {getMasteryLabel(status, pct)}</p>
+                        <p>
+                          {concept.name}: {MASTERY_LABEL[level]}
+                          {pct !== null ? ` (${pct}% mastery)` : ""}
+                        </p>
                       </TooltipContent>
                     </Tooltip>
                   );
@@ -789,19 +794,13 @@ const StudentHome = () => {
               </div>
 
             )}
-            <div className="flex items-center justify-center gap-4 mt-3 flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-background border" />
-                <span className="text-[10px] text-muted-foreground">Not explored</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-primary/20" />
-                <span className="text-[10px] text-muted-foreground">Touched</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-3 rounded bg-primary" />
-                <span className="text-[10px] text-muted-foreground">Deeply explored (% mastery shown)</span>
-              </div>
+            <div className="flex items-center justify-center gap-3 mt-3 flex-wrap">
+              {(["not_explored", "beginner", "developing", "proficient", "expert"] as MasteryLevel[]).map((lvl) => (
+                <div key={lvl} className="flex items-center gap-1.5">
+                  <div className={`h-3 w-3 rounded ${MASTERY_SWATCH_CLASS[lvl]}`} />
+                  <span className="text-[10px] text-muted-foreground">{MASTERY_LABEL[lvl]}</span>
+                </div>
+              ))}
             </div>
             <p className="text-xs text-muted-foreground text-center mt-2">
               The more you engage with the Teaching Assistant, the more accurate your exploration and mastery insights become
@@ -809,6 +808,7 @@ const StudentHome = () => {
           </CardContent>
         </Card>
       </motion.div>
+
 
       <WeeklyQuizDialog
         open={quizDialog.open}
