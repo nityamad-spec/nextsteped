@@ -25,6 +25,18 @@ interface ExamHistoryProps {
   courseId: string | null;
 }
 
+const normalizeText = (text: unknown): string => {
+  if (text == null) return "";
+  const str = String(text);
+  const lines = str.replace(/\r\n/g, "\n").split("\n");
+  // Strip common leading whitespace across non-empty lines so indentation doesn't shift alignment
+  const indents = lines
+    .filter((l) => l.trim().length > 0)
+    .map((l) => l.match(/^[ \t]*/)?.[0].length ?? 0);
+  const minIndent = indents.length ? Math.min(...indents) : 0;
+  return lines.map((l) => l.slice(minIndent)).join("\n").trim();
+};
+
 const ExamHistory = ({ courseId }: ExamHistoryProps) => {
   const { user } = useAuth();
   const navigate = useNavigate();
