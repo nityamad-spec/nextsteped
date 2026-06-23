@@ -576,7 +576,7 @@ const StudentHome = () => {
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <Badge variant={dp.day === currentWeek ? "default" : "outline"} className="shrink-0 text-xs w-[72px] justify-center whitespace-nowrap">
-                          Week {dp.day}
+                          Unit {dp.day}
                         </Badge>
                         <span className="text-sm font-medium truncate">{dp.topic}</span>
                         {dp.day === currentWeek && <Badge variant="secondary" className="text-[10px]">Current</Badge>}
