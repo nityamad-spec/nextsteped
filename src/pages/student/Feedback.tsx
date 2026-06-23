@@ -45,7 +45,7 @@ const Feedback = () => {
               <ClipboardList className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle className="text-base">Course Survey</CardTitle>
+              <CardTitle className="text-base">NextStep Feedback Survey</CardTitle>
               <CardDescription>Help us improve by completing this short survey.</CardDescription>
             </div>
           </div>
@@ -54,7 +54,7 @@ const Feedback = () => {
           <Button asChild size="sm">
             <a href={GOOGLE_SURVEY_URL} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="mr-2 h-4 w-4" />
-              Open Survey
+              NextStep Feedback Survey
             </a>
           </Button>
         </CardContent>
