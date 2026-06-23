@@ -1,15 +1,17 @@
-## Fix Question Review alignment in Practice Exam Performance Dashboard
+## Relabel "Week" → "Unit" and mark Coding Exercises optional (UI only)
 
-**Where:** `src/components/ExamHistory.tsx` (Question Review list inside each expanded attempt, lines ~283–326). This is what renders on `/student/chat` → Exam Prep view → Performance Dashboard.
+**File:** `src/pages/student/StudentHome.tsx` (Lesson Plan card only). No data/logic/state-name changes — variables like `currentWeek`, `expandedWeeks`, `totalWeeks` stay; only user-visible strings change.
 
-**Problem:** Some question rows appear left-aligned/indented differently from others. Cause: `question_text` is rendered with `whitespace-pre-wrap`, so any leading spaces, tabs, or newlines stored on the question (common for code-style or multi-line prompts) are preserved and visually shift the text away from the icon/Q-number baseline. Other questions without that whitespace render flush, producing the inconsistent alignment the user sees.
+**Label changes** (Lesson Plan card region, roughly lines ~488–706):
+- Header progress text: `Week {currentWeek} of {totalWeeks}` → `Unit {currentWeek} of {totalWeeks}` (line 488).
+- Card description "Weekly course plan with learning outcomes and activities" → "Unit-by-unit course plan with learning outcomes and activities" (line 542).
+- Empty state "No weeks are visible yet — check back soon" → "No units are visible yet — check back soon" (line 563).
+- Not-yet-published message "You're currently on Week {currentWeek} of {totalWeeks}." → "You're currently on Unit {currentWeek} of {totalWeeks}." (line 558).
+- Week badge label `Week {dp.day}` → `Unit {dp.day}` (line 579). Keep the existing 72px badge width.
+- Weekly quiz row title `Week {dp.day} Quiz` → `Unit {dp.day} Quiz` (line 674).
+- Quiz-not-available text "Quiz not yet available for this week." → "Quiz not yet available for this unit." (line 664).
 
-**Fix (presentation only):**
-1. Normalize the displayed question text before render:
-   - Trim leading/trailing whitespace.
-   - Collapse runs of leading spaces on each line so the first character of every line aligns to the same left edge.
-2. Replace `whitespace-pre-wrap` on the question `<p>` with `whitespace-pre-line` so intentional line breaks are kept but stray indentation no longer offsets the text.
-3. Apply the same normalization to `a.selected` and `a.correct` lines for consistency (they can have the same issue when the question is code/short-answer).
-4. Keep all existing layout, icons, badges, colors, and the Explanation block untouched.
+**Coding exercise = optional** (inside the activities map, lines ~621–650):
+- When `r.type === "coding-exercise"`, render an additional small `Badge variant="secondary"` with text `Optional` next to the existing type badge (line 632 area). Applies to every coding-exercise activity across all units.
 
-**Out of scope:** No data changes, no logic changes, no changes to other Question Review surfaces (`AssessmentView.tsx`, `PracticeQuestionsWidget.tsx`) unless you want the same fix applied there — say the word and I'll include them.
+**Out of scope:** Other surfaces ("What to Do Next", suggestion text strings, Concept Mastery Map, navigation, etc.) keep their current wording. Backend fields, DB columns, and any "week"-named code identifiers are not touched.
