@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -31,11 +31,13 @@ interface CourseDetail {
   masteryScore: number | null;
   masteryLevel: string | null;
   progressPct: number;
-  weekLabel: string;
+  progressLabel: string;
   quizzesDone: number;
   quizzesTotal: number;
   examsDone: number;
   examsTotal: number;
+  expertConcepts: number;
+  totalConcepts: number;
   complete: boolean;
 }
 
@@ -59,6 +61,118 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<CourseDetail[]>([]);
 
+  const loadDetails = useCallback(async (s: StudentLite, ids: string[], showSkeleton: boolean) => {
+    const studentIds = s.profileIds;
+    if (showSkeleton) setLoading(true);
+
+    const [masteryRes, weeksRes, resultsRes, conceptsRes, conceptMasteryRes] = await Promise.all([
+      supabase
+        .from("student_course_mastery")
+        .select("course_id, student_id, mastery_score, learner_level")
+        .in("student_id", studentIds)
+        .in("course_id", ids),
+      supabase
+        .from("lesson_plan_weeks")
+        .select("course_id, week_number, is_exam_week")
+        .in("course_id", ids),
+      supabase
+        .from("assessment_results")
+        .select("course_id, mode, quiz_day")
+        .in("student_id", studentIds)
+        .in("course_id", ids),
+      supabase
+        .from("concepts")
+        .select("id, course_id")
+        .in("course_id", ids),
+      supabase
+        .from("student_concept_mastery")
+        .select("course_id, concept_id, mastery_level")
+        .in("student_id", studentIds)
+        .in("course_id", ids),
+    ]);
+
+    const masteryMap = new Map<string, { score: number | null; level: string | null }>();
+    (masteryRes.data || []).forEach(m => {
+      const existing = masteryMap.get(m.course_id);
+      const score = m.mastery_score != null ? Number(m.mastery_score) : null;
+      if (!existing || (score != null && (existing.score == null || score > existing.score))) {
+        masteryMap.set(m.course_id, { score, level: m.learner_level });
+      }
+    });
+
+    const weeksByCourse = new Map<string, { week_number: number; is_exam_week: boolean }[]>();
+    (weeksRes.data || []).forEach(w => {
+      const arr = weeksByCourse.get(w.course_id) || [];
+      arr.push({ week_number: w.week_number, is_exam_week: !!w.is_exam_week });
+      weeksByCourse.set(w.course_id, arr);
+    });
+
+    const quizDaysByCourse = new Map<string, Set<number>>();
+    const examsByCourse = new Map<string, number>();
+    (resultsRes.data || []).forEach(r => {
+      if (r.mode === "weekly_quiz" && r.quiz_day != null) {
+        const set = quizDaysByCourse.get(r.course_id) || new Set<number>();
+        set.add(r.quiz_day);
+        quizDaysByCourse.set(r.course_id, set);
+      } else if (r.mode === "exam") {
+        examsByCourse.set(r.course_id, (examsByCourse.get(r.course_id) || 0) + 1);
+      }
+    });
+
+    const conceptsTotalByCourse = new Map<string, number>();
+    (conceptsRes.data || []).forEach(c => {
+      conceptsTotalByCourse.set(c.course_id, (conceptsTotalByCourse.get(c.course_id) || 0) + 1);
+    });
+
+    const expertByCourse = new Map<string, Set<string>>();
+    (conceptMasteryRes.data || []).forEach(cm => {
+      if ((cm.mastery_level || "").toLowerCase() === "expert") {
+        const set = expertByCourse.get(cm.course_id) || new Set<string>();
+        set.add(cm.concept_id);
+        expertByCourse.set(cm.course_id, set);
+      }
+    });
+
+    const out: CourseDetail[] = s.courses.map(c => {
+      const weeks = weeksByCourse.get(c.courseId) || [];
+      const quizzesTotal = weeks.filter(w => !w.is_exam_week).length;
+      const examsTotal = weeks.filter(w => w.is_exam_week).length;
+
+      const m = masteryMap.get(c.courseId);
+      const quizzesDone = quizDaysByCourse.get(c.courseId)?.size || 0;
+      const examsDone = examsByCourse.get(c.courseId) || 0;
+
+      const done = quizzesDone + examsDone;
+      const total = quizzesTotal + examsTotal;
+      const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+      const progressLabel = total > 0 ? `${done} of ${total} assessments` : "No assessments yet";
+
+      const complete = total > 0 && done >= total;
+
+      return {
+        courseId: c.courseId,
+        name: c.name,
+        enrolledAt: c.enrolledAt,
+        masteryScore: m?.score ?? null,
+        masteryLevel: m?.level ?? null,
+        progressPct,
+        progressLabel,
+        quizzesDone,
+        quizzesTotal,
+        examsDone,
+        examsTotal,
+        expertConcepts: expertByCourse.get(c.courseId)?.size || 0,
+        totalConcepts: conceptsTotalByCourse.get(c.courseId) || 0,
+        complete,
+      };
+    });
+
+    setDetails(out);
+    if (showSkeleton) setLoading(false);
+  }, []);
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (!open || !student) return;
     const ids = student.courses.map(c => c.courseId);
@@ -66,113 +180,45 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
       setDetails([]);
       return;
     }
-    setLoading(true);
 
-    (async () => {
-      const studentIds = student.profileIds;
+    const studentIdSet = new Set(student.profileIds);
+    const courseIdSet = new Set(ids);
 
-      const [masteryRes, weeksRes, resultsRes, coursesRes] = await Promise.all([
-        supabase
-          .from("student_course_mastery")
-          .select("course_id, student_id, mastery_score, learner_level")
-          .in("student_id", studentIds)
-          .in("course_id", ids),
-        supabase
-          .from("lesson_plan_weeks")
-          .select("course_id, week_number, is_exam_week")
-          .in("course_id", ids),
-        supabase
-          .from("assessment_results")
-          .select("course_id, mode, quiz_day")
-          .in("student_id", studentIds)
-          .in("course_id", ids),
-        supabase
-          .from("courses")
-          .select("id, start_date, total_weeks")
-          .in("id", ids),
-      ]);
+    loadDetails(student, ids, true);
 
-      const masteryMap = new Map<string, { score: number | null; level: string | null }>();
-      (masteryRes.data || []).forEach(m => {
-        const existing = masteryMap.get(m.course_id);
-        const score = m.mastery_score != null ? Number(m.mastery_score) : null;
-        if (!existing || (score != null && (existing.score == null || score > existing.score))) {
-          masteryMap.set(m.course_id, { score, level: m.learner_level });
-        }
-      });
+    const scheduleReload = () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        loadDetails(student, ids, false);
+      }, 400);
+    };
 
-      const weeksByCourse = new Map<string, { week_number: number; is_exam_week: boolean }[]>();
-      (weeksRes.data || []).forEach(w => {
-        const arr = weeksByCourse.get(w.course_id) || [];
-        arr.push({ week_number: w.week_number, is_exam_week: !!w.is_exam_week });
-        weeksByCourse.set(w.course_id, arr);
-      });
+    const matches = (payload: { new?: Record<string, unknown> | null; old?: Record<string, unknown> | null }) => {
+      const row = (payload.new ?? payload.old) as Record<string, unknown> | null | undefined;
+      if (!row) return false;
+      const sid = row.student_id as string | undefined;
+      const cid = row.course_id as string | undefined;
+      return !!(sid && cid && studentIdSet.has(sid) && courseIdSet.has(cid));
+    };
 
-      const quizDaysByCourse = new Map<string, Set<number>>();
-      const examsByCourse = new Map<string, number>();
-      (resultsRes.data || []).forEach(r => {
-        if (r.mode === "weekly_quiz" && r.quiz_day != null) {
-          const set = quizDaysByCourse.get(r.course_id) || new Set<number>();
-          set.add(r.quiz_day);
-          quizDaysByCourse.set(r.course_id, set);
-        } else if (r.mode === "exam") {
-          examsByCourse.set(r.course_id, (examsByCourse.get(r.course_id) || 0) + 1);
-        }
-      });
+    const channel = supabase
+      .channel(`admin-student-${student.primaryProfileId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "assessment_results" }, (payload) => {
+        if (matches(payload)) scheduleReload();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "student_course_mastery" }, (payload) => {
+        if (matches(payload)) scheduleReload();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "student_concept_mastery" }, (payload) => {
+        if (matches(payload)) scheduleReload();
+      })
+      .subscribe();
 
-      const courseMeta = new Map<string, { start_date: string | null; total_weeks: number | null }>();
-      (coursesRes.data || []).forEach(c => {
-        courseMeta.set(c.id, { start_date: c.start_date, total_weeks: c.total_weeks });
-      });
-
-      const out: CourseDetail[] = student.courses.map(c => {
-        const weeks = weeksByCourse.get(c.courseId) || [];
-        const totalWeeks = weeks.length || courseMeta.get(c.courseId)?.total_weeks || 0;
-        const quizzesTotal = weeks.filter(w => !w.is_exam_week).length || Math.max(totalWeeks - 0, 0);
-        const examsTotal = weeks.filter(w => w.is_exam_week).length;
-
-        // elapsed weeks based on start_date
-        const meta = courseMeta.get(c.courseId);
-        let currentWeek = 0;
-        if (meta?.start_date) {
-          const start = new Date(meta.start_date).getTime();
-          const diff = Date.now() - start;
-          currentWeek = Math.max(0, Math.floor(diff / (7 * 86_400_000)) + 1);
-        }
-        const progressPct = totalWeeks > 0
-          ? Math.min(100, Math.round((Math.min(currentWeek, totalWeeks) / totalWeeks) * 100))
-          : 0;
-        const weekLabel = totalWeeks > 0
-          ? `Week ${Math.min(currentWeek, totalWeeks)} of ${totalWeeks}`
-          : "Not started";
-
-        const m = masteryMap.get(c.courseId);
-        const quizzesDone = quizDaysByCourse.get(c.courseId)?.size || 0;
-        const examsDone = examsByCourse.get(c.courseId) || 0;
-        const complete = (quizzesTotal + examsTotal) > 0
-          && quizzesDone >= quizzesTotal
-          && examsDone >= examsTotal;
-
-        return {
-          courseId: c.courseId,
-          name: c.name,
-          enrolledAt: c.enrolledAt,
-          masteryScore: m?.score ?? null,
-          masteryLevel: m?.level ?? null,
-          progressPct,
-          weekLabel,
-          quizzesDone,
-          quizzesTotal,
-          examsDone,
-          examsTotal,
-          complete,
-        };
-      });
-
-      setDetails(out);
-      setLoading(false);
-    })();
-  }, [open, student]);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      supabase.removeChannel(channel);
+    };
+  }, [open, student, loadDetails]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -243,7 +289,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
                     <div>
                       <div className="text-muted-foreground mb-1">Mastery score</div>
                       <div className="font-semibold text-foreground tabular-nums">
-                        {d.masteryScore != null ? `${Math.round(d.masteryScore)} / 100` : "—"}
+                        {d.masteryScore != null ? `${Math.floor(d.masteryScore)} / 100` : "—"}
                       </div>
                     </div>
                     <div>
@@ -261,12 +307,12 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
                   <div>
                     <div className="flex items-center justify-between text-xs mb-1">
                       <span className="text-muted-foreground">Course progress</span>
-                      <span className="tabular-nums text-foreground">{d.weekLabel} · {d.progressPct}%</span>
+                      <span className="tabular-nums text-foreground">{d.progressLabel} · {d.progressPct}%</span>
                     </div>
                     <Progress value={d.progressPct} className="h-2" />
                   </div>
 
-                  <div className="flex items-center gap-4 text-xs pt-1">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs pt-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-muted-foreground">Weekly quizzes</span>
                       <span className="tabular-nums font-medium text-foreground">
@@ -277,6 +323,12 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
                       <span className="text-muted-foreground">Exams</span>
                       <span className="tabular-nums font-medium text-foreground">
                         {d.examsDone}/{d.examsTotal || 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-muted-foreground">Expert concepts</span>
+                      <span className="tabular-nums font-medium text-foreground">
+                        {d.expertConcepts}/{d.totalConcepts || 0}
                       </span>
                     </div>
                   </div>
