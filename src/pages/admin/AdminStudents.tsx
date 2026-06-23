@@ -17,6 +17,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import StudentProfileDialog from "@/components/admin/StudentProfileDialog";
 
 const MASTERY_ORDER = ["beginner", "developing", "proficient", "expert"];
 const sortMastery = (a: string, b: string) => {
@@ -116,6 +117,8 @@ const AdminStudents = () => {
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const [courseFilter, setCourseFilter] = useState<Set<string>>(new Set());
   const [masteryFilter, setMasteryFilter] = useState<Set<string>>(new Set());
+  const [profileTarget, setProfileTarget] = useState<StudentGroup | null>(null);
+  
   
   const { toast } = useToast();
 
@@ -370,7 +373,11 @@ const AdminStudents = () => {
                     const multiAccount = s.profileIds.length > 1;
                     const isOpen = openRows.has(s.key);
                     return (
-                      <TableRow key={s.key} className={cn(idx % 2 === 1 && "bg-muted/20", "hover:bg-muted/40 transition-colors")}>
+                      <TableRow
+                        key={s.key}
+                        onClick={() => setProfileTarget(s)}
+                        className={cn(idx % 2 === 1 && "bg-muted/20", "hover:bg-muted/40 transition-colors cursor-pointer")}
+                      >
                         <TableCell className="font-medium align-top">{s.name}</TableCell>
                         <TableCell className="align-top">
                           <div className="flex items-center gap-2">
