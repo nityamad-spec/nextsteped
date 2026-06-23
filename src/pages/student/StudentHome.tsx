@@ -498,7 +498,7 @@ const StudentHome = () => {
                 <BookOpen className="h-4 w-4 text-primary" />
                 <p className="text-sm font-medium">Course Progress</p>
               </div>
-              <span className="text-sm text-muted-foreground">Unit {currentWeek} of {totalWeeks}</span>
+              <span className="text-sm text-muted-foreground">Unit {displayedUnit} of {totalWeeks}</span>
             </div>
             <Progress value={progressPct} className="h-2 mb-1" />
             <p className="text-xs text-muted-foreground">
