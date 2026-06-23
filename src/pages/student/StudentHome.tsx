@@ -674,7 +674,7 @@ const StudentHome = () => {
                               <div className="flex items-center gap-2">
                                 <ClipboardCheck className="h-4 w-4 text-primary" />
                                 <div>
-                                  <p className="text-sm font-medium">Week {dp.day} Quiz</p>
+                                  <p className="text-sm font-medium">Unit {dp.day} Quiz</p>
                                   <p className="text-xs text-muted-foreground">
                                     {taken
                                       ? `Completed — ${taken.score}%`
