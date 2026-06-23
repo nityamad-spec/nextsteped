@@ -539,7 +539,7 @@ const StudentHome = () => {
             <CardTitle className="flex items-center gap-2 text-base">
               <BookOpen className="h-4 w-4 text-primary" /> Lesson Plan
             </CardTitle>
-            <CardDescription>Weekly course plan with learning outcomes and activities</CardDescription>
+            <CardDescription>Unit-by-unit course plan with learning outcomes and activities</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {planLoading ? (
