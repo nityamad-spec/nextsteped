@@ -1,17 +1,18 @@
-## Relabel "Week" → "Unit" and mark Coding Exercises optional (UI only)
+## Drive Course Progress bar from passed weekly quizzes (score > 50%)
 
-**File:** `src/pages/student/StudentHome.tsx` (Lesson Plan card only). No data/logic/state-name changes — variables like `currentWeek`, `expandedWeeks`, `totalWeeks` stay; only user-visible strings change.
+**Current behavior** (`src/pages/student/StudentHome.tsx` lines 49–55): `progressPct` is computed from elapsed time only — `currentWeek / totalWeeks` — so the bar advances on the calendar regardless of student activity. `currentWeek` is also used by the Lesson Plan badge, "What to Do Next" rules, and the "Unit X of Y" header text; those keep using the calendar value. Only the progress bar changes.
 
-**Label changes** (Lesson Plan card region, roughly lines ~488–706):
-- Header progress text: `Week {currentWeek} of {totalWeeks}` → `Unit {currentWeek} of {totalWeeks}` (line 488).
-- Card description "Weekly course plan with learning outcomes and activities" → "Unit-by-unit course plan with learning outcomes and activities" (line 542).
-- Empty state "No weeks are visible yet — check back soon" → "No units are visible yet — check back soon" (line 563).
-- Not-yet-published message "You're currently on Week {currentWeek} of {totalWeeks}." → "You're currently on Unit {currentWeek} of {totalWeeks}." (line 558).
-- Week badge label `Week {dp.day}` → `Unit {dp.day}` (line 579). Keep the existing 72px badge width.
-- Weekly quiz row title `Week {dp.day} Quiz` → `Unit {dp.day} Quiz` (line 674).
-- Quiz-not-available text "Quiz not yet available for this week." → "Quiz not yet available for this unit." (line 664).
+**New behavior:** progress = weekly quizzes the student has *passed* (score > 50%) ÷ weekly quizzes the professor has published.
 
-**Coding exercise = optional** (inside the activities map, lines ~621–650):
-- When `r.type === "coding-exercise"`, render an additional small `Badge variant="secondary"` with text `Optional` next to the existing type badge (line 632 area). Applies to every coding-exercise activity across all units.
+- "Passed" = `takenQuizzes[day].score > 50`. Exactly 50 does not count as passed. Already-loaded `takenQuizzes` state (lines 130–154) keeps the highest score per day, so retakes auto-update.
+- Numerator: count of entries in `takenQuizzes` whose `score > 50`.
+- Denominator: `availableQuizDays.size` (already loaded, lines 157–171).
+- Formula: `progressPct = denom > 0 ? clamp(round(passed / denom * 100), 0, 100) : 0`.
+- Caption under the bar:
+  - `denom === 0` → "No quizzes published yet"
+  - otherwise → `{passed} of {denom} weekly quizzes passed (>50%)`
 
-**Out of scope:** Other surfaces ("What to Do Next", suggestion text strings, Concept Mastery Map, navigation, etc.) keep their current wording. Backend fields, DB columns, and any "week"-named code identifiers are not touched.
+**Implementation scope (UI only, one file):**
+- `src/pages/student/StudentHome.tsx`: replace the `progressPct` calculation (~line 55) with the passed-quiz formula derived from existing `takenQuizzes` and `availableQuizDays` state. Update the caption under `<Progress>` (~line 491). Leave `currentWeek`, `totalWeeks`, and the "Unit {currentWeek} of {totalWeeks}" header text unchanged.
+
+**Out of scope:** No new queries, no schema changes, no changes to "What to Do Next", Lesson Plan rows, exam tracking, or mastery logic. Practice exams are not counted toward this bar.

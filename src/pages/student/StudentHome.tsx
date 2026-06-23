@@ -52,7 +52,7 @@ const StudentHome = () => {
   const currentWeek = courseStartDate
     ? Math.max(1, Math.min(totalWeeks, Math.floor((Date.now() - new Date(courseStartDate).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1))
     : 1;
-  const progressPct = Math.round((currentWeek / totalWeeks) * 100);
+  // progressPct is derived from passed weekly quizzes — computed below after takenQuizzes/availableQuizDays state.
   const [lessonPlanPublished, setLessonPlanPublished] = useState(false);
   const [lessonPlanError, setLessonPlanError] = useState(false);
 
