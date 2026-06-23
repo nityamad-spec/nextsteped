@@ -203,7 +203,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 -mx-6 px-6">
+        <ScrollArea className="flex-1 min-h-0 -mx-6 px-6 [&>[data-radix-scroll-area-viewport]]:max-h-[65vh]">
           {loading ? (
             <div className="space-y-3 py-2">
               <Skeleton className="h-28 w-full" />
