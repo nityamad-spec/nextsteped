@@ -329,11 +329,14 @@ const ExamHistory = ({ courseId }: ExamHistoryProps) => {
                                         </div>
                                       </div>
                                     )}
+                                    {a.topic && (
+                                      <div className="mt-1.5">
+                                        <Badge variant="outline" className="text-[9px] whitespace-normal max-w-full">{a.topic}</Badge>
+                                      </div>
+                                    )}
                                   </div>
-                                  {a.topic && (
-                                    <Badge variant="outline" className="text-[9px] shrink-0">{a.topic}</Badge>
-                                  )}
                                 </div>
+
                               </div>
                             ))}
                             {loadingExplanations === attempt.id && (
