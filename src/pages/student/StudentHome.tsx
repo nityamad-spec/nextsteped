@@ -67,6 +67,13 @@ const StudentHome = () => {
   const [takenQuizzes, setTakenQuizzes] = useState<Record<number, { score: number }>>({});
   const [availableQuizDays, setAvailableQuizDays] = useState<Set<number>>(new Set());
 
+  // Course Progress: weekly quizzes passed (score > 50%) / quizzes the professor has published
+  const passedQuizCount = Object.values(takenQuizzes).filter((q) => q.score > 50).length;
+  const publishedQuizCount = availableQuizDays.size;
+  const progressPct = publishedQuizCount > 0
+    ? Math.max(0, Math.min(100, Math.round((passedQuizCount / publishedQuizCount) * 100)))
+    : 0;
+
   useEffect(() => {
     if (!enrolledCourseId) { setConcepts([]); return; }
     let cancelled = false;
