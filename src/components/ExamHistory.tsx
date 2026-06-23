@@ -292,18 +292,18 @@ const ExamHistory = ({ courseId }: ExamHistoryProps) => {
                                     ? <CheckCircle className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
                                     : <XCircle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" />
                                   }
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium whitespace-pre-wrap">Q{qi + 1}: {a.question_text}</p>
-                                    <p className="mt-0.5">
+                                  <div className="flex-1 min-w-0 text-left">
+                                    <p className="font-medium whitespace-pre-line">Q{qi + 1}: {normalizeText(a.question_text)}</p>
+                                    <p className="mt-0.5 whitespace-pre-line">
                                       <span className="text-muted-foreground">Your answer: </span>
                                       <span className={a.is_correct ? "text-primary" : "text-destructive"}>
-                                        {a.selected || "Not answered"}
+                                        {a.selected ? normalizeText(a.selected) : "Not answered"}
                                       </span>
                                     </p>
                                     {!a.is_correct && (
-                                      <p>
+                                      <p className="whitespace-pre-line">
                                         <span className="text-muted-foreground">Correct: </span>
-                                        <span className="text-primary">{a.correct}</span>
+                                        <span className="text-primary">{normalizeText(a.correct)}</span>
                                       </p>
                                     )}
                                     {attemptExplanations && attemptExplanations[qi] && (
