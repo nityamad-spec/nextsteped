@@ -52,7 +52,7 @@ const StudentHome = () => {
   const currentWeek = courseStartDate
     ? Math.max(1, Math.min(totalWeeks, Math.floor((Date.now() - new Date(courseStartDate).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1))
     : 1;
-  const progressPct = Math.round((currentWeek / totalWeeks) * 100);
+  // progressPct is derived from passed weekly quizzes — computed below after takenQuizzes/availableQuizDays state.
   const [lessonPlanPublished, setLessonPlanPublished] = useState(false);
   const [lessonPlanError, setLessonPlanError] = useState(false);
 
@@ -66,6 +66,13 @@ const StudentHome = () => {
   const [courseMastery, setCourseMastery] = useState<number | null>(null);
   const [takenQuizzes, setTakenQuizzes] = useState<Record<number, { score: number }>>({});
   const [availableQuizDays, setAvailableQuizDays] = useState<Set<number>>(new Set());
+
+  // Course Progress: weekly quizzes passed (score > 50%) / quizzes the professor has published
+  const passedQuizCount = Object.values(takenQuizzes).filter((q) => q.score > 50).length;
+  const publishedQuizCount = availableQuizDays.size;
+  const progressPct = publishedQuizCount > 0
+    ? Math.max(0, Math.min(100, Math.round((passedQuizCount / publishedQuizCount) * 100)))
+    : 0;
 
   useEffect(() => {
     if (!enrolledCourseId) { setConcepts([]); return; }
@@ -488,7 +495,11 @@ const StudentHome = () => {
               <span className="text-sm text-muted-foreground">Unit {currentWeek} of {totalWeeks}</span>
             </div>
             <Progress value={progressPct} className="h-2 mb-1" />
-            <p className="text-xs text-muted-foreground">Semester in progress</p>
+            <p className="text-xs text-muted-foreground">
+              {publishedQuizCount === 0
+                ? "No quizzes published yet"
+                : `${passedQuizCount} of ${publishedQuizCount} weekly quizzes passed (>50%)`}
+            </p>
           </CardContent>
         </Card>
       </motion.div>
