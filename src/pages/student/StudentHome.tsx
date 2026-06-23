@@ -664,7 +664,7 @@ const StudentHome = () => {
                             return (
                               <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/30 p-3 flex items-center gap-2">
                                 <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-                                <p className="text-xs text-muted-foreground">Quiz not yet available for this week.</p>
+                                <p className="text-xs text-muted-foreground">Quiz not yet available for this unit.</p>
                               </div>
                             );
                           }
