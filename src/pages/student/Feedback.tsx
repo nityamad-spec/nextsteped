@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
-const GOOGLE_SURVEY_URL = "https://forms.gle/PLACEHOLDER";
+const GOOGLE_SURVEY_URL = "https://docs.google.com/forms/d/e/1FAIpQLSd6J34THftst22jub9s9MyFqBFKESVA8MMqD_TplXjzeH_Zsg/viewform?usp=dialog";
 
 const Feedback = () => {
   const { user } = useAuth();
@@ -45,7 +45,7 @@ const Feedback = () => {
               <ClipboardList className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle className="text-base">Course Survey</CardTitle>
+              <CardTitle className="text-base">NextStep Feedback Survey</CardTitle>
               <CardDescription>Help us improve by completing this short survey.</CardDescription>
             </div>
           </div>
@@ -54,7 +54,7 @@ const Feedback = () => {
           <Button asChild size="sm">
             <a href={GOOGLE_SURVEY_URL} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="mr-2 h-4 w-4" />
-              Open Survey
+              NextStep Feedback Survey
             </a>
           </Button>
         </CardContent>
