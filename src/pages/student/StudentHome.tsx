@@ -630,6 +630,9 @@ const StudentHome = () => {
                                             <p className="text-xs text-muted-foreground">{r.action}</p>
                                           </div>
                                           <Badge variant="outline" className="text-[10px] shrink-0">{r.type}</Badge>
+                                          {r.type === "coding-exercise" && (
+                                            <Badge variant="secondary" className="text-[10px] shrink-0">Optional</Badge>
+                                          )}
                                         </>
                                       );
                                       return hasUrl ? (
