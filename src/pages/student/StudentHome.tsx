@@ -560,7 +560,7 @@ const StudentHome = () => {
                 )}
               </div>
             ) : lessonPlan.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No weeks are visible yet — check back soon</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No units are visible yet — check back soon</p>
             ) : (
               lessonPlan.map((dp: any) => {
                 const isExpanded = expandedWeeks.includes(dp.day);
