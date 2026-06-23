@@ -110,7 +110,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
     const quizDaysByCourse = new Map<string, Set<number>>();
     const examsByCourse = new Map<string, number>();
     (resultsRes.data || []).forEach(r => {
-      if (r.mode === "weekly_quiz" && r.quiz_day != null) {
+      if (r.mode === "daily_quiz" && r.quiz_day != null) {
         const set = quizDaysByCourse.get(r.course_id) || new Set<number>();
         set.add(r.quiz_day);
         quizDaysByCourse.set(r.course_id, set);
