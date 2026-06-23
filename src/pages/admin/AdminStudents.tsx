@@ -17,6 +17,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import StudentProfileDialog from "@/components/admin/StudentProfileDialog";
 
 const MASTERY_ORDER = ["beginner", "developing", "proficient", "expert"];
 const sortMastery = (a: string, b: string) => {
@@ -116,6 +117,8 @@ const AdminStudents = () => {
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const [courseFilter, setCourseFilter] = useState<Set<string>>(new Set());
   const [masteryFilter, setMasteryFilter] = useState<Set<string>>(new Set());
+  const [profileTarget, setProfileTarget] = useState<StudentGroup | null>(null);
+  
   
   const { toast } = useToast();
 
@@ -370,7 +373,11 @@ const AdminStudents = () => {
                     const multiAccount = s.profileIds.length > 1;
                     const isOpen = openRows.has(s.key);
                     return (
-                      <TableRow key={s.key} className={cn(idx % 2 === 1 && "bg-muted/20", "hover:bg-muted/40 transition-colors")}>
+                      <TableRow
+                        key={s.key}
+                        onClick={() => setProfileTarget(s)}
+                        className={cn(idx % 2 === 1 && "bg-muted/20", "hover:bg-muted/40 transition-colors cursor-pointer")}
+                      >
                         <TableCell className="font-medium align-top">{s.name}</TableCell>
                         <TableCell className="align-top">
                           <div className="flex items-center gap-2">
@@ -389,7 +396,7 @@ const AdminStudents = () => {
                           ) : (
                             <Collapsible open={isOpen} onOpenChange={() => toggleRow(s.key)}>
                               <CollapsibleTrigger asChild>
-                                <Button variant="outline" size="sm" className="h-7 gap-1.5">
+                                <Button variant="outline" size="sm" className="h-7 gap-1.5" onClick={(e) => e.stopPropagation()}>
                                   <BookOpen className="h-3.5 w-3.5" />
                                   <span className="text-xs">{s.courses.length} course{s.courses.length === 1 ? "" : "s"}</span>
                                   <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", isOpen && "rotate-180")} />
@@ -430,7 +437,7 @@ const AdminStudents = () => {
                             <TooltipContent>{new Date(s.created_at).toLocaleString()}</TooltipContent>
                           </Tooltip>
                         </TableCell>
-                        <TableCell className="align-top">
+                        <TableCell className="align-top" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -508,6 +515,12 @@ const AdminStudents = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <StudentProfileDialog
+        student={profileTarget}
+        open={!!profileTarget}
+        onOpenChange={(o) => { if (!o) setProfileTarget(null); }}
+      />
     </div>
     </TooltipProvider>
   );
