@@ -770,7 +770,7 @@ const StudentHome = () => {
                   const attempted = m?.attempted ?? 0;
                   const score = m?.score ?? 0;
                   const level = getMasteryLevel(attempted, score);
-                  const pct = attempted > 0 ? Math.round(score * 100) : null;
+                  const pct = attempted > 0 ? Math.floor(score * 100) : null;
                   return (
                     <Tooltip key={concept.id}>
                       <TooltipTrigger asChild>
