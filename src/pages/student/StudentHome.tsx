@@ -485,7 +485,7 @@ const StudentHome = () => {
                 <BookOpen className="h-4 w-4 text-primary" />
                 <p className="text-sm font-medium">Course Progress</p>
               </div>
-              <span className="text-sm text-muted-foreground">Week {currentWeek} of {totalWeeks}</span>
+              <span className="text-sm text-muted-foreground">Unit {currentWeek} of {totalWeeks}</span>
             </div>
             <Progress value={progressPct} className="h-2 mb-1" />
             <p className="text-xs text-muted-foreground">Semester in progress</p>
@@ -539,7 +539,7 @@ const StudentHome = () => {
             <CardTitle className="flex items-center gap-2 text-base">
               <BookOpen className="h-4 w-4 text-primary" /> Lesson Plan
             </CardTitle>
-            <CardDescription>Weekly course plan with learning outcomes and activities</CardDescription>
+            <CardDescription>Unit-by-unit course plan with learning outcomes and activities</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {planLoading ? (
@@ -555,12 +555,12 @@ const StudentHome = () => {
                 ) : (
                   <>
                     <p className="text-sm font-medium text-muted-foreground">Lesson plan not yet available</p>
-                    <p className="text-xs text-muted-foreground">Your professor hasn't published the lesson plan yet. You're currently on Week {currentWeek} of {totalWeeks}.</p>
+                    <p className="text-xs text-muted-foreground">Your professor hasn't published the lesson plan yet. You're currently on Unit {currentWeek} of {totalWeeks}.</p>
                   </>
                 )}
               </div>
             ) : lessonPlan.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No weeks are visible yet — check back soon</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No units are visible yet — check back soon</p>
             ) : (
               lessonPlan.map((dp: any) => {
                 const isExpanded = expandedWeeks.includes(dp.day);
@@ -576,7 +576,7 @@ const StudentHome = () => {
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <Badge variant={dp.day === currentWeek ? "default" : "outline"} className="shrink-0 text-xs w-[72px] justify-center whitespace-nowrap">
-                          Week {dp.day}
+                          Unit {dp.day}
                         </Badge>
                         <span className="text-sm font-medium truncate">{dp.topic}</span>
                         {dp.day === currentWeek && <Badge variant="secondary" className="text-[10px]">Current</Badge>}
@@ -630,6 +630,9 @@ const StudentHome = () => {
                                             <p className="text-xs text-muted-foreground">{r.action}</p>
                                           </div>
                                           <Badge variant="outline" className="text-[10px] shrink-0">{r.type}</Badge>
+                                          {r.type === "coding-exercise" && (
+                                            <Badge variant="secondary" className="text-[10px] shrink-0">Optional</Badge>
+                                          )}
                                         </>
                                       );
                                       return hasUrl ? (
@@ -661,7 +664,7 @@ const StudentHome = () => {
                             return (
                               <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/30 p-3 flex items-center gap-2">
                                 <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-                                <p className="text-xs text-muted-foreground">Quiz not yet available for this week.</p>
+                                <p className="text-xs text-muted-foreground">Quiz not yet available for this unit.</p>
                               </div>
                             );
                           }
@@ -671,7 +674,7 @@ const StudentHome = () => {
                               <div className="flex items-center gap-2">
                                 <ClipboardCheck className="h-4 w-4 text-primary" />
                                 <div>
-                                  <p className="text-sm font-medium">Week {dp.day} Quiz</p>
+                                  <p className="text-sm font-medium">Unit {dp.day} Quiz</p>
                                   <p className="text-xs text-muted-foreground">
                                     {taken
                                       ? `Completed — ${taken.score}%`
