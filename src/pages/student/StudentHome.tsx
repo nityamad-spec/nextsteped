@@ -495,7 +495,11 @@ const StudentHome = () => {
               <span className="text-sm text-muted-foreground">Unit {currentWeek} of {totalWeeks}</span>
             </div>
             <Progress value={progressPct} className="h-2 mb-1" />
-            <p className="text-xs text-muted-foreground">Semester in progress</p>
+            <p className="text-xs text-muted-foreground">
+              {publishedQuizCount === 0
+                ? "No quizzes published yet"
+                : `${passedQuizCount} of ${publishedQuizCount} weekly quizzes passed (>50%)`}
+            </p>
           </CardContent>
         </Card>
       </motion.div>
