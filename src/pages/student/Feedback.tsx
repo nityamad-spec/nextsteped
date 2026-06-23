@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
-const GOOGLE_SURVEY_URL = "https://forms.gle/PLACEHOLDER";
+const GOOGLE_SURVEY_URL = "https://docs.google.com/forms/d/e/1FAIpQLSd6J34THftst22jub9s9MyFqBFKESVA8MMqD_TplXjzeH_Zsg/viewform?usp=dialog";
 
 const Feedback = () => {
   const { user } = useAuth();
