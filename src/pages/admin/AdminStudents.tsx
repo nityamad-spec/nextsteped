@@ -515,6 +515,12 @@ const AdminStudents = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <StudentProfileDialog
+        student={profileTarget}
+        open={!!profileTarget}
+        onOpenChange={(o) => { if (!o) setProfileTarget(null); }}
+      />
     </div>
     </TooltipProvider>
   );
