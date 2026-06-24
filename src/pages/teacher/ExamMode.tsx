@@ -827,9 +827,10 @@ const ExamMode = () => {
                     <Button
                       variant="outline" size="icon" className="h-8 w-8"
                       onClick={handleAddExam}
-                      disabled={examSchedule.length >= MAX_EXAMS}
+                      disabled={examSchedule.length >= MAX_EXAMS || addingExam}
                       aria-label="Add exam"
                     >+</Button>
+
                   </div>
                 </div>
 
