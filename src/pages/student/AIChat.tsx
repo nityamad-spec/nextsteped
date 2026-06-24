@@ -559,6 +559,7 @@ const AIChat = () => {
     setAssessmentQuestionMeta(meta);
     setAssessmentType("exam");
     setAssessmentDay(3);
+    setCurrentExamId(examId ?? null);
     setAssessmentActive(true);
   };
 
