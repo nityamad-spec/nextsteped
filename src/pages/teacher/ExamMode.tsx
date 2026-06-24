@@ -979,6 +979,58 @@ const ExamMode = () => {
             </CardContent>
           </Card>
 
+          {/* ── Archived Mock Tests ── */}
+          {archivedCourseExams.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Archive className="h-5 w-5" /> Archived Mock Tests
+                </CardTitle>
+                <CardDescription>
+                  Hidden from students. Questions and past student submissions are preserved. Restore to bring an exam back into the active schedule.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {archivedCourseExams.map(ex => {
+                  const qCount = examQuestionCounts[ex.id] ?? 0;
+                  const archivedDate = ex.archived_at ? new Date(ex.archived_at).toLocaleDateString() : "";
+                  return (
+                    <div key={ex.id} className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold">{ex.label}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Archived {archivedDate} · {qCount} question{qCount === 1 ? "" : "s"} preserved · {ex.length_min} min
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline" size="sm" className="h-7 text-xs"
+                          onClick={() => setViewExamId(ex.id)}
+                          disabled={qCount === 0}
+                        >
+                          View Questions
+                        </Button>
+                        <Button
+                          variant="default" size="sm" className="h-7 text-xs gap-1"
+                          onClick={() => handleRestoreExam(ex.id)}
+                          disabled={restoringExamId === ex.id || examSchedule.length >= MAX_EXAMS}
+                          title={examSchedule.length >= MAX_EXAMS ? `Active limit is ${MAX_EXAMS}` : "Restore to active schedule"}
+                        >
+                          {restoringExamId === ex.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-3 w-3" />
+                          )}
+                          Restore
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
           {/* ── Custom Exam Questions (merged from Assessments tab) ── */}
           <Card>
             <CardHeader>
