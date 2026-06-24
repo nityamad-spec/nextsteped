@@ -293,8 +293,16 @@ const ExamHistory = ({ courseId }: ExamHistoryProps) => {
                             {attempt.score}%
                           </div>
                           <div>
-                            <p className="text-sm font-medium">
-                              {attempt.correct_answers}/{attempt.total_questions} correct
+                            <p className="text-sm font-medium flex items-center gap-2 flex-wrap">
+                              {attempt.exam_id && examMeta[attempt.exam_id] ? (
+                                <span className="font-semibold">{examMeta[attempt.exam_id].label}</span>
+                              ) : null}
+                              <span>{attempt.correct_answers}/{attempt.total_questions} correct</span>
+                              {attempt.exam_id && examMeta[attempt.exam_id]?.archived && (
+                                <Badge variant="outline" className="text-[9px] gap-1 border-muted-foreground/30 text-muted-foreground">
+                                  <Archive className="h-2.5 w-2.5" /> This exam was archived
+                                </Badge>
+                              )}
                             </p>
                             <p className="text-[11px] text-muted-foreground">
                               {formatDateTime(attempt.created_at)} · {formatTime(attempt.time_spent)}
