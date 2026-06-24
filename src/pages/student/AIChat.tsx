@@ -686,6 +686,7 @@ const AIChat = () => {
         correct_answers: results.correctAnswers,
         answers: (results.answers ?? []) as unknown as import("@/integrations/supabase/types").Json,
         time_spent: results.timeSpent ?? 0,
+        exam_id: assessmentType === "exam" ? (currentExamId ?? null) : null,
       }).select("id").single();
       if (error) {
         console.error("Failed to save assessment results:", error);
@@ -701,6 +702,7 @@ const AIChat = () => {
     }
 
     setCurrentAssessmentSessionId(null);
+    setCurrentExamId(null);
   };
 
   const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 3): Promise<Response> => {
