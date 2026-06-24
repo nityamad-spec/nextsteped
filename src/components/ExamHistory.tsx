@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { History, Trophy, Clock, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus, Loader2, CheckCircle, XCircle, Lightbulb, BarChart3, BookOpen, Brain, ArrowRight } from "lucide-react";
+import { History, Trophy, Clock, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus, Loader2, CheckCircle, XCircle, Lightbulb, BarChart3, BookOpen, Brain, ArrowRight, Archive } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -19,6 +19,12 @@ interface ExamAttempt {
   created_at: string;
   mode: string;
   answers: any[];
+  exam_id: string | null;
+}
+
+interface ExamMeta {
+  label: string;
+  archived: boolean;
 }
 
 interface ExamHistoryProps {
@@ -45,6 +51,7 @@ const ExamHistory = ({ courseId }: ExamHistoryProps) => {
   const [expandedAttempt, setExpandedAttempt] = useState<string | null>(null);
   const [explanations, setExplanations] = useState<Record<string, Record<number, string>>>({});
   const [loadingExplanations, setLoadingExplanations] = useState<string | null>(null);
+  const [examMeta, setExamMeta] = useState<Record<string, ExamMeta>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -59,7 +66,31 @@ const ExamHistory = ({ courseId }: ExamHistoryProps) => {
         .limit(50);
       if (courseId) query = query.eq("course_id", courseId);
       const { data } = await query;
-      setAttempts((data || []) as ExamAttempt[]);
+      const rows = (data || []) as ExamAttempt[];
+      setAttempts(rows);
+
+      // Pull exam label + archived flag for any exam referenced in this history,
+      // grouped by course so we cover students enrolled across multiple courses.
+      const byCourse = new Map<string, Set<string>>();
+      for (const r of rows) {
+        const cid = (r as any).course_id as string | undefined;
+        if (!cid || !r.exam_id) continue;
+        if (!byCourse.has(cid)) byCourse.set(cid, new Set());
+        byCourse.get(cid)!.add(r.exam_id);
+      }
+      const meta: Record<string, ExamMeta> = {};
+      await Promise.all(Array.from(byCourse.entries()).map(async ([cid, ids]) => {
+        const { data: exRows } = await supabase
+          .from("course_exams")
+          .select("id, label, archived_at")
+          .eq("course_id", cid)
+          .in("id", Array.from(ids));
+        for (const ex of (exRows ?? []) as any[]) {
+          meta[ex.id] = { label: ex.label, archived: !!ex.archived_at };
+        }
+      }));
+      setExamMeta(meta);
+
       setLoading(false);
     };
     fetchHistory();
@@ -262,8 +293,16 @@ const ExamHistory = ({ courseId }: ExamHistoryProps) => {
                             {attempt.score}%
                           </div>
                           <div>
-                            <p className="text-sm font-medium">
-                              {attempt.correct_answers}/{attempt.total_questions} correct
+                            <p className="text-sm font-medium flex items-center gap-2 flex-wrap">
+                              {attempt.exam_id && examMeta[attempt.exam_id] ? (
+                                <span className="font-semibold">{examMeta[attempt.exam_id].label}</span>
+                              ) : null}
+                              <span>{attempt.correct_answers}/{attempt.total_questions} correct</span>
+                              {attempt.exam_id && examMeta[attempt.exam_id]?.archived && (
+                                <Badge variant="outline" className="text-[9px] gap-1 border-muted-foreground/30 text-muted-foreground">
+                                  <Archive className="h-2.5 w-2.5" /> This exam was archived
+                                </Badge>
+                              )}
                             </p>
                             <p className="text-[11px] text-muted-foreground">
                               {formatDateTime(attempt.created_at)} · {formatTime(attempt.time_spent)}

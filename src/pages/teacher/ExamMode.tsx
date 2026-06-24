@@ -25,6 +25,8 @@ import ExamQuestionsViewDialog from "@/components/ExamQuestionsViewDialog";
 import { bumpCacheVersion } from "@/lib/cacheVersion";
 import type { ExamScheduleItem } from "@/types";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useCourseExams, nextAvailableLabel } from "@/hooks/useCourseExams";
+import { Archive, RotateCcw } from "lucide-react";
 
 const MAX_EXAMS = 10;
 const newExamId = () =>
@@ -95,14 +97,35 @@ const ExamMode = () => {
   const { user } = useAuth();
   const courseId = useTeacherCourseId();
   const { taSettings, loading, saveTASettings } = useTASettings(courseId);
+  const {
+    active: activeCourseExams,
+    archived: archivedCourseExams,
+    loading: examsLoading,
+    upsertExam,
+    archiveExam,
+    restoreExam,
+  } = useCourseExams(courseId);
 
   // ── Exam config state ──
   const [settings, setSettings] = useState(taSettings);
   const [examQuestionTypes, setExamQuestionTypes] = useState(taSettings.examQuestionMix || "mixed");
   const [examEnabled, setExamEnabled] = useState(taSettings.examEnabled ?? false);
 
-  // Multi-exam schedule (replaces single examLength + single estimate)
+  // Multi-exam schedule. Source of truth is the course_exams table (active rows
+  // only). We hydrate local state from there; the JSON examSchedule on
+  // course_ta_settings is kept in sync on save for backward compat with older
+  // student code paths.
   const buildInitialSchedule = (): ExamScheduleItem[] => {
+    if (activeCourseExams.length > 0) {
+      return activeCourseExams.map(e => ({
+        id: e.id,
+        kind: e.kind,
+        lengthMin: e.length_min,
+        breakdown: e.breakdown,
+        approved: e.approved,
+        source: e.source,
+      }));
+    }
     if (taSettings.examSchedule && taSettings.examSchedule.length > 0) {
       return taSettings.examSchedule.map(e => ({ ...e, source: e.source ?? "generated" }));
     }
@@ -122,8 +145,9 @@ const ExamMode = () => {
   const [editingCardIds, setEditingCardIds] = useState<Record<string, boolean>>({});
   // Pending removal confirmation (when popping an approved card)
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
-  const [confirmDeleteExamId, setConfirmDeleteExamId] = useState<string | null>(null);
-  const [deletingExam, setDeletingExam] = useState(false);
+  const [confirmArchiveExamId, setConfirmArchiveExamId] = useState<string | null>(null);
+  const [archivingExam, setArchivingExam] = useState(false);
+  const [restoringExamId, setRestoringExamId] = useState<string | null>(null);
 
   // ── Custom exam questions state (merged from Assessments) ──
   const [questions, setQuestions] = useState<EditableQuestion[]>([]);
@@ -152,7 +176,7 @@ const ExamMode = () => {
 
 
   useEffect(() => {
-    if (!loading) {
+    if (!loading && !examsLoading) {
       setSettings(taSettings);
       setExamQuestionTypes(taSettings.examQuestionMix || "mixed");
       setExamEnabled(taSettings.examEnabled ?? false);
@@ -160,7 +184,7 @@ const ExamMode = () => {
       setEditingCardIds({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, taSettings]);
+  }, [loading, examsLoading, taSettings, activeCourseExams]);
 
   const refetchConcepts = async () => {
     if (!courseId) return;
@@ -232,18 +256,51 @@ const ExamMode = () => {
 
 
   // ── Schedule mutation helpers ──
+  // Persist to course_exams whenever we mutate a card. The label is derived
+  // from active position ("Final N"); collisions can only occur on restore,
+  // and useCourseExams.restoreExam handles auto-rename in that case.
+  const persistExam = (id: string, patch: Partial<ExamScheduleItem>) => {
+    const idx = examSchedule.findIndex(e => e.id === id);
+    if (idx < 0) return;
+    const next = { ...examSchedule[idx], ...patch };
+    void upsertExam({
+      id,
+      label: `Final ${idx + 1}`,
+      kind: next.kind,
+      length_min: next.lengthMin,
+      breakdown: next.breakdown as Record<string, number>,
+      source: next.source ?? "generated",
+      approved: next.approved,
+      position: idx,
+    }).catch(e => console.error("persist exam failed:", e));
+  };
+
   const updateExam = (id: string, patch: Partial<ExamScheduleItem>) => {
     setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
+    persistExam(id, patch);
   };
 
   // When the global question types change, refresh each card's breakdown
   // (preserve approved state only if the type set is unchanged for that card)
   useEffect(() => {
-    setExamSchedule(prev => prev.map(e => e.source === "manual" ? e : ({
-      ...e,
-      breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
-      approved: false,
-    })));
+    setExamSchedule(prev => {
+      const next = prev.map(e => e.source === "manual" ? e : ({
+        ...e,
+        breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
+        approved: false,
+      }));
+      next.forEach((e, idx) => {
+        if (e.source !== "manual") {
+          void upsertExam({
+            id: e.id,
+            breakdown: e.breakdown as Record<string, number>,
+            approved: false,
+            position: idx,
+          }).catch(err => console.error("persist breakdown refresh failed:", err));
+        }
+      });
+      return next;
+    });
     setEditingCardIds({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [examQuestionTypes]);
@@ -253,14 +310,30 @@ const ExamMode = () => {
   const handleAddExam = () => {
     if (examSchedule.length >= MAX_EXAMS) return;
     const lengthMin = 60;
-    setExamSchedule(prev => [...prev, {
-      id: newExamId(),
+    const id = newExamId();
+    const idx = examSchedule.length;
+    const activeLabels = activeCourseExams.map(e => e.label);
+    const positionLabel = `Final ${idx + 1}`;
+    const label = activeLabels.includes(positionLabel) ? nextAvailableLabel(activeLabels) : positionLabel;
+    const newItem: ExamScheduleItem = {
+      id,
       kind: "final",
       lengthMin,
       breakdown: questionEstimate(lengthMin, examQuestionTypes).breakdown,
       approved: false,
       source: "generated",
-    }]);
+    };
+    setExamSchedule(prev => [...prev, newItem]);
+    void upsertExam({
+      id,
+      label,
+      kind: "final",
+      length_min: lengthMin,
+      breakdown: newItem.breakdown as Record<string, number>,
+      source: "generated",
+      approved: false,
+      position: idx,
+    }).catch(e => console.error("add exam failed:", e));
   };
 
   const handleSourceChange = (id: string, source: "generated" | "manual") => {
@@ -303,22 +376,20 @@ const ExamMode = () => {
     if (last.approved || hasQuestions) {
       setConfirmRemoveId(last.id);
     } else {
-      // No questions and unapproved — safe to drop immediately. Still run
-      // cleanup as a no-op safeguard against stale rows.
+      // Unapproved and empty — archive immediately (preserves nothing of value,
+      // but keeps the row in case the teacher restores).
       const id = last.id;
       setExamSchedule(prev => prev.slice(0, -1));
-      cleanupExamQuestions(id).catch(e => console.error("cleanup failed:", e));
+      archiveExam(id, user?.id ?? null).catch(e => console.error("archive failed:", e));
     }
   };
   const confirmRemoveExam = async () => {
     const id = confirmRemoveId;
     if (!id) { setConfirmRemoveId(null); return; }
     try {
-      await cleanupExamQuestions(id);
+      await archiveExam(id, user?.id ?? null);
       setExamSchedule(prev => prev.filter(e => e.id !== id));
       setEditingCardIds(prev => { const { [id]: _, ...rest } = prev; return rest; });
-      setExamQuestionCounts(prev => { const { [id]: _, ...rest } = prev; return rest; });
-      setQuestions(prev => prev.map(q => q.exam_id === id ? { ...q, exam_id: null } : q));
     } catch (e: any) {
       console.error("remove exam failed:", e);
       toast.error(e?.message ?? "Failed to remove exam");
@@ -327,31 +398,55 @@ const ExamMode = () => {
     }
   };
 
-  const requestDeleteExam = (id: string) => {
-    if (examSchedule.length <= 1) {
-      toast.error("At least one mock test is required.");
-      return;
-    }
-    setConfirmDeleteExamId(id);
+  const requestArchiveExam = (id: string) => {
+    setConfirmArchiveExamId(id);
   };
 
-  const executeDeleteExam = async () => {
-    const id = confirmDeleteExamId;
+  const executeArchiveExam = async () => {
+    const id = confirmArchiveExamId;
     if (!id || !courseId) return;
-    setDeletingExam(true);
+    setArchivingExam(true);
     try {
-      await cleanupExamQuestions(id);
+      // Soft-delete: archive the exam row. Do NOT touch questions or student
+      // submissions — they're preserved for analytics and restore.
+      await archiveExam(id, user?.id ?? null);
       setExamSchedule(prev => prev.filter(e => e.id !== id));
       setEditingCardIds(prev => { const { [id]: _, ...rest } = prev; return rest; });
-      setExamQuestionCounts(prev => { const { [id]: _, ...rest } = prev; return rest; });
-      setQuestions(prev => prev.map(q => q.exam_id === id ? { ...q, exam_id: null } : q));
-      toast.success("Mock test deleted");
+      toast.success("Mock test archived. Questions and submissions kept.");
     } catch (e: any) {
-      console.error("delete exam failed:", e);
-      toast.error(e?.message ?? "Failed to delete mock test");
+      console.error("archive exam failed:", e);
+      toast.error(e?.message ?? "Failed to archive mock test");
     } finally {
-      setDeletingExam(false);
-      setConfirmDeleteExamId(null);
+      setArchivingExam(false);
+      setConfirmArchiveExamId(null);
+    }
+  };
+
+  const handleRestoreExam = async (id: string) => {
+    setRestoringExamId(id);
+    try {
+      const { renamedTo } = await restoreExam(id);
+      const restored = archivedCourseExams.find(e => e.id === id);
+      if (restored) {
+        setExamSchedule(prev => [...prev, {
+          id: restored.id,
+          kind: restored.kind,
+          lengthMin: restored.length_min,
+          breakdown: restored.breakdown,
+          approved: false, // require re-approval after restore
+          source: restored.source,
+        }]);
+      }
+      if (renamedTo) {
+        toast.success(`Restored — renamed to "${renamedTo}" to avoid conflict.`);
+      } else {
+        toast.success("Mock test restored");
+      }
+    } catch (e: any) {
+      console.error("restore exam failed:", e);
+      toast.error(e?.message ?? "Failed to restore mock test");
+    } finally {
+      setRestoringExamId(null);
     }
   };
 
@@ -706,13 +801,12 @@ const ExamMode = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => requestDeleteExam(exam.id)}
-                              disabled={examSchedule.length <= 1}
-                              aria-label={`Delete ${exam.label}`}
-                              title={examSchedule.length <= 1 ? "At least one mock test is required" : "Delete this mock test"}
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                              onClick={() => requestArchiveExam(exam.id)}
+                              aria-label={`Archive ${exam.label}`}
+                              title="Archive this mock test (questions and student submissions are preserved)"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Archive className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
@@ -879,6 +973,58 @@ const ExamMode = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* ── Archived Mock Tests ── */}
+          {archivedCourseExams.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Archive className="h-5 w-5" /> Archived Mock Tests
+                </CardTitle>
+                <CardDescription>
+                  Hidden from students. Questions and past student submissions are preserved. Restore to bring an exam back into the active schedule.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {archivedCourseExams.map(ex => {
+                  const qCount = examQuestionCounts[ex.id] ?? 0;
+                  const archivedDate = ex.archived_at ? new Date(ex.archived_at).toLocaleDateString() : "";
+                  return (
+                    <div key={ex.id} className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold">{ex.label}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Archived {archivedDate} · {qCount} question{qCount === 1 ? "" : "s"} preserved · {ex.length_min} min
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline" size="sm" className="h-7 text-xs"
+                          onClick={() => setViewExamId(ex.id)}
+                          disabled={qCount === 0}
+                        >
+                          View Questions
+                        </Button>
+                        <Button
+                          variant="default" size="sm" className="h-7 text-xs gap-1"
+                          onClick={() => handleRestoreExam(ex.id)}
+                          disabled={restoringExamId === ex.id || examSchedule.length >= MAX_EXAMS}
+                          title={examSchedule.length >= MAX_EXAMS ? `Active limit is ${MAX_EXAMS}` : "Restore to active schedule"}
+                        >
+                          {restoringExamId === ex.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-3 w-3" />
+                          )}
+                          Restore
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
 
           {/* ── Custom Exam Questions (merged from Assessments tab) ── */}
           <Card>
@@ -1133,28 +1279,25 @@ const ExamMode = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!confirmDeleteExamId} onOpenChange={(o) => !o && !deletingExam && setConfirmDeleteExamId(null)}>
+      <AlertDialog open={!!confirmArchiveExamId} onOpenChange={(o) => !o && !archivingExam && setConfirmArchiveExamId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this mock test?</AlertDialogTitle>
+            <AlertDialogTitle>Archive this mock test?</AlertDialogTitle>
             <AlertDialogDescription>
               {(() => {
-                const exam = labeledSchedule.find(e => e.id === confirmDeleteExamId);
-                if (!exam) return "This will permanently remove the mock test.";
-                const isManual = exam.source === "manual";
-                const generatedCount = examQuestionCounts[exam.id] ?? 0;
-                const manualCount = manualExamCounts[exam.id] ?? 0;
-                if (isManual) {
-                  return `${exam.label} will be removed. ${manualCount} manual question${manualCount === 1 ? "" : "s"} assigned to it will be returned to the library (unassigned).`;
-                }
-                return `${exam.label} will be removed${generatedCount > 0 ? ` along with its ${generatedCount} generated question${generatedCount === 1 ? "" : "s"}` : ""}. This cannot be undone.`;
+                const exam = labeledSchedule.find(e => e.id === confirmArchiveExamId);
+                const label = exam?.label ?? "This mock test";
+                const generatedCount = exam ? (examQuestionCounts[exam.id] ?? 0) : 0;
+                const manualCount = exam ? (manualExamCounts[exam.id] ?? 0) : 0;
+                const totalQ = generatedCount + manualCount;
+                return `${label} will be hidden from students. Its ${totalQ} question${totalQ === 1 ? "" : "s"} and any past student submissions stay intact — you can restore the exam from the "Archived mock tests" section below at any time.`;
               })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingExam}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); executeDeleteExam(); }} disabled={deletingExam}>
-              {deletingExam ? "Deleting…" : "Delete"}
+            <AlertDialogCancel disabled={archivingExam}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); executeArchiveExam(); }} disabled={archivingExam}>
+              {archivingExam ? "Archiving…" : "Archive"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
