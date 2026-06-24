@@ -63,6 +63,9 @@ const Assessments = () => {
   const [examManualCount, setExamManualCount] = useState(20);
   const [diagnosticCount, setDiagnosticCount] = useState(0);
   const [concepts, setConcepts] = useState<{ id: string; concept_code: string }[]>([]);
+  const [archivedExamIds, setArchivedExamIds] = useState<Set<string>>(new Set());
+  const [showArchivedExamQs, setShowArchivedExamQs] = useState(false);
+
 
 
   useEffect(() => {
