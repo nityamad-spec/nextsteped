@@ -176,7 +176,7 @@ const ExamMode = () => {
 
 
   useEffect(() => {
-    if (!loading) {
+    if (!loading && !examsLoading) {
       setSettings(taSettings);
       setExamQuestionTypes(taSettings.examQuestionMix || "mixed");
       setExamEnabled(taSettings.examEnabled ?? false);
@@ -184,7 +184,7 @@ const ExamMode = () => {
       setEditingCardIds({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, taSettings]);
+  }, [loading, examsLoading, taSettings, activeCourseExams]);
 
   const refetchConcepts = async () => {
     if (!courseId) return;
