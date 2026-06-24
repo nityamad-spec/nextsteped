@@ -162,7 +162,14 @@ const StudentOnboarding = () => {
       if ((data as any)?.error) throw new Error((data as any).error);
       navigate(`/student/verify-email?email=${encodeURIComponent(email.trim())}`, { replace: true });
     } catch (err: any) {
-      const msg = err.message || "Couldn't submit your details. Please try again.";
+      let msg = err?.message || "Couldn't submit your details. Please try again.";
+      try {
+        const resp = err?.context?.response ?? err?.context;
+        if (resp && typeof resp.clone === "function") {
+          const body = await resp.clone().json().catch(() => null);
+          if (body?.error) msg = body.error;
+        }
+      } catch { /* ignore */ }
       setSubmitError(msg);
       toast.error(msg);
     } finally {
