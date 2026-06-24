@@ -256,18 +256,56 @@ const ExamMode = () => {
 
 
   // ── Schedule mutation helpers ──
+  // Persist to course_exams whenever we mutate a card. Best-effort; UI state
+  // is updated first so interactions stay snappy.
+  const persistExam = (id: string, patch: Partial<ExamScheduleItem>, indexOverride?: number) => {
+    const idx = indexOverride ?? examSchedule.findIndex(e => e.id === id);
+    const next = examSchedule.map(e => e.id === id ? { ...e, ...patch } : e);
+    const target = next.find(e => e.id === id);
+    if (!target) return;
+    const activeLabels = activeCourseExams.filter(e => e.id !== id).map(e => e.label);
+    const label = nextAvailableLabel(activeLabels.length > 0 ? activeLabels.filter(l => l !== `Final ${idx + 1}`) : []);
+    // Prefer the canonical "Final N" derived from position, fall back to next-available.
+    const positionLabel = `Final ${idx + 1}`;
+    const finalLabel = activeLabels.includes(positionLabel) ? label : positionLabel;
+    void upsertExam({
+      id,
+      label: finalLabel,
+      kind: target.kind,
+      length_min: target.lengthMin,
+      breakdown: target.breakdown as Record<string, number>,
+      source: target.source ?? "generated",
+      approved: target.approved,
+      position: idx,
+    }).catch(e => console.error("persist exam failed:", e));
+  };
+
   const updateExam = (id: string, patch: Partial<ExamScheduleItem>) => {
     setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
+    persistExam(id, patch);
   };
 
   // When the global question types change, refresh each card's breakdown
   // (preserve approved state only if the type set is unchanged for that card)
   useEffect(() => {
-    setExamSchedule(prev => prev.map(e => e.source === "manual" ? e : ({
-      ...e,
-      breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
-      approved: false,
-    })));
+    setExamSchedule(prev => {
+      const next = prev.map(e => e.source === "manual" ? e : ({
+        ...e,
+        breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
+        approved: false,
+      }));
+      next.forEach((e, idx) => {
+        if (e.source !== "manual") {
+          void upsertExam({
+            id: e.id,
+            breakdown: e.breakdown as Record<string, number>,
+            approved: false,
+            position: idx,
+          }).catch(err => console.error("persist breakdown refresh failed:", err));
+        }
+      });
+      return next;
+    });
     setEditingCardIds({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [examQuestionTypes]);
@@ -277,14 +315,30 @@ const ExamMode = () => {
   const handleAddExam = () => {
     if (examSchedule.length >= MAX_EXAMS) return;
     const lengthMin = 60;
-    setExamSchedule(prev => [...prev, {
-      id: newExamId(),
+    const id = newExamId();
+    const idx = examSchedule.length;
+    const activeLabels = activeCourseExams.map(e => e.label);
+    const positionLabel = `Final ${idx + 1}`;
+    const label = activeLabels.includes(positionLabel) ? nextAvailableLabel(activeLabels) : positionLabel;
+    const newItem: ExamScheduleItem = {
+      id,
       kind: "final",
       lengthMin,
       breakdown: questionEstimate(lengthMin, examQuestionTypes).breakdown,
       approved: false,
       source: "generated",
-    }]);
+    };
+    setExamSchedule(prev => [...prev, newItem]);
+    void upsertExam({
+      id,
+      label,
+      kind: "final",
+      length_min: lengthMin,
+      breakdown: newItem.breakdown as Record<string, number>,
+      source: "generated",
+      approved: false,
+      position: idx,
+    }).catch(e => console.error("add exam failed:", e));
   };
 
   const handleSourceChange = (id: string, source: "generated" | "manual") => {
