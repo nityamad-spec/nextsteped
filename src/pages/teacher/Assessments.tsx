@@ -235,8 +235,12 @@ const Assessments = () => {
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="outline" className={`text-[10px] ${typeBadgeColor(q.type)}`}>{q.type}</Badge>
+          {q.examId && archivedExamIds.has(q.examId) && (
+            <Badge variant="outline" className="text-[10px] border-amber-500/50 text-amber-600 dark:text-amber-400">Archived exam</Badge>
+          )}
           <span className="text-xs text-muted-foreground">{q.topic}</span>
         </div>
+
         <div className="flex items-center gap-1">
           <button onClick={() => openEditDialog(q)} className="rounded p-1.5 hover:bg-muted"><Pencil className="h-3.5 w-3.5 text-muted-foreground" /></button>
           <button onClick={() => handleDelete(q.id)} className="rounded p-1.5 hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
