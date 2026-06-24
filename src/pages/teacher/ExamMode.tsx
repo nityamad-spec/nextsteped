@@ -256,26 +256,21 @@ const ExamMode = () => {
 
 
   // ── Schedule mutation helpers ──
-  // Persist to course_exams whenever we mutate a card. Best-effort; UI state
-  // is updated first so interactions stay snappy.
-  const persistExam = (id: string, patch: Partial<ExamScheduleItem>, indexOverride?: number) => {
-    const idx = indexOverride ?? examSchedule.findIndex(e => e.id === id);
-    const next = examSchedule.map(e => e.id === id ? { ...e, ...patch } : e);
-    const target = next.find(e => e.id === id);
-    if (!target) return;
-    const activeLabels = activeCourseExams.filter(e => e.id !== id).map(e => e.label);
-    const label = nextAvailableLabel(activeLabels.length > 0 ? activeLabels.filter(l => l !== `Final ${idx + 1}`) : []);
-    // Prefer the canonical "Final N" derived from position, fall back to next-available.
-    const positionLabel = `Final ${idx + 1}`;
-    const finalLabel = activeLabels.includes(positionLabel) ? label : positionLabel;
+  // Persist to course_exams whenever we mutate a card. The label is derived
+  // from active position ("Final N"); collisions can only occur on restore,
+  // and useCourseExams.restoreExam handles auto-rename in that case.
+  const persistExam = (id: string, patch: Partial<ExamScheduleItem>) => {
+    const idx = examSchedule.findIndex(e => e.id === id);
+    if (idx < 0) return;
+    const next = { ...examSchedule[idx], ...patch };
     void upsertExam({
       id,
-      label: finalLabel,
-      kind: target.kind,
-      length_min: target.lengthMin,
-      breakdown: target.breakdown as Record<string, number>,
-      source: target.source ?? "generated",
-      approved: target.approved,
+      label: `Final ${idx + 1}`,
+      kind: next.kind,
+      length_min: next.lengthMin,
+      breakdown: next.breakdown as Record<string, number>,
+      source: next.source ?? "generated",
+      approved: next.approved,
       position: idx,
     }).catch(e => console.error("persist exam failed:", e));
   };
