@@ -461,25 +461,23 @@ const AIChat = () => {
       setAvailableExamIds([]);
       return [] as string[];
     }
-    let ids = Array.from(new Set(qRows.map((r: any) => r.exam_id).filter(Boolean))).sort();
-    // Intersect with the professor's active exams. If course_exams is empty
-    // (older course not yet migrated to the table), fall back to the legacy
-    // examSchedule JSON to avoid blanking the panel.
-    const activeIds = examRows && examRows.length > 0
-      ? new Set(examRows.map((r: any) => r.id).filter(Boolean))
-      : (Array.isArray(taSettings.examSchedule) && taSettings.examSchedule.length > 0
-          ? new Set(taSettings.examSchedule.map((e: any) => e?.id).filter(Boolean))
-          : null);
-    if (activeIds) {
-      ids = ids.filter(id => activeIds.has(id));
-    }
+    // Strict rule: only exam_ids that exist as ACTIVE rows in course_exams are
+    // surfaced to the student. If course_exams is empty for this course, no
+    // exams are live — the panel shows the "not published yet" copy.
+    const activeIds = new Set((examRows ?? []).map((r: any) => r.id).filter(Boolean));
+    const ids = Array.from(
+      new Set(qRows.map((r: any) => r.exam_id).filter(Boolean))
+    )
+      .filter((id: string) => activeIds.has(id))
+      .sort();
     setAvailableExamIds(ids);
     if (rotationKey) {
       const stored = parseInt(localStorage.getItem(rotationKey) || "0", 10);
       setNextExamIndex(Number.isFinite(stored) ? stored : 0);
     }
     return ids;
-  }, [enrolledCourseId, rotationKey, taSettings.examSchedule]);
+  }, [enrolledCourseId, rotationKey]);
+
 
   // Load whenever course resolves or mode flips to exam
   useEffect(() => {
