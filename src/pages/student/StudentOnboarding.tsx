@@ -221,7 +221,7 @@ const StudentOnboarding = () => {
 
               <div className="space-y-2">
                 <Label>Roll Number</Label>
-                <Input placeholder="Enter your roll number" value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} />
+                <Input placeholder="Enter your roll number" value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} disabled />
               </div>
 
               <div className="space-y-2">
