@@ -97,14 +97,35 @@ const ExamMode = () => {
   const { user } = useAuth();
   const courseId = useTeacherCourseId();
   const { taSettings, loading, saveTASettings } = useTASettings(courseId);
+  const {
+    active: activeCourseExams,
+    archived: archivedCourseExams,
+    loading: examsLoading,
+    upsertExam,
+    archiveExam,
+    restoreExam,
+  } = useCourseExams(courseId);
 
   // ── Exam config state ──
   const [settings, setSettings] = useState(taSettings);
   const [examQuestionTypes, setExamQuestionTypes] = useState(taSettings.examQuestionMix || "mixed");
   const [examEnabled, setExamEnabled] = useState(taSettings.examEnabled ?? false);
 
-  // Multi-exam schedule (replaces single examLength + single estimate)
+  // Multi-exam schedule. Source of truth is the course_exams table (active rows
+  // only). We hydrate local state from there; the JSON examSchedule on
+  // course_ta_settings is kept in sync on save for backward compat with older
+  // student code paths.
   const buildInitialSchedule = (): ExamScheduleItem[] => {
+    if (activeCourseExams.length > 0) {
+      return activeCourseExams.map(e => ({
+        id: e.id,
+        kind: e.kind,
+        lengthMin: e.length_min,
+        breakdown: e.breakdown,
+        approved: e.approved,
+        source: e.source,
+      }));
+    }
     if (taSettings.examSchedule && taSettings.examSchedule.length > 0) {
       return taSettings.examSchedule.map(e => ({ ...e, source: e.source ?? "generated" }));
     }
@@ -124,8 +145,9 @@ const ExamMode = () => {
   const [editingCardIds, setEditingCardIds] = useState<Record<string, boolean>>({});
   // Pending removal confirmation (when popping an approved card)
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
-  const [confirmDeleteExamId, setConfirmDeleteExamId] = useState<string | null>(null);
-  const [deletingExam, setDeletingExam] = useState(false);
+  const [confirmArchiveExamId, setConfirmArchiveExamId] = useState<string | null>(null);
+  const [archivingExam, setArchivingExam] = useState(false);
+  const [restoringExamId, setRestoringExamId] = useState<string | null>(null);
 
   // ── Custom exam questions state (merged from Assessments) ──
   const [questions, setQuestions] = useState<EditableQuestion[]>([]);
