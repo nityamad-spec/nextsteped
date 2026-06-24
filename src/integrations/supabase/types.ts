@@ -499,6 +499,47 @@ export type Database = {
           },
         ]
       }
+      course_roster_allowlist: {
+        Row: {
+          added_by: string | null
+          course_id: string
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          added_by?: string | null
+          course_id: string
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          added_by?: string | null
+          course_id?: string
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_roster_allowlist_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_ta_settings: {
         Row: {
           course_id: string
@@ -730,6 +771,7 @@ export type Database = {
           name: string
           objectives: string[] | null
           published: boolean
+          roster_enforcement: boolean
           sections: string[] | null
           session_length_minutes: number | null
           sessions_per_week: number | null
@@ -760,6 +802,7 @@ export type Database = {
           name: string
           objectives?: string[] | null
           published?: boolean
+          roster_enforcement?: boolean
           sections?: string[] | null
           session_length_minutes?: number | null
           sessions_per_week?: number | null
@@ -790,6 +833,7 @@ export type Database = {
           name?: string
           objectives?: string[] | null
           published?: boolean
+          roster_enforcement?: boolean
           sections?: string[] | null
           session_length_minutes?: number | null
           sessions_per_week?: number | null
