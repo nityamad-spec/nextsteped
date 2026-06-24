@@ -101,7 +101,9 @@ export function useCourseExams(courseId: string | null) {
       .from("course_exams" as never)
       .upsert(row as never, { onConflict: "course_id,id" });
     if (error) throw error;
-  }, [courseId]);
+    await reload();
+  }, [courseId, reload]);
+
 
   const archiveExam = useCallback(async (id: string, userId: string | null) => {
     if (!courseId) return;

@@ -328,34 +328,60 @@ const ExamMode = () => {
 
   const handleExamTypeChange = (v: string) => setExamQuestionTypes(v);
 
-  const handleAddExam = () => {
+  const [addingExam, setAddingExam] = useState(false);
+  const handleAddExam = async () => {
+    if (addingExam) return;
     if (examSchedule.length >= MAX_EXAMS) return;
+    if (!courseId) return;
+    setAddingExam(true);
     const lengthMin = 60;
-    const id = newExamId();
-    const idx = examSchedule.length;
-    const activeLabels = activeCourseExams.map(e => e.label);
-    const positionLabel = `Final ${idx + 1}`;
-    const label = activeLabels.includes(positionLabel) ? nextAvailableLabel(activeLabels) : positionLabel;
-    const newItem: ExamScheduleItem = {
-      id,
-      kind: "final",
-      lengthMin,
-      breakdown: questionEstimate(lengthMin, examQuestionTypes).breakdown,
-      approved: false,
-      source: "generated",
+    const breakdown = questionEstimate(lengthMin, examQuestionTypes).breakdown as Record<string, number>;
+
+    const attemptInsert = async (activeLabels: string[], activePositions: number[]) => {
+      const id = newExamId();
+      const label = nextAvailableLabel(activeLabels);
+      const position = activePositions.length > 0 ? Math.max(...activePositions) + 1 : 0;
+      await upsertExam({
+        id,
+        label,
+        kind: "final",
+        length_min: lengthMin,
+        breakdown,
+        source: "generated",
+        approved: false,
+        position,
+      });
     };
-    setExamSchedule(prev => [...prev, newItem]);
-    void upsertExam({
-      id,
-      label,
-      kind: "final",
-      length_min: lengthMin,
-      breakdown: newItem.breakdown as Record<string, number>,
-      source: "generated",
-      approved: false,
-      position: idx,
-    }).catch(e => console.error("add exam failed:", e));
+
+    try {
+      const labels = activeCourseExams.map(e => e.label);
+      const positions = activeCourseExams.map(e => e.position);
+      try {
+        await attemptInsert(labels, positions);
+      } catch (e: any) {
+        if (e?.code === "23505") {
+          // Stale cache collided with DB. Reload and retry once with fresh labels.
+          const { data } = await supabase
+            .from("course_exams" as never)
+            .select("label, position, archived_at")
+            .eq("course_id", courseId);
+          const freshActive = ((data as any[]) ?? []).filter(r => !r.archived_at);
+          await attemptInsert(
+            freshActive.map(r => r.label as string),
+            freshActive.map(r => (r.position as number) ?? 0),
+          );
+        } else {
+          throw e;
+        }
+      }
+    } catch (e: any) {
+      console.error("add exam failed:", e);
+      toast.error("Couldn't add mock test. Please try again.");
+    } finally {
+      setAddingExam(false);
+    }
   };
+
 
   const handleSourceChange = (id: string, source: "generated" | "manual") => {
     updateExam(id, { source, approved: false });
