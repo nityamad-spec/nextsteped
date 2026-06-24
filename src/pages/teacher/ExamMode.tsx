@@ -748,6 +748,13 @@ const ExamMode = () => {
                                 <Plus className="mr-1 h-3 w-3" /> Add Question
                               </Button>
                               <Button
+                                variant="outline" size="sm" className="h-7 text-xs"
+                                disabled={manualCount === 0}
+                                onClick={() => setViewExamId(exam.id)}
+                              >
+                                View Questions
+                              </Button>
+                              <Button
                                 variant={exam.approved ? "outline" : "default"}
                                 size="sm" className="h-7 text-xs"
                                 disabled={!canApprove}
