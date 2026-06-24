@@ -16,23 +16,25 @@ import { Calendar, UserPlus, Upload, Copy, ArrowLeft, Trash2, Download, AlertTri
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { markStepCompleted } from "@/lib/setupProgress";
 
-type RosterEntry = { id: string; email: string; full_name: string | null };
+type RosterEntry = { id: string; email: string; full_name: string | null; university: string | null };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function parseCsv(text: string): { email: string; full_name: string | null }[] {
-  const rows: { email: string; full_name: string | null }[] = [];
+function parseCsv(text: string): { email: string; full_name: string | null; university: string | null }[] {
+  const rows: { email: string; full_name: string | null; university: string | null }[] = [];
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (lines.length === 0) return rows;
   // Detect header
   const first = lines[0].toLowerCase();
   let emailIdx = 0;
   let nameIdx = -1;
+  let uniIdx = -1;
   let start = 0;
   if (first.includes("email")) {
     const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
     emailIdx = headers.findIndex((h) => h === "email" || h === "email_address" || h === "e-mail");
     nameIdx = headers.findIndex((h) => h === "name" || h === "full_name" || h === "fullname" || h === "student_name");
+    uniIdx = headers.findIndex((h) => h === "university" || h === "school" || h === "institution" || h === "college");
     if (emailIdx === -1) emailIdx = 0;
     start = 1;
   }
@@ -40,10 +42,12 @@ function parseCsv(text: string): { email: string; full_name: string | null }[] {
     const cols = lines[i].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
     const email = (cols[emailIdx] || "").trim().toLowerCase();
     const name = nameIdx >= 0 ? (cols[nameIdx] || "").trim() : "";
-    if (email) rows.push({ email, full_name: name || null });
+    const uni = uniIdx >= 0 ? (cols[uniIdx] || "").trim() : "";
+    if (email) rows.push({ email, full_name: name || null, university: uni || null });
   }
   return rows;
 }
+
 
 const EnrollmentSettings = () => {
   const navigate = useNavigate();
@@ -93,7 +97,7 @@ const EnrollmentSettings = () => {
     if (!effectiveCourseId) return;
     const { data, error } = await supabase
       .from("course_roster_allowlist")
-      .select("id, email, full_name")
+      .select("id, email, full_name, university")
       .eq("course_id", effectiveCourseId)
       .order("created_at", { ascending: false });
     if (!error && data) setRoster(data as RosterEntry[]);
@@ -123,7 +127,7 @@ const EnrollmentSettings = () => {
         return;
       }
       const seen = new Set<string>();
-      const valid: { email: string; full_name: string | null }[] = [];
+      const valid: { email: string; full_name: string | null; university: string | null }[] = [];
       let invalid = 0;
       for (const r of parsed) {
         if (!EMAIL_RE.test(r.email)) { invalid++; continue; }
@@ -139,6 +143,7 @@ const EnrollmentSettings = () => {
         course_id: effectiveCourseId,
         email: r.email,
         full_name: r.full_name,
+        university: r.university,
         added_by: user?.id ?? null,
         source: "csv",
       }));
@@ -189,7 +194,7 @@ const EnrollmentSettings = () => {
   };
 
   const downloadTemplate = () => {
-    const csv = "email,full_name\nstudent@example.edu,Jane Doe\n";
+    const csv = "email,full_name,university\nstudent@example.edu,Jane Doe,Example University\n";
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -308,6 +313,7 @@ const EnrollmentSettings = () => {
                       <div className="min-w-0 flex-1 truncate">
                         <span className="font-mono text-xs">{r.email}</span>
                         {r.full_name && <span className="ml-2 text-xs text-muted-foreground">— {r.full_name}</span>}
+                        {r.university && <span className="ml-2 text-xs text-muted-foreground">· {r.university}</span>}
                       </div>
                       <button onClick={() => deleteEntry(r.id)} className="ml-2 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                         <Trash2 className="h-3.5 w-3.5" />
@@ -340,7 +346,7 @@ const EnrollmentSettings = () => {
             >
               <Upload className="h-6 w-6 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">
-                {uploading ? "Uploading…" : "Upload roster CSV (email, full_name)"}
+                {uploading ? "Uploading…" : "Upload roster CSV (email, full_name, university)"}
               </span>
               <button
                 type="button"
