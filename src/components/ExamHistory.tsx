@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { History, Trophy, Clock, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus, Loader2, CheckCircle, XCircle, Lightbulb, BarChart3, BookOpen, Brain, ArrowRight } from "lucide-react";
+import { History, Trophy, Clock, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus, Loader2, CheckCircle, XCircle, Lightbulb, BarChart3, BookOpen, Brain, ArrowRight, Archive } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -19,6 +19,12 @@ interface ExamAttempt {
   created_at: string;
   mode: string;
   answers: any[];
+  exam_id: string | null;
+}
+
+interface ExamMeta {
+  label: string;
+  archived: boolean;
 }
 
 interface ExamHistoryProps {
