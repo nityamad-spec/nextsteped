@@ -97,7 +97,7 @@ const EnrollmentSettings = () => {
     if (!effectiveCourseId) return;
     const { data, error } = await supabase
       .from("course_roster_allowlist")
-      .select("id, email, full_name")
+      .select("id, email, full_name, university")
       .eq("course_id", effectiveCourseId)
       .order("created_at", { ascending: false });
     if (!error && data) setRoster(data as RosterEntry[]);
