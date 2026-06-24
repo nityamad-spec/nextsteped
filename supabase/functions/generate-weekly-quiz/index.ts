@@ -22,12 +22,59 @@ interface TierSpec {
 // Small batches (≤3) finish well under the 45-60s per-call timeout on flash,
 // and partial salvage across sub-calls/attempts prevents one slow or
 // rejected response from zeroing out the tier.
+// Tiers run SEQUENTIALLY (standard → easy → medium → hard) and each tier
+// receives the stems already accepted by earlier tiers as an exclusion list,
+// so the model is told to write something materially different. Standard and
+// medium are deliberately separated in difficulty + Bloom focus so the model
+// doesn't converge on the same "obvious" question per concept.
 const TIER_SPEC: TierSpec[] = [
-  { tier: "standard", count: 5, difficulty: 0.5,  label: "Standard tier (common to all students, medium difficulty)", batchSize: 3, perCallTimeoutMs: 45_000, maxAttempts: 3 },
-  { tier: "easy",     count: 5, difficulty: 0.2,  label: "Easy adaptive tier (for struggling students)",              batchSize: 3, perCallTimeoutMs: 45_000, maxAttempts: 3 },
-  { tier: "medium",   count: 5, difficulty: 0.5,  label: "Medium adaptive tier (for average students)",               batchSize: 3, perCallTimeoutMs: 45_000, maxAttempts: 3 },
-  { tier: "hard",     count: 5, difficulty: 0.85, label: "Hard adaptive tier (for advanced students)",                batchSize: 3, perCallTimeoutMs: 60_000, maxAttempts: 4 },
+  { tier: "standard", count: 5, difficulty: 0.45, label: "Standard tier (common to all students, foundational understanding)", batchSize: 3, perCallTimeoutMs: 45_000, maxAttempts: 2 },
+  { tier: "easy",     count: 5, difficulty: 0.2,  label: "Easy adaptive tier (for struggling students)",                       batchSize: 3, perCallTimeoutMs: 45_000, maxAttempts: 2 },
+  { tier: "medium",   count: 5, difficulty: 0.6,  label: "Medium adaptive tier (applied reasoning for average students)",      batchSize: 3, perCallTimeoutMs: 45_000, maxAttempts: 2 },
+  { tier: "hard",     count: 5, difficulty: 0.85, label: "Hard adaptive tier (for advanced students)",                         batchSize: 3, perCallTimeoutMs: 60_000, maxAttempts: 3 },
 ];
+
+// Stop-words / question openers stripped before fingerprinting a stem.
+const STEM_STOPWORDS = new Set([
+  "a","an","the","of","in","on","at","to","for","is","are","was","were","be","been","being",
+  "and","or","but","not","no","do","does","did","will","would","can","could","should","may","might",
+  "which","what","when","where","why","how","who","whom","whose",
+  "this","that","these","those","it","its","as","by","with","from","into","than","then","so",
+  "following","statements","statement","true","false","correct","best","describes","describe",
+  "code","python","program","output","value","result","print","given","consider","example",
+]);
+
+function fingerprint(stem: string): { key: string; tokens: Set<string> } {
+  const cleaned = stem
+    .toLowerCase()
+    .replace(/[`*_~"'()\[\]{}<>.,;:!?\\/=+\-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const tokens = new Set(
+    cleaned.split(" ").filter((t) => t.length > 1 && !STEM_STOPWORDS.has(t)),
+  );
+  const key = [...tokens].sort().join("|");
+  return { key, tokens };
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let inter = 0;
+  for (const t of a) if (b.has(t)) inter++;
+  const union = a.size + b.size - inter;
+  return union === 0 ? 0 : inter / union;
+}
+
+interface ExclusionEntry { stem: string; key: string; tokens: Set<string> }
+
+function isDuplicate(stem: string, exclusions: ExclusionEntry[]): boolean {
+  const { key, tokens } = fingerprint(stem);
+  for (const e of exclusions) {
+    if (e.key === key) return true;
+    if (jaccard(tokens, e.tokens) >= 0.7) return true;
+  }
+  return false;
+}
 
 const MODEL = "google/gemini-2.5-flash";
 // Global wall-clock budget. Supabase edge invoke is bounded at ~150s; leave
