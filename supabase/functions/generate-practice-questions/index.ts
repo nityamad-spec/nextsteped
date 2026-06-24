@@ -201,6 +201,7 @@ Format caps: MCQ <= Bloom 5; true_false <= Bloom 4. Bloom 6 (create) is never us
 
 Item quality:
 - MCQ: exactly 4 distinct, plausible, non-empty options; exactly one correct; "answer" matches one option string verbatim. Distractors must represent realistic misconceptions, not throwaways. Vary the position of the correct option across the set.
+- LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match syntactic shape, specificity, and hedging level across all 4 options.
 - True/False: options are exactly ["True","False"]; "answer" is "True" or "False".
 - No question may duplicate or trivially reword another in this set, and none may restate or closely paraphrase any entry in RECENT STEMS.
 - Explanations are 1-3 sentences and reference the concept by its concept_name (fall back to concept_code if name unavailable).
@@ -543,6 +544,18 @@ Deno.serve(async (req) => {
               if (options[idx]) answer = options[idx];
             }
             if (!options.includes(answer)) answer = options[0];
+          }
+          // Length parity guard: prevent "longest = correct" giveaway.
+          if (options.length === 4) {
+            const lens = options.map((o) => o.length);
+            const minLen = Math.min(...lens);
+            const maxLen = Math.max(...lens);
+            if (minLen > 0 && maxLen / minLen > 1.6) return null;
+            const answerLen = answer.length;
+            const avgLen = lens.reduce((a, b) => a + b, 0) / lens.length;
+            const strictlyLongest =
+              lens.filter((l) => l === maxLen).length === 1 && answerLen === maxLen;
+            if (strictlyLongest && answerLen > avgLen * 1.25) return null;
           }
         } else {
           answer = /^t/i.test(answer) ? "True" : "False";
