@@ -191,49 +191,6 @@ async function generateTier(
   conceptByCode: Record<string, ConceptRow>,
   lovableKey: string,
   deadlineAt: number,
-): Promise<GeneratedQuestion[]> {
-  const conceptList = Object.keys(conceptByCode).map((c) => `  - ${c}`).join("\n");
-  const accepted: GeneratedQuestion[] = [];
-  let retryHint: string | null = null;
-
-  outer: for (let attempt = 0; attempt < spec.maxAttempts && accepted.length < spec.count; attempt++) {
-    // Within an attempt, chunk into sub-calls. Each sub-call asks for a small
-    // batch (≤spec.batchSize) plus a +1 over-generation buffer so validator
-    // rejections don't immediately force a new full round-trip.
-    while (accepted.length < spec.count) {
-      if (Date.now() >= deadlineAt) break outer;
-      const remaining = spec.count - accepted.length;
-      const subNeed = Math.min(spec.batchSize, remaining);
-      const askFor = subNeed + 1; // over-generation buffer
-
-      const systemPrompt = `You are an expert assessment designer for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier}-tier WEEKLY QUIZ questions for Week ${weekNumber}${weekName ? ` — ${weekName}` : ""}.
-
-Tier: ${spec.label}
-Target difficulty (0=easy, 1=hard): ${spec.difficulty}
-
-CONCEPTS for this week — the 'topic' field of each question MUST be one of these exact concept codes (case-sensitive):
-${conceptList}
-
-STRICT RULES:
-- Each question MUST be either multiple-choice (format="mcq") or true/false (format="true_false"). NO short answer, NO problem solving.
-- MCQ: exactly 4 distinct non-empty options (no "A)" prefixes). 'answer' is the FULL TEXT of the correct option.
-- True/False: options MUST be exactly ["True", "False"]. 'answer' must be "True" or "False".
-- difficulty_estimate: number near ${spec.difficulty} (±0.15).
-- bloom_level: integer 1-4 ONLY (1=Remember, 2=Understand, 3=Apply, 4=Analyze). Do NOT use 5 (Evaluate) or 6 (Create) — these cannot be fairly assessed with MCQ or True/False.
-${spec.tier === "easy" ? "- Bloom target: mostly 1-2 (Remember/Understand)." : spec.tier === "medium" || spec.tier === "standard" ? "- Bloom target: mostly 2-3 (Understand/Apply); at least 40% at bloom 3." : "- Bloom target: 3-4 (Apply/Analyze); at least 60% at bloom 3-4. Prefer scenario, code-trace, or comparison stems over single-fact recall."}
-- content_text: question stem only, ≤ 600 chars.
-- explanation: 1-2 sentences explaining the correct answer.
-- topic: MUST exactly match one of the concept codes above.
-- Distribute questions across the listed concepts (don't pile all on one).
-
-ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
-- LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
-- ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible student misconception (a wrong rule, a swapped operator, an off-by-one, a confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer. No obviously absurd choices.
-- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
-
-  conceptByCode: Record<string, ConceptRow>,
-  lovableKey: string,
-  deadlineAt: number,
   exclusions: ExclusionEntry[],
 ): Promise<GeneratedQuestion[]> {
   const conceptList = Object.keys(conceptByCode).map((c) => `  - ${c}`).join("\n");
