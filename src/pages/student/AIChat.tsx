@@ -437,33 +437,41 @@ const AIChat = () => {
     : null;
 
   /** Load distinct exam_id values that have generated questions for this course,
-   *  reconciled against the professor's current exam schedule so orphaned ids
-   *  from previously-removed exams don't inflate the student count. */
+   *  reconciled against the professor's ACTIVE (non-archived) exam list in
+   *  course_exams so archived exams never appear in the student rotation. */
   const loadAvailableExamIds = useCallback(async () => {
     if (!enrolledCourseId) {
       setAvailableExamIds([]);
       return [] as string[];
     }
-    const { data, error } = await supabase
-      .from("assessment_questions")
-      .select("exam_id")
-      .eq("course_id", enrolledCourseId)
-      .eq("mode", "exam")
-      .not("exam_id", "is", null);
-    if (error || !data) {
+    const [{ data: qRows }, { data: examRows }] = await Promise.all([
+      supabase
+        .from("assessment_questions")
+        .select("exam_id")
+        .eq("course_id", enrolledCourseId)
+        .eq("mode", "exam")
+        .not("exam_id", "is", null),
+      supabase
+        .from("course_exams")
+        .select("id")
+        .eq("course_id", enrolledCourseId)
+        .is("archived_at", null),
+    ]);
+    if (!qRows) {
       setAvailableExamIds([]);
       return [] as string[];
     }
-    let ids = Array.from(new Set(data.map((r: any) => r.exam_id).filter(Boolean))).sort();
-    // Intersect with the professor's saved schedule when available. If the
-    // schedule hasn't loaded yet, fall back to the raw list to avoid blanking
-    // the panel during initial load — the effect below re-runs when taSettings
-    // resolves.
-    const scheduleIds = Array.isArray(taSettings.examSchedule) && taSettings.examSchedule.length > 0
-      ? new Set(taSettings.examSchedule.map((e: any) => e?.id).filter(Boolean))
-      : null;
-    if (scheduleIds) {
-      ids = ids.filter(id => scheduleIds.has(id));
+    let ids = Array.from(new Set(qRows.map((r: any) => r.exam_id).filter(Boolean))).sort();
+    // Intersect with the professor's active exams. If course_exams is empty
+    // (older course not yet migrated to the table), fall back to the legacy
+    // examSchedule JSON to avoid blanking the panel.
+    const activeIds = examRows && examRows.length > 0
+      ? new Set(examRows.map((r: any) => r.id).filter(Boolean))
+      : (Array.isArray(taSettings.examSchedule) && taSettings.examSchedule.length > 0
+          ? new Set(taSettings.examSchedule.map((e: any) => e?.id).filter(Boolean))
+          : null);
+    if (activeIds) {
+      ids = ids.filter(id => activeIds.has(id));
     }
     setAvailableExamIds(ids);
     if (rotationKey) {
