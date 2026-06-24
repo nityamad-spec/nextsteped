@@ -2,8 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 type Tier = "standard" | "easy" | "medium" | "hard";
@@ -13,79 +12,70 @@ interface TierSpec {
   count: number;
   difficulty: number;
   label: string;
-  batchSize: number;          // max questions requested per gateway sub-call
-  perCallTimeoutMs: number;   // per-sub-call abort timeout
-  maxAttempts: number;        // tier-level retry budget
+  batchSize: number; // max questions requested per gateway sub-call
+  perCallTimeoutMs: number; // per-sub-call abort timeout
+  maxAttempts: number; // tier-level retry budget
 }
 
 // Chunked sub-calls + over-generation buffer mirror the diagnostic pattern.
 // Small batches (≤3) finish well under the 45-60s per-call timeout on flash,
 // and partial salvage across sub-calls/attempts prevents one slow or
 // rejected response from zeroing out the tier.
-// Tiers run SEQUENTIALLY (standard → easy → medium → hard) and each tier
-// receives the stems already accepted by earlier tiers as an exclusion list,
-// so the model is told to write something materially different. Standard and
-// medium are deliberately separated in difficulty + Bloom focus so the model
-// doesn't converge on the same "obvious" question per concept.
 const TIER_SPEC: TierSpec[] = [
-  { tier: "standard", count: 5, difficulty: 0.45, label: "Standard tier (common to all students, foundational understanding)", batchSize: 3, perCallTimeoutMs: 45_000, maxAttempts: 2 },
-  { tier: "easy",     count: 5, difficulty: 0.2,  label: "Easy adaptive tier (for struggling students)",                       batchSize: 3, perCallTimeoutMs: 45_000, maxAttempts: 2 },
-  { tier: "medium",   count: 5, difficulty: 0.6,  label: "Medium adaptive tier (applied reasoning for average students)",      batchSize: 3, perCallTimeoutMs: 45_000, maxAttempts: 2 },
-  { tier: "hard",     count: 5, difficulty: 0.85, label: "Hard adaptive tier (for advanced students)",                         batchSize: 3, perCallTimeoutMs: 60_000, maxAttempts: 3 },
+  {
+    tier: "standard",
+    count: 5,
+    difficulty: 0.5,
+    label: "Standard tier (common to all students, medium difficulty)",
+    batchSize: 3,
+    perCallTimeoutMs: 45_000,
+    maxAttempts: 3,
+  },
+  {
+    tier: "easy",
+    count: 5,
+    difficulty: 0.2,
+    label: "Easy adaptive tier (for struggling students)",
+    batchSize: 3,
+    perCallTimeoutMs: 45_000,
+    maxAttempts: 3,
+  },
+  {
+    tier: "medium",
+    count: 5,
+    difficulty: 0.5,
+    label: "Medium adaptive tier (for average students)",
+    batchSize: 3,
+    perCallTimeoutMs: 45_000,
+    maxAttempts: 3,
+  },
+  {
+    tier: "hard",
+    count: 5,
+    difficulty: 0.85,
+    label: "Hard adaptive tier (for advanced students)",
+    batchSize: 3,
+    perCallTimeoutMs: 60_000,
+    maxAttempts: 4,
+  },
 ];
 
-// Stop-words / question openers stripped before fingerprinting a stem.
-const STEM_STOPWORDS = new Set([
-  "a","an","the","of","in","on","at","to","for","is","are","was","were","be","been","being",
-  "and","or","but","not","no","do","does","did","will","would","can","could","should","may","might",
-  "which","what","when","where","why","how","who","whom","whose",
-  "this","that","these","those","it","its","as","by","with","from","into","than","then","so",
-  "following","statements","statement","true","false","correct","best","describes","describe",
-  "code","python","program","output","value","result","print","given","consider","example",
-]);
-
-function fingerprint(stem: string): { key: string; tokens: Set<string> } {
-  const cleaned = stem
-    .toLowerCase()
-    .replace(/[`*_~"'()\[\]{}<>.,;:!?\\/=+\-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const tokens = new Set(
-    cleaned.split(" ").filter((t) => t.length > 1 && !STEM_STOPWORDS.has(t)),
-  );
-  const key = [...tokens].sort().join("|");
-  return { key, tokens };
-}
-
-function jaccard(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 || b.size === 0) return 0;
-  let inter = 0;
-  for (const t of a) if (b.has(t)) inter++;
-  const union = a.size + b.size - inter;
-  return union === 0 ? 0 : inter / union;
-}
-
-interface ExclusionEntry { stem: string; key: string; tokens: Set<string> }
-
-function isDuplicate(stem: string, exclusions: ExclusionEntry[]): boolean {
-  const { key, tokens } = fingerprint(stem);
-  for (const e of exclusions) {
-    if (e.key === key) return true;
-    if (jaccard(tokens, e.tokens) >= 0.7) return true;
-  }
-  return false;
-}
-
-const MODEL = "google/gemini-2.5-flash";
+const MODEL = "google/gemini-2.5-pro";
 // Global wall-clock budget. Supabase edge invoke is bounded at ~150s; leave
 // headroom for auth, DB reads, insert, and JSON serialization.
 const GLOBAL_DEADLINE_MS = 130_000;
 
 class CreditsExhaustedError extends Error {
-  constructor(msg = "AI credits exhausted") { super(msg); this.name = "CreditsExhaustedError"; }
+  constructor(msg = "AI credits exhausted") {
+    super(msg);
+    this.name = "CreditsExhaustedError";
+  }
 }
 class DeadlineExceededError extends Error {
-  constructor(msg = "Global deadline exceeded") { super(msg); this.name = "DeadlineExceededError"; }
+  constructor(msg = "Global deadline exceeded") {
+    super(msg);
+    this.name = "DeadlineExceededError";
+  }
 }
 
 interface GeneratedQuestion {
@@ -140,7 +130,6 @@ function validateQuestion(
     options = ["True", "False"];
   }
 
-
   const answer = typeof q.answer === "string" ? q.answer.trim() : "";
   if (!options.includes(answer)) return { ok: false, reason: "answer not in options" };
 
@@ -150,7 +139,10 @@ function validateQuestion(
   else {
     const lower = rawTopic.toLowerCase();
     for (const code of Object.keys(conceptByCode)) {
-      if (code.toLowerCase() === lower) { canonical = code; break; }
+      if (code.toLowerCase() === lower) {
+        canonical = code;
+        break;
+      }
     }
   }
   if (!canonical) return { ok: false, reason: `topic '${rawTopic}' not in week concepts` };
@@ -191,40 +183,22 @@ async function generateTier(
   conceptByCode: Record<string, ConceptRow>,
   lovableKey: string,
   deadlineAt: number,
-  exclusions: ExclusionEntry[],
 ): Promise<GeneratedQuestion[]> {
-  const conceptList = Object.keys(conceptByCode).map((c) => `  - ${c}`).join("\n");
+  const conceptList = Object.keys(conceptByCode)
+    .map((c) => `  - ${c}`)
+    .join("\n");
   const accepted: GeneratedQuestion[] = [];
-  // Local exclusion set seeded with cross-tier exclusions; grows as we accept.
-  const localExclusions: ExclusionEntry[] = exclusions.slice();
   let retryHint: string | null = null;
 
-  // Adaptive tiers use slightly higher temperature so the model doesn't keep
-  // returning near-identical phrasings on the same concept list.
-  const temperature = spec.tier === "standard" ? 0.35 : 0.55;
-
   outer: for (let attempt = 0; attempt < spec.maxAttempts && accepted.length < spec.count; attempt++) {
+    // Within an attempt, chunk into sub-calls. Each sub-call asks for a small
+    // batch (≤spec.batchSize) plus a +1 over-generation buffer so validator
+    // rejections don't immediately force a new full round-trip.
     while (accepted.length < spec.count) {
       if (Date.now() >= deadlineAt) break outer;
       const remaining = spec.count - accepted.length;
       const subNeed = Math.min(spec.batchSize, remaining);
       const askFor = subNeed + 1; // over-generation buffer
-
-      // Build an AVOID block from existing stems so the model doesn't repeat
-      // earlier-tier questions. Cap to keep prompt size bounded.
-      const avoidStems = localExclusions.slice(-20).map((e) => `  - ${e.stem}`).join("\n");
-      const avoidBlock = avoidStems
-        ? `\n\nAVOID — these question stems have already been used elsewhere in this week's quiz pool. Write questions that are materially DIFFERENT in wording, angle, and the specific fact/skill being tested. Do NOT paraphrase these:\n${avoidStems}`
-        : "";
-
-      const bloomGuidance =
-        spec.tier === "easy"
-          ? "- Bloom target: mostly 1-2 (Remember/Understand)."
-          : spec.tier === "standard"
-            ? "- Bloom target: mostly 2 (Understand); at most 1 item at bloom 3. Focus on canonical definitions and direct interpretation."
-            : spec.tier === "medium"
-              ? "- Bloom target: mostly 3 (Apply); at least 60% at bloom 3. Prefer short code-trace or 'predict-the-output' stems over definition recall."
-              : "- Bloom target: 3-4 (Apply/Analyze); at least 60% at bloom 3-4. Prefer scenario, code-trace, or comparison stems over single-fact recall.";
 
       const systemPrompt = `You are an expert assessment designer for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier}-tier WEEKLY QUIZ questions for Week ${weekNumber}${weekName ? ` — ${weekName}` : ""}.
 
@@ -240,7 +214,7 @@ STRICT RULES:
 - True/False: options MUST be exactly ["True", "False"]. 'answer' must be "True" or "False".
 - difficulty_estimate: number near ${spec.difficulty} (±0.15).
 - bloom_level: integer 1-4 ONLY (1=Remember, 2=Understand, 3=Apply, 4=Analyze). Do NOT use 5 (Evaluate) or 6 (Create) — these cannot be fairly assessed with MCQ or True/False.
-${bloomGuidance}
+${spec.tier === "easy" ? "- Bloom target: mostly 1-2 (Remember/Understand)." : spec.tier === "medium" || spec.tier === "standard" ? "- Bloom target: mostly 2-3 (Understand/Apply); at least 40% at bloom 3." : "- Bloom target: 3-4 (Apply/Analyze); at least 60% at bloom 3-4. Prefer scenario, code-trace, or comparison stems over single-fact recall."}
 - content_text: question stem only, ≤ 600 chars.
 - explanation: 1-2 sentences explaining the correct answer.
 - topic: MUST exactly match one of the concept codes above.
@@ -249,7 +223,7 @@ ${bloomGuidance}
 ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 - LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
 - ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible student misconception (a wrong rule, a swapped operator, an off-by-one, a confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer. No obviously absurd choices.
-- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${avoidBlock}${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
 
       let response: Response;
       try {
@@ -259,41 +233,52 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
           headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             model: MODEL,
-            temperature,
+            temperature: 0.35,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: `Generate ${askFor} ${spec.tier}-tier questions now.` },
             ],
-            tools: [{
-              type: "function",
-              function: {
-                name: "submit_questions",
-                description: "Submit weekly quiz questions",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    questions: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          content_text: { type: "string" },
-                          format: { type: "string", enum: ["mcq", "true_false"] },
-                          options: { type: "array", items: { type: "string" } },
-                          answer: { type: "string" },
-                          difficulty_estimate: { type: "number" },
-                          bloom_level: { type: "integer", minimum: 1, maximum: 4 },
-                          explanation: { type: "string" },
-                          topic: { type: "string" },
+            tools: [
+              {
+                type: "function",
+                function: {
+                  name: "submit_questions",
+                  description: "Submit weekly quiz questions",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      questions: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            content_text: { type: "string" },
+                            format: { type: "string", enum: ["mcq", "true_false"] },
+                            options: { type: "array", items: { type: "string" } },
+                            answer: { type: "string" },
+                            difficulty_estimate: { type: "number" },
+                            bloom_level: { type: "integer", minimum: 1, maximum: 4 },
+                            explanation: { type: "string" },
+                            topic: { type: "string" },
+                          },
+                          required: [
+                            "content_text",
+                            "format",
+                            "options",
+                            "answer",
+                            "difficulty_estimate",
+                            "bloom_level",
+                            "explanation",
+                            "topic",
+                          ],
                         },
-                        required: ["content_text", "format", "options", "answer", "difficulty_estimate", "bloom_level", "explanation", "topic"],
                       },
                     },
+                    required: ["questions"],
                   },
-                  required: ["questions"],
                 },
               },
-            }],
+            ],
             tool_choice: { type: "function", function: { name: "submit_questions" } },
           }),
         });
@@ -319,30 +304,33 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 
       const data = await response.json().catch(() => null);
       const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
-      if (!toolCall) { retryHint = "no tool call returned"; continue; }
+      if (!toolCall) {
+        retryHint = "no tool call returned";
+        continue;
+      }
       let parsed: any;
-      try { parsed = JSON.parse(toolCall.function.arguments); } catch { retryHint = "invalid JSON"; continue; }
+      try {
+        parsed = JSON.parse(toolCall.function.arguments);
+      } catch {
+        retryHint = "invalid JSON";
+        continue;
+      }
       const arr: any[] = Array.isArray(parsed?.questions) ? parsed.questions : [];
 
       const rejects: string[] = [];
-      let dupCount = 0;
       for (const q of arr) {
         if (accepted.length >= spec.count) break;
         const v = validateQuestion(q, spec, conceptByCode);
-        if (!v.ok) { rejects.push(v.reason); continue; }
-        if (isDuplicate(v.q.content_text, localExclusions)) {
-          dupCount++;
+        if (!v.ok) {
+          rejects.push(v.reason);
           continue;
         }
+        const key = v.q.content_text.slice(0, 120).toLowerCase();
+        if (accepted.some((a) => a.content_text.slice(0, 120).toLowerCase() === key)) continue;
         accepted.push(v.q);
-        const fp = fingerprint(v.q.content_text);
-        localExclusions.push({ stem: v.q.content_text, key: fp.key, tokens: fp.tokens });
       }
-      if (accepted.length < spec.count && (rejects.length || dupCount)) {
-        const parts: string[] = [];
-        if (rejects.length) parts.push(`${rejects.length} validation rejects (${rejects.slice(0, 3).join("; ")})`);
-        if (dupCount) parts.push(`${dupCount} duplicates of earlier stems — write materially different questions`);
-        retryHint = `Previous sub-call: ${parts.join("; ")}`;
+      if (accepted.length < spec.count && rejects.length) {
+        retryHint = `Previous sub-call had ${rejects.length} rejected questions. Reasons: ${rejects.slice(0, 3).join("; ")}`;
       }
 
       // If the sub-call produced zero survivors, break out to start a fresh
@@ -395,7 +383,8 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Not authenticated" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const token = authHeader.slice("Bearer ".length);
@@ -405,7 +394,8 @@ Deno.serve(async (req) => {
     const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
     if (claimsErr || !claimsData?.claims?.sub) {
       return new Response(JSON.stringify({ error: "Not authenticated" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const userId = claimsData.claims.sub as string;
@@ -415,7 +405,8 @@ Deno.serve(async (req) => {
     const weekNumber = Number(body?.week_number);
     if (!courseId || !Number.isInteger(weekNumber) || weekNumber < 1) {
       return new Response(JSON.stringify({ error: "course_id and week_number required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -429,13 +420,18 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!course) {
       return new Response(JSON.stringify({ error: "Course not found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     let allowed = course.teacher_id === userId;
     if (!allowed) {
-      const { data: ct } = await admin.from("course_teachers").select("teacher_id")
-        .eq("course_id", courseId).eq("teacher_id", userId).maybeSingle();
+      const { data: ct } = await admin
+        .from("course_teachers")
+        .select("teacher_id")
+        .eq("course_id", courseId)
+        .eq("teacher_id", userId)
+        .maybeSingle();
       allowed = !!ct;
     }
     if (!allowed) {
@@ -444,7 +440,8 @@ Deno.serve(async (req) => {
     }
     if (!allowed) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -457,7 +454,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!weekRow) {
       return new Response(JSON.stringify({ error: `No lesson-plan week ${weekNumber} for this course` }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const weekConceptNames: string[] = Array.isArray(weekRow.concepts)
@@ -465,7 +463,8 @@ Deno.serve(async (req) => {
       : [];
     if (weekConceptNames.length === 0) {
       return new Response(JSON.stringify({ error: "This week has no concepts. Add concepts first." }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -478,37 +477,44 @@ Deno.serve(async (req) => {
     const conceptByCode: Record<string, ConceptRow> = {};
     for (const r of conceptRows ?? []) conceptByCode[r.concept_code] = r as ConceptRow;
     if (Object.keys(conceptByCode).length === 0) {
-      return new Response(JSON.stringify({ error: "Week concepts are not registered in the course concept list. Confirm them in Concept Review." }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error: "Week concepts are not registered in the course concept list. Confirm them in Concept Review.",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
-    // Generate tiers SEQUENTIALLY so each tier sees an exclusion list of
-    // stems already accepted by earlier tiers (prevents duplicate questions
-    // across standard/easy/medium/hard). Partial salvage on per-tier errors
-    // matches the diagnostic generator's behavior.
+    // Generate all tiers in parallel with a shared deadline. allSettled lets
+    // us salvage partial tiers when one tier throws (e.g., 402 / timeout),
+    // matching the diagnostic generator's behavior.
     const deadlineAt = Date.now() + GLOBAL_DEADLINE_MS;
     const allQuestions: { spec: TierSpec; q: GeneratedQuestion }[] = [];
-    const crossTierExclusions: ExclusionEntry[] = [];
+    const tierResults = await Promise.allSettled(
+      TIER_SPEC.map((spec) =>
+        generateTier(
+          spec,
+          course.name ?? "Course",
+          weekNumber,
+          weekRow.week_name ?? "",
+          conceptByCode,
+          lovableKey,
+          deadlineAt,
+        ).then((qs) => ({ spec, qs })),
+      ),
+    );
     let creditsExhausted = false;
     const tierErrors: Record<string, string> = {};
-    for (const spec of TIER_SPEC) {
-      if (creditsExhausted) break;
-      if (Date.now() >= deadlineAt) {
-        tierErrors[spec.tier] = "Global deadline reached before tier started";
-        continue;
-      }
-      try {
-        const qs = await generateTier(
-          spec, course.name ?? "Course", weekNumber, weekRow.week_name ?? "",
-          conceptByCode, lovableKey, deadlineAt, crossTierExclusions,
-        );
-        for (const q of qs) {
-          allQuestions.push({ spec, q });
-          const fp = fingerprint(q.content_text);
-          crossTierExclusions.push({ stem: q.content_text, key: fp.key, tokens: fp.tokens });
-        }
-      } catch (err) {
+    for (let i = 0; i < tierResults.length; i++) {
+      const r = tierResults[i];
+      const spec = TIER_SPEC[i];
+      if (r.status === "fulfilled") {
+        for (const q of r.value.qs) allQuestions.push({ spec, q });
+      } else {
+        const err = r.reason;
         if (err instanceof CreditsExhaustedError) creditsExhausted = true;
         tierErrors[spec.tier] = err instanceof Error ? err.message : String(err);
         console.warn(`[weekly-quiz] tier ${spec.tier} failed:`, tierErrors[spec.tier]);
@@ -516,13 +522,22 @@ Deno.serve(async (req) => {
     }
     if (creditsExhausted && allQuestions.length === 0) {
       return new Response(JSON.stringify({ error: "AI credits exhausted", code: "CREDITS_EXHAUSTED" }), {
-        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 402,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     if (allQuestions.length === 0) {
-      return new Response(JSON.stringify({ error: "Failed to generate any questions", code: "GENERATION_FAILED", tier_errors: tierErrors }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error: "Failed to generate any questions",
+          code: "GENERATION_FAILED",
+          tier_errors: tierErrors,
+        }),
+        {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // Replace existing rows for this week
@@ -566,30 +581,37 @@ Deno.serve(async (req) => {
     const expected = TIER_SPEC.reduce((s, t) => s + t.count, 0);
     const partial = rows.length < expected;
 
-    return new Response(JSON.stringify({
-      ok: true,
-      generated: rows.length,
-      requested: expected,
-      partial,
-      by_tier: byTier,
-      tier_errors: Object.keys(tierErrors).length ? tierErrors : undefined,
-    }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        generated: rows.length,
+        requested: expected,
+        partial,
+        by_tier: byTier,
+        tier_errors: Object.keys(tierErrors).length ? tierErrors : undefined,
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (e: any) {
     console.error("generate-weekly-quiz error:", e);
     if (e instanceof CreditsExhaustedError) {
       return new Response(JSON.stringify({ error: e.message, code: "CREDITS_EXHAUSTED" }), {
-        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 402,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     if (e instanceof DeadlineExceededError) {
       return new Response(JSON.stringify({ error: e.message, code: "DEADLINE" }), {
-        status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 504,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     return new Response(JSON.stringify({ error: e?.message ?? String(e), code: "INTERNAL" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
