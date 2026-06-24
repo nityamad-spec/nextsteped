@@ -483,26 +483,32 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Generate all tiers in parallel with a shared deadline. allSettled lets
-    // us salvage partial tiers when one tier throws (e.g., 402 / timeout),
-    // matching the diagnostic generator's behavior.
+    // Generate tiers SEQUENTIALLY so each tier sees an exclusion list of
+    // stems already accepted by earlier tiers (prevents duplicate questions
+    // across standard/easy/medium/hard). Partial salvage on per-tier errors
+    // matches the diagnostic generator's behavior.
     const deadlineAt = Date.now() + GLOBAL_DEADLINE_MS;
     const allQuestions: { spec: TierSpec; q: GeneratedQuestion }[] = [];
-    const tierResults = await Promise.allSettled(
-      TIER_SPEC.map((spec) =>
-        generateTier(spec, course.name ?? "Course", weekNumber, weekRow.week_name ?? "", conceptByCode, lovableKey, deadlineAt)
-          .then((qs) => ({ spec, qs })),
-      ),
-    );
+    const crossTierExclusions: ExclusionEntry[] = [];
     let creditsExhausted = false;
     const tierErrors: Record<string, string> = {};
-    for (let i = 0; i < tierResults.length; i++) {
-      const r = tierResults[i];
-      const spec = TIER_SPEC[i];
-      if (r.status === "fulfilled") {
-        for (const q of r.value.qs) allQuestions.push({ spec, q });
-      } else {
-        const err = r.reason;
+    for (const spec of TIER_SPEC) {
+      if (creditsExhausted) break;
+      if (Date.now() >= deadlineAt) {
+        tierErrors[spec.tier] = "Global deadline reached before tier started";
+        continue;
+      }
+      try {
+        const qs = await generateTier(
+          spec, course.name ?? "Course", weekNumber, weekRow.week_name ?? "",
+          conceptByCode, lovableKey, deadlineAt, crossTierExclusions,
+        );
+        for (const q of qs) {
+          allQuestions.push({ spec, q });
+          const fp = fingerprint(q.content_text);
+          crossTierExclusions.push({ stem: q.content_text, key: fp.key, tokens: fp.tokens });
+        }
+      } catch (err) {
         if (err instanceof CreditsExhaustedError) creditsExhausted = true;
         tierErrors[spec.tier] = err instanceof Error ? err.message : String(err);
         console.warn(`[weekly-quiz] tier ${spec.tier} failed:`, tierErrors[spec.tier]);
