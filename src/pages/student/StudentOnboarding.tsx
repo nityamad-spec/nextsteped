@@ -296,6 +296,13 @@ const StudentOnboarding = () => {
                 )}
               </div>
 
+              {submitError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{submitError}</AlertDescription>
+                </Alert>
+              )}
+
               <div className="flex justify-between pt-2">
                 <Button variant="ghost" onClick={() => navigate("/intro/student")}>
                   <ArrowLeft className="mr-2 h-4 w-4" /> Back
