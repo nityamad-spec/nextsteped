@@ -427,6 +427,20 @@ Deno.serve(async (req) => {
         }
         if (!allowed) throw new Error("Forbidden");
 
+        // Block generation against an archived exam
+        const { data: examRow } = await admin
+          .from("course_exams")
+          .select("id, archived_at, label")
+          .eq("course_id", courseId)
+          .eq("id", examId)
+          .maybeSingle();
+        if (examRow && examRow.archived_at) {
+          return new Response(
+            JSON.stringify({ error: "exam_archived", message: `${examRow.label ?? "This exam"} is archived. Restore it before regenerating questions.` }),
+            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+
         // Block if questions already exist for this exam unless replace=true
         const { count: existingCount } = await admin
           .from("assessment_questions")
@@ -437,6 +451,7 @@ Deno.serve(async (req) => {
         if ((existingCount ?? 0) > 0 && !replace) {
           throw new Error("Questions already exist for this exam. Delete them first or pass replace=true.");
         }
+
 
         // Load all course concepts (with weights)
         const { data: conceptRows } = await admin
