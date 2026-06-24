@@ -381,22 +381,20 @@ const ExamMode = () => {
     if (last.approved || hasQuestions) {
       setConfirmRemoveId(last.id);
     } else {
-      // No questions and unapproved — safe to drop immediately. Still run
-      // cleanup as a no-op safeguard against stale rows.
+      // Unapproved and empty — archive immediately (preserves nothing of value,
+      // but keeps the row in case the teacher restores).
       const id = last.id;
       setExamSchedule(prev => prev.slice(0, -1));
-      cleanupExamQuestions(id).catch(e => console.error("cleanup failed:", e));
+      archiveExam(id, user?.id ?? null).catch(e => console.error("archive failed:", e));
     }
   };
   const confirmRemoveExam = async () => {
     const id = confirmRemoveId;
     if (!id) { setConfirmRemoveId(null); return; }
     try {
-      await cleanupExamQuestions(id);
+      await archiveExam(id, user?.id ?? null);
       setExamSchedule(prev => prev.filter(e => e.id !== id));
       setEditingCardIds(prev => { const { [id]: _, ...rest } = prev; return rest; });
-      setExamQuestionCounts(prev => { const { [id]: _, ...rest } = prev; return rest; });
-      setQuestions(prev => prev.map(q => q.exam_id === id ? { ...q, exam_id: null } : q));
     } catch (e: any) {
       console.error("remove exam failed:", e);
       toast.error(e?.message ?? "Failed to remove exam");
