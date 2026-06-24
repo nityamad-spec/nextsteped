@@ -127,7 +127,7 @@ const EnrollmentSettings = () => {
         return;
       }
       const seen = new Set<string>();
-      const valid: { email: string; full_name: string | null }[] = [];
+      const valid: { email: string; full_name: string | null; university: string | null }[] = [];
       let invalid = 0;
       for (const r of parsed) {
         if (!EMAIL_RE.test(r.email)) { invalid++; continue; }
@@ -143,6 +143,7 @@ const EnrollmentSettings = () => {
         course_id: effectiveCourseId,
         email: r.email,
         full_name: r.full_name,
+        university: r.university,
         added_by: user?.id ?? null,
         source: "csv",
       }));
