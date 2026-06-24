@@ -362,9 +362,25 @@ const Assessments = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               {renderFilterBar()}
+              {archivedExamQuestionCount > 0 && (
+                <div className="flex items-center justify-between rounded-md border border-dashed bg-muted/30 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">
+                    {archivedExamQuestionCount} question{archivedExamQuestionCount === 1 ? "" : "s"} from archived exam{archivedExamQuestionCount === 1 ? "" : "s"} {showArchivedExamQs ? "shown" : "hidden"}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="show-archived-exam-qs" className="text-xs text-muted-foreground">Show archived</Label>
+                    <Switch
+                      id="show-archived-exam-qs"
+                      checked={showArchivedExamQs}
+                      onCheckedChange={setShowArchivedExamQs}
+                    />
+                  </div>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
-                Showing <strong className="text-foreground">{filterQuestions(examQuestions).length}</strong> of {examQuestions.length} exam questions
+                Showing <strong className="text-foreground">{filterQuestions(examQuestions).length}</strong> of {examQuestions.length} {showArchivedExamQs ? "" : "live "}exam questions
               </p>
+
               <div className="space-y-3">
                 {filterQuestions(examQuestions).length === 0 ? (
                   <div className="rounded-lg border-2 border-dashed p-8 text-center">
