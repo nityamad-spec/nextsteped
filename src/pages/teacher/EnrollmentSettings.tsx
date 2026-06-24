@@ -313,6 +313,7 @@ const EnrollmentSettings = () => {
                       <div className="min-w-0 flex-1 truncate">
                         <span className="font-mono text-xs">{r.email}</span>
                         {r.full_name && <span className="ml-2 text-xs text-muted-foreground">— {r.full_name}</span>}
+                        {r.university && <span className="ml-2 text-xs text-muted-foreground">· {r.university}</span>}
                       </div>
                       <button onClick={() => deleteEntry(r.id)} className="ml-2 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                         <Trash2 className="h-3.5 w-3.5" />
