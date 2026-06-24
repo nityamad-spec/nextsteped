@@ -1180,28 +1180,25 @@ const ExamMode = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!confirmDeleteExamId} onOpenChange={(o) => !o && !deletingExam && setConfirmDeleteExamId(null)}>
+      <AlertDialog open={!!confirmArchiveExamId} onOpenChange={(o) => !o && !archivingExam && setConfirmArchiveExamId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this mock test?</AlertDialogTitle>
+            <AlertDialogTitle>Archive this mock test?</AlertDialogTitle>
             <AlertDialogDescription>
               {(() => {
-                const exam = labeledSchedule.find(e => e.id === confirmDeleteExamId);
-                if (!exam) return "This will permanently remove the mock test.";
-                const isManual = exam.source === "manual";
-                const generatedCount = examQuestionCounts[exam.id] ?? 0;
-                const manualCount = manualExamCounts[exam.id] ?? 0;
-                if (isManual) {
-                  return `${exam.label} will be removed. ${manualCount} manual question${manualCount === 1 ? "" : "s"} assigned to it will be returned to the library (unassigned).`;
-                }
-                return `${exam.label} will be removed${generatedCount > 0 ? ` along with its ${generatedCount} generated question${generatedCount === 1 ? "" : "s"}` : ""}. This cannot be undone.`;
+                const exam = labeledSchedule.find(e => e.id === confirmArchiveExamId);
+                const label = exam?.label ?? "This mock test";
+                const generatedCount = exam ? (examQuestionCounts[exam.id] ?? 0) : 0;
+                const manualCount = exam ? (manualExamCounts[exam.id] ?? 0) : 0;
+                const totalQ = generatedCount + manualCount;
+                return `${label} will be hidden from students. Its ${totalQ} question${totalQ === 1 ? "" : "s"} and any past student submissions stay intact — you can restore the exam from the "Archived mock tests" section below at any time.`;
               })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingExam}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); executeDeleteExam(); }} disabled={deletingExam}>
-              {deletingExam ? "Deleting…" : "Delete"}
+            <AlertDialogCancel disabled={archivingExam}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); executeArchiveExam(); }} disabled={archivingExam}>
+              {archivingExam ? "Archiving…" : "Archive"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
