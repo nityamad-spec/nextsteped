@@ -34,7 +34,9 @@ interface EditableQuestion {
   correctIndex?: number;
   explanation?: string;
   quizDay?: number;
+  examId?: string | null;
 }
+
 
 const Assessments = () => {
   const { user } = useAuth();
