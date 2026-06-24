@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
     // ── Validate enrollment code ────────────────────────────────────────
     const { data: course } = await adminClient
       .from("courses")
-      .select("id, name, enrollment_open, published")
+      .select("id, name, enrollment_open, published, roster_enforcement")
       .eq("enrollment_code", data.enrollment_code.trim())
       .maybeSingle();
 
@@ -136,6 +136,22 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: "Enrollment is closed for this course." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    // ── Roster allowlist enforcement ───────────────────────────────────
+    if (course.roster_enforcement) {
+      const { data: allowed } = await adminClient
+        .from("course_roster_allowlist")
+        .select("id")
+        .eq("course_id", course.id)
+        .eq("email", email)
+        .maybeSingle();
+      if (!allowed) {
+        return new Response(
+          JSON.stringify({ error: "Your email isn't on this course's approved roster. Please contact your instructor." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
     }
 
     // ── Reject if profile already exists with this email ────────────────
