@@ -346,7 +346,7 @@ const EnrollmentSettings = () => {
             >
               <Upload className="h-6 w-6 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">
-                {uploading ? "Uploading…" : "Upload roster CSV (email, full_name)"}
+                {uploading ? "Uploading…" : "Upload roster CSV (email, full_name, university)"}
               </span>
               <button
                 type="button"
