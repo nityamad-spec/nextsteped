@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowRight, ArrowLeft, User, Check, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -63,6 +64,7 @@ const StudentOnboarding = () => {
   const [codeCourseName, setCodeCourseName] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -141,6 +143,7 @@ const StudentOnboarding = () => {
   const handleSubmit = async () => {
     if (!isValid) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const { data, error } = await supabase.functions.invoke("student-pending-signup", {
         body: {
@@ -159,7 +162,9 @@ const StudentOnboarding = () => {
       if ((data as any)?.error) throw new Error((data as any).error);
       navigate(`/student/verify-email?email=${encodeURIComponent(email.trim())}`, { replace: true });
     } catch (err: any) {
-      toast.error(err.message || "Couldn't submit your details. Please try again.");
+      const msg = err.message || "Couldn't submit your details. Please try again.";
+      setSubmitError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -200,7 +205,7 @@ const StudentOnboarding = () => {
                   type="email"
                   placeholder="you@university.edu"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); setSubmitError(null); }}
                 />
                 <p className="text-xs text-muted-foreground">
                   We'll send a verification link to this address.
@@ -268,7 +273,7 @@ const StudentOnboarding = () => {
                   <Input
                     placeholder="Enter the code from your professor"
                     value={enrollmentCode}
-                    onChange={(e) => setEnrollmentCode(e.target.value)}
+                    onChange={(e) => { setEnrollmentCode(e.target.value); setSubmitError(null); }}
                     className={
                       codeStatus === "invalid"
                         ? "border-destructive focus-visible:ring-destructive"
@@ -290,6 +295,13 @@ const StudentOnboarding = () => {
                   <p className="text-xs text-destructive">{codeError}</p>
                 )}
               </div>
+
+              {submitError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{submitError}</AlertDescription>
+                </Alert>
+              )}
 
               <div className="flex justify-between pt-2">
                 <Button variant="ghost" onClick={() => navigate("/intro/student")}>
