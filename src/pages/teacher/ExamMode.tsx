@@ -587,7 +587,11 @@ const ExamMode = () => {
 
   const handleSave = async () => {
     try {
-      const firstExam = examSchedule[0];
+      // Defensive: only persist exams that exist as ACTIVE rows in course_exams.
+      // This drops any stale/archived id that might still linger in local state.
+      const activeIdSet = new Set(activeCourseExams.map(e => e.id));
+      const cleanedSchedule = examSchedule.filter(e => activeIdSet.has(e.id));
+      const firstExam = cleanedSchedule[0];
       await saveTASettings({
         ...settings,
         // Mirror first card to legacy fields for backward compat
@@ -600,7 +604,7 @@ const ExamMode = () => {
         examManualCount: firstExam
           ? Object.values(firstExam.breakdown).reduce((s, n) => s + n, 0)
           : null,
-        examSchedule,
+        examSchedule: cleanedSchedule,
       });
       if ((allExamsApproved || examEnabled) && user?.id && courseId) {
         void markStepCompleted(user.id, "exam-mode", courseId, { source: "ExamMode.handleSave" });
@@ -610,6 +614,7 @@ const ExamMode = () => {
       throw new Error("save failed");
     }
   };
+
 
   // ── Custom question handlers ──
   const openAddDialog = (preselectExamId?: string) => {
