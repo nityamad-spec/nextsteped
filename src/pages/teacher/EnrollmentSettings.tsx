@@ -16,23 +16,25 @@ import { Calendar, UserPlus, Upload, Copy, ArrowLeft, Trash2, Download, AlertTri
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { markStepCompleted } from "@/lib/setupProgress";
 
-type RosterEntry = { id: string; email: string; full_name: string | null };
+type RosterEntry = { id: string; email: string; full_name: string | null; university: string | null };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function parseCsv(text: string): { email: string; full_name: string | null }[] {
-  const rows: { email: string; full_name: string | null }[] = [];
+function parseCsv(text: string): { email: string; full_name: string | null; university: string | null }[] {
+  const rows: { email: string; full_name: string | null; university: string | null }[] = [];
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (lines.length === 0) return rows;
   // Detect header
   const first = lines[0].toLowerCase();
   let emailIdx = 0;
   let nameIdx = -1;
+  let uniIdx = -1;
   let start = 0;
   if (first.includes("email")) {
     const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
     emailIdx = headers.findIndex((h) => h === "email" || h === "email_address" || h === "e-mail");
     nameIdx = headers.findIndex((h) => h === "name" || h === "full_name" || h === "fullname" || h === "student_name");
+    uniIdx = headers.findIndex((h) => h === "university" || h === "school" || h === "institution" || h === "college");
     if (emailIdx === -1) emailIdx = 0;
     start = 1;
   }
@@ -40,10 +42,12 @@ function parseCsv(text: string): { email: string; full_name: string | null }[] {
     const cols = lines[i].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
     const email = (cols[emailIdx] || "").trim().toLowerCase();
     const name = nameIdx >= 0 ? (cols[nameIdx] || "").trim() : "";
-    if (email) rows.push({ email, full_name: name || null });
+    const uni = uniIdx >= 0 ? (cols[uniIdx] || "").trim() : "";
+    if (email) rows.push({ email, full_name: name || null, university: uni || null });
   }
   return rows;
 }
+
 
 const EnrollmentSettings = () => {
   const navigate = useNavigate();
