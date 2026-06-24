@@ -273,7 +273,7 @@ const StudentOnboarding = () => {
                   <Input
                     placeholder="Enter the code from your professor"
                     value={enrollmentCode}
-                    onChange={(e) => setEnrollmentCode(e.target.value)}
+                    onChange={(e) => { setEnrollmentCode(e.target.value); setSubmitError(null); }}
                     className={
                       codeStatus === "invalid"
                         ? "border-destructive focus-visible:ring-destructive"
