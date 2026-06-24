@@ -351,31 +351,55 @@ const ExamMode = () => {
     }
   };
 
-  const requestDeleteExam = (id: string) => {
-    if (examSchedule.length <= 1) {
-      toast.error("At least one mock test is required.");
-      return;
-    }
-    setConfirmDeleteExamId(id);
+  const requestArchiveExam = (id: string) => {
+    setConfirmArchiveExamId(id);
   };
 
-  const executeDeleteExam = async () => {
-    const id = confirmDeleteExamId;
+  const executeArchiveExam = async () => {
+    const id = confirmArchiveExamId;
     if (!id || !courseId) return;
-    setDeletingExam(true);
+    setArchivingExam(true);
     try {
-      await cleanupExamQuestions(id);
+      // Soft-delete: archive the exam row. Do NOT touch questions or student
+      // submissions — they're preserved for analytics and restore.
+      await archiveExam(id, user?.id ?? null);
       setExamSchedule(prev => prev.filter(e => e.id !== id));
       setEditingCardIds(prev => { const { [id]: _, ...rest } = prev; return rest; });
-      setExamQuestionCounts(prev => { const { [id]: _, ...rest } = prev; return rest; });
-      setQuestions(prev => prev.map(q => q.exam_id === id ? { ...q, exam_id: null } : q));
-      toast.success("Mock test deleted");
+      toast.success("Mock test archived. Questions and submissions kept.");
     } catch (e: any) {
-      console.error("delete exam failed:", e);
-      toast.error(e?.message ?? "Failed to delete mock test");
+      console.error("archive exam failed:", e);
+      toast.error(e?.message ?? "Failed to archive mock test");
     } finally {
-      setDeletingExam(false);
-      setConfirmDeleteExamId(null);
+      setArchivingExam(false);
+      setConfirmArchiveExamId(null);
+    }
+  };
+
+  const handleRestoreExam = async (id: string) => {
+    setRestoringExamId(id);
+    try {
+      const { renamedTo } = await restoreExam(id);
+      const restored = archivedCourseExams.find(e => e.id === id);
+      if (restored) {
+        setExamSchedule(prev => [...prev, {
+          id: restored.id,
+          kind: restored.kind,
+          lengthMin: restored.length_min,
+          breakdown: restored.breakdown,
+          approved: false, // require re-approval after restore
+          source: restored.source,
+        }]);
+      }
+      if (renamedTo) {
+        toast.success(`Restored — renamed to "${renamedTo}" to avoid conflict.`);
+      } else {
+        toast.success("Mock test restored");
+      }
+    } catch (e: any) {
+      console.error("restore exam failed:", e);
+      toast.error(e?.message ?? "Failed to restore mock test");
+    } finally {
+      setRestoringExamId(null);
     }
   };
 
