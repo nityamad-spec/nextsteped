@@ -143,6 +143,7 @@ const StudentOnboarding = () => {
   const handleSubmit = async () => {
     if (!isValid) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const { data, error } = await supabase.functions.invoke("student-pending-signup", {
         body: {
@@ -161,7 +162,9 @@ const StudentOnboarding = () => {
       if ((data as any)?.error) throw new Error((data as any).error);
       navigate(`/student/verify-email?email=${encodeURIComponent(email.trim())}`, { replace: true });
     } catch (err: any) {
-      toast.error(err.message || "Couldn't submit your details. Please try again.");
+      const msg = err.message || "Couldn't submit your details. Please try again.";
+      setSubmitError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
