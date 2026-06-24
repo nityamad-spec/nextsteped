@@ -207,6 +207,27 @@ const ExamMode = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
 
+  // Self-heal: if taSettings.examSchedule (legacy JSON) contains ids that are
+  // not present in active course_exams (e.g. archived after a past save),
+  // prune them and write the cleaned list back so the JSON cannot leak
+  // archived exams to older code paths.
+  const examScheduleSelfHealRan = useRef(false);
+  useEffect(() => {
+    if (examScheduleSelfHealRan.current) return;
+    if (loading || examsLoading) return;
+    const stored = taSettings.examSchedule;
+    if (!Array.isArray(stored) || stored.length === 0) return;
+    const activeIdSet = new Set(activeCourseExams.map(e => e.id));
+    const cleaned = stored.filter((e: any) => e?.id && activeIdSet.has(e.id));
+    if (cleaned.length !== stored.length) {
+      examScheduleSelfHealRan.current = true;
+      void saveTASettings({ ...taSettings, examSchedule: cleaned });
+    } else {
+      examScheduleSelfHealRan.current = true;
+    }
+  }, [loading, examsLoading, activeCourseExams, taSettings, saveTASettings]);
+
+
   useEffect(() => {
     if (!courseId) { setQuestionsLoading(false); return; }
     const fetchQuestions = async () => {
