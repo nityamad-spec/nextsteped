@@ -560,10 +560,18 @@ const ExamMode = () => {
           question_types: types,
         }),
       });
+      if (res.status === 409) {
+        const body = await res.json().catch(() => ({} as any));
+        if (body?.error === "exam_archived") {
+          toast.error(body.message ?? "This exam is archived. Restore it before regenerating questions.");
+          return;
+        }
+      }
       if (!res.ok || !res.body) {
         const txt = await res.text().catch(() => "");
         throw new Error(`Generation failed: ${res.status} ${txt.slice(0, 200)}`);
       }
+
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
