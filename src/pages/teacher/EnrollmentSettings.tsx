@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,9 +10,40 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, UserPlus, Upload, Copy, FileText, ArrowLeft } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Calendar, UserPlus, Upload, Copy, ArrowLeft, Trash2, Download, AlertTriangle } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { markStepCompleted } from "@/lib/setupProgress";
+
+type RosterEntry = { id: string; email: string; full_name: string | null };
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function parseCsv(text: string): { email: string; full_name: string | null }[] {
+  const rows: { email: string; full_name: string | null }[] = [];
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return rows;
+  // Detect header
+  const first = lines[0].toLowerCase();
+  let emailIdx = 0;
+  let nameIdx = -1;
+  let start = 0;
+  if (first.includes("email")) {
+    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    emailIdx = headers.findIndex((h) => h === "email" || h === "email_address" || h === "e-mail");
+    nameIdx = headers.findIndex((h) => h === "name" || h === "full_name" || h === "fullname" || h === "student_name");
+    if (emailIdx === -1) emailIdx = 0;
+    start = 1;
+  }
+  for (let i = start; i < lines.length; i++) {
+    const cols = lines[i].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+    const email = (cols[emailIdx] || "").trim().toLowerCase();
+    const name = nameIdx >= 0 ? (cols[nameIdx] || "").trim() : "";
+    if (email) rows.push({ email, full_name: name || null });
+  }
+  return rows;
+}
 
 const EnrollmentSettings = () => {
   const navigate = useNavigate();
@@ -22,20 +53,27 @@ const EnrollmentSettings = () => {
 
   const [startDate, setStartDate] = useState(currentCourse?.startDate || "");
   const [endDate, setEndDate] = useState(currentCourse?.endDate || "");
-  const [csvUploaded, setCsvUploaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dbEnrollmentCode, setDbEnrollmentCode] = useState<string | null>(null);
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [enforcement, setEnforcement] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const effectiveCourseId = currentCourse?.id || courseId;
 
   useEffect(() => {
-    const fetchCode = async () => {
-      const id = currentCourse?.id || courseId;
-      if (id) {
+    const fetchCourse = async () => {
+      if (effectiveCourseId) {
         const { data } = await supabase
           .from("courses")
-          .select("enrollment_code")
-          .eq("id", id)
+          .select("enrollment_code, roster_enforcement")
+          .eq("id", effectiveCourseId)
           .maybeSingle();
-        if (data?.enrollment_code) { setDbEnrollmentCode(data.enrollment_code); return; }
+        if (data?.enrollment_code) setDbEnrollmentCode(data.enrollment_code);
+        setEnforcement(!!(data as any)?.roster_enforcement);
+        return;
       }
       if (user?.id) {
         const { data } = await supabase
@@ -48,8 +86,20 @@ const EnrollmentSettings = () => {
         if (data?.enrollment_code) setDbEnrollmentCode(data.enrollment_code);
       }
     };
-    fetchCode();
-  }, [currentCourse?.id, courseId, user?.id]);
+    fetchCourse();
+  }, [effectiveCourseId, user?.id]);
+
+  const loadRoster = useCallback(async () => {
+    if (!effectiveCourseId) return;
+    const { data, error } = await supabase
+      .from("course_roster_allowlist")
+      .select("id, email, full_name")
+      .eq("course_id", effectiveCourseId)
+      .order("created_at", { ascending: false });
+    if (!error && data) setRoster(data as RosterEntry[]);
+  }, [effectiveCourseId]);
+
+  useEffect(() => { loadRoster(); }, [loadRoster]);
 
   const enrollmentCode = dbEnrollmentCode || currentCourse?.enrollmentCode || "—";
 
@@ -59,9 +109,99 @@ const EnrollmentSettings = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleFile = async (file: File) => {
+    if (!effectiveCourseId) {
+      toast.error("Course not loaded yet. Please try again.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const text = await file.text();
+      const parsed = parseCsv(text);
+      if (parsed.length === 0) {
+        toast.error("No rows found in the CSV.");
+        return;
+      }
+      const seen = new Set<string>();
+      const valid: { email: string; full_name: string | null }[] = [];
+      let invalid = 0;
+      for (const r of parsed) {
+        if (!EMAIL_RE.test(r.email)) { invalid++; continue; }
+        if (seen.has(r.email)) continue;
+        seen.add(r.email);
+        valid.push(r);
+      }
+      if (valid.length === 0) {
+        toast.error(`No valid emails found (${invalid} invalid rows).`);
+        return;
+      }
+      const rows = valid.map((r) => ({
+        course_id: effectiveCourseId,
+        email: r.email,
+        full_name: r.full_name,
+        added_by: user?.id ?? null,
+        source: "csv",
+      }));
+      // Batch upsert
+      const batchSize = 500;
+      let inserted = 0;
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize);
+        const { error } = await supabase
+          .from("course_roster_allowlist")
+          .upsert(batch, { onConflict: "course_id,email" });
+        if (error) throw error;
+        inserted += batch.length;
+      }
+      toast.success(`Added ${inserted} email${inserted === 1 ? "" : "s"} to roster${invalid ? ` (${invalid} skipped)` : ""}.`);
+      await loadRoster();
+      if (!enforcement) {
+        toast.info("Tip: turn on 'Restrict signups to roster' to enforce.", { duration: 6000 });
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "Failed to upload roster.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const deleteEntry = async (id: string) => {
+    const { error } = await supabase.from("course_roster_allowlist").delete().eq("id", id);
+    if (error) { toast.error("Failed to remove entry."); return; }
+    setRoster((r) => r.filter((x) => x.id !== id));
+  };
+
+  const toggleEnforcement = async (val: boolean) => {
+    if (!effectiveCourseId) return;
+    setEnforcement(val);
+    const { error } = await supabase
+      .from("courses")
+      .update({ roster_enforcement: val } as any)
+      .eq("id", effectiveCourseId);
+    if (error) {
+      toast.error("Failed to update enforcement setting.");
+      setEnforcement(!val);
+    } else {
+      toast.success(val ? "Roster enforcement enabled." : "Roster enforcement disabled.");
+    }
+  };
+
+  const downloadTemplate = () => {
+    const csv = "email,full_name\nstudent@example.edu,Jane Doe\n";
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "roster_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleSave = async () => {
     try {
-      const id = currentCourse?.id || courseId;
+      const id = effectiveCourseId;
       if (id) {
         const updates: { start_date?: string | null; end_date?: string | null } = {};
         if (startDate) updates.start_date = startDate;
@@ -78,6 +218,8 @@ const EnrollmentSettings = () => {
       throw new Error("save failed");
     }
   };
+
+  const visibleRoster = showAll ? roster : roster.slice(0, 8);
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-8">
@@ -126,25 +268,87 @@ const EnrollmentSettings = () => {
               {copied && <p className="mt-1 text-xs text-primary">Copied!</p>}
             </div>
 
-            <div className="text-center text-xs text-muted-foreground">or</div>
+            <div className="text-center text-xs text-muted-foreground">and / or</div>
 
-            <div className="rounded-lg border bg-primary/5 p-4 space-y-2">
+            {/* Roster summary */}
+            <div className="rounded-lg border p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">student_roster_fall2025.csv</span>
+                <div>
+                  <p className="text-sm font-medium">Approved Roster</p>
+                  <p className="text-xs text-muted-foreground">
+                    {roster.length === 0
+                      ? "No emails on the roster yet."
+                      : `${roster.length} email${roster.length === 1 ? "" : "s"} approved.`}
+                  </p>
                 </div>
-                <Badge variant="secondary" className="text-xs">47 students</Badge>
+                <Badge variant="secondary" className="text-xs">{roster.length}</Badge>
               </div>
-              <p className="text-xs text-muted-foreground">Uploaded during initial setup</p>
+
+              <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
+                <div className="pr-4">
+                  <Label htmlFor="enforce" className="text-sm font-medium">Restrict signups to roster</Label>
+                  <p className="text-xs text-muted-foreground">When on, only emails in the roster can sign up with the enrollment code.</p>
+                </div>
+                <Switch id="enforce" checked={enforcement} onCheckedChange={toggleEnforcement} />
+              </div>
+
+              {enforcement && roster.length === 0 && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    Enforcement is on but the roster is empty — no one can sign up. Upload a CSV or turn enforcement off.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {roster.length > 0 && (
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                  {visibleRoster.map((r) => (
+                    <div key={r.id} className="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-muted/50">
+                      <div className="min-w-0 flex-1 truncate">
+                        <span className="font-mono text-xs">{r.email}</span>
+                        {r.full_name && <span className="ml-2 text-xs text-muted-foreground">— {r.full_name}</span>}
+                      </div>
+                      <button onClick={() => deleteEntry(r.id)} className="ml-2 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {roster.length > 8 && (
+                    <button onClick={() => setShowAll((s) => !s)} className="w-full text-xs text-primary hover:underline pt-1">
+                      {showAll ? "Show less" : `Show all ${roster.length}`}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
+            {/* Upload */}
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleFile(f);
+              }}
+            />
             <div
-              onClick={() => setCsvUploaded(true)}
+              onClick={() => !uploading && fileRef.current?.click()}
               className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors hover:border-primary/30"
             >
               <Upload className="h-6 w-6 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Upload additional roster (CSV)</span>
+              <span className="text-sm text-muted-foreground">
+                {uploading ? "Uploading…" : "Upload roster CSV (email, full_name)"}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); downloadTemplate(); }}
+                className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+              >
+                <Download className="h-3 w-3" /> Download CSV template
+              </button>
             </div>
 
           </CardContent>
