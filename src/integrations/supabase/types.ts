@@ -206,6 +206,7 @@ export type Database = {
           correct_answers: number
           course_id: string | null
           created_at: string
+          exam_id: string | null
           id: string
           learner_level: string
           mastery_score: number | null
@@ -225,6 +226,7 @@ export type Database = {
           correct_answers: number
           course_id?: string | null
           created_at?: string
+          exam_id?: string | null
           id?: string
           learner_level?: string
           mastery_score?: number | null
@@ -244,6 +246,7 @@ export type Database = {
           correct_answers?: number
           course_id?: string | null
           created_at?: string
+          exam_id?: string | null
           id?: string
           learner_level?: string
           mastery_score?: number | null
@@ -444,6 +447,62 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "concepts_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_exams: {
+        Row: {
+          approved: boolean
+          archived_at: string | null
+          archived_by: string | null
+          breakdown: Json
+          course_id: string
+          created_at: string
+          id: string
+          kind: string
+          label: string
+          length_min: number
+          position: number
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          approved?: boolean
+          archived_at?: string | null
+          archived_by?: string | null
+          breakdown?: Json
+          course_id: string
+          created_at?: string
+          id: string
+          kind?: string
+          label: string
+          length_min?: number
+          position?: number
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          approved?: boolean
+          archived_at?: string | null
+          archived_by?: string | null
+          breakdown?: Json
+          course_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          label?: string
+          length_min?: number
+          position?: number
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_exams_course_id_fkey"
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
