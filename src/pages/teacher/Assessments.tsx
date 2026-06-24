@@ -82,10 +82,11 @@ const Assessments = () => {
     if (!courseId) { setQuestionsLoading(false); return; }
     const fetchQuestions = async () => {
       setQuestionsLoading(true);
-      const [{ data, error }, diagnosticRes, conceptsRes] = await Promise.all([
+      const [{ data, error }, diagnosticRes, conceptsRes, examsRes] = await Promise.all([
         supabase.from("assessment_questions").select("*").eq("course_id", courseId),
         supabase.from("diagnostic_questions").select("id", { count: "exact" }).eq("course_id", courseId),
         supabase.from("concepts").select("id, concept_code").eq("course_id", courseId).order("concept_code"),
+        supabase.from("course_exams").select("id, archived_at").eq("course_id", courseId),
       ]);
       if (error) { console.error(error); toast.error("Failed to load questions"); }
 
@@ -95,17 +96,29 @@ const Assessments = () => {
           difficulty: row.difficulty, type: row.question_type, mode: row.mode,
           options: row.options, correctIndex: row.correct_index ?? undefined,
           explanation: row.explanation ?? undefined, quizDay: row.quiz_day,
+          examId: row.exam_id ?? null,
         })));
       }
       setDiagnosticCount(diagnosticRes.count || 0);
       setConcepts((conceptsRes.data as any[]) || []);
+      const archived = new Set<string>(
+        ((examsRes.data as any[]) || [])
+          .filter((r) => !!r.archived_at)
+          .map((r) => r.id as string)
+      );
+      setArchivedExamIds(archived);
 
       setQuestionsLoading(false);
     };
     fetchQuestions();
   }, [courseId]);
 
-  const examQuestions = questions.filter(q => q.mode === "exam");
+  const allExamQuestions = questions.filter(q => q.mode === "exam");
+  const examQuestions = showArchivedExamQs
+    ? allExamQuestions
+    : allExamQuestions.filter(q => !q.examId || !archivedExamIds.has(q.examId));
+  const archivedExamQuestionCount = allExamQuestions.length - allExamQuestions.filter(q => !q.examId || !archivedExamIds.has(q.examId)).length;
+
   const clearFilters = () => { setFilterDifficulties([]); setFilterTypes([]); };
 
   const toggleFilterDifficulty = (diff: string) => {
