@@ -205,7 +205,7 @@ const StudentOnboarding = () => {
                   type="email"
                   placeholder="you@university.edu"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); setSubmitError(null); }}
                 />
                 <p className="text-xs text-muted-foreground">
                   We'll send a verification link to this address.
