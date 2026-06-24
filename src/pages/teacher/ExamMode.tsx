@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTASettings } from "@/hooks/useTASettings";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
@@ -206,6 +206,27 @@ const ExamMode = () => {
     refetchConcepts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
+
+  // Self-heal: if taSettings.examSchedule (legacy JSON) contains ids that are
+  // not present in active course_exams (e.g. archived after a past save),
+  // prune them and write the cleaned list back so the JSON cannot leak
+  // archived exams to older code paths.
+  const examScheduleSelfHealRan = useRef(false);
+  useEffect(() => {
+    if (examScheduleSelfHealRan.current) return;
+    if (loading || examsLoading) return;
+    const stored = taSettings.examSchedule;
+    if (!Array.isArray(stored) || stored.length === 0) return;
+    const activeIdSet = new Set(activeCourseExams.map(e => e.id));
+    const cleaned = stored.filter((e: any) => e?.id && activeIdSet.has(e.id));
+    if (cleaned.length !== stored.length) {
+      examScheduleSelfHealRan.current = true;
+      void saveTASettings({ ...taSettings, examSchedule: cleaned });
+    } else {
+      examScheduleSelfHealRan.current = true;
+    }
+  }, [loading, examsLoading, activeCourseExams, taSettings, saveTASettings]);
+
 
   useEffect(() => {
     if (!courseId) { setQuestionsLoading(false); return; }
@@ -539,10 +560,18 @@ const ExamMode = () => {
           question_types: types,
         }),
       });
+      if (res.status === 409) {
+        const body = await res.json().catch(() => ({} as any));
+        if (body?.error === "exam_archived") {
+          toast.error(body.message ?? "This exam is archived. Restore it before regenerating questions.");
+          return;
+        }
+      }
       if (!res.ok || !res.body) {
         const txt = await res.text().catch(() => "");
         throw new Error(`Generation failed: ${res.status} ${txt.slice(0, 200)}`);
       }
+
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -587,7 +616,11 @@ const ExamMode = () => {
 
   const handleSave = async () => {
     try {
-      const firstExam = examSchedule[0];
+      // Defensive: only persist exams that exist as ACTIVE rows in course_exams.
+      // This drops any stale/archived id that might still linger in local state.
+      const activeIdSet = new Set(activeCourseExams.map(e => e.id));
+      const cleanedSchedule = examSchedule.filter(e => activeIdSet.has(e.id));
+      const firstExam = cleanedSchedule[0];
       await saveTASettings({
         ...settings,
         // Mirror first card to legacy fields for backward compat
@@ -600,7 +633,7 @@ const ExamMode = () => {
         examManualCount: firstExam
           ? Object.values(firstExam.breakdown).reduce((s, n) => s + n, 0)
           : null,
-        examSchedule,
+        examSchedule: cleanedSchedule,
       });
       if ((allExamsApproved || examEnabled) && user?.id && courseId) {
         void markStepCompleted(user.id, "exam-mode", courseId, { source: "ExamMode.handleSave" });
@@ -610,6 +643,7 @@ const ExamMode = () => {
       throw new Error("save failed");
     }
   };
+
 
   // ── Custom question handlers ──
   const openAddDialog = (preselectExamId?: string) => {

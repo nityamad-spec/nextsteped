@@ -34,7 +34,9 @@ interface EditableQuestion {
   correctIndex?: number;
   explanation?: string;
   quizDay?: number;
+  examId?: string | null;
 }
+
 
 const Assessments = () => {
   const { user } = useAuth();
@@ -61,6 +63,9 @@ const Assessments = () => {
   const [examManualCount, setExamManualCount] = useState(20);
   const [diagnosticCount, setDiagnosticCount] = useState(0);
   const [concepts, setConcepts] = useState<{ id: string; concept_code: string }[]>([]);
+  const [archivedExamIds, setArchivedExamIds] = useState<Set<string>>(new Set());
+  const [showArchivedExamQs, setShowArchivedExamQs] = useState(false);
+
 
 
   useEffect(() => {
@@ -77,10 +82,11 @@ const Assessments = () => {
     if (!courseId) { setQuestionsLoading(false); return; }
     const fetchQuestions = async () => {
       setQuestionsLoading(true);
-      const [{ data, error }, diagnosticRes, conceptsRes] = await Promise.all([
+      const [{ data, error }, diagnosticRes, conceptsRes, examsRes] = await Promise.all([
         supabase.from("assessment_questions").select("*").eq("course_id", courseId),
         supabase.from("diagnostic_questions").select("id", { count: "exact" }).eq("course_id", courseId),
         supabase.from("concepts").select("id, concept_code").eq("course_id", courseId).order("concept_code"),
+        supabase.from("course_exams").select("id, archived_at").eq("course_id", courseId),
       ]);
       if (error) { console.error(error); toast.error("Failed to load questions"); }
 
@@ -90,17 +96,29 @@ const Assessments = () => {
           difficulty: row.difficulty, type: row.question_type, mode: row.mode,
           options: row.options, correctIndex: row.correct_index ?? undefined,
           explanation: row.explanation ?? undefined, quizDay: row.quiz_day,
+          examId: row.exam_id ?? null,
         })));
       }
       setDiagnosticCount(diagnosticRes.count || 0);
       setConcepts((conceptsRes.data as any[]) || []);
+      const archived = new Set<string>(
+        ((examsRes.data as any[]) || [])
+          .filter((r) => !!r.archived_at)
+          .map((r) => r.id as string)
+      );
+      setArchivedExamIds(archived);
 
       setQuestionsLoading(false);
     };
     fetchQuestions();
   }, [courseId]);
 
-  const examQuestions = questions.filter(q => q.mode === "exam");
+  const allExamQuestions = questions.filter(q => q.mode === "exam");
+  const examQuestions = showArchivedExamQs
+    ? allExamQuestions
+    : allExamQuestions.filter(q => !q.examId || !archivedExamIds.has(q.examId));
+  const archivedExamQuestionCount = allExamQuestions.length - allExamQuestions.filter(q => !q.examId || !archivedExamIds.has(q.examId)).length;
+
   const clearFilters = () => { setFilterDifficulties([]); setFilterTypes([]); };
 
   const toggleFilterDifficulty = (diff: string) => {
@@ -217,8 +235,12 @@ const Assessments = () => {
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="outline" className={`text-[10px] ${typeBadgeColor(q.type)}`}>{q.type}</Badge>
+          {q.examId && archivedExamIds.has(q.examId) && (
+            <Badge variant="outline" className="text-[10px] border-amber-500/50 text-amber-600 dark:text-amber-400">Archived exam</Badge>
+          )}
           <span className="text-xs text-muted-foreground">{q.topic}</span>
         </div>
+
         <div className="flex items-center gap-1">
           <button onClick={() => openEditDialog(q)} className="rounded p-1.5 hover:bg-muted"><Pencil className="h-3.5 w-3.5 text-muted-foreground" /></button>
           <button onClick={() => handleDelete(q.id)} className="rounded p-1.5 hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
@@ -344,9 +366,25 @@ const Assessments = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               {renderFilterBar()}
+              {archivedExamQuestionCount > 0 && (
+                <div className="flex items-center justify-between rounded-md border border-dashed bg-muted/30 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">
+                    {archivedExamQuestionCount} question{archivedExamQuestionCount === 1 ? "" : "s"} from archived exam{archivedExamQuestionCount === 1 ? "" : "s"} {showArchivedExamQs ? "shown" : "hidden"}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="show-archived-exam-qs" className="text-xs text-muted-foreground">Show archived</Label>
+                    <Switch
+                      id="show-archived-exam-qs"
+                      checked={showArchivedExamQs}
+                      onCheckedChange={setShowArchivedExamQs}
+                    />
+                  </div>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
-                Showing <strong className="text-foreground">{filterQuestions(examQuestions).length}</strong> of {examQuestions.length} exam questions
+                Showing <strong className="text-foreground">{filterQuestions(examQuestions).length}</strong> of {examQuestions.length} {showArchivedExamQs ? "" : "live "}exam questions
               </p>
+
               <div className="space-y-3">
                 {filterQuestions(examQuestions).length === 0 ? (
                   <div className="rounded-lg border-2 border-dashed p-8 text-center">
