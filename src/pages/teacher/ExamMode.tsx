@@ -754,13 +754,12 @@ const ExamMode = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => requestDeleteExam(exam.id)}
-                              disabled={examSchedule.length <= 1}
-                              aria-label={`Delete ${exam.label}`}
-                              title={examSchedule.length <= 1 ? "At least one mock test is required" : "Delete this mock test"}
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                              onClick={() => requestArchiveExam(exam.id)}
+                              aria-label={`Archive ${exam.label}`}
+                              title="Archive this mock test (questions and student submissions are preserved)"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Archive className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
