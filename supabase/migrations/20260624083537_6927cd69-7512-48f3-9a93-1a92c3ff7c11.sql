@@ -1,0 +1,1 @@
+ALTER TABLE public.course_roster_allowlist ADD COLUMN IF NOT EXISTS university text;
