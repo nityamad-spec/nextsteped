@@ -325,16 +325,24 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
       const arr: any[] = Array.isArray(parsed?.questions) ? parsed.questions : [];
 
       const rejects: string[] = [];
+      let dupCount = 0;
       for (const q of arr) {
         if (accepted.length >= spec.count) break;
         const v = validateQuestion(q, spec, conceptByCode);
         if (!v.ok) { rejects.push(v.reason); continue; }
-        const key = v.q.content_text.slice(0, 120).toLowerCase();
-        if (accepted.some((a) => a.content_text.slice(0, 120).toLowerCase() === key)) continue;
+        if (isDuplicate(v.q.content_text, localExclusions)) {
+          dupCount++;
+          continue;
+        }
         accepted.push(v.q);
+        const fp = fingerprint(v.q.content_text);
+        localExclusions.push({ stem: v.q.content_text, key: fp.key, tokens: fp.tokens });
       }
-      if (accepted.length < spec.count && rejects.length) {
-        retryHint = `Previous sub-call had ${rejects.length} rejected questions. Reasons: ${rejects.slice(0, 3).join("; ")}`;
+      if (accepted.length < spec.count && (rejects.length || dupCount)) {
+        const parts: string[] = [];
+        if (rejects.length) parts.push(`${rejects.length} validation rejects (${rejects.slice(0, 3).join("; ")})`);
+        if (dupCount) parts.push(`${dupCount} duplicates of earlier stems — write materially different questions`);
+        retryHint = `Previous sub-call: ${parts.join("; ")}`;
       }
 
       // If the sub-call produced zero survivors, break out to start a fresh
