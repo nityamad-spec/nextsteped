@@ -250,7 +250,7 @@ const StudentOnboarding = () => {
 
               <div className="space-y-2">
                 <Label>Branch</Label>
-                <Select value={branchId} onValueChange={setBranchId} disabled={!degreeId}>
+                <Select value={branchId} onValueChange={setBranchId} disabled>
                   <SelectTrigger className="h-11">
                     <SelectValue placeholder={degreeId ? "Select branch" : "Select a degree first"} />
                   </SelectTrigger>
