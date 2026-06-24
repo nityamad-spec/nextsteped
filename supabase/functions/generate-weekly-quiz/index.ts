@@ -231,6 +231,69 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 - ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible student misconception (a wrong rule, a swapped operator, an off-by-one, a confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer. No obviously absurd choices.
 - POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
 
+  conceptByCode: Record<string, ConceptRow>,
+  lovableKey: string,
+  deadlineAt: number,
+  exclusions: ExclusionEntry[],
+): Promise<GeneratedQuestion[]> {
+  const conceptList = Object.keys(conceptByCode).map((c) => `  - ${c}`).join("\n");
+  const accepted: GeneratedQuestion[] = [];
+  // Local exclusion set seeded with cross-tier exclusions; grows as we accept.
+  const localExclusions: ExclusionEntry[] = exclusions.slice();
+  let retryHint: string | null = null;
+
+  // Adaptive tiers use slightly higher temperature so the model doesn't keep
+  // returning near-identical phrasings on the same concept list.
+  const temperature = spec.tier === "standard" ? 0.35 : 0.55;
+
+  outer: for (let attempt = 0; attempt < spec.maxAttempts && accepted.length < spec.count; attempt++) {
+    while (accepted.length < spec.count) {
+      if (Date.now() >= deadlineAt) break outer;
+      const remaining = spec.count - accepted.length;
+      const subNeed = Math.min(spec.batchSize, remaining);
+      const askFor = subNeed + 1; // over-generation buffer
+
+      // Build an AVOID block from existing stems so the model doesn't repeat
+      // earlier-tier questions. Cap to keep prompt size bounded.
+      const avoidStems = localExclusions.slice(-20).map((e) => `  - ${e.stem}`).join("\n");
+      const avoidBlock = avoidStems
+        ? `\n\nAVOID — these question stems have already been used elsewhere in this week's quiz pool. Write questions that are materially DIFFERENT in wording, angle, and the specific fact/skill being tested. Do NOT paraphrase these:\n${avoidStems}`
+        : "";
+
+      const bloomGuidance =
+        spec.tier === "easy"
+          ? "- Bloom target: mostly 1-2 (Remember/Understand)."
+          : spec.tier === "standard"
+            ? "- Bloom target: mostly 2 (Understand); at most 1 item at bloom 3. Focus on canonical definitions and direct interpretation."
+            : spec.tier === "medium"
+              ? "- Bloom target: mostly 3 (Apply); at least 60% at bloom 3. Prefer short code-trace or 'predict-the-output' stems over definition recall."
+              : "- Bloom target: 3-4 (Apply/Analyze); at least 60% at bloom 3-4. Prefer scenario, code-trace, or comparison stems over single-fact recall.";
+
+      const systemPrompt = `You are an expert assessment designer for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier}-tier WEEKLY QUIZ questions for Week ${weekNumber}${weekName ? ` — ${weekName}` : ""}.
+
+Tier: ${spec.label}
+Target difficulty (0=easy, 1=hard): ${spec.difficulty}
+
+CONCEPTS for this week — the 'topic' field of each question MUST be one of these exact concept codes (case-sensitive):
+${conceptList}
+
+STRICT RULES:
+- Each question MUST be either multiple-choice (format="mcq") or true/false (format="true_false"). NO short answer, NO problem solving.
+- MCQ: exactly 4 distinct non-empty options (no "A)" prefixes). 'answer' is the FULL TEXT of the correct option.
+- True/False: options MUST be exactly ["True", "False"]. 'answer' must be "True" or "False".
+- difficulty_estimate: number near ${spec.difficulty} (±0.15).
+- bloom_level: integer 1-4 ONLY (1=Remember, 2=Understand, 3=Apply, 4=Analyze). Do NOT use 5 (Evaluate) or 6 (Create) — these cannot be fairly assessed with MCQ or True/False.
+${bloomGuidance}
+- content_text: question stem only, ≤ 600 chars.
+- explanation: 1-2 sentences explaining the correct answer.
+- topic: MUST exactly match one of the concept codes above.
+- Distribute questions across the listed concepts (don't pile all on one).
+
+ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
+- LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
+- ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible student misconception (a wrong rule, a swapped operator, an off-by-one, a confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer. No obviously absurd choices.
+- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${avoidBlock}${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+
       let response: Response;
       try {
         response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -239,7 +302,7 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
           headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             model: MODEL,
-            temperature: 0.35,
+            temperature,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: `Generate ${askFor} ${spec.tier}-tier questions now.` },
