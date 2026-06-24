@@ -133,10 +133,8 @@ const StudentOnboarding = () => {
   const isValid =
     name.trim() &&
     email.trim() &&
-    rollNumber.trim() &&
     universityId &&
     degreeId &&
-    branchId &&
     year &&
     codeStatus === "valid";
 
