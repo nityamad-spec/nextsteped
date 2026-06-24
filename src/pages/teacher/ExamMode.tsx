@@ -25,6 +25,8 @@ import ExamQuestionsViewDialog from "@/components/ExamQuestionsViewDialog";
 import { bumpCacheVersion } from "@/lib/cacheVersion";
 import type { ExamScheduleItem } from "@/types";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useCourseExams, nextAvailableLabel } from "@/hooks/useCourseExams";
+import { Archive, RotateCcw } from "lucide-react";
 
 const MAX_EXAMS = 10;
 const newExamId = () =>
