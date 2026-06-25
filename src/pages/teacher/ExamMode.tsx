@@ -548,11 +548,12 @@ const ExamMode = () => {
   const handleBreakdownNumberChange = (id: string, type: string, value: number) => {
     const exam = examSchedule.find(e => e.id === id);
     if (!exam) return;
-    updateExam(id, {
-      breakdown: { ...exam.breakdown, [type]: Math.max(0, value || 0) },
-      approved: false,
-    });
+    const nextBreakdown = { ...exam.breakdown, [type]: Math.max(0, value || 0) };
+    // Update UI synchronously; defer the DB write so reloads don't steal focus mid-typing.
+    setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, breakdown: nextBreakdown, approved: false } : e));
+    persistExamDebounced(id);
   };
+
 
   const handleApproveExam = (id: string) => {
     setEditingCardIds(prev => ({ ...prev, [id]: false }));
