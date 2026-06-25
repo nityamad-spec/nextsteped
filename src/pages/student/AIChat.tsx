@@ -724,6 +724,11 @@ const AIChat = () => {
 
     setCurrentAssessmentSessionId(null);
     setCurrentExamId(null);
+    // Refresh available exams so the completed attempt is excluded from the pool.
+    if (assessmentType === "exam") {
+      void loadAvailableExamIds();
+    }
+
   };
 
   const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 3): Promise<Response> => {
