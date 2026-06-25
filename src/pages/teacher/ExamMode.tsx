@@ -117,14 +117,22 @@ const ExamMode = () => {
   // student code paths.
   const buildInitialSchedule = (): ExamScheduleItem[] => {
     if (activeCourseExams.length > 0) {
-      return activeCourseExams.map(e => ({
-        id: e.id,
-        kind: e.kind,
-        lengthMin: e.length_min,
-        breakdown: e.breakdown,
-        approved: e.approved,
-        source: e.source,
-      }));
+      return activeCourseExams.map(e => {
+        // Treat the DB breakdown as "dirty" if it doesn't match the time-based
+        // estimate for this length+mix — preserves teacher overrides through reloads.
+        const expected = questionEstimate(e.length_min, taSettings.examQuestionMix || "mixed").breakdown;
+        const sameKeys = Object.keys(expected).length === Object.keys(e.breakdown ?? {}).length
+          && Object.entries(expected).every(([k, v]) => (e.breakdown as Record<string, number>)?.[k] === v);
+        return {
+          id: e.id,
+          kind: e.kind,
+          lengthMin: e.length_min,
+          breakdown: e.breakdown,
+          approved: e.approved,
+          source: e.source,
+          breakdownDirty: !sameKeys,
+        };
+      });
     }
     if (taSettings.examSchedule && taSettings.examSchedule.length > 0) {
       return taSettings.examSchedule.map(e => ({ ...e, source: e.source ?? "generated" }));
@@ -140,6 +148,7 @@ const ExamMode = () => {
       source: "generated",
     }];
   };
+
   const [examSchedule, setExamSchedule] = useState<ExamScheduleItem[]>(buildInitialSchedule);
   // Tracks which cards are in "Edit Breakdown" mode (id → true)
   const [editingCardIds, setEditingCardIds] = useState<Record<string, boolean>>({});
