@@ -550,31 +550,37 @@ const ExamMode = () => {
   const handleLengthChange = (id: string, v: number) => {
     const exam = examSchedule.find(e => e.id === id);
     if (!exam) return;
-    updateExam(id, {
-      lengthMin: v,
-      breakdown: questionEstimate(v, examQuestionTypes).breakdown,
-      approved: false,
-    });
-    setEditingCardIds(prev => ({ ...prev, [id]: false }));
+    // Only recompute the breakdown if the teacher hasn't manually overridden it.
+    const patch: Partial<ExamScheduleItem> = exam.breakdownDirty
+      ? { lengthMin: v, approved: false }
+      : { lengthMin: v, breakdown: questionEstimate(v, examQuestionTypes).breakdown, approved: false };
+    updateExam(id, patch);
   };
 
   const handleKindChange = (id: string, kind: "midterm" | "final") => {
     updateExam(id, { kind, approved: false });
   };
 
-  const handleEditBreakdown = (id: string) => {
-    setEditingCardIds(prev => ({ ...prev, [id]: true }));
-    updateExam(id, { approved: false });
-  };
-
   const handleBreakdownNumberChange = (id: string, type: string, value: number) => {
     const exam = examSchedule.find(e => e.id === id);
-
     if (!exam) return;
     const nextBreakdown = { ...exam.breakdown, [type]: Math.max(0, value || 0) };
-    setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, breakdown: nextBreakdown, approved: false } : e));
+    setExamSchedule(prev => prev.map(e =>
+      e.id === id ? { ...e, breakdown: nextBreakdown, approved: false, breakdownDirty: true } : e
+    ));
     persistExamDebounced(id);
   };
+
+  const handleResetBreakdown = (id: string) => {
+    const exam = examSchedule.find(e => e.id === id);
+    if (!exam) return;
+    const fresh = questionEstimate(exam.lengthMin, examQuestionTypes).breakdown;
+    setExamSchedule(prev => prev.map(e =>
+      e.id === id ? { ...e, breakdown: fresh, breakdownDirty: false, approved: false } : e
+    ));
+    persistExamDebounced(id);
+  };
+
 
 
 
