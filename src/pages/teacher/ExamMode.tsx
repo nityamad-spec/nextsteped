@@ -117,14 +117,22 @@ const ExamMode = () => {
   // student code paths.
   const buildInitialSchedule = (): ExamScheduleItem[] => {
     if (activeCourseExams.length > 0) {
-      return activeCourseExams.map(e => ({
-        id: e.id,
-        kind: e.kind,
-        lengthMin: e.length_min,
-        breakdown: e.breakdown,
-        approved: e.approved,
-        source: e.source,
-      }));
+      return activeCourseExams.map(e => {
+        // Treat the DB breakdown as "dirty" if it doesn't match the time-based
+        // estimate for this length+mix — preserves teacher overrides through reloads.
+        const expected = questionEstimate(e.length_min, taSettings.examQuestionMix || "mixed").breakdown;
+        const sameKeys = Object.keys(expected).length === Object.keys(e.breakdown ?? {}).length
+          && Object.entries(expected).every(([k, v]) => (e.breakdown as Record<string, number>)?.[k] === v);
+        return {
+          id: e.id,
+          kind: e.kind,
+          lengthMin: e.length_min,
+          breakdown: e.breakdown,
+          approved: e.approved,
+          source: e.source,
+          breakdownDirty: !sameKeys,
+        };
+      });
     }
     if (taSettings.examSchedule && taSettings.examSchedule.length > 0) {
       return taSettings.examSchedule.map(e => ({ ...e, source: e.source ?? "generated" }));
@@ -140,6 +148,7 @@ const ExamMode = () => {
       source: "generated",
     }];
   };
+
   const [examSchedule, setExamSchedule] = useState<ExamScheduleItem[]>(buildInitialSchedule);
   // Tracks which cards are in "Edit Breakdown" mode (id → true)
   const [editingCardIds, setEditingCardIds] = useState<Record<string, boolean>>({});
@@ -341,13 +350,17 @@ const ExamMode = () => {
   // (preserve approved state only if the type set is unchanged for that card)
   useEffect(() => {
     setExamSchedule(prev => {
-      const next = prev.map(e => e.source === "manual" ? e : ({
-        ...e,
-        breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
-        approved: false,
-      }));
+      const next = prev.map(e => {
+        // Preserve manual cards and any card whose breakdown the teacher has overridden.
+        if (e.source === "manual" || e.breakdownDirty) return e;
+        return {
+          ...e,
+          breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
+          approved: false,
+        };
+      });
       next.forEach((e, idx) => {
-        if (e.source !== "manual") {
+        if (e.source !== "manual" && !e.breakdownDirty) {
           void upsertExam({
             id: e.id,
             breakdown: e.breakdown as Record<string, number>,
@@ -359,6 +372,7 @@ const ExamMode = () => {
       return next;
     });
     setEditingCardIds({});
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [examQuestionTypes]);
 
@@ -536,31 +550,37 @@ const ExamMode = () => {
   const handleLengthChange = (id: string, v: number) => {
     const exam = examSchedule.find(e => e.id === id);
     if (!exam) return;
-    updateExam(id, {
-      lengthMin: v,
-      breakdown: questionEstimate(v, examQuestionTypes).breakdown,
-      approved: false,
-    });
-    setEditingCardIds(prev => ({ ...prev, [id]: false }));
+    // Only recompute the breakdown if the teacher hasn't manually overridden it.
+    const patch: Partial<ExamScheduleItem> = exam.breakdownDirty
+      ? { lengthMin: v, approved: false }
+      : { lengthMin: v, breakdown: questionEstimate(v, examQuestionTypes).breakdown, approved: false };
+    updateExam(id, patch);
   };
 
   const handleKindChange = (id: string, kind: "midterm" | "final") => {
     updateExam(id, { kind, approved: false });
   };
 
-  const handleEditBreakdown = (id: string) => {
-    setEditingCardIds(prev => ({ ...prev, [id]: true }));
-    updateExam(id, { approved: false });
-  };
-
   const handleBreakdownNumberChange = (id: string, type: string, value: number) => {
     const exam = examSchedule.find(e => e.id === id);
-
     if (!exam) return;
     const nextBreakdown = { ...exam.breakdown, [type]: Math.max(0, value || 0) };
-    setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, breakdown: nextBreakdown, approved: false } : e));
+    setExamSchedule(prev => prev.map(e =>
+      e.id === id ? { ...e, breakdown: nextBreakdown, approved: false, breakdownDirty: true } : e
+    ));
     persistExamDebounced(id);
   };
+
+  const handleResetBreakdown = (id: string) => {
+    const exam = examSchedule.find(e => e.id === id);
+    if (!exam) return;
+    const fresh = questionEstimate(exam.lengthMin, examQuestionTypes).breakdown;
+    setExamSchedule(prev => prev.map(e =>
+      e.id === id ? { ...e, breakdown: fresh, breakdownDirty: false, approved: false } : e
+    ));
+    persistExamDebounced(id);
+  };
+
 
 
 
@@ -962,12 +982,15 @@ const ExamMode = () => {
                             <div className="flex items-center gap-2">
                               <Calculator className="h-3.5 w-3.5 text-primary" />
                               <span className="text-xs text-muted-foreground">
-                                Estimated <span className="font-bold text-foreground">{total} questions</span>
-                                {breakdownEntries.length > 0 && (
-                                  <>
-                                    {" "}({breakdownEntries.map(([t, c]) => `${t} ${c}`).join(" · ")})
-                                  </>
-                                )}
+                                Total <span className="font-bold text-foreground">{total} questions</span>
+                                {(() => {
+                                  const estimate = questionEstimate(exam.lengthMin, examQuestionTypes).total;
+                                  return (
+                                    <span className="ml-1 text-[10px] text-muted-foreground">
+                                      (time-based estimate: {estimate})
+                                    </span>
+                                  );
+                                })()}
                               </span>
                             </div>
                             {breakdownEntries.length === 0 ? (
@@ -977,26 +1000,34 @@ const ExamMode = () => {
                                 {breakdownEntries.map(([type, count]) => (
                                   <div key={type} className="flex items-center justify-between">
                                     <span className="text-xs text-muted-foreground">{type}</span>
-                                    {isEditing ? (
-                                      <Input
-                                        type="number" min={0}
-                                        className="h-7 w-16 text-xs text-right"
-                                        value={count as number}
-                                        onChange={(e) => handleBreakdownNumberChange(exam.id, type, parseInt(e.target.value))}
-                                      />
-                                    ) : (
-                                      <span className="text-sm font-bold">{count as number}</span>
-                                    )}
+                                    <Input
+                                      type="number" min={0}
+                                      className="h-7 w-20 text-xs text-right"
+                                      value={count as number}
+                                      onChange={(e) => handleBreakdownNumberChange(exam.id, type, parseInt(e.target.value))}
+                                    />
                                   </div>
                                 ))}
                               </div>
                             )}
+                            {(() => {
+                              const estimate = questionEstimate(exam.lengthMin, examQuestionTypes).total;
+                              if (total > estimate) {
+                                return (
+                                  <p className="text-xs text-amber-600">
+                                    Heads up: {total} questions in {exam.lengthMin} min is above the time-based estimate of {estimate}. Students may run out of time.
+                                  </p>
+                                );
+                              }
+                              return null;
+                            })()}
                             <div className="flex items-center gap-2 pt-1">
-                              {!isEditing && breakdownEntries.length > 0 && (
-                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleEditBreakdown(exam.id)}>
-                                  <Pencil className="mr-1 h-3 w-3" /> Edit Breakdown
+                              {exam.breakdownDirty && breakdownEntries.length > 0 && (
+                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleResetBreakdown(exam.id)}>
+                                  Reset to estimate
                                 </Button>
                               )}
+
                               <Button
                                 variant={exam.approved ? "outline" : "default"}
                                 size="sm" className="h-7 text-xs"

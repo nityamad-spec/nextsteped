@@ -73,7 +73,11 @@ export interface ExamScheduleItem {
   breakdown: Record<string, number>;
   approved: boolean;
   source?: "generated" | "manual";
+  /** Local UI flag: true once the user manually edits per-type counts so we
+   *  stop overwriting them on length/type-mix changes. Not persisted. */
+  breakdownDirty?: boolean;
 }
+
 
 export interface TASettings {
   hintLadder: boolean;

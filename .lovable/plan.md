@@ -1,39 +1,42 @@
-## Root Cause
-"Edit Breakdown" sets `editingCardIds[id] = true` then calls `updateExam(id, { approved: false })`. `updateExam` → `persistExam` → `upsertExam` (in `useCourseExams`) which now awaits `reload()` and refreshes `activeCourseExams`.
+## Goal
+Make the per-type breakdown (MCQ, True/False, etc.) freely editable for each Final, allow the total to exceed the time-based estimate, and stop length-slider changes from clobbering manual edits.
 
-The hydration effect in `src/pages/teacher/ExamMode.tsx` (lines 178–187) lists `activeCourseExams` in its deps and unconditionally runs:
+## Root cause of the current friction
+- `handleLengthChange` recomputes `breakdown` from `questionEstimate(length, mix)` on every slider change, overwriting any manual MCQ/TF entries.
+- The question-types effect (`useEffect` on `[examQuestionTypes]`) does the same when the global type mix changes.
+- The "Edit Breakdown" gate means inputs only appear after an extra click, which compounds the perception that the numbers aren't editable.
 
-```ts
-setExamSchedule(buildInitialSchedule());
-setEditingCardIds({});   // ← wipes the edit flag we just set
-```
+## Changes (all in `src/pages/teacher/ExamMode.tsx`)
 
-So the edit-mode toggle is reset on the very next render and the number `<Input>`s never appear. The same race nukes every keystroke through `handleBreakdownNumberChange`.
+### 1. Track per-exam "breakdown dirty" flag
+Add `breakdownDirty?: boolean` to `ExamScheduleItem`. Set it `true` whenever `handleBreakdownNumberChange` runs. Hydration from DB initializes it `false` (DB has no such field — purely local UI signal; if DB breakdown differs from the estimate for that length+mix, treat as already dirty so we don't overwrite a saved override).
 
-This regressed when `upsertExam` was changed to `await reload()` as part of the "+ Add new mock test" fix.
+### 2. Conditional recompute on length/type changes
+- `handleLengthChange`: if `exam.breakdownDirty`, update `lengthMin` only; otherwise also recompute `breakdown` from the new estimate (current behavior).
+- Question-types effect: same logic per exam — only refresh breakdown for exams where `breakdownDirty !== true`.
 
-## Fix
+### 3. Always-on breakdown inputs (remove the Edit Breakdown gate)
+Replace the read-only `<span>` + "Edit Breakdown" button with always-visible number `<Input>`s for each type (still debounced-persist per the existing `persistExamDebounced`). Keep `editingCardIds` removed from the render path; drop the now-unused `handleEditBreakdown` helper. This eliminates the click-to-edit friction entirely.
 
-### `src/pages/teacher/ExamMode.tsx`
-1. **Stop clobbering `editingCardIds` on every hydration.** In the effect at lines 178–187, replace `setEditingCardIds({})` with a prune that only drops keys whose exam ids are no longer present:
-   ```ts
-   setEditingCardIds(prev => {
-     const liveIds = new Set(activeCourseExams.map(e => e.id));
-     const next: Record<string, boolean> = {};
-     for (const [id, v] of Object.entries(prev)) if (liveIds.has(id)) next[id] = v;
-     return next;
-   });
-   ```
-2. **Same prune (not reset) in the question-types effect** at lines 304–327 — `setEditingCardIds({})` there is fine to keep (intentional: type change invalidates breakdowns), but make sure it only runs when `examQuestionTypes` actually changes value (it already does via the deps array, no change needed).
-3. **Avoid persisting on every keystroke for breakdown edits.** Each `handleBreakdownNumberChange` triggers `upsertExam` → reload → re-hydrate. Even with (1) fixing the edit flag, this causes input flicker and lost focus. Debounce the persist: keep `setExamSchedule` synchronous (so the UI updates immediately) and schedule `persistExam` with a 400ms debounce per `(id)`. Implement with a `useRef<Map<string, number>>` of timeouts; clear on unmount.
+### 4. Soft warning when sum > estimated total
+Compute `estimate = questionEstimate(exam.lengthMin, examQuestionTypes).total`. When `sum(breakdown) > estimate`, render an inline amber notice under the breakdown rows: `"Heads up: ${sum} questions in ${lengthMin} min is above the time-based estimate of ${estimate}. Students may run out of time."` Use existing `text-amber-600` / `Alert` styling — no new dependencies.
 
-### `src/hooks/useCourseExams.ts`
-No change required — keeping `reload()` after upsert preserves the add-mock-test fix.
+### 5. Reset-to-estimate affordance
+Add a small ghost button next to the breakdown: "Reset to estimate" that clears `breakdownDirty` and recomputes from `questionEstimate(...)`. Lets the user undo a manual override.
+
+## No schema or hook changes
+- `useCourseExams.upsertExam` still persists `breakdown` as-is.
+- No migration; `breakdownDirty` is local UI state only.
 
 ## Verification
-- Open `/teacher/setup/exam-mode`, click **Edit Breakdown** on a Final card → confirm number inputs render and remain editable across keystrokes (Playwright: type into input, confirm value persists and no input remount/focus loss).
-- After typing, wait ~600ms, reload page → DB has latest values (debounced write committed).
-- Confirm "+ Add new mock test" still works (no regression).
+- Playwright on `/teacher/setup/exam-mode`:
+  1. Edit MCQ to 30, then move length slider → confirm MCQ stays at 30.
+  2. Confirm sum (e.g. 35) > estimate (e.g. 20) shows the amber warning.
+  3. Click "Reset to estimate" → breakdown snaps back to even distribution and warning clears.
+  4. Reload page → manual edits persist (already covered by `persistExamDebounced`).
+- Sanity: "+ Add new mock test" still works; new card starts with `breakdownDirty = false`.
 
 ## Out of scope
-- Refactoring `examSchedule` to derive entirely from `activeCourseExams` (would be cleaner but larger change).
+- Persisting `breakdownDirty` to the DB (local-only is enough since DB already stores the actual breakdown).
+- Per-type max caps or validation.
+- UI redesign of the rest of the card.
