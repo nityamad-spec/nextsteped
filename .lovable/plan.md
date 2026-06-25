@@ -1,42 +1,39 @@
-## Goal
-Enforce single-attempt per practice exam. After a student submits an attempt for a given `exam_id`, that exam is excluded from their available pool and cannot be started again.
+## Root Cause
+"Edit Breakdown" sets `editingCardIds[id] = true` then calls `updateExam(id, { approved: false })`. `updateExam` → `persistExam` → `upsertExam` (in `useCourseExams`) which now awaits `reload()` and refreshes `activeCourseExams`.
 
-## Changes
-
-### 1. `src/pages/student/AIChat.tsx` — exclude attempted exams from the pool
-In `loadAvailableExamIds`, after computing `activeIds` from `course_exams`, also fetch the student's prior attempts:
+The hydration effect in `src/pages/teacher/ExamMode.tsx` (lines 178–187) lists `activeCourseExams` in its deps and unconditionally runs:
 
 ```ts
-supabase
-  .from("assessment_results")
-  .select("exam_id")
-  .eq("course_id", enrolledCourseId)
-  .eq("student_id", user.id)
-  .eq("assessment_type", "exam")
-  .not("exam_id", "is", null)
+setExamSchedule(buildInitialSchedule());
+setEditingCardIds({});   // ← wipes the edit flag we just set
 ```
 
-Build `attemptedIds = new Set(...)` and filter the final `ids` list to exclude any exam already in `attemptedIds`. Re-run this loader after each exam submission so the pool refreshes (call `loadAvailableExamIds()` inside the existing submit/finish handler that writes to `assessment_results`).
+So the edit-mode toggle is reset on the very next render and the number `<Input>`s never appear. The same race nukes every keystroke through `handleBreakdownNumberChange`.
 
-Also reset `nextExamIndex` to 0 whenever the available list shrinks past it (clamp `idx = nextExamIndex % ids.length` already handles wrap, but persist the clamped value).
+This regressed when `upsertExam` was changed to `await reload()` as part of the "+ Add new mock test" fix.
 
-### 2. `src/pages/student/AIChat.tsx` — guard `handleStartExamWithSettings`
-If `ids.length === 0` after filtering, short-circuit with a toast: "You've completed every practice exam your professor published. Check Performance for your results." Do not call `consumeNextExamId` or insert anything.
+## Fix
 
-### 3. `src/components/ExamPrepPanel.tsx` — UI copy and disabled state
-- Replace the "you can retake it as often as you like" copy with single-attempt language, e.g. `"1 practice exam available — you can attempt each exam once."` and for the multi-exam case `"${examCount} practice exam${s} remaining — each exam can only be attempted once."`
-- When `examCount === 0`, render a muted state: "All practice exams completed. Review your Performance dashboard." and disable the Start button.
-- Remove the rotation phrasing about "rotates to the next one" — replace with "next up: Exam X" where X is derived from the remaining list.
+### `src/pages/teacher/ExamMode.tsx`
+1. **Stop clobbering `editingCardIds` on every hydration.** In the effect at lines 178–187, replace `setEditingCardIds({})` with a prune that only drops keys whose exam ids are no longer present:
+   ```ts
+   setEditingCardIds(prev => {
+     const liveIds = new Set(activeCourseExams.map(e => e.id));
+     const next: Record<string, boolean> = {};
+     for (const [id, v] of Object.entries(prev)) if (liveIds.has(id)) next[id] = v;
+     return next;
+   });
+   ```
+2. **Same prune (not reset) in the question-types effect** at lines 304–327 — `setEditingCardIds({})` there is fine to keep (intentional: type change invalidates breakdowns), but make sure it only runs when `examQuestionTypes` actually changes value (it already does via the deps array, no change needed).
+3. **Avoid persisting on every keystroke for breakdown edits.** Each `handleBreakdownNumberChange` triggers `upsertExam` → reload → re-hydrate. Even with (1) fixing the edit flag, this causes input flicker and lost focus. Debounce the persist: keep `setExamSchedule` synchronous (so the UI updates immediately) and schedule `persistExam` with a 400ms debounce per `(id)`. Implement with a `useRef<Map<string, number>>` of timeouts; clear on unmount.
 
-### 4. No DB migration
-The existing `assessment_results` row already stores `student_id`, `course_id`, `exam_id`, and `assessment_type='exam'` — sufficient to detect prior attempts. No uniqueness constraint added (defense-in-depth could be a follow-up; out of scope).
+### `src/hooks/useCourseExams.ts`
+No change required — keeping `reload()` after upsert preserves the add-mock-test fix.
 
 ## Verification
-- Playwright as student on a course with 2 published exams: Start Exam → complete → confirm panel now shows "1 remaining" and only the un-attempted exam launches. Complete the second → confirm Start is disabled with "All completed" copy.
-- Confirm `assessment_results` rows accumulate as before; mastery still updates on the (single) attempt.
-- Re-loading the page reflects the same disabled state (data-driven, not local state).
+- Open `/teacher/setup/exam-mode`, click **Edit Breakdown** on a Final card → confirm number inputs render and remain editable across keystrokes (Playwright: type into input, confirm value persists and no input remount/focus loss).
+- After typing, wait ~600ms, reload page → DB has latest values (debounced write committed).
+- Confirm "+ Add new mock test" still works (no regression).
 
 ## Out of scope
-- Teacher-side override to allow resets.
-- DB-level uniqueness constraint on `(student_id, exam_id)`.
-- Changes to weekly quiz retake behavior.
+- Refactoring `examSchedule` to derive entirely from `activeCourseExams` (would be cleaner but larger change).

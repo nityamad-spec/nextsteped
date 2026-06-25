@@ -181,10 +181,18 @@ const ExamMode = () => {
       setExamQuestionTypes(taSettings.examQuestionMix || "mixed");
       setExamEnabled(taSettings.examEnabled ?? false);
       setExamSchedule(buildInitialSchedule());
-      setEditingCardIds({});
+      // Prune editing flags for exams that no longer exist; preserve flags for live ids
+      // so an in-progress "Edit Breakdown" survives the reload triggered by upsertExam.
+      setEditingCardIds(prev => {
+        const liveIds = new Set(activeCourseExams.map(e => e.id));
+        const next: Record<string, boolean> = {};
+        for (const [id, v] of Object.entries(prev)) if (liveIds.has(id)) next[id] = v;
+        return next;
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, examsLoading, taSettings, activeCourseExams]);
+
 
   const refetchConcepts = async () => {
     if (!courseId) return;
@@ -296,10 +304,30 @@ const ExamMode = () => {
     }).catch(e => console.error("persist exam failed:", e));
   };
 
+  // Per-id debounce timers for breakdown edits — avoids reloading activeCourseExams
+  // (and re-hydrating examSchedule) on every keystroke, which would steal focus
+  // from the number input.
+  const persistTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  useEffect(() => () => {
+    persistTimersRef.current.forEach(t => clearTimeout(t));
+    persistTimersRef.current.clear();
+  }, []);
+  const persistExamDebounced = (id: string, delay = 400) => {
+    const timers = persistTimersRef.current;
+    const existing = timers.get(id);
+    if (existing) clearTimeout(existing);
+    const handle = setTimeout(() => {
+      timers.delete(id);
+      persistExam(id, {});
+    }, delay);
+    timers.set(id, handle);
+  };
+
   const updateExam = (id: string, patch: Partial<ExamScheduleItem>) => {
     setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
     persistExam(id, patch);
   };
+
 
   // When the global question types change, refresh each card's breakdown
   // (preserve approved state only if the type set is unchanged for that card)
@@ -520,11 +548,12 @@ const ExamMode = () => {
   const handleBreakdownNumberChange = (id: string, type: string, value: number) => {
     const exam = examSchedule.find(e => e.id === id);
     if (!exam) return;
-    updateExam(id, {
-      breakdown: { ...exam.breakdown, [type]: Math.max(0, value || 0) },
-      approved: false,
-    });
+    const nextBreakdown = { ...exam.breakdown, [type]: Math.max(0, value || 0) };
+    // Update UI synchronously; defer the DB write so reloads don't steal focus mid-typing.
+    setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, breakdown: nextBreakdown, approved: false } : e));
+    persistExamDebounced(id);
   };
+
 
   const handleApproveExam = (id: string) => {
     setEditingCardIds(prev => ({ ...prev, [id]: false }));
