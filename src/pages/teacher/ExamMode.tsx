@@ -546,13 +546,14 @@ const ExamMode = () => {
   };
 
   const handleBreakdownNumberChange = (id: string, type: string, value: number) => {
+    console.log("[breakdown-change]", { id, type, value });
     const exam = examSchedule.find(e => e.id === id);
     if (!exam) return;
     const nextBreakdown = { ...exam.breakdown, [type]: Math.max(0, value || 0) };
-    // Update UI synchronously; defer the DB write so reloads don't steal focus mid-typing.
     setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, breakdown: nextBreakdown, approved: false } : e));
     persistExamDebounced(id);
   };
+
 
 
   const handleApproveExam = (id: string) => {
