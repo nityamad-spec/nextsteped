@@ -444,7 +444,7 @@ const AIChat = () => {
       setAvailableExamIds([]);
       return [] as string[];
     }
-    const [{ data: qRows }, { data: examRows }] = await Promise.all([
+    const [{ data: qRows }, { data: examRows }, { data: attemptRows }] = await Promise.all([
       supabase
         .from("assessment_questions")
         .select("exam_id")
@@ -456,27 +456,41 @@ const AIChat = () => {
         .select("id")
         .eq("course_id", enrolledCourseId)
         .is("archived_at", null),
+      user
+        ? supabase
+            .from("assessment_results")
+            .select("exam_id")
+            .eq("course_id", enrolledCourseId)
+            .eq("student_id", user.id)
+            .eq("mode", "exam")
+            .not("exam_id", "is", null)
+        : Promise.resolve({ data: [] as { exam_id: string | null }[] }),
     ]);
     if (!qRows) {
       setAvailableExamIds([]);
       return [] as string[];
     }
-    // Strict rule: only exam_ids that exist as ACTIVE rows in course_exams are
-    // surfaced to the student. If course_exams is empty for this course, no
-    // exams are live — the panel shows the "not published yet" copy.
     const activeIds = new Set((examRows ?? []).map((r: any) => r.id).filter(Boolean));
+    const attemptedIds = new Set(
+      ((attemptRows as { exam_id: string | null }[] | null) ?? [])
+        .map((r) => r.exam_id)
+        .filter((x): x is string => Boolean(x))
+    );
     const ids = Array.from(
       new Set(qRows.map((r: any) => r.exam_id).filter(Boolean))
     )
-      .filter((id: string) => activeIds.has(id))
+      .filter((id: string) => activeIds.has(id) && !attemptedIds.has(id))
       .sort();
     setAvailableExamIds(ids);
     if (rotationKey) {
       const stored = parseInt(localStorage.getItem(rotationKey) || "0", 10);
-      setNextExamIndex(Number.isFinite(stored) ? stored : 0);
+      const clamped = ids.length > 0 ? (Number.isFinite(stored) ? stored : 0) % ids.length : 0;
+      setNextExamIndex(clamped);
+      try { localStorage.setItem(rotationKey, String(clamped)); } catch { /* ignore */ }
     }
     return ids;
-  }, [enrolledCourseId, rotationKey]);
+  }, [enrolledCourseId, rotationKey, user]);
+
 
 
   // Load whenever course resolves or mode flips to exam
