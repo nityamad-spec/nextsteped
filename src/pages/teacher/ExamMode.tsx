@@ -547,7 +547,7 @@ const ExamMode = () => {
 
   const handleBreakdownNumberChange = (id: string, type: string, value: number) => {
     const exam = examSchedule.find(e => e.id === id);
-    const exam = examSchedule.find(e => e.id === id);
+
     if (!exam) return;
     const nextBreakdown = { ...exam.breakdown, [type]: Math.max(0, value || 0) };
     setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, breakdown: nextBreakdown, approved: false } : e));
