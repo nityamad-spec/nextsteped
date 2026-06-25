@@ -288,10 +288,16 @@ const ExamMode = () => {
   // Persist to course_exams whenever we mutate a card. The label is derived
   // from active position ("Final N"); collisions can only occur on restore,
   // and useCourseExams.restoreExam handles auto-rename in that case.
+  // Keep a ref to the latest examSchedule so debounced/timeout-based persists
+  // always read fresh state, not the closure value from when they were scheduled.
+  const scheduleRef = useRef<ExamScheduleItem[]>([]);
+  scheduleRef.current = examSchedule;
+
   const persistExam = (id: string, patch: Partial<ExamScheduleItem>) => {
-    const idx = examSchedule.findIndex(e => e.id === id);
+    const schedule = scheduleRef.current;
+    const idx = schedule.findIndex(e => e.id === id);
     if (idx < 0) return;
-    const next = { ...examSchedule[idx], ...patch };
+    const next = { ...schedule[idx], ...patch };
     void upsertExam({
       id,
       label: `Final ${idx + 1}`,
@@ -327,6 +333,8 @@ const ExamMode = () => {
     setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
     persistExam(id, patch);
   };
+
+
 
 
   // When the global question types change, refresh each card's breakdown
