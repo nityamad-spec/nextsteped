@@ -181,10 +181,18 @@ const ExamMode = () => {
       setExamQuestionTypes(taSettings.examQuestionMix || "mixed");
       setExamEnabled(taSettings.examEnabled ?? false);
       setExamSchedule(buildInitialSchedule());
-      setEditingCardIds({});
+      // Prune editing flags for exams that no longer exist; preserve flags for live ids
+      // so an in-progress "Edit Breakdown" survives the reload triggered by upsertExam.
+      setEditingCardIds(prev => {
+        const liveIds = new Set(activeCourseExams.map(e => e.id));
+        const next: Record<string, boolean> = {};
+        for (const [id, v] of Object.entries(prev)) if (liveIds.has(id)) next[id] = v;
+        return next;
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, examsLoading, taSettings, activeCourseExams]);
+
 
   const refetchConcepts = async () => {
     if (!courseId) return;
