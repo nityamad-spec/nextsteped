@@ -578,16 +578,20 @@ const AIChat = () => {
   const handleStartExamWithSettings = async (custom: ExamCustomSettings) => {
     const visibleTopics = await fetchVisibleTopics();
     const count = custom.questionCount;
-    const ids = availableExamIds.length > 0 ? availableExamIds : await loadAvailableExamIds();
+    const ids = await loadAvailableExamIds();
+    if (ids.length === 0) {
+      toast.info("You've completed every practice exam your professor published. Check Performance for your results.");
+      return;
+    }
     const examId = consumeNextExamId(ids);
     const fetched = await fetchDBQuestions("exam", undefined, examId ?? undefined);
-    // Option 2: trust the professor — skip week-visibility filter for generator-produced exams.
     let questions = examId ? fetched.questions : filterByVisibleTopics(fetched.questions, visibleTopics);
     const meta = fetched.meta;
     if (questions.length === 0) {
       toast.info("Your professor hasn't published a practice exam for this course yet.");
       return;
     }
+
 
     // Only create a session once we know we have questions to serve.
     const examDate = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
