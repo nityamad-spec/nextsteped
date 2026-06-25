@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface CourseExam {
@@ -79,8 +79,11 @@ export function useCourseExams(courseId: string | null) {
 
   useEffect(() => { void reload(); }, [reload]);
 
-  const active = exams.filter(e => !e.archived_at);
-  const archived = exams.filter(e => !!e.archived_at);
+  // Memoize so consumer effects that depend on `active`/`archived` don't re-fire
+  // on every render of the hook caller (which would clobber local UI state).
+  const active = useMemo(() => exams.filter(e => !e.archived_at), [exams]);
+  const archived = useMemo(() => exams.filter(e => !!e.archived_at), [exams]);
+
 
   const upsertExam = useCallback(async (
     input: Partial<CourseExam> & { id: string },
