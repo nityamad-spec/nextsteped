@@ -304,10 +304,30 @@ const ExamMode = () => {
     }).catch(e => console.error("persist exam failed:", e));
   };
 
+  // Per-id debounce timers for breakdown edits — avoids reloading activeCourseExams
+  // (and re-hydrating examSchedule) on every keystroke, which would steal focus
+  // from the number input.
+  const persistTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  useEffect(() => () => {
+    persistTimersRef.current.forEach(t => clearTimeout(t));
+    persistTimersRef.current.clear();
+  }, []);
+  const persistExamDebounced = (id: string, delay = 400) => {
+    const timers = persistTimersRef.current;
+    const existing = timers.get(id);
+    if (existing) clearTimeout(existing);
+    const handle = setTimeout(() => {
+      timers.delete(id);
+      persistExam(id, {});
+    }, delay);
+    timers.set(id, handle);
+  };
+
   const updateExam = (id: string, patch: Partial<ExamScheduleItem>) => {
     setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
     persistExam(id, patch);
   };
+
 
   // When the global question types change, refresh each card's breakdown
   // (preserve approved state only if the type set is unchanged for that card)
