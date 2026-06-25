@@ -133,8 +133,10 @@ const StudentOnboarding = () => {
   const isValid =
     name.trim() &&
     email.trim() &&
+    rollNumber.trim() &&
     universityId &&
     degreeId &&
+    branchId &&
     year &&
     codeStatus === "valid";
 
@@ -219,7 +221,7 @@ const StudentOnboarding = () => {
 
               <div className="space-y-2">
                 <Label>Roll Number</Label>
-                <Input placeholder="Enter your roll number" value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} disabled />
+                <Input placeholder="Enter your roll number" value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} />
               </div>
 
               <div className="space-y-2">
@@ -248,7 +250,7 @@ const StudentOnboarding = () => {
 
               <div className="space-y-2">
                 <Label>Branch</Label>
-                <Select value={branchId} onValueChange={setBranchId} disabled>
+                <Select value={branchId} onValueChange={setBranchId} disabled={!degreeId || branches.length === 0}>
                   <SelectTrigger className="h-11">
                     <SelectValue placeholder={degreeId ? "Select branch" : "Select a degree first"} />
                   </SelectTrigger>
