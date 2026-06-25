@@ -982,12 +982,15 @@ const ExamMode = () => {
                             <div className="flex items-center gap-2">
                               <Calculator className="h-3.5 w-3.5 text-primary" />
                               <span className="text-xs text-muted-foreground">
-                                Estimated <span className="font-bold text-foreground">{total} questions</span>
-                                {breakdownEntries.length > 0 && (
-                                  <>
-                                    {" "}({breakdownEntries.map(([t, c]) => `${t} ${c}`).join(" · ")})
-                                  </>
-                                )}
+                                Total <span className="font-bold text-foreground">{total} questions</span>
+                                {(() => {
+                                  const estimate = questionEstimate(exam.lengthMin, examQuestionTypes).total;
+                                  return (
+                                    <span className="ml-1 text-[10px] text-muted-foreground">
+                                      (time-based estimate: {estimate})
+                                    </span>
+                                  );
+                                })()}
                               </span>
                             </div>
                             {breakdownEntries.length === 0 ? (
@@ -997,26 +1000,34 @@ const ExamMode = () => {
                                 {breakdownEntries.map(([type, count]) => (
                                   <div key={type} className="flex items-center justify-between">
                                     <span className="text-xs text-muted-foreground">{type}</span>
-                                    {isEditing ? (
-                                      <Input
-                                        type="number" min={0}
-                                        className="h-7 w-16 text-xs text-right"
-                                        value={count as number}
-                                        onChange={(e) => handleBreakdownNumberChange(exam.id, type, parseInt(e.target.value))}
-                                      />
-                                    ) : (
-                                      <span className="text-sm font-bold">{count as number}</span>
-                                    )}
+                                    <Input
+                                      type="number" min={0}
+                                      className="h-7 w-20 text-xs text-right"
+                                      value={count as number}
+                                      onChange={(e) => handleBreakdownNumberChange(exam.id, type, parseInt(e.target.value))}
+                                    />
                                   </div>
                                 ))}
                               </div>
                             )}
+                            {(() => {
+                              const estimate = questionEstimate(exam.lengthMin, examQuestionTypes).total;
+                              if (total > estimate) {
+                                return (
+                                  <p className="text-xs text-amber-600">
+                                    Heads up: {total} questions in {exam.lengthMin} min is above the time-based estimate of {estimate}. Students may run out of time.
+                                  </p>
+                                );
+                              }
+                              return null;
+                            })()}
                             <div className="flex items-center gap-2 pt-1">
-                              {!isEditing && breakdownEntries.length > 0 && (
-                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleEditBreakdown(exam.id)}>
-                                  <Pencil className="mr-1 h-3 w-3" /> Edit Breakdown
+                              {exam.breakdownDirty && breakdownEntries.length > 0 && (
+                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleResetBreakdown(exam.id)}>
+                                  Reset to estimate
                                 </Button>
                               )}
+
                               <Button
                                 variant={exam.approved ? "outline" : "default"}
                                 size="sm" className="h-7 text-xs"
