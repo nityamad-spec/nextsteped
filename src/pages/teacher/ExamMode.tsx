@@ -350,13 +350,17 @@ const ExamMode = () => {
   // (preserve approved state only if the type set is unchanged for that card)
   useEffect(() => {
     setExamSchedule(prev => {
-      const next = prev.map(e => e.source === "manual" ? e : ({
-        ...e,
-        breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
-        approved: false,
-      }));
+      const next = prev.map(e => {
+        // Preserve manual cards and any card whose breakdown the teacher has overridden.
+        if (e.source === "manual" || e.breakdownDirty) return e;
+        return {
+          ...e,
+          breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
+          approved: false,
+        };
+      });
       next.forEach((e, idx) => {
-        if (e.source !== "manual") {
+        if (e.source !== "manual" && !e.breakdownDirty) {
           void upsertExam({
             id: e.id,
             breakdown: e.breakdown as Record<string, number>,
@@ -368,6 +372,7 @@ const ExamMode = () => {
       return next;
     });
     setEditingCardIds({});
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [examQuestionTypes]);
 
