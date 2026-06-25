@@ -57,10 +57,11 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard, examCount = 0, ne
   const upcomingExamPosition = examCount > 0 ? (nextExamIndex % examCount) + 1 : 0;
   const availabilityNote =
     examCount === 0
-      ? "Your professor hasn't published a practice exam yet."
+      ? "All practice exams completed (or none published yet). Each exam can only be attempted once — review your Performance dashboard for past results."
       : examCount === 1
-        ? "1 practice exam available from your professor — you can retake it as often as you like."
-        : `${examCount} practice exams available from your professor — each Start Exam rotates to the next one (next up: Exam ${upcomingExamPosition} of ${examCount}).`;
+        ? "1 practice exam remaining — each exam can only be attempted once."
+        : `${examCount} practice exams remaining — each exam can only be attempted once (next up: Exam ${upcomingExamPosition} of ${examCount}).`;
+
 
   return (
     <div className="border-b bg-muted/20 px-5 py-4 space-y-3">

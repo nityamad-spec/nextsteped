@@ -1,39 +1,42 @@
-## Problem
-"+" button under **Number of Mock Tests Generated** silently fails after the first click. Console shows repeated `course_exams_active_label_uq` (23505) duplicate-key errors.
+## Goal
+Enforce single-attempt per practice exam. After a student submits an attempt for a given `exam_id`, that exam is excluded from their available pool and cannot be started again.
 
-## Root cause
-1. `useCourseExams.upsertExam` doesn't `reload()` after insert, so `activeCourseExams` stays stale.
-2. The hydration `useEffect` in `ExamMode.tsx` (deps: `taSettings`, `activeCourseExams`) re-runs whenever `taSettings` re-emits and rebuilds `examSchedule` from the stale `activeCourseExams`, wiping the optimistic local append.
-3. The next click recomputes the same `Final N` label against stale data → collides with the row just inserted → DB unique index throws 23505. The error is only `console.error`'d, so the UI looks frozen.
+## Changes
 
-## Fix
+### 1. `src/pages/student/AIChat.tsx` — exclude attempted exams from the pool
+In `loadAvailableExamIds`, after computing `activeIds` from `course_exams`, also fetch the student's prior attempts:
 
-### A. `src/hooks/useCourseExams.ts` — make `upsertExam` consistent with archive/restore
-- After a successful `upsert`, `await reload()` so `active`/`archived`/`exams` reflect DB truth.
-- Return the inserted/updated row id so callers can correlate.
+```ts
+supabase
+  .from("assessment_results")
+  .select("exam_id")
+  .eq("course_id", enrolledCourseId)
+  .eq("student_id", user.id)
+  .eq("assessment_type", "exam")
+  .not("exam_id", "is", null)
+```
 
-### B. `src/pages/teacher/ExamMode.tsx` — `handleAddExam`
-- Convert to `async`.
-- Compute `label` and `position` from the freshly reloaded `activeCourseExams` (call `reload` once before computing if needed, OR rely on A's post-upsert reload).
-- Drop the manual `setExamSchedule(prev => [...prev, newItem])` optimistic append — the hydration effect will pick up the new row from `activeCourseExams` after A reloads. This removes the optimistic/hydration tug-of-war.
-- Wrap in try/catch. On any error (including 23505), show `toast.error("Couldn't add mock test. Please try again.")` instead of swallowing.
-- Add a one-shot retry path specifically for 23505: re-`reload()` → recompute `nextAvailableLabel` from fresh labels → retry once. If still fails, toast.
-- Disable the `+` button while an add is in flight (new `addingExam` state) to prevent rapid double-clicks racing the reload.
+Build `attemptedIds = new Set(...)` and filter the final `ids` list to exclude any exam already in `attemptedIds`. Re-run this loader after each exam submission so the pool refreshes (call `loadAvailableExamIds()` inside the existing submit/finish handler that writes to `assessment_results`).
 
-### C. Defensive: tighten `handleRemoveExam` similarly
-Same async + toast pattern so removal failures surface, and so the local state doesn't drift from DB. Low-risk parallel cleanup; keep diff small.
+Also reset `nextExamIndex` to 0 whenever the available list shrinks past it (clamp `idx = nextExamIndex % ids.length` already handles wrap, but persist the clamped value).
 
-### D. No DB migration
-The partial unique index is correct and desirable — it's the safety net that surfaced this bug. Keep it.
+### 2. `src/pages/student/AIChat.tsx` — guard `handleStartExamWithSettings`
+If `ids.length === 0` after filtering, short-circuit with a toast: "You've completed every practice exam your professor published. Check Performance for your results." Do not call `consumeNextExamId` or insert anything.
+
+### 3. `src/components/ExamPrepPanel.tsx` — UI copy and disabled state
+- Replace the "you can retake it as often as you like" copy with single-attempt language, e.g. `"1 practice exam available — you can attempt each exam once."` and for the multi-exam case `"${examCount} practice exam${s} remaining — each exam can only be attempted once."`
+- When `examCount === 0`, render a muted state: "All practice exams completed. Review your Performance dashboard." and disable the Start button.
+- Remove the rotation phrasing about "rotates to the next one" — replace with "next up: Exam X" where X is derived from the remaining list.
+
+### 4. No DB migration
+The existing `assessment_results` row already stores `student_id`, `course_id`, `exam_id`, and `assessment_type='exam'` — sufficient to detect prior attempts. No uniqueness constraint added (defense-in-depth could be a follow-up; out of scope).
 
 ## Verification
-1. On course `a8d0f129` (Advanced Generative AI, currently 1 active exam): click `+` five times rapidly.
-   - DB should end up with `Final 1…Final 6` actives, all unique labels, monotonically increasing positions.
-   - UI count should match DB count after each click (after the awaited reload).
-2. Archive `Final 3` then click `+`: new exam should reuse `Final 3` (next free) or pick `Final 7` — whichever `nextAvailableLabel` returns from active labels only. Confirm no 23505.
-3. Simulate failure: temporarily revoke insert via RLS or break network; click `+` → toast appears, no silent failure.
-4. Re-run the existing restore Playwright flow to confirm no regression in `archive`/`restore`.
+- Playwright as student on a course with 2 published exams: Start Exam → complete → confirm panel now shows "1 remaining" and only the un-attempted exam launches. Complete the second → confirm Start is disabled with "All completed" copy.
+- Confirm `assessment_results` rows accumulate as before; mastery still updates on the (single) attempt.
+- Re-loading the page reflects the same disabled state (data-driven, not local state).
 
 ## Out of scope
-- The pre-existing duplicate `position` values from earlier restores (cosmetic; tracked separately).
-- Reordering UI.
+- Teacher-side override to allow resets.
+- DB-level uniqueness constraint on `(student_id, exam_id)`.
+- Changes to weekly quiz retake behavior.
