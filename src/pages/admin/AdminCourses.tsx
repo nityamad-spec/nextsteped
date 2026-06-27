@@ -83,6 +83,10 @@ const AdminCourses = () => {
   const [deleting, setDeleting] = useState(false);
   const [deleteImpact, setDeleteImpact] = useState<typeof impact>(null);
 
+  // Profile dialog state
+  const [profileCourse, setProfileCourse] = useState<CourseRow | null>(null);
+
+
   const loadCourses = async () => {
     const { data: coursesData } = await supabase
       .from("courses")
