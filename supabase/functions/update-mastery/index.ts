@@ -51,6 +51,15 @@ const MASTERY_CONFIG = {
     diagnostic: 0.4, // kept for back-compat; no live caller
   } as Record<string, number>,
   EMA_ALPHA_DEFAULT: 0.4,
+  // Beta-style shrinkage prior: signal is pulled toward 0.5 until enough
+  // questions have accumulated for this concept. shrink_weight = n / (n + K).
+  PRIOR: 0.5,
+  PRIOR_STRENGTH: 8,
+  // Evidence-gated cap on the *displayed* mastery_level. The numeric
+  // mastery_score is unchanged — only the label is clamped.
+  CAP_DEVELOPING_BELOW_ATTEMPTED: 8,
+  CAP_PROFICIENT_BELOW_ATTEMPTED: 15,
+  CAP_PROFICIENT_MIN_SAMPLES: 2,
   // Cognitive depth weights (Bloom 1..6) — mirrors score-diagnostic CONFIG.BLOOM_WEIGHT.
   BLOOM_WEIGHT: { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 } as Record<number, number>,
   LEVEL_BANDS: [
@@ -64,6 +73,10 @@ const MASTERY_CONFIG = {
 
 type LearnerLevel = "beginner" | "developing" | "proficient" | "expert";
 
+const LEVEL_ORDER: Record<LearnerLevel, number> = {
+  beginner: 0, developing: 1, proficient: 2, expert: 3,
+};
+
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
 function bandFor(score: number): LearnerLevel {
@@ -72,6 +85,27 @@ function bandFor(score: number): LearnerLevel {
     if (s < b.max) return b.level as LearnerLevel;
   }
   return "expert";
+}
+
+/** Pull signal toward neutral prior 0.5 based on total questions seen so far. */
+function shrink(signal: number, attemptedSoFar: number): number {
+  const n = Math.max(0, attemptedSoFar);
+  const w = n / (n + MASTERY_CONFIG.PRIOR_STRENGTH);
+  return clamp01(w * signal + (1 - w) * MASTERY_CONFIG.PRIOR);
+}
+
+/** Evidence-gated cap on displayed level. Numeric score is unchanged. */
+function cappedLevel(rawLevel: LearnerLevel, attempted: number, samples: number): LearnerLevel {
+  let cap: LearnerLevel = "expert";
+  if (attempted < MASTERY_CONFIG.CAP_DEVELOPING_BELOW_ATTEMPTED) {
+    cap = "developing";
+  } else if (
+    attempted < MASTERY_CONFIG.CAP_PROFICIENT_BELOW_ATTEMPTED ||
+    samples < MASTERY_CONFIG.CAP_PROFICIENT_MIN_SAMPLES
+  ) {
+    cap = "proficient";
+  }
+  return LEVEL_ORDER[rawLevel] <= LEVEL_ORDER[cap] ? rawLevel : cap;
 }
 
 const PerConceptSchema = z
