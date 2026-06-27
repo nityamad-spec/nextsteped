@@ -35,6 +35,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import CourseProfileDialog from "@/components/admin/CourseProfileDialog";
+
 
 interface CourseRow {
   id: string;
