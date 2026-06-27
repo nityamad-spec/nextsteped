@@ -139,18 +139,19 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       const sid = r.student_id as string;
       if (!enrolledIds.has(sid)) return;
       const total = Number(r.total_questions) || 0;
-      const score = Number(r.score) || 0;
+      // assessment_results.score is stored as a 0–100 percentage, not a raw count
+      const pct = Number(r.score) / 100;
 
       if (r.mode === "daily_quiz" && r.quiz_day != null) {
         quizDaysSeen.add(Number(r.quiz_day));
         quizAttempts += 1;
-        if (total > 0) { quizPctSum += score / total; quizPctN += 1; }
+        if (total > 0) { quizPctSum += pct; quizPctN += 1; }
         const set = quizByStudent.get(sid) || new Set<number>();
         set.add(Number(r.quiz_day));
         quizByStudent.set(sid, set);
       } else if (r.mode === "exam") {
         examAttempts += 1;
-        if (total > 0) { examPctSum += score / total; examPctN += 1; }
+        if (total > 0) { examPctSum += pct; examPctN += 1; }
         if (r.exam_id && activeExamIds.has(r.exam_id as string)) {
           const set = examByStudent.get(sid) || new Set<string>();
           set.add(r.exam_id as string);
@@ -158,6 +159,7 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
         }
       }
     });
+
 
     const quizzesTotal = quizDaysSeen.size;
 
