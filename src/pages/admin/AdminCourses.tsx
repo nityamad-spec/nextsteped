@@ -521,7 +521,14 @@ const AdminCourses = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CourseProfileDialog
+        course={profileCourse}
+        open={!!profileCourse}
+        onOpenChange={(o) => { if (!o) setProfileCourse(null); }}
+      />
     </div>
+
   );
 };
 
