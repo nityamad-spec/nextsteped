@@ -289,12 +289,9 @@ Deno.serve(async (req) => {
     if (r.last_source && r.last_source !== "practice") nonPracticeContributors += 1;
   }
   const courseScore = weightTotal > 0 ? clamp01(weightedSum / weightTotal) : 0;
-  let courseLevel = bandFor(courseScore);
   // Layer 3: practice-only gate — block "expert" at the course level if every
   // contributing concept's most-recent submission was practice.
-  if (courseLevel === "expert" && contributing > 0 && nonPracticeContributors === 0) {
-    courseLevel = "proficient";
-  }
+  const courseLevel = applyPracticeOnlyGate(bandFor(courseScore), contributing, nonPracticeContributors);
 
   if (weightTotal === 0) {
     console.warn("update-mastery: weightTotal is 0 — no contributing concepts", {
