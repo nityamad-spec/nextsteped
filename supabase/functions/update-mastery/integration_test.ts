@@ -86,7 +86,7 @@ async function createFixture(): Promise<Fixture> {
     .insert({
       teacher_id: teacherId,
       name: `IT Mastery ${stamp}`,
-      term: "TEST",
+      term: "First Semester",
       enrollment_code: `EC${stamp.slice(-8).toUpperCase()}`,
       course_code: `IT${stamp.slice(-6).toUpperCase()}`,
     })
