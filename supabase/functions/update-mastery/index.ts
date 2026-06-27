@@ -282,15 +282,24 @@ Deno.serve(async (req) => {
 
   for (const [conceptId, info] of agg) {
     if (info.attempted <= 0) continue;
-    const signal = info.weighted && info.max > 0
+    const rawSignal = info.weighted && info.max > 0
       ? clamp01(info.earned / info.max)
       : clamp01(info.correct / info.attempted);
     const prior = existingMap.get(conceptId);
+    const attemptedAfter = (prior?.questions_attempted ?? 0) + info.attempted;
+    const correctAfter = (prior?.questions_correct ?? 0) + info.correct;
+    const samplesAfter = (prior?.sample_count ?? 0) + 1;
+
+    // Layer 1: Beta-prior shrinkage toward 0.5. As evidence (n) grows,
+    // the signal speaks for itself.
+    const shrunkSignal = shrink(rawSignal, attemptedAfter);
+
     const newScore = !prior || prior.sample_count === 0
-      ? signal
-      : clamp01(alpha * signal + (1 - alpha) * prior.mastery_score);
+      ? shrunkSignal
+      : clamp01(alpha * shrunkSignal + (1 - alpha) * prior.mastery_score);
 
-
+    // Layer 2: evidence-gated cap on displayed level.
+    const displayedLevel = cappedLevel(bandFor(newScore), attemptedAfter, samplesAfter);
 
     conceptUpserts.push({
       student_id: studentId,
@@ -298,10 +307,10 @@ Deno.serve(async (req) => {
       concept_id: conceptId,
       concept_code: info.concept_code,
       mastery_score: Number(newScore.toFixed(4)),
-      mastery_level: bandFor(newScore),
-      questions_attempted: (prior?.questions_attempted ?? 0) + info.attempted,
-      questions_correct: (prior?.questions_correct ?? 0) + info.correct,
-      sample_count: (prior?.sample_count ?? 0) + 1,
+      mastery_level: displayedLevel,
+      questions_attempted: attemptedAfter,
+      questions_correct: correctAfter,
+      sample_count: samplesAfter,
       last_source: body.source,
       last_source_id: body.source_id ?? null,
       last_assessed_at: nowIso,
