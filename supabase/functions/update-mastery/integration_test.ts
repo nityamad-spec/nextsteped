@@ -74,8 +74,8 @@ async function createFixture(): Promise<Fixture> {
   // Ensure profile rows (some installs auto-create; upsert to be safe).
   await admin!.from("profiles").upsert(
     [
-      { id: teacherId, email: teacherEmail, full_name: "T", role: "teacher" },
-      { id: studentId, email: studentEmail, full_name: "S", role: "student" },
+      { id: teacherId, email: teacherEmail, name: "T", role: "teacher" },
+      { id: studentId, email: studentEmail, name: "S", role: "student" },
     ],
     { onConflict: "id" },
   );
@@ -85,7 +85,9 @@ async function createFixture(): Promise<Fixture> {
     .from("courses")
     .insert({
       teacher_id: teacherId,
-      course_name: `IT Mastery ${stamp}`,
+      name: `IT Mastery ${stamp}`,
+      term: "TEST",
+      enrollment_code: `EC${stamp.slice(-8).toUpperCase()}`,
       course_code: `IT${stamp.slice(-6).toUpperCase()}`,
     })
     .select("id")
@@ -104,8 +106,8 @@ async function createFixture(): Promise<Fixture> {
   const { data: concepts, error: kErr } = await admin!
     .from("concepts")
     .insert([
-      { course_id: courseId, concept_code: codeA, concept_name: "A", weight: 50 },
-      { course_id: courseId, concept_code: codeB, concept_name: "B", weight: 50 },
+      { course_id: courseId, concept_code: codeA, weight: 50 },
+      { course_id: courseId, concept_code: codeB, weight: 50 },
     ])
     .select("id, concept_code");
   if (kErr) throw kErr;
