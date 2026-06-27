@@ -330,7 +330,7 @@ Deno.serve(async (req) => {
   // Derive course mastery = weighted avg over ALL concept rows for this student+course
   const { data: allRows, error: allErr } = await admin
     .from("student_concept_mastery")
-    .select("concept_id, mastery_score")
+    .select("concept_id, mastery_score, last_source")
     .eq("student_id", studentId)
     .eq("course_id", body.course_id);
   if (allErr) {
@@ -341,15 +341,22 @@ Deno.serve(async (req) => {
   let weightedSum = 0;
   let weightTotal = 0;
   let contributing = 0;
+  let nonPracticeContributors = 0;
   for (const r of allRows ?? []) {
     const w = byId.get(r.concept_id as string)?.weight ?? 0;
     if (w <= 0) continue;
     weightedSum += Number(r.mastery_score) * w;
     weightTotal += w;
     contributing += 1;
+    if (r.last_source && r.last_source !== "practice") nonPracticeContributors += 1;
   }
   const courseScore = weightTotal > 0 ? clamp01(weightedSum / weightTotal) : 0;
-  const courseLevel = bandFor(courseScore);
+  let courseLevel = bandFor(courseScore);
+  // Layer 3: practice-only gate — block "expert" at the course level if every
+  // contributing concept's most-recent submission was practice.
+  if (courseLevel === "expert" && contributing > 0 && nonPracticeContributors === 0) {
+    courseLevel = "proficient";
+  }
 
   if (weightTotal === 0) {
     console.warn("update-mastery: weightTotal is 0 — no contributing concepts", {
