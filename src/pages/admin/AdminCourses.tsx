@@ -35,6 +35,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import CourseProfileDialog from "@/components/admin/CourseProfileDialog";
+
 
 interface CourseRow {
   id: string;
@@ -80,6 +82,10 @@ const AdminCourses = () => {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteImpact, setDeleteImpact] = useState<typeof impact>(null);
+
+  // Profile dialog state
+  const [profileCourse, setProfileCourse] = useState<CourseRow | null>(null);
+
 
   const loadCourses = async () => {
     const { data: coursesData } = await supabase
@@ -284,7 +290,11 @@ const AdminCourses = () => {
               </TableHeader>
               <TableBody>
                 {courses.map((c) => (
-                  <TableRow key={c.id}>
+                  <TableRow
+                    key={c.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setProfileCourse(c)}
+                  >
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell className="text-muted-foreground">{c.course_code || "—"}</TableCell>
                     <TableCell>{c.teacher_name}</TableCell>
@@ -303,7 +313,7 @@ const AdminCourses = () => {
                         </Badge>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -328,6 +338,7 @@ const AdminCourses = () => {
                     </TableCell>
                   </TableRow>
                 ))}
+
               </TableBody>
             </Table>
           )}
@@ -510,7 +521,14 @@ const AdminCourses = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CourseProfileDialog
+        course={profileCourse}
+        open={!!profileCourse}
+        onOpenChange={(o) => { if (!o) setProfileCourse(null); }}
+      />
     </div>
+
   );
 };
 
