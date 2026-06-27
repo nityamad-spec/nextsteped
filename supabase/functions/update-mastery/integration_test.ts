@@ -106,8 +106,8 @@ async function createFixture(): Promise<Fixture> {
   const { data: concepts, error: kErr } = await admin!
     .from("concepts")
     .insert([
-      { course_id: courseId, concept_code: codeA, weight: 50 },
-      { course_id: courseId, concept_code: codeB, weight: 50 },
+      { course_id: courseId, concept_code: codeA, weight: 0.5 },
+      { course_id: courseId, concept_code: codeB, weight: 0.5 },
     ])
     .select("id, concept_code");
   if (kErr) throw kErr;
