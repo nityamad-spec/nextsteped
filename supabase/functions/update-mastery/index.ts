@@ -30,6 +30,14 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
+import {
+  MASTERY_CONFIG,
+  bandFor,
+  cappedLevel,
+  clamp01,
+  shrink,
+  applyPracticeOnlyGate,
+} from "./mastery.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -37,76 +45,6 @@ const corsHeaders: Record<string, string> = {
     "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-const MASTERY_CONFIG = {
-  // Per-source EMA alpha. The same signal moves a concept's score more when it
-  // comes from a higher-stakes source (exam > weekly_quiz > practice). The
-  // internal signal itself still weights hard, high-Bloom items more via
-  // difficulty * BLOOM_WEIGHT — this only scales how much the blended score
-  // shifts per submission.
-  EMA_ALPHA_BY_SOURCE: {
-    weekly_quiz: 0.4,
-    exam: 0.6,
-    practice: 0.1,
-    diagnostic: 0.4, // kept for back-compat; no live caller
-  } as Record<string, number>,
-  EMA_ALPHA_DEFAULT: 0.4,
-  // Beta-style shrinkage prior: signal is pulled toward 0.5 until enough
-  // questions have accumulated for this concept. shrink_weight = n / (n + K).
-  PRIOR: 0.5,
-  PRIOR_STRENGTH: 8,
-  // Evidence-gated cap on the *displayed* mastery_level. The numeric
-  // mastery_score is unchanged — only the label is clamped.
-  CAP_DEVELOPING_BELOW_ATTEMPTED: 8,
-  CAP_PROFICIENT_BELOW_ATTEMPTED: 15,
-  CAP_PROFICIENT_MIN_SAMPLES: 2,
-  // Cognitive depth weights (Bloom 1..6) — mirrors score-diagnostic CONFIG.BLOOM_WEIGHT.
-  BLOOM_WEIGHT: { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 } as Record<number, number>,
-  LEVEL_BANDS: [
-    { max: 0.25, level: "beginner" },
-    { max: 0.50, level: "developing" },
-    { max: 0.75, level: "proficient" },
-    { max: 1.0001, level: "expert" },
-  ],
-} as const;
-
-
-type LearnerLevel = "beginner" | "developing" | "proficient" | "expert";
-
-const LEVEL_ORDER: Record<LearnerLevel, number> = {
-  beginner: 0, developing: 1, proficient: 2, expert: 3,
-};
-
-const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
-
-function bandFor(score: number): LearnerLevel {
-  const s = clamp01(score);
-  for (const b of MASTERY_CONFIG.LEVEL_BANDS) {
-    if (s < b.max) return b.level as LearnerLevel;
-  }
-  return "expert";
-}
-
-/** Pull signal toward neutral prior 0.5 based on total questions seen so far. */
-function shrink(signal: number, attemptedSoFar: number): number {
-  const n = Math.max(0, attemptedSoFar);
-  const w = n / (n + MASTERY_CONFIG.PRIOR_STRENGTH);
-  return clamp01(w * signal + (1 - w) * MASTERY_CONFIG.PRIOR);
-}
-
-/** Evidence-gated cap on displayed level. Numeric score is unchanged. */
-function cappedLevel(rawLevel: LearnerLevel, attempted: number, samples: number): LearnerLevel {
-  let cap: LearnerLevel = "expert";
-  if (attempted < MASTERY_CONFIG.CAP_DEVELOPING_BELOW_ATTEMPTED) {
-    cap = "developing";
-  } else if (
-    attempted < MASTERY_CONFIG.CAP_PROFICIENT_BELOW_ATTEMPTED ||
-    samples < MASTERY_CONFIG.CAP_PROFICIENT_MIN_SAMPLES
-  ) {
-    cap = "proficient";
-  }
-  return LEVEL_ORDER[rawLevel] <= LEVEL_ORDER[cap] ? rawLevel : cap;
-}
 
 const PerConceptSchema = z
   .object({
@@ -351,12 +289,9 @@ Deno.serve(async (req) => {
     if (r.last_source && r.last_source !== "practice") nonPracticeContributors += 1;
   }
   const courseScore = weightTotal > 0 ? clamp01(weightedSum / weightTotal) : 0;
-  let courseLevel = bandFor(courseScore);
   // Layer 3: practice-only gate — block "expert" at the course level if every
   // contributing concept's most-recent submission was practice.
-  if (courseLevel === "expert" && contributing > 0 && nonPracticeContributors === 0) {
-    courseLevel = "proficient";
-  }
+  const courseLevel = applyPracticeOnlyGate(bandFor(courseScore), contributing, nonPracticeContributors);
 
   if (weightTotal === 0) {
     console.warn("update-mastery: weightTotal is 0 — no contributing concepts", {
