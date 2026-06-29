@@ -258,6 +258,7 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
     const quizDaysSeen = new Set<number>();
     const quizByStudent = new Map<string, Set<number>>();
     const examByStudent = new Map<string, Set<string>>();
+    const activeExamByStudent = new Map<string, Set<string>>();
     let quizPctSum = 0, quizPctN = 0, quizAttempts = 0;
     let examPctSum = 0, examPctN = 0, examAttempts = 0;
 
