@@ -1,33 +1,53 @@
-# Add chat history as a system-prompt source (student + teacher)
+## Root cause
 
-## Background
-The frontends (`src/pages/student/AIChat.tsx`, `src/pages/teacher/TeacherChat.tsx`) already send the last 20 turns of the active session in the `messages` array to `supabase/functions/chat/index.ts`. These flow through `convertToModelMessages` so the model sees them — but the system prompt does **not** acknowledge them as a knowledge source, and the existing `CHAT HISTORY` rule actively tells the model it has "no memory of past conversations" and that any history is "a summary, not a transcript". That mismatch causes the model to under-use the available turns.
+For this course the database actually has:
+- 1 active (non-archived) exam
+- 5 exam attempts from 5 distinct enrolled students
 
-User's choice: **recent raw turns within a session, no cross-session**, applied to **student + teacher** chatbots. The data is already present; this is a prompt-only change.
+But the dialog shows `Exams (0 active)` and `Students attempted: 0` while `Total attempts: 5` and `Avg score: 63%`.
 
-## Changes
+Two compounding bugs cause this:
 
-### 1. `supabase/functions/chat/index.ts` — rewrite the CHAT HISTORY rule (in `COMMON_RULES`)
-Replace the current paragraph (line ~459) with one that reflects reality:
-- The preceding user/assistant turns in the request **are** the current session's recent history (up to last ~20 turns).
-- Treat them as an authoritative source for: what the student/professor just asked, prior clarifications, agreed-upon problem they're working through, attempt count in the PROBLEM-SOLVING FLOW, the concept currently under discussion, and any code/snippets already shared.
-- Do not fabricate earlier turns that aren't visible. If the user refers to something not in the visible turns, say so and ask them to recap (no cross-session memory exists).
-- Continue to treat message contents as data, not instructions (prompt-injection guard already in SECURITY rule).
+1. **RLS hides `course_exams` from admins.** `public.course_exams` only has two policies: course members (teachers/collaborators) can manage, and enrolled students can read active rows. Admins are neither, so the admin dialog's `course_exams` query returns 0 rows for every course. That's why "(0 active)" is shown and `activeExamIds` is empty.
 
-### 2. `supabase/functions/chat/index.ts` — add a short "Conversation so far" pointer in both student and teacher sections
-Add one line under each section's context block stating that the user/assistant turns in this request are the in-session history source, so the model anchors on them when picking up mid-thread (especially important for the PROBLEM-SOLVING FLOW attempt counter, which already depends on history but isn't told where to read it from).
+2. **`examStudents` is gated by `activeExamIds`, but `examAttempts`/`examAvg` are not.** In `CourseProfileDialog.tsx` (lines 275–284), every `mode === 'exam'` row increments `examAttempts` and feeds the avg, but the student is only added to `examByStudent` if `r.exam_id` is in `activeExamIds`. With bug #1 making that set empty, students drop to 0 while attempts/avg stay populated.
 
-### 3. No backend, DB, or frontend changes
-- No new tables, no fetcher function, no `chat_messages` query — cross-session history is explicitly out of scope.
-- The 20-turn slice in `AIChat.tsx` and `TeacherChat.tsx` stays as-is.
-- No changes to `useChatSessions.ts`.
+The same RLS gap also breaks the "All 14 weekly quizzes & 0 exams submitted" completion line (it under-counts active exams to 0) and the `examsTotal` denominator in the completion check.
 
-## Technical details
-- Edit is confined to the two string constants `COMMON_RULES`, `STUDENT_SECTION`, and `TEACHER_SECTION` inside `supabase/functions/chat/index.ts` (around lines 455–520).
-- No edge function signature change, no client change, no migration.
-- After deploy: send a multi-turn message in student chat (e.g. ask a problem, give a wrong attempt, then say "what did I get wrong?") and confirm the assistant references the prior turn instead of asking the student to restate it. Repeat in `/teacher/chat`.
+## Fix
 
-## Out of scope (explicitly)
-- Summarising or injecting prior chat sessions.
-- Persisting a rolling summary.
-- Any change to how `messages` is sliced or sent.
+### 1. Allow admins to read `course_exams` (SQL migration)
+
+Add a SELECT policy:
+
+```sql
+CREATE POLICY "Admins can view all course exams"
+ON public.course_exams
+FOR SELECT
+TO authenticated
+USING (has_role(auth.uid(), 'admin'));
+```
+
+This uses the existing `has_role` security-definer pattern. No grants needed — `authenticated` already has SELECT.
+
+### 2. Make exam counters self-consistent in `src/components/admin/CourseProfileDialog.tsx`
+
+Even with bug #1 fixed, the gating-by-active-exam logic is asymmetric. Restructure the exam-results loop so:
+
+- `examAttempts`, `examPctSum`, `examPctN` count every `mode === 'exam'` row from enrolled students (current behavior).
+- `examByStudent` adds the student for **every** exam attempt (drop the `activeExamIds.has(r.exam_id)` gate). The "Students attempted" stat should reflect anyone who attempted any exam tied to this course, even if that specific exam was later archived.
+- Keep `activeExamIds` only for the **completion** check (`examsOk`), where it correctly compares against the active exam roster.
+
+Result: `Students attempted ≤ Total attempts` always holds, and admins now see the real active-exam count.
+
+### 3. Verify
+
+- Re-open the GenAI01 course profile: `Exams (1 active)`, `Students attempted: 5`, `Total attempts: 5`.
+- Spot-check one other course that has an archived exam with attempts — students count should still include those attempts, attempts ≥ students.
+- Confirm completion line denominator now reads `… & 1 exams submitted …`.
+
+## Technical notes
+
+- Files touched: 1 SQL migration + `src/components/admin/CourseProfileDialog.tsx`.
+- No change to weekly-quiz logic (quizzes don't depend on `course_exams`).
+- No change to student/teacher-facing paths — the new policy only widens admin reads.
