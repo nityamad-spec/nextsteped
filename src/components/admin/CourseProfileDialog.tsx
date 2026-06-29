@@ -280,6 +280,11 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
         const set = examByStudent.get(r.student_id) || new Set<string>();
         set.add(key);
         examByStudent.set(r.student_id, set);
+        if (r.exam_id && activeExamIds.has(r.exam_id)) {
+          const aset = activeExamByStudent.get(r.student_id) || new Set<string>();
+          aset.add(r.exam_id);
+          activeExamByStudent.set(r.student_id, aset);
+        }
       }
     });
 
