@@ -296,7 +296,7 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       const level = (m?.level || "").toLowerCase();
       const masteryOk = level === "proficient" || level === "expert";
       const quizzesOk = quizzesTotal > 0 && (quizByStudent.get(sid)?.size || 0) >= quizzesTotal;
-      const examsOk = examsTotal === 0 || (examByStudent.get(sid)?.size || 0) >= examsTotal;
+      const examsOk = examsTotal === 0 || (activeExamByStudent.get(sid)?.size || 0) >= examsTotal;
       if (masteryOk && quizzesOk && examsOk) completed += 1;
     });
 
