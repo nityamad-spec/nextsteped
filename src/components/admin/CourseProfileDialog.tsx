@@ -258,6 +258,7 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
     const quizDaysSeen = new Set<number>();
     const quizByStudent = new Map<string, Set<number>>();
     const examByStudent = new Map<string, Set<string>>();
+    const activeExamByStudent = new Map<string, Set<string>>();
     let quizPctSum = 0, quizPctN = 0, quizAttempts = 0;
     let examPctSum = 0, examPctN = 0, examAttempts = 0;
 
@@ -275,10 +276,14 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       } else if (r.mode === "exam") {
         examAttempts += 1;
         if (total > 0) { examPctSum += pct; examPctN += 1; }
+        const key = r.exam_id || "__no_exam__";
+        const set = examByStudent.get(r.student_id) || new Set<string>();
+        set.add(key);
+        examByStudent.set(r.student_id, set);
         if (r.exam_id && activeExamIds.has(r.exam_id)) {
-          const set = examByStudent.get(r.student_id) || new Set<string>();
-          set.add(r.exam_id);
-          examByStudent.set(r.student_id, set);
+          const aset = activeExamByStudent.get(r.student_id) || new Set<string>();
+          aset.add(r.exam_id);
+          activeExamByStudent.set(r.student_id, aset);
         }
       }
     });
@@ -291,7 +296,7 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       const level = (m?.level || "").toLowerCase();
       const masteryOk = level === "proficient" || level === "expert";
       const quizzesOk = quizzesTotal > 0 && (quizByStudent.get(sid)?.size || 0) >= quizzesTotal;
-      const examsOk = examsTotal === 0 || (examByStudent.get(sid)?.size || 0) >= examsTotal;
+      const examsOk = examsTotal === 0 || (activeExamByStudent.get(sid)?.size || 0) >= examsTotal;
       if (masteryOk && quizzesOk && examsOk) completed += 1;
     });
 
