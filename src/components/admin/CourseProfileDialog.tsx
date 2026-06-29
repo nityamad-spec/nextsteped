@@ -275,11 +275,10 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       } else if (r.mode === "exam") {
         examAttempts += 1;
         if (total > 0) { examPctSum += pct; examPctN += 1; }
-        if (r.exam_id && activeExamIds.has(r.exam_id)) {
-          const set = examByStudent.get(r.student_id) || new Set<string>();
-          set.add(r.exam_id);
-          examByStudent.set(r.student_id, set);
-        }
+        const key = r.exam_id || "__no_exam__";
+        const set = examByStudent.get(r.student_id) || new Set<string>();
+        set.add(key);
+        examByStudent.set(r.student_id, set);
       }
     });
 
