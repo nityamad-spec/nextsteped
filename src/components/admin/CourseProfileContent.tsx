@@ -430,6 +430,17 @@ const CourseProfileContent = ({ courseId, courseName, variant = "dialog" }: Prop
                 ))}
               </SelectContent>
             </Select>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 ml-auto text-xs"
+              onClick={handleRefresh}
+              disabled={refreshing || !courseId}
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", refreshing && "animate-spin")} />
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </Button>
             {uniOptions.length === 0 && (
               <span className="text-muted-foreground italic">No university data on roster</span>
             )}
