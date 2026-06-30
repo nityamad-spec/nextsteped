@@ -84,7 +84,7 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
   const [loading, setLoading] = useState(false);
   const [raw, setRaw] = useState<RawData | null>(null);
   const [universityFilter, setUniversityFilter] = useState<string>(ALL);
-  const [rosterView, setRosterView] = useState<"done" | "pending" | null>(null);
+  const [rosterView, setRosterView] = useState<"done" | "pending" | "completed" | "not-completed" | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (courseId: string, showSkeleton: boolean) => {
