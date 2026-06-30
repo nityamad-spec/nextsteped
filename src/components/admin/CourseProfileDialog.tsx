@@ -30,6 +30,8 @@ interface Stats {
   enrolled: number;
   diagnosticSubmitted: number;
   diagnosticAvg: number | null;
+  diagnosticDoneStudents: StudentLite[];
+  diagnosticPendingStudents: StudentLite[];
   masteryBands: { beginner: number; developing: number; proficient: number; expert: number; none: number };
   masteryAvgPct: number | null;
   completed: number;
@@ -47,7 +49,7 @@ interface Stats {
 
 interface RawData {
   enrollments: { student_id: string }[];
-  profiles: { id: string; university_id: string | null }[];
+  profiles: { id: string; university_id: string | null; name: string | null; email: string | null }[];
   universities: { id: string; name: string }[];
   diagnostics: { student_id: string; score: number | null; total_questions: number | null }[];
   mastery: { student_id: string; mastery_score: number | null; learner_level: string | null }[];
@@ -56,6 +58,8 @@ interface RawData {
   chatSessions: { id: string; user_id: string }[];
   chatMessageSessionIds: string[];
 }
+
+interface StudentLite { id: string; name: string | null; email: string | null }
 
 const BAND_KEYS = ["beginner", "developing", "proficient", "expert"] as const;
 const BAND_COLORS: Record<typeof BAND_KEYS[number], string> = {
@@ -78,6 +82,7 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
   const [loading, setLoading] = useState(false);
   const [raw, setRaw] = useState<RawData | null>(null);
   const [universityFilter, setUniversityFilter] = useState<string>(ALL);
+  const [rosterView, setRosterView] = useState<"done" | "pending" | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (courseId: string, showSkeleton: boolean) => {
@@ -99,14 +104,14 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
     const studentIds = Array.from(new Set(enrollments.map(e => e.student_id)));
 
     // Profiles + universities for enrolled students
-    let profiles: { id: string; university_id: string | null }[] = [];
+    let profiles: RawData["profiles"] = [];
     let universities: { id: string; name: string }[] = [];
     if (studentIds.length > 0) {
       const profRes = await supabase
         .from("profiles")
-        .select("id, university_id")
+        .select("id, university_id, name, email")
         .in("id", studentIds);
-      profiles = (profRes.data || []) as { id: string; university_id: string | null }[];
+      profiles = (profRes.data || []) as RawData["profiles"];
       const uniIds = Array.from(new Set(profiles.map(p => p.university_id).filter((v): v is string => !!v)));
       if (uniIds.length > 0) {
         const uniRes = await supabase.from("universities").select("id, name").in("id", uniIds);
@@ -231,6 +236,22 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       if (total > 0) { diagPctSum += score / total; diagPctN += 1; }
     });
 
+    const profById = new Map(raw.profiles.map(p => [p.id, p]));
+    const toLite = (sid: string): StudentLite => {
+      const p = profById.get(sid);
+      return { id: sid, name: p?.name ?? null, email: p?.email ?? null };
+    };
+    const sortLite = (a: StudentLite, b: StudentLite) =>
+      (a.name || a.email || "").localeCompare(b.name || b.email || "");
+    const diagnosticDoneStudents: StudentLite[] = [];
+    const diagnosticPendingStudents: StudentLite[] = [];
+    enrolledIds.forEach(sid => {
+      (diagStudents.has(sid) ? diagnosticDoneStudents : diagnosticPendingStudents).push(toLite(sid));
+    });
+    diagnosticDoneStudents.sort(sortLite);
+    diagnosticPendingStudents.sort(sortLite);
+
+
     // Mastery
     const bands = { beginner: 0, developing: 0, proficient: 0, expert: 0, none: 0 };
     const masteryByStudent = new Map<string, { score: number | null; level: string | null }>();
@@ -318,6 +339,8 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       enrolled,
       diagnosticSubmitted: diagStudents.size,
       diagnosticAvg: diagPctN > 0 ? diagPctSum / diagPctN : null,
+      diagnosticDoneStudents,
+      diagnosticPendingStudents,
       masteryBands: bands,
       masteryAvgPct: masteryN > 0 ? masterySum / masteryN : null,
       completed,
@@ -403,12 +426,18 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <Users className="h-4 w-4" /> Enrollment & Diagnostic
                 </div>
-                <div className="grid grid-cols-3 gap-3 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <Stat label="Enrolled" value={stats.enrolled} />
                   <Stat
                     label="Diagnostic done"
                     value={`${stats.diagnosticSubmitted}/${stats.enrolled}`}
                     sub={`${pctOf(stats.diagnosticSubmitted)}%`}
+                    onClick={stats.diagnosticDoneStudents.length > 0 ? () => setRosterView("done") : undefined}
+                  />
+                  <Stat
+                    label="Pending diagnostic"
+                    value={stats.diagnosticPendingStudents.length}
+                    onClick={stats.diagnosticPendingStudents.length > 0 ? () => setRosterView("pending") : undefined}
                   />
                   <Stat label="Avg diagnostic" value={fmtPct(stats.diagnosticAvg)} />
                 </div>
@@ -504,18 +533,66 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
           )}
         </ScrollArea>
       </DialogContent>
+
+      <Dialog open={!!rosterView} onOpenChange={(o) => { if (!o) setRosterView(null); }}>
+        <DialogContent className="max-w-md max-h-[75vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              {rosterView === "done" ? "Diagnostic done" : "Pending diagnostic"}
+              {course?.name ? ` — ${course.name}` : ""}
+            </DialogTitle>
+            <DialogDescription>
+              {rosterView === "done"
+                ? `${stats?.diagnosticDoneStudents.length ?? 0} students submitted the diagnostic.`
+                : `${stats?.diagnosticPendingStudents.length ?? 0} enrolled students have not submitted yet.`}
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="flex-1 min-h-0 -mx-6 px-6 [&>[data-radix-scroll-area-viewport]]:max-h-[55vh]">
+            {(() => {
+              const list = rosterView === "done" ? stats?.diagnosticDoneStudents : stats?.diagnosticPendingStudents;
+              if (!list || list.length === 0) {
+                return <p className="text-sm text-muted-foreground py-6 text-center">No students.</p>;
+              }
+              return (
+                <ul className="divide-y divide-border">
+                  {list.map(s => (
+                    <li key={s.id} className="py-2">
+                      <div className="text-sm font-medium text-foreground">{s.name || "(no name)"}</div>
+                      <div className="text-xs text-muted-foreground">{s.email || "(no email)"}</div>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 };
 
-const Stat = ({ label, value, sub }: { label: string; value: number | string; sub?: string }) => (
-  <div>
-    <div className="text-muted-foreground mb-0.5">{label}</div>
-    <div className="font-semibold text-foreground tabular-nums">
-      {value}
-      {sub && <span className="ml-1 text-xs font-normal text-muted-foreground">· {sub}</span>}
-    </div>
-  </div>
-);
+const Stat = ({ label, value, sub, onClick }: { label: string; value: number | string; sub?: string; onClick?: () => void }) => {
+  const inner = (
+    <>
+      <div className="text-muted-foreground mb-0.5">{label}</div>
+      <div className="font-semibold text-foreground tabular-nums">
+        {value}
+        {sub && <span className="ml-1 text-xs font-normal text-muted-foreground">· {sub}</span>}
+      </div>
+    </>
+  );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="text-left rounded-md -mx-1 px-1 py-0.5 hover:bg-muted/60 hover:underline underline-offset-2 transition-colors"
+      >
+        {inner}
+      </button>
+    );
+  }
+  return <div>{inner}</div>;
+};
 
 export default CourseProfileDialog;
