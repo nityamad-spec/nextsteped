@@ -41,6 +41,9 @@ interface Stats {
   quizStudents: number;
   quizAvg: number | null;
   quizzesTotal: number;
+  quizCompletedAll: StudentLite[];
+  quizPartial: (StudentLite & { done: number; remaining: number })[];
+  quizNotStarted: StudentLite[];
   examAttempts: number;
   examStudents: number;
   examAvg: number | null;
@@ -84,7 +87,8 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
   const [loading, setLoading] = useState(false);
   const [raw, setRaw] = useState<RawData | null>(null);
   const [universityFilter, setUniversityFilter] = useState<string>(ALL);
-  const [rosterView, setRosterView] = useState<"done" | "pending" | "completed" | "not-completed" | null>(null);
+  type RosterView = "done" | "pending" | "completed" | "not-completed" | "quiz-completed" | "quiz-partial" | "quiz-not-started";
+  const [rosterView, setRosterView] = useState<RosterView | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (courseId: string, showSkeleton: boolean) => {
@@ -328,6 +332,21 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
     completedStudents.sort(sortLite);
     notCompletedStudents.sort(sortLite);
 
+    // Weekly quiz progress breakdown
+    const quizCompletedAll: StudentLite[] = [];
+    const quizPartial: (StudentLite & { done: number; remaining: number })[] = [];
+    const quizNotStarted: StudentLite[] = [];
+    enrolledIds.forEach(sid => {
+      const done = quizByStudent.get(sid)?.size ?? 0;
+      if (quizzesTotal > 0 && done >= quizzesTotal) quizCompletedAll.push(toLite(sid));
+      else if (done >= 1 && done < quizzesTotal) quizPartial.push({ ...toLite(sid), done, remaining: quizzesTotal - done });
+      else quizNotStarted.push(toLite(sid));
+    });
+    quizCompletedAll.sort(sortLite);
+    quizPartial.sort(sortLite);
+    quizNotStarted.sort(sortLite);
+
+
     // Chat
     const chatStudents = new Set<string>();
     const allowedSessionIds = new Set<string>();
@@ -357,6 +376,9 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       quizStudents: quizByStudent.size,
       quizAvg: quizPctN > 0 ? quizPctSum / quizPctN : null,
       quizzesTotal,
+      quizCompletedAll,
+      quizPartial,
+      quizNotStarted,
       examAttempts,
       examStudents: examByStudent.size,
       examAvg: examPctN > 0 ? examPctSum / examPctN : null,
@@ -525,9 +547,27 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="rounded-md border bg-background p-2.5 space-y-1">
-                    <div className="font-medium">Weekly quizzes</div>
-                    <div className="text-muted-foreground">Students attempted: <span className="text-foreground tabular-nums">{stats.quizStudents}</span></div>
-                    <div className="text-muted-foreground">Total attempts: <span className="text-foreground tabular-nums">{stats.quizAttempts}</span></div>
+                    <div className="font-medium">Weekly quizzes <span className="text-muted-foreground font-normal">({stats.quizzesTotal} total)</span></div>
+                    {stats.quizzesTotal > 0 && (
+                      <>
+                        <QuizRow
+                          label={`Completed all ${stats.quizzesTotal}`}
+                          count={stats.quizCompletedAll.length}
+                          onClick={stats.quizCompletedAll.length > 0 ? () => setRosterView("quiz-completed") : undefined}
+                        />
+                        <QuizRow
+                          label={`Partially done (1–${stats.quizzesTotal - 1})`}
+                          count={stats.quizPartial.length}
+                          onClick={stats.quizPartial.length > 0 ? () => setRosterView("quiz-partial") : undefined}
+                        />
+                      </>
+                    )}
+                    <QuizRow
+                      label="Not started (0)"
+                      count={stats.quizNotStarted.length}
+                      onClick={stats.quizNotStarted.length > 0 ? () => setRosterView("quiz-not-started") : undefined}
+                    />
+                    <div className="text-muted-foreground pt-1">Total attempts: <span className="text-foreground tabular-nums">{stats.quizAttempts}</span></div>
                     <div className="text-muted-foreground">Avg score: <span className="text-foreground tabular-nums">{fmtPct(stats.quizAvg)}</span></div>
                   </div>
                   <div className="rounded-md border bg-background p-2.5 space-y-1">
@@ -559,14 +599,19 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       <Dialog open={!!rosterView} onOpenChange={(o) => { if (!o) setRosterView(null); }}>
         <DialogContent className="max-w-md max-h-[75vh] flex flex-col">
           {(() => {
-            const cfg = {
-              "done": { title: "Diagnostic done", list: stats?.diagnosticDoneStudents, desc: (n: number) => `${n} students submitted the diagnostic.` },
-              "pending": { title: "Pending diagnostic", list: stats?.diagnosticPendingStudents, desc: (n: number) => `${n} enrolled students have not submitted yet.` },
-              "completed": { title: "Completed course", list: stats?.completedStudents, desc: (n: number) => `${n} students completed all quizzes & exams with mastery ≥ Proficient.` },
-              "not-completed": { title: "Not completed", list: stats?.notCompletedStudents, desc: (n: number) => `${n} enrolled students have not completed the course.` },
-            } as const;
+            const qt = stats?.quizzesTotal ?? 0;
+            const cfg: Record<RosterView, { title: string; list: ReadonlyArray<StudentLite & { done?: number; remaining?: number }>; desc: (n: number) => string }> = {
+              "done": { title: "Diagnostic done", list: stats?.diagnosticDoneStudents ?? [], desc: (n) => `${n} students submitted the diagnostic.` },
+              "pending": { title: "Pending diagnostic", list: stats?.diagnosticPendingStudents ?? [], desc: (n) => `${n} enrolled students have not submitted yet.` },
+              "completed": { title: "Completed course", list: stats?.completedStudents ?? [], desc: (n) => `${n} students completed all quizzes & exams with mastery ≥ Proficient.` },
+              "not-completed": { title: "Not completed", list: stats?.notCompletedStudents ?? [], desc: (n) => `${n} enrolled students have not completed the course.` },
+              "quiz-completed": { title: `Completed all ${qt} weekly quizzes`, list: stats?.quizCompletedAll ?? [], desc: (n) => `${n} students submitted every weekly quiz.` },
+              "quiz-partial": { title: `Partially done (1–${Math.max(qt - 1, 0)} quizzes)`, list: stats?.quizPartial ?? [], desc: (n) => `${n} students started but have not finished all ${qt} weekly quizzes.` },
+              "quiz-not-started": { title: "Not started weekly quizzes", list: stats?.quizNotStarted ?? [], desc: (n) => `${n} enrolled students have not submitted any weekly quiz.` },
+            };
             const c = rosterView ? cfg[rosterView] : null;
             const list = c?.list ?? [];
+            const isPartial = rosterView === "quiz-partial";
             return (
               <>
                 <DialogHeader>
@@ -583,7 +628,14 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
                     <ul className="divide-y divide-border">
                       {list.map(s => (
                         <li key={s.id} className="py-2">
-                          <div className="text-sm font-medium text-foreground">{s.name || "(no name)"}</div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div className="text-sm font-medium text-foreground">{s.name || "(no name)"}</div>
+                            {isPartial && s.done != null && (
+                              <div className="text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
+                                {s.done} of {qt} done · {s.remaining} left
+                              </div>
+                            )}
+                          </div>
                           <div className="text-xs text-muted-foreground">{s.email || "(no email)"}</div>
                         </li>
                       ))}
@@ -595,6 +647,7 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
           })()}
         </DialogContent>
       </Dialog>
+
 
     </Dialog>
   );
@@ -622,6 +675,27 @@ const Stat = ({ label, value, sub, onClick }: { label: string; value: number | s
     );
   }
   return <div>{inner}</div>;
+};
+
+const QuizRow = ({ label, count, onClick }: { label: string; count: number; onClick?: () => void }) => {
+  const content = (
+    <div className="flex items-center justify-between gap-2 w-full">
+      <span className="text-muted-foreground">{label}:</span>
+      <span className="text-foreground tabular-nums font-medium">{count}</span>
+    </div>
+  );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="w-full rounded-sm -mx-1 px-1 py-0.5 hover:bg-muted/60 hover:underline underline-offset-2 transition-colors text-left"
+      >
+        {content}
+      </button>
+    );
+  }
+  return content;
 };
 
 export default CourseProfileDialog;
