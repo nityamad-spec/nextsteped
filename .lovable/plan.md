@@ -1,21 +1,31 @@
-## Update Exams stat in Course Profile dialog
+## Add "Course Analytics" tab to teacher sidebar
 
-In `src/components/admin/CourseProfileDialog.tsx`, replace the "Students attempted" and "Total attempts" rows in the Exams card with two clickable rows mirroring the weekly quizzes pattern.
+### 1. Sidebar nav (`src/layouts/TeacherLayout.tsx`)
+- Add new item to `teacherNav` directly below "Course Dashboard":
+  - title: `"Course Analytics"`, path: `/teacher/courses/analytics`, icon: `BarChart3` (from lucide-react).
+- Gated by setup completion like other non-setup links (no `alwaysUnlocked`).
 
-### Logic
-- Determine active exams: existing `courseExams` list (non-archived) for the course.
-- For each enrolled student (after university filter), count distinct active exams they have submitted in `assessment_results` (mode = exam/final/midterm as already mapped).
-- `examCompletedAll`: students whose submitted-exam count equals total active exams (and total active exams > 0).
-- `examNotCompleted`: all other enrolled students (including zero attempts).
+### 2. New page `src/pages/teacher/CourseAnalytics.tsx`
+- Resolve current course via `useTeacherCourseId()`.
+- Render the same analytics surface as the admin Course Profile dialog, scoped to that course, as a full page (no Dialog wrapper):
+  - Enrollment / diagnostic done & pending (clickable lists with names+emails)
+  - Mastery distribution bars (Beginner / Developing / Proficient / Expert)
+  - Course completion: Completed / Not completed (clickable lists)
+  - Assessment activity:
+    - Weekly quizzes: Completed all N / Partially done (with "X of N done · Y left") / Not started
+    - Exams: Completed all N / Not completed, plus Avg score
+  - Chat engagement summary
+- Include the **university filter dropdown** (only universities with enrolled students in this course), re-deriving all metrics client-side via the same memo logic.
 
-### UI
-- Row 1: "Completed all N exams: X" (clickable → student list)
-- Row 2: "Not completed: Y" (clickable → student list)
-- If there are zero active exams, show a muted "No active exams" line and skip clickable rows.
-- Keep the existing "Avg score" line as-is.
+### 3. Refactor for reuse (`src/components/admin/CourseProfileDialog.tsx`)
+- Extract the body of `CourseProfileDialog` into a new presentational component `src/components/admin/CourseProfileContent.tsx` that accepts `{ courseId, courseName }` and renders the analytics + sub-dialogs (no outer `Dialog`).
+- `CourseProfileDialog` becomes a thin wrapper: `<Dialog><DialogContent><CourseProfileContent .../></DialogContent></Dialog>` — admin behavior unchanged.
+- `CourseAnalytics.tsx` renders `<CourseProfileContent courseId={...} courseName={...} />` inside a normal page layout (title + container).
 
-### Sub-dialog
-Extend the existing roster sub-dialog mode union with `exam-completed` and `exam-not-completed`. Reuse the same name+email list rendering; sort alphabetically; respect the active university filter.
+### 4. Routing (`src/App.tsx`)
+- Add `<Route path="/teacher/courses/analytics" element={<CourseAnalytics />} />` inside the existing teacher `TeacherLayout` route block (so it inherits ProtectedRoute + RoleGuard + layout).
 
-### Out of scope
-No backend / schema changes. No changes to quiz section or other tiles.
+### Technical notes
+- No backend / RLS changes needed: teachers already read `enrollments`, `assessment_results`, `course_exams`, `concept_mastery`, `course_mastery`, `profiles` for their own course. If any query 403s under teacher RLS during smoke test, fix by narrowing the select or adjusting the policy in a follow-up.
+- No schema changes. No memory updates.
+- Out of scope: mobile bottom-nav already maps from `teacherNav`, so the new tab appears there automatically with no extra work.
