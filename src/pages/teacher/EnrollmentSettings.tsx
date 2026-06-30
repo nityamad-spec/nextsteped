@@ -64,6 +64,8 @@ const EnrollmentSettings = () => {
   const [enforcement, setEnforcement] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [manualEmails, setManualEmails] = useState("");
+  const [adding, setAdding] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const effectiveCourseId = currentCourse?.id || courseId;
