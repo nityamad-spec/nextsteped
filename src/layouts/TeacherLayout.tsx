@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
-import { BookOpen, HelpCircle, Library, MessageSquare, ListChecks, Lock } from "lucide-react";
+import { BookOpen, HelpCircle, Library, MessageSquare, ListChecks, Lock, BarChart3 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
