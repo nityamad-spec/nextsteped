@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Calendar, UserPlus, Upload, Copy, ArrowLeft, Trash2, Download, AlertTriangle } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
