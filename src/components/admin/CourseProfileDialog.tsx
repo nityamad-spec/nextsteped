@@ -314,14 +314,19 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
     const quizzesTotal = quizDaysSeen.size;
 
     let completed = 0;
+    const completedStudents: StudentLite[] = [];
+    const notCompletedStudents: StudentLite[] = [];
     enrolledIds.forEach(sid => {
       const m = masteryByStudent.get(sid);
       const level = (m?.level || "").toLowerCase();
       const masteryOk = level === "proficient" || level === "expert";
       const quizzesOk = quizzesTotal > 0 && (quizByStudent.get(sid)?.size || 0) >= quizzesTotal;
       const examsOk = examsTotal === 0 || (activeExamByStudent.get(sid)?.size || 0) >= examsTotal;
-      if (masteryOk && quizzesOk && examsOk) completed += 1;
+      if (masteryOk && quizzesOk && examsOk) { completed += 1; completedStudents.push(toLite(sid)); }
+      else notCompletedStudents.push(toLite(sid));
     });
+    completedStudents.sort(sortLite);
+    notCompletedStudents.sort(sortLite);
 
     // Chat
     const chatStudents = new Set<string>();
