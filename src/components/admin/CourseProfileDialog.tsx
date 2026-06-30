@@ -338,6 +338,8 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       enrolled,
       diagnosticSubmitted: diagStudents.size,
       diagnosticAvg: diagPctN > 0 ? diagPctSum / diagPctN : null,
+      diagnosticDoneStudents,
+      diagnosticPendingStudents,
       masteryBands: bands,
       masteryAvgPct: masteryN > 0 ? masterySum / masteryN : null,
       completed,
