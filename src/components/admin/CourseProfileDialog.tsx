@@ -348,6 +348,19 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
     quizPartial.sort(sortLite);
     quizNotStarted.sort(sortLite);
 
+    // Exam completion breakdown (all active exams submitted)
+    const examCompletedAll: StudentLite[] = [];
+    const examNotCompleted: StudentLite[] = [];
+    if (examsTotal > 0) {
+      enrolledIds.forEach(sid => {
+        const done = activeExamByStudent.get(sid)?.size ?? 0;
+        if (done >= examsTotal) examCompletedAll.push(toLite(sid));
+        else examNotCompleted.push(toLite(sid));
+      });
+      examCompletedAll.sort(sortLite);
+      examNotCompleted.sort(sortLite);
+    }
+
 
     // Chat
     const chatStudents = new Set<string>();
