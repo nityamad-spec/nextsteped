@@ -89,7 +89,7 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
   const [loading, setLoading] = useState(false);
   const [raw, setRaw] = useState<RawData | null>(null);
   const [universityFilter, setUniversityFilter] = useState<string>(ALL);
-  type RosterView = "done" | "pending" | "completed" | "not-completed" | "quiz-completed" | "quiz-partial" | "quiz-not-started";
+  type RosterView = "done" | "pending" | "completed" | "not-completed" | "quiz-completed" | "quiz-partial" | "quiz-not-started" | "exam-completed" | "exam-not-completed";
   const [rosterView, setRosterView] = useState<RosterView | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
