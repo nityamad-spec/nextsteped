@@ -30,6 +30,8 @@ interface Stats {
   enrolled: number;
   diagnosticSubmitted: number;
   diagnosticAvg: number | null;
+  diagnosticDoneStudents: StudentLite[];
+  diagnosticPendingStudents: StudentLite[];
   masteryBands: { beginner: number; developing: number; proficient: number; expert: number; none: number };
   masteryAvgPct: number | null;
   completed: number;
