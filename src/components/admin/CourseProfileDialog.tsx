@@ -558,37 +558,44 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
 
       <Dialog open={!!rosterView} onOpenChange={(o) => { if (!o) setRosterView(null); }}>
         <DialogContent className="max-w-md max-h-[75vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>
-              {rosterView === "done" ? "Diagnostic done" : "Pending diagnostic"}
-              {course?.name ? ` — ${course.name}` : ""}
-            </DialogTitle>
-            <DialogDescription>
-              {rosterView === "done"
-                ? `${stats?.diagnosticDoneStudents.length ?? 0} students submitted the diagnostic.`
-                : `${stats?.diagnosticPendingStudents.length ?? 0} enrolled students have not submitted yet.`}
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="flex-1 min-h-0 -mx-6 px-6 [&>[data-radix-scroll-area-viewport]]:max-h-[55vh]">
-            {(() => {
-              const list = rosterView === "done" ? stats?.diagnosticDoneStudents : stats?.diagnosticPendingStudents;
-              if (!list || list.length === 0) {
-                return <p className="text-sm text-muted-foreground py-6 text-center">No students.</p>;
-              }
-              return (
-                <ul className="divide-y divide-border">
-                  {list.map(s => (
-                    <li key={s.id} className="py-2">
-                      <div className="text-sm font-medium text-foreground">{s.name || "(no name)"}</div>
-                      <div className="text-xs text-muted-foreground">{s.email || "(no email)"}</div>
-                    </li>
-                  ))}
-                </ul>
-              );
-            })()}
-          </ScrollArea>
+          {(() => {
+            const cfg = {
+              "done": { title: "Diagnostic done", list: stats?.diagnosticDoneStudents, desc: (n: number) => `${n} students submitted the diagnostic.` },
+              "pending": { title: "Pending diagnostic", list: stats?.diagnosticPendingStudents, desc: (n: number) => `${n} enrolled students have not submitted yet.` },
+              "completed": { title: "Completed course", list: stats?.completedStudents, desc: (n: number) => `${n} students completed all quizzes & exams with mastery ≥ Proficient.` },
+              "not-completed": { title: "Not completed", list: stats?.notCompletedStudents, desc: (n: number) => `${n} enrolled students have not completed the course.` },
+            } as const;
+            const c = rosterView ? cfg[rosterView] : null;
+            const list = c?.list ?? [];
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>
+                    {c?.title}
+                    {course?.name ? ` — ${course.name}` : ""}
+                  </DialogTitle>
+                  <DialogDescription>{c?.desc(list.length)}</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="flex-1 min-h-0 -mx-6 px-6 [&>[data-radix-scroll-area-viewport]]:max-h-[55vh]">
+                  {list.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-6 text-center">No students.</p>
+                  ) : (
+                    <ul className="divide-y divide-border">
+                      {list.map(s => (
+                        <li key={s.id} className="py-2">
+                          <div className="text-sm font-medium text-foreground">{s.name || "(no name)"}</div>
+                          <div className="text-xs text-muted-foreground">{s.email || "(no email)"}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </ScrollArea>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
+
     </Dialog>
   );
 };
