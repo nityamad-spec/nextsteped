@@ -640,6 +640,8 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
               "quiz-completed": { title: `Completed all ${qt} weekly quizzes`, list: stats?.quizCompletedAll ?? [], desc: (n) => `${n} students submitted every weekly quiz.` },
               "quiz-partial": { title: `Partially done (1–${Math.max(qt - 1, 0)} quizzes)`, list: stats?.quizPartial ?? [], desc: (n) => `${n} students started but have not finished all ${qt} weekly quizzes.` },
               "quiz-not-started": { title: "Not started weekly quizzes", list: stats?.quizNotStarted ?? [], desc: (n) => `${n} enrolled students have not submitted any weekly quiz.` },
+              "exam-completed": { title: `Completed all ${stats?.examsTotal ?? 0} exam${(stats?.examsTotal ?? 0) === 1 ? "" : "s"}`, list: stats?.examCompletedAll ?? [], desc: (n) => `${n} students submitted every active exam.` },
+              "exam-not-completed": { title: "Exams not completed", list: stats?.examNotCompleted ?? [], desc: (n) => `${n} enrolled students have not submitted all active exams.` },
             };
             const c = rosterView ? cfg[rosterView] : null;
             const list = c?.list ?? [];
