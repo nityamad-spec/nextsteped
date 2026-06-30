@@ -599,14 +599,19 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       <Dialog open={!!rosterView} onOpenChange={(o) => { if (!o) setRosterView(null); }}>
         <DialogContent className="max-w-md max-h-[75vh] flex flex-col">
           {(() => {
-            const cfg = {
-              "done": { title: "Diagnostic done", list: stats?.diagnosticDoneStudents, desc: (n: number) => `${n} students submitted the diagnostic.` },
-              "pending": { title: "Pending diagnostic", list: stats?.diagnosticPendingStudents, desc: (n: number) => `${n} enrolled students have not submitted yet.` },
-              "completed": { title: "Completed course", list: stats?.completedStudents, desc: (n: number) => `${n} students completed all quizzes & exams with mastery ≥ Proficient.` },
-              "not-completed": { title: "Not completed", list: stats?.notCompletedStudents, desc: (n: number) => `${n} enrolled students have not completed the course.` },
-            } as const;
+            const qt = stats?.quizzesTotal ?? 0;
+            const cfg: Record<RosterView, { title: string; list: ReadonlyArray<StudentLite & { done?: number; remaining?: number }>; desc: (n: number) => string }> = {
+              "done": { title: "Diagnostic done", list: stats?.diagnosticDoneStudents ?? [], desc: (n) => `${n} students submitted the diagnostic.` },
+              "pending": { title: "Pending diagnostic", list: stats?.diagnosticPendingStudents ?? [], desc: (n) => `${n} enrolled students have not submitted yet.` },
+              "completed": { title: "Completed course", list: stats?.completedStudents ?? [], desc: (n) => `${n} students completed all quizzes & exams with mastery ≥ Proficient.` },
+              "not-completed": { title: "Not completed", list: stats?.notCompletedStudents ?? [], desc: (n) => `${n} enrolled students have not completed the course.` },
+              "quiz-completed": { title: `Completed all ${qt} weekly quizzes`, list: stats?.quizCompletedAll ?? [], desc: (n) => `${n} students submitted every weekly quiz.` },
+              "quiz-partial": { title: `Partially done (1–${Math.max(qt - 1, 0)} quizzes)`, list: stats?.quizPartial ?? [], desc: (n) => `${n} students started but have not finished all ${qt} weekly quizzes.` },
+              "quiz-not-started": { title: "Not started weekly quizzes", list: stats?.quizNotStarted ?? [], desc: (n) => `${n} enrolled students have not submitted any weekly quiz.` },
+            };
             const c = rosterView ? cfg[rosterView] : null;
             const list = c?.list ?? [];
+            const isPartial = rosterView === "quiz-partial";
             return (
               <>
                 <DialogHeader>
@@ -623,7 +628,14 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
                     <ul className="divide-y divide-border">
                       {list.map(s => (
                         <li key={s.id} className="py-2">
-                          <div className="text-sm font-medium text-foreground">{s.name || "(no name)"}</div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div className="text-sm font-medium text-foreground">{s.name || "(no name)"}</div>
+                            {isPartial && s.done != null && (
+                              <div className="text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
+                                {s.done} of {qt} done · {s.remaining} left
+                              </div>
+                            )}
+                          </div>
                           <div className="text-xs text-muted-foreground">{s.email || "(no email)"}</div>
                         </li>
                       ))}
@@ -635,6 +647,7 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
           })()}
         </DialogContent>
       </Dialog>
+
 
     </Dialog>
   );
