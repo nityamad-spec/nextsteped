@@ -547,9 +547,27 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="rounded-md border bg-background p-2.5 space-y-1">
-                    <div className="font-medium">Weekly quizzes</div>
-                    <div className="text-muted-foreground">Students attempted: <span className="text-foreground tabular-nums">{stats.quizStudents}</span></div>
-                    <div className="text-muted-foreground">Total attempts: <span className="text-foreground tabular-nums">{stats.quizAttempts}</span></div>
+                    <div className="font-medium">Weekly quizzes <span className="text-muted-foreground font-normal">({stats.quizzesTotal} total)</span></div>
+                    {stats.quizzesTotal > 0 && (
+                      <>
+                        <QuizRow
+                          label={`Completed all ${stats.quizzesTotal}`}
+                          count={stats.quizCompletedAll.length}
+                          onClick={stats.quizCompletedAll.length > 0 ? () => setRosterView("quiz-completed") : undefined}
+                        />
+                        <QuizRow
+                          label={`Partially done (1–${stats.quizzesTotal - 1})`}
+                          count={stats.quizPartial.length}
+                          onClick={stats.quizPartial.length > 0 ? () => setRosterView("quiz-partial") : undefined}
+                        />
+                      </>
+                    )}
+                    <QuizRow
+                      label="Not started (0)"
+                      count={stats.quizNotStarted.length}
+                      onClick={stats.quizNotStarted.length > 0 ? () => setRosterView("quiz-not-started") : undefined}
+                    />
+                    <div className="text-muted-foreground pt-1">Total attempts: <span className="text-foreground tabular-nums">{stats.quizAttempts}</span></div>
                     <div className="text-muted-foreground">Avg score: <span className="text-foreground tabular-nums">{fmtPct(stats.quizAvg)}</span></div>
                   </div>
                   <div className="rounded-md border bg-background p-2.5 space-y-1">
