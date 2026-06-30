@@ -235,6 +235,22 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       if (total > 0) { diagPctSum += score / total; diagPctN += 1; }
     });
 
+    const profById = new Map(raw.profiles.map(p => [p.id, p]));
+    const toLite = (sid: string): StudentLite => {
+      const p = profById.get(sid);
+      return { id: sid, name: p?.name ?? null, email: p?.email ?? null };
+    };
+    const sortLite = (a: StudentLite, b: StudentLite) =>
+      (a.name || a.email || "").localeCompare(b.name || b.email || "");
+    const diagnosticDoneStudents: StudentLite[] = [];
+    const diagnosticPendingStudents: StudentLite[] = [];
+    enrolledIds.forEach(sid => {
+      (diagStudents.has(sid) ? diagnosticDoneStudents : diagnosticPendingStudents).push(toLite(sid));
+    });
+    diagnosticDoneStudents.sort(sortLite);
+    diagnosticPendingStudents.sort(sortLite);
+
+
     // Mastery
     const bands = { beginner: 0, developing: 0, proficient: 0, expert: 0, none: 0 };
     const masteryByStudent = new Map<string, { score: number | null; level: string | null }>();
