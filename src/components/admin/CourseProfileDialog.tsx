@@ -537,14 +537,28 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
   );
 };
 
-const Stat = ({ label, value, sub }: { label: string; value: number | string; sub?: string }) => (
-  <div>
-    <div className="text-muted-foreground mb-0.5">{label}</div>
-    <div className="font-semibold text-foreground tabular-nums">
-      {value}
-      {sub && <span className="ml-1 text-xs font-normal text-muted-foreground">· {sub}</span>}
-    </div>
-  </div>
-);
+const Stat = ({ label, value, sub, onClick }: { label: string; value: number | string; sub?: string; onClick?: () => void }) => {
+  const inner = (
+    <>
+      <div className="text-muted-foreground mb-0.5">{label}</div>
+      <div className="font-semibold text-foreground tabular-nums">
+        {value}
+        {sub && <span className="ml-1 text-xs font-normal text-muted-foreground">· {sub}</span>}
+      </div>
+    </>
+  );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="text-left rounded-md -mx-1 px-1 py-0.5 hover:bg-muted/60 hover:underline underline-offset-2 transition-colors"
+      >
+        {inner}
+      </button>
+    );
+  }
+  return <div>{inner}</div>;
+};
 
 export default CourseProfileDialog;
