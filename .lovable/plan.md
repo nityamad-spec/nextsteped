@@ -1,30 +1,21 @@
-## Why the filter isn't showing
+## Update Exams stat in Course Profile dialog
 
-In `src/components/admin/CourseProfileContent.tsx` the university `<Select>` is rendered only when:
+In `src/components/admin/CourseProfileDialog.tsx`, replace the "Students attempted" and "Total attempts" rows in the Exams card with two clickable rows mirroring the weekly quizzes pattern.
 
-```ts
-const showUniSelect = uniOptions.length > 1;
-```
+### Logic
+- Determine active exams: existing `courseExams` list (non-archived) for the course.
+- For each enrolled student (after university filter), count distinct active exams they have submitted in `assessment_results` (mode = exam/final/midterm as already mapped).
+- `examCompletedAll`: students whose submitted-exam count equals total active exams (and total active exams > 0).
+- `examNotCompleted`: all other enrolled students (including zero attempts).
 
-`uniOptions` is built from the enrolled students' `profiles.university_id`. So the dropdown is hidden whenever a course's roster contains 0 or 1 distinct universities — which is the case on your teacher analytics view. (On `/admin/courses` you've been seeing it because those courses happen to span multiple universities.)
+### UI
+- Row 1: "Completed all N exams: X" (clickable → student list)
+- Row 2: "Not completed: Y" (clickable → student list)
+- If there are zero active exams, show a muted "No active exams" line and skip clickable rows.
+- Keep the existing "Avg score" line as-is.
 
-## Change
+### Sub-dialog
+Extend the existing roster sub-dialog mode union with `exam-completed` and `exam-not-completed`. Reuse the same name+email list rendering; sort alphabetically; respect the active university filter.
 
-Always render the university filter, even when there's only one option (or none).
-
-### Edits in `src/components/admin/CourseProfileContent.tsx`
-
-1. Remove the `showUniSelect` gate — render the `University:` row unconditionally inside the analytics body.
-2. Keep the existing options logic; when `uniOptions.length === 0` (no enrolled student has a university set), the dropdown will simply show `All universities (0)` plus a disabled "No data" hint — still visible so teachers know the control exists.
-3. Keep the "Showing N of M students" helper text behavior unchanged (only when a non-`ALL` value is picked).
-4. No changes to data fetching, filtering math, or the sub-dialogs.
-
-### Realtime
-
-Confirmed: **the analytics on this page are not real-time.** Data is fetched once per course/filter change via a one-shot query in `CourseProfileContent`. Per your answer, we'll leave it as one-shot (no subscriptions, no polling). A page reload (or switching the university filter / course) is required to pick up new enrollments, submissions, or mastery updates.
-
-### Files touched
-
-- `src/components/admin/CourseProfileContent.tsx` (single conditional removed; small JSX adjustment)
-
-No schema, RLS, edge function, or routing changes.
+### Out of scope
+No backend / schema changes. No changes to quiz section or other tiles.

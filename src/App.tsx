@@ -31,7 +31,6 @@ import ConceptReview from "./pages/teacher/ConceptReview";
 import DiagnosticQuestionsSetup from "./pages/teacher/DiagnosticQuestionsSetup";
 import PublishEnrollment from "./pages/teacher/PublishEnrollment";
 import CourseDashboard from "./pages/teacher/CourseDashboard";
-import CourseAnalytics from "./pages/teacher/CourseAnalytics";
 
 import Assessments from "./pages/teacher/Assessments";
 
@@ -293,7 +292,6 @@ const App = () => (
               {/* Teacher dashboard + setup modules (all share TeacherLayout) */}
               <Route element={<ProtectedRoute><RoleGuard allow={["teacher"]}><TeacherLayout /></RoleGuard></ProtectedRoute>}>
                 <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
-                <Route path="/teacher/courses/analytics" element={<CourseAnalytics />} />
                 <Route path="/teacher/setup" element={<CourseSetup />} />
                 <Route path="/teacher/setup/upload" element={<CourseMaterials />} />
                 <Route path="/teacher/setup/materials" element={<Navigate to="/teacher/setup/upload" replace />} />
