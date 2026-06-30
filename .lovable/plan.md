@@ -1,27 +1,37 @@
-## Add bulk manual email entry to Enrollment & Course Settings
+## Goal
+On `/admin/courses` → course profile dialog → "Enrollment & Diagnostic" section: show a "Pending diagnostic" stat alongside "Diagnostic done", and make both numbers clickable to open a list of student names + emails.
 
-Add a textarea-based manual entry form alongside the existing CSV upload so professors can paste/type multiple emails at once without preparing a file.
+## Changes (all in `src/components/admin/CourseProfileDialog.tsx`)
 
-### UI changes (`src/pages/teacher/EnrollmentSettings.tsx`)
-Inside the Student Enrollment card, between the Roster summary block and the CSV upload zone, add an "Add emails manually" section:
-- A `Textarea` for emails (placeholder: "Paste or type emails — one per line, or separated by commas/semicolons/spaces")
-- Helper text: "Names/universities aren't supported here — use the CSV upload for those."
-- "Add to roster" button (disabled while empty or submitting)
-- Inline summary after submit: "Added X, skipped Y duplicates, Z invalid" via toast
+### 1. Fetch student names/emails
+Extend the profiles fetch to also pull `name, email` (currently only `id, university_id`). Store in `RawData.profiles`.
 
-### Parsing & validation
-- Split textarea content on any of: newline, comma, semicolon, whitespace.
-- Trim + lowercase each token.
-- Validate with existing `EMAIL_RE`.
-- De-duplicate within the input.
-- Skip emails already present in current `roster` state (case-insensitive) — counted as duplicates.
-- If no valid new emails remain, toast error and abort.
+### 2. Compute done/pending student lists
+In the `stats` memo (respecting the active university filter), derive two arrays of `{ id, name, email }`:
+- `diagnosticDoneStudents` — enrolled students who appear in `raw.diagnostics`.
+- `diagnosticPendingStudents` — enrolled students who don't.
 
-### Insert logic
-- Build rows `{ course_id, email, full_name: null, university: null, added_by: user?.id, source: "manual" }`.
-- Batch upsert into `course_roster_allowlist` with `onConflict: "course_id,email"` (mirrors CSV path, 500/batch).
-- Guard on `effectiveCourseId`.
-- On success: clear textarea, call `loadRoster()`, and (if enforcement is off) show the same "Tip: turn on Restrict signups…" info toast used by the CSV flow.
+Sort alphabetically by name (email fallback).
 
-### Out of scope
-No schema changes, no edge function changes. CSV upload zone and template download remain unchanged.
+### 3. Replace the single "Diagnostic done" stat with two clickable stats
+Grid becomes 4 columns (Enrolled · Diagnostic done · Pending diagnostic · Avg diagnostic), or stays 3-col with done+pending stacked — go with a 4-column grid (`grid-cols-2 sm:grid-cols-4`) for clarity.
+
+- **Diagnostic done**: `{n}/{enrolled}` · `pct%` — button styling, opens "Done" list.
+- **Pending diagnostic**: `{enrolled - n}` — button styling, opens "Pending" list. When 0, render as non-clickable muted text.
+
+Add a small `Stat` variant or wrap existing Stat in a `<button>` with hover underline and chevron icon for affordance.
+
+### 4. Sub-dialog for the student list
+Add local state `rosterView: { kind: "done" | "pending" } | null`. Render a second `<Dialog>` inside the component:
+- Title: "Diagnostic done — {course name}" / "Pending diagnostic — {course name}".
+- Body: `ScrollArea` with a simple list of rows showing name (bold) + email (muted). Empty state: "No students".
+- Respects current `universityFilter` (uses the derived arrays from stats).
+- Closeable independently of the parent dialog.
+
+### 5. No backend / schema changes
+Profiles already readable by admin via existing RLS. No edge function, no migration. Only the profiles `select` columns expand to include `name, email`.
+
+## Out of scope
+- Other sections of the dialog.
+- Server-side aggregation; everything stays client-derived from data already loaded.
+- Adding similar drill-downs to mastery/completion/chat (can be a follow-up).
