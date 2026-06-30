@@ -41,6 +41,9 @@ interface Stats {
   quizStudents: number;
   quizAvg: number | null;
   quizzesTotal: number;
+  quizCompletedAll: StudentLite[];
+  quizPartial: (StudentLite & { done: number; remaining: number })[];
+  quizNotStarted: StudentLite[];
   examAttempts: number;
   examStudents: number;
   examAvg: number | null;
