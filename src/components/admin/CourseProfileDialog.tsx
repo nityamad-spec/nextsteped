@@ -35,6 +35,8 @@ interface Stats {
   masteryBands: { beginner: number; developing: number; proficient: number; expert: number; none: number };
   masteryAvgPct: number | null;
   completed: number;
+  completedStudents: StudentLite[];
+  notCompletedStudents: StudentLite[];
   quizAttempts: number;
   quizStudents: number;
   quizAvg: number | null;
@@ -82,7 +84,7 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
   const [loading, setLoading] = useState(false);
   const [raw, setRaw] = useState<RawData | null>(null);
   const [universityFilter, setUniversityFilter] = useState<string>(ALL);
-  const [rosterView, setRosterView] = useState<"done" | "pending" | null>(null);
+  const [rosterView, setRosterView] = useState<"done" | "pending" | "completed" | "not-completed" | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (courseId: string, showSkeleton: boolean) => {
@@ -312,14 +314,19 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
     const quizzesTotal = quizDaysSeen.size;
 
     let completed = 0;
+    const completedStudents: StudentLite[] = [];
+    const notCompletedStudents: StudentLite[] = [];
     enrolledIds.forEach(sid => {
       const m = masteryByStudent.get(sid);
       const level = (m?.level || "").toLowerCase();
       const masteryOk = level === "proficient" || level === "expert";
       const quizzesOk = quizzesTotal > 0 && (quizByStudent.get(sid)?.size || 0) >= quizzesTotal;
       const examsOk = examsTotal === 0 || (activeExamByStudent.get(sid)?.size || 0) >= examsTotal;
-      if (masteryOk && quizzesOk && examsOk) completed += 1;
+      if (masteryOk && quizzesOk && examsOk) { completed += 1; completedStudents.push(toLite(sid)); }
+      else notCompletedStudents.push(toLite(sid));
     });
+    completedStudents.sort(sortLite);
+    notCompletedStudents.sort(sortLite);
 
     // Chat
     const chatStudents = new Set<string>();
@@ -344,6 +351,8 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       masteryBands: bands,
       masteryAvgPct: masteryN > 0 ? masterySum / masteryN : null,
       completed,
+      completedStudents,
+      notCompletedStudents,
       quizAttempts,
       quizStudents: quizByStudent.size,
       quizAvg: quizPctN > 0 ? quizPctSum / quizPctN : null,
@@ -480,21 +489,34 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
               </div>
 
               {/* Completion */}
-              <div className="rounded-lg border bg-card p-4">
+              <div className="rounded-lg border bg-card p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <CheckCircle2 className="h-4 w-4" /> Course completion
                   </div>
-                  <div className="text-xs tabular-nums">
-                    <span className="text-foreground font-medium">{stats.completed}</span>
-                    <span className="text-muted-foreground"> / {stats.enrolled}</span>
-                    <span className="text-muted-foreground"> · {pctOf(stats.completed)}%</span>
+                  <div className="text-xs tabular-nums text-muted-foreground">
+                    {pctOf(stats.completed)}% of {stats.enrolled}
                   </div>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1.5">
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <Stat
+                    label="Completed"
+                    value={stats.completed}
+                    sub={`${pctOf(stats.completed)}%`}
+                    onClick={stats.completedStudents.length > 0 ? () => setRosterView("completed") : undefined}
+                  />
+                  <Stat
+                    label="Not completed"
+                    value={stats.notCompletedStudents.length}
+                    sub={`${pctOf(stats.notCompletedStudents.length)}%`}
+                    onClick={stats.notCompletedStudents.length > 0 ? () => setRosterView("not-completed") : undefined}
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
                   All {stats.quizzesTotal} weekly quizzes & {stats.examsTotal} exams submitted, mastery ≥ Proficient.
                 </p>
               </div>
+
 
               {/* Assessment activity */}
               <div className="rounded-lg border bg-card p-4 space-y-3">
@@ -536,37 +558,44 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
 
       <Dialog open={!!rosterView} onOpenChange={(o) => { if (!o) setRosterView(null); }}>
         <DialogContent className="max-w-md max-h-[75vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>
-              {rosterView === "done" ? "Diagnostic done" : "Pending diagnostic"}
-              {course?.name ? ` — ${course.name}` : ""}
-            </DialogTitle>
-            <DialogDescription>
-              {rosterView === "done"
-                ? `${stats?.diagnosticDoneStudents.length ?? 0} students submitted the diagnostic.`
-                : `${stats?.diagnosticPendingStudents.length ?? 0} enrolled students have not submitted yet.`}
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="flex-1 min-h-0 -mx-6 px-6 [&>[data-radix-scroll-area-viewport]]:max-h-[55vh]">
-            {(() => {
-              const list = rosterView === "done" ? stats?.diagnosticDoneStudents : stats?.diagnosticPendingStudents;
-              if (!list || list.length === 0) {
-                return <p className="text-sm text-muted-foreground py-6 text-center">No students.</p>;
-              }
-              return (
-                <ul className="divide-y divide-border">
-                  {list.map(s => (
-                    <li key={s.id} className="py-2">
-                      <div className="text-sm font-medium text-foreground">{s.name || "(no name)"}</div>
-                      <div className="text-xs text-muted-foreground">{s.email || "(no email)"}</div>
-                    </li>
-                  ))}
-                </ul>
-              );
-            })()}
-          </ScrollArea>
+          {(() => {
+            const cfg = {
+              "done": { title: "Diagnostic done", list: stats?.diagnosticDoneStudents, desc: (n: number) => `${n} students submitted the diagnostic.` },
+              "pending": { title: "Pending diagnostic", list: stats?.diagnosticPendingStudents, desc: (n: number) => `${n} enrolled students have not submitted yet.` },
+              "completed": { title: "Completed course", list: stats?.completedStudents, desc: (n: number) => `${n} students completed all quizzes & exams with mastery ≥ Proficient.` },
+              "not-completed": { title: "Not completed", list: stats?.notCompletedStudents, desc: (n: number) => `${n} enrolled students have not completed the course.` },
+            } as const;
+            const c = rosterView ? cfg[rosterView] : null;
+            const list = c?.list ?? [];
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>
+                    {c?.title}
+                    {course?.name ? ` — ${course.name}` : ""}
+                  </DialogTitle>
+                  <DialogDescription>{c?.desc(list.length)}</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="flex-1 min-h-0 -mx-6 px-6 [&>[data-radix-scroll-area-viewport]]:max-h-[55vh]">
+                  {list.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-6 text-center">No students.</p>
+                  ) : (
+                    <ul className="divide-y divide-border">
+                      {list.map(s => (
+                        <li key={s.id} className="py-2">
+                          <div className="text-sm font-medium text-foreground">{s.name || "(no name)"}</div>
+                          <div className="text-xs text-muted-foreground">{s.email || "(no email)"}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </ScrollArea>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
+
     </Dialog>
   );
 };

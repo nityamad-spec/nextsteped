@@ -1,37 +1,25 @@
 ## Goal
-On `/admin/courses` → course profile dialog → "Enrollment & Diagnostic" section: show a "Pending diagnostic" stat alongside "Diagnostic done", and make both numbers clickable to open a list of student names + emails.
+On `/admin/courses` course profile dialog, make the Course Completion stat show both **Completed** and **Not completed** counts, each clickable to reveal a list of student names + emails (mirroring the diagnostic done/pending pattern).
 
-## Changes (all in `src/components/admin/CourseProfileDialog.tsx`)
+## Changes (single file: `src/components/admin/CourseProfileDialog.tsx`)
 
-### 1. Fetch student names/emails
-Extend the profiles fetch to also pull `name, email` (currently only `id, university_id`). Store in `RawData.profiles`.
+1. **Stats memo**
+   - Already computes `completedCount` (students who submitted all published weekly quizzes AND all active exams, filtered by selected university).
+   - Add two derived arrays using the same eligibility rule (enrolled + matching university filter):
+     - `completedStudents: { name, email }[]`
+     - `notCompletedStudents: { name, email }[]` (enrolled students not in the completed set)
+   - Add `notCompletedCount = enrolledFiltered - completedCount`.
 
-### 2. Compute done/pending student lists
-In the `stats` memo (respecting the active university filter), derive two arrays of `{ id, name, email }`:
-- `diagnosticDoneStudents` — enrolled students who appear in `raw.diagnostics`.
-- `diagnosticPendingStudents` — enrolled students who don't.
+2. **UI**
+   - Replace the single "Course completion" stat tile with a 2-up layout (or two adjacent `Stat` buttons) within the existing completion section:
+     - "Completed" → opens sub-dialog with `completedStudents`
+     - "Not completed" → opens sub-dialog with `notCompletedStudents`
+   - Reuse the existing student-list sub-dialog component already built for diagnostic done/pending; extend its state to accept a title + list for completion too (single dialog, switched by a `mode` discriminator like `'diag-done' | 'diag-pending' | 'completed' | 'not-completed'`).
 
-Sort alphabetically by name (email fallback).
-
-### 3. Replace the single "Diagnostic done" stat with two clickable stats
-Grid becomes 4 columns (Enrolled · Diagnostic done · Pending diagnostic · Avg diagnostic), or stays 3-col with done+pending stacked — go with a 4-column grid (`grid-cols-2 sm:grid-cols-4`) for clarity.
-
-- **Diagnostic done**: `{n}/{enrolled}` · `pct%` — button styling, opens "Done" list.
-- **Pending diagnostic**: `{enrolled - n}` — button styling, opens "Pending" list. When 0, render as non-clickable muted text.
-
-Add a small `Stat` variant or wrap existing Stat in a `<button>` with hover underline and chevron icon for affordance.
-
-### 4. Sub-dialog for the student list
-Add local state `rosterView: { kind: "done" | "pending" } | null`. Render a second `<Dialog>` inside the component:
-- Title: "Diagnostic done — {course name}" / "Pending diagnostic — {course name}".
-- Body: `ScrollArea` with a simple list of rows showing name (bold) + email (muted). Empty state: "No students".
-- Respects current `universityFilter` (uses the derived arrays from stats).
-- Closeable independently of the parent dialog.
-
-### 5. No backend / schema changes
-Profiles already readable by admin via existing RLS. No edge function, no migration. Only the profiles `select` columns expand to include `name, email`.
+3. **Behavior**
+   - Both lists respect the active university filter, identical to diagnostic stats.
+   - Sort lists alphabetically by name (fallback to email).
+   - Empty states: show "No students" inside the sub-dialog when list is empty.
 
 ## Out of scope
-- Other sections of the dialog.
-- Server-side aggregation; everything stays client-derived from data already loaded.
-- Adding similar drill-downs to mastery/completion/chat (can be a follow-up).
+- No schema changes, no backend changes, no changes to the completion definition itself.
