@@ -293,6 +293,7 @@ const App = () => (
               {/* Teacher dashboard + setup modules (all share TeacherLayout) */}
               <Route element={<ProtectedRoute><RoleGuard allow={["teacher"]}><TeacherLayout /></RoleGuard></ProtectedRoute>}>
                 <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
+                <Route path="/teacher/courses/analytics" element={<CourseAnalytics />} />
                 <Route path="/teacher/setup" element={<CourseSetup />} />
                 <Route path="/teacher/setup/upload" element={<CourseMaterials />} />
                 <Route path="/teacher/setup/materials" element={<Navigate to="/teacher/setup/upload" replace />} />
