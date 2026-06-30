@@ -351,6 +351,8 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       masteryBands: bands,
       masteryAvgPct: masteryN > 0 ? masterySum / masteryN : null,
       completed,
+      completedStudents,
+      notCompletedStudents,
       quizAttempts,
       quizStudents: quizByStudent.size,
       quizAvg: quizPctN > 0 ? quizPctSum / quizPctN : null,
