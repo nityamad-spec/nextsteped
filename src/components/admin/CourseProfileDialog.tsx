@@ -35,6 +35,8 @@ interface Stats {
   masteryBands: { beginner: number; developing: number; proficient: number; expert: number; none: number };
   masteryAvgPct: number | null;
   completed: number;
+  completedStudents: StudentLite[];
+  notCompletedStudents: StudentLite[];
   quizAttempts: number;
   quizStudents: number;
   quizAvg: number | null;
