@@ -1,30 +1,53 @@
-## Why the filter isn't showing
+## Findings
 
-In `src/components/admin/CourseProfileContent.tsx` the university `<Select>` is rendered only when:
+### 1. Names/emails are blank
+The `profiles` table has these SELECT policies:
+- `Users can view own profile` — `auth.uid() = id`
+- `Authenticated users can view teacher profiles` — `role = 'teacher'`
+- `Admins can view all profiles` — `is_admin(auth.uid())`
 
-```ts
-const showUniSelect = uniOptions.length > 1;
+**Teachers have no policy to read their students' profile rows.** That's why on `/admin/courses` (admin) the names/emails show, but on `/teacher/courses/analytics` (teacher) the same query returns rows with `name: null, email: null` (RLS filters out the row entirely, and `CourseProfileContent` falls back to "No name"/"No email").
+
+### 2. No refresh button
+`CourseProfileContent` already subscribes to realtime `postgres_changes` on enrollments, assessment_results, diagnostic_results, student_course_mastery, course_exams, chat_sessions for the course — so data does auto-update when those tables change. But there is no manual refresh control, and a few sources (e.g. `chat_messages`, `profiles`, `student_concept_mastery`) aren't subscribed, so a manual refresh is still useful.
+
+## Plan
+
+### A. RLS — let teachers read their enrolled students' profiles
+
+New migration adds a single SELECT policy on `public.profiles`:
+
+```sql
+CREATE POLICY "Teachers can view enrolled student profiles"
+ON public.profiles
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.enrollments e
+    WHERE e.student_id = profiles.id
+      AND public.is_course_member(e.course_id, auth.uid())
+  )
+);
 ```
 
-`uniOptions` is built from the enrolled students' `profiles.university_id`. So the dropdown is hidden whenever a course's roster contains 0 or 1 distinct universities — which is the case on your teacher analytics view. (On `/admin/courses` you've been seeing it because those courses happen to span multiple universities.)
+Notes:
+- Uses the existing `is_course_member` security-definer function (already used by enrollments policy), so it covers both `courses.teacher_id` and `course_teachers` collaborators.
+- Scoped narrowly: a teacher can only see profile rows of students enrolled in courses they teach. Other students' profiles remain hidden.
+- No GRANT needed — `profiles` already grants SELECT to authenticated.
 
-## Change
+### B. Add a Refresh button
 
-Always render the university filter, even when there's only one option (or none).
+In `src/components/admin/CourseProfileContent.tsx`:
+- Expose a manual refresh: convert `load` into something we can call from a button (already a `useCallback`); add a small `refreshing` state.
+- Add a `Refresh` button (lucide `RefreshCw` icon, spinning while `refreshing`) inline with the University filter row. Clicking calls `load(courseId, false)` (no skeleton flash) and toggles the spinner for the duration of the fetch.
+- Show this in both `variant="page"` and `variant="dialog"` (so admin Course Profile dialog also benefits — same component).
 
-### Edits in `src/components/admin/CourseProfileContent.tsx`
-
-1. Remove the `showUniSelect` gate — render the `University:` row unconditionally inside the analytics body.
-2. Keep the existing options logic; when `uniOptions.length === 0` (no enrolled student has a university set), the dropdown will simply show `All universities (0)` plus a disabled "No data" hint — still visible so teachers know the control exists.
-3. Keep the "Showing N of M students" helper text behavior unchanged (only when a non-`ALL` value is picked).
-4. No changes to data fetching, filtering math, or the sub-dialogs.
-
-### Realtime
-
-Confirmed: **the analytics on this page are not real-time.** Data is fetched once per course/filter change via a one-shot query in `CourseProfileContent`. Per your answer, we'll leave it as one-shot (no subscriptions, no polling). A page reload (or switching the university filter / course) is required to pick up new enrollments, submissions, or mastery updates.
+No prop changes required for `CourseAnalytics.tsx` or `CourseProfileDialog.tsx`.
 
 ### Files touched
+- New: `supabase/migrations/<timestamp>_teacher_view_enrolled_student_profiles.sql`
+- Edit: `src/components/admin/CourseProfileContent.tsx`
 
-- `src/components/admin/CourseProfileContent.tsx` (single conditional removed; small JSX adjustment)
-
-No schema, RLS, edge function, or routing changes.
+No changes to types, edge functions, or routes.
