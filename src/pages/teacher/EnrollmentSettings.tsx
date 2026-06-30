@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Calendar, UserPlus, Upload, Copy, ArrowLeft, Trash2, Download, AlertTriangle } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
@@ -63,6 +64,8 @@ const EnrollmentSettings = () => {
   const [enforcement, setEnforcement] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [manualEmails, setManualEmails] = useState("");
+  const [adding, setAdding] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const effectiveCourseId = currentCourse?.id || courseId;
@@ -169,6 +172,67 @@ const EnrollmentSettings = () => {
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const handleManualAdd = async () => {
+    if (!effectiveCourseId) {
+      toast.error("Course not loaded yet. Please try again.");
+      return;
+    }
+    const tokens = manualEmails.split(/[\s,;]+/).map((t) => t.trim().toLowerCase()).filter(Boolean);
+    if (tokens.length === 0) {
+      toast.error("Enter at least one email.");
+      return;
+    }
+    const existing = new Set(roster.map((r) => r.email.toLowerCase()));
+    const seen = new Set<string>();
+    const valid: string[] = [];
+    let invalid = 0;
+    let duplicates = 0;
+    for (const t of tokens) {
+      if (!EMAIL_RE.test(t)) { invalid++; continue; }
+      if (seen.has(t)) { duplicates++; continue; }
+      seen.add(t);
+      if (existing.has(t)) { duplicates++; continue; }
+      valid.push(t);
+    }
+    if (valid.length === 0) {
+      toast.error(`No new valid emails (${invalid} invalid, ${duplicates} duplicate).`);
+      return;
+    }
+    setAdding(true);
+    try {
+      const rows = valid.map((email) => ({
+        course_id: effectiveCourseId,
+        email,
+        full_name: null,
+        university: null,
+        added_by: user?.id ?? null,
+        source: "manual",
+      }));
+      const batchSize = 500;
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize);
+        const { error } = await supabase
+          .from("course_roster_allowlist")
+          .upsert(batch, { onConflict: "course_id,email" });
+        if (error) throw error;
+      }
+      const parts = [`Added ${valid.length}`];
+      if (duplicates) parts.push(`${duplicates} duplicate${duplicates === 1 ? "" : "s"}`);
+      if (invalid) parts.push(`${invalid} invalid`);
+      toast.success(parts.join(", ") + ".");
+      setManualEmails("");
+      await loadRoster();
+      if (!enforcement) {
+        toast.info("Tip: turn on 'Restrict signups to roster' to enforce.", { duration: 6000 });
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "Failed to add emails.");
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -327,6 +391,31 @@ const EnrollmentSettings = () => {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Manual entry */}
+            <div className="rounded-lg border p-4 space-y-2">
+              <Label htmlFor="manual-emails" className="text-sm font-medium">Add emails manually</Label>
+              <Textarea
+                id="manual-emails"
+                value={manualEmails}
+                onChange={(e) => setManualEmails(e.target.value)}
+                placeholder="Paste or type emails — one per line, or separated by commas/semicolons/spaces"
+                rows={4}
+                disabled={adding}
+              />
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Names/universities aren't supported here — use the CSV upload for those.
+                </p>
+                <Button
+                  size="sm"
+                  onClick={handleManualAdd}
+                  disabled={adding || !manualEmails.trim()}
+                >
+                  {adding ? "Adding…" : "Add to roster"}
+                </Button>
+              </div>
             </div>
 
             {/* Upload */}
