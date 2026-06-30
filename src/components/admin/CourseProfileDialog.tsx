@@ -489,21 +489,34 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
               </div>
 
               {/* Completion */}
-              <div className="rounded-lg border bg-card p-4">
+              <div className="rounded-lg border bg-card p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <CheckCircle2 className="h-4 w-4" /> Course completion
                   </div>
-                  <div className="text-xs tabular-nums">
-                    <span className="text-foreground font-medium">{stats.completed}</span>
-                    <span className="text-muted-foreground"> / {stats.enrolled}</span>
-                    <span className="text-muted-foreground"> · {pctOf(stats.completed)}%</span>
+                  <div className="text-xs tabular-nums text-muted-foreground">
+                    {pctOf(stats.completed)}% of {stats.enrolled}
                   </div>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1.5">
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <Stat
+                    label="Completed"
+                    value={stats.completed}
+                    sub={`${pctOf(stats.completed)}%`}
+                    onClick={stats.completedStudents.length > 0 ? () => setRosterView("completed") : undefined}
+                  />
+                  <Stat
+                    label="Not completed"
+                    value={stats.notCompletedStudents.length}
+                    sub={`${pctOf(stats.notCompletedStudents.length)}%`}
+                    onClick={stats.notCompletedStudents.length > 0 ? () => setRosterView("not-completed") : undefined}
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
                   All {stats.quizzesTotal} weekly quizzes & {stats.examsTotal} exams submitted, mastery ≥ Proficient.
                 </p>
               </div>
+
 
               {/* Assessment activity */}
               <div className="rounded-lg border bg-card p-4 space-y-3">
