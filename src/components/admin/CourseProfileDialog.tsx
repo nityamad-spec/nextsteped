@@ -398,6 +398,8 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       examStudents: examByStudent.size,
       examAvg: examPctN > 0 ? examPctSum / examPctN : null,
       examsTotal,
+      examCompletedAll,
+      examNotCompleted,
       chatStudents: chatStudents.size,
       chatMessages,
     };
