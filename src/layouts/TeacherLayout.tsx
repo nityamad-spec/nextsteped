@@ -18,6 +18,7 @@ interface NavItem {
 const teacherNav: NavItem[] = [
   { title: "Course Setup", path: "/teacher/setup", icon: ListChecks, alwaysUnlocked: true },
   { title: "Course Dashboard", path: "/teacher/courses/dashboard", icon: BookOpen },
+  { title: "Course Analytics", path: "/teacher/courses/analytics", icon: BarChart3 },
   { title: "Course Assistant", path: "/teacher/chat", icon: MessageSquare },
   { title: "Lesson Plan & Resources", path: "/teacher/content-library", icon: Library },
   { title: "Support", path: "/teacher/support", icon: HelpCircle, alwaysUnlocked: true },
