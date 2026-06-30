@@ -425,12 +425,18 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <Users className="h-4 w-4" /> Enrollment & Diagnostic
                 </div>
-                <div className="grid grid-cols-3 gap-3 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <Stat label="Enrolled" value={stats.enrolled} />
                   <Stat
                     label="Diagnostic done"
                     value={`${stats.diagnosticSubmitted}/${stats.enrolled}`}
                     sub={`${pctOf(stats.diagnosticSubmitted)}%`}
+                    onClick={stats.diagnosticDoneStudents.length > 0 ? () => setRosterView("done") : undefined}
+                  />
+                  <Stat
+                    label="Pending diagnostic"
+                    value={stats.diagnosticPendingStudents.length}
+                    onClick={stats.diagnosticPendingStudents.length > 0 ? () => setRosterView("pending") : undefined}
                   />
                   <Stat label="Avg diagnostic" value={fmtPct(stats.diagnosticAvg)} />
                 </div>
