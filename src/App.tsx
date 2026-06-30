@@ -31,6 +31,7 @@ import ConceptReview from "./pages/teacher/ConceptReview";
 import DiagnosticQuestionsSetup from "./pages/teacher/DiagnosticQuestionsSetup";
 import PublishEnrollment from "./pages/teacher/PublishEnrollment";
 import CourseDashboard from "./pages/teacher/CourseDashboard";
+import CourseAnalytics from "./pages/teacher/CourseAnalytics";
 
 import Assessments from "./pages/teacher/Assessments";
 
