@@ -331,6 +331,21 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
     completedStudents.sort(sortLite);
     notCompletedStudents.sort(sortLite);
 
+    // Weekly quiz progress breakdown
+    const quizCompletedAll: StudentLite[] = [];
+    const quizPartial: (StudentLite & { done: number; remaining: number })[] = [];
+    const quizNotStarted: StudentLite[] = [];
+    enrolledIds.forEach(sid => {
+      const done = quizByStudent.get(sid)?.size ?? 0;
+      if (quizzesTotal > 0 && done >= quizzesTotal) quizCompletedAll.push(toLite(sid));
+      else if (done >= 1 && done < quizzesTotal) quizPartial.push({ ...toLite(sid), done, remaining: quizzesTotal - done });
+      else quizNotStarted.push(toLite(sid));
+    });
+    quizCompletedAll.sort(sortLite);
+    quizPartial.sort(sortLite);
+    quizNotStarted.sort(sortLite);
+
+
     // Chat
     const chatStudents = new Set<string>();
     const allowedSessionIds = new Set<string>();
