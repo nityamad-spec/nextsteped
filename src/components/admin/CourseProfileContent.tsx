@@ -5,8 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Brain, GraduationCap, MessageSquare, ClipboardCheck, CheckCircle2, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Users, Brain, GraduationCap, MessageSquare, ClipboardCheck, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Stats {
@@ -77,13 +76,11 @@ interface Props {
 
 const CourseProfileContent = ({ courseId, courseName, variant = "dialog" }: Props) => {
   const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [raw, setRaw] = useState<RawData | null>(null);
   const [universityFilter, setUniversityFilter] = useState<string>(ALL);
   type RosterView = "done" | "pending" | "completed" | "not-completed" | "quiz-completed" | "quiz-partial" | "quiz-not-started" | "exam-completed" | "exam-not-completed";
   const [rosterView, setRosterView] = useState<RosterView | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
 
   const load = useCallback(async (cid: string, showSkeleton: boolean) => {
     if (showSkeleton) setLoading(true);
@@ -141,16 +138,6 @@ const CourseProfileContent = ({ courseId, courseName, variant = "dialog" }: Prop
     });
     if (showSkeleton) setLoading(false);
   }, []);
-
-  const handleRefresh = useCallback(async () => {
-    if (!courseId || refreshing) return;
-    setRefreshing(true);
-    try {
-      await load(courseId, false);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [courseId, refreshing, load]);
 
   useEffect(() => {
     if (!courseId) return;
@@ -430,17 +417,6 @@ const CourseProfileContent = ({ courseId, courseName, variant = "dialog" }: Prop
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 ml-auto text-xs"
-              onClick={handleRefresh}
-              disabled={refreshing || !courseId}
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", refreshing && "animate-spin")} />
-              {refreshing ? "Refreshing…" : "Refresh"}
-            </Button>
             {uniOptions.length === 0 && (
               <span className="text-muted-foreground italic">No university data on roster</span>
             )}
