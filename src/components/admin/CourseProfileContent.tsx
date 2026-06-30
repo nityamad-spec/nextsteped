@@ -84,15 +84,6 @@ const CourseProfileContent = ({ courseId, courseName, variant = "dialog" }: Prop
   const [rosterView, setRosterView] = useState<RosterView | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleRefresh = useCallback(async () => {
-    if (!courseId || refreshing) return;
-    setRefreshing(true);
-    try {
-      await load(courseId, false);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [courseId, refreshing]);
 
   const load = useCallback(async (cid: string, showSkeleton: boolean) => {
     if (showSkeleton) setLoading(true);
@@ -150,6 +141,16 @@ const CourseProfileContent = ({ courseId, courseName, variant = "dialog" }: Prop
     });
     if (showSkeleton) setLoading(false);
   }, []);
+
+  const handleRefresh = useCallback(async () => {
+    if (!courseId || refreshing) return;
+    setRefreshing(true);
+    try {
+      await load(courseId, false);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [courseId, refreshing, load]);
 
   useEffect(() => {
     if (!courseId) return;
