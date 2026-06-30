@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Teachers can view enrolled student profiles" ON public.profiles;

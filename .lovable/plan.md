@@ -1,38 +1,26 @@
 ## Goal
-In the Course Profile dialog's **Assessment activity → Weekly quizzes** box, replace the single "Students attempted" line with three clickable breakdowns based on how many distinct weekly quizzes each enrolled student has submitted.
+Align the live database with the code state at the "added QuizRow component" checkpoint (chat message at 2026-06-30 08:26).
 
-## Source of truth
-- Quiz universe = `stats.quizzesTotal` (distinct `quiz_day` values seen in `assessment_results` for `mode='daily_quiz'`, scoped to this course). The label uses this number dynamically — e.g. "Completed all 14" when `quizzesTotal === 14`.
-- Per-student progress = size of the existing `quizByStudent` Map (already built in the stats memo). Respects the active university filter via `enrolledIds`.
+## What's different today vs. the checkpoint
+The repo at that checkpoint had migrations through `20260629142344` ("Admins can view all course exams" on `course_exams`). The live DB has exactly **one** additional migration applied after the checkpoint:
 
-## Changes — `src/components/admin/CourseProfileDialog.tsx`
+- `20260630090408` — added RLS policy **"Teachers can view enrolled student profiles"** on `public.profiles` (FOR SELECT TO authenticated, gated by `is_course_member(enrollment.course_id, auth.uid())`).
 
-1. **Stats memo**
-   - For each enrolled student id, compute `done = quizByStudent.get(sid)?.size ?? 0`.
-   - Build three lists (`StudentLite` augmented with `quizzesDone` for the partial list):
-     - `quizCompletedAll`: `done === quizzesTotal && quizzesTotal > 0`
-     - `quizPartial`: `done >= 1 && done < quizzesTotal` — each entry carries `done` and `remaining = quizzesTotal - done`
-     - `quizNotStarted`: `done === 0`
-   - Sort each list with the existing `sortLite`.
-   - Edge case: if `quizzesTotal === 0`, treat everyone as "Not started" and show 0 / 0 / enrolled (labels still render, "Completed all 0" hidden — see UI below).
+No tables, columns, functions, triggers, or other policies were created/altered after the checkpoint. Only that one policy needs to be reversed.
 
-2. **UI — Weekly quizzes card**
-   - Replace the single "Students attempted" row with three lines, each a clickable `Stat`-style button (text-only, matches existing density):
-     - `Completed all {quizzesTotal}: N`
-     - `Partially done (1–{quizzesTotal - 1}): M`
-     - `Not started (0): K`
-   - When `quizzesTotal === 0`, hide the first two lines and only show "Not started (0)" disabled.
-   - Keep `Total attempts` and `Avg score` lines unchanged below.
+## Change
+Issue a single forward migration that drops the post-checkpoint policy:
 
-3. **Sub-dialog (roster)**
-   - Extend the existing `rosterView` discriminator with three new modes: `"quiz-completed" | "quiz-partial" | "quiz-not-started"`.
-   - Reuse the same dialog component already used for diagnostic/completion lists.
-   - For `quiz-partial`, render each row with an extra muted suffix showing remaining count, e.g. `"3 of 14 done · 11 left"`.
-   - For the other two modes, render the standard name + email rows.
-   - Titles/descriptions follow the existing pattern (e.g. "Completed all weekly quizzes — {course.name}").
+```sql
+DROP POLICY IF EXISTS "Teachers can view enrolled student profiles" ON public.profiles;
+```
+
+This restores `profiles` RLS to its checkpoint-era policy set. (We don't delete the historical row in `supabase_migrations.schema_migrations` — Supabase migration history is append-only; the drop above is the rollback.)
+
+## Side effect to confirm
+After this drop, teachers will lose the ability to SELECT enrolled students' `profiles` rows through that policy. Any teacher-facing UI relying on it (e.g., student names/emails on teacher pages) may stop resolving names until a replacement is reintroduced. Since the checkpoint code didn't depend on this policy, the reverted frontend should be consistent with this.
 
 ## Out of scope
-- No backend/schema changes.
-- No change to `quizzesTotal` derivation.
-- No change to Total attempts / Avg score calculations.
-- Exams card stays untouched.
+- No data changes (no inserts/updates/deletes to user rows).
+- No changes to `course_exams`, mastery tables, realtime publication, or any other policies — those all predate the checkpoint and stay as-is.
+- No edits to repo migration files; reversal is applied as a new migration so history stays linear.
