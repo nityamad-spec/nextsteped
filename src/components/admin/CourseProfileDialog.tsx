@@ -47,7 +47,7 @@ interface Stats {
 
 interface RawData {
   enrollments: { student_id: string }[];
-  profiles: { id: string; university_id: string | null }[];
+  profiles: { id: string; university_id: string | null; name: string | null; email: string | null }[];
   universities: { id: string; name: string }[];
   diagnostics: { student_id: string; score: number | null; total_questions: number | null }[];
   mastery: { student_id: string; mastery_score: number | null; learner_level: string | null }[];
@@ -56,6 +56,8 @@ interface RawData {
   chatSessions: { id: string; user_id: string }[];
   chatMessageSessionIds: string[];
 }
+
+interface StudentLite { id: string; name: string | null; email: string | null }
 
 const BAND_KEYS = ["beginner", "developing", "proficient", "expert"] as const;
 const BAND_COLORS: Record<typeof BAND_KEYS[number], string> = {
