@@ -101,14 +101,14 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
     const studentIds = Array.from(new Set(enrollments.map(e => e.student_id)));
 
     // Profiles + universities for enrolled students
-    let profiles: { id: string; university_id: string | null }[] = [];
+    let profiles: RawData["profiles"] = [];
     let universities: { id: string; name: string }[] = [];
     if (studentIds.length > 0) {
       const profRes = await supabase
         .from("profiles")
-        .select("id, university_id")
+        .select("id, university_id, name, email")
         .in("id", studentIds);
-      profiles = (profRes.data || []) as { id: string; university_id: string | null }[];
+      profiles = (profRes.data || []) as RawData["profiles"];
       const uniIds = Array.from(new Set(profiles.map(p => p.university_id).filter((v): v is string => !!v)));
       if (uniIds.length > 0) {
         const uniRes = await supabase.from("universities").select("id, name").in("id", uniIds);
