@@ -677,4 +677,25 @@ const Stat = ({ label, value, sub, onClick }: { label: string; value: number | s
   return <div>{inner}</div>;
 };
 
+const QuizRow = ({ label, count, onClick }: { label: string; count: number; onClick?: () => void }) => {
+  const content = (
+    <div className="flex items-center justify-between gap-2 w-full">
+      <span className="text-muted-foreground">{label}:</span>
+      <span className="text-foreground tabular-nums font-medium">{count}</span>
+    </div>
+  );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="w-full rounded-sm -mx-1 px-1 py-0.5 hover:bg-muted/60 hover:underline underline-offset-2 transition-colors text-left"
+      >
+        {content}
+      </button>
+    );
+  }
+  return content;
+};
+
 export default CourseProfileDialog;
