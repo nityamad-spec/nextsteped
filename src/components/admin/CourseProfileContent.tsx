@@ -384,7 +384,7 @@ const CourseProfileContent = ({ courseId, courseName, variant = "dialog" }: Prop
   const total = stats?.enrolled || 0;
   const pctOf = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
   const totalEnrolledAll = raw?.enrollments.length || 0;
-  const showUniSelect = uniOptions.length > 1;
+  
 
   const scrollClass =
     variant === "page"
@@ -401,30 +401,31 @@ const CourseProfileContent = ({ courseId, courseName, variant = "dialog" }: Prop
         </div>
       ) : (
         <div className="space-y-4 py-2">
-          {showUniSelect && (
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <GraduationCap className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">University:</span>
-              <Select value={universityFilter} onValueChange={setUniversityFilter}>
-                <SelectTrigger className="h-8 w-auto min-w-[220px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>All universities ({totalEnrolledAll})</SelectItem>
-                  {uniOptions.map(o => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label} ({o.count})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {universityFilter !== ALL && (
-                <span className="text-muted-foreground">
-                  Showing <span className="text-foreground font-medium">{stats.enrolled}</span> of {totalEnrolledAll} students
-                </span>
-              )}
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <GraduationCap className="h-4 w-4 text-muted-foreground" />
+            <span className="text-muted-foreground">University:</span>
+            <Select value={universityFilter} onValueChange={setUniversityFilter}>
+              <SelectTrigger className="h-8 w-auto min-w-[220px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All universities ({totalEnrolledAll})</SelectItem>
+                {uniOptions.map(o => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label} ({o.count})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {uniOptions.length === 0 && (
+              <span className="text-muted-foreground italic">No university data on roster</span>
+            )}
+            {universityFilter !== ALL && (
+              <span className="text-muted-foreground">
+                Showing <span className="text-foreground font-medium">{stats.enrolled}</span> of {totalEnrolledAll} students
+              </span>
+            )}
+          </div>
 
           <div className="rounded-lg border bg-card p-4 space-y-3">
             <div className="flex items-center gap-2 text-sm font-medium">
