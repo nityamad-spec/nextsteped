@@ -393,6 +393,31 @@ const EnrollmentSettings = () => {
               )}
             </div>
 
+            {/* Manual entry */}
+            <div className="rounded-lg border p-4 space-y-2">
+              <Label htmlFor="manual-emails" className="text-sm font-medium">Add emails manually</Label>
+              <Textarea
+                id="manual-emails"
+                value={manualEmails}
+                onChange={(e) => setManualEmails(e.target.value)}
+                placeholder="Paste or type emails — one per line, or separated by commas/semicolons/spaces"
+                rows={4}
+                disabled={adding}
+              />
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Names/universities aren't supported here — use the CSV upload for those.
+                </p>
+                <Button
+                  size="sm"
+                  onClick={handleManualAdd}
+                  disabled={adding || !manualEmails.trim()}
+                >
+                  {adding ? "Adding…" : "Add to roster"}
+                </Button>
+              </div>
+            </div>
+
             {/* Upload */}
             <input
               ref={fileRef}
