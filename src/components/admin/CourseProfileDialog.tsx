@@ -589,8 +589,23 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
                   </div>
                   <div className="rounded-md border bg-background p-2.5 space-y-1">
                     <div className="font-medium">Exams <span className="text-muted-foreground font-normal">({stats.examsTotal} active)</span></div>
-                    <div className="text-muted-foreground">Students attempted: <span className="text-foreground tabular-nums">{stats.examStudents}</span></div>
-                    <div className="text-muted-foreground">Total attempts: <span className="text-foreground tabular-nums">{stats.examAttempts}</span></div>
+                    {stats.examsTotal > 0 ? (
+                      <>
+                        <QuizRow
+                          label={`Completed all ${stats.examsTotal} exam${stats.examsTotal === 1 ? "" : "s"}`}
+                          count={stats.examCompletedAll.length}
+                          onClick={stats.examCompletedAll.length > 0 ? () => setRosterView("exam-completed") : undefined}
+                        />
+                        <QuizRow
+                          label="Not completed"
+                          count={stats.examNotCompleted.length}
+                          onClick={stats.examNotCompleted.length > 0 ? () => setRosterView("exam-not-completed") : undefined}
+                        />
+                      </>
+                    ) : (
+                      <div className="text-muted-foreground">No active exams</div>
+                    )}
+                    <div className="text-muted-foreground pt-1">Total attempts: <span className="text-foreground tabular-nums">{stats.examAttempts}</span></div>
                     <div className="text-muted-foreground">Avg score: <span className="text-foreground tabular-nums">{fmtPct(stats.examAvg)}</span></div>
                   </div>
                 </div>
