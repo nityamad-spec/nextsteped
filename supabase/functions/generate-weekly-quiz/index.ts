@@ -150,7 +150,7 @@ function stemToken(token: string): string {
   else if (t.length > 6 && t.endsWith("ing")) t = t.slice(0, -3);
   else if (t.length > 5 && t.endsWith("ed")) t = t.slice(0, -2);
   else if (t.length > 4 && t.endsWith("es")) t = t.slice(0, -2);
-  else if (t.length > 3 && t.endsWith("s")) t = t.slice(0, -1);
+  else if (t.length > 3 && t.endsWith("s") && !/(ss|us|is|ias)$/.test(t)) t = t.slice(0, -1);
   return t;
 }
 
