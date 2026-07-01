@@ -1,26 +1,40 @@
-## Goal
-Align the live database with the code state at the "added QuizRow component" checkpoint (chat message at 2026-06-30 08:26).
+Plan to fix weekly quiz duplicate generation
 
-## What's different today vs. the checkpoint
-The repo at that checkpoint had migrations through `20260629142344` ("Admins can view all course exams" on `course_exams`). The live DB has exactly **one** additional migration applied after the checkpoint:
+1. Preserve the existing partial generation approach
+- Keep the current chunked/top-up generation pattern per tier.
+- Continue generating small batches until the tier reaches its target count.
+- Keep timeout handling, partial salvage behavior, credit exhaustion handling, and existing delete-then-insert flow.
 
-- `20260630090408` — added RLS policy **"Teachers can view enrolled student profiles"** on `public.profiles` (FOR SELECT TO authenticated, gated by `is_course_member(enrollment.course_id, auth.uid())`).
+2. Pass already-generated same-tier questions into each subsequent LLM call
+- For each tier, maintain the accepted questions collected so far.
+- After the first sub-call in a tier, include an `EXISTING QUESTIONS IN THIS SAME TIER` block in the prompt.
+- Instruct the model not to repeat, paraphrase, or ask the same underlying concept/application as any listed question.
+- Include each existing question’s stem, answer, topic, and short explanation so the model can avoid both duplicate stems and duplicate answer rationale.
 
-No tables, columns, functions, triggers, or other policies were created/altered after the checkpoint. Only that one policy needs to be reversed.
+3. Strengthen the validator after each sub-call
+- Continue validating schema, format, options, answer membership, topic, Bloom level, difficulty, option length parity, and non-empty explanation.
+- Add a stricter same-tier duplicate detector using normalized stems and token similarity, not just the first 120 lowercase characters.
+- Reject exact duplicates and close paraphrases such as “bias” vs “biases” or “principle” vs “intent behind the principle.”
 
-## Change
-Issue a single forward migration that drops the post-checkpoint policy:
+4. Add final tier-level validation before returning generated questions
+- Once a tier has its final JSON array, run a full-tier validator over all accepted questions.
+- Verify no duplicate/paraphrased question pairs remain within that tier.
+- Verify each explanation matches the stored correct answer:
+  - For MCQ: explanation should reference the correct answer text or key terms from it.
+  - For True/False: explanation should clearly support the chosen `True` or `False` answer.
+- If final validation fails, remove invalid/duplicate items and continue top-up generation with those rejection reasons included in the next prompt.
 
-```sql
-DROP POLICY IF EXISTS "Teachers can view enrolled student profiles" ON public.profiles;
-```
+5. Improve retry hints to the LLM
+- When validation rejects questions, pass specific feedback into the next sub-call, including duplicate question stems and explanation/answer mismatch reasons.
+- Keep the feedback compact so prompts stay within budget.
 
-This restores `profiles` RLS to its checkpoint-era policy set. (We don't delete the historical row in `supabase_migrations.schema_migrations` — Supabase migration history is append-only; the drop above is the rollback.)
+6. Verification
+- Regenerate weekly quiz 11 for Introduction to Generative AI.
+- Confirm the standard tier has 5 unique questions with no near-duplicate pairs.
+- Confirm every generated question has a non-empty explanation aligned with its correct answer.
+- Confirm the review dialog still displays all tiers correctly without frontend changes.
 
-## Side effect to confirm
-After this drop, teachers will lose the ability to SELECT enrolled students' `profiles` rows through that policy. Any teacher-facing UI relying on it (e.g., student names/emails on teacher pages) may stop resolving names until a replacement is reintroduced. Since the checkpoint code didn't depend on this policy, the reverted frontend should be consistent with this.
+Files expected to change
+- `supabase/functions/generate-weekly-quiz/index.ts` only.
 
-## Out of scope
-- No data changes (no inserts/updates/deletes to user rows).
-- No changes to `course_exams`, mastery tables, realtime publication, or any other policies — those all predate the checkpoint and stay as-is.
-- No edits to repo migration files; reversal is applied as a new migration so history stays linear.
+No database schema or UI changes are needed.

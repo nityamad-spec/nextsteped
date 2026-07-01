@@ -94,6 +94,209 @@ interface ConceptRow {
   concept_code: string;
 }
 
+const QUESTION_STOP_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "by",
+  "can",
+  "do",
+  "does",
+  "for",
+  "from",
+  "how",
+  "in",
+  "is",
+  "it",
+  "of",
+  "on",
+  "or",
+  "should",
+  "that",
+  "the",
+  "their",
+  "this",
+  "to",
+  "what",
+  "when",
+  "which",
+  "why",
+  "with",
+]);
+
+const ANSWER_STOP_WORDS = new Set([
+  ...QUESTION_STOP_WORDS,
+  "about",
+  "because",
+  "best",
+  "correct",
+  "describes",
+  "means",
+  "option",
+  "statement",
+]);
+
+function stripDiacritics(value: string): string {
+  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function stemToken(token: string): string {
+  let t = token.toLowerCase();
+  if (t.length > 5 && t.endsWith("ies")) t = `${t.slice(0, -3)}y`;
+  else if (t.length > 6 && t.endsWith("ing")) t = t.slice(0, -3);
+  else if (t.length > 5 && t.endsWith("ed")) t = t.slice(0, -2);
+  else if (t.length > 4 && t.endsWith("es")) t = t.slice(0, -2);
+  else if (t.length > 3 && t.endsWith("s")) t = t.slice(0, -1);
+  return t;
+}
+
+function tokenize(value: string, stopWords = QUESTION_STOP_WORDS): string[] {
+  const normalized = stripDiacritics(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  if (!normalized) return [];
+  return normalized
+    .split(/\s+/)
+    .map(stemToken)
+    .filter((token) => token.length > 2 && !stopWords.has(token));
+}
+
+function normalizedQuestionKey(value: string): string {
+  return tokenize(value).join(" ");
+}
+
+function jaccardSimilarity(a: string[], b: string[]): number {
+  if (!a.length || !b.length) return 0;
+  const setA = new Set(a);
+  const setB = new Set(b);
+  let intersection = 0;
+  for (const token of setA) if (setB.has(token)) intersection++;
+  const union = new Set([...setA, ...setB]).size;
+  return union ? intersection / union : 0;
+}
+
+function containmentSimilarity(a: string[], b: string[]): number {
+  if (!a.length || !b.length) return 0;
+  const setA = new Set(a);
+  const setB = new Set(b);
+  let intersection = 0;
+  for (const token of setA) if (setB.has(token)) intersection++;
+  return intersection / Math.min(setA.size, setB.size);
+}
+
+function questionSimilarity(a: GeneratedQuestion, b: GeneratedQuestion): number {
+  const aTokens = tokenize(a.content_text);
+  const bTokens = tokenize(b.content_text);
+  const stemJaccard = jaccardSimilarity(aTokens, bTokens);
+  const stemContainment = containmentSimilarity(aTokens, bTokens);
+
+  // Include answer/topic overlap so close paraphrases targeting the same fact
+  // are caught, while unrelated questions that share generic course terms pass.
+  const answerJaccard = jaccardSimilarity(tokenize(a.answer), tokenize(b.answer));
+  const sameTopicBoost = a.topic === b.topic ? 0.08 : 0;
+  return Math.max(stemJaccard, stemContainment * 0.85, stemJaccard * 0.75 + answerJaccard * 0.2 + sameTopicBoost);
+}
+
+function isLikelyDuplicateQuestion(a: GeneratedQuestion, b: GeneratedQuestion): boolean {
+  const keyA = normalizedQuestionKey(a.content_text);
+  const keyB = normalizedQuestionKey(b.content_text);
+  if (keyA && keyA === keyB) return true;
+
+  const similarity = questionSimilarity(a, b);
+  if (similarity >= 0.72) return true;
+
+  const answerOverlap = jaccardSimilarity(tokenize(a.answer), tokenize(b.answer));
+  const stemContainment = containmentSimilarity(tokenize(a.content_text), tokenize(b.content_text));
+  return a.topic === b.topic && stemContainment >= 0.62 && answerOverlap >= 0.35;
+}
+
+function topAnswerTokens(answer: string): string[] {
+  const tokens = tokenize(answer, ANSWER_STOP_WORDS);
+  const seen = new Set<string>();
+  return tokens.filter((token) => {
+    if (seen.has(token)) return false;
+    seen.add(token);
+    return true;
+  });
+}
+
+function explanationSupportsAnswer(q: GeneratedQuestion): { ok: true } | { ok: false; reason: string } {
+  const explanation = q.explanation.trim();
+  if (!explanation) return { ok: false, reason: "empty explanation" };
+
+  if (q.format === "true_false") {
+    const lower = explanation.toLowerCase();
+    if (q.answer === "True" && /\bfalse\b|\bincorrect\b|\bnot true\b/.test(lower) && !/\bnot false\b/.test(lower)) {
+      return { ok: false, reason: "true/false explanation appears to contradict True answer" };
+    }
+    if (q.answer === "False" && /\btrue\b|\bcorrect\b/.test(lower) && !/\bnot true\b|\bincorrect\b/.test(lower)) {
+      return { ok: false, reason: "true/false explanation appears to contradict False answer" };
+    }
+    return { ok: true };
+  }
+
+  const answerTokens = topAnswerTokens(q.answer);
+  if (answerTokens.length === 0) return { ok: true };
+  const explanationTokens = new Set(tokenize(explanation, ANSWER_STOP_WORDS));
+  const matched = answerTokens.filter((token) => explanationTokens.has(token)).length;
+  const required = answerTokens.length <= 2 ? 1 : Math.max(2, Math.ceil(answerTokens.length * 0.3));
+  if (matched < required) {
+    return { ok: false, reason: "explanation does not reference enough key terms from the correct answer" };
+  }
+
+  for (const option of q.options) {
+    if (option === q.answer) continue;
+    const wrongTokens = topAnswerTokens(option);
+    if (wrongTokens.length === 0) continue;
+    const wrongMatches = wrongTokens.filter((token) => explanationTokens.has(token)).length;
+    const wrongRequired = wrongTokens.length <= 2 ? wrongTokens.length : Math.ceil(wrongTokens.length * 0.6);
+    if (wrongMatches >= wrongRequired && matched < wrongMatches) {
+      return { ok: false, reason: "explanation appears to support a distractor more than the correct answer" };
+    }
+  }
+
+  return { ok: true };
+}
+
+function validateTierQuestionSet(
+  questions: GeneratedQuestion[],
+): { questions: GeneratedQuestion[]; rejections: string[] } {
+  const survivors: GeneratedQuestion[] = [];
+  const rejections: string[] = [];
+
+  for (const q of questions) {
+    const duplicateOf = survivors.find((existing) => isLikelyDuplicateQuestion(existing, q));
+    if (duplicateOf) {
+      rejections.push(`duplicate/paraphrase rejected: "${q.content_text.slice(0, 90)}" duplicates "${duplicateOf.content_text.slice(0, 90)}"`);
+      continue;
+    }
+
+    const explanationCheck = explanationSupportsAnswer(q);
+    if (!explanationCheck.ok) {
+      rejections.push(`${explanationCheck.reason}: "${q.content_text.slice(0, 90)}"`);
+      continue;
+    }
+
+    survivors.push(q);
+  }
+
+  return { questions: survivors, rejections };
+}
+
+function formatExistingQuestionsForPrompt(questions: GeneratedQuestion[]): string {
+  if (!questions.length) return "";
+  const compact = questions.slice(-8).map((q, index) => {
+    return `${index + 1}. Stem: ${q.content_text}\n   Topic: ${q.topic}\n   Correct answer: ${q.answer}\n   Explanation: ${q.explanation}`;
+  });
+
+  return `\n\nEXISTING QUESTIONS IN THIS SAME TIER (do not duplicate, paraphrase, or test the same underlying fact/application; also avoid reusing the same answer rationale):\n${compact.join("\n")}`;
+}
+
 function validateQuestion(
   q: any,
   spec: TierSpec,
@@ -217,13 +420,15 @@ STRICT RULES:
 ${spec.tier === "easy" ? "- Bloom target: mostly 1-2 (Remember/Understand)." : spec.tier === "medium" || spec.tier === "standard" ? "- Bloom target: mostly 2-3 (Understand/Apply); at least 40% at bloom 3." : "- Bloom target: 3-4 (Apply/Analyze); at least 60% at bloom 3-4. Prefer scenario, code-trace, or comparison stems over single-fact recall."}
 - content_text: question stem only, ≤ 600 chars.
 - explanation: 1-2 sentences explaining the correct answer.
+- explanation: 1-2 sentences that explicitly support the exact correct answer and do not support any distractor.
 - topic: MUST exactly match one of the concept codes above.
 - Distribute questions across the listed concepts (don't pile all on one).
+- Do NOT duplicate or closely paraphrase any question already generated in this same tier. If existing same-tier questions are provided below, create new stems, new examples, and distinct answer rationales.
 
 ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 - LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
 - ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible student misconception (a wrong rule, a swapped operator, an off-by-one, a confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer. No obviously absurd choices.
-- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${formatExistingQuestionsForPrompt(accepted)}${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
 
       let response: Response;
       try {
@@ -325,8 +530,16 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
           rejects.push(v.reason);
           continue;
         }
-        const key = v.q.content_text.slice(0, 120).toLowerCase();
-        if (accepted.some((a) => a.content_text.slice(0, 120).toLowerCase() === key)) continue;
+        const explanationCheck = explanationSupportsAnswer(v.q);
+        if (!explanationCheck.ok) {
+          rejects.push(explanationCheck.reason);
+          continue;
+        }
+        const duplicateOf = accepted.find((a) => isLikelyDuplicateQuestion(a, v.q));
+        if (duplicateOf) {
+          rejects.push(`duplicate/paraphrase of existing same-tier question: "${duplicateOf.content_text.slice(0, 90)}"`);
+          continue;
+        }
         accepted.push(v.q);
       }
       if (accepted.length < spec.count && rejects.length) {
@@ -361,12 +574,22 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
             retryHint = `Correct-answer position was skewed to index ${skewIdx} (${maxC}/${mcq.length}). Rotate correct positions across 0-3.`;
           }
         }
+
+        const finalCheck = validateTierQuestionSet(accepted);
+        if (finalCheck.rejections.length) {
+          accepted.splice(0, accepted.length, ...finalCheck.questions);
+          retryHint = `Final tier validation removed ${finalCheck.rejections.length} question(s): ${finalCheck.rejections.slice(0, 3).join("; ")}. Generate replacements that are unique and whose explanations support the exact correct answer.`;
+        }
       }
     }
   }
 
+  const finalCheck = validateTierQuestionSet(accepted);
+  if (finalCheck.rejections.length) {
+    console.warn(`[weekly-quiz] ${spec.tier} final validation removed ${finalCheck.rejections.length} question(s):`, finalCheck.rejections.slice(0, 5));
+  }
   // Return whatever we have — caller decides whether to accept a partial tier.
-  return accepted;
+  return finalCheck.questions;
 }
 
 Deno.serve(async (req) => {
