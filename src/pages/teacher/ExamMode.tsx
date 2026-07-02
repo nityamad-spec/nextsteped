@@ -105,7 +105,10 @@ const ExamMode = () => {
     archiveExam,
     restoreExam,
     deleteExamRow,
+    publishExam,
+    unpublishExam,
   } = useCourseExams(courseId);
+
 
   // ── Exam config state ──
   const [settings, setSettings] = useState(taSettings);
