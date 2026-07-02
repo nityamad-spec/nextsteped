@@ -186,5 +186,6 @@ export function useCourseExams(courseId: string | null) {
   return {
     exams, active, archived, loading,
     reload, upsertExam, archiveExam, restoreExam, deleteExamRow,
+    publishExam, unpublishExam,
   };
 }
