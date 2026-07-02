@@ -1049,6 +1049,7 @@ const ExamMode = () => {
         toast.success("Question added");
       }
       setDialogOpen(false);
+      setViewRefreshToken(t => t + 1);
       if (courseId) bumpCacheVersion("questions", courseId);
     } catch { toast.error("Failed to save question"); }
     finally { setSaving(false); }
