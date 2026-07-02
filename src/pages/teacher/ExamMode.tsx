@@ -627,7 +627,7 @@ const ExamMode = () => {
     if (!exam) return;
     const nextBreakdown = { ...exam.breakdown, [type]: Math.max(0, value || 0) };
     setExamSchedule(prev => prev.map(e =>
-      e.id === id ? { ...e, breakdown: nextBreakdown, approved: false, breakdownDirty: true } : e
+      e.id === id ? { ...e, breakdown: nextBreakdown, approved: false, publishedAt: null, breakdownDirty: true } : e
     ));
     persistExamDebounced(id);
   };
@@ -637,10 +637,11 @@ const ExamMode = () => {
     if (!exam) return;
     const fresh = questionEstimate(exam.lengthMin, examQuestionTypes).breakdown;
     setExamSchedule(prev => prev.map(e =>
-      e.id === id ? { ...e, breakdown: fresh, breakdownDirty: false, approved: false } : e
+      e.id === id ? { ...e, breakdown: fresh, breakdownDirty: false, approved: false, publishedAt: null } : e
     ));
     persistExamDebounced(id);
   };
+
 
 
 
