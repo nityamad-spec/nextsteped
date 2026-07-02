@@ -1,40 +1,55 @@
-Plan to fix weekly quiz duplicate generation
+# Fix truncated analytics in Course Profile dialog
 
-1. Preserve the existing partial generation approach
-- Keep the current chunked/top-up generation pattern per tier.
-- Continue generating small batches until the tier reaches its target count.
-- Keep timeout handling, partial salvage behavior, credit exhaustion handling, and existing delete-then-insert flow.
+**Root cause:** `CourseProfileDialog` fetches `assessment_results` and `chat_messages` with a single `.select()` call. Both tables can exceed the PostgREST default 1,000-row cap for popular courses. For *Introduction to Generative AI*, `assessment_results` has **4,030 rows** but only 1,000 come back, so the completion tile shows **3** instead of the actual **102**. Every downstream stat derived from these rows (weekly-quiz breakdown, exam attempts, avg scores, chat message counts) is under-reported.
 
-2. Pass already-generated same-tier questions into each subsequent LLM call
-- For each tier, maintain the accepted questions collected so far.
-- After the first sub-call in a tier, include an `EXISTING QUESTIONS IN THIS SAME TIER` block in the prompt.
-- Instruct the model not to repeat, paraphrase, or ask the same underlying concept/application as any listed question.
-- Include each existing question’s stem, answer, topic, and short explanation so the model can avoid both duplicate stems and duplicate answer rationale.
+**Scope:** `src/components/admin/CourseProfileDialog.tsx` only. No schema, no RLS, no logic changes to completion criteria — just full pagination of the two unbounded fetches.
 
-3. Strengthen the validator after each sub-call
-- Continue validating schema, format, options, answer membership, topic, Bloom level, difficulty, option length parity, and non-empty explanation.
-- Add a stricter same-tier duplicate detector using normalized stems and token similarity, not just the first 120 lowercase characters.
-- Reject exact duplicates and close paraphrases such as “bias” vs “biases” or “principle” vs “intent behind the principle.”
+## Changes
 
-4. Add final tier-level validation before returning generated questions
-- Once a tier has its final JSON array, run a full-tier validator over all accepted questions.
-- Verify no duplicate/paraphrased question pairs remain within that tier.
-- Verify each explanation matches the stored correct answer:
-  - For MCQ: explanation should reference the correct answer text or key terms from it.
-  - For True/False: explanation should clearly support the chosen `True` or `False` answer.
-- If final validation fails, remove invalid/duplicate items and continue top-up generation with those rejection reasons included in the next prompt.
+### 1. Add a paginated fetch helper (local to the file)
 
-5. Improve retry hints to the LLM
-- When validation rejects questions, pass specific feedback into the next sub-call, including duplicate question stems and explanation/answer mismatch reasons.
-- Keep the feedback compact so prompts stay within budget.
+```ts
+async function fetchAll<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  pageSize = 1000,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await build(from, from + pageSize - 1);
+    if (error) throw error;
+    const chunk = data ?? [];
+    out.push(...chunk);
+    if (chunk.length < pageSize) break;
+  }
+  return out;
+}
+```
 
-6. Verification
-- Regenerate weekly quiz 11 for Introduction to Generative AI.
-- Confirm the standard tier has 5 unique questions with no near-duplicate pairs.
-- Confirm every generated question has a non-empty explanation aligned with its correct answer.
-- Confirm the review dialog still displays all tiers correctly without frontend changes.
+### 2. Paginate `assessment_results`
 
-Files expected to change
-- `supabase/functions/generate-weekly-quiz/index.ts` only.
+Replace the single `.select("student_id, mode, quiz_day, exam_id, score, total_questions").eq("course_id", courseId)` with a `fetchAll` loop that applies `.range(from, to)` and an `.order("id")` (or `.order("created_at")`) for stable pagination.
 
-No database schema or UI changes are needed.
+### 3. Paginate `chat_messages`
+
+`chat_messages` is fetched via `.in("session_id", sessionIds)` — same cap applies. Wrap it in the same helper and paginate. If `sessionIds.length` is very large, chunk the `IN` list into batches of ≤500 to keep the URL under limits, then paginate within each batch.
+
+### 4. Keep everything else identical
+
+- No change to the completion rule (`quizzesOk && examsOk && masteryOk`).
+- No change to realtime subscriptions or debounce.
+- No new dependencies.
+
+## Verification
+
+After the change, re-open the dialog for *Introduction to Generative AI* with **All universities** selected. Expected:
+- Completed tile: ~102 (matches DB check)
+- Not completed tile: 366 − 102 = 264
+- "Completed all 14" quiz row: ~192
+- Weekly quiz Total attempts and Exam Total attempts should both jump to their true counts
+
+Spot-check by opening the Completed list and confirming Vallabh Dasari and Somayajula Keerti Madhavi both appear.
+
+## Non-goals
+
+- No changes to `AdminStudents` or `StudentProfileDialog` — will inspect separately if any of their queries also risk the 1k cap once this fix ships.
+- No change to completion definition (all weekly quizzes + all active exams + mastery ≥ proficient).
