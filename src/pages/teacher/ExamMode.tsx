@@ -205,6 +205,7 @@ const ExamMode = () => {
   const [generatingExamId, setGeneratingExamId] = useState<string | null>(null);
   const [genProgress, setGenProgress] = useState<{ current: number; total: number } | null>(null);
   const [viewExamId, setViewExamId] = useState<string | null>(null);
+  const [viewRefreshToken, setViewRefreshToken] = useState(0);
 
 
 
