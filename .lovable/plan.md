@@ -1,53 +1,58 @@
-## Explicit Publish / Unpublish for Mock Tests
+## Goal
 
-Today "Approve Exam" is only a teacher-side readiness flag. Student visibility is actually driven by two implicit conditions: (a) the exam is not archived in `course_exams`, and (b) `assessment_questions` exist for that `exam_id`. That means as soon as a teacher approves and questions land, students see it — with no way to hide a mock test short of archiving it (which is a heavier action carrying a confirmation and "Archived" section).
+On `/teacher/setup/exam-mode`, the "Edit Question — Exam Mode" dialog currently captures: Question, Assign to Exam, Difficulty, Concept, Question Type, options/answer. The underlying `assessment_questions` table stores more per-question metadata that's already used by mastery scoring, weekly-quiz generation dedup, and the student-facing question view — but it isn't editable here.
 
-We'll introduce an explicit per-exam publish state so teachers decide the exact moment a test appears to (and disappears from) students.
+## Missing parameters (audited against `assessment_questions` schema)
 
-### Behavior
 
-- Each active mock test card gets two mutually exclusive actions:
-  - **Publish to students** — enabled only after "Approve Exam" (i.e. `approved = true` and questions exist).
-  - **Unpublish** — hides the test from students immediately, without archiving. Past student submissions in `assessment_results` are preserved.
-- A visible status pill on each card: `Draft` → `Approved` → `Published`.
-- Editing length, breakdown, or question types on a published exam auto-unpublishes it (same pattern already used for `approved = false` on edits) and shows a toast: "Unpublished — republish after review."
-- Archiving a published exam also unpublishes it as part of the same action.
-- Restoring an archived exam returns it as `Draft` (must be re-approved and re-published), matching existing "requires re-approval" behavior.
+| Column                                             | Editable today? | Recommendation                                                                                                                          |
+| -------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `bloom_level` (int 1–6)                            | No              | **Add dropdown** (user request)                                                                                                         |
+| `explanation` (text)                               | No              | **Add textarea** — already shown to students post-answer and set by AI-generated questions; teacher-authored ones currently save `null` |
+| `difficulty_estimate` (0.00–1.00)                  | No              | Add in UI                                                                                                                               |
+| `bloom_justification` / `difficulty_justification` | No              | Add in UI                                                                                                                               |
+| `tier`                                             | No              | Skip — only meaningful for weekly quizzes, not exams (always `standard` here)                                                           |
+| `item_code`, `in_test`, `is_distractor`            | No              | Skip — system-managed                                                                                                                   |
 
-### Student side
 
-- `AIChat.tsx` exam rotation query (line 454) adds `.not("published_at", "is", null)` alongside the existing `archived_at IS NULL` filter, so unpublished / draft exams never enter rotation.
-- Same filter added anywhere else student-facing that surfaces exams (verified via `rg course_exams` — only `AIChat.tsx` today).
+So two additions: **Bloom's level** and **Explanation**.
 
-### Data model
+## Changes (frontend only — no schema migration)
 
-Add one column to `course_exams`:
+**File:** `src/pages/teacher/ExamMode.tsx`
 
-```text
-published_at   timestamptz  null
-published_by   uuid         null  references profiles(id)
-```
+1. **State**
+  - Add `formBloom: number` (1–6, default `2`) and `formExplanation: string` (default `""`).
+2. **Reset / hydrate**
+  - `openAddDialog`: reset `formBloom = 2`, `formExplanation = ""`.
+  - `openEditDialog`: hydrate from the loaded question. Extend the question fetch (the query that populates `questions`) to also select `bloom_level, explanation` so edit prefills correctly.
+  - Extend the local `EditableQuestion` type with `bloom_level?: number | null; explanation?: string | null`.
+3. **Save (`handleSaveQuestion`)**
+  - Include `bloom_level: formBloom` and `explanation: formExplanation.trim() || null` in the insert/update `row`.
+  - Mirror the same fields into the optimistic `setQuestions` update so the list stays in sync without a refetch.
+4. **Dialog UI** (inserted right after the existing Difficulty select, before Concept)
+  - **Bloom's Level** `Select` with items:
+    - `1 — Remember`
+    - `2 — Understand`
+    - `3 — Apply`
+    - `4 — Analyze`
+    - `5 — Evaluate`
+    - `6 — Create`
+    - Helper text: "Cognitive level assessed by this question."
+  - **Explanation** `Textarea` (rows=2), optional. Helper text: "Shown to students after they submit an answer."
+  - `difficulty_estimate: Floating point textbox`
+  - `bloom_justification: Textarea`
+  - `difficulty_justification: Textarea`
+5. **View dialog** (`src/components/ExamQuestionsViewDialog.tsx`) already displays `Bloom {n}` — no change needed; teacher-edited values will now appear there too.
 
-Migration also grants unchanged (column additions inherit table grants) and does not touch RLS. No backfill: existing exams start as Published. Teachers explicitly opt in per exam. (If you'd prefer to backfill all currently-approved active exams as published so nothing "disappears" for students, say so and I'll add a one-line UPDATE.) Default for existing exams is 'Published' in DB
+## Out of scope
 
-### Teacher UI (`src/pages/teacher/ExamMode.tsx`)
+- No changes to weekly-quiz or diagnostic dialogs.
+- No changes to AI generation prompts — they already set `bloom_level` and `explanation`.
+- No DB migration; all fields already exist and are `NOT NULL` with defaults (`bloom_level = 1`) or nullable (`explanation`).
 
-- Extend `useCourseExams` types with `publishedAt: string | null`.
-- Add `publishExam(id)` / `unpublishExam(id)` mutations that set/clear `published_at` + `published_by`.
-- Add the Publish/Unpublish button next to "Approve Exam" on both AI and Manual cards.
-- Any edit path that currently sets `approved: false` also clears `published_at`.
-- Add a `Published` badge on the card header.
+## Verification
 
-### Analytics / admin
-
-- `CourseProfileDialog.tsx` currently uses "active (non-archived)" exams. Leave that alone — analytics should keep counting drafts/unpublished so teachers can still see setup progress. Only student-facing surfaces gate on `published_at`.
-
-### Verification
-
-- Type check + build.
-- Manual: approve an exam, confirm it does NOT appear in the student exam rotation until Publish is clicked; click Unpublish and confirm it disappears without archiving; edit the length on a published exam and confirm it auto-unpublishes.
-
-### Risks
-
-- Existing approved exams will be invisible to students until a teacher publishes them (unless we backfill — flag your preference). Already addressed as part of migration.
-- Two "gate" concepts (Approved vs Published) is one more thing for teachers to learn; the status pill + disabled state on Publish (until approved) keeps the order obvious.
+- Open an existing AI-generated exam question → confirm Bloom and Explanation prefill from DB.
+- Change Bloom from 3→5, save, reopen → value persists; also visible in "View Questions" dialog badge.
+- Add a new manual question with Bloom 4 and an explanation → row in `assessment_questions` shows both values.
