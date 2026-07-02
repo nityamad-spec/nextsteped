@@ -134,9 +134,11 @@ const ExamMode = () => {
           breakdown: e.breakdown,
           approved: e.approved,
           source: e.source,
+          publishedAt: e.published_at,
           breakdownDirty: !sameKeys,
         };
       });
+
     }
     if (taSettings.examSchedule && taSettings.examSchedule.length > 0) {
       return taSettings.examSchedule.map(e => ({ ...e, source: e.source ?? "generated" }));
