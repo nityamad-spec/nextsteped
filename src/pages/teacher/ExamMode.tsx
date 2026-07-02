@@ -1486,6 +1486,62 @@ const ExamMode = () => {
               </Select>
             </div>
             <div className="space-y-2">
+              <Label>Bloom's Level</Label>
+              <Select value={String(formBloom)} onValueChange={(v) => setFormBloom(Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 — Remember</SelectItem>
+                  <SelectItem value="2">2 — Understand</SelectItem>
+                  <SelectItem value="3">3 — Apply</SelectItem>
+                  <SelectItem value="4">4 — Analyze</SelectItem>
+                  <SelectItem value="5">5 — Evaluate</SelectItem>
+                  <SelectItem value="6">6 — Create</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">Cognitive level assessed by this question.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Difficulty Estimate</Label>
+              <Input
+                type="number"
+                min={0}
+                max={1}
+                step={0.05}
+                value={formDifficultyEstimate}
+                onChange={(e) => setFormDifficultyEstimate(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Expected P(incorrect) for a typical student, 0.00–1.00. Used for mastery scoring.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Bloom Justification</Label>
+              <Textarea
+                rows={2}
+                value={formBloomJustification}
+                onChange={(e) => setFormBloomJustification(e.target.value)}
+                placeholder="Why this Bloom's level fits the question (optional)"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Difficulty Justification</Label>
+              <Textarea
+                rows={2}
+                value={formDifficultyJustification}
+                onChange={(e) => setFormDifficultyJustification(e.target.value)}
+                placeholder="Why this difficulty was chosen (optional)"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Explanation</Label>
+              <Textarea
+                rows={2}
+                value={formExplanation}
+                onChange={(e) => setFormExplanation(e.target.value)}
+                placeholder="Shown to students after they submit an answer (optional)"
+              />
+            </div>
+            <div className="space-y-2">
               <Label>
                 Concept <span className="text-destructive">*</span>
               </Label>
