@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-interface ExamQuestionRow {
+export interface ExamQuestionRow {
   id: string;
   question_text: string;
   question_type: string;
@@ -15,6 +16,10 @@ interface ExamQuestionRow {
   difficulty: string;
   bloom_level: number | null;
   explanation: string | null;
+  difficulty_estimate: number | null;
+  bloom_justification: string | null;
+  difficulty_justification: string | null;
+  exam_id: string | null;
 }
 
 interface Props {
@@ -23,18 +28,22 @@ interface Props {
   courseId: string | null;
   examId: string | null;
   examLabel: string;
+  onEditQuestion?: (q: ExamQuestionRow) => void;
+  refreshToken?: number;
 }
 
-export default function ExamQuestionsViewDialog({ open, onOpenChange, courseId, examId, examLabel }: Props) {
+export default function ExamQuestionsViewDialog({
+  open, onOpenChange, courseId, examId, examLabel, onEditQuestion, refreshToken,
+}: Props) {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<ExamQuestionRow[]>([]);
 
-  useEffect(() => {
-    if (!open || !courseId || !examId) return;
+  const load = useCallback(() => {
+    if (!courseId || !examId) return;
     setLoading(true);
     supabase
       .from("assessment_questions")
-      .select("id, question_text, question_type, options, correct_index, answer, topic, difficulty, bloom_level, explanation")
+      .select("id, question_text, question_type, options, correct_index, answer, topic, difficulty, bloom_level, explanation, difficulty_estimate, bloom_justification, difficulty_justification, exam_id")
       .eq("course_id", courseId)
       .eq("mode", "exam")
       .eq("exam_id", examId)
@@ -44,7 +53,12 @@ export default function ExamQuestionsViewDialog({ open, onOpenChange, courseId, 
         setRows((data as any[] as ExamQuestionRow[]) ?? []);
         setLoading(false);
       });
-  }, [open, courseId, examId]);
+  }, [courseId, examId]);
+
+  useEffect(() => {
+    if (!open) return;
+    load();
+  }, [open, load, refreshToken]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -74,6 +88,16 @@ export default function ExamQuestionsViewDialog({ open, onOpenChange, courseId, 
                     <Badge variant="outline" className="text-[10px]">Bloom {q.bloom_level}</Badge>
                   )}
                   <span className="text-xs text-muted-foreground">{q.topic}</span>
+                  {onEditQuestion && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-auto h-7 px-2 text-xs"
+                      onClick={() => onEditQuestion(q)}
+                    >
+                      <Pencil className="mr-1 h-3 w-3" /> Edit
+                    </Button>
+                  )}
                 </div>
                 <p className="text-sm font-medium whitespace-pre-wrap">{q.question_text}</p>
                 {q.question_type === "MCQ" && q.options && (
