@@ -104,6 +104,7 @@ const ExamMode = () => {
     upsertExam,
     archiveExam,
     restoreExam,
+    deleteExamRow,
   } = useCourseExams(courseId);
 
   // ── Exam config state ──
