@@ -10,6 +10,8 @@ export interface CourseExam {
   breakdown: Record<string, number>;
   source: "generated" | "manual";
   approved: boolean;
+  published_at: string | null;
+  published_by: string | null;
   position: number;
   archived_at: string | null;
   archived_by: string | null;
@@ -24,6 +26,8 @@ interface DBRow {
   breakdown: unknown;
   source: string;
   approved: boolean;
+  published_at: string | null;
+  published_by: string | null;
   position: number;
   archived_at: string | null;
   archived_by: string | null;
@@ -38,10 +42,13 @@ const toApp = (r: DBRow): CourseExam => ({
   breakdown: (r.breakdown && typeof r.breakdown === "object" ? r.breakdown : {}) as Record<string, number>,
   source: (r.source as "generated" | "manual") ?? "generated",
   approved: !!r.approved,
+  published_at: r.published_at ?? null,
+  published_by: r.published_by ?? null,
   position: r.position ?? 0,
   archived_at: r.archived_at,
   archived_by: r.archived_by,
 });
+
 
 /** Pick the next available "Final N" label that isn't taken by an ACTIVE exam. */
 export function nextAvailableLabel(activeLabels: string[]): string {
