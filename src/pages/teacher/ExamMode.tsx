@@ -850,6 +850,11 @@ const ExamMode = () => {
     setFormQuestion(""); setFormAnswer(""); setFormTopic("");
     setFormType("MCQ"); setFormOptions(["", "", "", ""]); setFormCorrectIndex(0);
     setFormDifficulty("Medium");
+    setFormBloom(2);
+    setFormExplanation("");
+    setFormDifficultyEstimate("0.50");
+    setFormBloomJustification("");
+    setFormDifficultyJustification("");
     // Default: preselected exam, else first exam if any, else null
     setFormExamId(preselectExamId ?? (labeledSchedule[0]?.id ?? null));
     setDialogOpen(true);
@@ -865,11 +870,25 @@ const ExamMode = () => {
     setFormCorrectIndex(q.correctIndex ?? 0);
     setFormExamId(q.exam_id ?? null);
     setFormDifficulty((q.difficulty as "Easy" | "Medium" | "Hard") ?? "Medium");
+    setFormBloom(q.bloom_level ?? 2);
+    setFormExplanation(q.explanation ?? "");
+    setFormDifficultyEstimate(
+      q.difficulty_estimate != null ? Number(q.difficulty_estimate).toFixed(2) : "0.50"
+    );
+    setFormBloomJustification(q.bloom_justification ?? "");
+    setFormDifficultyJustification(q.difficulty_justification ?? "");
     setDialogOpen(true);
   };
 
   const handleSaveQuestion = async () => {
     if (!formQuestion.trim() || !formTopic || !courseId || !user) return;
+    // Parse & validate difficulty_estimate (0.00–1.00)
+    const parsedEst = Number.parseFloat(formDifficultyEstimate);
+    if (!Number.isFinite(parsedEst) || parsedEst < 0 || parsedEst > 1) {
+      toast.error("Difficulty estimate must be a number between 0.00 and 1.00");
+      return;
+    }
+    const clampedEst = Math.round(parsedEst * 100) / 100;
     setSaving(true);
     const isMCQ = formType === "MCQ";
     const isTF = formType === "True/False";
@@ -883,14 +902,30 @@ const ExamMode = () => {
       toast.error(`Topic "${formTopic}" must match an existing course concept code.`);
       return;
     }
+    const trimmedExplanation = formExplanation.trim();
+    const trimmedBloomJust = formBloomJustification.trim();
+    const trimmedDiffJust = formDifficultyJustification.trim();
     const row = {
       course_id: courseId, teacher_id: user.id, concept_id: conceptRow.id,
       mode: "exam" as const, question_type: formType,
       question_text: formQuestion, answer, topic: formTopic, difficulty: formDifficulty,
       options: isMCQ ? filteredOptions : isTF ? ["True", "False"] : null,
       correct_index: isMCQ ? formCorrectIndex : isTF ? (formAnswer === "True" ? 0 : 1) : null,
-      explanation: null as string | null, quiz_day: null as number | null,
+      explanation: trimmedExplanation || null,
+      quiz_day: null as number | null,
       exam_id: formExamId,
+      bloom_level: formBloom,
+      difficulty_estimate: clampedEst,
+      bloom_justification: trimmedBloomJust || null,
+      difficulty_justification: trimmedDiffJust || null,
+    };
+
+    const extraMeta = {
+      bloom_level: formBloom,
+      explanation: trimmedExplanation || null,
+      difficulty_estimate: clampedEst,
+      bloom_justification: trimmedBloomJust || null,
+      difficulty_justification: trimmedDiffJust || null,
     };
 
     try {
@@ -901,6 +936,7 @@ const ExamMode = () => {
           id: editingId, question: formQuestion, answer, topic: formTopic,
           difficulty: formDifficulty, type: formType, exam_id: formExamId,
           ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
+          ...extraMeta,
         } : q));
         toast.success("Question updated");
       } else {
@@ -910,6 +946,7 @@ const ExamMode = () => {
           id: data.id, question: formQuestion, answer, topic: formTopic,
           difficulty: formDifficulty, type: formType, exam_id: formExamId,
           ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
+          ...extraMeta,
         }]);
         toast.success("Question added");
       }
