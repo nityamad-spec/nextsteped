@@ -1190,6 +1190,20 @@ const ExamMode = () => {
                           )}
                           Restore
                         </Button>
+                        <Button
+                          variant="outline" size="sm"
+                          className="h-7 text-xs gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => openDeleteArchivedExam(ex.id, ex.label)}
+                          disabled={deletingExamId === ex.id}
+                          title="Permanently delete this archived exam"
+                        >
+                          {deletingExamId === ex.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3 w-3" />
+                          )}
+                          Delete
+                        </Button>
                       </div>
                     </div>
                   );
