@@ -373,6 +373,7 @@ const ExamMode = () => {
           ...e,
           breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
           approved: false,
+          publishedAt: null,
         };
       });
       next.forEach((e, idx) => {
@@ -381,10 +382,13 @@ const ExamMode = () => {
             id: e.id,
             breakdown: e.breakdown as Record<string, number>,
             approved: false,
+            published_at: null,
+            published_by: null,
             position: idx,
           }).catch(err => console.error("persist breakdown refresh failed:", err));
         }
       });
+
       return next;
     });
     setEditingCardIds({});
