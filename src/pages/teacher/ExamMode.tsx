@@ -313,6 +313,11 @@ const ExamMode = () => {
     const idx = schedule.findIndex(e => e.id === id);
     if (idx < 0) return;
     const next = { ...schedule[idx], ...patch };
+    // Any mutation that removes approval also removes publication — students
+    // should never see an exam mid-edit.
+    const publishFields = !next.approved
+      ? { published_at: null, published_by: null }
+      : {};
     void upsertExam({
       id,
       label: `Final ${idx + 1}`,
@@ -322,6 +327,7 @@ const ExamMode = () => {
       source: next.source ?? "generated",
       approved: next.approved,
       position: idx,
+      ...publishFields,
     }).catch(e => console.error("persist exam failed:", e));
   };
 
@@ -345,9 +351,13 @@ const ExamMode = () => {
   };
 
   const updateExam = (id: string, patch: Partial<ExamScheduleItem>) => {
-    setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
+    // Auto-clear local publish flag if this edit unapproves the card.
+    const localPatch: Partial<ExamScheduleItem> =
+      patch.approved === false ? { ...patch, publishedAt: null } : patch;
+    setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, ...localPatch } : e));
     persistExam(id, patch);
   };
+
 
 
 
