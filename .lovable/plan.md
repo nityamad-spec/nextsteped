@@ -1,55 +1,35 @@
-# Fix truncated analytics in Course Profile dialog
+## Goal
 
-**Root cause:** `CourseProfileDialog` fetches `assessment_results` and `chat_messages` with a single `.select()` call. Both tables can exceed the PostgREST default 1,000-row cap for popular courses. For *Introduction to Generative AI*, `assessment_results` has **4,030 rows** but only 1,000 come back, so the completion tile shows **3** instead of the actual **102**. Every downstream stat derived from these rows (weekly-quiz breakdown, exam attempts, avg scores, chat message counts) is under-reported.
+Remove the UI-level cap of 10 mock tests on `/teacher/setup/exam-mode` so professors can create an unbounded number of finals.
 
-**Scope:** `src/components/admin/CourseProfileDialog.tsx` only. No schema, no RLS, no logic changes to completion criteria — just full pagination of the two unbounded fetches.
+## Changes (single file: `src/pages/teacher/ExamMode.tsx`)
 
-## Changes
+1. **Delete the `MAX_EXAMS = 10` constant** (line 31).
+2. `**handleAddExam**` (line 384): remove the `if (examSchedule.length >= MAX_EXAMS) return;` guard.
+3. **Add-exam button** (lines 875, 887–888):
+  - Update helper copy from `"Add 1 – {MAX_EXAMS} mock tests"` to `"Add mock tests as needed"`.
+  - Change `disabled={examSchedule.length >= MAX_EXAMS || addingExam}` to `disabled={addingExam}`.
+4. **Restore-from-archive button** (lines 1141–1142): remove the cap-based disabled state and tooltip; keep only `disabled={restoringExamId === ex.id}` with the standard restore tooltip.
+5. **Remove the now-unused `MAX_EXAMS` import/reference** anywhere else in the file (grep confirms only the above sites).
 
-### 1. Add a paginated fetch helper (local to the file)
+No changes to `useCourseExams`, `nextAvailableLabel`, DB schema, RLS, or the naming logic — `nextAvailableLabel` already handles arbitrary N (it walks `Final 1`, `Final 2`, ... until it finds a free slot).
 
-```ts
-async function fetchAll<T>(
-  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
-  pageSize = 1000,
-): Promise<T[]> {
-  const out: T[] = [];
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await build(from, from + pageSize - 1);
-    if (error) throw error;
-    const chunk = data ?? [];
-    out.push(...chunk);
-    if (chunk.length < pageSize) break;
-  }
-  return out;
-}
-```
+## Risks / trade-offs to flag to the user
 
-### 2. Paginate `assessment_results`
-
-Replace the single `.select("student_id, mode, quiz_day, exam_id, score, total_questions").eq("course_id", courseId)` with a `fetchAll` loop that applies `.range(from, to)` and an `.order("id")` (or `.order("created_at")`) for stable pagination.
-
-### 3. Paginate `chat_messages`
-
-`chat_messages` is fetched via `.in("session_id", sessionIds)` — same cap applies. Wrap it in the same helper and paginate. If `sessionIds.length` is very large, chunk the `IN` list into batches of ≤500 to keep the URL under limits, then paginate within each batch.
-
-### 4. Keep everything else identical
-
-- No change to the completion rule (`quizzesOk && examsOk && masteryOk`).
-- No change to realtime subscriptions or debounce.
-- No new dependencies.
-
-## Verification
-
-After the change, re-open the dialog for *Introduction to Generative AI* with **All universities** selected. Expected:
-- Completed tile: ~102 (matches DB check)
-- Not completed tile: 366 − 102 = 264
-- "Completed all 14" quiz row: ~192
-- Weekly quiz Total attempts and Exam Total attempts should both jump to their true counts
-
-Spot-check by opening the Completed list and confirming Vallabh Dasari and Somayajula Keerti Madhavi both appear.
+1. **Naming collisions & UI clutter** — `nextAvailableLabel` scales fine, but a long "Final 47" list becomes hard to scan; the cards render in a single vertical stack with no pagination or search.
+2. **Question-generation cost** — each new final can trigger `generate-exam-questions` (LLM calls). With no cap, an accidental spam-click or scripted use could rack up significant AI Gateway usage. The 10-cap was implicitly a cost/abuse guardrail.
+3. **Student-facing exam picker load** — `ExamPrepPanel` shows "Exam X of N remaining"; N growing large is fine textually, but students will see many "practice exams remaining" which may confuse rather than help.
+4. **Performance** — `course_exams` queries are `.order("position")` with no `.limit()`. At small-to-moderate N (≤100) this is fine. Beyond that, the exam-mode page renders every card in the DOM (no virtualization), which can slow the setup screen.
+5. **Realtime + persistence churn** — each card independently debounces to `course_exams`; many cards mean more subscriptions and writes when the professor edits breakdowns.
+6. **No DB-level constraint exists** — removing the UI cap does not create a new backend risk (nothing was enforcing it there), but it also means there is no server-side backstop if we later want one.
 
 ## Non-goals
 
-- No changes to `AdminStudents` or `StudentProfileDialog` — will inspect separately if any of their queries also risk the 1k cap once this fix ships.
-- No change to completion definition (all weekly quizzes + all active exams + mastery ≥ proficient).
+- No change to archive/restore semantics.
+- No change to `nextAvailableLabel` (already unbounded).
+- No new DB constraint added; can be added later if abuse becomes a concern.
+
+## Open questions
+
+1. Do you want a soft cap (e.g. warn at 20, still allow more) instead of fully unbounded, to preserve the cost guardrail? No
+2. Should the archive-restore button also be uncapped (plan currently says yes, matching "remove the cap")? Yes
