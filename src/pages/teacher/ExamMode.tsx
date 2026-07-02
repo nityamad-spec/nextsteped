@@ -46,6 +46,11 @@ interface EditableQuestion {
   options?: string[];
   correctIndex?: number;
   exam_id?: string | null;
+  bloom_level?: number | null;
+  explanation?: string | null;
+  difficulty_estimate?: number | null;
+  bloom_justification?: string | null;
+  difficulty_justification?: string | null;
 }
 
 // Map internal type keys to display labels
@@ -178,6 +183,11 @@ const ExamMode = () => {
   const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
   const [formExamId, setFormExamId] = useState<string | null>(null);
   const [formDifficulty, setFormDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
+  const [formBloom, setFormBloom] = useState<number>(2);
+  const [formExplanation, setFormExplanation] = useState<string>("");
+  const [formDifficultyEstimate, setFormDifficultyEstimate] = useState<string>("0.50");
+  const [formBloomJustification, setFormBloomJustification] = useState<string>("");
+  const [formDifficultyJustification, setFormDifficultyJustification] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [concepts, setConcepts] = useState<{ id: string; concept_code: string }[]>([]);
 
@@ -270,6 +280,11 @@ const ExamMode = () => {
           difficulty: row.difficulty, type: row.question_type,
           options: row.options, correctIndex: row.correct_index ?? undefined,
           exam_id: row.exam_id ?? null,
+          bloom_level: row.bloom_level ?? null,
+          explanation: row.explanation ?? null,
+          difficulty_estimate: row.difficulty_estimate != null ? Number(row.difficulty_estimate) : null,
+          bloom_justification: row.bloom_justification ?? null,
+          difficulty_justification: row.difficulty_justification ?? null,
         })));
         const counts: Record<string, number> = {};
         for (const row of data as any[]) {
@@ -835,6 +850,11 @@ const ExamMode = () => {
     setFormQuestion(""); setFormAnswer(""); setFormTopic("");
     setFormType("MCQ"); setFormOptions(["", "", "", ""]); setFormCorrectIndex(0);
     setFormDifficulty("Medium");
+    setFormBloom(2);
+    setFormExplanation("");
+    setFormDifficultyEstimate("0.50");
+    setFormBloomJustification("");
+    setFormDifficultyJustification("");
     // Default: preselected exam, else first exam if any, else null
     setFormExamId(preselectExamId ?? (labeledSchedule[0]?.id ?? null));
     setDialogOpen(true);
@@ -850,11 +870,25 @@ const ExamMode = () => {
     setFormCorrectIndex(q.correctIndex ?? 0);
     setFormExamId(q.exam_id ?? null);
     setFormDifficulty((q.difficulty as "Easy" | "Medium" | "Hard") ?? "Medium");
+    setFormBloom(q.bloom_level ?? 2);
+    setFormExplanation(q.explanation ?? "");
+    setFormDifficultyEstimate(
+      q.difficulty_estimate != null ? Number(q.difficulty_estimate).toFixed(2) : "0.50"
+    );
+    setFormBloomJustification(q.bloom_justification ?? "");
+    setFormDifficultyJustification(q.difficulty_justification ?? "");
     setDialogOpen(true);
   };
 
   const handleSaveQuestion = async () => {
     if (!formQuestion.trim() || !formTopic || !courseId || !user) return;
+    // Parse & validate difficulty_estimate (0.00–1.00)
+    const parsedEst = Number.parseFloat(formDifficultyEstimate);
+    if (!Number.isFinite(parsedEst) || parsedEst < 0 || parsedEst > 1) {
+      toast.error("Difficulty estimate must be a number between 0.00 and 1.00");
+      return;
+    }
+    const clampedEst = Math.round(parsedEst * 100) / 100;
     setSaving(true);
     const isMCQ = formType === "MCQ";
     const isTF = formType === "True/False";
@@ -868,14 +902,30 @@ const ExamMode = () => {
       toast.error(`Topic "${formTopic}" must match an existing course concept code.`);
       return;
     }
+    const trimmedExplanation = formExplanation.trim();
+    const trimmedBloomJust = formBloomJustification.trim();
+    const trimmedDiffJust = formDifficultyJustification.trim();
     const row = {
       course_id: courseId, teacher_id: user.id, concept_id: conceptRow.id,
       mode: "exam" as const, question_type: formType,
       question_text: formQuestion, answer, topic: formTopic, difficulty: formDifficulty,
       options: isMCQ ? filteredOptions : isTF ? ["True", "False"] : null,
       correct_index: isMCQ ? formCorrectIndex : isTF ? (formAnswer === "True" ? 0 : 1) : null,
-      explanation: null as string | null, quiz_day: null as number | null,
+      explanation: trimmedExplanation || null,
+      quiz_day: null as number | null,
       exam_id: formExamId,
+      bloom_level: formBloom,
+      difficulty_estimate: clampedEst,
+      bloom_justification: trimmedBloomJust || null,
+      difficulty_justification: trimmedDiffJust || null,
+    };
+
+    const extraMeta = {
+      bloom_level: formBloom,
+      explanation: trimmedExplanation || null,
+      difficulty_estimate: clampedEst,
+      bloom_justification: trimmedBloomJust || null,
+      difficulty_justification: trimmedDiffJust || null,
     };
 
     try {
@@ -886,6 +936,7 @@ const ExamMode = () => {
           id: editingId, question: formQuestion, answer, topic: formTopic,
           difficulty: formDifficulty, type: formType, exam_id: formExamId,
           ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
+          ...extraMeta,
         } : q));
         toast.success("Question updated");
       } else {
@@ -895,6 +946,7 @@ const ExamMode = () => {
           id: data.id, question: formQuestion, answer, topic: formTopic,
           difficulty: formDifficulty, type: formType, exam_id: formExamId,
           ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
+          ...extraMeta,
         }]);
         toast.success("Question added");
       }
@@ -1432,6 +1484,62 @@ const ExamMode = () => {
                   <SelectItem value="Hard">Hard</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Bloom's Level</Label>
+              <Select value={String(formBloom)} onValueChange={(v) => setFormBloom(Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 — Remember</SelectItem>
+                  <SelectItem value="2">2 — Understand</SelectItem>
+                  <SelectItem value="3">3 — Apply</SelectItem>
+                  <SelectItem value="4">4 — Analyze</SelectItem>
+                  <SelectItem value="5">5 — Evaluate</SelectItem>
+                  <SelectItem value="6">6 — Create</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">Cognitive level assessed by this question.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Difficulty Estimate</Label>
+              <Input
+                type="number"
+                min={0}
+                max={1}
+                step={0.05}
+                value={formDifficultyEstimate}
+                onChange={(e) => setFormDifficultyEstimate(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Expected P(incorrect) for a typical student, 0.00–1.00. Used for mastery scoring.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Bloom Justification</Label>
+              <Textarea
+                rows={2}
+                value={formBloomJustification}
+                onChange={(e) => setFormBloomJustification(e.target.value)}
+                placeholder="Why this Bloom's level fits the question (optional)"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Difficulty Justification</Label>
+              <Textarea
+                rows={2}
+                value={formDifficultyJustification}
+                onChange={(e) => setFormDifficultyJustification(e.target.value)}
+                placeholder="Why this difficulty was chosen (optional)"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Explanation</Label>
+              <Textarea
+                rows={2}
+                value={formExplanation}
+                onChange={(e) => setFormExplanation(e.target.value)}
+                placeholder="Shown to students after they submit an answer (optional)"
+              />
             </div>
             <div className="space-y-2">
               <Label>
