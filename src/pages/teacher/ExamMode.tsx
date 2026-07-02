@@ -1589,33 +1589,22 @@ const ExamMode = () => {
                     <div className="min-w-0">
                       <p className="text-sm font-medium">Auto-generate with AI</p>
                       <p className="text-[11px] text-muted-foreground">
-                        Fills Difficulty, Bloom's Level, Difficulty Estimate, both justifications, and Explanation. Use "Regenerate all" to overwrite existing values.
+                        Regenerates Difficulty, Bloom's Level, Difficulty Estimate, both justifications, and Explanation. Existing values will be overwritten.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => handleAutoGenerateMetadata("fill-empty")}
-                        disabled={!canAuto || autoFilling}
-                        title={canAuto ? "Fill only empty/default fields" : `Missing: ${missing.join(", ")}`}
-                      >
-                        {autoFilling
-                          ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
-                          : <><Sparkles className="mr-2 h-4 w-4" />Auto-fill empty</>}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAutoGenerateMetadata("regenerate-all")}
-                        disabled={!canAuto || autoFilling}
-                        title={canAuto ? "Overwrite all six AI fields" : `Missing: ${missing.join(", ")}`}
-                      >
-                        <Sparkles className="mr-2 h-4 w-4" />Regenerate all
-                      </Button>
-                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleAutoGenerateMetadata()}
+                      disabled={!canAuto || autoFilling}
+                      title={canAuto ? "Overwrite all six AI fields" : `Missing: ${missing.join(", ")}`}
+                    >
+                      {autoFilling
+                        ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
+                        : <><Sparkles className="mr-2 h-4 w-4" />Regenerate all</>}
+                    </Button>
+                  </div>
                   </div>
                 </div>
               );
