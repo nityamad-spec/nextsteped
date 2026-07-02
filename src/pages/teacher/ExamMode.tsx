@@ -651,6 +651,44 @@ const ExamMode = () => {
     updateExam(id, { approved: !examSchedule.find(e => e.id === id)?.approved });
   };
 
+  const [publishingExamId, setPublishingExamId] = useState<string | null>(null);
+  const handleTogglePublish = async (id: string) => {
+    const exam = examSchedule.find(e => e.id === id);
+    if (!exam) return;
+    if (!exam.approved) {
+      toast.error("Approve this mock test before publishing to students.");
+      return;
+    }
+    const generatedCount = examQuestionCounts[id] ?? 0;
+    const manualCount = manualExamCounts[id] ?? 0;
+    const hasQuestions = exam.source === "manual" ? manualCount > 0 : generatedCount > 0;
+    if (!exam.publishedAt && !hasQuestions) {
+      toast.error(exam.source === "manual"
+        ? "Add at least one manual question before publishing."
+        : "Generate questions before publishing.");
+      return;
+    }
+    setPublishingExamId(id);
+    try {
+      if (exam.publishedAt) {
+        await unpublishExam(id);
+        setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, publishedAt: null } : e));
+        toast.success(`${`Final ${examSchedule.findIndex(e => e.id === id) + 1}`} unpublished — students can no longer see it.`);
+      } else {
+        await publishExam(id, user?.id ?? null);
+        const nowIso = new Date().toISOString();
+        setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, publishedAt: nowIso } : e));
+        toast.success(`${`Final ${examSchedule.findIndex(e => e.id === id) + 1}`} is now visible to students.`);
+      }
+    } catch (e) {
+      console.error("toggle publish failed:", e);
+      toast.error("Couldn't update publish state. Please try again.");
+    } finally {
+      setPublishingExamId(null);
+    }
+  };
+
+
   // Auto-label each card "Final N"
   const labeledSchedule = useMemo(() => {
     let n = 0;
