@@ -151,18 +151,6 @@ export function useCourseExams(courseId: string | null) {
   }, [courseId, reload]);
 
 
-
-  const archiveExam = useCallback(async (id: string, userId: string | null) => {
-    if (!courseId) return;
-    const { error } = await supabase
-      .from("course_exams" as never)
-      .update({ archived_at: new Date().toISOString(), archived_by: userId } as never)
-      .eq("course_id", courseId)
-      .eq("id", id);
-    if (error) throw error;
-    await reload();
-  }, [courseId, reload]);
-
   const restoreExam = useCallback(async (id: string): Promise<{ renamedTo?: string }> => {
     if (!courseId) return {};
     const target = exams.find(e => e.id === id);
