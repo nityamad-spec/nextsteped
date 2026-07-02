@@ -1,58 +1,50 @@
 ## Goal
+Add an "Auto-generate metadata" button on the Add/Edit Question dialog in `/teacher/setup/exam-mode` that calls a new edge function (Gemini 2.5 Pro) and populates 6 fields: Difficulty, Bloom's Level, Difficulty Estimate, Bloom Justification, Difficulty Justification, Explanation.
 
-On `/teacher/setup/exam-mode`, the "Edit Question — Exam Mode" dialog currently captures: Question, Assign to Exam, Difficulty, Concept, Question Type, options/answer. The underlying `assessment_questions` table stores more per-question metadata that's already used by mastery scoring, weekly-quiz generation dedup, and the student-facing question view — but it isn't editable here.
+## New edge function: `supabase/functions/generate-question-metadata/index.ts`
+- Accepts JSON: `{ question, questionType, options?, correctAnswer }`
+- Validates with Zod; requires question + correctAnswer (+ options for MCQ/TF)
+- Calls Lovable AI Gateway with model `google/gemini-2.5-pro`
+- Uses AI SDK `Output.object` (strict Zod schema) to guarantee shape:
+  ```
+  {
+    difficulty: "easy" | "medium" | "hard",
+    bloomsLevel: 1-6,
+    difficultyEstimate: number (0.00-1.00),
+    bloomJustification: string,
+    difficultyJustification: string,
+    explanation: string
+  }
+  ```
+- System prompt instructs model to analyze question cognitive demand, map Bloom's taxonomy correctly, estimate p-value (probability a typical student answers correctly), and write a student-facing explanation of the correct answer.
+- Returns strict JSON; handles 429 (rate limit) and 402 (credits) with clear error messages.
+- CORS enabled; standard corsHeaders pattern.
 
-## Missing parameters (audited against `assessment_questions` schema)
+## Frontend changes: `src/pages/teacher/ExamMode.tsx`
+- Add a `Sparkles`-icon button labeled **"Auto-generate with AI"** at the top of the question form (above the Difficulty field).
+- Button state:
+  - **Disabled** when `question` is empty, or `correctAnswer` is empty, or (for MCQ) fewer than 2 options filled. Tooltip explains what's missing.
+  - Shows spinner + "Generating…" while pending.
+- On click:
+  - Calls `supabase.functions.invoke('generate-question-metadata', { body: {...} })`
+  - **Only fills empty fields** — checks each of the 6 target fields and skips any with an existing non-empty/non-default value. (Difficulty default treated as empty only if user hasn't touched it — we'll track via a `metadataTouched` flag or compare to initial state.)
+  - Shows toast: "Filled N field(s)" or "All fields already have values"
+  - On error: toast with message from edge function; leaves form unchanged.
+- Available in both **Add** and **Edit** dialogs (single shared form).
 
-
-| Column                                             | Editable today? | Recommendation                                                                                                                          |
-| -------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `bloom_level` (int 1–6)                            | No              | **Add dropdown** (user request)                                                                                                         |
-| `explanation` (text)                               | No              | **Add textarea** — already shown to students post-answer and set by AI-generated questions; teacher-authored ones currently save `null` |
-| `difficulty_estimate` (0.00–1.00)                  | No              | Add in UI                                                                                                                               |
-| `bloom_justification` / `difficulty_justification` | No              | Add in UI                                                                                                                               |
-| `tier`                                             | No              | Skip — only meaningful for weekly quizzes, not exams (always `standard` here)                                                           |
-| `item_code`, `in_test`, `is_distractor`            | No              | Skip — system-managed                                                                                                                   |
-
-
-So two additions: **Bloom's level** and **Explanation**.
-
-## Changes (frontend only — no schema migration)
-
-**File:** `src/pages/teacher/ExamMode.tsx`
-
-1. **State**
-  - Add `formBloom: number` (1–6, default `2`) and `formExplanation: string` (default `""`).
-2. **Reset / hydrate**
-  - `openAddDialog`: reset `formBloom = 2`, `formExplanation = ""`.
-  - `openEditDialog`: hydrate from the loaded question. Extend the question fetch (the query that populates `questions`) to also select `bloom_level, explanation` so edit prefills correctly.
-  - Extend the local `EditableQuestion` type with `bloom_level?: number | null; explanation?: string | null`.
-3. **Save (`handleSaveQuestion`)**
-  - Include `bloom_level: formBloom` and `explanation: formExplanation.trim() || null` in the insert/update `row`.
-  - Mirror the same fields into the optimistic `setQuestions` update so the list stays in sync without a refetch.
-4. **Dialog UI** (inserted right after the existing Difficulty select, before Concept)
-  - **Bloom's Level** `Select` with items:
-    - `1 — Remember`
-    - `2 — Understand`
-    - `3 — Apply`
-    - `4 — Analyze`
-    - `5 — Evaluate`
-    - `6 — Create`
-    - Helper text: "Cognitive level assessed by this question."
-  - **Explanation** `Textarea` (rows=2), optional. Helper text: "Shown to students after they submit an answer."
-  - `difficulty_estimate: Floating point textbox`
-  - `bloom_justification: Textarea`
-  - `difficulty_justification: Textarea`
-5. **View dialog** (`src/components/ExamQuestionsViewDialog.tsx`) already displays `Bloom {n}` — no change needed; teacher-edited values will now appear there too.
-
-## Out of scope
-
-- No changes to weekly-quiz or diagnostic dialogs.
-- No changes to AI generation prompts — they already set `bloom_level` and `explanation`.
-- No DB migration; all fields already exist and are `NOT NULL` with defaults (`bloom_level = 1`) or nullable (`explanation`).
+## Preserve-existing-values logic
+Track initial snapshot of the 6 fields when dialog opens. A field is considered "empty" (eligible for auto-fill) if:
+- string fields (justifications, explanation): trimmed value is `""`
+- Difficulty: unchanged from initial and initial was empty/undefined
+- Bloom's Level: `null`/unset
+- Difficulty Estimate: `null`/unset (not just default 0.50 — we'll store as nullable until user edits)
 
 ## Verification
+- Deploy edge function and test with `curl_edge_functions` using a sample MCQ.
+- Confirm strict JSON returned; verify Bloom (1-6), difficulty enum, estimate in range.
+- Manual UI check: button disabled → enabled once inputs filled → click populates only empty fields.
 
-- Open an existing AI-generated exam question → confirm Bloom and Explanation prefill from DB.
-- Change Bloom from 3→5, save, reopen → value persists; also visible in "View Questions" dialog badge.
-- Add a new manual question with Bloom 4 and an explanation → row in `assessment_questions` shows both values.
+## Risks / notes
+- Gemini 2.5 Pro is slower/more expensive than Flash; acceptable for one-shot metadata generation on demand.
+- Structured output via Zod schema ensures parseable JSON — no manual JSON.parse fallback needed.
+- Uses existing `LOVABLE_API_KEY`; no new secrets required.
