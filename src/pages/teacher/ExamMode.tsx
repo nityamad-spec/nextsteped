@@ -866,6 +866,14 @@ const ExamMode = () => {
     setFormDifficultyJustification("");
     // Default: preselected exam, else first exam if any, else null
     setFormExamId(preselectExamId ?? (labeledSchedule[0]?.id ?? null));
+    initialMetaRef.current = {
+      difficulty: "Medium",
+      bloom: 2,
+      estimate: "0.50",
+      bloomJust: "",
+      diffJust: "",
+      explanation: "",
+    };
     setDialogOpen(true);
     // Refresh concepts so newly-added ones show up without page reload
     refetchConcepts();
@@ -878,15 +886,90 @@ const ExamMode = () => {
     setFormOptions(q.options?.length ? [...q.options] : ["", "", "", ""]);
     setFormCorrectIndex(q.correctIndex ?? 0);
     setFormExamId(q.exam_id ?? null);
-    setFormDifficulty((q.difficulty as "Easy" | "Medium" | "Hard") ?? "Medium");
-    setFormBloom(q.bloom_level ?? 2);
-    setFormExplanation(q.explanation ?? "");
-    setFormDifficultyEstimate(
-      q.difficulty_estimate != null ? Number(q.difficulty_estimate).toFixed(2) : "0.50"
-    );
-    setFormBloomJustification(q.bloom_justification ?? "");
-    setFormDifficultyJustification(q.difficulty_justification ?? "");
+    const initDifficulty = (q.difficulty as "Easy" | "Medium" | "Hard") ?? "Medium";
+    const initBloom = q.bloom_level ?? 2;
+    const initExplanation = q.explanation ?? "";
+    const initEstimate = q.difficulty_estimate != null ? Number(q.difficulty_estimate).toFixed(2) : "0.50";
+    const initBloomJust = q.bloom_justification ?? "";
+    const initDiffJust = q.difficulty_justification ?? "";
+    setFormDifficulty(initDifficulty);
+    setFormBloom(initBloom);
+    setFormExplanation(initExplanation);
+    setFormDifficultyEstimate(initEstimate);
+    setFormBloomJustification(initBloomJust);
+    setFormDifficultyJustification(initDiffJust);
+    initialMetaRef.current = {
+      difficulty: initDifficulty,
+      bloom: initBloom,
+      estimate: initEstimate,
+      bloomJust: initBloomJust,
+      diffJust: initDiffJust,
+      explanation: initExplanation,
+    };
     setDialogOpen(true);
+  };
+
+  // Auto-generate metadata via edge function; only fills fields still at their initial (empty/default) values.
+  const handleAutoGenerateMetadata = async () => {
+    const questionText = formQuestion.trim();
+    const isMCQ = formType === "MCQ";
+    const isTF = formType === "True/False";
+    const filteredOptions = isMCQ ? formOptions.filter(o => o.trim()) : [];
+    const correct = isMCQ
+      ? (filteredOptions[formCorrectIndex] || "")
+      : isTF
+        ? formAnswer
+        : formAnswer;
+    if (!questionText || !correct.trim() || (isMCQ && filteredOptions.length < 2)) {
+      toast.error("Fill in the question, options (for MCQ), and correct answer first.");
+      return;
+    }
+    setAutoFilling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-question-metadata", {
+        body: {
+          question: questionText,
+          questionType: formType,
+          options: isMCQ ? filteredOptions : isTF ? ["True", "False"] : [],
+          correctAnswer: correct,
+        },
+      });
+      if (error) throw error;
+      if (!data || (data as any).error) throw new Error((data as any)?.error || "Generation failed");
+
+      const snap = initialMetaRef.current ?? {
+        difficulty: "Medium" as const, bloom: 2, estimate: "0.50",
+        bloomJust: "", diffJust: "", explanation: "",
+      };
+      let filled = 0;
+
+      if (formDifficulty === snap.difficulty && data.difficulty) {
+        setFormDifficulty(data.difficulty); filled++;
+      }
+      if (formBloom === snap.bloom && Number.isFinite(data.bloomsLevel)) {
+        setFormBloom(data.bloomsLevel); filled++;
+      }
+      if (formDifficultyEstimate === snap.estimate && Number.isFinite(data.difficultyEstimate)) {
+        setFormDifficultyEstimate(Number(data.difficultyEstimate).toFixed(2)); filled++;
+      }
+      if (!formBloomJustification.trim() && data.bloomJustification) {
+        setFormBloomJustification(data.bloomJustification); filled++;
+      }
+      if (!formDifficultyJustification.trim() && data.difficultyJustification) {
+        setFormDifficultyJustification(data.difficultyJustification); filled++;
+      }
+      if (!formExplanation.trim() && data.explanation) {
+        setFormExplanation(data.explanation); filled++;
+      }
+
+      if (filled === 0) toast.info("All target fields already have values — nothing to fill.");
+      else toast.success(`Filled ${filled} field${filled === 1 ? "" : "s"} with AI suggestions.`);
+    } catch (e: any) {
+      console.error("auto-generate error", e);
+      toast.error(e?.message || "Failed to auto-generate metadata");
+    } finally {
+      setAutoFilling(false);
+    }
   };
 
   const handleSaveQuestion = async () => {
