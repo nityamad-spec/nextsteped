@@ -76,7 +76,12 @@ const AddCourseDialog = ({ open, onOpenChange }: AddCourseDialogProps) => {
       toast.success(`Enrolled in ${payload.course_name}`);
       window.location.assign(`/student/diagnostic?course=${courseId}`);
     } catch (err: any) {
-      toast.error(err.message || "Couldn't enroll. Please try again.");
+      let msg = err?.message || "Couldn't enroll. Please try again.";
+      try {
+        const body = await err?.context?.json?.();
+        if (body?.error) msg = body.error;
+      } catch { /* ignore */ }
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
