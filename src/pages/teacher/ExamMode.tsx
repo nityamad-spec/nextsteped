@@ -909,10 +909,8 @@ const ExamMode = () => {
     setDialogOpen(true);
   };
 
-  // Auto-generate metadata via edge function.
-  // mode = "fill-empty": only fills fields still at their initial (empty/default) values.
-  // mode = "regenerate-all": overwrites all six fields (confirms first if any have values).
-  const handleAutoGenerateMetadata = async (mode: "fill-empty" | "regenerate-all" = "fill-empty") => {
+  // Auto-generate metadata via edge function. Overwrites all six fields (confirms first if any values exist).
+  const handleAutoGenerateMetadata = async () => {
     const questionText = formQuestion.trim();
     const isMCQ = formType === "MCQ";
     const isTF = formType === "True/False";
@@ -927,21 +925,19 @@ const ExamMode = () => {
       return;
     }
 
-    if (mode === "regenerate-all") {
-      const snap = initialMetaRef.current;
-      const hasExisting =
-        (snap ? formDifficulty !== snap.difficulty : false) ||
-        (snap ? formBloom !== snap.bloom : false) ||
-        (snap ? formDifficultyEstimate !== snap.estimate : false) ||
-        !!formBloomJustification.trim() ||
-        !!formDifficultyJustification.trim() ||
-        !!formExplanation.trim();
-      if (hasExisting) {
-        const ok = window.confirm(
-          "Regenerate will overwrite Difficulty, Bloom's Level, Difficulty Estimate, both justifications, and Explanation. Continue?"
-        );
-        if (!ok) return;
-      }
+    const snap = initialMetaRef.current;
+    const hasExisting =
+      (snap ? formDifficulty !== snap.difficulty : false) ||
+      (snap ? formBloom !== snap.bloom : false) ||
+      (snap ? formDifficultyEstimate !== snap.estimate : false) ||
+      !!formBloomJustification.trim() ||
+      !!formDifficultyJustification.trim() ||
+      !!formExplanation.trim();
+    if (hasExisting) {
+      const ok = window.confirm(
+        "Regenerate will overwrite Difficulty, Bloom's Level, Difficulty Estimate, both justifications, and Explanation. Continue?"
+      );
+      if (!ok) return;
     }
 
     setAutoFilling(true);
@@ -957,53 +953,22 @@ const ExamMode = () => {
       if (error) throw error;
       if (!data || (data as any).error) throw new Error((data as any)?.error || "Generation failed");
 
-      if (mode === "regenerate-all") {
-        let written = 0;
-        if (data.difficulty) { setFormDifficulty(data.difficulty); written++; }
-        if (Number.isFinite(data.bloomsLevel)) { setFormBloom(data.bloomsLevel); written++; }
-        if (Number.isFinite(data.difficultyEstimate)) {
-          setFormDifficultyEstimate(Number(data.difficultyEstimate).toFixed(2)); written++;
-        }
-        if (typeof data.bloomJustification === "string") {
-          setFormBloomJustification(data.bloomJustification); written++;
-        }
-        if (typeof data.difficultyJustification === "string") {
-          setFormDifficultyJustification(data.difficultyJustification); written++;
-        }
-        if (typeof data.explanation === "string") {
-          setFormExplanation(data.explanation); written++;
-        }
-        toast.success(`Regenerated ${written} field${written === 1 ? "" : "s"}.`);
-        return;
+      let written = 0;
+      if (data.difficulty) { setFormDifficulty(data.difficulty); written++; }
+      if (Number.isFinite(data.bloomsLevel)) { setFormBloom(data.bloomsLevel); written++; }
+      if (Number.isFinite(data.difficultyEstimate)) {
+        setFormDifficultyEstimate(Number(data.difficultyEstimate).toFixed(2)); written++;
       }
-
-      const snap = initialMetaRef.current ?? {
-        difficulty: "Medium" as const, bloom: 2, estimate: "0.50",
-        bloomJust: "", diffJust: "", explanation: "",
-      };
-      let filled = 0;
-
-      if (formDifficulty === snap.difficulty && data.difficulty) {
-        setFormDifficulty(data.difficulty); filled++;
+      if (typeof data.bloomJustification === "string") {
+        setFormBloomJustification(data.bloomJustification); written++;
       }
-      if (formBloom === snap.bloom && Number.isFinite(data.bloomsLevel)) {
-        setFormBloom(data.bloomsLevel); filled++;
+      if (typeof data.difficultyJustification === "string") {
+        setFormDifficultyJustification(data.difficultyJustification); written++;
       }
-      if (formDifficultyEstimate === snap.estimate && Number.isFinite(data.difficultyEstimate)) {
-        setFormDifficultyEstimate(Number(data.difficultyEstimate).toFixed(2)); filled++;
+      if (typeof data.explanation === "string") {
+        setFormExplanation(data.explanation); written++;
       }
-      if (!formBloomJustification.trim() && data.bloomJustification) {
-        setFormBloomJustification(data.bloomJustification); filled++;
-      }
-      if (!formDifficultyJustification.trim() && data.difficultyJustification) {
-        setFormDifficultyJustification(data.difficultyJustification); filled++;
-      }
-      if (!formExplanation.trim() && data.explanation) {
-        setFormExplanation(data.explanation); filled++;
-      }
-
-      if (filled === 0) toast.info("All target fields already have values — nothing to fill.");
-      else toast.success(`Filled ${filled} field${filled === 1 ? "" : "s"} with AI suggestions.`);
+      toast.success(`Regenerated ${written} field${written === 1 ? "" : "s"}.`);
     } catch (e: any) {
       console.error("auto-generate error", e);
       toast.error(e?.message || "Failed to auto-generate metadata");
