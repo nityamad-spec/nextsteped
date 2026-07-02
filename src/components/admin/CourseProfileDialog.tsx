@@ -94,15 +94,38 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
   const load = useCallback(async (courseId: string, showSkeleton: boolean) => {
     if (showSkeleton) setLoading(true);
 
-    const [enrRes, diagRes, masteryRes, examsRes, resultsRes, chatSessionsRes] = await Promise.all([
+    // Paginated fetch — bypasses PostgREST default 1000-row cap.
+    const PAGE = 1000;
+    async function fetchAllRange<T>(
+      build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+    ): Promise<T[]> {
+      const out: T[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await build(from, from + PAGE - 1);
+        if (error) {
+          console.error("CourseProfileDialog paginated fetch error", error);
+          break;
+        }
+        const chunk = data ?? [];
+        out.push(...chunk);
+        if (chunk.length < PAGE) break;
+      }
+      return out;
+    }
+
+    const [enrRes, diagRes, masteryRes, examsRes, results, chatSessionsRes] = await Promise.all([
       supabase.from("enrollments").select("student_id").eq("course_id", courseId),
       supabase.from("diagnostic_results").select("student_id, score, total_questions").eq("course_id", courseId),
       supabase.from("student_course_mastery").select("student_id, mastery_score, learner_level").eq("course_id", courseId),
       supabase.from("course_exams").select("id, archived_at").eq("course_id", courseId),
-      supabase
-        .from("assessment_results")
-        .select("student_id, mode, quiz_day, exam_id, score, total_questions")
-        .eq("course_id", courseId),
+      fetchAllRange<RawData["results"][number]>((from, to) =>
+        supabase
+          .from("assessment_results")
+          .select("student_id, mode, quiz_day, exam_id, score, total_questions")
+          .eq("course_id", courseId)
+          .order("id", { ascending: true })
+          .range(from, to),
+      ),
       supabase.from("chat_sessions").select("id, user_id").eq("course_id", courseId),
     ]);
 
@@ -125,15 +148,23 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       }
     }
 
-    // Chat messages — fetch session_id list to allow client-side filtering by enrolled+university
+    // Chat messages — paginate + chunk the IN() list to avoid URL limits and 1k cap
     const sessionIds = (chatSessionsRes.data || []).map(s => s.id as string);
-    let chatMessageSessionIds: string[] = [];
+    const chatMessageSessionIds: string[] = [];
     if (sessionIds.length > 0) {
-      const msgRes = await supabase
-        .from("chat_messages")
-        .select("session_id")
-        .in("session_id", sessionIds);
-      chatMessageSessionIds = ((msgRes.data || []) as { session_id: string }[]).map(m => m.session_id);
+      const IN_CHUNK = 500;
+      for (let i = 0; i < sessionIds.length; i += IN_CHUNK) {
+        const slice = sessionIds.slice(i, i + IN_CHUNK);
+        const msgs = await fetchAllRange<{ session_id: string }>((from, to) =>
+          supabase
+            .from("chat_messages")
+            .select("session_id")
+            .in("session_id", slice)
+            .order("id", { ascending: true })
+            .range(from, to),
+        );
+        for (const m of msgs) chatMessageSessionIds.push(m.session_id);
+      }
     }
 
     setRaw({
@@ -143,11 +174,12 @@ const CourseProfileDialog = ({ course, open, onOpenChange }: Props) => {
       diagnostics: (diagRes.data || []) as RawData["diagnostics"],
       mastery: (masteryRes.data || []) as RawData["mastery"],
       exams: (examsRes.data || []) as RawData["exams"],
-      results: (resultsRes.data || []) as RawData["results"],
+      results,
       chatSessions: (chatSessionsRes.data || []) as RawData["chatSessions"],
       chatMessageSessionIds,
     });
     if (showSkeleton) setLoading(false);
+
   }, []);
 
   useEffect(() => {
