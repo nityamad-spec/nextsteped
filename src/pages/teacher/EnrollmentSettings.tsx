@@ -13,6 +13,17 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Calendar, UserPlus, Upload, Copy, ArrowLeft, Trash2, Download, AlertTriangle } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { markStepCompleted } from "@/lib/setupProgress";
@@ -242,6 +253,25 @@ const EnrollmentSettings = () => {
     setRoster((r) => r.filter((x) => x.id !== id));
   };
 
+  const [clearing, setClearing] = useState(false);
+  const clearRoster = async () => {
+    if (!effectiveCourseId || roster.length === 0) return;
+    setClearing(true);
+    try {
+      const { error } = await supabase
+        .from("course_roster_allowlist")
+        .delete()
+        .eq("course_id", effectiveCourseId);
+      if (error) throw error;
+      setRoster([]);
+      toast.success("Cleared all roster entries.");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to clear roster.");
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const toggleEnforcement = async (val: boolean) => {
     if (!effectiveCourseId) return;
     setEnforcement(val);
@@ -350,7 +380,40 @@ const EnrollmentSettings = () => {
                       : `${roster.length} email${roster.length === 1 ? "" : "s"} approved.`}
                   </p>
                 </div>
-                <Badge variant="secondary" className="text-xs">{roster.length}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-xs">{roster.length}</Badge>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1 text-destructive hover:text-destructive"
+                        disabled={roster.length === 0 || clearing}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {clearing ? "Clearing…" : "Clear all"}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Clear the entire approved roster?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will remove all {roster.length} email{roster.length === 1 ? "" : "s"} from the approved roster for this course.
+                          Students already enrolled will not be affected, but if roster enforcement is on, no new sign-ups will be allowed until you add emails again.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={clearRoster}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Clear all
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
 
               <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
