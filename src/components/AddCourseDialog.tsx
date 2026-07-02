@@ -44,7 +44,12 @@ const AddCourseDialog = ({ open, onOpenChange }: AddCourseDialogProps) => {
           setStatus("invalid"); setError(data?.error || "Invalid enrollment code"); setCourseName(null);
         }
       } catch (err: any) {
-        setStatus("invalid"); setError(err.message || "Couldn't validate code."); setCourseName(null);
+        let msg = err?.message || "Couldn't validate code.";
+        try {
+          const body = await err?.context?.json?.();
+          if (body?.error) msg = body.error;
+        } catch { /* ignore */ }
+        setStatus("invalid"); setError(msg); setCourseName(null);
       }
     }, 400);
     return () => clearTimeout(t);
