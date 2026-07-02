@@ -104,6 +104,7 @@ const ExamMode = () => {
     upsertExam,
     archiveExam,
     restoreExam,
+    deleteExamRow,
   } = useCourseExams(courseId);
 
   // ── Exam config state ──
@@ -544,6 +545,47 @@ const ExamMode = () => {
       toast.error(e?.message ?? "Failed to restore mock test");
     } finally {
       setRestoringExamId(null);
+    }
+  };
+
+  // ── Permanent delete of an archived exam ──
+  const [deleteExamTarget, setDeleteExamTarget] = useState<{ id: string; label: string } | null>(null);
+  const [deleteSubmissionCount, setDeleteSubmissionCount] = useState<number | null>(null);
+  const [deletingExamId, setDeletingExamId] = useState<string | null>(null);
+
+  const openDeleteArchivedExam = async (id: string, label: string) => {
+    setDeleteExamTarget({ id, label });
+    setDeleteSubmissionCount(null);
+    try {
+      const { count } = await supabase
+        .from("assessment_results")
+        .select("id", { count: "exact", head: true })
+        .eq("exam_id", id);
+      setDeleteSubmissionCount(count ?? 0);
+    } catch (e) {
+      console.error("failed to count submissions:", e);
+      setDeleteSubmissionCount(0);
+    }
+  };
+
+  const confirmDeleteArchivedExam = async () => {
+    if (!deleteExamTarget) return;
+    const id = deleteExamTarget.id;
+    setDeletingExamId(id);
+    try {
+      const { error: qErr } = await supabase
+        .from("assessment_questions")
+        .delete()
+        .eq("exam_id", id);
+      if (qErr) throw qErr;
+      await deleteExamRow(id);
+      toast.success("Archived exam permanently deleted. Past student submissions were preserved.");
+      setDeleteExamTarget(null);
+    } catch (e: any) {
+      console.error("delete archived exam failed:", e);
+      toast.error(e?.message ?? "Failed to delete exam");
+    } finally {
+      setDeletingExamId(null);
     }
   };
 
@@ -1148,6 +1190,20 @@ const ExamMode = () => {
                           )}
                           Restore
                         </Button>
+                        <Button
+                          variant="outline" size="sm"
+                          className="h-7 text-xs gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => openDeleteArchivedExam(ex.id, ex.label)}
+                          disabled={deletingExamId === ex.id}
+                          title="Permanently delete this archived exam"
+                        >
+                          {deletingExamId === ex.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3 w-3" />
+                          )}
+                          Delete
+                        </Button>
                       </div>
                     </div>
                   );
@@ -1428,6 +1484,41 @@ const ExamMode = () => {
             <AlertDialogCancel disabled={archivingExam}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={(e) => { e.preventDefault(); executeArchiveExam(); }} disabled={archivingExam}>
               {archivingExam ? "Archiving…" : "Archive"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!deleteExamTarget}
+        onOpenChange={(o) => { if (!o && !deletingExamId) setDeleteExamTarget(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently delete "{deleteExamTarget?.label}"?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  This will permanently remove the exam and all of its questions. <strong>This cannot be undone.</strong>
+                </p>
+                <p className="text-muted-foreground">
+                  {deleteSubmissionCount === null
+                    ? "Checking past student submissions…"
+                    : deleteSubmissionCount === 0
+                      ? "No past student submissions are linked to this exam."
+                      : `${deleteSubmissionCount} past student submission${deleteSubmissionCount === 1 ? "" : "s"} will be preserved in analytics but will show as "Deleted exam" since the exam record will be gone.`}
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingExamId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmDeleteArchivedExam(); }}
+              disabled={!!deletingExamId || deleteSubmissionCount === null}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingExamId ? "Deleting…" : "Delete permanently"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
