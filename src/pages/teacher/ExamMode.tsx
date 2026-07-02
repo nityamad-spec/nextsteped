@@ -183,6 +183,11 @@ const ExamMode = () => {
   const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
   const [formExamId, setFormExamId] = useState<string | null>(null);
   const [formDifficulty, setFormDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
+  const [formBloom, setFormBloom] = useState<number>(2);
+  const [formExplanation, setFormExplanation] = useState<string>("");
+  const [formDifficultyEstimate, setFormDifficultyEstimate] = useState<string>("0.50");
+  const [formBloomJustification, setFormBloomJustification] = useState<string>("");
+  const [formDifficultyJustification, setFormDifficultyJustification] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [concepts, setConcepts] = useState<{ id: string; concept_code: string }[]>([]);
 
