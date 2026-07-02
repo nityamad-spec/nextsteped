@@ -28,7 +28,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useCourseExams, nextAvailableLabel } from "@/hooks/useCourseExams";
 import { Archive, RotateCcw } from "lucide-react";
 
-const MAX_EXAMS = 10;
+
 const newExamId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -381,7 +381,7 @@ const ExamMode = () => {
   const [addingExam, setAddingExam] = useState(false);
   const handleAddExam = async () => {
     if (addingExam) return;
-    if (examSchedule.length >= MAX_EXAMS) return;
+    
     if (!courseId) return;
     setAddingExam(true);
     const lengthMin = 60;
@@ -872,7 +872,7 @@ const ExamMode = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <Label className="text-sm font-medium">Number of Mock Tests Generated</Label>
-                    <p className="text-xs text-muted-foreground">Add 1 – {MAX_EXAMS} mock tests</p>
+                    <p className="text-xs text-muted-foreground">Add mock tests as needed</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -885,7 +885,7 @@ const ExamMode = () => {
                     <Button
                       variant="outline" size="icon" className="h-8 w-8"
                       onClick={handleAddExam}
-                      disabled={examSchedule.length >= MAX_EXAMS || addingExam}
+                      disabled={addingExam}
                       aria-label="Add exam"
                     >+</Button>
 
@@ -1138,8 +1138,8 @@ const ExamMode = () => {
                         <Button
                           variant="default" size="sm" className="h-7 text-xs gap-1"
                           onClick={() => handleRestoreExam(ex.id)}
-                          disabled={restoringExamId === ex.id || examSchedule.length >= MAX_EXAMS}
-                          title={examSchedule.length >= MAX_EXAMS ? `Active limit is ${MAX_EXAMS}` : "Restore to active schedule"}
+                          disabled={restoringExamId === ex.id}
+                          title="Restore to active schedule"
                         >
                           {restoringExamId === ex.id ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
