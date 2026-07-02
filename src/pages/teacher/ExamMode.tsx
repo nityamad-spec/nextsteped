@@ -909,8 +909,10 @@ const ExamMode = () => {
     setDialogOpen(true);
   };
 
-  // Auto-generate metadata via edge function; only fills fields still at their initial (empty/default) values.
-  const handleAutoGenerateMetadata = async () => {
+  // Auto-generate metadata via edge function.
+  // mode = "fill-empty": only fills fields still at their initial (empty/default) values.
+  // mode = "regenerate-all": overwrites all six fields (confirms first if any have values).
+  const handleAutoGenerateMetadata = async (mode: "fill-empty" | "regenerate-all" = "fill-empty") => {
     const questionText = formQuestion.trim();
     const isMCQ = formType === "MCQ";
     const isTF = formType === "True/False";
@@ -924,6 +926,24 @@ const ExamMode = () => {
       toast.error("Fill in the question, options (for MCQ), and correct answer first.");
       return;
     }
+
+    if (mode === "regenerate-all") {
+      const snap = initialMetaRef.current;
+      const hasExisting =
+        (snap ? formDifficulty !== snap.difficulty : false) ||
+        (snap ? formBloom !== snap.bloom : false) ||
+        (snap ? formDifficultyEstimate !== snap.estimate : false) ||
+        !!formBloomJustification.trim() ||
+        !!formDifficultyJustification.trim() ||
+        !!formExplanation.trim();
+      if (hasExisting) {
+        const ok = window.confirm(
+          "Regenerate will overwrite Difficulty, Bloom's Level, Difficulty Estimate, both justifications, and Explanation. Continue?"
+        );
+        if (!ok) return;
+      }
+    }
+
     setAutoFilling(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-question-metadata", {
@@ -936,6 +956,26 @@ const ExamMode = () => {
       });
       if (error) throw error;
       if (!data || (data as any).error) throw new Error((data as any)?.error || "Generation failed");
+
+      if (mode === "regenerate-all") {
+        let written = 0;
+        if (data.difficulty) { setFormDifficulty(data.difficulty); written++; }
+        if (Number.isFinite(data.bloomsLevel)) { setFormBloom(data.bloomsLevel); written++; }
+        if (Number.isFinite(data.difficultyEstimate)) {
+          setFormDifficultyEstimate(Number(data.difficultyEstimate).toFixed(2)); written++;
+        }
+        if (typeof data.bloomJustification === "string") {
+          setFormBloomJustification(data.bloomJustification); written++;
+        }
+        if (typeof data.difficultyJustification === "string") {
+          setFormDifficultyJustification(data.difficultyJustification); written++;
+        }
+        if (typeof data.explanation === "string") {
+          setFormExplanation(data.explanation); written++;
+        }
+        toast.success(`Regenerated ${written} field${written === 1 ? "" : "s"}.`);
+        return;
+      }
 
       const snap = initialMetaRef.current ?? {
         difficulty: "Medium" as const, bloom: 2, estimate: "0.50",
