@@ -468,6 +468,7 @@ const ExamMode = () => {
   };
 
   const handleRemoveExamRequest = () => {
+    if (examSchedule.length === 0) return;
     const last = examSchedule[examSchedule.length - 1];
     const hasQuestions = (examQuestionCounts[last.id] ?? 0) > 0;
     if (last.approved || hasQuestions) {
