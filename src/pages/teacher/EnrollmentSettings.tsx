@@ -253,6 +253,25 @@ const EnrollmentSettings = () => {
     setRoster((r) => r.filter((x) => x.id !== id));
   };
 
+  const [clearing, setClearing] = useState(false);
+  const clearRoster = async () => {
+    if (!effectiveCourseId || roster.length === 0) return;
+    setClearing(true);
+    try {
+      const { error } = await supabase
+        .from("course_roster_allowlist")
+        .delete()
+        .eq("course_id", effectiveCourseId);
+      if (error) throw error;
+      setRoster([]);
+      toast.success("Cleared all roster entries.");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to clear roster.");
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const toggleEnforcement = async (val: boolean) => {
     if (!effectiveCourseId) return;
     setEnforcement(val);
