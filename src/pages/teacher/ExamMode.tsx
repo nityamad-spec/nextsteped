@@ -1488,6 +1488,41 @@ const ExamMode = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog
+        open={!!deleteExamTarget}
+        onOpenChange={(o) => { if (!o && !deletingExamId) setDeleteExamTarget(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently delete "{deleteExamTarget?.label}"?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  This will permanently remove the exam and all of its questions. <strong>This cannot be undone.</strong>
+                </p>
+                <p className="text-muted-foreground">
+                  {deleteSubmissionCount === null
+                    ? "Checking past student submissions…"
+                    : deleteSubmissionCount === 0
+                      ? "No past student submissions are linked to this exam."
+                      : `${deleteSubmissionCount} past student submission${deleteSubmissionCount === 1 ? "" : "s"} will be preserved in analytics but will show as "Deleted exam" since the exam record will be gone.`}
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingExamId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmDeleteArchivedExam(); }}
+              disabled={!!deletingExamId || deleteSubmissionCount === null}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingExamId ? "Deleting…" : "Delete permanently"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
