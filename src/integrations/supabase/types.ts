@@ -467,6 +467,8 @@ export type Database = {
           label: string
           length_min: number
           position: number
+          published_at: string | null
+          published_by: string | null
           source: string
           updated_at: string
         }
@@ -482,6 +484,8 @@ export type Database = {
           label: string
           length_min?: number
           position?: number
+          published_at?: string | null
+          published_by?: string | null
           source?: string
           updated_at?: string
         }
@@ -497,6 +501,8 @@ export type Database = {
           label?: string
           length_min?: number
           position?: number
+          published_at?: string | null
+          published_by?: string | null
           source?: string
           updated_at?: string
         }
@@ -506,6 +512,13 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_exams_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
