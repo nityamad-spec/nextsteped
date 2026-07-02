@@ -1000,10 +1000,36 @@ const ExamMode = () => {
                     const manualCount = manualExamCounts[exam.id] ?? 0;
                     const canApprove = isManual ? manualCount >= 1 : breakdownEntries.length > 0;
                     return (
-                      <div key={exam.id} className={`rounded-lg border p-4 space-y-3 ${exam.approved ? "border-primary/40 bg-primary/5" : ""}`}>
+                      <div key={exam.id} className={`rounded-lg border p-4 space-y-3 ${exam.publishedAt ? "border-emerald-500/50 bg-emerald-50/40" : exam.approved ? "border-primary/40 bg-primary/5" : ""}`}>
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-semibold">{exam.label}</p>
                           <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold">{exam.label}</p>
+                            {exam.publishedAt ? (
+                              <Badge variant="outline" className="border-emerald-500/60 bg-emerald-500/10 text-[10px] text-emerald-700">
+                                Published
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                Hidden from students
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant={exam.publishedAt ? "outline" : "default"}
+                              size="sm"
+                              className="h-8 text-xs"
+                              disabled={!exam.approved || publishingExamId === exam.id}
+                              onClick={() => handleTogglePublish(exam.id)}
+                              title={exam.approved
+                                ? (exam.publishedAt ? "Hide from students" : "Make visible to students")
+                                : "Approve first to enable publishing"}
+                            >
+                              {publishingExamId === exam.id ? (
+                                <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Working…</>
+                              ) : exam.publishedAt ? "Unpublish" : "Publish"}
+                            </Button>
+
                             <Select
                               value={exam.source ?? "generated"}
                               onValueChange={(v) => handleSourceChange(exam.id, v as "generated" | "manual")}
