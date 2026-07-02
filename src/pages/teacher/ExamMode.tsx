@@ -548,6 +548,47 @@ const ExamMode = () => {
     }
   };
 
+  // ── Permanent delete of an archived exam ──
+  const [deleteExamTarget, setDeleteExamTarget] = useState<{ id: string; label: string } | null>(null);
+  const [deleteSubmissionCount, setDeleteSubmissionCount] = useState<number | null>(null);
+  const [deletingExamId, setDeletingExamId] = useState<string | null>(null);
+
+  const openDeleteArchivedExam = async (id: string, label: string) => {
+    setDeleteExamTarget({ id, label });
+    setDeleteSubmissionCount(null);
+    try {
+      const { count } = await supabase
+        .from("assessment_results")
+        .select("id", { count: "exact", head: true })
+        .eq("exam_id", id);
+      setDeleteSubmissionCount(count ?? 0);
+    } catch (e) {
+      console.error("failed to count submissions:", e);
+      setDeleteSubmissionCount(0);
+    }
+  };
+
+  const confirmDeleteArchivedExam = async () => {
+    if (!deleteExamTarget) return;
+    const id = deleteExamTarget.id;
+    setDeletingExamId(id);
+    try {
+      const { error: qErr } = await supabase
+        .from("assessment_questions")
+        .delete()
+        .eq("exam_id", id);
+      if (qErr) throw qErr;
+      await deleteExamRow(id);
+      toast.success("Archived exam permanently deleted. Past student submissions were preserved.");
+      setDeleteExamTarget(null);
+    } catch (e: any) {
+      console.error("delete archived exam failed:", e);
+      toast.error(e?.message ?? "Failed to delete exam");
+    } finally {
+      setDeletingExamId(null);
+    }
+  };
+
   const handleLengthChange = (id: string, v: number) => {
     const exam = examSchedule.find(e => e.id === id);
     if (!exam) return;
