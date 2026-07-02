@@ -15,6 +15,18 @@ const BLOOM_NAMES: Record<number, string> = {
   6: "Create",
 };
 
+// Hard caps applied to model output so a chatty response can't slow the UI.
+const CAP_JUST = 140;
+const CAP_EXPLANATION = 320;
+
+function trimTo(s: string, cap: number): string {
+  const clean = s.trim().replace(/\s+/g, " ");
+  if (clean.length <= cap) return clean;
+  const cut = clean.slice(0, cap);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > cap * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[,;:.\-\s]+$/, "") + "…";
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -47,40 +59,26 @@ serve(async (req) => {
 
     const optionsBlock =
       questionType === "MCQ"
-        ? options.map((o, i) => `  ${String.fromCharCode(65 + i)}) ${o}`).join("\n")
+        ? options.map((o, i) => `${String.fromCharCode(65 + i)}) ${o}`).join(" | ")
         : questionType === "True/False"
-        ? "  A) True\n  B) False"
-        : "  (open-ended)";
+        ? "A) True | B) False"
+        : "(open-ended)";
 
-    const userPrompt = `Analyze the following assessment question and return metadata as JSON.
+    // Compact prompt: schema + strict length caps only.
+    const userPrompt = `Q (${questionType}): ${question}
+Options: ${optionsBlock}
+Correct: ${correctAnswer}
 
-Question Type: ${questionType}
-Question: ${question}
-Options:
-${optionsBlock}
-Correct Answer: ${correctAnswer}
-
-Return a JSON object with EXACTLY these keys and value constraints:
-{
-  "difficulty": "Easy" | "Medium" | "Hard",
-  "bloomsLevel": integer 1-6 (1=Remember, 2=Understand, 3=Apply, 4=Analyze, 5=Evaluate, 6=Create),
-  "difficultyEstimate": number between 0.00 and 1.00 (expected probability a typical student answers CORRECTLY; lower = harder),
-  "bloomJustification": string (1-2 sentences explaining why this Bloom's level fits),
-  "difficultyJustification": string (1-2 sentences explaining why this difficulty was assigned),
-  "explanation": string (2-4 sentence student-facing explanation of why the correct answer is correct)
-}
-
-Rules:
-- "difficulty" must match cognitive load: Easy = recall/recognition, Medium = comprehension/application, Hard = analysis/evaluation/synthesis.
-- "bloomsLevel" and "difficulty" should be broadly consistent (Bloom 1-2 ~ Easy, 3-4 ~ Medium, 5-6 ~ Hard) but use judgment.
-- Return ONLY the JSON object. No prose, no markdown fences.`;
+Return JSON only:
+{"difficulty":"Easy|Medium|Hard","bloomsLevel":1-6,"difficultyEstimate":0.00-1.00,"bloomJustification":"≤1 sentence, ≤${CAP_JUST} chars","difficultyJustification":"≤1 sentence, ≤${CAP_JUST} chars","explanation":"≤2 sentences, ≤${CAP_EXPLANATION} chars"}
+difficultyEstimate = probability a typical student answers correctly (lower = harder).`;
 
     const systemPrompt =
-      "You are an assessment design expert. You classify questions on Bloom's taxonomy, estimate item difficulty, and write clear, concise student-facing explanations. Always respond with a single valid JSON object matching the requested schema exactly.";
+      "You classify assessment questions on Bloom's taxonomy and difficulty, then write a brief student-facing explanation. Reply with a single JSON object matching the schema exactly. Be concise; respect character limits.";
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(60_000),
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
@@ -150,19 +148,30 @@ Rules:
       bloomsLevel,
       bloomsLevelName: BLOOM_NAMES[bloomsLevel],
       difficultyEstimate,
-      bloomJustification: String(parsed.bloomJustification ?? "").trim(),
-      difficultyJustification: String(parsed.difficultyJustification ?? "").trim(),
-      explanation: String(parsed.explanation ?? "").trim(),
+      bloomJustification: trimTo(String(parsed.bloomJustification ?? ""), CAP_JUST),
+      difficultyJustification: trimTo(String(parsed.difficultyJustification ?? ""), CAP_JUST),
+      explanation: trimTo(String(parsed.explanation ?? ""), CAP_EXPLANATION),
     };
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
+    const isTimeout =
+      e instanceof Error && (e.name === "TimeoutError" || /timed? ?out/i.test(e.message));
     console.error("generate-question-metadata error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({
+        error: isTimeout
+          ? "AI request timed out. Please retry."
+          : e instanceof Error
+          ? e.message
+          : "Unknown error",
+      }),
+      {
+        status: isTimeout ? 504 : 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
     );
   }
 });
