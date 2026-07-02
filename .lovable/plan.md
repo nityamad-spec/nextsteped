@@ -1,9 +1,34 @@
-Remove the "Auto-fill empty" AI metadata button from the Add/Edit Question dialog on /teacher/setup/exam-mode, since we will only use "Regenerate all" going forward. Clean up the dead code paths that implemented the fill-empty behavior.
+## Add Edit capability to the View Questions dialog (Mock Test section)
 
-Changes:
-1. Remove the "Auto-fill empty" button from the dialog's AI metadata section.
-2. Update the helper text in that section to describe only "Regenerate all" behavior.
-3. Refactor `handleAutoGenerateMetadata` so it no longer takes a mode argument and always regenerates all six metadata fields, keeping the existing confirmation prompt when values are already present.
-4. Verify the page compiles and the dialog still works.
+Route: `/teacher/setup/exam-mode` → Mock Test card → "View Questions"
 
-No edge function, backend, or schema changes are required.
+### Goal
+Let teachers edit an existing exam question directly from the View Questions dialog, using the same full-featured Add/Edit dialog already available in `ExamMode.tsx` (with all metadata fields and the "Regenerate all" auto-generate button).
+
+### Changes
+
+1. **`src/components/ExamQuestionsViewDialog.tsx`**
+   - Add an "Edit" (Pencil icon) button on each question card.
+   - Accept two new optional props from the parent:
+     - `onEditQuestion(question)` — opens the parent's existing edit dialog with that question preloaded.
+     - `refreshKey` / re-fetch trigger — so after a save in the parent dialog, the list refreshes.
+   - After edit, refetch `assessment_questions` for this exam so updates appear immediately.
+   - Keep the dialog scrollable and visually unchanged otherwise.
+
+2. **`src/pages/teacher/ExamMode.tsx`**
+   - When rendering `<ExamQuestionsViewDialog />`, pass `onEditQuestion` that:
+     - Closes/keeps open the View dialog (keep View open; overlay Edit on top).
+     - Loads the selected question into the existing Add/Edit Question dialog state (same one used by "Add Question"), pre-filling every field: question text, type, options, correct answer, topic, difficulty, bloom level, difficulty estimate, explanation, bloom justification, difficulty justification.
+     - On save, `UPDATE assessment_questions` by `id` (already supported by the existing save handler) and trigger a refetch in the View dialog.
+   - The existing "Regenerate all" flow works automatically since it's part of that dialog.
+
+3. **No changes** to DB schema, RLS, edge functions, or the auto-generate edge function.
+
+### Editable fields (all already in the current Edit dialog)
+Question text, question type, options, correct answer, topic, difficulty, bloom level, difficulty estimate, explanation, bloom justification, difficulty justification.
+
+### Verification
+- Open View Questions on a Manual (Teacher) final → click Edit on a question → confirm all fields prefill.
+- Edit text + change bloom level → Save → confirm updated values render in the list.
+- Click "Regenerate all" inside the edit dialog → confirm metadata fields update.
+- Typecheck passes.

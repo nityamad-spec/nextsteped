@@ -205,6 +205,7 @@ const ExamMode = () => {
   const [generatingExamId, setGeneratingExamId] = useState<string | null>(null);
   const [genProgress, setGenProgress] = useState<{ current: number; total: number } | null>(null);
   const [viewExamId, setViewExamId] = useState<string | null>(null);
+  const [viewRefreshToken, setViewRefreshToken] = useState(0);
 
 
 
@@ -1048,6 +1049,7 @@ const ExamMode = () => {
         toast.success("Question added");
       }
       setDialogOpen(false);
+      setViewRefreshToken(t => t + 1);
       if (courseId) bumpCacheVersion("questions", courseId);
     } catch { toast.error("Failed to save question"); }
     finally { setSaving(false); }
@@ -1774,7 +1776,28 @@ const ExamMode = () => {
         courseId={courseId}
         examId={viewExamId}
         examLabel={labeledSchedule.find(e => e.id === viewExamId)?.label ?? "Exam"}
+        refreshToken={viewRefreshToken}
+        onEditQuestion={(q) => {
+          const type = (q.question_type as QuestionType) ?? "MCQ";
+          openEditDialog({
+            id: q.id,
+            question: q.question_text,
+            answer: q.answer ?? "",
+            topic: q.topic,
+            difficulty: (q.difficulty as "Easy" | "Medium" | "Hard") ?? "Medium",
+            type,
+            options: q.options ?? undefined,
+            correctIndex: q.correct_index ?? undefined,
+            exam_id: q.exam_id,
+            bloom_level: q.bloom_level,
+            explanation: q.explanation,
+            difficulty_estimate: q.difficulty_estimate,
+            bloom_justification: q.bloom_justification,
+            difficulty_justification: q.difficulty_justification,
+          });
+        }}
       />
+
 
       <AlertDialog open={!!confirmRemoveId} onOpenChange={(o) => !o && setConfirmRemoveId(null)}>
         <AlertDialogContent>
