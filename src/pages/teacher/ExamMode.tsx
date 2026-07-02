@@ -1620,25 +1620,37 @@ const ExamMode = () => {
               if (!hasCorrect) missing.push("correct answer");
               return (
                 <div className="rounded-md border border-dashed border-primary/40 bg-primary/5 p-3">
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="min-w-0">
                       <p className="text-sm font-medium">Auto-generate with AI</p>
                       <p className="text-[11px] text-muted-foreground">
-                        Fills Difficulty, Bloom's Level, Difficulty Estimate, both justifications, and Explanation. Only empty/default fields are updated.
+                        Fills Difficulty, Bloom's Level, Difficulty Estimate, both justifications, and Explanation. Use "Regenerate all" to overwrite existing values.
                       </p>
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={handleAutoGenerateMetadata}
-                      disabled={!canAuto || autoFilling}
-                      title={canAuto ? "Generate metadata with AI" : `Missing: ${missing.join(", ")}`}
-                    >
-                      {autoFilling
-                        ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
-                        : <><Sparkles className="mr-2 h-4 w-4" />Auto-fill</>}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleAutoGenerateMetadata("fill-empty")}
+                        disabled={!canAuto || autoFilling}
+                        title={canAuto ? "Fill only empty/default fields" : `Missing: ${missing.join(", ")}`}
+                      >
+                        {autoFilling
+                          ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
+                          : <><Sparkles className="mr-2 h-4 w-4" />Auto-fill empty</>}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAutoGenerateMetadata("regenerate-all")}
+                        disabled={!canAuto || autoFilling}
+                        title={canAuto ? "Overwrite all six AI fields" : `Missing: ${missing.join(", ")}`}
+                      >
+                        <Sparkles className="mr-2 h-4 w-4" />Regenerate all
+                      </Button>
+                    </div>
                   </div>
                 </div>
               );
