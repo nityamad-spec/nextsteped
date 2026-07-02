@@ -189,6 +189,15 @@ const ExamMode = () => {
   const [formBloomJustification, setFormBloomJustification] = useState<string>("");
   const [formDifficultyJustification, setFormDifficultyJustification] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [autoFilling, setAutoFilling] = useState(false);
+  const initialMetaRef = useRef<{
+    difficulty: "Easy" | "Medium" | "Hard";
+    bloom: number;
+    estimate: string;
+    bloomJust: string;
+    diffJust: string;
+    explanation: string;
+  } | null>(null);
   const [concepts, setConcepts] = useState<{ id: string; concept_code: string }[]>([]);
 
   // Per-exam generated-question state
