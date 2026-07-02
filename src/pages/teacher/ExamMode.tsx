@@ -105,7 +105,10 @@ const ExamMode = () => {
     archiveExam,
     restoreExam,
     deleteExamRow,
+    publishExam,
+    unpublishExam,
   } = useCourseExams(courseId);
+
 
   // ── Exam config state ──
   const [settings, setSettings] = useState(taSettings);
@@ -131,9 +134,11 @@ const ExamMode = () => {
           breakdown: e.breakdown,
           approved: e.approved,
           source: e.source,
+          publishedAt: e.published_at,
           breakdownDirty: !sameKeys,
         };
       });
+
     }
     if (taSettings.examSchedule && taSettings.examSchedule.length > 0) {
       return taSettings.examSchedule.map(e => ({ ...e, source: e.source ?? "generated" }));
@@ -308,6 +313,11 @@ const ExamMode = () => {
     const idx = schedule.findIndex(e => e.id === id);
     if (idx < 0) return;
     const next = { ...schedule[idx], ...patch };
+    // Any mutation that removes approval also removes publication — students
+    // should never see an exam mid-edit.
+    const publishFields = !next.approved
+      ? { published_at: null, published_by: null }
+      : {};
     void upsertExam({
       id,
       label: `Final ${idx + 1}`,
@@ -317,6 +327,7 @@ const ExamMode = () => {
       source: next.source ?? "generated",
       approved: next.approved,
       position: idx,
+      ...publishFields,
     }).catch(e => console.error("persist exam failed:", e));
   };
 
@@ -340,9 +351,13 @@ const ExamMode = () => {
   };
 
   const updateExam = (id: string, patch: Partial<ExamScheduleItem>) => {
-    setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e));
+    // Auto-clear local publish flag if this edit unapproves the card.
+    const localPatch: Partial<ExamScheduleItem> =
+      patch.approved === false ? { ...patch, publishedAt: null } : patch;
+    setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, ...localPatch } : e));
     persistExam(id, patch);
   };
+
 
 
 
@@ -358,6 +373,7 @@ const ExamMode = () => {
           ...e,
           breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
           approved: false,
+          publishedAt: null,
         };
       });
       next.forEach((e, idx) => {
@@ -366,10 +382,13 @@ const ExamMode = () => {
             id: e.id,
             breakdown: e.breakdown as Record<string, number>,
             approved: false,
+            published_at: null,
+            published_by: null,
             position: idx,
           }).catch(err => console.error("persist breakdown refresh failed:", err));
         }
       });
+
       return next;
     });
     setEditingCardIds({});
@@ -608,7 +627,7 @@ const ExamMode = () => {
     if (!exam) return;
     const nextBreakdown = { ...exam.breakdown, [type]: Math.max(0, value || 0) };
     setExamSchedule(prev => prev.map(e =>
-      e.id === id ? { ...e, breakdown: nextBreakdown, approved: false, breakdownDirty: true } : e
+      e.id === id ? { ...e, breakdown: nextBreakdown, approved: false, publishedAt: null, breakdownDirty: true } : e
     ));
     persistExamDebounced(id);
   };
@@ -618,10 +637,11 @@ const ExamMode = () => {
     if (!exam) return;
     const fresh = questionEstimate(exam.lengthMin, examQuestionTypes).breakdown;
     setExamSchedule(prev => prev.map(e =>
-      e.id === id ? { ...e, breakdown: fresh, breakdownDirty: false, approved: false } : e
+      e.id === id ? { ...e, breakdown: fresh, breakdownDirty: false, approved: false, publishedAt: null } : e
     ));
     persistExamDebounced(id);
   };
+
 
 
 
@@ -630,6 +650,44 @@ const ExamMode = () => {
     setEditingCardIds(prev => ({ ...prev, [id]: false }));
     updateExam(id, { approved: !examSchedule.find(e => e.id === id)?.approved });
   };
+
+  const [publishingExamId, setPublishingExamId] = useState<string | null>(null);
+  const handleTogglePublish = async (id: string) => {
+    const exam = examSchedule.find(e => e.id === id);
+    if (!exam) return;
+    if (!exam.approved) {
+      toast.error("Approve this mock test before publishing to students.");
+      return;
+    }
+    const generatedCount = examQuestionCounts[id] ?? 0;
+    const manualCount = manualExamCounts[id] ?? 0;
+    const hasQuestions = exam.source === "manual" ? manualCount > 0 : generatedCount > 0;
+    if (!exam.publishedAt && !hasQuestions) {
+      toast.error(exam.source === "manual"
+        ? "Add at least one manual question before publishing."
+        : "Generate questions before publishing.");
+      return;
+    }
+    setPublishingExamId(id);
+    try {
+      if (exam.publishedAt) {
+        await unpublishExam(id);
+        setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, publishedAt: null } : e));
+        toast.success(`${`Final ${examSchedule.findIndex(e => e.id === id) + 1}`} unpublished — students can no longer see it.`);
+      } else {
+        await publishExam(id, user?.id ?? null);
+        const nowIso = new Date().toISOString();
+        setExamSchedule(prev => prev.map(e => e.id === id ? { ...e, publishedAt: nowIso } : e));
+        toast.success(`${`Final ${examSchedule.findIndex(e => e.id === id) + 1}`} is now visible to students.`);
+      }
+    } catch (e) {
+      console.error("toggle publish failed:", e);
+      toast.error("Couldn't update publish state. Please try again.");
+    } finally {
+      setPublishingExamId(null);
+    }
+  };
+
 
   // Auto-label each card "Final N"
   const labeledSchedule = useMemo(() => {
@@ -942,10 +1000,36 @@ const ExamMode = () => {
                     const manualCount = manualExamCounts[exam.id] ?? 0;
                     const canApprove = isManual ? manualCount >= 1 : breakdownEntries.length > 0;
                     return (
-                      <div key={exam.id} className={`rounded-lg border p-4 space-y-3 ${exam.approved ? "border-primary/40 bg-primary/5" : ""}`}>
+                      <div key={exam.id} className={`rounded-lg border p-4 space-y-3 ${exam.publishedAt ? "border-emerald-500/50 bg-emerald-50/40" : exam.approved ? "border-primary/40 bg-primary/5" : ""}`}>
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-semibold">{exam.label}</p>
                           <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold">{exam.label}</p>
+                            {exam.publishedAt ? (
+                              <Badge variant="outline" className="border-emerald-500/60 bg-emerald-500/10 text-[10px] text-emerald-700">
+                                Published
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                Hidden from students
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant={exam.publishedAt ? "outline" : "default"}
+                              size="sm"
+                              className="h-8 text-xs"
+                              disabled={!exam.approved || publishingExamId === exam.id}
+                              onClick={() => handleTogglePublish(exam.id)}
+                              title={exam.approved
+                                ? (exam.publishedAt ? "Hide from students" : "Make visible to students")
+                                : "Approve first to enable publishing"}
+                            >
+                              {publishingExamId === exam.id ? (
+                                <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Working…</>
+                              ) : exam.publishedAt ? "Unpublish" : "Publish"}
+                            </Button>
+
                             <Select
                               value={exam.source ?? "generated"}
                               onValueChange={(v) => handleSourceChange(exam.id, v as "generated" | "manual")}

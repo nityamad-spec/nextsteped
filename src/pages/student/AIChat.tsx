@@ -455,7 +455,9 @@ const AIChat = () => {
         .from("course_exams")
         .select("id")
         .eq("course_id", enrolledCourseId)
-        .is("archived_at", null),
+        .is("archived_at", null)
+        .not("published_at", "is", null),
+
       user
         ? supabase
             .from("assessment_results")

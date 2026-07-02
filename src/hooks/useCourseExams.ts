@@ -10,6 +10,8 @@ export interface CourseExam {
   breakdown: Record<string, number>;
   source: "generated" | "manual";
   approved: boolean;
+  published_at: string | null;
+  published_by: string | null;
   position: number;
   archived_at: string | null;
   archived_by: string | null;
@@ -24,6 +26,8 @@ interface DBRow {
   breakdown: unknown;
   source: string;
   approved: boolean;
+  published_at: string | null;
+  published_by: string | null;
   position: number;
   archived_at: string | null;
   archived_by: string | null;
@@ -38,10 +42,13 @@ const toApp = (r: DBRow): CourseExam => ({
   breakdown: (r.breakdown && typeof r.breakdown === "object" ? r.breakdown : {}) as Record<string, number>,
   source: (r.source as "generated" | "manual") ?? "generated",
   approved: !!r.approved,
+  published_at: r.published_at ?? null,
+  published_by: r.published_by ?? null,
   position: r.position ?? 0,
   archived_at: r.archived_at,
   archived_by: r.archived_by,
 });
+
 
 /** Pick the next available "Final N" label that isn't taken by an ACTIVE exam. */
 export function nextAvailableLabel(activeLabels: string[]): string {
@@ -98,6 +105,8 @@ export function useCourseExams(courseId: string | null) {
       ...(input.breakdown !== undefined ? { breakdown: input.breakdown } : {}),
       ...(input.source !== undefined ? { source: input.source } : {}),
       ...(input.approved !== undefined ? { approved: input.approved } : {}),
+      ...(input.published_at !== undefined ? { published_at: input.published_at } : {}),
+      ...(input.published_by !== undefined ? { published_by: input.published_by } : {}),
       ...(input.position !== undefined ? { position: input.position } : {}),
     };
     const { error } = await supabase
@@ -108,16 +117,39 @@ export function useCourseExams(courseId: string | null) {
   }, [courseId, reload]);
 
 
-  const archiveExam = useCallback(async (id: string, userId: string | null) => {
+  const publishExam = useCallback(async (id: string, userId: string | null) => {
     if (!courseId) return;
     const { error } = await supabase
       .from("course_exams" as never)
-      .update({ archived_at: new Date().toISOString(), archived_by: userId } as never)
+      .update({ published_at: new Date().toISOString(), published_by: userId } as never)
       .eq("course_id", courseId)
       .eq("id", id);
     if (error) throw error;
     await reload();
   }, [courseId, reload]);
+
+  const unpublishExam = useCallback(async (id: string) => {
+    if (!courseId) return;
+    const { error } = await supabase
+      .from("course_exams" as never)
+      .update({ published_at: null, published_by: null } as never)
+      .eq("course_id", courseId)
+      .eq("id", id);
+    if (error) throw error;
+    await reload();
+  }, [courseId, reload]);
+
+  const archiveExam = useCallback(async (id: string, userId: string | null) => {
+    if (!courseId) return;
+    const { error } = await supabase
+      .from("course_exams" as never)
+      .update({ archived_at: new Date().toISOString(), archived_by: userId, published_at: null, published_by: null } as never)
+      .eq("course_id", courseId)
+      .eq("id", id);
+    if (error) throw error;
+    await reload();
+  }, [courseId, reload]);
+
 
   const restoreExam = useCallback(async (id: string): Promise<{ renamedTo?: string }> => {
     if (!courseId) return {};
@@ -154,5 +186,6 @@ export function useCourseExams(courseId: string | null) {
   return {
     exams, active, archived, loading,
     reload, upsertExam, archiveExam, restoreExam, deleteExamRow,
+    publishExam, unpublishExam,
   };
 }

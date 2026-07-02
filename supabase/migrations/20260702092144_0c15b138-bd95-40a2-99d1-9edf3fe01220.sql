@@ -1,0 +1,1 @@
+ALTER TABLE public.course_exams ADD COLUMN IF NOT EXISTS published_at timestamptz NULL; ALTER TABLE public.course_exams ADD COLUMN IF NOT EXISTS published_by uuid NULL REFERENCES public.profiles(id) ON DELETE SET NULL; UPDATE public.course_exams SET published_at = COALESCE(published_at, now()) WHERE approved = true AND archived_at IS NULL AND published_at IS NULL;
