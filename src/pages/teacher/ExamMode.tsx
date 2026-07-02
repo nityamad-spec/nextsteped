@@ -46,6 +46,11 @@ interface EditableQuestion {
   options?: string[];
   correctIndex?: number;
   exam_id?: string | null;
+  bloom_level?: number | null;
+  explanation?: string | null;
+  difficulty_estimate?: number | null;
+  bloom_justification?: string | null;
+  difficulty_justification?: string | null;
 }
 
 // Map internal type keys to display labels
