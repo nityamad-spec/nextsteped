@@ -280,6 +280,11 @@ const ExamMode = () => {
           difficulty: row.difficulty, type: row.question_type,
           options: row.options, correctIndex: row.correct_index ?? undefined,
           exam_id: row.exam_id ?? null,
+          bloom_level: row.bloom_level ?? null,
+          explanation: row.explanation ?? null,
+          difficulty_estimate: row.difficulty_estimate != null ? Number(row.difficulty_estimate) : null,
+          bloom_justification: row.bloom_justification ?? null,
+          difficulty_justification: row.difficulty_justification ?? null,
         })));
         const counts: Record<string, number> = {};
         for (const row of data as any[]) {
