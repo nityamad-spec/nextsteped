@@ -13,6 +13,17 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Calendar, UserPlus, Upload, Copy, ArrowLeft, Trash2, Download, AlertTriangle } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { markStepCompleted } from "@/lib/setupProgress";
