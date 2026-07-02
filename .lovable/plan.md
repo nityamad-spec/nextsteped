@@ -1,43 +1,35 @@
-## Goal
-Fix the `generate-question-metadata` timeout by shrinking the LLM workload (Option B), and add a "Regenerate all" mode that overwrites existing values instead of skipping them.
+## Root cause
 
-## Edge function changes — `supabase/functions/generate-question-metadata/index.ts`
+The **Generative AI Leader** course has `roster_enforcement = true` with 103 approved emails. When a student whose email is NOT on that roster hits **Enroll & Take Diagnostic**, the `enroll-additional-course` edge function correctly returns:
 
-Keep `google/gemini-2.5-pro`, but reduce time-to-response:
-- **Tighter system prompt.** Replace the verbose rubric with a compact one-paragraph instruction.
-- **Tighter user prompt.** Remove the long "Rules:" block; keep just the schema + hard length caps.
-- **Shorter outputs (hard caps in the prompt):**
-  - `bloomJustification`: 1 sentence, ≤ 140 chars
-  - `difficultyJustification`: 1 sentence, ≤ 140 chars
-  - `explanation`: 2 sentences, ≤ 320 chars
-- **Drop derived fields from the model output.** Model returns 6 fields only; `bloomsLevelName` is derived server-side (already the case — keep it).
-- **Truncation safety net.** After parsing, hard-truncate the three string fields to the caps above so a chatty model can't blow past the limit.
-- **Timeout.** Lower `AbortSignal.timeout` from 120s → 60s (Pro reasoning with a short prompt/output comfortably fits) and return a clean 504 `{ error: "AI request timed out. Please retry." }` on `AbortError` so the UI toast is meaningful instead of a generic 500.
+```
+403 { "error": "Your email isn't on this course's approved roster. Please contact your instructor." }
+```
 
-No response-shape change: the function still returns `{ difficulty, bloomsLevel, bloomsLevelName, difficultyEstimate, bloomJustification, difficultyJustification, explanation }`. No new tables, no queue, no client polling.
+However, `src/components/AddCourseDialog.tsx` uses `supabase.functions.invoke(...)`. When the function returns any non-2xx, supabase-js throws a `FunctionsHttpError` whose `.message` is the generic string **"Edge Function returned a non-2xx status code"** and does not populate `data`. The dialog's `catch` block just toasts `err.message`, so the specific roster message never reaches the user.
 
-## Frontend changes — `src/pages/teacher/ExamMode.tsx`
+So the error the user sees is real but masked — the actual reason is almost certainly that their email isn't on the approved roster for that course (or, less likely, enrollment is closed / code stale — but the live validator already showed ✓ so those are ruled out here).
 
-Add a **regenerate-all** mode to the existing Auto-fill affordance in the Add/Edit Question dialog:
+## Fix
 
-- Split the current single button into a small button group inside the same dashed container:
-  - **Auto-fill empty** (existing behavior — only fills fields matching the `initialMetaRef` snapshot).
-  - **Regenerate all** (new — overwrites all 6 metadata fields regardless of current values).
-- Both buttons share the same disabled/tooltip logic (needs question, ≥2 options for MCQ, correct answer) and both show the `Sparkles` + `Loader2` states.
-- `handleAutoGenerateMetadata(mode: "fill-empty" | "regenerate-all")`:
-  - Calls the same edge function with the same body.
-  - `fill-empty` branch: unchanged snapshot-based write.
-  - `regenerate-all` branch: writes all 6 fields unconditionally; shows a confirm (`window.confirm` or an `AlertDialog`) before overwriting when any of the 6 fields already have non-empty/non-default values, so a click doesn't silently destroy hand-edited justifications.
-  - Toast copy: `"Filled N field(s)"` vs `"Regenerated all 6 fields"`.
+Update `src/components/AddCourseDialog.tsx` `submit()` to read the JSON body from `FunctionsHttpError` before falling back to a generic message:
 
-No changes to the question schema, DB, or save path — regeneration only updates the in-form state, and the existing Save button persists.
+```ts
+} catch (err: any) {
+  let msg = err?.message || "Couldn't enroll. Please try again.";
+  try {
+    const body = await err?.context?.json?.();
+    if (body?.error) msg = body.error;
+  } catch { /* ignore */ }
+  toast.error(msg);
+}
+```
+
+Apply the same body-extraction pattern to the `validate-enrollment-code` invoke catch block in the same file for consistency.
+
+No backend changes. No schema changes. UI-only fix so students see the actual reason (roster mismatch, closed enrollment, etc.) instead of the generic non-2xx message.
 
 ## Verification
-- Deploy edge function; `curl_edge_functions` with a sample MCQ; confirm response < 60s, all 6 fields present and within length caps.
-- In the Add and Edit dialogs: (1) Auto-fill empty leaves populated fields alone; (2) Regenerate all overwrites after confirm; (3) both buttons disabled with tooltip until inputs are valid.
 
-## Files touched
-- `supabase/functions/generate-question-metadata/index.ts` — prompt shrink, length caps, timeout + 504 mapping.
-- `src/pages/teacher/ExamMode.tsx` — second button, regenerate-all handler, confirm-on-overwrite.
-
-Awaiting approval before implementing.
+- Try enrolling with an email not on the roster for `de0bed1a` → toast should read: *"Your email isn't on this course's approved roster. Please contact your instructor."*
+- Try with an allow-listed email → succeeds and routes to diagnostic.
