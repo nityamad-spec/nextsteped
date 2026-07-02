@@ -1566,7 +1566,45 @@ const ExamMode = () => {
                 </p>
               )}
             </div>
+            {(() => {
+              const isMCQ = formType === "MCQ";
+              const isTF = formType === "True/False";
+              const filledOpts = isMCQ ? formOptions.filter(o => o.trim()).length : 0;
+              const hasCorrect = isMCQ
+                ? (formOptions[formCorrectIndex]?.trim().length ?? 0) > 0 && filledOpts >= 2
+                : !!formAnswer.trim();
+              const canAuto = !!formQuestion.trim() && hasCorrect && (!isMCQ || filledOpts >= 2);
+              const missing: string[] = [];
+              if (!formQuestion.trim()) missing.push("question text");
+              if (isMCQ && filledOpts < 2) missing.push("at least 2 options");
+              if (!hasCorrect) missing.push("correct answer");
+              return (
+                <div className="rounded-md border border-dashed border-primary/40 bg-primary/5 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Auto-generate with AI</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Fills Difficulty, Bloom's Level, Difficulty Estimate, both justifications, and Explanation. Only empty/default fields are updated.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={handleAutoGenerateMetadata}
+                      disabled={!canAuto || autoFilling}
+                      title={canAuto ? "Generate metadata with AI" : `Missing: ${missing.join(", ")}`}
+                    >
+                      {autoFilling
+                        ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating…</>
+                        : <><Sparkles className="mr-2 h-4 w-4" />Auto-fill</>}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
             <div className="space-y-2">
+
               <Label>Difficulty</Label>
               <Select value={formDifficulty} onValueChange={(v) => setFormDifficulty(v as "Easy" | "Medium" | "Hard")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
