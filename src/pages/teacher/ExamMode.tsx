@@ -919,7 +919,6 @@ const ExamMode = () => {
                     <Button
                       variant="outline" size="icon" className="h-8 w-8"
                       onClick={handleRemoveExamRequest}
-                      disabled={examSchedule.length <= 1}
                       aria-label="Remove exam"
                     >−</Button>
                     <span className="w-6 text-center text-sm font-bold">{examSchedule.length}</span>
