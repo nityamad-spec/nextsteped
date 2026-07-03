@@ -84,6 +84,7 @@ const StudentHome = () => {
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
   const [concepts, setConcepts] = useState<{ id: string; name: string }[]>([]);
   const [quizDialog, setQuizDialog] = useState<{ open: boolean; day: number | null }>({ open: false, day: null });
+  const [diagGate, setDiagGate] = useState<{ open: boolean; context: string }>({ open: false, context: "" });
   const [conceptMastery, setConceptMastery] = useState<Record<string, { score: number; attempted: number }>>({});
   const [courseMastery, setCourseMastery] = useState<number | null>(null);
   const [takenQuizzes, setTakenQuizzes] = useState<Record<number, { score: number }>>({});
