@@ -92,28 +92,43 @@ const AdminCourses = () => {
 
   const [exportingId, setExportingId] = useState<string | null>(null);
 
+  const selectedUniversity = useMemo(
+    () => universities.find((u) => u.id === selectedUniversityId) || null,
+    [universities, selectedUniversityId],
+  );
+
   const handleExportCourse = async (c: CourseRow) => {
     setExportingId(c.id);
     try {
-      await exportCourseToExcel({
-        id: c.id,
-        name: c.name,
-        course_code: c.course_code,
-        term: c.term,
-        enrollment_code: c.enrollment_code,
-        enrollment_open: c.enrollment_open,
-        published: c.published,
-        created_at: c.created_at,
-        teacher_name: c.teacher_name,
-        teacher_email: c.teacher_email,
-      });
-      toast.success(`Exported "${c.name}"`);
+      await exportCourseToExcel(
+        {
+          id: c.id,
+          name: c.name,
+          course_code: c.course_code,
+          term: c.term,
+          enrollment_code: c.enrollment_code,
+          enrollment_open: c.enrollment_open,
+          published: c.published,
+          created_at: c.created_at,
+          teacher_name: c.teacher_name,
+          teacher_email: c.teacher_email,
+        },
+        selectedUniversity
+          ? { universityId: selectedUniversity.id, universityName: selectedUniversity.name }
+          : undefined,
+      );
+      toast.success(
+        selectedUniversity
+          ? `Exported "${c.name}" for ${selectedUniversity.name}`
+          : `Exported "${c.name}"`,
+      );
     } catch (e: any) {
       toast.error(e?.message || "Export failed");
     } finally {
       setExportingId(null);
     }
   };
+
 
 
 
