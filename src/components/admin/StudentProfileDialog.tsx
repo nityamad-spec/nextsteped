@@ -234,7 +234,8 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
     let assessQCount = 0;
 
     (resultsRes.data || []).forEach(r => {
-      const scorePct = r.total_questions > 0 ? Math.floor((r.score / r.total_questions) * 100) : 0;
+      const rawPct = typeof r.score === "number" ? r.score : 0;
+      const scorePct = Math.max(0, Math.min(100, Math.floor(rawPct)));
       const timeSec = sumTimes(r.question_times);
       const attempt: Attempt = { id: r.id, created_at: r.created_at, scorePct, timeSec };
 
@@ -248,7 +249,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
         assessTimeSec += timeSec; assessQCount += countTimes(r.question_times);
       } else if (r.mode === "practice") {
         practiceAttempts += 1;
-        practiceCorrect += r.score || 0;
+        practiceCorrect += r.correct_answers || 0;
         practiceTotal += r.total_questions || 0;
       }
     });
