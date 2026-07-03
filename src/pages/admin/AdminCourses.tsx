@@ -353,24 +353,65 @@ const AdminCourses = () => {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Label htmlFor="uni-filter" className="text-sm text-muted-foreground">University:</Label>
-        <Select value={selectedUniversityId} onValueChange={setSelectedUniversityId}>
-          <SelectTrigger id="uni-filter" className="w-[280px]">
-            <SelectValue placeholder="All universities" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All universities</SelectItem>
-            {universities.map((u) => (
-              <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {selectedUniversity && (
+        <Label className="text-sm text-muted-foreground">Universities:</Label>
+        <Popover open={uniFilterOpen} onOpenChange={setUniFilterOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="w-[280px] justify-between">
+              <span className="truncate">{filterSummary}</span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50 shrink-0" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[320px] p-0" align="start">
+            <div className="flex items-center justify-between px-3 py-2 border-b">
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline"
+                onClick={() => setSelectedUniversityIds(universities.map((u) => u.id))}
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:underline disabled:opacity-40"
+                onClick={() => setSelectedUniversityIds([])}
+                disabled={selectedUniversityIds.length === 0}
+              >
+                Clear
+              </button>
+            </div>
+            <div className="max-h-64 overflow-y-auto py-1">
+              {universities.map((u) => {
+                const checked = selectedUniversityIds.includes(u.id);
+                return (
+                  <label
+                    key={u.id}
+                    className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/50"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(v) => {
+                        setSelectedUniversityIds((prev) =>
+                          v ? [...prev, u.id] : prev.filter((id) => id !== u.id),
+                        );
+                      }}
+                    />
+                    <span className="truncate">{u.name}</span>
+                  </label>
+                );
+              })}
+              {universities.length === 0 && (
+                <p className="px-3 py-4 text-xs text-muted-foreground text-center">No universities yet</p>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+        {selectedUniversities.length > 0 && (
           <span className="text-xs text-muted-foreground">
-            Exports will include only students from {selectedUniversity.name}.
+            Exports will include only students from {filterSummary}.
           </span>
         )}
       </div>
+
 
       <Card>
         <CardHeader>
