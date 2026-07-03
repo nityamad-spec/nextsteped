@@ -119,6 +119,7 @@ const AdminStudents = () => {
   const [courseFilter, setCourseFilter] = useState<Set<string>>(new Set());
   const [masteryFilter, setMasteryFilter] = useState<Set<string>>(new Set());
   const [profileTarget, setProfileTarget] = useState<StudentGroup | null>(null);
+  const [exporting, setExporting] = useState(false);
   
   
   const { toast } = useToast();
