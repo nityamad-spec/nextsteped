@@ -18,6 +18,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import StudentProfileDialog from "@/components/admin/StudentProfileDialog";
+import { exportStudentsToExcel } from "@/lib/exportStudentsToExcel";
 
 const MASTERY_ORDER = ["beginner", "developing", "proficient", "expert"];
 const sortMastery = (a: string, b: string) => {
