@@ -122,7 +122,7 @@ const StudentOnboarding = () => {
         }
       } catch (err: any) {
         setCodeStatus("invalid");
-        setCodeError(err.message || "Couldn't validate code. Please try again.");
+        setCodeError(await extractFunctionError(err, "Couldn't validate code"));
         setCodeCourseName(null);
       }
     }, 400);
