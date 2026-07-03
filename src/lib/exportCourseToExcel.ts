@@ -214,9 +214,14 @@ async function buildStudentRows(courseId: string, universityId?: string | null):
 
 const safeFilename = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
 
-export async function exportCourseToExcel(course: CourseForSingleExport): Promise<void> {
+export async function exportCourseToExcel(
+  course: CourseForSingleExport,
+  opts?: { universityId?: string | null; universityName?: string | null },
+): Promise<void> {
   const XLSX = await import("xlsx");
-  const rows = await buildStudentRows(course.id);
+  const universityId = opts?.universityId ?? null;
+  const universityName = opts?.universityName ?? null;
+  const rows = await buildStudentRows(course.id, universityId);
 
   const wb = XLSX.utils.book_new();
 
@@ -237,6 +242,7 @@ export async function exportCourseToExcel(course: CourseForSingleExport): Promis
     Status: course.published ? "Published" : "Draft",
     Enrollment: course.enrollment_open ? "Open" : "Closed",
     "Created At": course.created_at,
+    "University Filter": universityName || "All universities",
     Enrolled: rows.length,
     "Diagnostic Submitted": diagSubmitted,
     "Diagnostic Not Submitted": rows.length - diagSubmitted,
@@ -251,6 +257,7 @@ export async function exportCourseToExcel(course: CourseForSingleExport): Promis
     "Exams Total": examsTotal,
     "Chat Messages": chatMessages,
   }];
+
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(overview), "Overview");
 
   const studentsSheet = rows.map(r => ({
