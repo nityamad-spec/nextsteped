@@ -837,6 +837,12 @@ const StudentHome = () => {
         numQuestions={taSettings.quizNumQuestions || 5}
         timeLimitMinutes={taSettings.quizTimeLimit || 10}
       />
+      <DiagnosticGateDialog
+        open={diagGate.open}
+        onOpenChange={(o) => setDiagGate((s) => ({ ...s, open: o }))}
+        courseId={enrolledCourseId}
+        context={diagGate.context}
+      />
     </div>
   );
 };
