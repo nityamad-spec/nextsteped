@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookOpen, MoreHorizontal, ArrowRightLeft, Check, ChevronsUpDown, Trash2, Download, Loader2 } from "lucide-react";
-import { exportCoursesToExcel } from "@/lib/exportCoursesToExcel";
+import { exportCourseToExcel } from "@/lib/exportCourseToExcel";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -87,17 +87,27 @@ const AdminCourses = () => {
   // Profile dialog state
   const [profileCourse, setProfileCourse] = useState<CourseRow | null>(null);
 
-  const [exporting, setExporting] = useState(false);
-  const handleExport = async () => {
-    if (courses.length === 0) return;
-    setExporting(true);
+  const [exportingId, setExportingId] = useState<string | null>(null);
+  const handleExportCourse = async (c: CourseRow) => {
+    setExportingId(c.id);
     try {
-      const n = await exportCoursesToExcel(courses);
-      toast.success(`Exported ${n} course${n === 1 ? "" : "s"}`);
+      await exportCourseToExcel({
+        id: c.id,
+        name: c.name,
+        course_code: c.course_code,
+        term: c.term,
+        enrollment_code: c.enrollment_code,
+        enrollment_open: c.enrollment_open,
+        published: c.published,
+        created_at: c.created_at,
+        teacher_name: c.teacher_name,
+        teacher_email: c.teacher_email,
+      });
+      toast.success(`Exported "${c.name}"`);
     } catch (e: any) {
       toast.error(e?.message || "Export failed");
     } finally {
-      setExporting(false);
+      setExportingId(null);
     }
   };
 
@@ -281,20 +291,11 @@ const AdminCourses = () => {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
             {courses.length} Courses
           </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExport}
-            disabled={exporting || courses.length === 0}
-          >
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {exporting ? "Exporting…" : "Export to Excel"}
-          </Button>
         </CardHeader>
         <CardContent>
           {courses.length === 0 ? (
@@ -347,6 +348,17 @@ const AdminCourses = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleExportCourse(c)}
+                            disabled={exportingId === c.id}
+                          >
+                            {exportingId === c.id ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="mr-2 h-4 w-4" />
+                            )}
+                            {exportingId === c.id ? "Exporting…" : "Export data"}
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openTransfer(c)}>
                             <ArrowRightLeft className="mr-2 h-4 w-4" />
                             Transfer ownership
