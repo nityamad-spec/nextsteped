@@ -641,6 +641,8 @@ const AIChat = () => {
     // Professor-authored exams: serve all questions; ignore custom.questionCount cap.
     const cap = examId ? shuffled.length : Math.min(count, shuffled.length);
     questions = shuffled.slice(0, cap);
+
+    setCustomExamTimeLimit(custom.timeLimit);
     setAssessmentQuestions(questions);
     setAssessmentQuestionMeta(meta);
     setAssessmentType("exam");
