@@ -348,6 +348,17 @@ const AdminCourses = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleExportCourse(c)}
+                            disabled={exportingId === c.id}
+                          >
+                            {exportingId === c.id ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="mr-2 h-4 w-4" />
+                            )}
+                            {exportingId === c.id ? "Exporting…" : "Export data"}
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openTransfer(c)}>
                             <ArrowRightLeft className="mr-2 h-4 w-4" />
                             Transfer ownership
