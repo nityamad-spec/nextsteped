@@ -338,16 +338,39 @@ const AdminCourses = () => {
         <p className="text-muted-foreground">Browse all courses on the platform</p>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <Label htmlFor="uni-filter" className="text-sm text-muted-foreground">University:</Label>
+        <Select value={selectedUniversityId} onValueChange={setSelectedUniversityId}>
+          <SelectTrigger id="uni-filter" className="w-[280px]">
+            <SelectValue placeholder="All universities" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All universities</SelectItem>
+            {universities.map((u) => (
+              <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {selectedUniversity && (
+          <span className="text-xs text-muted-foreground">
+            Exports will include only students from {selectedUniversity.name}.
+          </span>
+        )}
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
-            {courses.length} Courses
+            {visibleCourses.length} Courses
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {courses.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">No courses created yet</p>
+          {visibleCourses.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">
+              {selectedUniversity ? "No courses with students from this university" : "No courses created yet"}
+            </p>
+
           ) : (
             <Table>
               <TableHeader>
