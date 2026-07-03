@@ -264,7 +264,7 @@ export async function exportCourseToExcel(
     Status: course.published ? "Published" : "Draft",
     Enrollment: course.enrollment_open ? "Open" : "Closed",
     "Created At": course.created_at,
-    "University Filter": universityName || "All universities",
+    "University Filter": filterLabel,
     Enrolled: rows.length,
     "Diagnostic Submitted": diagSubmitted,
     "Diagnostic Not Submitted": rows.length - diagSubmitted,
