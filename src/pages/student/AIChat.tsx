@@ -386,6 +386,15 @@ const AIChat = () => {
     if (mode === "learning") setAssessmentActive(false);
   }, [mode]);
 
+  // Gate exam mode + quiz launches on diagnostic completion.
+  useEffect(() => {
+    if (diagnosticTaken === false && mode === "exam") {
+      setMode("learning");
+      setAssessmentActive(false);
+      setDiagGateOpen(true);
+    }
+  }, [diagnosticTaken, mode]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeChat?.messages.length, streamingMessage?.content]);
