@@ -43,6 +43,8 @@ interface CourseDetail {
   examsTotal: number;
   proficientConcepts: number;
   totalConcepts: number;
+  startingMasteryLevel: string | null;
+  startingMasteryScore: number | null;
   complete: boolean;
 }
 
@@ -116,7 +118,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
     const studentIds = s.profileIds;
     if (showSkeleton) setLoading(true);
 
-    const [masteryRes, weeksRes, resultsRes, conceptsRes, conceptMasteryRes, courseExamsRes] = await Promise.all([
+    const [masteryRes, weeksRes, resultsRes, conceptsRes, conceptMasteryRes, courseExamsRes, diagRes] = await Promise.all([
       supabase.from("student_course_mastery")
         .select("course_id, student_id, mastery_score, learner_level")
         .in("student_id", studentIds).in("course_id", ids),
@@ -130,12 +132,24 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
         .in("student_id", studentIds).in("course_id", ids),
       supabase.from("course_exams")
         .select("course_id, published_at, archived_at").in("course_id", ids),
+      supabase.from("diagnostic_results")
+        .select("course_id, learner_level, mastery_score, score, created_at")
+        .in("student_id", studentIds).in("course_id", ids)
+        .order("created_at", { ascending: true }),
     ]);
 
     const examsTotalByCourse = new Map<string, number>();
     (courseExamsRes.data || []).forEach(e => {
       if (e.archived_at || !e.published_at) return;
       examsTotalByCourse.set(e.course_id, (examsTotalByCourse.get(e.course_id) || 0) + 1);
+    });
+
+    const startingByCourse = new Map<string, { level: string | null; score: number | null }>();
+    (diagRes.data || []).forEach(d => {
+      if (startingByCourse.has(d.course_id)) return;
+      const score = d.mastery_score != null ? Number(d.mastery_score)
+        : (d.score != null ? Number(d.score) / 100 : null);
+      startingByCourse.set(d.course_id, { level: d.learner_level ?? null, score });
     });
 
     const masteryMap = new Map<string, { score: number | null; level: string | null }>();
@@ -202,6 +216,8 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
         quizzesDone, quizzesTotal, examsDone, examsTotal,
         proficientConcepts: proficientByCourse.get(c.courseId)?.size || 0,
         totalConcepts: conceptsTotalByCourse.get(c.courseId) || 0,
+        startingMasteryLevel: startingByCourse.get(c.courseId)?.level ?? null,
+        startingMasteryScore: startingByCourse.get(c.courseId)?.score ?? null,
         complete,
       };
     });
@@ -465,13 +481,30 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
                           </div>
                         </div>
                         <div>
-                          <div className="text-muted-foreground mb-1">Mastery level</div>
+                          <div className="text-muted-foreground mb-1">Final mastery level</div>
                           {d.masteryLevel ? (
                             <Badge variant="outline" className={cn("capitalize", masteryClass(d.masteryLevel))}>
                               {d.masteryLevel}
                             </Badge>
                           ) : (
                             <span className="text-muted-foreground italic">none yet</span>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground mb-1">Starting mastery level</div>
+                          {d.startingMasteryLevel ? (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className={cn("capitalize", masteryClass(d.startingMasteryLevel))}>
+                                {d.startingMasteryLevel}
+                              </Badge>
+                              {d.startingMasteryScore != null && (
+                                <span className="tabular-nums text-muted-foreground">
+                                  {Math.floor(d.startingMasteryScore * 100)}%
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground italic">no diagnostic</span>
                           )}
                         </div>
                       </div>
@@ -546,8 +579,12 @@ const InsightsPanel = ({ ins }: { ins: CourseInsights }) => {
           <Stat label="Last chat" value={ins.lastChatAt ? new Date(ins.lastChatAt).toLocaleDateString() : "—"} />
           <Stat label="Practice attempted" value={ins.practiceAttempts} />
           <Stat label="Practice accuracy" value={ins.practiceAccuracyPct != null ? `${ins.practiceAccuracyPct}%` : "—"} />
-          <Stat label="Total assessment time" value={fmtTime(ins.totalAssessmentTimeSec)} />
-          <Stat label="Avg time / question" value={ins.avgTimePerQuestionSec != null ? fmtTime(ins.avgTimePerQuestionSec) : "—"} />
+          {ins.totalAssessmentTimeSec > 0 && (
+            <Stat label="Total assessment time" value={fmtTime(ins.totalAssessmentTimeSec)} />
+          )}
+          {ins.avgTimePerQuestionSec != null && ins.avgTimePerQuestionSec > 0 && (
+            <Stat label="Avg time / question" value={fmtTime(ins.avgTimePerQuestionSec)} />
+          )}
         </div>
       </section>
 
