@@ -286,6 +286,19 @@ const AdminStudents = () => {
     setMasteryFilter(new Set());
   };
 
+  const handleExport = async () => {
+    if (exporting || filtered.length === 0) return;
+    setExporting(true);
+    try {
+      const n = await exportStudentsToExcel(filtered);
+      toast({ title: "Export ready", description: `Exported ${n} student${n === 1 ? "" : "s"} to Excel.` });
+    } catch (e) {
+      toast({ title: "Export failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
 
   const expectedConfirm = (target?.email || target?.name || "").trim();
