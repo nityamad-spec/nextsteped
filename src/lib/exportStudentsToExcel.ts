@@ -240,8 +240,12 @@ async function fetchInsights(
   return map;
 }
 
+const toSheet = (data: Record<string, unknown>[]): XLSX.WorkSheet => {
+  if (data.length === 0) return XLSX.utils.aoa_to_sheet([["(no rows)"]]);
+  return XLSX.utils.json_to_sheet(data);
+};
+
 export async function exportStudentsToExcel(students: StudentGroupForExport[]): Promise<number> {
-  // Collect enrollment pairs
   const studentIds = Array.from(new Set(students.flatMap(s => s.profileIds)));
   const courseIds = Array.from(new Set(students.flatMap(s => s.courses.map(c => c.courseId))));
 
@@ -249,7 +253,6 @@ export async function exportStudentsToExcel(students: StudentGroupForExport[]): 
 
   const wb = XLSX.utils.book_new();
 
-  // Sheet 1 — Students
   const summary = students.map(s => ({
     Name: s.name,
     Email: s.email || "",
@@ -259,9 +262,8 @@ export async function exportStudentsToExcel(students: StudentGroupForExport[]): 
     Courses: s.courses.map(c => c.name).join(", "),
     Accounts: s.profileIds.length,
   }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_sheet_to_sheet_safe(summary), "Students");
+  XLSX.utils.book_append_sheet(wb, toSheet(summary), "Students");
 
-  // Sheet 2 — Enrollments
   const enrollments: Record<string, unknown>[] = [];
   students.forEach(s => {
     s.courses.forEach(c => {
@@ -274,13 +276,11 @@ export async function exportStudentsToExcel(students: StudentGroupForExport[]): 
       });
     });
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_sheet_to_sheet_safe(enrollments), "Enrollments");
+  XLSX.utils.book_append_sheet(wb, toSheet(enrollments), "Enrollments");
 
-  // Sheet 3 — Course Insights
   const insightRows: Record<string, unknown>[] = [];
   students.forEach(s => {
     s.courses.forEach(c => {
-      // pick first profileId that has data, else primary
       let row: InsightRow | undefined;
       for (const pid of s.profileIds) {
         const found = insights.get(`${pid}:${c.courseId}`);
@@ -311,23 +311,10 @@ export async function exportStudentsToExcel(students: StudentGroupForExport[]): 
       });
     });
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_sheet_to_sheet_safe(insightRows), "Course Insights");
+  XLSX.utils.book_append_sheet(wb, toSheet(insightRows), "Course Insights");
 
   const date = new Date().toISOString().slice(0, 10);
   XLSX.writeFile(wb, `students-export-${date}.xlsx`);
 
   return students.length;
 }
-
-// Small shim: json_to_sheet with header inference; guards empty arrays.
-// (Attached to XLSX.utils to keep call sites concise.)
-declare module "xlsx" {
-  namespace utils {
-    function json_sheet_to_sheet_safe(data: Record<string, unknown>[]): XLSX.WorkSheet;
-  }
-}
-(XLSX.utils as unknown as { json_sheet_to_sheet_safe: (d: Record<string, unknown>[]) => XLSX.WorkSheet })
-  .json_sheet_to_sheet_safe = (data) => {
-    if (data.length === 0) return XLSX.utils.aoa_to_sheet([["(no rows)"]]);
-    return XLSX.utils.json_to_sheet(data);
-  };
