@@ -74,7 +74,7 @@ const BAND_LABEL: Record<Band, string> = {
   none: "Not Started",
 };
 
-async function buildStudentRows(courseId: string): Promise<StudentRow[]> {
+async function buildStudentRows(courseId: string, universityId?: string | null): Promise<StudentRow[]> {
   const [enrRes, examsRes, chatSessRes, masteryRes, diagRes, resultsAll] = await Promise.all([
     supabase.from("enrollments").select("student_id, enrolled_at").eq("course_id", courseId),
     supabase.from("course_exams").select("id, archived_at").eq("course_id", courseId),
@@ -91,14 +91,19 @@ async function buildStudentRows(courseId: string): Promise<StudentRow[]> {
     ),
   ]);
 
-  const studentIds = Array.from(new Set((enrRes.data || []).map(e => e.student_id)));
+  let studentIds = Array.from(new Set((enrRes.data || []).map(e => e.student_id)));
   const enrolledAt = new Map<string, string | null>();
   (enrRes.data || []).forEach(e => enrolledAt.set(e.student_id, (e as any).enrolled_at ?? null));
 
   const profiles = studentIds.length
-    ? (await supabase.from("profiles").select("id, name, email, roll_number").in("id", studentIds)).data || []
+    ? (await supabase.from("profiles").select("id, name, email, roll_number, university_id").in("id", studentIds)).data || []
     : [];
   const profileMap = new Map(profiles.map(p => [p.id, p as any]));
+
+  if (universityId) {
+    studentIds = studentIds.filter(id => (profileMap.get(id) as any)?.university_id === universityId);
+  }
+
 
   // Active exams (match CourseProfileDialog: not archived)
   const activeExamIds = new Set<string>();
@@ -209,9 +214,14 @@ async function buildStudentRows(courseId: string): Promise<StudentRow[]> {
 
 const safeFilename = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
 
-export async function exportCourseToExcel(course: CourseForSingleExport): Promise<void> {
+export async function exportCourseToExcel(
+  course: CourseForSingleExport,
+  opts?: { universityId?: string | null; universityName?: string | null },
+): Promise<void> {
   const XLSX = await import("xlsx");
-  const rows = await buildStudentRows(course.id);
+  const universityId = opts?.universityId ?? null;
+  const universityName = opts?.universityName ?? null;
+  const rows = await buildStudentRows(course.id, universityId);
 
   const wb = XLSX.utils.book_new();
 
@@ -232,6 +242,7 @@ export async function exportCourseToExcel(course: CourseForSingleExport): Promis
     Status: course.published ? "Published" : "Draft",
     Enrollment: course.enrollment_open ? "Open" : "Closed",
     "Created At": course.created_at,
+    "University Filter": universityName || "All universities",
     Enrolled: rows.length,
     "Diagnostic Submitted": diagSubmitted,
     "Diagnostic Not Submitted": rows.length - diagSubmitted,
@@ -246,6 +257,7 @@ export async function exportCourseToExcel(course: CourseForSingleExport): Promis
     "Exams Total": examsTotal,
     "Chat Messages": chatMessages,
   }];
+
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(overview), "Overview");
 
   const studentsSheet = rows.map(r => ({
@@ -313,5 +325,6 @@ export async function exportCourseToExcel(course: CourseForSingleExport): Promis
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(notCompletedRows.length ? notCompletedRows : [{ Name: "—" }]), "Completion - Not Completed");
 
   const date = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `${safeFilename(course.name)}-${date}.xlsx`);
+  const suffix = universityName ? `-${safeFilename(universityName)}` : "";
+  XLSX.writeFile(wb, `${safeFilename(course.name)}${suffix}-${date}.xlsx`);
 }

@@ -34,6 +34,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import CourseProfileDialog from "@/components/admin/CourseProfileDialog";
@@ -64,6 +65,9 @@ const AdminCourses = () => {
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
+  const [universities, setUniversities] = useState<{ id: string; name: string }[]>([]);
+  const [courseUniversities, setCourseUniversities] = useState<Record<string, Set<string>>>({});
+  const [selectedUniversityId, setSelectedUniversityId] = useState<string>("all");
 
   // Transfer dialog state
   const [transferCourse, setTransferCourse] = useState<CourseRow | null>(null);
@@ -88,28 +92,44 @@ const AdminCourses = () => {
   const [profileCourse, setProfileCourse] = useState<CourseRow | null>(null);
 
   const [exportingId, setExportingId] = useState<string | null>(null);
+
+  const selectedUniversity = useMemo(
+    () => universities.find((u) => u.id === selectedUniversityId) || null,
+    [universities, selectedUniversityId],
+  );
+
   const handleExportCourse = async (c: CourseRow) => {
     setExportingId(c.id);
     try {
-      await exportCourseToExcel({
-        id: c.id,
-        name: c.name,
-        course_code: c.course_code,
-        term: c.term,
-        enrollment_code: c.enrollment_code,
-        enrollment_open: c.enrollment_open,
-        published: c.published,
-        created_at: c.created_at,
-        teacher_name: c.teacher_name,
-        teacher_email: c.teacher_email,
-      });
-      toast.success(`Exported "${c.name}"`);
+      await exportCourseToExcel(
+        {
+          id: c.id,
+          name: c.name,
+          course_code: c.course_code,
+          term: c.term,
+          enrollment_code: c.enrollment_code,
+          enrollment_open: c.enrollment_open,
+          published: c.published,
+          created_at: c.created_at,
+          teacher_name: c.teacher_name,
+          teacher_email: c.teacher_email,
+        },
+        selectedUniversity
+          ? { universityId: selectedUniversity.id, universityName: selectedUniversity.name }
+          : undefined,
+      );
+      toast.success(
+        selectedUniversity
+          ? `Exported "${c.name}" for ${selectedUniversity.name}`
+          : `Exported "${c.name}"`,
+      );
     } catch (e: any) {
       toast.error(e?.message || "Export failed");
     } finally {
       setExportingId(null);
     }
   };
+
 
 
 
@@ -129,13 +149,28 @@ const AdminCourses = () => {
       .select("id, name, email")
       .in("id", teacherIds);
 
-    const { data: enrollments } = await supabase.from("enrollments").select("course_id");
+    const { data: enrollments } = await supabase.from("enrollments").select("course_id, student_id");
+
+    const studentIds = [...new Set((enrollments || []).map((e) => e.student_id))];
+    const { data: studentProfiles } = studentIds.length
+      ? await supabase.from("profiles").select("id, university_id").in("id", studentIds)
+      : { data: [] as { id: string; university_id: string | null }[] };
+    const studentUniMap = new Map(
+      (studentProfiles || []).map((p) => [p.id, (p as any).university_id as string | null]),
+    );
 
     const profileMap = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
     const countMap: Record<string, number> = {};
+    const uniMap: Record<string, Set<string>> = {};
     (enrollments || []).forEach((e) => {
       countMap[e.course_id] = (countMap[e.course_id] || 0) + 1;
+      const uni = studentUniMap.get(e.student_id);
+      if (uni) {
+        if (!uniMap[e.course_id]) uniMap[e.course_id] = new Set();
+        uniMap[e.course_id].add(uni);
+      }
     });
+    setCourseUniversities(uniMap);
 
     setCourses(
       coursesData.map((c) => ({
@@ -156,6 +191,12 @@ const AdminCourses = () => {
     setLoading(false);
   };
 
+  const loadUniversities = async () => {
+    const { data } = await supabase.from("universities").select("id, name").order("name");
+    setUniversities((data || []) as { id: string; name: string }[]);
+  };
+
+
   const loadTeachers = async () => {
     const { data } = await supabase
       .from("profiles")
@@ -168,7 +209,14 @@ const AdminCourses = () => {
   useEffect(() => {
     loadCourses();
     loadTeachers();
+    loadUniversities();
   }, []);
+
+  const visibleCourses = useMemo(() => {
+    if (selectedUniversityId === "all") return courses;
+    return courses.filter((c) => courseUniversities[c.id]?.has(selectedUniversityId));
+  }, [courses, courseUniversities, selectedUniversityId]);
+
 
   const openTransfer = async (course: CourseRow) => {
     setTransferCourse(course);
@@ -290,16 +338,39 @@ const AdminCourses = () => {
         <p className="text-muted-foreground">Browse all courses on the platform</p>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <Label htmlFor="uni-filter" className="text-sm text-muted-foreground">University:</Label>
+        <Select value={selectedUniversityId} onValueChange={setSelectedUniversityId}>
+          <SelectTrigger id="uni-filter" className="w-[280px]">
+            <SelectValue placeholder="All universities" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All universities</SelectItem>
+            {universities.map((u) => (
+              <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {selectedUniversity && (
+          <span className="text-xs text-muted-foreground">
+            Exports will include only students from {selectedUniversity.name}.
+          </span>
+        )}
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
-            {courses.length} Courses
+            {visibleCourses.length} Courses
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {courses.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">No courses created yet</p>
+          {visibleCourses.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">
+              {selectedUniversity ? "No courses with students from this university" : "No courses created yet"}
+            </p>
+
           ) : (
             <Table>
               <TableHeader>
@@ -315,7 +386,7 @@ const AdminCourses = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {courses.map((c) => (
+                {visibleCourses.map((c) => (
                   <TableRow
                     key={c.id}
                     className="cursor-pointer hover:bg-muted/50"

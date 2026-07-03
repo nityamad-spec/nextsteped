@@ -1,33 +1,30 @@
-## Scope
-
-Only step 2 from the previous plan: fix frontend error extraction. No backend or edge-function changes.
+## Goal
+On `/admin/courses`, add a University filter and make the per-course "Export data" respect that filter so the exported workbook only contains students from the selected university.
 
 ## Changes
 
-### 1. New helper — `src/lib/extractFunctionError.ts`
-Single async helper `extractFunctionError(err, fallback)` that returns a user-facing string. Handles every shape supabase-js `FunctionsHttpError` can take:
+### 1. `src/pages/admin/AdminCourses.tsx`
+- Load the `universities` list (id, name) alongside courses/teachers.
+- For each course, also load a set of universities represented by its enrolled students (join `enrollments` → `profiles.university_id`). Store as `Set<string>` per course id.
+- Add a **University** filter control (shadcn `Select`) above the table:
+  - Options: "All universities" (default) + each university by name.
+  - When a university is selected, filter the visible course rows to those whose university-set contains that id.
+  - Update the "N Courses" header count to reflect the filtered list.
+- Pass the currently selected `universityId` (or `null`) into `handleExportCourse` → `exportCourseToExcel`.
+- Show the selected university name in the export toast (e.g., "Exported 'X' for <University>").
 
-1. `err.context` is a `Response` (has `.clone()`) → `await res.clone().text()`, then `JSON.parse` guarded. Use `json.error || json.message` when available; otherwise use the raw text if it's short and non-HTML.
-2. `err.context.response` is a `Response` → same treatment.
-3. `err.context.body` is a string → try JSON-parse, then raw string.
-4. `err.message` as last resort, but reject the generic supabase-js strings ("Edge function returned a non-2xx status code", "Failed to send a request to the Edge Function").
-5. Final fallback: `"<fallback> (HTTP <status>). Please try again or contact your instructor."` using `err.context.status ?? response.status`, dropping the `(HTTP …)` segment when no status is available.
+### 2. `src/lib/exportCourseToExcel.ts`
+- Extend `exportCourseToExcel(course, opts?)` to accept `{ universityId?: string | null; universityName?: string | null }`.
+- Thread `universityId` into `buildStudentRows(courseId, universityId)`:
+  - After fetching enrollments for the course, resolve `profiles.university_id` for those `student_id`s and filter the working set to only students whose `university_id === universityId` when provided.
+  - All downstream aggregates (diagnostics, mastery, quiz/exam attempts, chat counts, completion) use the filtered student ids only.
+- Reflect the scope in the workbook:
+  - Append university to the file name when scoped, e.g., `Course_Export - <Course> - <University>.xlsx`.
+  - Add a "University filter" row to the Overview sheet showing the selected university name (or "All universities").
 
-### 2. `src/pages/student/StudentOnboarding.tsx`
-- Import the helper.
-- In `handleSubmit`'s catch: replace the current `resp.clone().json()` block with `const msg = await extractFunctionError(err, "Signup failed");` then `setSubmitError(msg); toast.error(msg);`.
-- Apply the same helper in the debounced `validate-enrollment-code` catch (`useEffect` at line 98) so validation errors also surface real messages: `setCodeError(await extractFunctionError(err, "Couldn't validate code"));`.
-
-### 3. `src/components/AddCourseDialog.tsx`
-Mirror the same two catches:
-- Live-validation `catch` (line 46): `setError(await extractFunctionError(err, "Couldn't validate code"));`
-- `submit` `catch` (line 78): `toast.error(await extractFunctionError(err, "Couldn't enroll"));`
-
-Remove the existing ad-hoc `err?.context?.json?.()` / `resp.clone().json()` blocks in both files.
-
-## Guarantee
-The literal string "Edge function returned a non 2xx status code" (and the "Failed to send a request…" variant) will never reach the UI — the helper detects and replaces it with the fallback + HTTP status.
+### 3. Empty/edge behavior
+- If the selected university has zero enrolled students for a course, the export still succeeds but sheets show 0 rows; overview clearly notes the filter.
+- Courses with no students from the selected university are hidden from the list while the filter is active (nothing to export). The dropdown menu on visible rows always exports scoped to the active filter.
 
 ## Out of scope
-- No edge-function edits (`student-pending-signup`, `validate-enrollment-code`, `enroll-additional-course` unchanged).
-- No verification / test-run step.
+No changes to the CourseProfileDialog analytics, no bulk "export all" button, no changes to `/admin/students`.
