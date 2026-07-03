@@ -464,7 +464,7 @@ const StudentHome = () => {
         icon: ClipboardCheck,
         title: `Catch up on Week ${missedEarlier} quiz`,
         description: "You haven't taken this one yet",
-        action: () => setQuizDialog({ open: true, day: missedEarlier }),
+        action: () => attemptOpenQuiz(missedEarlier),
       });
     }
 
