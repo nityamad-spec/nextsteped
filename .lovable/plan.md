@@ -1,49 +1,43 @@
-## Why
+# Export students to Excel on /admin/students
 
-Goskula Rithika has no `diagnostic_results` row for her enrolled course (Intro to Generative AI) even though she has 15 assessment attempts, 15 concept-mastery rows, and 3 chat sessions. The course has 40 diagnostic questions ready and `score-diagnostic` never errored for her — she simply skipped the diagnostic. Today it's only a soft nudge on `StudentHome`; nothing prevents jumping straight into chat, weekly quizzes, practice, or exams. That's why `/admin/students` correctly shows "no diagnostic" for real users.
+## Scope
+Add an "Export to Excel" button in the Students card header (next to search). Exports the **currently filtered** list (respects search, course filter, mastery filter) as a multi-sheet `.xlsx` workbook.
 
-## What to change
+## UI
+- Button placement: header row of the Students card, left of the search input (or beside "Clear filters"). Uses `Download` icon from lucide-react.
+- Disabled while data is loading or `filtered.length === 0`.
+- Shows a spinner + "Exporting…" state while per-course insights are being fetched.
+- On success: toast "Exported N students".
+- Filename: `students-export-YYYY-MM-DD.xlsx`.
 
-Make the diagnostic a **hard gate for anything performance-scored** (weekly quizzes, practice questions, exam mode), while leaving Home and free-form Chat browsable so students still see the nudge and can orient themselves. Also backfill visibility for admins so this is easier to spot.
+## Workbook structure (3 sheets)
 
-### 1. New shared hook `useDiagnosticStatus(courseId)`
-- Location: `src/hooks/useDiagnosticStatus.ts`.
-- Queries `diagnostic_results` for `(student_id, course_id)`; returns `{ loading, taken, resultId }`.
-- Reused by `StudentHome`, the new guard, and any page that wants to check.
+**Sheet 1 — Students**
+One row per student group (already deduped by email).
+Columns: Name, Email, Roll Number, Joined (ISO), # Courses, Courses (comma-joined), Accounts (profileIds count).
 
-### 2. New route guard `RequireDiagnostic`
-- Location: `src/components/student/RequireDiagnostic.tsx`.
-- Reads active/enrolled course via existing `useEnrolledCourseId`.
-- If `taken === false`: render a full-page card explaining "Please complete the diagnostic first" with a primary CTA button that navigates to `/student/diagnostic?course=<id>`. No auto-redirect (avoids loops if a student is mid-diagnostic on another tab).
-- If `loading`: render existing skeleton.
-- If `taken`: render `<Outlet />`.
+**Sheet 2 — Enrollments**
+One row per student × course.
+Columns: Student Name, Email, Course, Enrolled At, Final Mastery Level.
 
-### 3. Wrap gated student routes in `src/App.tsx`
-Apply `RequireDiagnostic` to:
-- `/student/chat` **only for Exam Prep + Weekly Quiz sub-modes** (Study mode stays open — see §4).
-- `/student/practice` (if present in router).
-- Any `/student/exam*` route.
+**Sheet 3 — Course Insights**
+One row per student × course with the same analytics already computed inside `StudentProfileDialog` (reused via a small shared helper).
+Columns: Student Name, Email, Course, Diagnostic Level, Diagnostic %, Final Mastery Level, Final Mastery %, Weekly Quizzes Attempted, Weekly Quizzes Total, Avg Quiz Score %, Exams Attempted, Exams Total, Avg Exam Score %, Proficient Concepts, Total Concepts, Strong Concepts (semicolon-joined), Weak Concepts (semicolon-joined), Chat Messages, Practice Questions Attempted, Practice Accuracy %.
 
-Leave `/student/home`, `/student/feedback`, `/student/onboarding`, `/student/diagnostic` **ungated**.
+Missing values render as empty cells (not "—").
 
-### 4. In `src/pages/student/AIChat.tsx`
-- On mount, if `taken === false` and the user tries to switch to *Exam Prep* or open a *Weekly Quiz*, show a blocking dialog with the same CTA. Study mode remains available so students can still learn.
+## Implementation
 
-### 5. Fix the silent-exit in `src/pages/student/DiagnosticQuiz.tsx`
-- Current "back" from question 0 dumps the student on `/student/onboarding` and clears `localStorage`. Change: require a confirmation dialog ("Leave without saving? Your progress will be lost and you'll be asked again."). Keep localStorage intact if they cancel.
+1. **Extract shared insights fetcher** — pull the per-course analytics query logic currently inside `src/components/admin/StudentProfileDialog.tsx` into a new module `src/lib/studentInsights.ts` exporting `fetchStudentCourseInsights(studentIds, courseIds)` returning a `Map<"studentId:courseId", InsightRow>`. Refactor `StudentProfileDialog` to consume it (behavior unchanged).
+2. **New util** `src/lib/exportStudentsToExcel.ts` using `xlsx` (SheetJS). Builds the three sheets from the passed `filtered: StudentGroup[]` plus the insights map, then triggers download via `XLSX.writeFile`.
+3. **AdminStudents.tsx** — add `Download` button, `exporting` state, `handleExport` that:
+   - Collects all `{studentId, courseId}` pairs from `filtered`.
+   - Calls `fetchStudentCourseInsights` in one batch.
+   - Calls `exportStudentsToExcel(filtered, insights)`.
+   - Toasts result / catches errors.
+4. **Dependency** — add `xlsx` (SheetJS) via `bun add xlsx`. ~400KB gzipped; loaded statically (button is admin-only, low traffic). If size is a concern we can switch to dynamic `import()` inside the handler — will do dynamic import to keep the admin bundle lean.
 
-### 6. Admin visibility tweak in `src/components/admin/StudentProfileDialog.tsx`
-- When `Diagnostic:` is missing, render an amber `Diagnostic pending` badge (instead of the plain "no diagnostic" muted text) so it stands out during audits. No schema change.
-
-### 7. Backfill / follow-up for Rithika
-- No auto-backfill (we don't have her real diagnostic answers). The next time she visits Chat / Weekly Quiz / Exam, the new gate will route her into the diagnostic. Admin dialog now flags her clearly.
-
-## Not doing
-- No DB schema change, no new edge function, no changes to `score-diagnostic`.
-- No changes to teacher/admin flows beyond the badge.
-- Not gating Home or Study-mode chat (students still need a landing surface).
-
-## Verification
-- Log in as a student with no `diagnostic_results` row → confirm Home loads with nudge, `/student/chat?mode=exam` and weekly quiz open the block dialog, `/student/practice` shows the guard card.
-- Submit the diagnostic → confirm all previously-gated surfaces unlock without refresh (hook re-fetches on route change).
-- `/admin/students` → Rithika now shows the amber "Diagnostic pending" badge.
+## Out of scope
+- No CSV alternative, no row-level checkbox selection, no server-side export.
+- No schema or edge function changes.
+- No changes to non-admin pages.
