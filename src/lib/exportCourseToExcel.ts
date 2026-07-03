@@ -220,12 +220,30 @@ const safeFilename = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "_").replace(/\s
 
 export async function exportCourseToExcel(
   course: CourseForSingleExport,
-  opts?: { universityId?: string | null; universityName?: string | null },
+  opts?: {
+    universityId?: string | null;
+    universityName?: string | null;
+    universityIds?: string[] | null;
+    universityNames?: string[] | null;
+  },
 ): Promise<void> {
   const XLSX = await import("xlsx");
-  const universityId = opts?.universityId ?? null;
-  const universityName = opts?.universityName ?? null;
-  const rows = await buildStudentRows(course.id, universityId);
+  const universityIds =
+    (opts?.universityIds && opts.universityIds.length > 0)
+      ? opts.universityIds
+      : (opts?.universityId ? [opts.universityId] : []);
+  const universityNames =
+    (opts?.universityNames && opts.universityNames.length > 0)
+      ? opts.universityNames
+      : (opts?.universityName ? [opts.universityName] : []);
+  const filterLabel =
+    universityNames.length === 0
+      ? "All universities"
+      : universityNames.length === 1
+      ? universityNames[0]
+      : universityNames.join(", ");
+  const rows = await buildStudentRows(course.id, universityIds);
+
 
   const wb = XLSX.utils.book_new();
 
