@@ -74,7 +74,8 @@ const BAND_LABEL: Record<Band, string> = {
   none: "Not Started",
 };
 
-async function buildStudentRows(courseId: string, universityId?: string | null): Promise<StudentRow[]> {
+async function buildStudentRows(courseId: string, universityIds?: string[] | null): Promise<StudentRow[]> {
+  const uniFilter = (universityIds && universityIds.length > 0) ? new Set(universityIds) : null;
   const [enrRes, examsRes, chatSessRes, masteryRes, diagRes, resultsAll] = await Promise.all([
     supabase.from("enrollments").select("student_id, enrolled_at").eq("course_id", courseId),
     supabase.from("course_exams").select("id, archived_at").eq("course_id", courseId),
