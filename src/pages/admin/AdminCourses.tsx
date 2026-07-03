@@ -208,7 +208,14 @@ const AdminCourses = () => {
   useEffect(() => {
     loadCourses();
     loadTeachers();
+    loadUniversities();
   }, []);
+
+  const visibleCourses = useMemo(() => {
+    if (selectedUniversityId === "all") return courses;
+    return courses.filter((c) => courseUniversities[c.id]?.has(selectedUniversityId));
+  }, [courses, courseUniversities, selectedUniversityId]);
+
 
   const openTransfer = async (course: CourseRow) => {
     setTransferCourse(course);
