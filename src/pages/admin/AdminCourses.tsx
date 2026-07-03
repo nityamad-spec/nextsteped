@@ -423,7 +423,7 @@ const AdminCourses = () => {
         <CardContent>
           {visibleCourses.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">
-              {selectedUniversity ? "No courses with students from this university" : "No courses created yet"}
+              {selectedUniversities.length > 0 ? "No courses with students from the selected universities" : "No courses created yet"}
             </p>
 
           ) : (
