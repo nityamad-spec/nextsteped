@@ -223,9 +223,13 @@ const AdminCourses = () => {
   }, []);
 
   const visibleCourses = useMemo(() => {
-    if (selectedUniversityId === "all") return courses;
-    return courses.filter((c) => courseUniversities[c.id]?.has(selectedUniversityId));
-  }, [courses, courseUniversities, selectedUniversityId]);
+    if (selectedUniversityIds.length === 0) return courses;
+    return courses.filter((c) => {
+      const set = courseUniversities[c.id];
+      if (!set) return false;
+      return selectedUniversityIds.some((uid) => set.has(uid));
+    });
+  }, [courses, courseUniversities, selectedUniversityIds]);
 
 
   const openTransfer = async (course: CourseRow) => {
