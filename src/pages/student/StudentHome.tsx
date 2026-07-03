@@ -748,7 +748,7 @@ const StudentHome = () => {
                                   variant="outline"
                                   onClick={() => {
                                     if (takenQuizzes[dp.day]) return;
-                                    setQuizDialog({ open: true, day: dp.day });
+                                    attemptOpenQuiz(dp.day);
                                   }}
                                 >
                                   Take Quiz
