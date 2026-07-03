@@ -206,7 +206,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
     const studentIds = s.profileIds;
     const [resultsRes, cmRes, conceptsRes, sessionsRes, examsRes] = await Promise.all([
       supabase.from("assessment_results")
-        .select("id, mode, quiz_day, exam_id, score, total_questions, question_times, created_at")
+        .select("id, mode, quiz_day, exam_id, score, correct_answers, total_questions, question_times, created_at")
         .in("student_id", studentIds).eq("course_id", courseId)
         .order("created_at", { ascending: false }),
       supabase.from("student_concept_mastery")
@@ -234,7 +234,8 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
     let assessQCount = 0;
 
     (resultsRes.data || []).forEach(r => {
-      const scorePct = r.total_questions > 0 ? Math.floor((r.score / r.total_questions) * 100) : 0;
+      const rawPct = typeof r.score === "number" ? r.score : 0;
+      const scorePct = Math.max(0, Math.min(100, Math.floor(rawPct)));
       const timeSec = sumTimes(r.question_times);
       const attempt: Attempt = { id: r.id, created_at: r.created_at, scorePct, timeSec };
 
@@ -248,7 +249,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
         assessTimeSec += timeSec; assessQCount += countTimes(r.question_times);
       } else if (r.mode === "practice") {
         practiceAttempts += 1;
-        practiceCorrect += r.score || 0;
+        practiceCorrect += r.correct_answers || 0;
         practiceTotal += r.total_questions || 0;
       }
     });
