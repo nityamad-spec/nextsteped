@@ -74,7 +74,8 @@ const BAND_LABEL: Record<Band, string> = {
   none: "Not Started",
 };
 
-async function buildStudentRows(courseId: string, universityId?: string | null): Promise<StudentRow[]> {
+async function buildStudentRows(courseId: string, universityIds?: string[] | null): Promise<StudentRow[]> {
+  const uniFilter = (universityIds && universityIds.length > 0) ? new Set(universityIds) : null;
   const [enrRes, examsRes, chatSessRes, masteryRes, diagRes, resultsAll] = await Promise.all([
     supabase.from("enrollments").select("student_id, enrolled_at").eq("course_id", courseId),
     supabase.from("course_exams").select("id, archived_at").eq("course_id", courseId),
@@ -100,8 +101,11 @@ async function buildStudentRows(courseId: string, universityId?: string | null):
     : [];
   const profileMap = new Map(profiles.map(p => [p.id, p as any]));
 
-  if (universityId) {
-    studentIds = studentIds.filter(id => (profileMap.get(id) as any)?.university_id === universityId);
+  if (uniFilter) {
+    studentIds = studentIds.filter(id => {
+      const uid = (profileMap.get(id) as any)?.university_id as string | null | undefined;
+      return uid ? uniFilter.has(uid) : false;
+    });
   }
 
 
@@ -216,12 +220,30 @@ const safeFilename = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "_").replace(/\s
 
 export async function exportCourseToExcel(
   course: CourseForSingleExport,
-  opts?: { universityId?: string | null; universityName?: string | null },
+  opts?: {
+    universityId?: string | null;
+    universityName?: string | null;
+    universityIds?: string[] | null;
+    universityNames?: string[] | null;
+  },
 ): Promise<void> {
   const XLSX = await import("xlsx");
-  const universityId = opts?.universityId ?? null;
-  const universityName = opts?.universityName ?? null;
-  const rows = await buildStudentRows(course.id, universityId);
+  const universityIds =
+    (opts?.universityIds && opts.universityIds.length > 0)
+      ? opts.universityIds
+      : (opts?.universityId ? [opts.universityId] : []);
+  const universityNames =
+    (opts?.universityNames && opts.universityNames.length > 0)
+      ? opts.universityNames
+      : (opts?.universityName ? [opts.universityName] : []);
+  const filterLabel =
+    universityNames.length === 0
+      ? "All universities"
+      : universityNames.length === 1
+      ? universityNames[0]
+      : universityNames.join(", ");
+  const rows = await buildStudentRows(course.id, universityIds);
+
 
   const wb = XLSX.utils.book_new();
 
@@ -242,7 +264,7 @@ export async function exportCourseToExcel(
     Status: course.published ? "Published" : "Draft",
     Enrollment: course.enrollment_open ? "Open" : "Closed",
     "Created At": course.created_at,
-    "University Filter": universityName || "All universities",
+    "University Filter": filterLabel,
     Enrolled: rows.length,
     "Diagnostic Submitted": diagSubmitted,
     "Diagnostic Not Submitted": rows.length - diagSubmitted,
@@ -325,6 +347,11 @@ export async function exportCourseToExcel(
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(notCompletedRows.length ? notCompletedRows : [{ Name: "—" }]), "Completion - Not Completed");
 
   const date = new Date().toISOString().slice(0, 10);
-  const suffix = universityName ? `-${safeFilename(universityName)}` : "";
+  const suffix =
+    universityNames.length === 0
+      ? ""
+      : universityNames.length === 1
+      ? `-${safeFilename(universityNames[0])}`
+      : `-Multi-${universityNames.length}-universities`;
   XLSX.writeFile(wb, `${safeFilename(course.name)}${suffix}-${date}.xlsx`);
 }
