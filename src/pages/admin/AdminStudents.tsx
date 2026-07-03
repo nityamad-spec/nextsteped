@@ -325,14 +325,26 @@ const AdminStudents = () => {
                 </Badge>
               )}
             </CardTitle>
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, email, roll, course…"
-                className="pl-8 h-9"
-              />
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-2"
+                onClick={handleExport}
+                disabled={exporting || filtered.length === 0}
+              >
+                {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                {exporting ? "Exporting…" : "Export to Excel"}
+              </Button>
+              <div className="relative flex-1 sm:w-72">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search name, email, roll, course…"
+                  className="pl-8 h-9"
+                />
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap pt-1">
