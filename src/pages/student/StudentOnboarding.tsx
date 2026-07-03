@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowRight, ArrowLeft, User, Check, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { extractFunctionError } from "@/lib/extractFunctionError";
 
 interface University { id: string; name: string }
 interface Degree { id: string; name: string }
@@ -121,7 +122,7 @@ const StudentOnboarding = () => {
         }
       } catch (err: any) {
         setCodeStatus("invalid");
-        setCodeError(err.message || "Couldn't validate code. Please try again.");
+        setCodeError(await extractFunctionError(err, "Couldn't validate code"));
         setCodeCourseName(null);
       }
     }, 400);
@@ -162,14 +163,7 @@ const StudentOnboarding = () => {
       if ((data as any)?.error) throw new Error((data as any).error);
       navigate(`/student/verify-email?email=${encodeURIComponent(email.trim())}`, { replace: true });
     } catch (err: any) {
-      let msg = err?.message || "Couldn't submit your details. Please try again.";
-      try {
-        const resp = err?.context?.response ?? err?.context;
-        if (resp && typeof resp.clone === "function") {
-          const body = await resp.clone().json().catch(() => null);
-          if (body?.error) msg = body.error;
-        }
-      } catch { /* ignore */ }
+      const msg = await extractFunctionError(err, "Signup failed");
       setSubmitError(msg);
       toast.error(msg);
     } finally {
