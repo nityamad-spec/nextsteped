@@ -206,7 +206,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
     const studentIds = s.profileIds;
     const [resultsRes, cmRes, conceptsRes, sessionsRes, examsRes] = await Promise.all([
       supabase.from("assessment_results")
-        .select("id, mode, quiz_day, exam_id, score, total_questions, question_times, created_at")
+        .select("id, mode, quiz_day, exam_id, score, correct_answers, total_questions, question_times, created_at")
         .in("student_id", studentIds).eq("course_id", courseId)
         .order("created_at", { ascending: false }),
       supabase.from("student_concept_mastery")
