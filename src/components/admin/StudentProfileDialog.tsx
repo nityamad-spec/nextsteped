@@ -41,7 +41,7 @@ interface CourseDetail {
   quizzesTotal: number;
   examsDone: number;
   examsTotal: number;
-  expertConcepts: number;
+  proficientConcepts: number;
   totalConcepts: number;
   complete: boolean;
 }
@@ -116,7 +116,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
     const studentIds = s.profileIds;
     if (showSkeleton) setLoading(true);
 
-    const [masteryRes, weeksRes, resultsRes, conceptsRes, conceptMasteryRes] = await Promise.all([
+    const [masteryRes, weeksRes, resultsRes, conceptsRes, conceptMasteryRes, courseExamsRes] = await Promise.all([
       supabase.from("student_course_mastery")
         .select("course_id, student_id, mastery_score, learner_level")
         .in("student_id", studentIds).in("course_id", ids),
@@ -128,7 +128,15 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
       supabase.from("student_concept_mastery")
         .select("course_id, concept_id, mastery_level")
         .in("student_id", studentIds).in("course_id", ids),
+      supabase.from("course_exams")
+        .select("course_id, published_at, archived_at").in("course_id", ids),
     ]);
+
+    const examsTotalByCourse = new Map<string, number>();
+    (courseExamsRes.data || []).forEach(e => {
+      if (e.archived_at || !e.published_at) return;
+      examsTotalByCourse.set(e.course_id, (examsTotalByCourse.get(e.course_id) || 0) + 1);
+    });
 
     const masteryMap = new Map<string, { score: number | null; level: string | null }>();
     (masteryRes.data || []).forEach(m => {
@@ -163,19 +171,19 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
       conceptsTotalByCourse.set(c.course_id, (conceptsTotalByCourse.get(c.course_id) || 0) + 1);
     });
 
-    const expertByCourse = new Map<string, Set<string>>();
+    const proficientByCourse = new Map<string, Set<string>>();
     (conceptMasteryRes.data || []).forEach(cm => {
-      if ((cm.mastery_level || "").toLowerCase() === "expert") {
-        const set = expertByCourse.get(cm.course_id) || new Set<string>();
+      if ((cm.mastery_level || "").toLowerCase() === "proficient") {
+        const set = proficientByCourse.get(cm.course_id) || new Set<string>();
         set.add(cm.concept_id);
-        expertByCourse.set(cm.course_id, set);
+        proficientByCourse.set(cm.course_id, set);
       }
     });
 
     const out: CourseDetail[] = s.courses.map(c => {
       const weeks = weeksByCourse.get(c.courseId) || [];
       const quizzesTotal = weeks.filter(w => !w.is_exam_week).length;
-      const examsTotal = weeks.filter(w => w.is_exam_week).length;
+      const examsTotal = examsTotalByCourse.get(c.courseId) || 0;
 
       const m = masteryMap.get(c.courseId);
       const quizzesDone = quizDaysByCourse.get(c.courseId)?.size || 0;
@@ -192,7 +200,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
         masteryScore: m?.score ?? null, masteryLevel: m?.level ?? null,
         progressPct, progressLabel,
         quizzesDone, quizzesTotal, examsDone, examsTotal,
-        expertConcepts: expertByCourse.get(c.courseId)?.size || 0,
+        proficientConcepts: proficientByCourse.get(c.courseId)?.size || 0,
         totalConcepts: conceptsTotalByCourse.get(c.courseId) || 0,
         complete,
       };
@@ -490,9 +498,9 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-muted-foreground">Expert concepts</span>
+                          <span className="text-muted-foreground">Proficient concepts</span>
                           <span className="tabular-nums font-medium text-foreground">
-                            {d.expertConcepts}/{d.totalConcepts || 0}
+                            {d.proficientConcepts}/{d.totalConcepts || 0}
                           </span>
                         </div>
                       </div>
