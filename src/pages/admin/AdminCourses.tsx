@@ -148,13 +148,28 @@ const AdminCourses = () => {
       .select("id, name, email")
       .in("id", teacherIds);
 
-    const { data: enrollments } = await supabase.from("enrollments").select("course_id");
+    const { data: enrollments } = await supabase.from("enrollments").select("course_id, student_id");
+
+    const studentIds = [...new Set((enrollments || []).map((e) => e.student_id))];
+    const { data: studentProfiles } = studentIds.length
+      ? await supabase.from("profiles").select("id, university_id").in("id", studentIds)
+      : { data: [] as { id: string; university_id: string | null }[] };
+    const studentUniMap = new Map(
+      (studentProfiles || []).map((p) => [p.id, (p as any).university_id as string | null]),
+    );
 
     const profileMap = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
     const countMap: Record<string, number> = {};
+    const uniMap: Record<string, Set<string>> = {};
     (enrollments || []).forEach((e) => {
       countMap[e.course_id] = (countMap[e.course_id] || 0) + 1;
+      const uni = studentUniMap.get(e.student_id);
+      if (uni) {
+        if (!uniMap[e.course_id]) uniMap[e.course_id] = new Set();
+        uniMap[e.course_id].add(uni);
+      }
     });
+    setCourseUniversities(uniMap);
 
     setCourses(
       coursesData.map((c) => ({
@@ -174,6 +189,12 @@ const AdminCourses = () => {
     );
     setLoading(false);
   };
+
+  const loadUniversities = async () => {
+    const { data } = await supabase.from("universities").select("id, name").order("name");
+    setUniversities((data || []) as { id: string; name: string }[]);
+  };
+
 
   const loadTeachers = async () => {
     const { data } = await supabase
