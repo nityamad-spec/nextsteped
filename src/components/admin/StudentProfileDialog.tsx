@@ -474,38 +474,40 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
                       </div>
 
                       <div className="grid grid-cols-2 gap-3 text-xs">
-                        <div>
-                          <div className="text-muted-foreground mb-1">Mastery score</div>
-                          <div className="font-semibold text-foreground tabular-nums">
-                            {d.masteryScore != null ? `${Math.floor(d.masteryScore * 100)}%` : "—"}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground mb-1">Final mastery level</div>
-                          {d.masteryLevel ? (
-                            <Badge variant="outline" className={cn("capitalize", masteryClass(d.masteryLevel))}>
-                              {d.masteryLevel}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground italic">none yet</span>
-                          )}
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground mb-1">Starting mastery level</div>
-                          {d.startingMasteryLevel ? (
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className={cn("capitalize", masteryClass(d.startingMasteryLevel))}>
-                                {d.startingMasteryLevel}
-                              </Badge>
-                              {d.startingMasteryScore != null && (
-                                <span className="tabular-nums text-muted-foreground">
-                                  {Math.floor(d.startingMasteryScore * 100)}%
-                                </span>
+                        <div className="col-span-2">
+                          <div className="text-muted-foreground mb-1">Mastery levels</div>
+                          <div className="flex items-center gap-4 flex-wrap">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-muted-foreground">Start:</span>
+                              {d.startingMasteryLevel ? (
+                                <div className="flex items-center gap-1.5">
+                                  <Badge variant="outline" className={cn("capitalize", masteryClass(d.startingMasteryLevel))}>
+                                    {d.startingMasteryLevel}
+                                  </Badge>
+                                  <span className="tabular-nums text-muted-foreground">
+                                    {d.startingMasteryScore != null ? `${Math.floor(d.startingMasteryScore * 100)}%` : "—"}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground italic">no diagnostic</span>
                               )}
                             </div>
-                          ) : (
-                            <span className="text-muted-foreground italic">no diagnostic</span>
-                          )}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-muted-foreground">Final:</span>
+                              {d.masteryLevel ? (
+                                <div className="flex items-center gap-1.5">
+                                  <Badge variant="outline" className={cn("capitalize", masteryClass(d.masteryLevel))}>
+                                    {d.masteryLevel}
+                                  </Badge>
+                                  <span className="tabular-nums text-muted-foreground">
+                                    {d.masteryScore != null ? `${Math.floor(d.masteryScore * 100)}%` : "—"}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground italic">none yet</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
 
