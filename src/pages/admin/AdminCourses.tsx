@@ -121,13 +121,16 @@ const AdminCourses = () => {
           teacher_name: c.teacher_name,
           teacher_email: c.teacher_email,
         },
-        selectedUniversity
-          ? { universityId: selectedUniversity.id, universityName: selectedUniversity.name }
+        selectedUniversities.length > 0
+          ? {
+              universityIds: selectedUniversities.map((u) => u.id),
+              universityNames: selectedUniversities.map((u) => u.name),
+            }
           : undefined,
       );
       toast.success(
-        selectedUniversity
-          ? `Exported "${c.name}" for ${selectedUniversity.name}`
+        selectedUniversities.length > 0
+          ? `Exported "${c.name}" for ${filterSummary}`
           : `Exported "${c.name}"`,
       );
     } catch (e: any) {
