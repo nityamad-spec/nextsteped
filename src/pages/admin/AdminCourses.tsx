@@ -64,6 +64,9 @@ const AdminCourses = () => {
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
+  const [universities, setUniversities] = useState<{ id: string; name: string }[]>([]);
+  const [courseUniversities, setCourseUniversities] = useState<Record<string, Set<string>>>({});
+  const [selectedUniversityId, setSelectedUniversityId] = useState<string>("all");
 
   // Transfer dialog state
   const [transferCourse, setTransferCourse] = useState<CourseRow | null>(null);
@@ -88,6 +91,7 @@ const AdminCourses = () => {
   const [profileCourse, setProfileCourse] = useState<CourseRow | null>(null);
 
   const [exportingId, setExportingId] = useState<string | null>(null);
+
   const handleExportCourse = async (c: CourseRow) => {
     setExportingId(c.id);
     try {
