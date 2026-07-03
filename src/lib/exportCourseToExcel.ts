@@ -74,7 +74,7 @@ const BAND_LABEL: Record<Band, string> = {
   none: "Not Started",
 };
 
-async function buildStudentRows(courseId: string): Promise<StudentRow[]> {
+async function buildStudentRows(courseId: string, universityId?: string | null): Promise<StudentRow[]> {
   const [enrRes, examsRes, chatSessRes, masteryRes, diagRes, resultsAll] = await Promise.all([
     supabase.from("enrollments").select("student_id, enrolled_at").eq("course_id", courseId),
     supabase.from("course_exams").select("id, archived_at").eq("course_id", courseId),
@@ -91,14 +91,19 @@ async function buildStudentRows(courseId: string): Promise<StudentRow[]> {
     ),
   ]);
 
-  const studentIds = Array.from(new Set((enrRes.data || []).map(e => e.student_id)));
+  let studentIds = Array.from(new Set((enrRes.data || []).map(e => e.student_id)));
   const enrolledAt = new Map<string, string | null>();
   (enrRes.data || []).forEach(e => enrolledAt.set(e.student_id, (e as any).enrolled_at ?? null));
 
   const profiles = studentIds.length
-    ? (await supabase.from("profiles").select("id, name, email, roll_number").in("id", studentIds)).data || []
+    ? (await supabase.from("profiles").select("id, name, email, roll_number, university_id").in("id", studentIds)).data || []
     : [];
   const profileMap = new Map(profiles.map(p => [p.id, p as any]));
+
+  if (universityId) {
+    studentIds = studentIds.filter(id => (profileMap.get(id) as any)?.university_id === universityId);
+  }
+
 
   // Active exams (match CourseProfileDialog: not archived)
   const activeExamIds = new Set<string>();
