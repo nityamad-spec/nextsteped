@@ -126,9 +126,11 @@ const AIChat = () => {
   const { user } = useAuth();
   const enrolledCourseId = useEnrolledCourseId();
   const { taSettings } = useTASettings(enrolledCourseId);
+  const { taken: diagnosticTaken } = useDiagnosticStatus(enrolledCourseId);
   const initialMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
 
   const [mode, setMode] = useState<"learning" | "exam">(initialMode);
+  const [diagGateOpen, setDiagGateOpen] = useState(false);
   const [input, setInput] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
