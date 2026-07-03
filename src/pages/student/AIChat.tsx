@@ -1421,6 +1421,12 @@ const AIChat = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <DiagnosticGateDialog
+        open={diagGateOpen}
+        onOpenChange={setDiagGateOpen}
+        courseId={enrolledCourseId}
+        context="Exam Prep is an assessment-scored mode."
+      />
     </div>
   );
 };
