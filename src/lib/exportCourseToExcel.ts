@@ -21,7 +21,6 @@ interface StudentRow {
   name: string;
   email: string;
   roll: string;
-  branch: string;
   enrolledAt: string | null;
   diagnosticSubmitted: boolean;
   diagnosticSubmittedAt: string | null;
