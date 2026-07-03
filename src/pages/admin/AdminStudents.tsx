@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, Check, ChevronDown, Filter, GraduationCap, MoreHorizontal, Search, Trash2, X } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Download, Filter, GraduationCap, Loader2, MoreHorizontal, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -18,6 +18,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import StudentProfileDialog from "@/components/admin/StudentProfileDialog";
+import { exportStudentsToExcel } from "@/lib/exportStudentsToExcel";
 
 const MASTERY_ORDER = ["beginner", "developing", "proficient", "expert"];
 const sortMastery = (a: string, b: string) => {
@@ -118,6 +119,7 @@ const AdminStudents = () => {
   const [courseFilter, setCourseFilter] = useState<Set<string>>(new Set());
   const [masteryFilter, setMasteryFilter] = useState<Set<string>>(new Set());
   const [profileTarget, setProfileTarget] = useState<StudentGroup | null>(null);
+  const [exporting, setExporting] = useState(false);
   
   
   const { toast } = useToast();
@@ -284,6 +286,19 @@ const AdminStudents = () => {
     setMasteryFilter(new Set());
   };
 
+  const handleExport = async () => {
+    if (exporting || filtered.length === 0) return;
+    setExporting(true);
+    try {
+      const n = await exportStudentsToExcel(filtered);
+      toast({ title: "Export ready", description: `Exported ${n} student${n === 1 ? "" : "s"} to Excel.` });
+    } catch (e) {
+      toast({ title: "Export failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
 
   const expectedConfirm = (target?.email || target?.name || "").trim();
@@ -310,14 +325,26 @@ const AdminStudents = () => {
                 </Badge>
               )}
             </CardTitle>
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, email, roll, course…"
-                className="pl-8 h-9"
-              />
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-2"
+                onClick={handleExport}
+                disabled={exporting || filtered.length === 0}
+              >
+                {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                {exporting ? "Exporting…" : "Export to Excel"}
+              </Button>
+              <div className="relative flex-1 sm:w-72">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search name, email, roll, course…"
+                  className="pl-8 h-9"
+                />
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap pt-1">
