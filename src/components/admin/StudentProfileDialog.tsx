@@ -489,7 +489,9 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
                                   </span>
                                 </div>
                               ) : (
-                                <span className="text-muted-foreground italic">no diagnostic</span>
+                                <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                                  Diagnostic pending
+                                </Badge>
                               )}
                             </div>
                             <div className="flex items-center gap-1.5">
