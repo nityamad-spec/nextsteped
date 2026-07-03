@@ -325,5 +325,6 @@ export async function exportCourseToExcel(
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(notCompletedRows.length ? notCompletedRows : [{ Name: "—" }]), "Completion - Not Completed");
 
   const date = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `${safeFilename(course.name)}-${date}.xlsx`);
+  const suffix = universityName ? `-${safeFilename(universityName)}` : "";
+  XLSX.writeFile(wb, `${safeFilename(course.name)}${suffix}-${date}.xlsx`);
 }
