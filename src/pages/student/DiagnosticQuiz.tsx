@@ -698,6 +698,30 @@ const DiagnosticQuiz = () => {
           </CardContent>
         </Card>
       </div>
+      <AlertDialog open={exitConfirmOpen} onOpenChange={setExitConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave the diagnostic?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your progress on this attempt will be cleared, and you'll be asked to complete
+              the diagnostic again before you can access weekly quizzes, practice, or exam prep.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep going</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (user && activeCourseId) {
+                  try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {}
+                }
+                navigate("/student/onboarding");
+              }}
+            >
+              Leave anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
