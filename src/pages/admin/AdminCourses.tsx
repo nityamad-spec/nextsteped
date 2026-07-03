@@ -386,7 +386,7 @@ const AdminCourses = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {courses.map((c) => (
+                {visibleCourses.map((c) => (
                   <TableRow
                     key={c.id}
                     className="cursor-pointer hover:bg-muted/50"
