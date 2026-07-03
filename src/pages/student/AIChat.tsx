@@ -638,9 +638,9 @@ const AIChat = () => {
     const pool = filtered.length > 0 ? filtered : questions;
     const seed = (user?.id || "anon") + (enrolledCourseId || "") + (examId || "");
     const shuffled = seededShuffle(pool, seed);
-    questions = shuffled.slice(0, Math.min(count, shuffled.length));
-
-    setCustomExamTimeLimit(custom.timeLimit);
+    // Professor-authored exams: serve all questions; ignore custom.questionCount cap.
+    const cap = examId ? shuffled.length : Math.min(count, shuffled.length);
+    questions = shuffled.slice(0, cap);
     setAssessmentQuestions(questions);
     setAssessmentQuestionMeta(meta);
     setAssessmentType("exam");
