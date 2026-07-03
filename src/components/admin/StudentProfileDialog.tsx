@@ -118,7 +118,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
     const studentIds = s.profileIds;
     if (showSkeleton) setLoading(true);
 
-    const [masteryRes, weeksRes, resultsRes, conceptsRes, conceptMasteryRes, courseExamsRes] = await Promise.all([
+    const [masteryRes, weeksRes, resultsRes, conceptsRes, conceptMasteryRes, courseExamsRes, diagRes] = await Promise.all([
       supabase.from("student_course_mastery")
         .select("course_id, student_id, mastery_score, learner_level")
         .in("student_id", studentIds).in("course_id", ids),
