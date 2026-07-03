@@ -94,10 +94,16 @@ const AdminCourses = () => {
 
   const [exportingId, setExportingId] = useState<string | null>(null);
 
-  const selectedUniversity = useMemo(
-    () => universities.find((u) => u.id === selectedUniversityId) || null,
-    [universities, selectedUniversityId],
+  const selectedUniversities = useMemo(
+    () => universities.filter((u) => selectedUniversityIds.includes(u.id)),
+    [universities, selectedUniversityIds],
   );
+  const filterSummary =
+    selectedUniversities.length === 0
+      ? "All universities"
+      : selectedUniversities.length === 1
+      ? selectedUniversities[0].name
+      : `${selectedUniversities.length} universities`;
 
   const handleExportCourse = async (c: CourseRow) => {
     setExportingId(c.id);
