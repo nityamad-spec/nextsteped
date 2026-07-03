@@ -478,7 +478,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
                           <div className="text-muted-foreground mb-1">Mastery levels</div>
                           <div className="flex items-center gap-4 flex-wrap">
                             <div className="flex items-center gap-1.5">
-                              <span className="text-muted-foreground">Start:</span>
+                              <span className="text-muted-foreground">Diagnostic:</span>
                               {d.startingMasteryLevel ? (
                                 <div className="flex items-center gap-1.5">
                                   <Badge variant="outline" className={cn("capitalize", masteryClass(d.startingMasteryLevel))}>
