@@ -229,6 +229,22 @@ const StudentHome = () => {
     return () => { cancelled = true; };
   }, [enrolledCourseId, user?.id]);
 
+  // Gate helpers: block assessment-scored surfaces until diagnostic is done.
+  const attemptOpenQuiz = (day: number) => {
+    if (diagnosticTaken === false) {
+      setDiagGate({ open: true, context: "Weekly quizzes unlock once you've completed the diagnostic." });
+      return;
+    }
+    setQuizDialog({ open: true, day });
+  };
+  const attemptExamMode = () => {
+    if (diagnosticTaken === false) {
+      setDiagGate({ open: true, context: "Practice exams unlock once you've completed the diagnostic." });
+      return;
+    }
+    navigate("/student/chat?mode=exam");
+  };
+
 
   useEffect(() => {
     const loadPlan = async () => {
