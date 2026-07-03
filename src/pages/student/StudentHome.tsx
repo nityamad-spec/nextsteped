@@ -409,7 +409,7 @@ const StudentHome = () => {
         icon: ClipboardCheck,
         title: `Take this week's quiz: ${currentWeekRow?.topic || `Week ${currentWeek}`}`,
         description: "Quick check-in on this week's concepts",
-        action: () => setQuizDialog({ open: true, day: currentWeek }),
+        action: () => attemptOpenQuiz(currentWeek),
       });
     }
 
