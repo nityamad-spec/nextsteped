@@ -96,7 +96,7 @@ async function buildStudentRows(courseId: string): Promise<StudentRow[]> {
   (enrRes.data || []).forEach(e => enrolledAt.set(e.student_id, (e as any).enrolled_at ?? null));
 
   const profiles = studentIds.length
-    ? (await supabase.from("profiles").select("id, name, email, roll_number, branch").in("id", studentIds)).data || []
+    ? (await supabase.from("profiles").select("id, name, email, roll_number").in("id", studentIds)).data || []
     : [];
   const profileMap = new Map(profiles.map(p => [p.id, p as any]));
 
