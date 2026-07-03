@@ -943,6 +943,10 @@ const AIChat = () => {
       return;
     }
     const targetMode = newMode as "learning" | "exam";
+    if (targetMode === "exam" && diagnosticTaken === false) {
+      setDiagGateOpen(true);
+      return;
+    }
     setMode(targetMode);
     setShowHistory(false);
     setAssessmentActive(false);
