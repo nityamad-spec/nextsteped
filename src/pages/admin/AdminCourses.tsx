@@ -67,7 +67,8 @@ const AdminCourses = () => {
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
   const [universities, setUniversities] = useState<{ id: string; name: string }[]>([]);
   const [courseUniversities, setCourseUniversities] = useState<Record<string, Set<string>>>({});
-  const [selectedUniversityId, setSelectedUniversityId] = useState<string>("all");
+  const [selectedUniversityIds, setSelectedUniversityIds] = useState<string[]>([]);
+  const [uniFilterOpen, setUniFilterOpen] = useState(false);
 
   // Transfer dialog state
   const [transferCourse, setTransferCourse] = useState<CourseRow | null>(null);
