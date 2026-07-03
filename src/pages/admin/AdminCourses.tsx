@@ -87,6 +87,21 @@ const AdminCourses = () => {
   // Profile dialog state
   const [profileCourse, setProfileCourse] = useState<CourseRow | null>(null);
 
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    if (courses.length === 0) return;
+    setExporting(true);
+    try {
+      const n = await exportCoursesToExcel(courses);
+      toast.success(`Exported ${n} course${n === 1 ? "" : "s"}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+
 
   const loadCourses = async () => {
     const { data: coursesData } = await supabase
