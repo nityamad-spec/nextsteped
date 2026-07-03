@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, MoreHorizontal, ArrowRightLeft, Check, ChevronsUpDown, Trash2 } from "lucide-react";
+import { BookOpen, MoreHorizontal, ArrowRightLeft, Check, ChevronsUpDown, Trash2, Download, Loader2 } from "lucide-react";
+import { exportCoursesToExcel } from "@/lib/exportCoursesToExcel";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,21 @@ const AdminCourses = () => {
 
   // Profile dialog state
   const [profileCourse, setProfileCourse] = useState<CourseRow | null>(null);
+
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    if (courses.length === 0) return;
+    setExporting(true);
+    try {
+      const n = await exportCoursesToExcel(courses);
+      toast.success(`Exported ${n} course${n === 1 ? "" : "s"}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
 
 
   const loadCourses = async () => {
@@ -265,11 +281,20 @@ const AdminCourses = () => {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
             {courses.length} Courses
           </CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            disabled={exporting || courses.length === 0}
+          >
+            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {exporting ? "Exporting…" : "Export to Excel"}
+          </Button>
         </CardHeader>
         <CardContent>
           {courses.length === 0 ? (
