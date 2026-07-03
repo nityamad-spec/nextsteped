@@ -291,20 +291,11 @@ const AdminCourses = () => {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
             {courses.length} Courses
           </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExport}
-            disabled={exporting || courses.length === 0}
-          >
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {exporting ? "Exporting…" : "Export to Excel"}
-          </Button>
         </CardHeader>
         <CardContent>
           {courses.length === 0 ? (
