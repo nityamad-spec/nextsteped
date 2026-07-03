@@ -1,47 +1,47 @@
-# Export courses to Excel on /admin/courses
+## Goal
+Replace the single "Export all courses" button on `/admin/courses` with a per-course export that downloads one workbook per course, and expand the export to include student-level detail (diagnostic status, mastery level, completion status).
 
-## Scope
-Add an "Export to Excel" button to the Courses card header on `/admin/courses`. Exports every course currently listed (the page has no filters yet, so this is all courses) as a multi-sheet `.xlsx` workbook.
+## UI changes (`src/pages/admin/AdminCourses.tsx`)
+- Remove the header-level "Export to Excel" button and `handleExport` for the full list.
+- Add a per-row export entry point in two places:
+  - A new "Export data" item in the row's `DropdownMenu` (Download icon).
+  - Keep the row-click → Course profile dialog behavior unchanged.
+- Track `exportingId` state so only the acting row shows a spinner and disables its menu item.
+- On success/failure show a toast identifying the course.
 
-## UI
-- Placement: right side of the `CardHeader` (title stays on the left), same visual pattern as the Students export.
-- Icon: `Download` from lucide-react.
-- Disabled while data is loading or when there are zero courses.
-- Shows a spinner + "Exporting…" label while per-course analytics are being fetched.
-- On success: toast "Exported N courses". On failure: error toast.
-- Filename: `courses-export-YYYY-MM-DD.xlsx`.
+## New export util (`src/lib/exportCourseToExcel.ts`)
+A single-course exporter that produces `<coursename>-<date>.xlsx` with these sheets:
 
-## Workbook structure (3 sheets)
+1. **Overview** — one-row summary of the course (name, code, term, professor, enrollment code, published/enrollment status, totals: enrolled, diagnostic submitted/not, mastery band counts, completed/not-completed, quizzes total, exams total, chat messages).
+2. **Students** — one row per enrolled student with:
+   - Name, Email, Roll Number, Branch, Enrolled at
+   - Diagnostic Status (Submitted / Not Submitted), Diagnostic Score %, Diagnostic Mastery Level
+   - Final Mastery Level (Beginner / Developing / Proficient / Expert / Not Started), Final Mastery %
+   - Weekly Quizzes Attempted (fraction like `4 / 10`), Avg Quiz Score %
+   - Exams Attempted (fraction like `1 / 2`), Avg Exam Score %
+   - Chat Messages
+   - Course Completed (Yes/No) — using the existing rule: mastery ≥ Proficient AND all weekly quizzes attempted AND all active exams attempted.
+3. **Diagnostic — Submitted** — students who completed the diagnostic (Name, Email, Submitted At, Score %, Mastery Level).
+4. **Diagnostic — Not Submitted** — enrolled students with no diagnostic row (Name, Email, Enrolled At).
+5. **Mastery — Beginner**, **Mastery — Developing**, **Mastery — Proficient**, **Mastery — Expert**, **Mastery — Not Started** — one sheet per band, listing Name, Email, Mastery %, Quizzes Attempted, Exams Attempted.
+6. **Completion — Completed** and **Completion — Not Completed** — Name, Email, plus the three gating fields (Mastery Level, Quizzes fraction, Exams fraction) so an admin can see why a student is or isn't complete.
 
-**Sheet 1 — Courses**
-One row per course (same data already in the table).
-Columns: Name, Course Code, Term, Professor, Professor Email, Enrollment Code, Status (Published/Draft), Enrollment (Open/Closed), Students, Created At.
+Reused logic (adapted from `exportCoursesToExcel.ts`, scoped to one course_id):
+- Enrollment set from `enrollments`.
+- Diagnostic from `diagnostic_results` (latest per student; derive mastery level via same thresholds already used in `CourseProfileDialog`/`StudentProfileDialog`).
+- Mastery from `student_course_mastery`.
+- Active exams from `course_exams` where `archived_at is null` and `published = true` (matches current per-student expectations).
+- Quiz/exam attempts from `assessment_results` (`mode = 'daily_quiz'` / `'exam'`), paginated via `fetchAllRange`.
+- Chat message counts via `chat_sessions` + `chat_messages` (paginated).
+- Student profile info (name/email/roll/branch) from `profiles` for the enrolled ids.
 
-**Sheet 2 — Course Analytics**
-One row per course with the analytics already computed inside `CourseProfileDialog` (no university filter — always the full roster).
-Columns: Course, Course Code, Enrolled, Diagnostic Submitted, Diagnostic Avg %, Avg Mastery %, Mastery Beginner, Mastery Developing, Mastery Proficient, Mastery Expert, Mastery Not Started, Course Completed, Weekly Quizzes Total, Quiz Attempts, Students Attempted Quiz, Avg Quiz Score %, Exams Total, Exam Attempts, Students Attempted Exam, Avg Exam Score %, Chat Students, Chat Messages.
+## What we're not changing
+- No new tables, no edge functions, no schema changes.
+- `exportCoursesToExcel.ts` stays in the repo but is no longer wired to the UI (safe to leave for future reuse; will delete if you prefer).
 
-**Sheet 3 — Mastery Distribution**
-One row per (course × band) for easy pivoting.
-Columns: Course, Course Code, Mastery Band, Student Count, % of Enrolled.
+## Verification
+- Type-check.
+- Manual: open `/admin/courses`, use the row menu → "Export data" on a course with data; confirm the workbook opens with the sheets above and student counts match the CourseProfileDialog for that course.
 
-Empty/unknown metrics render as blank cells (not "—").
-
-## Implementation
-
-1. **Extract shared analytics fetcher** — pull the per-course analytics query + aggregation logic out of `src/components/admin/CourseProfileDialog.tsx` into a new module `src/lib/courseInsights.ts` exporting:
-   - `fetchCourseInsights(courseIds: string[]): Promise<Map<string, CourseInsightRow>>`
-   - Types (`CourseInsightRow`) reused by both the dialog and the exporter.
-   The dialog is refactored to call the shared fetcher for a single course; behavior is unchanged (still respects realtime updates and university filter — the filter stays UI-side over the raw data returned).
-2. **New util** `src/lib/exportCoursesToExcel.ts` (dynamic `import("xlsx")` to keep the admin bundle lean, matching the students export). Builds the three sheets from the `CourseRow[]` plus the insights map, then triggers download via `XLSX.writeFile`.
-3. **`AdminCourses.tsx`** — add `Download` button in the `CardHeader`, `exporting` state, `handleExport` that:
-   - Collects all course IDs from `courses`.
-   - Calls `fetchCourseInsights` once.
-   - Calls `exportCoursesToExcel(courses, insights)`.
-   - Toasts result / catches errors.
-
-## Out of scope
-- No CSV alternative, no row-selection, no server-side export.
-- No schema, edge function, or RLS changes.
-- No changes to non-admin pages.
-- No per-student breakdown in the export (that already exists on `/admin/students`).
+## Open question
+- Should I delete the now-unused `src/lib/exportCoursesToExcel.ts`, or keep it for a future "export all" option?
