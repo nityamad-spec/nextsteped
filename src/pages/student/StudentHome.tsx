@@ -419,7 +419,7 @@ const StudentHome = () => {
         icon: ClipboardCheck,
         title: "Practice Exam",
         description: "Exam week — simulate a timed exam in chat",
-        action: () => navigate("/student/chat?mode=exam"),
+        action: () => attemptExamMode(),
       });
     }
 
