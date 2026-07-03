@@ -1,24 +1,28 @@
-## Root cause
+## Change
 
-On `/student/chat`, `handleStartExam` and `handleStartExamWithSettings` in `src/pages/student/AIChat.tsx` shuffle the professor's exam questions and then slice to a `count` derived from TA settings (`taSettings.examManualCount`, defaulting to ~15 for a 45-min exam, and typically set to 20 in your setup). So Final 1's 22 authored questions get truncated to 20 before being handed to the assessment view.
+Replace the single-select University dropdown on `/admin/courses` with a multi-select checkbox popover so admins can filter by any combination of universities. Exports respect the multi-selection.
 
-The rest of the pipeline (fetch by `exam_id`, assessment UI, submission) already handles the full array — the cap is the only bottleneck.
+### Frontend — `src/pages/admin/AdminCourses.tsx`
+- Replace `selectedUniversityId: string` with `selectedUniversityIds: string[]` (empty array = "All universities").
+- Replace the `Select` with a Popover trigger (`Button` styled like the current trigger) showing:
+  - Chip summary: "All universities" / "{name}" / "{n} universities".
+  - Popover content with a scrollable list of `Checkbox` rows (one per university), plus "Select all" and "Clear" actions.
+- Update `visibleCourses` to include a course when any selected university id is present in `courseUniversities[c.id]` (or show all when the selection is empty).
+- Update the helper text to reflect multiple universities.
+- Update the empty-state copy for the multi-select case.
 
-## Fix
+### Export scoping — `src/lib/exportCourseToExcel.ts`
+- Extend the `opts` param to also accept `{ universityIds?: string[]; universityNames?: string[] }` while keeping the existing `universityId`/`universityName` fields for backward compatibility.
+- In `buildStudentRows`, if `universityIds` is provided and non-empty, filter `studentIds` to profiles whose `university_id` is in that set. If only the singular field is provided, behave as today.
+- In the Overview sheet and filename, show a joined label:
+  - 0 selected → "All universities"
+  - 1 selected → that name (same as today)
+  - 2+ selected → comma-joined names in the Overview cell; filename uses `Multi-<count>-universities` (kept short and filesystem-safe).
+- `handleExportCourse` in `AdminCourses.tsx` passes the current selected ids + names.
 
-For **manual (professor-authored) exams** we should trust the professor and serve every question they added; the TA-settings length cap should only apply to AI-generated exams (or be removed entirely for exams driven by an explicit `examId`).
-
-### Changes in `src/pages/student/AIChat.tsx`
-
-1. `handleStartExam` (~line 568):
-   - After fetching, if `examId` is present, set `count = questions.length` (i.e. do not slice). Keep the seeded shuffle for question order.
-2. `handleStartExamWithSettings` (~line 598):
-   - Same treatment: when an `examId` is resolved, ignore `custom.questionCount` for the upper bound and use the full pool length (still honoring the `questionMix` type filter and shuffle).
-   - Keep `custom.timeLimit` behavior unchanged.
-
-No backend, schema, or ExamMode UI changes are needed — the questions already exist in `assessment_questions` scoped to the exam.
+No backend/schema/RLS changes.
 
 ## Verification
-
-- Reload `/student/chat`, start Final 1 → confirm 22/22 questions are presented.
-- Confirm quizzes (unchanged path) still respect `quizNumQuestions`.
+- Open `/admin/courses`, select 2 universities → table only shows courses with students from either; export for a course produces an XLSX scoped to students from those universities with the multi-university label in Overview and filename.
+- Select 0 or all → behaves as "All universities" (unfiltered).
+- Selecting exactly 1 matches the current behavior (regression check).
