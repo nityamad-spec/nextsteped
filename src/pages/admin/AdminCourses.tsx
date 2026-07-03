@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookOpen, MoreHorizontal, ArrowRightLeft, Check, ChevronsUpDown, Trash2, Download, Loader2 } from "lucide-react";
-import { exportCoursesToExcel } from "@/lib/exportCoursesToExcel";
+import { exportCourseToExcel } from "@/lib/exportCourseToExcel";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
