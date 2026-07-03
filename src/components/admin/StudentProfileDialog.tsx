@@ -216,6 +216,8 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
         quizzesDone, quizzesTotal, examsDone, examsTotal,
         proficientConcepts: proficientByCourse.get(c.courseId)?.size || 0,
         totalConcepts: conceptsTotalByCourse.get(c.courseId) || 0,
+        startingMasteryLevel: startingByCourse.get(c.courseId)?.level ?? null,
+        startingMasteryScore: startingByCourse.get(c.courseId)?.score ?? null,
         complete,
       };
     });
