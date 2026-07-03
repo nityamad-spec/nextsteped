@@ -481,13 +481,30 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
                           </div>
                         </div>
                         <div>
-                          <div className="text-muted-foreground mb-1">Mastery level</div>
+                          <div className="text-muted-foreground mb-1">Final mastery level</div>
                           {d.masteryLevel ? (
                             <Badge variant="outline" className={cn("capitalize", masteryClass(d.masteryLevel))}>
                               {d.masteryLevel}
                             </Badge>
                           ) : (
                             <span className="text-muted-foreground italic">none yet</span>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground mb-1">Starting mastery level</div>
+                          {d.startingMasteryLevel ? (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className={cn("capitalize", masteryClass(d.startingMasteryLevel))}>
+                                {d.startingMasteryLevel}
+                              </Badge>
+                              {d.startingMasteryScore != null && (
+                                <span className="tabular-nums text-muted-foreground">
+                                  {Math.floor(d.startingMasteryScore * 100)}%
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground italic">no diagnostic</span>
                           )}
                         </div>
                       </div>
@@ -562,8 +579,12 @@ const InsightsPanel = ({ ins }: { ins: CourseInsights }) => {
           <Stat label="Last chat" value={ins.lastChatAt ? new Date(ins.lastChatAt).toLocaleDateString() : "—"} />
           <Stat label="Practice attempted" value={ins.practiceAttempts} />
           <Stat label="Practice accuracy" value={ins.practiceAccuracyPct != null ? `${ins.practiceAccuracyPct}%` : "—"} />
-          <Stat label="Total assessment time" value={fmtTime(ins.totalAssessmentTimeSec)} />
-          <Stat label="Avg time / question" value={ins.avgTimePerQuestionSec != null ? fmtTime(ins.avgTimePerQuestionSec) : "—"} />
+          {ins.totalAssessmentTimeSec > 0 && (
+            <Stat label="Total assessment time" value={fmtTime(ins.totalAssessmentTimeSec)} />
+          )}
+          {ins.avgTimePerQuestionSec != null && ins.avgTimePerQuestionSec > 0 && (
+            <Stat label="Avg time / question" value={fmtTime(ins.avgTimePerQuestionSec)} />
+          )}
         </div>
       </section>
 
