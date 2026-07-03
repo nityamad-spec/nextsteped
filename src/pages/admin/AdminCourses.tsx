@@ -87,17 +87,27 @@ const AdminCourses = () => {
   // Profile dialog state
   const [profileCourse, setProfileCourse] = useState<CourseRow | null>(null);
 
-  const [exporting, setExporting] = useState(false);
-  const handleExport = async () => {
-    if (courses.length === 0) return;
-    setExporting(true);
+  const [exportingId, setExportingId] = useState<string | null>(null);
+  const handleExportCourse = async (c: CourseRow) => {
+    setExportingId(c.id);
     try {
-      const n = await exportCoursesToExcel(courses);
-      toast.success(`Exported ${n} course${n === 1 ? "" : "s"}`);
+      await exportCourseToExcel({
+        id: c.id,
+        name: c.name,
+        course_code: c.course_code,
+        term: c.term,
+        enrollment_code: c.enrollment_code,
+        enrollment_open: c.enrollment_open,
+        published: c.published,
+        created_at: c.created_at,
+        teacher_name: c.teacher_name,
+        teacher_email: c.teacher_email,
+      });
+      toast.success(`Exported "${c.name}"`);
     } catch (e: any) {
       toast.error(e?.message || "Export failed");
     } finally {
-      setExporting(false);
+      setExportingId(null);
     }
   };
 
