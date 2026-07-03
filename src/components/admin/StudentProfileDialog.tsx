@@ -43,6 +43,8 @@ interface CourseDetail {
   examsTotal: number;
   proficientConcepts: number;
   totalConcepts: number;
+  startingMasteryLevel: string | null;
+  startingMasteryScore: number | null;
   complete: boolean;
 }
 
@@ -130,12 +132,24 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
         .in("student_id", studentIds).in("course_id", ids),
       supabase.from("course_exams")
         .select("course_id, published_at, archived_at").in("course_id", ids),
+      supabase.from("diagnostic_results")
+        .select("course_id, learner_level, mastery_score, score, created_at")
+        .in("student_id", studentIds).in("course_id", ids)
+        .order("created_at", { ascending: true }),
     ]);
 
     const examsTotalByCourse = new Map<string, number>();
     (courseExamsRes.data || []).forEach(e => {
       if (e.archived_at || !e.published_at) return;
       examsTotalByCourse.set(e.course_id, (examsTotalByCourse.get(e.course_id) || 0) + 1);
+    });
+
+    const startingByCourse = new Map<string, { level: string | null; score: number | null }>();
+    (diagRes.data || []).forEach(d => {
+      if (startingByCourse.has(d.course_id)) return;
+      const score = d.mastery_score != null ? Number(d.mastery_score)
+        : (d.score != null ? Number(d.score) / 100 : null);
+      startingByCourse.set(d.course_id, { level: d.learner_level ?? null, score });
     });
 
     const masteryMap = new Map<string, { score: number | null; level: string | null }>();
