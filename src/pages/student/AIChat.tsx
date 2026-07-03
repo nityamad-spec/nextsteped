@@ -586,7 +586,10 @@ const AIChat = () => {
     }
     const seed = (user?.id || "anon") + (enrolledCourseId || "") + (examId || "");
     const shuffled = seededShuffle(questions, seed);
-    questions = shuffled.slice(0, Math.min(count, shuffled.length));
+    // For professor-authored exams (examId present), serve every question.
+    // Only apply the TA-settings length cap for AI-generated exams.
+    const cap = examId ? shuffled.length : Math.min(count, shuffled.length);
+    questions = shuffled.slice(0, cap);
     setAssessmentQuestions(questions);
     setAssessmentQuestionMeta(meta);
     setAssessmentType("exam");
@@ -635,7 +638,9 @@ const AIChat = () => {
     const pool = filtered.length > 0 ? filtered : questions;
     const seed = (user?.id || "anon") + (enrolledCourseId || "") + (examId || "");
     const shuffled = seededShuffle(pool, seed);
-    questions = shuffled.slice(0, Math.min(count, shuffled.length));
+    // Professor-authored exams: serve all questions; ignore custom.questionCount cap.
+    const cap = examId ? shuffled.length : Math.min(count, shuffled.length);
+    questions = shuffled.slice(0, cap);
 
     setCustomExamTimeLimit(custom.timeLimit);
     setAssessmentQuestions(questions);

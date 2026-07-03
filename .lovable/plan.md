@@ -1,30 +1,24 @@
-## Goal
-On `/admin/courses`, add a University filter and make the per-course "Export data" respect that filter so the exported workbook only contains students from the selected university.
+## Root cause
 
-## Changes
+On `/student/chat`, `handleStartExam` and `handleStartExamWithSettings` in `src/pages/student/AIChat.tsx` shuffle the professor's exam questions and then slice to a `count` derived from TA settings (`taSettings.examManualCount`, defaulting to ~15 for a 45-min exam, and typically set to 20 in your setup). So Final 1's 22 authored questions get truncated to 20 before being handed to the assessment view.
 
-### 1. `src/pages/admin/AdminCourses.tsx`
-- Load the `universities` list (id, name) alongside courses/teachers.
-- For each course, also load a set of universities represented by its enrolled students (join `enrollments` → `profiles.university_id`). Store as `Set<string>` per course id.
-- Add a **University** filter control (shadcn `Select`) above the table:
-  - Options: "All universities" (default) + each university by name.
-  - When a university is selected, filter the visible course rows to those whose university-set contains that id.
-  - Update the "N Courses" header count to reflect the filtered list.
-- Pass the currently selected `universityId` (or `null`) into `handleExportCourse` → `exportCourseToExcel`.
-- Show the selected university name in the export toast (e.g., "Exported 'X' for <University>").
+The rest of the pipeline (fetch by `exam_id`, assessment UI, submission) already handles the full array — the cap is the only bottleneck.
 
-### 2. `src/lib/exportCourseToExcel.ts`
-- Extend `exportCourseToExcel(course, opts?)` to accept `{ universityId?: string | null; universityName?: string | null }`.
-- Thread `universityId` into `buildStudentRows(courseId, universityId)`:
-  - After fetching enrollments for the course, resolve `profiles.university_id` for those `student_id`s and filter the working set to only students whose `university_id === universityId` when provided.
-  - All downstream aggregates (diagnostics, mastery, quiz/exam attempts, chat counts, completion) use the filtered student ids only.
-- Reflect the scope in the workbook:
-  - Append university to the file name when scoped, e.g., `Course_Export - <Course> - <University>.xlsx`.
-  - Add a "University filter" row to the Overview sheet showing the selected university name (or "All universities").
+## Fix
 
-### 3. Empty/edge behavior
-- If the selected university has zero enrolled students for a course, the export still succeeds but sheets show 0 rows; overview clearly notes the filter.
-- Courses with no students from the selected university are hidden from the list while the filter is active (nothing to export). The dropdown menu on visible rows always exports scoped to the active filter.
+For **manual (professor-authored) exams** we should trust the professor and serve every question they added; the TA-settings length cap should only apply to AI-generated exams (or be removed entirely for exams driven by an explicit `examId`).
 
-## Out of scope
-No changes to the CourseProfileDialog analytics, no bulk "export all" button, no changes to `/admin/students`.
+### Changes in `src/pages/student/AIChat.tsx`
+
+1. `handleStartExam` (~line 568):
+   - After fetching, if `examId` is present, set `count = questions.length` (i.e. do not slice). Keep the seeded shuffle for question order.
+2. `handleStartExamWithSettings` (~line 598):
+   - Same treatment: when an `examId` is resolved, ignore `custom.questionCount` for the upper bound and use the full pool length (still honoring the `questionMix` type filter and shuffle).
+   - Keep `custom.timeLimit` behavior unchanged.
+
+No backend, schema, or ExamMode UI changes are needed — the questions already exist in `assessment_questions` scoped to the exam.
+
+## Verification
+
+- Reload `/student/chat`, start Final 1 → confirm 22/22 questions are presented.
+- Confirm quizzes (unchanged path) still respect `quizNumQuestions`.
