@@ -12,6 +12,16 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, ArrowLeft, Brain, Zap, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { seededShuffle } from "@/lib/seededShuffle";
 import {
