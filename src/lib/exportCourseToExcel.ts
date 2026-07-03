@@ -252,7 +252,6 @@ export async function exportCourseToExcel(course: CourseForSingleExport): Promis
     Name: r.name,
     Email: r.email,
     "Roll Number": r.roll,
-    Branch: r.branch,
     "Enrolled At": r.enrolledAt || "",
     "Diagnostic Status": r.diagnosticSubmitted ? "Submitted" : "Not Submitted",
     "Diagnostic Score %": r.diagnosticPct ?? "",
