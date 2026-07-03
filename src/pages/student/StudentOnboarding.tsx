@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowRight, ArrowLeft, User, Check, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { extractFunctionError } from "@/lib/extractFunctionError";
 
 interface University { id: string; name: string }
 interface Degree { id: string; name: string }
