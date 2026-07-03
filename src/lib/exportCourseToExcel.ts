@@ -184,7 +184,6 @@ async function buildStudentRows(courseId: string): Promise<StudentRow[]> {
       name: prof.name || "Unknown",
       email: prof.email || "",
       roll: prof.roll_number || "",
-      branch: prof.branch || "",
       enrolledAt: enrolledAt.get(sid) || null,
       diagnosticSubmitted: !!diag,
       diagnosticSubmittedAt: diag?.at || null,
