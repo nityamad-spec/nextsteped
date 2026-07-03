@@ -4,6 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTASettings } from "@/hooks/useTASettings";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 import { useChatSessions } from "@/hooks/useChatSessions";
+import { useDiagnosticStatus } from "@/hooks/useDiagnosticStatus";
+import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 import { ChatMessage } from "@/types";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -124,9 +126,11 @@ const AIChat = () => {
   const { user } = useAuth();
   const enrolledCourseId = useEnrolledCourseId();
   const { taSettings } = useTASettings(enrolledCourseId);
+  const { taken: diagnosticTaken } = useDiagnosticStatus(enrolledCourseId);
   const initialMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
 
   const [mode, setMode] = useState<"learning" | "exam">(initialMode);
+  const [diagGateOpen, setDiagGateOpen] = useState(false);
   const [input, setInput] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
@@ -381,6 +385,15 @@ const AIChat = () => {
   useEffect(() => {
     if (mode === "learning") setAssessmentActive(false);
   }, [mode]);
+
+  // Gate exam mode + quiz launches on diagnostic completion.
+  useEffect(() => {
+    if (diagnosticTaken === false && mode === "exam") {
+      setMode("learning");
+      setAssessmentActive(false);
+      setDiagGateOpen(true);
+    }
+  }, [diagnosticTaken, mode]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -930,6 +943,10 @@ const AIChat = () => {
       return;
     }
     const targetMode = newMode as "learning" | "exam";
+    if (targetMode === "exam" && diagnosticTaken === false) {
+      setDiagGateOpen(true);
+      return;
+    }
     setMode(targetMode);
     setShowHistory(false);
     setAssessmentActive(false);
@@ -1404,6 +1421,12 @@ const AIChat = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <DiagnosticGateDialog
+        open={diagGateOpen}
+        onOpenChange={setDiagGateOpen}
+        courseId={enrolledCourseId}
+        context="Exam Prep is an assessment-scored mode."
+      />
     </div>
   );
 };

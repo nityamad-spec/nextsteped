@@ -16,6 +16,7 @@ import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, ChevronDown
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
+import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 
 
 /* Concepts are loaded from the DB for the student's enrolled course.
@@ -83,6 +84,7 @@ const StudentHome = () => {
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
   const [concepts, setConcepts] = useState<{ id: string; name: string }[]>([]);
   const [quizDialog, setQuizDialog] = useState<{ open: boolean; day: number | null }>({ open: false, day: null });
+  const [diagGate, setDiagGate] = useState<{ open: boolean; context: string }>({ open: false, context: "" });
   const [conceptMastery, setConceptMastery] = useState<Record<string, { score: number; attempted: number }>>({});
   const [courseMastery, setCourseMastery] = useState<number | null>(null);
   const [takenQuizzes, setTakenQuizzes] = useState<Record<number, { score: number }>>({});
@@ -226,6 +228,22 @@ const StudentHome = () => {
     })();
     return () => { cancelled = true; };
   }, [enrolledCourseId, user?.id]);
+
+  // Gate helpers: block assessment-scored surfaces until diagnostic is done.
+  const attemptOpenQuiz = (day: number) => {
+    if (diagnosticTaken === false) {
+      setDiagGate({ open: true, context: "Weekly quizzes unlock once you've completed the diagnostic." });
+      return;
+    }
+    setQuizDialog({ open: true, day });
+  };
+  const attemptExamMode = () => {
+    if (diagnosticTaken === false) {
+      setDiagGate({ open: true, context: "Practice exams unlock once you've completed the diagnostic." });
+      return;
+    }
+    navigate("/student/chat?mode=exam");
+  };
 
 
   useEffect(() => {
@@ -391,7 +409,7 @@ const StudentHome = () => {
         icon: ClipboardCheck,
         title: `Take this week's quiz: ${currentWeekRow?.topic || `Week ${currentWeek}`}`,
         description: "Quick check-in on this week's concepts",
-        action: () => setQuizDialog({ open: true, day: currentWeek }),
+        action: () => attemptOpenQuiz(currentWeek),
       });
     }
 
@@ -401,7 +419,7 @@ const StudentHome = () => {
         icon: ClipboardCheck,
         title: "Practice Exam",
         description: "Exam week — simulate a timed exam in chat",
-        action: () => navigate("/student/chat?mode=exam"),
+        action: () => attemptExamMode(),
       });
     }
 
@@ -446,7 +464,7 @@ const StudentHome = () => {
         icon: ClipboardCheck,
         title: `Catch up on Week ${missedEarlier} quiz`,
         description: "You haven't taken this one yet",
-        action: () => setQuizDialog({ open: true, day: missedEarlier }),
+        action: () => attemptOpenQuiz(missedEarlier),
       });
     }
 
@@ -456,7 +474,7 @@ const StudentHome = () => {
         icon: ClipboardCheck,
         title: "Practice Exam",
         description: "Test your knowledge with a timed exam simulation",
-        action: () => navigate("/student/chat?mode=exam"),
+        action: () => attemptExamMode(),
       });
     }
 
@@ -730,7 +748,7 @@ const StudentHome = () => {
                                   variant="outline"
                                   onClick={() => {
                                     if (takenQuizzes[dp.day]) return;
-                                    setQuizDialog({ open: true, day: dp.day });
+                                    attemptOpenQuiz(dp.day);
                                   }}
                                 >
                                   Take Quiz
@@ -818,6 +836,12 @@ const StudentHome = () => {
         day={quizDialog.day}
         numQuestions={taSettings.quizNumQuestions || 5}
         timeLimitMinutes={taSettings.quizTimeLimit || 10}
+      />
+      <DiagnosticGateDialog
+        open={diagGate.open}
+        onOpenChange={(o) => setDiagGate((s) => ({ ...s, open: o }))}
+        courseId={enrolledCourseId}
+        context={diagGate.context}
       />
     </div>
   );
