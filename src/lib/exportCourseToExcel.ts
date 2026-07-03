@@ -101,8 +101,11 @@ async function buildStudentRows(courseId: string, universityIds?: string[] | nul
     : [];
   const profileMap = new Map(profiles.map(p => [p.id, p as any]));
 
-  if (universityId) {
-    studentIds = studentIds.filter(id => (profileMap.get(id) as any)?.university_id === universityId);
+  if (uniFilter) {
+    studentIds = studentIds.filter(id => {
+      const uid = (profileMap.get(id) as any)?.university_id as string | null | undefined;
+      return uid ? uniFilter.has(uid) : false;
+    });
   }
 
 
