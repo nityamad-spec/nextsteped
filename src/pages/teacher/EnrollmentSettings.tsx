@@ -313,12 +313,53 @@ const EnrollmentSettings = () => {
 
   const sheetUrlCheck = validateGoogleSheetCsvUrl(sheetUrl);
 
-  const handleSheetImport = async () => {
+  const handleSaveSheetUrl = async () => {
+    if (!effectiveCourseId) { toast.error("Course not loaded yet."); return; }
+    const check = validateGoogleSheetCsvUrl(sheetUrl);
+    if (!check.ok) { toast.error(check.reason || "Invalid URL."); return; }
+    setSavingSheetUrl(true);
+    try {
+      const trimmed = sheetUrl.trim();
+      const { error } = await supabase
+        .from("courses")
+        .update({ roster_sync_sheet_url: trimmed } as any)
+        .eq("id", effectiveCourseId);
+      if (error) throw error;
+      setSavedSheetUrl(trimmed);
+      toast.success("Sheet URL saved. Click Sync now to import.");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save URL.");
+    } finally {
+      setSavingSheetUrl(false);
+    }
+  };
+
+  const handleClearSheetUrl = async () => {
+    if (!effectiveCourseId) return;
+    setSavingSheetUrl(true);
+    try {
+      const { error } = await supabase
+        .from("courses")
+        .update({ roster_sync_sheet_url: null } as any)
+        .eq("id", effectiveCourseId);
+      if (error) throw error;
+      setSavedSheetUrl(null);
+      setSheetUrl("");
+      toast.success("Saved sheet URL cleared.");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to clear URL.");
+    } finally {
+      setSavingSheetUrl(false);
+    }
+  };
+
+  const handleSheetImport = async (overrideUrl?: string) => {
     if (!effectiveCourseId) {
       toast.error("Course not loaded yet. Please try again.");
       return;
     }
-    const check = validateGoogleSheetCsvUrl(sheetUrl);
+    const urlToUse = (overrideUrl ?? sheetUrl).trim();
+    const check = validateGoogleSheetCsvUrl(urlToUse);
     if (!check.ok) { toast.error(check.reason || "Invalid URL."); return; }
 
     setSheetImporting(true);
@@ -326,7 +367,7 @@ const EnrollmentSettings = () => {
     setSheetStage("Fetching sheet…");
     let truncated = false;
     try {
-      const resp = await fetch(sheetUrl.trim(), { redirect: "follow" });
+      const resp = await fetch(urlToUse, { redirect: "follow" });
       if (!resp.ok) {
         throw new Error(`Sheet fetch failed (${resp.status}). Make sure the sheet is Published to web.`);
       }
