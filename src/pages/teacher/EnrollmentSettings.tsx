@@ -131,6 +131,8 @@ const EnrollmentSettings = () => {
   const [manualEmails, setManualEmails] = useState("");
   const [adding, setAdding] = useState(false);
   const [sheetUrl, setSheetUrl] = useState("");
+  const [savedSheetUrl, setSavedSheetUrl] = useState<string | null>(null);
+  const [savingSheetUrl, setSavingSheetUrl] = useState(false);
   const [sheetImporting, setSheetImporting] = useState(false);
   const [sheetProgress, setSheetProgress] = useState(0);
   const [sheetStage, setSheetStage] = useState<string>("");
