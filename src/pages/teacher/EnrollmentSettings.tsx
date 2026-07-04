@@ -727,15 +727,20 @@ const EnrollmentSettings = () => {
                 </CollapsibleContent>
               </Collapsible>
 
-              <Input
-                id="sheet-url"
-                type="url"
-                value={sheetUrl}
-                onChange={(e) => setSheetUrl(e.target.value)}
-                placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=csv"
-                disabled={sheetImporting}
-                className={sheetUrl && !sheetUrlCheck.ok ? "border-destructive focus-visible:ring-destructive" : ""}
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  id="sheet-url"
+                  type="url"
+                  value={sheetUrl}
+                  onChange={(e) => setSheetUrl(e.target.value)}
+                  placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=csv"
+                  disabled={sheetImporting || savingSheetUrl}
+                  className={sheetUrl && !sheetUrlCheck.ok ? "border-destructive focus-visible:ring-destructive" : ""}
+                />
+                {savedSheetUrl && sheetUrl.trim() === savedSheetUrl && (
+                  <Badge variant="secondary" className="text-xs shrink-0">Saved</Badge>
+                )}
+              </div>
               {sheetUrl && !sheetUrlCheck.ok && (
                 <p className="text-xs text-destructive">{sheetUrlCheck.reason}</p>
               )}
@@ -747,15 +752,65 @@ const EnrollmentSettings = () => {
                 </div>
               )}
 
-              <div className="flex justify-end">
-                <Button
-                  size="sm"
-                  onClick={handleSheetImport}
-                  disabled={sheetImporting || !sheetUrlCheck.ok}
-                >
-                  {sheetImporting ? "Importing…" : "Import emails"}
-                </Button>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  {savedSheetUrl && (
+                    <button
+                      type="button"
+                      onClick={handleClearSheetUrl}
+                      disabled={savingSheetUrl || sheetImporting}
+                      className="text-xs text-muted-foreground hover:text-destructive hover:underline disabled:opacity-50"
+                    >
+                      Clear saved URL
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {savedSheetUrl ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleSaveSheetUrl}
+                        disabled={
+                          savingSheetUrl ||
+                          sheetImporting ||
+                          !sheetUrlCheck.ok ||
+                          sheetUrl.trim() === savedSheetUrl
+                        }
+                      >
+                        {savingSheetUrl ? "Saving…" : "Update URL"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleSheetImport(savedSheetUrl)}
+                        disabled={sheetImporting || savingSheetUrl}
+                      >
+                        {sheetImporting ? "Syncing…" : "Sync now"}
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSheetImport()}
+                        disabled={sheetImporting || !sheetUrlCheck.ok}
+                      >
+                        Import once
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveSheetUrl}
+                        disabled={savingSheetUrl || sheetImporting || !sheetUrlCheck.ok}
+                      >
+                        {savingSheetUrl ? "Saving…" : "Save URL"}
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
+            </div>
             </div>
 
             {/* Upload */}
