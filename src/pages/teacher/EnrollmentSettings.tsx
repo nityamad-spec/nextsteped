@@ -147,11 +147,14 @@ const EnrollmentSettings = () => {
       if (effectiveCourseId) {
         const { data } = await supabase
           .from("courses")
-          .select("enrollment_code, roster_enforcement")
+          .select("enrollment_code, roster_enforcement, roster_sync_sheet_url")
           .eq("id", effectiveCourseId)
           .maybeSingle();
         if (data?.enrollment_code) setDbEnrollmentCode(data.enrollment_code);
         setEnforcement(!!(data as any)?.roster_enforcement);
+        const savedUrl = (data as any)?.roster_sync_sheet_url ?? null;
+        setSavedSheetUrl(savedUrl);
+        if (savedUrl) setSheetUrl(savedUrl);
         return;
       }
       if (user?.id) {
