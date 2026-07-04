@@ -130,7 +130,13 @@ const EnrollmentSettings = () => {
   const [showAll, setShowAll] = useState(false);
   const [manualEmails, setManualEmails] = useState("");
   const [adding, setAdding] = useState(false);
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [sheetImporting, setSheetImporting] = useState(false);
+  const [sheetProgress, setSheetProgress] = useState(0);
+  const [sheetStage, setSheetStage] = useState<string>("");
+  const [sheetInstrOpen, setSheetInstrOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
 
   const effectiveCourseId = currentCourse?.id || courseId;
 
