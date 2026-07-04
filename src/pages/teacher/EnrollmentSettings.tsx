@@ -414,6 +414,11 @@ const EnrollmentSettings = () => {
       }
       setSheetProgress(40);
 
+      if (dataLines.length === 0 || (valid.length === 0 && already === 0 && duplicates === 0 && invalid === 0)) {
+        toast.info("Sheet has a header but no data rows — nothing to import.");
+        setSheetProgress(100);
+        return;
+      }
       if (valid.length === 0) {
         toast.info(`Nothing new to add — ${already} already on roster, ${duplicates} duplicate, ${invalid} invalid${truncated ? ", first 5,000 rows only" : ""}.`);
         setSheetProgress(100);
