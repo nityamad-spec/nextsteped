@@ -659,7 +659,61 @@ const EnrollmentSettings = () => {
               </div>
             </div>
 
+            {/* Google Sheet import */}
+            <div className="rounded-lg border p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="h-4 w-4 text-primary" />
+                <Label htmlFor="sheet-url" className="text-sm font-medium">Import from Google Sheet</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Paste a <span className="font-medium">Published-to-web CSV</span> URL. Only the <code className="rounded bg-muted px-1">email</code> column is imported. Up to 5,000 rows per import.
+              </p>
+
+              <Collapsible open={sheetInstrOpen} onOpenChange={setSheetInstrOpen}>
+                <CollapsibleTrigger className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                  <ChevronDown className={`h-3 w-3 transition-transform ${sheetInstrOpen ? "rotate-180" : ""}`} />
+                  How do I get this link?
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 rounded-md bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
+                  <p>1. In your Google Sheet: <span className="font-medium">File → Share → Publish to web</span>.</p>
+                  <p>2. Under <span className="font-medium">Link</span>, pick the sheet/tab and choose <span className="font-medium">Comma-separated values (.csv)</span>.</p>
+                  <p>3. Click <span className="font-medium">Publish</span> and copy the URL (it should contain <code className="rounded bg-background px-1">output=csv</code>). Anyone with this URL can read the sheet — unpublish after import if that's a concern.</p>
+                </CollapsibleContent>
+              </Collapsible>
+
+              <Input
+                id="sheet-url"
+                type="url"
+                value={sheetUrl}
+                onChange={(e) => setSheetUrl(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=csv"
+                disabled={sheetImporting}
+                className={sheetUrl && !sheetUrlCheck.ok ? "border-destructive focus-visible:ring-destructive" : ""}
+              />
+              {sheetUrl && !sheetUrlCheck.ok && (
+                <p className="text-xs text-destructive">{sheetUrlCheck.reason}</p>
+              )}
+
+              {sheetImporting && (
+                <div className="space-y-1">
+                  <Progress value={sheetProgress} className="h-2" />
+                  <p className="text-xs text-muted-foreground">{sheetStage} {sheetProgress}%</p>
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  onClick={handleSheetImport}
+                  disabled={sheetImporting || !sheetUrlCheck.ok}
+                >
+                  {sheetImporting ? "Importing…" : "Import emails"}
+                </Button>
+              </div>
+            </div>
+
             {/* Upload */}
+
             <input
               ref={fileRef}
               type="file"
