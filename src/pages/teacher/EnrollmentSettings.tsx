@@ -62,6 +62,57 @@ function parseCsv(text: string): { email: string; full_name: string | null; univ
   return rows;
 }
 
+// Parse a single CSV line honoring double-quoted fields (RFC 4180-ish).
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; } else { inQuotes = false; }
+      } else { cur += ch; }
+    } else {
+      if (ch === ',') { out.push(cur); cur = ""; }
+      else if (ch === '"') { inQuotes = true; }
+      else { cur += ch; }
+    }
+  }
+  out.push(cur);
+  return out.map((c) => c.trim());
+}
+
+type SheetUrlCheck = { ok: boolean; reason?: string };
+function validateGoogleSheetCsvUrl(raw: string): SheetUrlCheck {
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: false, reason: "Paste a Google Sheets CSV URL." };
+  let u: URL;
+  try { u = new URL(trimmed); } catch { return { ok: false, reason: "That doesn't look like a valid URL." }; }
+  if (u.hostname !== "docs.google.com") {
+    return { ok: false, reason: "URL must be on docs.google.com." };
+  }
+  if (!u.pathname.startsWith("/spreadsheets/")) {
+    return { ok: false, reason: "URL must point to a Google Sheet." };
+  }
+  const output = u.searchParams.get("output");
+  const format = u.searchParams.get("format");
+  const isPubCsv = u.pathname.includes("/pub") && output === "csv";
+  const isExportCsv = u.pathname.endsWith("/export") && format === "csv";
+  if (!isPubCsv && !isExportCsv) {
+    return {
+      ok: false,
+      reason: "Use File → Share → Publish to web → CSV, then paste that link (should contain output=csv).",
+    };
+  }
+  return { ok: true };
+}
+
+const MAX_SHEET_BYTES = 5 * 1024 * 1024;
+const MAX_SHEET_ROWS = 5000;
+
+
+
 
 const EnrollmentSettings = () => {
   const navigate = useNavigate();
