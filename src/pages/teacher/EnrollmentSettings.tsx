@@ -811,7 +811,6 @@ const EnrollmentSettings = () => {
                 </div>
               </div>
             </div>
-            </div>
 
             {/* Upload */}
 
