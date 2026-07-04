@@ -131,6 +131,8 @@ const EnrollmentSettings = () => {
   const [manualEmails, setManualEmails] = useState("");
   const [adding, setAdding] = useState(false);
   const [sheetUrl, setSheetUrl] = useState("");
+  const [savedSheetUrl, setSavedSheetUrl] = useState<string | null>(null);
+  const [savingSheetUrl, setSavingSheetUrl] = useState(false);
   const [sheetImporting, setSheetImporting] = useState(false);
   const [sheetProgress, setSheetProgress] = useState(0);
   const [sheetStage, setSheetStage] = useState<string>("");
@@ -145,11 +147,14 @@ const EnrollmentSettings = () => {
       if (effectiveCourseId) {
         const { data } = await supabase
           .from("courses")
-          .select("enrollment_code, roster_enforcement")
+          .select("enrollment_code, roster_enforcement, roster_sync_sheet_url")
           .eq("id", effectiveCourseId)
           .maybeSingle();
         if (data?.enrollment_code) setDbEnrollmentCode(data.enrollment_code);
         setEnforcement(!!(data as any)?.roster_enforcement);
+        const savedUrl = (data as any)?.roster_sync_sheet_url ?? null;
+        setSavedSheetUrl(savedUrl);
+        if (savedUrl) setSheetUrl(savedUrl);
         return;
       }
       if (user?.id) {
@@ -308,12 +313,53 @@ const EnrollmentSettings = () => {
 
   const sheetUrlCheck = validateGoogleSheetCsvUrl(sheetUrl);
 
-  const handleSheetImport = async () => {
+  const handleSaveSheetUrl = async () => {
+    if (!effectiveCourseId) { toast.error("Course not loaded yet."); return; }
+    const check = validateGoogleSheetCsvUrl(sheetUrl);
+    if (!check.ok) { toast.error(check.reason || "Invalid URL."); return; }
+    setSavingSheetUrl(true);
+    try {
+      const trimmed = sheetUrl.trim();
+      const { error } = await supabase
+        .from("courses")
+        .update({ roster_sync_sheet_url: trimmed } as any)
+        .eq("id", effectiveCourseId);
+      if (error) throw error;
+      setSavedSheetUrl(trimmed);
+      toast.success("Sheet URL saved. Click Sync now to import.");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save URL.");
+    } finally {
+      setSavingSheetUrl(false);
+    }
+  };
+
+  const handleClearSheetUrl = async () => {
+    if (!effectiveCourseId) return;
+    setSavingSheetUrl(true);
+    try {
+      const { error } = await supabase
+        .from("courses")
+        .update({ roster_sync_sheet_url: null } as any)
+        .eq("id", effectiveCourseId);
+      if (error) throw error;
+      setSavedSheetUrl(null);
+      setSheetUrl("");
+      toast.success("Saved sheet URL cleared.");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to clear URL.");
+    } finally {
+      setSavingSheetUrl(false);
+    }
+  };
+
+  const handleSheetImport = async (overrideUrl?: string) => {
     if (!effectiveCourseId) {
       toast.error("Course not loaded yet. Please try again.");
       return;
     }
-    const check = validateGoogleSheetCsvUrl(sheetUrl);
+    const urlToUse = (overrideUrl ?? sheetUrl).trim();
+    const check = validateGoogleSheetCsvUrl(urlToUse);
     if (!check.ok) { toast.error(check.reason || "Invalid URL."); return; }
 
     setSheetImporting(true);
@@ -321,7 +367,7 @@ const EnrollmentSettings = () => {
     setSheetStage("Fetching sheet…");
     let truncated = false;
     try {
-      const resp = await fetch(sheetUrl.trim(), { redirect: "follow" });
+      const resp = await fetch(urlToUse, { redirect: "follow" });
       if (!resp.ok) {
         throw new Error(`Sheet fetch failed (${resp.status}). Make sure the sheet is Published to web.`);
       }
@@ -402,7 +448,7 @@ const EnrollmentSettings = () => {
       if (invalid) parts.push(`${invalid} invalid`);
       if (truncated) parts.push("first 5,000 rows only");
       toast.success(parts.join(", ") + ".");
-      setSheetUrl("");
+      if (!savedSheetUrl) setSheetUrl("");
       await loadRoster();
       if (!enforcement) {
         toast.info("Tip: turn on 'Restrict signups to roster' to enforce.", { duration: 6000 });
@@ -681,15 +727,20 @@ const EnrollmentSettings = () => {
                 </CollapsibleContent>
               </Collapsible>
 
-              <Input
-                id="sheet-url"
-                type="url"
-                value={sheetUrl}
-                onChange={(e) => setSheetUrl(e.target.value)}
-                placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=csv"
-                disabled={sheetImporting}
-                className={sheetUrl && !sheetUrlCheck.ok ? "border-destructive focus-visible:ring-destructive" : ""}
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  id="sheet-url"
+                  type="url"
+                  value={sheetUrl}
+                  onChange={(e) => setSheetUrl(e.target.value)}
+                  placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=csv"
+                  disabled={sheetImporting || savingSheetUrl}
+                  className={sheetUrl && !sheetUrlCheck.ok ? "border-destructive focus-visible:ring-destructive" : ""}
+                />
+                {savedSheetUrl && sheetUrl.trim() === savedSheetUrl && (
+                  <Badge variant="secondary" className="text-xs shrink-0">Saved</Badge>
+                )}
+              </div>
               {sheetUrl && !sheetUrlCheck.ok && (
                 <p className="text-xs text-destructive">{sheetUrlCheck.reason}</p>
               )}
@@ -701,14 +752,63 @@ const EnrollmentSettings = () => {
                 </div>
               )}
 
-              <div className="flex justify-end">
-                <Button
-                  size="sm"
-                  onClick={handleSheetImport}
-                  disabled={sheetImporting || !sheetUrlCheck.ok}
-                >
-                  {sheetImporting ? "Importing…" : "Import emails"}
-                </Button>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  {savedSheetUrl && (
+                    <button
+                      type="button"
+                      onClick={handleClearSheetUrl}
+                      disabled={savingSheetUrl || sheetImporting}
+                      className="text-xs text-muted-foreground hover:text-destructive hover:underline disabled:opacity-50"
+                    >
+                      Clear saved URL
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {savedSheetUrl ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleSaveSheetUrl}
+                        disabled={
+                          savingSheetUrl ||
+                          sheetImporting ||
+                          !sheetUrlCheck.ok ||
+                          sheetUrl.trim() === savedSheetUrl
+                        }
+                      >
+                        {savingSheetUrl ? "Saving…" : "Update URL"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleSheetImport(savedSheetUrl)}
+                        disabled={sheetImporting || savingSheetUrl}
+                      >
+                        {sheetImporting ? "Syncing…" : "Sync now"}
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSheetImport()}
+                        disabled={sheetImporting || !sheetUrlCheck.ok}
+                      >
+                        Import once
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveSheetUrl}
+                        disabled={savingSheetUrl || sheetImporting || !sheetUrlCheck.ok}
+                      >
+                        {savingSheetUrl ? "Saving…" : "Save URL"}
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 

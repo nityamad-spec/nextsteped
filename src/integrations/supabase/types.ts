@@ -847,6 +847,7 @@ export type Database = {
           objectives: string[] | null
           published: boolean
           roster_enforcement: boolean
+          roster_sync_sheet_url: string | null
           sections: string[] | null
           session_length_minutes: number | null
           sessions_per_week: number | null
@@ -878,6 +879,7 @@ export type Database = {
           objectives?: string[] | null
           published?: boolean
           roster_enforcement?: boolean
+          roster_sync_sheet_url?: string | null
           sections?: string[] | null
           session_length_minutes?: number | null
           sessions_per_week?: number | null
@@ -909,6 +911,7 @@ export type Database = {
           objectives?: string[] | null
           published?: boolean
           roster_enforcement?: boolean
+          roster_sync_sheet_url?: string | null
           sections?: string[] | null
           session_length_minutes?: number | null
           sessions_per_week?: number | null

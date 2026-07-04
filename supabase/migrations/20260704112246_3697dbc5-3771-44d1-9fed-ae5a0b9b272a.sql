@@ -1,0 +1,1 @@
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS roster_sync_sheet_url text;
