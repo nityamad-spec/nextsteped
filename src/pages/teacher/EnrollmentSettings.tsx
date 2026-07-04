@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +26,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Calendar, UserPlus, Upload, Copy, ArrowLeft, Trash2, Download, AlertTriangle } from "lucide-react";
+import { Calendar, UserPlus, Upload, Copy, ArrowLeft, Trash2, Download, AlertTriangle, FileSpreadsheet, ChevronDown } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { markStepCompleted } from "@/lib/setupProgress";
 
@@ -60,6 +62,57 @@ function parseCsv(text: string): { email: string; full_name: string | null; univ
   return rows;
 }
 
+// Parse a single CSV line honoring double-quoted fields (RFC 4180-ish).
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; } else { inQuotes = false; }
+      } else { cur += ch; }
+    } else {
+      if (ch === ',') { out.push(cur); cur = ""; }
+      else if (ch === '"') { inQuotes = true; }
+      else { cur += ch; }
+    }
+  }
+  out.push(cur);
+  return out.map((c) => c.trim());
+}
+
+type SheetUrlCheck = { ok: boolean; reason?: string };
+function validateGoogleSheetCsvUrl(raw: string): SheetUrlCheck {
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: false, reason: "Paste a Google Sheets CSV URL." };
+  let u: URL;
+  try { u = new URL(trimmed); } catch { return { ok: false, reason: "That doesn't look like a valid URL." }; }
+  if (u.hostname !== "docs.google.com") {
+    return { ok: false, reason: "URL must be on docs.google.com." };
+  }
+  if (!u.pathname.startsWith("/spreadsheets/")) {
+    return { ok: false, reason: "URL must point to a Google Sheet." };
+  }
+  const output = u.searchParams.get("output");
+  const format = u.searchParams.get("format");
+  const isPubCsv = u.pathname.includes("/pub") && output === "csv";
+  const isExportCsv = u.pathname.endsWith("/export") && format === "csv";
+  if (!isPubCsv && !isExportCsv) {
+    return {
+      ok: false,
+      reason: "Use File → Share → Publish to web → CSV, then paste that link (should contain output=csv).",
+    };
+  }
+  return { ok: true };
+}
+
+const MAX_SHEET_BYTES = 5 * 1024 * 1024;
+const MAX_SHEET_ROWS = 5000;
+
+
+
 
 const EnrollmentSettings = () => {
   const navigate = useNavigate();
@@ -77,7 +130,13 @@ const EnrollmentSettings = () => {
   const [showAll, setShowAll] = useState(false);
   const [manualEmails, setManualEmails] = useState("");
   const [adding, setAdding] = useState(false);
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [sheetImporting, setSheetImporting] = useState(false);
+  const [sheetProgress, setSheetProgress] = useState(0);
+  const [sheetStage, setSheetStage] = useState<string>("");
+  const [sheetInstrOpen, setSheetInstrOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
 
   const effectiveCourseId = currentCourse?.id || courseId;
 
@@ -246,6 +305,125 @@ const EnrollmentSettings = () => {
       setAdding(false);
     }
   };
+
+  const sheetUrlCheck = validateGoogleSheetCsvUrl(sheetUrl);
+
+  const handleSheetImport = async () => {
+    if (!effectiveCourseId) {
+      toast.error("Course not loaded yet. Please try again.");
+      return;
+    }
+    const check = validateGoogleSheetCsvUrl(sheetUrl);
+    if (!check.ok) { toast.error(check.reason || "Invalid URL."); return; }
+
+    setSheetImporting(true);
+    setSheetProgress(2);
+    setSheetStage("Fetching sheet…");
+    let truncated = false;
+    try {
+      const resp = await fetch(sheetUrl.trim(), { redirect: "follow" });
+      if (!resp.ok) {
+        throw new Error(`Sheet fetch failed (${resp.status}). Make sure the sheet is Published to web.`);
+      }
+      const lenHeader = resp.headers.get("content-length");
+      if (lenHeader && Number(lenHeader) > MAX_SHEET_BYTES) {
+        throw new Error("Sheet is larger than 5 MB. Trim it before importing.");
+      }
+      const text = await resp.text();
+      if (text.length > MAX_SHEET_BYTES) {
+        throw new Error("Sheet is larger than 5 MB. Trim it before importing.");
+      }
+      setSheetProgress(25);
+      setSheetStage("Parsing rows…");
+
+      const lines = text.split(/\r?\n/).filter((l) => l.length > 0);
+      if (lines.length === 0) throw new Error("Sheet is empty.");
+      const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
+      const emailIdx = headers.findIndex((h) => h === "email" || h === "email_address" || h === "e-mail");
+      if (emailIdx === -1) {
+        throw new Error("No 'email' column found in the sheet. Rename your column header to 'email'.");
+      }
+
+      let dataLines = lines.slice(1);
+      if (dataLines.length > MAX_SHEET_ROWS) {
+        dataLines = dataLines.slice(0, MAX_SHEET_ROWS);
+        truncated = true;
+      }
+
+      const existing = new Set(roster.map((r) => r.email.toLowerCase()));
+      const seen = new Set<string>();
+      const valid: string[] = [];
+      let invalid = 0;
+      let duplicates = 0;
+      let already = 0;
+      for (const line of dataLines) {
+        const cols = parseCsvLine(line);
+        const raw = (cols[emailIdx] || "").trim().toLowerCase();
+        if (!raw) continue;
+        if (!EMAIL_RE.test(raw)) { invalid++; continue; }
+        if (seen.has(raw)) { duplicates++; continue; }
+        seen.add(raw);
+        if (existing.has(raw)) { already++; continue; }
+        valid.push(raw);
+      }
+      setSheetProgress(40);
+
+      if (valid.length === 0) {
+        toast.info(`Nothing new to add — ${already} already on roster, ${duplicates} duplicate, ${invalid} invalid${truncated ? ", first 5,000 rows only" : ""}.`);
+        setSheetProgress(100);
+        return;
+      }
+
+      setSheetStage("Adding to roster…");
+      const rows = valid.map((email) => ({
+        course_id: effectiveCourseId,
+        email,
+        full_name: null,
+        university: null,
+        added_by: user?.id ?? null,
+        source: "google_sheet",
+      }));
+      const batchSize = 500;
+      const totalBatches = Math.ceil(rows.length / batchSize);
+      let batchNum = 0;
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize);
+        const { error } = await supabase
+          .from("course_roster_allowlist")
+          .upsert(batch, { onConflict: "course_id,email" });
+        if (error) throw error;
+        batchNum++;
+        setSheetProgress(40 + Math.round((batchNum / totalBatches) * 60));
+      }
+
+      const parts = [`Added ${valid.length}`];
+      if (already) parts.push(`${already} already on roster`);
+      if (duplicates) parts.push(`${duplicates} duplicate`);
+      if (invalid) parts.push(`${invalid} invalid`);
+      if (truncated) parts.push("first 5,000 rows only");
+      toast.success(parts.join(", ") + ".");
+      setSheetUrl("");
+      await loadRoster();
+      if (!enforcement) {
+        toast.info("Tip: turn on 'Restrict signups to roster' to enforce.", { duration: 6000 });
+      }
+    } catch (e: any) {
+      console.error(e);
+      const msg = e?.message || "Failed to import from sheet.";
+      // TypeError from fetch (CORS/network) is the most common failure.
+      if (e?.name === "TypeError") {
+        toast.error("Couldn't fetch the sheet (network or CORS). Ensure it's Published to web as CSV.");
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setSheetImporting(false);
+      setSheetStage("");
+      setTimeout(() => setSheetProgress(0), 800);
+    }
+  };
+
+
 
   const deleteEntry = async (id: string) => {
     const { error } = await supabase.from("course_roster_allowlist").delete().eq("id", id);
@@ -481,7 +659,61 @@ const EnrollmentSettings = () => {
               </div>
             </div>
 
+            {/* Google Sheet import */}
+            <div className="rounded-lg border p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="h-4 w-4 text-primary" />
+                <Label htmlFor="sheet-url" className="text-sm font-medium">Import from Google Sheet</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Paste a <span className="font-medium">Published-to-web CSV</span> URL. Only the <code className="rounded bg-muted px-1">email</code> column is imported. Up to 5,000 rows per import.
+              </p>
+
+              <Collapsible open={sheetInstrOpen} onOpenChange={setSheetInstrOpen}>
+                <CollapsibleTrigger className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                  <ChevronDown className={`h-3 w-3 transition-transform ${sheetInstrOpen ? "rotate-180" : ""}`} />
+                  How do I get this link?
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 rounded-md bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
+                  <p>1. In your Google Sheet: <span className="font-medium">File → Share → Publish to web</span>.</p>
+                  <p>2. Under <span className="font-medium">Link</span>, pick the sheet/tab and choose <span className="font-medium">Comma-separated values (.csv)</span>.</p>
+                  <p>3. Click <span className="font-medium">Publish</span> and copy the URL (it should contain <code className="rounded bg-background px-1">output=csv</code>). Anyone with this URL can read the sheet — unpublish after import if that's a concern.</p>
+                </CollapsibleContent>
+              </Collapsible>
+
+              <Input
+                id="sheet-url"
+                type="url"
+                value={sheetUrl}
+                onChange={(e) => setSheetUrl(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=csv"
+                disabled={sheetImporting}
+                className={sheetUrl && !sheetUrlCheck.ok ? "border-destructive focus-visible:ring-destructive" : ""}
+              />
+              {sheetUrl && !sheetUrlCheck.ok && (
+                <p className="text-xs text-destructive">{sheetUrlCheck.reason}</p>
+              )}
+
+              {sheetImporting && (
+                <div className="space-y-1">
+                  <Progress value={sheetProgress} className="h-2" />
+                  <p className="text-xs text-muted-foreground">{sheetStage} {sheetProgress}%</p>
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  onClick={handleSheetImport}
+                  disabled={sheetImporting || !sheetUrlCheck.ok}
+                >
+                  {sheetImporting ? "Importing…" : "Import emails"}
+                </Button>
+              </div>
+            </div>
+
             {/* Upload */}
+
             <input
               ref={fileRef}
               type="file"
