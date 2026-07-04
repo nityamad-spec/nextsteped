@@ -306,6 +306,125 @@ const EnrollmentSettings = () => {
     }
   };
 
+  const sheetUrlCheck = validateGoogleSheetCsvUrl(sheetUrl);
+
+  const handleSheetImport = async () => {
+    if (!effectiveCourseId) {
+      toast.error("Course not loaded yet. Please try again.");
+      return;
+    }
+    const check = validateGoogleSheetCsvUrl(sheetUrl);
+    if (!check.ok) { toast.error(check.reason || "Invalid URL."); return; }
+
+    setSheetImporting(true);
+    setSheetProgress(2);
+    setSheetStage("Fetching sheet…");
+    let truncated = false;
+    try {
+      const resp = await fetch(sheetUrl.trim(), { redirect: "follow" });
+      if (!resp.ok) {
+        throw new Error(`Sheet fetch failed (${resp.status}). Make sure the sheet is Published to web.`);
+      }
+      const lenHeader = resp.headers.get("content-length");
+      if (lenHeader && Number(lenHeader) > MAX_SHEET_BYTES) {
+        throw new Error("Sheet is larger than 5 MB. Trim it before importing.");
+      }
+      const text = await resp.text();
+      if (text.length > MAX_SHEET_BYTES) {
+        throw new Error("Sheet is larger than 5 MB. Trim it before importing.");
+      }
+      setSheetProgress(25);
+      setSheetStage("Parsing rows…");
+
+      const lines = text.split(/\r?\n/).filter((l) => l.length > 0);
+      if (lines.length === 0) throw new Error("Sheet is empty.");
+      const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
+      const emailIdx = headers.findIndex((h) => h === "email" || h === "email_address" || h === "e-mail");
+      if (emailIdx === -1) {
+        throw new Error("No 'email' column found in the sheet. Rename your column header to 'email'.");
+      }
+
+      let dataLines = lines.slice(1);
+      if (dataLines.length > MAX_SHEET_ROWS) {
+        dataLines = dataLines.slice(0, MAX_SHEET_ROWS);
+        truncated = true;
+      }
+
+      const existing = new Set(roster.map((r) => r.email.toLowerCase()));
+      const seen = new Set<string>();
+      const valid: string[] = [];
+      let invalid = 0;
+      let duplicates = 0;
+      let already = 0;
+      for (const line of dataLines) {
+        const cols = parseCsvLine(line);
+        const raw = (cols[emailIdx] || "").trim().toLowerCase();
+        if (!raw) continue;
+        if (!EMAIL_RE.test(raw)) { invalid++; continue; }
+        if (seen.has(raw)) { duplicates++; continue; }
+        seen.add(raw);
+        if (existing.has(raw)) { already++; continue; }
+        valid.push(raw);
+      }
+      setSheetProgress(40);
+
+      if (valid.length === 0) {
+        toast.info(`Nothing new to add — ${already} already on roster, ${duplicates} duplicate, ${invalid} invalid${truncated ? ", first 5,000 rows only" : ""}.`);
+        setSheetProgress(100);
+        return;
+      }
+
+      setSheetStage("Adding to roster…");
+      const rows = valid.map((email) => ({
+        course_id: effectiveCourseId,
+        email,
+        full_name: null,
+        university: null,
+        added_by: user?.id ?? null,
+        source: "google_sheet",
+      }));
+      const batchSize = 500;
+      const totalBatches = Math.ceil(rows.length / batchSize);
+      let batchNum = 0;
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize);
+        const { error } = await supabase
+          .from("course_roster_allowlist")
+          .upsert(batch, { onConflict: "course_id,email" });
+        if (error) throw error;
+        batchNum++;
+        setSheetProgress(40 + Math.round((batchNum / totalBatches) * 60));
+      }
+
+      const parts = [`Added ${valid.length}`];
+      if (already) parts.push(`${already} already on roster`);
+      if (duplicates) parts.push(`${duplicates} duplicate`);
+      if (invalid) parts.push(`${invalid} invalid`);
+      if (truncated) parts.push("first 5,000 rows only");
+      toast.success(parts.join(", ") + ".");
+      setSheetUrl("");
+      await loadRoster();
+      if (!enforcement) {
+        toast.info("Tip: turn on 'Restrict signups to roster' to enforce.", { duration: 6000 });
+      }
+    } catch (e: any) {
+      console.error(e);
+      const msg = e?.message || "Failed to import from sheet.";
+      // TypeError from fetch (CORS/network) is the most common failure.
+      if (e?.name === "TypeError") {
+        toast.error("Couldn't fetch the sheet (network or CORS). Ensure it's Published to web as CSV.");
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setSheetImporting(false);
+      setSheetStage("");
+      setTimeout(() => setSheetProgress(0), 800);
+    }
+  };
+
+
+
   const deleteEntry = async (id: string) => {
     const { error } = await supabase.from("course_roster_allowlist").delete().eq("id", id);
     if (error) { toast.error("Failed to remove entry."); return; }
