@@ -448,7 +448,7 @@ const EnrollmentSettings = () => {
       if (invalid) parts.push(`${invalid} invalid`);
       if (truncated) parts.push("first 5,000 rows only");
       toast.success(parts.join(", ") + ".");
-      setSheetUrl("");
+      if (!savedSheetUrl) setSheetUrl("");
       await loadRoster();
       if (!enforcement) {
         toast.info("Tip: turn on 'Restrict signups to roster' to enforce.", { duration: 6000 });
