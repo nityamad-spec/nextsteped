@@ -26,6 +26,22 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import PracticeQuestions, { PracticeQuestion } from "@/components/PracticeQuestions";
 import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
+import MermaidDiagram from "@/components/MermaidDiagram";
+
+const markdownComponents = {
+  code({ inline, className, children, ...props }: any) {
+    const match = /language-(\w+)/.exec(className || "");
+    const lang = match?.[1];
+    if (!inline && lang === "mermaid") {
+      return <MermaidDiagram code={String(children).replace(/\n$/, "")} />;
+    }
+    return (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    );
+  },
+};
 
 const getWelcomeLearning = (courseName?: string | null) =>
   `Hi! I'm your AI Teaching Assistant for **${courseName?.trim() || "your course"}**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?`;
@@ -1027,7 +1043,7 @@ const AIChat = () => {
                   <div key={pi} className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
                     isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
                   }`}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{part.content.trim()}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>{part.content.trim()}</ReactMarkdown>
                   </div>
                 ) : null
               )}
@@ -1036,7 +1052,7 @@ const AIChat = () => {
             <div className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
               isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
             }`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{displayContent}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>{displayContent}</ReactMarkdown>
             </div>
           )}
           {msg.timestamp && (
