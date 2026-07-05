@@ -187,7 +187,8 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
 
     const proficientByCourse = new Map<string, Set<string>>();
     (conceptMasteryRes.data || []).forEach(cm => {
-      if ((cm.mastery_level || "").toLowerCase() === "proficient") {
+      const level = (cm.mastery_level || "").toLowerCase();
+      if (level === "proficient" || level === "expert") {
         const set = proficientByCourse.get(cm.course_id) || new Set<string>();
         set.add(cm.concept_id);
         proficientByCourse.set(cm.course_id, set);
