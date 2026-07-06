@@ -728,13 +728,39 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Generate all tiers in parallel with a shared deadline. allSettled lets
-    // us salvage partial tiers when one tier throws (e.g., 402 / timeout),
-    // matching the diagnostic generator's behavior.
+    // Sequence: standard first (canonical), then easy/medium/hard in parallel
+    // with the accepted standard set injected as cross-tier avoid context.
+    // If standard fails outright, fall back to all-parallel so we never zero
+    // out the whole quiz.
     const deadlineAt = Date.now() + GLOBAL_DEADLINE_MS;
     const allQuestions: { spec: TierSpec; q: GeneratedQuestion }[] = [];
-    const tierResults = await Promise.allSettled(
-      TIER_SPEC.map((spec) =>
+    let creditsExhausted = false;
+    const tierErrors: Record<string, string> = {};
+
+    const standardSpec = TIER_SPEC.find((t) => t.tier === "standard")!;
+    const adaptiveSpecs = TIER_SPEC.filter((t) => t.tier !== "standard");
+
+    let standardQs: GeneratedQuestion[] = [];
+    try {
+      standardQs = await generateTier(
+        standardSpec,
+        course.name ?? "Course",
+        weekNumber,
+        weekRow.week_name ?? "",
+        conceptByCode,
+        lovableKey,
+        deadlineAt,
+        [],
+      );
+      for (const q of standardQs) allQuestions.push({ spec: standardSpec, q });
+    } catch (err) {
+      if (err instanceof CreditsExhaustedError) creditsExhausted = true;
+      tierErrors[standardSpec.tier] = err instanceof Error ? err.message : String(err);
+      console.warn(`[weekly-quiz] tier standard failed:`, tierErrors[standardSpec.tier]);
+    }
+
+    const adaptiveResults = await Promise.allSettled(
+      adaptiveSpecs.map((spec) =>
         generateTier(
           spec,
           course.name ?? "Course",
@@ -743,14 +769,13 @@ Deno.serve(async (req) => {
           conceptByCode,
           lovableKey,
           deadlineAt,
+          standardQs,
         ).then((qs) => ({ spec, qs })),
       ),
     );
-    let creditsExhausted = false;
-    const tierErrors: Record<string, string> = {};
-    for (let i = 0; i < tierResults.length; i++) {
-      const r = tierResults[i];
-      const spec = TIER_SPEC[i];
+    for (let i = 0; i < adaptiveResults.length; i++) {
+      const r = adaptiveResults[i];
+      const spec = adaptiveSpecs[i];
       if (r.status === "fulfilled") {
         for (const q of r.value.qs) allQuestions.push({ spec, q });
       } else {
@@ -779,6 +804,29 @@ Deno.serve(async (req) => {
         },
       );
     }
+
+    // Post-assembly cross-tier dedup. Priority: standard → hard → medium → easy
+    // (standard is canonical; easy is the most likely offender).
+    const tierPriority: Tier[] = ["standard", "hard", "medium", "easy"];
+    const kept: { spec: TierSpec; q: GeneratedQuestion }[] = [];
+    const crossTierDrops: Record<string, number> = {};
+    for (const tier of tierPriority) {
+      for (const item of allQuestions.filter((x) => x.spec.tier === tier)) {
+        const dup = kept.find((k) => isLikelyDuplicateQuestion(k.q, item.q));
+        if (dup) {
+          crossTierDrops[tier] = (crossTierDrops[tier] ?? 0) + 1;
+          console.warn(`[weekly-quiz] cross-tier dedup: dropped ${tier} "${item.q.content_text.slice(0, 80)}" (duplicates ${dup.spec.tier} "${dup.q.content_text.slice(0, 80)}")`);
+          continue;
+        }
+        kept.push(item);
+      }
+    }
+    for (const [tier, n] of Object.entries(crossTierDrops)) {
+      const existing = tierErrors[tier];
+      tierErrors[tier] = existing ? `${existing}; dropped ${n} cross-tier duplicate(s)` : `dropped ${n} cross-tier duplicate(s)`;
+    }
+    allQuestions.splice(0, allQuestions.length, ...kept);
+
 
     // Replace existing rows for this week
     await admin
