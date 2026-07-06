@@ -297,6 +297,15 @@ function formatExistingQuestionsForPrompt(questions: GeneratedQuestion[]): strin
   return `\n\nEXISTING QUESTIONS IN THIS SAME TIER (do not duplicate, paraphrase, or test the same underlying fact/application; also avoid reusing the same answer rationale):\n${compact.join("\n")}`;
 }
 
+function formatCrossTierAvoidForPrompt(questions: GeneratedQuestion[]): string {
+  if (!questions.length) return "";
+  const compact = questions.slice(0, 12).map((q, index) => {
+    return `${index + 1}. Stem: ${q.content_text}\n   Topic: ${q.topic}\n   Correct answer: ${q.answer}`;
+  });
+  return `\n\nQUESTIONS ALREADY USED IN THE STANDARD TIER OF THIS SAME WEEKLY QUIZ — do NOT repeat, paraphrase, or test the same fact/application. Pick a different concept, a different angle on the same concept, or a different scenario. Every student sees the standard tier plus this tier, so overlap wastes the quiz:\n${compact.join("\n")}`;
+}
+
+
 function validateQuestion(
   q: any,
   spec: TierSpec,
