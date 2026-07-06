@@ -551,6 +551,12 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
           rejects.push(`duplicate/paraphrase of existing same-tier question: "${duplicateOf.content_text.slice(0, 90)}"`);
           continue;
         }
+        const crossDup = crossTierAvoid.find((a) => isLikelyDuplicateQuestion(a, v.q));
+        if (crossDup) {
+          rejects.push(`duplicate/paraphrase of standard-tier question: "${crossDup.content_text.slice(0, 90)}"`);
+          continue;
+        }
+
         accepted.push(v.q);
       }
       if (accepted.length < spec.count && rejects.length) {
