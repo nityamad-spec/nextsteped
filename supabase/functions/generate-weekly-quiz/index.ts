@@ -297,6 +297,15 @@ function formatExistingQuestionsForPrompt(questions: GeneratedQuestion[]): strin
   return `\n\nEXISTING QUESTIONS IN THIS SAME TIER (do not duplicate, paraphrase, or test the same underlying fact/application; also avoid reusing the same answer rationale):\n${compact.join("\n")}`;
 }
 
+function formatCrossTierAvoidForPrompt(questions: GeneratedQuestion[]): string {
+  if (!questions.length) return "";
+  const compact = questions.slice(0, 12).map((q, index) => {
+    return `${index + 1}. Stem: ${q.content_text}\n   Topic: ${q.topic}\n   Correct answer: ${q.answer}`;
+  });
+  return `\n\nQUESTIONS ALREADY USED IN THE STANDARD TIER OF THIS SAME WEEKLY QUIZ — do NOT repeat, paraphrase, or test the same fact/application. Pick a different concept, a different angle on the same concept, or a different scenario. Every student sees the standard tier plus this tier, so overlap wastes the quiz:\n${compact.join("\n")}`;
+}
+
+
 function validateQuestion(
   q: any,
   spec: TierSpec,
@@ -386,12 +395,14 @@ async function generateTier(
   conceptByCode: Record<string, ConceptRow>,
   lovableKey: string,
   deadlineAt: number,
+  crossTierAvoid: GeneratedQuestion[] = [],
 ): Promise<GeneratedQuestion[]> {
   const conceptList = Object.keys(conceptByCode)
     .map((c) => `  - ${c}`)
     .join("\n");
   const accepted: GeneratedQuestion[] = [];
   let retryHint: string | null = null;
+
 
   outer: for (let attempt = 0; attempt < spec.maxAttempts && accepted.length < spec.count; attempt++) {
     // Within an attempt, chunk into sub-calls. Each sub-call asks for a small
@@ -428,7 +439,7 @@ ${spec.tier === "easy" ? "- Bloom target: mostly 1-2 (Remember/Understand)." : s
 ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 - LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
 - ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible student misconception (a wrong rule, a swapped operator, an off-by-one, a confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer. No obviously absurd choices.
-- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${formatExistingQuestionsForPrompt(accepted)}${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${formatExistingQuestionsForPrompt(accepted)}${formatCrossTierAvoidForPrompt(crossTierAvoid)}${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
 
       let response: Response;
       try {
@@ -540,6 +551,12 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
           rejects.push(`duplicate/paraphrase of existing same-tier question: "${duplicateOf.content_text.slice(0, 90)}"`);
           continue;
         }
+        const crossDup = crossTierAvoid.find((a) => isLikelyDuplicateQuestion(a, v.q));
+        if (crossDup) {
+          rejects.push(`duplicate/paraphrase of standard-tier question: "${crossDup.content_text.slice(0, 90)}"`);
+          continue;
+        }
+
         accepted.push(v.q);
       }
       if (accepted.length < spec.count && rejects.length) {
@@ -711,13 +728,39 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Generate all tiers in parallel with a shared deadline. allSettled lets
-    // us salvage partial tiers when one tier throws (e.g., 402 / timeout),
-    // matching the diagnostic generator's behavior.
+    // Sequence: standard first (canonical), then easy/medium/hard in parallel
+    // with the accepted standard set injected as cross-tier avoid context.
+    // If standard fails outright, fall back to all-parallel so we never zero
+    // out the whole quiz.
     const deadlineAt = Date.now() + GLOBAL_DEADLINE_MS;
     const allQuestions: { spec: TierSpec; q: GeneratedQuestion }[] = [];
-    const tierResults = await Promise.allSettled(
-      TIER_SPEC.map((spec) =>
+    let creditsExhausted = false;
+    const tierErrors: Record<string, string> = {};
+
+    const standardSpec = TIER_SPEC.find((t) => t.tier === "standard")!;
+    const adaptiveSpecs = TIER_SPEC.filter((t) => t.tier !== "standard");
+
+    let standardQs: GeneratedQuestion[] = [];
+    try {
+      standardQs = await generateTier(
+        standardSpec,
+        course.name ?? "Course",
+        weekNumber,
+        weekRow.week_name ?? "",
+        conceptByCode,
+        lovableKey,
+        deadlineAt,
+        [],
+      );
+      for (const q of standardQs) allQuestions.push({ spec: standardSpec, q });
+    } catch (err) {
+      if (err instanceof CreditsExhaustedError) creditsExhausted = true;
+      tierErrors[standardSpec.tier] = err instanceof Error ? err.message : String(err);
+      console.warn(`[weekly-quiz] tier standard failed:`, tierErrors[standardSpec.tier]);
+    }
+
+    const adaptiveResults = await Promise.allSettled(
+      adaptiveSpecs.map((spec) =>
         generateTier(
           spec,
           course.name ?? "Course",
@@ -726,14 +769,13 @@ Deno.serve(async (req) => {
           conceptByCode,
           lovableKey,
           deadlineAt,
+          standardQs,
         ).then((qs) => ({ spec, qs })),
       ),
     );
-    let creditsExhausted = false;
-    const tierErrors: Record<string, string> = {};
-    for (let i = 0; i < tierResults.length; i++) {
-      const r = tierResults[i];
-      const spec = TIER_SPEC[i];
+    for (let i = 0; i < adaptiveResults.length; i++) {
+      const r = adaptiveResults[i];
+      const spec = adaptiveSpecs[i];
       if (r.status === "fulfilled") {
         for (const q of r.value.qs) allQuestions.push({ spec, q });
       } else {
@@ -762,6 +804,29 @@ Deno.serve(async (req) => {
         },
       );
     }
+
+    // Post-assembly cross-tier dedup. Priority: standard → hard → medium → easy
+    // (standard is canonical; easy is the most likely offender).
+    const tierPriority: Tier[] = ["standard", "hard", "medium", "easy"];
+    const kept: { spec: TierSpec; q: GeneratedQuestion }[] = [];
+    const crossTierDrops: Record<string, number> = {};
+    for (const tier of tierPriority) {
+      for (const item of allQuestions.filter((x) => x.spec.tier === tier)) {
+        const dup = kept.find((k) => isLikelyDuplicateQuestion(k.q, item.q));
+        if (dup) {
+          crossTierDrops[tier] = (crossTierDrops[tier] ?? 0) + 1;
+          console.warn(`[weekly-quiz] cross-tier dedup: dropped ${tier} "${item.q.content_text.slice(0, 80)}" (duplicates ${dup.spec.tier} "${dup.q.content_text.slice(0, 80)}")`);
+          continue;
+        }
+        kept.push(item);
+      }
+    }
+    for (const [tier, n] of Object.entries(crossTierDrops)) {
+      const existing = tierErrors[tier];
+      tierErrors[tier] = existing ? `${existing}; dropped ${n} cross-tier duplicate(s)` : `dropped ${n} cross-tier duplicate(s)`;
+    }
+    allQuestions.splice(0, allQuestions.length, ...kept);
+
 
     // Replace existing rows for this week
     await admin
