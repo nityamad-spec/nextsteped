@@ -395,12 +395,14 @@ async function generateTier(
   conceptByCode: Record<string, ConceptRow>,
   lovableKey: string,
   deadlineAt: number,
+  crossTierAvoid: GeneratedQuestion[] = [],
 ): Promise<GeneratedQuestion[]> {
   const conceptList = Object.keys(conceptByCode)
     .map((c) => `  - ${c}`)
     .join("\n");
   const accepted: GeneratedQuestion[] = [];
   let retryHint: string | null = null;
+
 
   outer: for (let attempt = 0; attempt < spec.maxAttempts && accepted.length < spec.count; attempt++) {
     // Within an attempt, chunk into sub-calls. Each sub-call asks for a small
