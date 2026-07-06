@@ -439,7 +439,7 @@ ${spec.tier === "easy" ? "- Bloom target: mostly 1-2 (Remember/Understand)." : s
 ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 - LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
 - ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible student misconception (a wrong rule, a swapped operator, an off-by-one, a confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer. No obviously absurd choices.
-- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${formatExistingQuestionsForPrompt(accepted)}${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${formatExistingQuestionsForPrompt(accepted)}${formatCrossTierAvoidForPrompt(crossTierAvoid)}${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
 
       let response: Response;
       try {
