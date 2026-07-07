@@ -30,7 +30,8 @@ import {
   TOTAL_COUNT,
   pickBranchTier,
   computeStandardCorrect,
-  computeLearnerLevel,
+  // computeLearnerLevel is server-authoritative (score-diagnostic edge fn);
+  // no longer imported client-side.
   type BranchTier,
 } from "@/lib/diagnosticBranching";
 
