@@ -121,9 +121,11 @@ interface TierSpec {
 // because its joint constraints (difficulty + bloom ≥ 3 + category band)
 // reject more candidates per batch.
 const TIER_SPEC: TierSpec[] = [
-  { tier: "standard", count: 10, difficulty: 0.5, band: 0.15, maxAttempts: 2, label: "Standard (medium difficulty, common to all students)", batchSize: 5, perCallTimeoutMs: 80_000 },
-  { tier: "easy", count: 10, difficulty: 0.2, band: 0.15, maxAttempts: 2, label: "Easy adaptive tier (for struggling students)", batchSize: 5, perCallTimeoutMs: 80_000 },
-  { tier: "medium", count: 10, difficulty: 0.5, band: 0.15, maxAttempts: 2, label: "Medium adaptive tier (for average students)", batchSize: 5, perCallTimeoutMs: 80_000 },
+  // maxAttempts raised to 3 to give the retry loop room when validators
+  // (e.g. option length parity) reject candidates on top-up regens.
+  { tier: "standard", count: 10, difficulty: 0.5, band: 0.15, maxAttempts: 3, label: "Standard (medium difficulty, common to all students)", batchSize: 5, perCallTimeoutMs: 80_000 },
+  { tier: "easy", count: 10, difficulty: 0.2, band: 0.15, maxAttempts: 3, label: "Easy adaptive tier (for struggling students)", batchSize: 5, perCallTimeoutMs: 80_000 },
+  { tier: "medium", count: 10, difficulty: 0.5, band: 0.15, maxAttempts: 3, label: "Medium adaptive tier (for average students)", batchSize: 5, perCallTimeoutMs: 80_000 },
   // Hard tier widened: difficulty 0.80 ± 0.20 → [0.60, 1.00] covers both
   // EDGE_CASE (0.60-0.80) and COMPOSITE_REASONING (0.75-0.95) categories.
   { tier: "hard", count: 10, difficulty: 0.80, band: 0.20, maxAttempts: 3, label: "Hard adaptive tier (for advanced students)", batchSize: 5, perCallTimeoutMs: 80_000 },
