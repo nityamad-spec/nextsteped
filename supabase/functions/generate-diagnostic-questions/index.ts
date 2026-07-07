@@ -596,11 +596,16 @@ async function callGatewaySingle(
   ctx: RunCtx,
 ): Promise<GeneratedQuestion[]> {
   const logCtx = { requestId: ctx.requestId, teacherId: ctx.teacherId, courseId: ctx.courseId };
-  // Hard tier over-generation: validation drops a higher share of hard
-  // candidates, so ask for 1.5× needed (capped at batchSize+5 or 15) to
-  // absorb losses within this single sub-call.
+  // Over-generation:
+  // - Hard tier: validators drop a higher share, ask for 1.5× baseline.
+  // - Top-ups (needed < spec.count): a tier-only regen filling a small
+  //   shortfall gets wiped out by a single validator drop. Ask for ~1.75×
+  //   so we can absorb rejections in one sub-call.
   const overgenCap = Math.min(15, (spec.batchSize ?? needed) + 5);
-  const askFor = spec.tier === "hard" ? Math.min(overgenCap, Math.ceil(needed * 1.5)) : needed;
+  const isTopUp = needed < spec.count;
+  let askFor = needed;
+  if (spec.tier === "hard") askFor = Math.min(overgenCap, Math.ceil(needed * 1.5));
+  if (isTopUp) askFor = Math.min(overgenCap, Math.max(askFor, Math.ceil(needed * 1.75), needed + 2));
   const remainingList = Object.entries(remainingQuota)
     .filter(([, v]) => v > 0)
     .map(([k, v]) => `  - ${k}: ${v} more`)
