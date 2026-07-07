@@ -827,6 +827,46 @@ Deno.serve(async (req) => {
     }
     allQuestions.splice(0, allQuestions.length, ...kept);
 
+    // Backfill: any tier short of spec.count after dedup gets one extra
+    // generation call, with all currently kept questions as cross-tier avoid.
+    for (const spec of TIER_SPEC) {
+      const currentCount = allQuestions.filter((x) => x.spec.tier === spec.tier).length;
+      const shortfall = spec.count - currentCount;
+      if (shortfall <= 0) continue;
+      if (deadlineAt - Date.now() < 25_000) {
+        console.warn(`[weekly-quiz] backfill tier=${spec.tier} skipped: deadline budget too low`);
+        continue;
+      }
+      const backfillSpec: TierSpec = { ...spec, count: shortfall };
+      const avoid = allQuestions.map((x) => x.q);
+      try {
+        const extra = await generateTier(
+          backfillSpec,
+          course.name ?? "Course",
+          weekNumber,
+          weekRow.week_name ?? "",
+          conceptByCode,
+          lovableKey,
+          deadlineAt,
+          avoid,
+        );
+        let delivered = 0;
+        for (const q of extra) {
+          if (delivered >= shortfall) break;
+          if (allQuestions.some((k) => isLikelyDuplicateQuestion(k.q, q))) continue;
+          allQuestions.push({ spec, q });
+          delivered++;
+        }
+        console.log(`[weekly-quiz] backfill tier=${spec.tier} requested=${shortfall} delivered=${delivered}`);
+      } catch (err) {
+        if (err instanceof CreditsExhaustedError) creditsExhausted = true;
+        const msg = err instanceof Error ? err.message : String(err);
+        const existing = tierErrors[spec.tier];
+        tierErrors[spec.tier] = existing ? `${existing}; backfill failed: ${msg}` : `backfill failed: ${msg}`;
+        console.warn(`[weekly-quiz] backfill tier=${spec.tier} failed:`, msg);
+      }
+    }
+
 
     // Replace existing rows for this week
     await admin
