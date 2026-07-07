@@ -1564,7 +1564,10 @@ const ExamMode = () => {
                       className="h-7 px-2 text-xs"
                       onClick={() => {
                         const res = parseQuestionBlock(pasteText);
-                        if (res.ok !== true) { setPasteError(res.error); return; }
+                        if (res.ok === false) {
+                          setPasteError(res.error);
+                          return;
+                        }
                         const { question, options, correctIndex, detectedType } = res.value;
                         setFormQuestion(question);
                         if (detectedType === "TF") {
