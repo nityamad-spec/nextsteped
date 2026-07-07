@@ -863,6 +863,7 @@ const ExamMode = () => {
     setFormQuestion(""); setFormAnswer(""); setFormTopic("");
     setFormType("MCQ"); setFormOptions(["", "", "", ""]); setFormCorrectIndex(0);
     setFormDifficulty("Medium");
+    setPasteText(""); setPasteError(null);
     setFormBloom(2);
     setFormExplanation("");
     setFormDifficultyEstimate("0.50");
