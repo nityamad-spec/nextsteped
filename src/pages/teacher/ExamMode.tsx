@@ -1552,6 +1552,70 @@ const ExamMode = () => {
             <DialogTitle>{editingId ? "Edit" : "Add"} Question — Exam Mode</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {formType !== "Short Answer" && (
+              <div className="space-y-2 rounded-md border border-dashed border-primary/40 bg-primary/5 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-xs font-medium">Paste question (optional)</Label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => {
+                        const res = parseQuestionBlock(pasteText);
+                        if (!res.ok) { setPasteError(res.error); return; }
+                        const { question, options, correctIndex, detectedType } = res.value;
+                        setFormQuestion(question);
+                        if (detectedType === "TF") {
+                          setFormType("True/False");
+                          setFormAnswer(correctIndex === 1 ? "False" : "True");
+                        } else {
+                          setFormType("MCQ");
+                          const padded = [...options, "", "", "", ""].slice(0, 4);
+                          setFormOptions(padded);
+                          setFormCorrectIndex(correctIndex ?? 0);
+                        }
+                        setPasteText("");
+                        setPasteError(null);
+                        if (correctIndex == null && detectedType === "MCQ") {
+                          toast.message("Parsed. Please mark the correct option.");
+                        } else {
+                          toast.success("Parsed question and options");
+                        }
+                      }}
+                      disabled={!pasteText.trim()}
+                    >
+                      Fill fields
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => { setPasteText(""); setPasteError(null); }}
+                      disabled={!pasteText && !pasteError}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+                <Textarea
+                  rows={6}
+                  value={pasteText}
+                  onChange={(e) => { setPasteText(e.target.value); if (pasteError) setPasteError(null); }}
+                  placeholder={`Paste a full question, e.g.:\n\nWhat is 2 + 2?\nA) 3\nB) 4\nC) 5\nD) 22\nAnswer: B`}
+                  className="text-sm font-mono"
+                />
+                {pasteError ? (
+                  <p className="text-[11px] text-destructive">{pasteError}</p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    Supports A) B) C) D) or 1. 2. 3. 4. Mark the correct answer with <code>Answer: B</code> or a trailing <code>*</code>.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Question</Label>
               <Textarea value={formQuestion} onChange={e => setFormQuestion(e.target.value)} placeholder="Enter question text..." rows={3} />
