@@ -1020,8 +1020,12 @@ async function runTier(
       data: { needed, remaining, budget_ms: budgetLeft, accepted_so_far: accepted.length },
     });
 
+    const lengthImbalanceCount = reasons.filter((r) => r.includes("option length imbalance")).length;
+    const lengthHint = lengthImbalanceCount > 0
+      ? `CRITICAL: previous attempt had ${lengthImbalanceCount} option-length-imbalance rejections. Every option MUST be within ±20% character length of the correct one (max/min ≤ 1.6). Rewrite distractors to match the correct option's length, specificity, and hedging. `
+      : "";
     const retryHint = attempts > 1
-      ? `Previous batch had ${lastInvalidCount} invalid or over-quota questions. Common issues: ${[...new Set(reasons)].slice(0, 3).join("; ")}. Generate exactly the REMAINING NEED counts shown above.`
+      ? `${lengthHint}Previous batch had ${lastInvalidCount} invalid or over-quota questions. Common issues: ${[...new Set(reasons)].slice(0, 3).join("; ")}. Generate exactly the REMAINING NEED counts shown above.`
       : null;
 
     let batch: GeneratedQuestion[] = [];
