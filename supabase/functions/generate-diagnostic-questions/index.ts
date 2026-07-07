@@ -121,9 +121,11 @@ interface TierSpec {
 // because its joint constraints (difficulty + bloom ≥ 3 + category band)
 // reject more candidates per batch.
 const TIER_SPEC: TierSpec[] = [
-  { tier: "standard", count: 10, difficulty: 0.5, band: 0.15, maxAttempts: 2, label: "Standard (medium difficulty, common to all students)", batchSize: 5, perCallTimeoutMs: 80_000 },
-  { tier: "easy", count: 10, difficulty: 0.2, band: 0.15, maxAttempts: 2, label: "Easy adaptive tier (for struggling students)", batchSize: 5, perCallTimeoutMs: 80_000 },
-  { tier: "medium", count: 10, difficulty: 0.5, band: 0.15, maxAttempts: 2, label: "Medium adaptive tier (for average students)", batchSize: 5, perCallTimeoutMs: 80_000 },
+  // maxAttempts raised to 3 to give the retry loop room when validators
+  // (e.g. option length parity) reject candidates on top-up regens.
+  { tier: "standard", count: 10, difficulty: 0.5, band: 0.15, maxAttempts: 3, label: "Standard (medium difficulty, common to all students)", batchSize: 5, perCallTimeoutMs: 80_000 },
+  { tier: "easy", count: 10, difficulty: 0.2, band: 0.15, maxAttempts: 3, label: "Easy adaptive tier (for struggling students)", batchSize: 5, perCallTimeoutMs: 80_000 },
+  { tier: "medium", count: 10, difficulty: 0.5, band: 0.15, maxAttempts: 3, label: "Medium adaptive tier (for average students)", batchSize: 5, perCallTimeoutMs: 80_000 },
   // Hard tier widened: difficulty 0.80 ± 0.20 → [0.60, 1.00] covers both
   // EDGE_CASE (0.60-0.80) and COMPOSITE_REASONING (0.75-0.95) categories.
   { tier: "hard", count: 10, difficulty: 0.80, band: 0.20, maxAttempts: 3, label: "Hard adaptive tier (for advanced students)", batchSize: 5, perCallTimeoutMs: 80_000 },
@@ -594,11 +596,16 @@ async function callGatewaySingle(
   ctx: RunCtx,
 ): Promise<GeneratedQuestion[]> {
   const logCtx = { requestId: ctx.requestId, teacherId: ctx.teacherId, courseId: ctx.courseId };
-  // Hard tier over-generation: validation drops a higher share of hard
-  // candidates, so ask for 1.5× needed (capped at batchSize+5 or 15) to
-  // absorb losses within this single sub-call.
+  // Over-generation:
+  // - Hard tier: validators drop a higher share, ask for 1.5× baseline.
+  // - Top-ups (needed < spec.count): a tier-only regen filling a small
+  //   shortfall gets wiped out by a single validator drop. Ask for ~1.75×
+  //   so we can absorb rejections in one sub-call.
   const overgenCap = Math.min(15, (spec.batchSize ?? needed) + 5);
-  const askFor = spec.tier === "hard" ? Math.min(overgenCap, Math.ceil(needed * 1.5)) : needed;
+  const isTopUp = needed < spec.count;
+  let askFor = needed;
+  if (spec.tier === "hard") askFor = Math.min(overgenCap, Math.ceil(needed * 1.5));
+  if (isTopUp) askFor = Math.min(overgenCap, Math.max(askFor, Math.ceil(needed * 1.75), needed + 2));
   const remainingList = Object.entries(remainingQuota)
     .filter(([, v]) => v > 0)
     .map(([k, v]) => `  - ${k}: ${v} more`)
@@ -887,27 +894,79 @@ async function runTier(
   ctx: RunCtx,
   preSeed: ValidatedQuestion[] = [],
 ): Promise<TierResult> {
-  const seed = `${courseName}:${spec.tier}:${Date.now()}:${Math.random()}`;
-  const quota = computeTierQuota(units, spec.count, seed);
-  const quotaBlock = formatQuotaForPrompt(units, quota);
+  const isPartialRegen = preSeed.length > 0;
+  // For tier-only regens, seed the RNG deterministically on (courseId, tier)
+  // so quota doesn't reshuffle between successive regens and erode preseed.
+  const seed = isPartialRegen
+    ? `regen:${ctx.courseId}:${spec.tier}`
+    : `${courseName}:${spec.tier}:${Date.now()}:${Math.random()}`;
+  let quota = computeTierQuota(units, spec.count, seed);
 
   // Pre-seed with existing accepted rows so tier-only regens accumulate
-  // instead of restarting from zero. Filter to entries that still satisfy
-  // current validation + quota constraints.
+  // instead of restarting from zero. On regens, LOCK preseed topics into the
+  // quota first so already-accepted rows aren't dropped when the fresh quota
+  // happens to give their concept 0 slots.
   const accepted: ValidatedQuestion[] = [];
   const acceptedByCode: Record<string, number> = {};
-  for (const ex of preSeed) {
-    const v = validateMcq(ex, spec, conceptByCode);
-    if (!v.ok) continue;
-    const code = v.normalized.topic;
-    const cap = quota[code] || 0;
-    if (cap === 0) continue;
-    if ((acceptedByCode[code] || 0) >= cap) continue;
-    if (isDuplicate(v.normalized, accepted)) continue;
-    accepted.push(v.normalized);
-    acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
-    if (accepted.length >= spec.count) break;
+
+  if (isPartialRegen) {
+    // Build a preseed distribution and expand quota to cover it.
+    const preseedDist: Record<string, number> = {};
+    const validPreseed: ValidatedQuestion[] = [];
+    for (const ex of preSeed) {
+      const v = validateMcq(ex, spec, conceptByCode);
+      if (!v.ok) continue;
+      const code = v.normalized.topic;
+      if (!conceptByCode[code]) continue; // concept no longer exists in course
+      preseedDist[code] = (preseedDist[code] || 0) + 1;
+      validPreseed.push(v.normalized);
+    }
+    // Merge: quota[code] = max(existing quota, preseed count) so preseed
+    // always fits, then re-normalize down to spec.count by trimming excess
+    // from non-preseed concepts.
+    const merged: Record<string, number> = { ...quota };
+    for (const [code, n] of Object.entries(preseedDist)) {
+      merged[code] = Math.max(merged[code] || 0, n);
+    }
+    let total = Object.values(merged).reduce((a, b) => a + b, 0);
+    // Trim excess from non-preseed concepts (largest first) until at spec.count.
+    while (total > spec.count) {
+      const trimmable = Object.entries(merged)
+        .filter(([c, v]) => v > 0 && (preseedDist[c] || 0) < v)
+        .sort((a, b) => b[1] - a[1]);
+      if (trimmable.length === 0) break;
+      const [c] = trimmable[0];
+      merged[c] -= 1;
+      total -= 1;
+    }
+    quota = merged;
+
+    for (const nq of validPreseed) {
+      const code = nq.topic;
+      const cap = quota[code] || 0;
+      if (cap === 0) continue;
+      if ((acceptedByCode[code] || 0) >= cap) continue;
+      if (isDuplicate(nq, accepted)) continue;
+      accepted.push(nq);
+      acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
+      if (accepted.length >= spec.count) break;
+    }
+  } else {
+    for (const ex of preSeed) {
+      const v = validateMcq(ex, spec, conceptByCode);
+      if (!v.ok) continue;
+      const code = v.normalized.topic;
+      const cap = quota[code] || 0;
+      if (cap === 0) continue;
+      if ((acceptedByCode[code] || 0) >= cap) continue;
+      if (isDuplicate(v.normalized, accepted)) continue;
+      accepted.push(v.normalized);
+      acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
+      if (accepted.length >= spec.count) break;
+    }
   }
+
+  const quotaBlock = formatQuotaForPrompt(units, quota);
   const reasons: string[] = [];
   let attempts = 0;
   let lastInvalidCount = 0;
@@ -961,8 +1020,12 @@ async function runTier(
       data: { needed, remaining, budget_ms: budgetLeft, accepted_so_far: accepted.length },
     });
 
+    const lengthImbalanceCount = reasons.filter((r) => r.includes("option length imbalance")).length;
+    const lengthHint = lengthImbalanceCount > 0
+      ? `CRITICAL: previous attempt had ${lengthImbalanceCount} option-length-imbalance rejections. Every option MUST be within ±20% character length of the correct one (max/min ≤ 1.6). Rewrite distractors to match the correct option's length, specificity, and hedging. `
+      : "";
     const retryHint = attempts > 1
-      ? `Previous batch had ${lastInvalidCount} invalid or over-quota questions. Common issues: ${[...new Set(reasons)].slice(0, 3).join("; ")}. Generate exactly the REMAINING NEED counts shown above.`
+      ? `${lengthHint}Previous batch had ${lastInvalidCount} invalid or over-quota questions. Common issues: ${[...new Set(reasons)].slice(0, 3).join("; ")}. Generate exactly the REMAINING NEED counts shown above.`
       : null;
 
     let batch: GeneratedQuestion[] = [];
