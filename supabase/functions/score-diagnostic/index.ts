@@ -42,32 +42,32 @@ const CONFIG = {
   PACE_FAST_CUTOFF: 0.25,   // r below this is treated as guessing
   PACE_SLOW_DECAY: 2.0,     // exp decay scale for r > 1
 
-  // Final mastery combination weights (sum should be 1.0)
+  // Final mastery combination weights (sum should be 1.0) — kept for analytics
   WEIGHTS: { accuracy: 0.70, pace: 0.15, confidence: 0.15 },
-
-  // Equal 25% bands. Lower inclusive, upper exclusive, except top band includes 1.0.
-  // Use 1.0001 sentinel so 1.0 lands in "expert".
-  LEVEL_BANDS: [
-    { max: 0.25,   level: "beginner" },
-    { max: 0.50,   level: "developing" },
-    { max: 0.75,   level: "proficient" },
-    { max: 1.0001, level: "expert" },
-  ],
 
   // Confidence: 3-level discrete scale from UI [0,1,2] mapped to [0..1].
   CONFIDENCE_LEVELS: { 0: 0.0, 1: 0.5, 2: 1.0 } as Record<number, number>,
   CONFIDENCE_DEFAULT: 1,
 } as const;
 
-type LearnerLevel = "beginner" | "developing" | "proficient" | "expert";
+type LearnerLevel = "beginner" | "developing" | "proficient";
 
-function bandFor(score: number): LearnerLevel {
-  const s = clamp01(score);
-  for (const b of CONFIG.LEVEL_BANDS) {
-    if (s < b.max) return b.level as LearnerLevel;
-  }
-  return "expert";
+/**
+ * Level from Phase A branch tier + total correct out of 20.
+ * Mirrors client computeLearnerLevel in src/lib/diagnosticBranching.ts.
+ * easy/medium: ≤10 → beginner, else developing.
+ * hard: ≤10 → developing, else proficient.
+ */
+function levelFromBranch(
+  branch: "easy" | "medium" | "hard" | null,
+  correct: number,
+  answered: number,
+): LearnerLevel {
+  if (!branch || answered <= 0) return "beginner";
+  if (branch === "hard") return correct <= 10 ? "developing" : "proficient";
+  return correct <= 10 ? "beginner" : "developing";
 }
+
 
 // Pace curve: r = actual / expected. Smooth, no hard cliff on slow side.
 function paceCurve(r: number): number {
