@@ -1,43 +1,35 @@
-# Fix: weekly quiz tiers producing duplicate questions
+# Fix: weekly quiz stuck at 19 questions after cross-tier dedup
 
 ## Root cause
 
-`supabase/functions/generate-weekly-quiz/index.ts` generates all four tiers (standard, easy, medium, hard) **in parallel** via `Promise.allSettled` (line 719). Each tier's prompt (line 431) only shows the model "EXISTING QUESTIONS IN THIS SAME TIER" — there is zero cross-tier awareness. On a small-concept week (e.g. Google Cloud Infra W1), the model naturally picks the same "most obvious" questions for standard and easy, and nothing rejects them.
+In `supabase/functions/generate-weekly-quiz/index.ts` (lines 808-828), the post-assembly cross-tier dedup pass drops any adaptive question whose stem/answer overlaps with a higher-priority tier — but it never regenerates a replacement. Function logs confirm the last run:
 
-`validateTierQuestionSet` (line 266) also runs per-tier only, so cross-tier duplicates survive.
+> `cross-tier dedup: dropped easy "True or False: The Google Cloud Marketplace only offers software solutions creat…" (duplicates hard "True or False: After deploying a VM-based solution from the Google Cloud Marketp…")`
 
-## Fix
+So `easy` ended up with 4 kept + 1 dropped = 4, total 19 instead of 20. The response is flagged `partial: true` and the UI shows 19.
 
-Two changes, both inside `supabase/functions/generate-weekly-quiz/index.ts`. No frontend or schema changes.
+## Fix — single change, same file
 
-### 1. Sequence standard first, then run easy/medium/hard in parallel with standard as forbidden context
+Add a **backfill pass** right after the cross-tier dedup block (after line 828), before the DB insert:
 
-- Run `generateTier` for **standard** first and await it.
-- Then run **easy, medium, hard** with `Promise.allSettled` as today, but pass the accepted standard questions into `generateTier` as an additional "cross-tier avoid" list.
-- Update `generateTier` signature to accept `crossTierAvoid: GeneratedQuestion[]` and merge it into the prompt via a new `formatCrossTierAvoidForPrompt(...)` helper that renders:
-  > "QUESTIONS ALREADY USED IN THE STANDARD TIER OF THIS SAME QUIZ — do NOT repeat, paraphrase, or test the same fact/application. Choose different concepts or different angles on the same concept."
-- Inside `generateTier`, also feed `crossTierAvoid` into the same-tier `isLikelyDuplicateQuestion` check when validating incoming candidates, so any accidental collision is rejected before it's kept.
+1. Compute `shortfall = spec.count - kept-count` for each tier.
+2. For each tier with `shortfall > 0` AND deadline budget remaining (e.g. `>25s` left):
+   - Call `generateTier(spec, …, crossTierAvoid = [all currently kept questions])` with a temporary override of `spec.count = shortfall` (shallow-clone the spec so the module-level `TIER_SPEC` isn't mutated).
+   - Run the returned questions through the same cross-tier dedup loop against `kept`; append survivors up to `shortfall`.
+3. Cap attempts at 1 backfill call per tier — if it still comes up short, leave it and let `partial: true` stand (existing behavior).
+4. Log `[weekly-quiz] backfill tier=<tier> requested=N delivered=M`.
 
-Wall-clock impact: standard tier adds ~15-30s (the other three still run in parallel). Well within the 130s global deadline. If standard fails outright, fall back to the current all-parallel behavior so we never zero out the whole quiz.
-
-### 2. Post-assembly cross-tier dedup + tier-priority resolution
-
-Before insert (around line 774), run a final pass over `allQuestions`:
-
-- Iterate in tier priority order **standard → hard → medium → easy** (standard is canonical; easy is most likely to be the offender).
-- Use existing `isLikelyDuplicateQuestion` against everything already kept.
-- Drop losers, log which tier/stem was dropped into `tier_errors[<tier>] += "dropped N cross-tier duplicates"`.
-- Allow the response to be `partial: true` if a tier ends up under 5 after dedup (frontend already handles partials).
+Errors in the backfill call are swallowed (append to `tierErrors[tier]` as `"backfill failed: <msg>"`) — we never regress from 19 back to 0.
 
 ## Verification
 
-1. Deploy `generate-weekly-quiz`.
-2. On `/teacher/setup/lesson-plan`, regenerate Week 1 for Google Cloud Infra CL01.
-3. Open `WeeklyQuizReviewDialog` and confirm standard vs. easy stems and correct answers no longer overlap.
-4. Check function logs for any `dropped N cross-tier duplicates` warnings — a small number is expected and fine; zero is ideal.
+1. On `/teacher/setup/lesson-plan`, click **Regenerate Weekly Quiz** for Google Cloud Infra CL01, Week 1.
+2. Expect 20 rows in `WeeklyQuizReviewDialog` (5 per tier).
+3. Check function logs for `backfill tier=easy requested=1 delivered=1` (or similar) and no remaining cross-tier duplicate warnings against `kept`.
+4. If backfill genuinely can't produce a non-dup on a very small concept week, response is still `partial: true` at 19 — acceptable, matches today's contract.
 
-## Not doing (and why)
+## Not doing
 
-- **Fully sequential all four tiers**: would push wall clock past the 130s deadline on slow gateway days.
-- **Hard-coded "no same concept across tiers"**: too strict on small-concept weeks where 3 concepts must cover 20 questions — the model needs to reuse concepts, just not restate the same question.
-- **Schema change to enforce uniqueness in DB**: overkill; dedup belongs in generation, not as a hard DB constraint that would reject partial quizzes.
+- Loosening the dedup threshold — would reintroduce the original duplicate-questions bug we just fixed.
+- Over-generating each tier (e.g. `count+1`) up front — wastes tokens on the common case where no dedup fires.
+- Any frontend change — the dialog already renders whatever rows exist.
