@@ -188,10 +188,10 @@ describe("two-phase diagnostic flow", () => {
       );
       expect(totalCorrect).toBe(phaseACorrect + ADAPTIVE_COUNT);
 
-      const level = computeLearnerLevel(totalCorrect, TOTAL_COUNT);
-      // sanity: high Phase A + perfect Phase B → at least Proficient
+      const level = computeLearnerLevel(totalCorrect, TOTAL_COUNT, branch);
+      // sanity: any successful Phase B on a chosen branch → at least developing
       if (phaseACorrect >= 2) {
-        expect(["developing", "proficient", "expert"]).toContain(level);
+        expect(["developing", "proficient"]).toContain(level);
       }
     },
   );
