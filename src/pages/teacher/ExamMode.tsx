@@ -191,6 +191,8 @@ const ExamMode = () => {
   const [formDifficultyJustification, setFormDifficultyJustification] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [autoFilling, setAutoFilling] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [pasteError, setPasteError] = useState<string | null>(null);
   const initialMetaRef = useRef<{
     difficulty: "Easy" | "Medium" | "Hard";
     bloom: number;
