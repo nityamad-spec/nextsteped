@@ -121,22 +121,32 @@ describe("computeStandardCorrect — Phase A scoring", () => {
 
 // ---------------- computeLearnerLevel ----------------
 
-describe("computeLearnerLevel — final cutoffs", () => {
+describe("computeLearnerLevel — branch-tier aware cutoffs", () => {
   it.each([
-    [17, 20, "expert"], // 0.85 boundary
-    [20, 20, "expert"],
-    [12, 20, "proficient"], // 0.60 boundary
-    [16, 20, "proficient"],
-    [7, 20, "developing"], // 0.35 boundary
-    [11, 20, "developing"],
-    [6, 20, "beginner"],
-    [0, 20, "beginner"],
-  ])("%i / %i → %s", (correct, total, level) => {
-    expect(computeLearnerLevel(correct, total)).toBe(level);
+    // easy: ≤10 beginner, 11–20 developing
+    [0, "easy", "beginner"],
+    [5, "easy", "beginner"],
+    [10, "easy", "beginner"],
+    [11, "easy", "developing"],
+    [20, "easy", "developing"],
+    // medium: same split as easy
+    [10, "medium", "beginner"],
+    [11, "medium", "developing"],
+    [15, "medium", "developing"],
+    // hard: ≤10 developing, 11–20 proficient
+    [10, "hard", "developing"],
+    [11, "hard", "proficient"],
+    [20, "hard", "proficient"],
+  ])("correct=%i on branch=%s → %s", (correct, branch, level) => {
+    expect(computeLearnerLevel(correct, 20, branch as BranchTier)).toBe(level);
   });
 
   it("returns Beginner for zero total (defensive)", () => {
-    expect(computeLearnerLevel(0, 0)).toBe("beginner");
+    expect(computeLearnerLevel(0, 0, "easy")).toBe("beginner");
+  });
+
+  it("returns Beginner when branch is null (defensive)", () => {
+    expect(computeLearnerLevel(15, 20, null)).toBe("beginner");
   });
 });
 
@@ -178,10 +188,10 @@ describe("two-phase diagnostic flow", () => {
       );
       expect(totalCorrect).toBe(phaseACorrect + ADAPTIVE_COUNT);
 
-      const level = computeLearnerLevel(totalCorrect, TOTAL_COUNT);
-      // sanity: high Phase A + perfect Phase B → at least Proficient
+      const level = computeLearnerLevel(totalCorrect, TOTAL_COUNT, branch);
+      // sanity: any successful Phase B on a chosen branch → at least developing
       if (phaseACorrect >= 2) {
-        expect(["developing", "proficient", "expert"]).toContain(level);
+        expect(["developing", "proficient"]).toContain(level);
       }
     },
   );
@@ -215,7 +225,7 @@ describe("diagnostic_results persistence shape", () => {
     await insertSpy({
       score: correct,
       total_questions: questions.length,
-      learner_level: computeLearnerLevel(correct, questions.length),
+      learner_level: computeLearnerLevel(correct, questions.length, branch),
       branch_tier: branch,
       answers: standardised,
     });

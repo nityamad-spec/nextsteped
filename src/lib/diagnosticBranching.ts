@@ -12,7 +12,7 @@ export const TOTAL_COUNT = STANDARD_COUNT + ADAPTIVE_COUNT;
 
 export type BranchTier = "easy" | "medium" | "hard";
 export type QuestionTier = "standard" | BranchTier;
-export type LearnerLevel = "beginner" | "developing" | "proficient" | "expert";
+export type LearnerLevel = "beginner" | "developing" | "proficient";
 
 export interface ScoredQuestion {
   id: string;
@@ -67,14 +67,20 @@ export function computeStandardCorrect(
 }
 
 /**
- * Final learner level from full-quiz correct ratio.
- * ≥0.85 expert, ≥0.60 proficient, ≥0.35 developing, else beginner.
+ * Final learner level from Phase A branch tier and total correct out of 20.
+ * easy/medium: ≤10 → beginner, else developing.
+ * hard: ≤10 → developing, else proficient.
+ * `total` is retained for signature stability but does not affect banding.
  */
-export function computeLearnerLevel(correct: number, total: number): LearnerLevel {
-  if (total <= 0) return "beginner";
-  const ratio = correct / total;
-  if (ratio >= 0.85) return "expert";
-  if (ratio >= 0.6) return "proficient";
-  if (ratio >= 0.35) return "developing";
-  return "beginner";
+export function computeLearnerLevel(
+  correct: number,
+  total: number,
+  branch: BranchTier | null,
+): LearnerLevel {
+  if (total <= 0 || !branch) return "beginner";
+  if (branch === "hard") {
+    return correct <= 10 ? "developing" : "proficient";
+  }
+  // easy or medium
+  return correct <= 10 ? "beginner" : "developing";
 }
