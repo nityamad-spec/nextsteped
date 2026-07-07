@@ -1,25 +1,45 @@
 ## Goal
 
-When a student in `/student/chat` asks for an image/diagram, the assistant should offer to "generate a diagram" without ever surfacing the word "Mermaid" (or "textual description vs Mermaid" choices). It should just produce the diagram inline.
+Make `computeLearnerLevel` in `src/lib/diagnosticBranching.ts` branch-tier aware. The final level should depend on both the Phase A branch tier and the total correct out of 20. Remove the "Expert" tier from client-side computation.
 
-## Change
+## New rules
 
-Single edit in `supabase/functions/chat/index.ts`, in the student system prompt "DIAGRAMS" section (lines ~514–523):
+Input: `correct` (0–20 total), `branch` (`"easy" | "medium" | "hard"`).
 
-- Rename the section header from `DIAGRAMS (Mermaid) — you CAN draw diagrams` to `DIAGRAMS — you CAN draw diagrams`.
-- Keep the technical instruction that the fenced code block must use language `mermaid` (the renderer needs this), but add an explicit rule: **never mention the words "Mermaid", "syntax", "rendered", or ask the student to choose between a text description and a diagram. Refer to the output only as "a diagram".**
-- Strengthen the existing anti-refusal rule so that for image/picture/visual requests on diagrammable topics, the assistant just produces the diagram directly instead of asking permission or listing format options.
-- For genuinely non-diagrammable image requests (e.g. "generate a photo of a cat"), it should briefly say it can produce diagrams for course concepts and offer to draw one, without naming the underlying format.
+| Branch | correct ≤ 10 | 11 ≤ correct ≤ 20 |
+| --- | --- | --- |
+| easy | Beginner | Developing |
+| medium | Beginner | Developing |
+| hard | Developing | Proficient |
 
-No changes to the professor prompt, no frontend changes, no changes to the Mermaid renderer component.
+"Expert" is no longer produced client-side (server-side `score-diagnostic` is unaffected).
 
-## Risks
+## Changes
 
-- Model may still leak the word "Mermaid" occasionally; the prompt rule reduces but can't guarantee elimination.
-- Must keep the fenced-block `mermaid` language tag intact or diagrams stop rendering.
-- Slightly more aggressive "just draw it" behavior could produce diagrams for requests where prose would be clearer — mitigated by keeping the existing "skip diagrams when prose is clearer" guidance.
+### 1. `src/lib/diagnosticBranching.ts`
+- Change `LearnerLevel` type to `"beginner" | "developing" | "proficient"` (drop `"expert"`).
+- Update `computeLearnerLevel` signature to `(correct: number, total: number, branch: BranchTier | null)`:
+  - If `total <= 0` or `branch` is null → `"beginner"` (defensive).
+  - Apply the table above using `correct <= 10` as the split.
+  - `total` param kept for signature stability but no longer drives banding.
 
-## Not doing
+### 2. `src/pages/student/DiagnosticQuiz.tsx`
+- Update the call site that invokes `computeLearnerLevel(correct, total)` to pass the chosen `branch` tier (already tracked in component state for Phase B / persistence).
 
-- Adding real image generation.
-- Touching professor chat, diagram renderer, or any UI.
+### 3. Tests — `src/lib/diagnosticBranching.test.ts`
+- Rewrite the `computeLearnerLevel — final cutoffs` block against the new table:
+  - easy + 0, 5, 10 → beginner; easy + 11, 20 → developing
+  - medium + 10 → beginner; medium + 15 → developing
+  - hard + 10 → developing; hard + 11, 20 → proficient
+  - null branch or total 0 → beginner
+- Update the end-to-end "two-phase diagnostic flow" assertion that expects `["developing","proficient","expert"]` — remove `"expert"` and pass `branch` through.
+- Update the persistence-shape tests (`submitMock`) to pass `branch` into `computeLearnerLevel`.
+
+### 4. Callers/consumers
+- Search for any other reader of `LearnerLevel` that hard-codes `"expert"` (e.g. heatmap legend, admin diagnostics view). If found and used for client-computed level, drop the expert branch; if it reads server-side `diagnostic_results.learner_level`, leave untouched (server still emits expert).
+
+## Out of scope
+
+- No changes to `pickBranchTier`, Phase A/B counts, or `isAnswerCorrect`.
+- No changes to server-side `score-diagnostic` mastery/level logic.
+- No UI copy or heatmap-color changes beyond removing dead "expert" handling that came from the client computation path.
