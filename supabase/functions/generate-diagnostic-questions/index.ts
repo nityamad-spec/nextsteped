@@ -894,27 +894,79 @@ async function runTier(
   ctx: RunCtx,
   preSeed: ValidatedQuestion[] = [],
 ): Promise<TierResult> {
-  const seed = `${courseName}:${spec.tier}:${Date.now()}:${Math.random()}`;
-  const quota = computeTierQuota(units, spec.count, seed);
-  const quotaBlock = formatQuotaForPrompt(units, quota);
+  const isPartialRegen = preSeed.length > 0;
+  // For tier-only regens, seed the RNG deterministically on (courseId, tier)
+  // so quota doesn't reshuffle between successive regens and erode preseed.
+  const seed = isPartialRegen
+    ? `regen:${ctx.courseId}:${spec.tier}`
+    : `${courseName}:${spec.tier}:${Date.now()}:${Math.random()}`;
+  let quota = computeTierQuota(units, spec.count, seed);
 
   // Pre-seed with existing accepted rows so tier-only regens accumulate
-  // instead of restarting from zero. Filter to entries that still satisfy
-  // current validation + quota constraints.
+  // instead of restarting from zero. On regens, LOCK preseed topics into the
+  // quota first so already-accepted rows aren't dropped when the fresh quota
+  // happens to give their concept 0 slots.
   const accepted: ValidatedQuestion[] = [];
   const acceptedByCode: Record<string, number> = {};
-  for (const ex of preSeed) {
-    const v = validateMcq(ex, spec, conceptByCode);
-    if (!v.ok) continue;
-    const code = v.normalized.topic;
-    const cap = quota[code] || 0;
-    if (cap === 0) continue;
-    if ((acceptedByCode[code] || 0) >= cap) continue;
-    if (isDuplicate(v.normalized, accepted)) continue;
-    accepted.push(v.normalized);
-    acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
-    if (accepted.length >= spec.count) break;
+
+  if (isPartialRegen) {
+    // Build a preseed distribution and expand quota to cover it.
+    const preseedDist: Record<string, number> = {};
+    const validPreseed: ValidatedQuestion[] = [];
+    for (const ex of preSeed) {
+      const v = validateMcq(ex, spec, conceptByCode);
+      if (!v.ok) continue;
+      const code = v.normalized.topic;
+      if (!conceptByCode[code]) continue; // concept no longer exists in course
+      preseedDist[code] = (preseedDist[code] || 0) + 1;
+      validPreseed.push(v.normalized);
+    }
+    // Merge: quota[code] = max(existing quota, preseed count) so preseed
+    // always fits, then re-normalize down to spec.count by trimming excess
+    // from non-preseed concepts.
+    const merged: Record<string, number> = { ...quota };
+    for (const [code, n] of Object.entries(preseedDist)) {
+      merged[code] = Math.max(merged[code] || 0, n);
+    }
+    let total = Object.values(merged).reduce((a, b) => a + b, 0);
+    // Trim excess from non-preseed concepts (largest first) until at spec.count.
+    while (total > spec.count) {
+      const trimmable = Object.entries(merged)
+        .filter(([c, v]) => v > 0 && (preseedDist[c] || 0) < v)
+        .sort((a, b) => b[1] - a[1]);
+      if (trimmable.length === 0) break;
+      const [c] = trimmable[0];
+      merged[c] -= 1;
+      total -= 1;
+    }
+    quota = merged;
+
+    for (const nq of validPreseed) {
+      const code = nq.topic;
+      const cap = quota[code] || 0;
+      if (cap === 0) continue;
+      if ((acceptedByCode[code] || 0) >= cap) continue;
+      if (isDuplicate(nq, accepted)) continue;
+      accepted.push(nq);
+      acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
+      if (accepted.length >= spec.count) break;
+    }
+  } else {
+    for (const ex of preSeed) {
+      const v = validateMcq(ex, spec, conceptByCode);
+      if (!v.ok) continue;
+      const code = v.normalized.topic;
+      const cap = quota[code] || 0;
+      if (cap === 0) continue;
+      if ((acceptedByCode[code] || 0) >= cap) continue;
+      if (isDuplicate(v.normalized, accepted)) continue;
+      accepted.push(v.normalized);
+      acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
+      if (accepted.length >= spec.count) break;
+    }
   }
+
+  const quotaBlock = formatQuotaForPrompt(units, quota);
   const reasons: string[] = [];
   let attempts = 0;
   let lastInvalidCount = 0;
