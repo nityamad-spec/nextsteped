@@ -886,6 +886,7 @@ const ExamMode = () => {
 
   const openEditDialog = (q: EditableQuestion) => {
     setEditingId(q.id);
+    setPasteText(""); setPasteError(null);
     setFormQuestion(q.question); setFormAnswer(q.answer || ""); setFormTopic(q.topic);
     setFormType(q.type);
     setFormOptions(q.options?.length ? [...q.options] : ["", "", "", ""]);
