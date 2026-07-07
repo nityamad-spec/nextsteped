@@ -27,6 +27,7 @@ import type { ExamScheduleItem } from "@/types";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useCourseExams, nextAvailableLabel } from "@/hooks/useCourseExams";
 import { Archive, RotateCcw } from "lucide-react";
+import { parseQuestionBlock } from "@/lib/parseQuestionPaste";
 
 
 const newExamId = () =>
