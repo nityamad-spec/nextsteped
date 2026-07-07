@@ -225,7 +225,7 @@ describe("diagnostic_results persistence shape", () => {
     await insertSpy({
       score: correct,
       total_questions: questions.length,
-      learner_level: computeLearnerLevel(correct, questions.length),
+      learner_level: computeLearnerLevel(correct, questions.length, branch),
       branch_tier: branch,
       answers: standardised,
     });
