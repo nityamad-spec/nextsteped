@@ -245,7 +245,7 @@ Deno.serve(async (req) => {
       W.pace * paceScore +
       W.confidence * confidenceScore,
   );
-  const learnerLevel = bandFor(masteryScore);
+  const learnerLevel = levelFromBranch(body.branch_tier ?? null, correctCount, answeredCount);
 
   // ---------- Persist ----------
   const { data: inserted, error: insertErr } = await admin
