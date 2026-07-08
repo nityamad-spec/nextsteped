@@ -1,56 +1,58 @@
-# Quick Paste for Add Question (Exam Mode)
+# Fix: /admin/students showing enrolled students as "Not enrolled"
 
-Add a helper input at the top of the Add/Edit Question dialog on `/teacher/setup/exam-mode` where a professor can paste a full MCQ block. The parser fills the existing Question field and the four Option fields (and, when marked, the correct answer). No schema, RLS, or edge function changes.
+## Root cause
 
-## Scope
-- File: `src/pages/teacher/ExamMode.tsx` (dialog around line 1544).
-- Frontend only. Uses existing state: `setFormQuestion`, `setFormOptions`, `setFormCorrectIndex`, `setFormType`.
+`src/pages/admin/AdminStudents.tsx` fetches all enrollments in one query:
 
-## UI
-Inside the dialog, above the "Question Text" field, add a collapsible section:
+```ts
+supabase.from("enrollments")
+  .select("student_id, course_id, enrolled_at")
+  .in("student_id", idFilter)   // 634 student ids
+```
 
-- Label: "Paste question (optional)"
-- A `Textarea` (rows=6) with placeholder showing the accepted format.
-- Two buttons: "Fill fields" and "Clear".
-- Small helper text listing supported formats.
+PostgREST caps every response at **1000 rows by default**. The `enrollments` table currently has **1016 rows**, so ~16 rows are silently dropped. Whichever students' enrollments happen to fall outside the first 1000 rows show up as "Not enrolled" in the admin table, even though the enrollment (and their diagnostic result) exists in the database.
 
-After a successful parse: clear the paste box, focus the Question Text field, toast "Parsed question and 4 options", and if 4 options were found force `formType` to `MCQ`.
-On failure: inline error under the textarea explaining what could not be parsed; do not overwrite existing form fields.
+Confirmed for `pamminasaiswarup@gmail.com`: DB has 2 enrollments and 2 diagnostic results for that profile, but the admin page renders "Not enrolled".
 
-## Supported paste formats
-Parser is lenient and handles the common shapes professors copy from docs:
+`student_course_mastery` (881 rows) is under the cap today but will hit the same wall soon. `diagnostic_results` isn't queried here, so it's unaffected on this page.
 
-1. Question on first non-empty line(s) until the first option line.
-2. Options on subsequent lines, each starting with one of:
-   - `A)` `A.` `A:` `A -` `(A)` — same for B/C/D (case-insensitive)
-   - or `1.` `1)` `2.` … for numbered options
-3. Correct answer detected from any of:
-   - A trailing marker on an option line: `*`, `[correct]`, `(correct)`, `✓`
-   - A separate line like `Answer: B`, `Correct: 3`, `Ans - C`
-4. Blank lines and stray whitespace ignored. Requires exactly 4 options for MCQ auto-fill; if 2 options resolve to True/False, offer to switch type to True/False instead.
+The 634-id `.in(...)` filter is also close to PostgREST's URL length ceiling; keeping it will start failing outright as the student count grows.
 
-Correct-index resolution order: explicit `Answer:` line > inline marker > default 0. If no correct answer is indicated, still fill options and leave `formCorrectIndex` at 0 with a toast "Set the correct option".
+## Fix
 
-## Behavior rules
-- Never wipe fields the user already typed unless the parse succeeds; on success, overwrite Question + all 4 Options + correct index.
-- Only runs when the user clicks "Fill fields" — no auto-run on every keystroke, to avoid surprising overwrites.
-- Works only for MCQ / True-False shapes. For Short Answer, hide the paste section (or show it disabled with a note) once `formType` is Short Answer.
-- Paste block itself is not persisted; it is local dialog state cleared on close.
+Update `src/pages/admin/AdminStudents.tsx` `fetch()` only. Two changes:
 
-## Technical notes
-- Add local state: `const [pasteText, setPasteText] = useState("")` and `const [pasteError, setPasteError] = useState<string | null>(null)`, reset in `openAddDialog` / `openEditDialog` and on dialog close.
-- Implement `parseQuestionBlock(raw: string): { question: string; options: string[]; correctIndex: number | null; detectedType: "MCQ" | "TF" } | { error: string }` as a pure helper co-located in the file (or `src/lib/parseQuestionPaste.ts` if we want a unit test — recommended, small).
-- Regex sketch:
-  - Option line: `/^\s*(?:\(?([A-Da-d1-4])\)?[\.\):\-])\s*(.+?)\s*(\*|\[correct\]|\(correct\)|✓)?\s*$/`
-  - Answer line: `/^\s*(?:answer|ans|correct)\s*[:\-]\s*([A-Da-d1-4])\s*$/i`
-- Trim and collapse internal whitespace on the question; preserve option text as typed.
+1. **Paginate the `enrollments` and `student_course_mastery` reads** using `.range()` in a loop until fewer than the page size is returned. Page size 1000, ordered by `student_id` for stable paging. Drop the `.in("student_id", idFilter)` filter — we already restrict downstream by joining against the loaded student profiles, and full-table paging is cheaper than a giant URL with 634 UUIDs.
+2. Keep the rest of the aggregation logic (`enrollmentsByStudent`, `masteryMap`, courses lookup) unchanged.
 
-## Risks
-- Ambiguous paste (e.g. options split across multiple lines) — mitigated by requiring the leading letter/number token and surfacing a clear inline error instead of silently mis-parsing.
-- Overwriting in-progress edits in Edit mode — mitigated by requiring an explicit button click and by the paste box starting empty each time the dialog opens.
-- Non-MCQ modes — hide the paste helper when `formType === "Short Answer"`.
+Sketch:
+
+```ts
+async function fetchAll<T>(table, columns, orderCol) {
+  const pageSize = 1000;
+  let from = 0;
+  const out: T[] = [];
+  while (true) {
+    const { data, error } = await supabase
+      .from(table).select(columns).order(orderCol).range(from, from + pageSize - 1);
+    if (error || !data) break;
+    out.push(...data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return out;
+}
+```
+
+Use it for `enrollments` and `student_course_mastery`. Filter to loaded student ids in JS after the fetch (cheap Set lookup).
 
 ## Out of scope
-- No changes to `assessment_questions` schema, RLS, or the save path.
-- No bulk import of multiple questions in one paste (single question only).
-- No AI-based parsing; deterministic regex only.
+
+- No RLS changes (admin already has read access via existing policies).
+- No schema changes.
+- No UI/design changes.
+- The professor-roster RLS plan from earlier is separate and untouched.
+
+## Risk
+
+Two more round-trips per extra page (currently 2 pages for enrollments, 1 for mastery). Negligible on an admin-only page.
