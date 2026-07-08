@@ -142,19 +142,44 @@ const AdminStudents = () => {
 
       if (!profiles) { setLoading(false); return; }
 
-      const studentIds = profiles.map(p => p.id);
-      const idFilter = studentIds.length ? studentIds : ["__none__"];
+      const studentIdSet = new Set(profiles.map(p => p.id));
 
-      const [{ data: enrollments }, { data: masteryRows }] = await Promise.all([
-        supabase
-          .from("enrollments")
-          .select("student_id, course_id, enrolled_at")
-          .in("student_id", idFilter),
-        supabase
-          .from("student_course_mastery")
-          .select("student_id, course_id, learner_level")
-          .in("student_id", idFilter),
+      // PostgREST caps each response at 1000 rows. Enrollments/mastery tables
+      // now exceed that, so paginate with .range() until we've drained them.
+      const fetchAll = async <T,>(
+        table: "enrollments" | "student_course_mastery",
+        columns: string,
+        orderCol: string,
+      ): Promise<T[]> => {
+        const pageSize = 1000;
+        let from = 0;
+        const out: T[] = [];
+        // Safety cap in case of a runaway loop.
+        for (let i = 0; i < 100; i++) {
+          const { data, error } = await supabase
+            .from(table)
+            .select(columns)
+            .order(orderCol, { ascending: true })
+            .range(from, from + pageSize - 1);
+          if (error || !data) break;
+          out.push(...(data as unknown as T[]));
+          if (data.length < pageSize) break;
+          from += pageSize;
+        }
+        return out;
+      };
+
+      const [allEnrollments, allMastery] = await Promise.all([
+        fetchAll<{ student_id: string; course_id: string; enrolled_at: string }>(
+          "enrollments", "student_id, course_id, enrolled_at", "student_id",
+        ),
+        fetchAll<{ student_id: string; course_id: string; learner_level: string }>(
+          "student_course_mastery", "student_id, course_id, learner_level", "student_id",
+        ),
       ]);
+
+      const enrollments = allEnrollments.filter(e => studentIdSet.has(e.student_id));
+      const masteryRows = allMastery.filter(m => studentIdSet.has(m.student_id));
 
       const courseIds = [...new Set((enrollments || []).map(e => e.course_id))];
       const { data: courses } = courseIds.length
