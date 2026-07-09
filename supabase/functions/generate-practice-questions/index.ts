@@ -534,6 +534,20 @@ Deno.serve(async (req) => {
         if (!q || typeof q !== "object") return null;
         const type = normalizeType(q.type);
         if (!type) return null;
+        const questionText = String(q.question ?? "").trim();
+        // Stem-shape guard: reject TF stems that read as MCQ ("Which of the following...", etc.)
+        if (type === "true_false") {
+          const stemLooksMcq =
+            /^\s*(which|what|select|choose|identify|pick|name)\b/i.test(questionText) ||
+            /of the following/i.test(questionText);
+          if (stemLooksMcq) {
+            console.warn(
+              "practice: dropping question, stem looks MCQ but type is true_false",
+              { question: questionText.slice(0, 160) },
+            );
+            return null;
+          }
+        }
         let options: string[] | undefined;
         let answer = String(q.answer ?? "").trim();
         if (type === "mcq") {
