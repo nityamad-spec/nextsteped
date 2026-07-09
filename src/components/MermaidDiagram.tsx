@@ -21,6 +21,22 @@ function ensureInit() {
 
 const ALLOWED = /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(-v2)?)\b/;
 
+// Strip styling directives an LLM may emit that render the diagram as an
+// unreadable dark bar (dark fills with no contrasting text color, empty
+// subgraphs, etc.). Keep only structural mermaid content on the default theme.
+function sanitizeMermaid(input: string): string {
+  let src = input.trim();
+  src = src.replace(/%%\{[\s\S]*?\}%%/g, "");
+  src = src.replace(/^\s*%%.*$/gm, "");
+  const lines = src.split("\n").filter((raw) => {
+    const l = raw.trim();
+    if (!l) return true;
+    if (/^(classDef|style|linkStyle)\b/i.test(l)) return false;
+    return true;
+  });
+  return lines.map((l) => l.replace(/:::[A-Za-z_][\w-]*/g, "")).join("\n").trim();
+}
+
 interface Props {
   code: string;
 }
@@ -33,8 +49,15 @@ export default function MermaidDiagram({ code }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    const source = code.trim();
+    const source = sanitizeMermaid(code);
     if (!source || !ALLOWED.test(source)) {
+      setFailed(true);
+      return;
+    }
+    const body = source.split("\n").slice(1).join("\n");
+    const hasEdge = /-->|---|==>|-\.->|<--|->>|-->>/.test(body);
+    const nonEmptyLines = body.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (!hasEdge && nonEmptyLines.length < 2) {
       setFailed(true);
       return;
     }
