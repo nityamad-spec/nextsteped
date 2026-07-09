@@ -1,49 +1,48 @@
-# Fix: MCQ-worded question rendered with True/False options
+# Fix: 10-question practice batch returns only ~4 questions
 
 ## Root cause
-In `supabase/functions/generate-practice-questions/index.ts`:
+Edge function logs from the last run show three dropped questions with the same shape:
 
-- The default intent allows both types: `DEFAULT_INTENT.types = ["mcq", "true_false"]`, and the Stage 2 prompt lets the model freely pick either per question.
-- The Stage 2 system prompt has no rule forcing "Which of the following…" / "Select the best…" / "Choose the option…" stems to be MCQ, nor forcing true_false stems to be declarative statements.
-- The sanitizer only checks that `type` is one of the allowed values; it does not check that the stem shape matches the type. So a stem like *"Which of the following best describes a core principle of effective prompt engineering?"* generated with `type: "true_false"` passes through, and the widget faithfully renders True/False buttons.
+```
+practice: dropping question, answer did not match any option
+  rawAnswer: "B"
+  options: ["Unimodal model","Multimodal model","Text-to-speech model","Recommendation system"]
+```
 
-The UI (`PracticeQuestionsWidget.tsx`) branches on `currentQuestion.type` — that behavior is correct. The bug is that a question with an MCQ-shaped stem is being tagged `true_false`.
+The LLM is returning the answer as a bare letter ("A"/"B"/"C"/"D") instead of the verbatim option string. My previous sanitizer refactor replaced the old `^[A-Da-d]$` letter→index mapping with a normalized string-match + prefix-overlap heuristic. That heuristic can't map `"B"` to `"Multimodal model"`, so every letter-only answer now falls through to the "drop question" branch. Result: 10 requested → most dropped → widget renders whatever's left (4 in this case).
 
-## Fix (two layers, both cheap)
+This is a regression from the previous fix, not a new LLM behavior.
 
-### 1. Prompt-side constraint (Stage 2 generator)
-Add explicit stem-shape rules to `SYSTEM_PROMPT_GENERATE_TEMPLATE` in a new "Type selection" block:
+## Fix
 
-- `true_false`: stem MUST be a single declarative statement that is unambiguously True or False. Never start with an interrogative like "Which", "What", "How", "Select", "Choose", "Identify", "Pick".
-- `mcq`: use for any stem that asks the student to pick among candidates ("Which of the following…", "Select the best…", "What is…"). Must have exactly 4 options.
-- If unsure, default to `mcq`.
+In `supabase/functions/generate-practice-questions/index.ts`, inside the MCQ answer-reconciliation block, add a letter→index mapping as the FIRST attempt before the normalized string match:
 
-### 2. Server-side sanitizer guard (defense in depth)
-In the sanitizer loop, after `normalizeType`, run a small `stemLooksMcq(question)` check: matches a leading interrogative/imperative pattern like `^\s*(which|what|select|choose|identify|pick|name)\b` (case-insensitive) or contains `"of the following"`. If it matches AND `type === "true_false"`, drop the question (`return null`) and log a warning. The existing `.filter` removes it; if the batch ends up empty, the caller already handles that gracefully.
+1. Strip surrounding whitespace/punctuation from `answer` and test against `^[A-Da-d]$`. If it matches, map `A→0, B→1, C→2, D→3` and, if that index exists in `options`, set `answer = options[idx]` and continue.
+2. If not a bare letter, keep the current normalized-string match + prefix-overlap heuristic.
+3. Only drop the question if BOTH strategies fail.
 
-We drop rather than auto-convert because we don't have 4 options to fabricate, and converting to MCQ with 2 options fails the length-parity / 4-option rule anyway.
+Also tighten the Stage 2 prompt to reduce the letter-answer behavior: add a one-line rule to `SYSTEM_PROMPT_GENERATE_TEMPLATE` saying `"answer" MUST be the full option string verbatim, never a letter like "A" or "B"`. Belt-and-suspenders.
 
 ## Files touched
 - `supabase/functions/generate-practice-questions/index.ts`
-  - Extend `SYSTEM_PROMPT_GENERATE_TEMPLATE` with the "Type selection" rules (~10 lines).
-  - Add `stemLooksMcq()` helper and one guard inside the sanitizer `.map` (~10 lines).
+  - Add letter→index branch inside the existing `if (!options.includes(answer)) { ... }` block (~8 lines).
+  - Add one prompt line under "Item quality → MCQ" reinforcing verbatim-answer requirement.
 
-No client-side change.
-
-## Risks / trade-offs
-
-- **Occasional dropped questions.** If the LLM keeps mismatching, some batches may shrink. Mitigation: the widget already handles smaller sets fine; if drops become frequent, edge-function logs will show it and we can tighten the prompt further.
-- **Regex false positives.** A TF statement legitimately starting with "What a great model" or a stem that starts with "Which" but is actually a valid TF ("Which is faster, X or Y? — True or False") is unlikely in practice for this generator, but possible. The guard is intentionally conservative (only fires when type is `true_false` AND stem starts with an interrogative). Worst case: a valid question is dropped, never mis-labeled.
-- **Only fixes new generations.** Cached/older results already shown to students remain as-is (there is no persistent cache of generated questions, so this is effectively moot — each Practice session regenerates).
-- **Does not fix the inverse case.** A declarative statement wrongly tagged `mcq` with 4 options would still pass. That's a separate, less user-visible failure mode (student still gets 4 real options); can be added later if reported.
-- **No change to intent parsing.** We keep `types: ["mcq","true_false"]` as the default so students who ask for a TF drill still get one — the fix only ensures the stem shape matches the chosen type.
-- **Prompt length grows slightly.** Negligible token cost on `gemini-2.5-flash-lite`.
+No client change.
 
 ## Verification
-- Regenerate the same "Prompt Engineering" practice set; the offending question should either come back as MCQ with 4 options, or be absent from the set.
-- Check edge function logs for `practice: dropping question, stem looks MCQ but type is true_false` warnings to gauge frequency.
+- Regenerate a 10-question practice set on the same course; expect all 10 to come through.
+- Check edge function logs — the "dropping question, answer did not match any option" warnings should disappear (or only appear for genuinely broken outputs, not bare letters).
+
+## Risks
+
+- **Letter→option index assumes generator ordering.** If the LLM ever returns options in a shuffled order that doesn't match the letter it picked, letter→index would silently pick the wrong option (the exact bug we fixed for the first screenshot). Mitigation: the sanitizer already keeps `options` in the order the LLM emitted them, so `"B"` correctly refers to `options[1]`. This is the same convention the code used before the refactor, and it worked for months. We are not shuffling options server-side.
+- **Still fragile if the LLM returns something like `"Option B"` or `"b) Multimodal model"`.** The existing normalized-match branch already handles those cases and will fire when the answer isn't a bare letter. No change in that path.
+- **Prompt tightening may increase retries/tokens marginally.** Negligible.
+- **Batch may still shrink for other reasons** — length-parity rejections, duplicate stems, TF-shape guard. Those are intentional quality gates; if they trigger frequently we'll see it in logs and can address separately.
+- **No client-side "we asked for 10 but got N" UX.** Out of scope for this fix, but worth noting: if a batch does come back short, the widget silently uses whatever came through. Follow-up option (not in this plan): show a toast like "Generated N questions" or retry once when `questions.length < intent.count * 0.7`.
 
 ## Out of scope
-- UI changes in `PracticeQuestionsWidget.tsx`.
+- Client-side retry/backfill when batches shrink.
 - Broader Stage 2 prompt rewrite.
-- Adding a stem-quality check for MCQs (distractor quality, ambiguity, etc.).
+- Server-side option shuffling (would break the letter→index assumption).
