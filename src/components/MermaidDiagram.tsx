@@ -65,7 +65,7 @@ export default function MermaidDiagram({ code }: Props) {
   return (
     <div
       ref={containerRef}
-      className="my-3 w-full overflow-x-auto rounded-md border border-border bg-background p-3 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full"
+      className="my-3 w-full overflow-x-auto rounded-md border border-border bg-background p-3 [&_svg]:h-auto [&_svg]:mx-auto"
     />
   );
 }
