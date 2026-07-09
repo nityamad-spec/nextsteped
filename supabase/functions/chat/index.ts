@@ -306,7 +306,10 @@ async function fetchClassMasterySnapshot(supabaseAdmin: any, courseId: string): 
         .eq("course_id", courseId);
 
       const courseBuckets: Record<MasteryBand, number> = {
-        beginner: 0, developing: 0, proficient: 0, expert: 0,
+        beginner: 0,
+        developing: 0,
+        proficient: 0,
+        expert: 0,
       };
       const totalStudents = (courseRows ?? []).length;
       for (const r of courseRows ?? []) {
@@ -351,7 +354,9 @@ async function fetchClassMasterySnapshot(supabaseAdmin: any, courseId: string): 
 
       const header = `Class mastery snapshot (N=${totalStudents} students). The only mastery bands are: beginner, developing, proficient, expert.`;
       const courseLine = `- Course level distribution: beginner ${courseBuckets.beginner}, developing ${courseBuckets.developing}, proficient ${courseBuckets.proficient}, expert ${courseBuckets.expert}`;
-      const conceptBlock = conceptLines ? `- Per-concept distribution (weakest first; counts are number of students in each band):\n${conceptLines}` : "- Per-concept: (no concept mastery recorded yet)";
+      const conceptBlock = conceptLines
+        ? `- Per-concept distribution (weakest first; counts are number of students in each band):\n${conceptLines}`
+        : "- Per-concept: (no concept mastery recorded yet)";
       return `${header}\n${courseLine}\n${conceptBlock}`;
     } catch (e) {
       console.error("class mastery snapshot error:", e);
@@ -523,7 +528,6 @@ DIAGRAMS — you CAN draw diagrams
     A[Input] --> B[Encoder] --> C[Decoder] --> D[Output]
   \`\`\`
 - Allowed diagram types ONLY: \`flowchart\` (or \`graph\`), \`sequenceDiagram\`, \`classDiagram\`, \`stateDiagram\` / \`stateDiagram-v2\`. Nothing else.
-- STYLING FORBIDDEN inside the diagram source: NO \`%%{init: ...}%%\` directives, NO \`classDef\`, NO \`style\` lines, NO \`linkStyle\`, NO \`:::className\` class assignments, NO theme overrides, NO inline HTML in labels, NO color/fill/stroke keywords anywhere. Rely on default theme only — adding styling can make the diagram render as an unreadable dark bar.
 - STRUCTURE: at least 2 nodes and 1 edge. Never emit an empty \`subgraph ... end\` block. Keep node labels short plain text (no LaTeX, no math, no HTML). Keep diagrams small (roughly under 15 nodes). At most one diagram per answer. Always pair the diagram with a brief text explanation — the diagram may not render on every device, so the text alone must still answer the question.
 - Example — student asks "give me an image of how a neural network works". Correct reply: a short intro sentence, then:
   \`\`\`mermaid
