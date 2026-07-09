@@ -8,7 +8,13 @@ function ensureInit() {
     startOnLoad: false,
     securityLevel: "strict",
     theme: "default",
-    fontFamily: "inherit",
+    fontFamily:
+      'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+    themeVariables: { nodeSpacing: 40, rankSpacing: 50 },
+    flowchart: { useMaxWidth: false, htmlLabels: true, padding: 8 },
+    sequence: { useMaxWidth: false },
+    class: { useMaxWidth: false },
+    state: { useMaxWidth: false },
   });
   initialized = true;
 }
@@ -59,7 +65,7 @@ export default function MermaidDiagram({ code }: Props) {
   return (
     <div
       ref={containerRef}
-      className="my-3 w-full overflow-x-auto rounded-md border border-border bg-background p-3 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full"
+      className="my-3 w-full overflow-x-auto rounded-md border border-border bg-background p-3 [&_svg]:h-auto [&_svg]:mx-auto"
     />
   );
 }

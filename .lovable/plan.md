@@ -1,48 +1,49 @@
-# Fix: 10-question practice batch returns only ~4 questions
+## Problem
+
+In `/student/chat`, when the assistant returns a Mermaid diagram, node labels get cut off mid-word (e.g. "Encoder Lay", "Multi-Head Self-Atte", "Add & Norm" clipped, "Feed Forward Netwo"). The diagram renders, but text overflows the node rectangles and gets clipped by the SVG viewport.
 
 ## Root cause
-Edge function logs from the last run show three dropped questions with the same shape:
 
+In `src/components/MermaidDiagram.tsx` we initialize mermaid with:
+
+```ts
+mermaid.initialize({
+  startOnLoad: false,
+  securityLevel: "strict",
+  theme: "default",
+  fontFamily: "inherit",
+});
 ```
-practice: dropping question, answer did not match any option
-  rawAnswer: "B"
-  options: ["Unimodal model","Multimodal model","Text-to-speech model","Recommendation system"]
-```
 
-The LLM is returning the answer as a bare letter ("A"/"B"/"C"/"D") instead of the verbatim option string. My previous sanitizer refactor replaced the old `^[A-Da-d]$` letter→index mapping with a normalized string-match + prefix-overlap heuristic. That heuristic can't map `"B"` to `"Multimodal model"`, so every letter-only answer now falls through to the "drop question" branch. Result: 10 requested → most dropped → widget renders whatever's left (4 in this case).
+Two things combine to cause the clipping:
 
-This is a regression from the previous fix, not a new LLM behavior.
+1. **`fontFamily: "inherit"`** — Mermaid measures text width at render time using a temporary off-DOM SVG that does not inherit the app's font stack. It sizes each node box for one font, then the visible SVG paints text in a different (wider) inherited font. The label ends up wider than the box mermaid drew for it.
+2. **Container styling** — the wrapper uses `[&_svg]:max-w-full` with `overflow-x-auto`. When the SVG's intrinsic width exceeds the chat column, mermaid's default `useMaxWidth: true` scales the whole SVG down. Because the box widths were already too small for the labels, scaling down doesn't help; the text is still clipped inside each node, and now the whole diagram is smaller too.
+
+The image the user attached confirms this: every node with a longer word is cut at the same relative position, which is the node-box boundary — not the SVG boundary.
 
 ## Fix
 
-In `supabase/functions/generate-practice-questions/index.ts`, inside the MCQ answer-reconciliation block, add a letter→index mapping as the FIRST attempt before the normalized string match:
+Edit `src/components/MermaidDiagram.tsx` only. No changes to the chat pipeline, no changes to how the model produces mermaid.
 
-1. Strip surrounding whitespace/punctuation from `answer` and test against `^[A-Da-d]$`. If it matches, map `A→0, B→1, C→2, D→3` and, if that index exists in `options`, set `answer = options[idx]` and continue.
-2. If not a bare letter, keep the current normalized-string match + prefix-overlap heuristic.
-3. Only drop the question if BOTH strategies fail.
+1. **Pin a real font at init** so measurement and paint agree:
+   - `fontFamily: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'` (matches Tailwind's default sans stack we already ship).
+2. **Disable auto-shrink** so the SVG keeps its intrinsic width and the container scrolls horizontally instead of squishing:
+   - Pass per-diagram config `flowchart: { useMaxWidth: false, htmlLabels: true }`, and the same `useMaxWidth: false` under `sequence`, `class`, `state`.
+3. **Container CSS** — drop `[&_svg]:max-w-full` (which forces the SVG to shrink to column width) and keep `overflow-x-auto` so wide diagrams scroll. Keep `[&_svg]:h-auto` and `[&_svg]:mx-auto` for centering.
+4. **Small padding bump** via `themeVariables: { nodeSpacing: 40, rankSpacing: 50 }` and `flowchart: { padding: 8 }` so labels have a couple of extra pixels of breathing room even if the browser's font metrics differ slightly from what mermaid measured.
 
-Also tighten the Stage 2 prompt to reduce the letter-answer behavior: add a one-line rule to `SYSTEM_PROMPT_GENERATE_TEMPLATE` saying `"answer" MUST be the full option string verbatim, never a letter like "A" or "B"`. Belt-and-suspenders.
-
-## Files touched
-- `supabase/functions/generate-practice-questions/index.ts`
-  - Add letter→index branch inside the existing `if (!options.includes(answer)) { ... }` block (~8 lines).
-  - Add one prompt line under "Item quality → MCQ" reinforcing verbatim-answer requirement.
-
-No client change.
-
-## Verification
-- Regenerate a 10-question practice set on the same course; expect all 10 to come through.
-- Check edge function logs — the "dropping question, answer did not match any option" warnings should disappear (or only appear for genuinely broken outputs, not bare letters).
+That's the whole change — one file, ~10 lines.
 
 ## Risks
 
-- **Letter→option index assumes generator ordering.** If the LLM ever returns options in a shuffled order that doesn't match the letter it picked, letter→index would silently pick the wrong option (the exact bug we fixed for the first screenshot). Mitigation: the sanitizer already keeps `options` in the order the LLM emitted them, so `"B"` correctly refers to `options[1]`. This is the same convention the code used before the refactor, and it worked for months. We are not shuffling options server-side.
-- **Still fragile if the LLM returns something like `"Option B"` or `"b) Multimodal model"`.** The existing normalized-match branch already handles those cases and will fire when the answer isn't a bare letter. No change in that path.
-- **Prompt tightening may increase retries/tokens marginally.** Negligible.
-- **Batch may still shrink for other reasons** — length-parity rejections, duplicate stems, TF-shape guard. Those are intentional quality gates; if they trigger frequently we'll see it in logs and can address separately.
-- **No client-side "we asked for 10 but got N" UX.** Out of scope for this fix, but worth noting: if a batch does come back short, the widget silently uses whatever came through. Follow-up option (not in this plan): show a toast like "Generated N questions" or retry once when `questions.length < intent.count * 0.7`.
+- **Horizontal scroll on mobile.** Wide diagrams will now scroll sideways inside the message bubble instead of shrinking. This is the intended trade (readable > tiny) but worth calling out; the wrapper already has `overflow-x-auto` so no layout break, just a scrollbar.
+- **Font stack drift.** If the app's body font ever changes to something significantly wider (e.g. a display serif), we'd need to update the mermaid `fontFamily` to match, or clipping returns. Low likelihood; the sans stack is stable.
+- **`htmlLabels: true` + `securityLevel: "strict"`.** Strict mode already sandboxes HTML labels; enabling htmlLabels is safe under strict, but any future switch to `securityLevel: "loose"` combined with htmlLabels would allow raw HTML in labels from LLM output. We are keeping strict, so this stays safe — noted so a future edit doesn't flip both at once.
+- **Diagram regressions.** Changing `useMaxWidth` alters sizing for every diagram type, not just the one in the screenshot. Sequence/class/state diagrams will also render at intrinsic size. Visually larger, but should not clip.
+- **No effect on malformed mermaid.** If the model emits a diagram whose labels are genuinely huge (a full sentence in one node), it will still be wide — but it will be readable and scrollable, not clipped.
 
 ## Out of scope
-- Client-side retry/backfill when batches shrink.
-- Broader Stage 2 prompt rewrite.
-- Server-side option shuffling (would break the letter→index assumption).
+
+- Changing how the chat model formats mermaid (e.g. asking it to keep labels short). Can be a follow-up if wide diagrams are common.
+- Adding a "open diagram fullscreen" affordance. Nice-to-have, not needed to unblock the reported bug.
