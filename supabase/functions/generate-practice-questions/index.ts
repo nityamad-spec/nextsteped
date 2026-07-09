@@ -556,6 +556,16 @@ Deno.serve(async (req) => {
             .filter(Boolean);
           if (options.length < 2) return null;
           if (!options.includes(answer)) {
+            // First try: bare letter answer ("A"/"B"/"C"/"D", possibly with trailing punctuation)
+            const letterMatch = answer.replace(/[^A-Za-z]/g, "").match(/^[A-Da-d]$/);
+            if (letterMatch) {
+              const idx = letterMatch[0].toUpperCase().charCodeAt(0) - 65;
+              if (options[idx]) {
+                answer = options[idx];
+              }
+            }
+          }
+          if (!options.includes(answer)) {
             const norm = (s: string) =>
               s
                 .replace(/^\s*\(?[A-Da-d]\)?[\.\):\-\s]+/, "") // strip "A)", "(B).", "C - " prefixes
