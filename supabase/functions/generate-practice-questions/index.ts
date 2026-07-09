@@ -538,12 +538,34 @@ Deno.serve(async (req) => {
             .filter(Boolean);
           if (options.length < 2) return null;
           if (!options.includes(answer)) {
-            const letter = answer.match(/^[A-Da-d]$/)?.[0];
-            if (letter) {
-              const idx = letter.toUpperCase().charCodeAt(0) - 65;
-              if (options[idx]) answer = options[idx];
+            const norm = (s: string) =>
+              s
+                .replace(/^\s*\(?[A-Da-d]\)?[\.\):\-\s]+/, "") // strip "A)", "(B).", "C - " prefixes
+                .replace(/[\u2018\u2019]/g, "'")
+                .replace(/[\u201C\u201D]/g, '"')
+                .replace(/\s+/g, " ")
+                .replace(/[.!?,;:]+$/, "")
+                .trim()
+                .toLowerCase();
+            const na = norm(answer);
+            const nOpts = options.map((o) => norm(o));
+            let matchIdx = nOpts.findIndex((o) => o === na);
+            if (matchIdx < 0 && na.length > 0) {
+              // "B) full option text" or option starts with answer / vice versa
+              const contains = nOpts
+                .map((o, idx) => ({ idx, hit: o.startsWith(na) || na.startsWith(o) }))
+                .filter((x) => x.hit);
+              if (contains.length === 1) matchIdx = contains[0].idx;
             }
-            if (!options.includes(answer)) answer = options[0];
+            if (matchIdx >= 0) {
+              answer = options[matchIdx];
+            } else {
+              console.warn(
+                "practice: dropping question, answer did not match any option",
+                { rawAnswer: String(q.answer ?? ""), options },
+              );
+              return null;
+            }
           }
           // Length parity guard: prevent "longest = correct" giveaway.
           if (options.length === 4) {
@@ -557,6 +579,7 @@ Deno.serve(async (req) => {
               lens.filter((l) => l === maxLen).length === 1 && answerLen === maxLen;
             if (strictlyLongest && answerLen > avgLen * 1.25) return null;
           }
+
         } else {
           answer = /^t/i.test(answer) ? "True" : "False";
         }

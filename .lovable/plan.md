@@ -1,58 +1,40 @@
-# Fix: /admin/students showing enrolled students as "Not enrolled"
+# Fix: Practice question marks correct answer as wrong
 
 ## Root cause
-
-`src/pages/admin/AdminStudents.tsx` fetches all enrollments in one query:
-
-```ts
-supabase.from("enrollments")
-  .select("student_id, course_id, enrolled_at")
-  .in("student_id", idFilter)   // 634 student ids
-```
-
-PostgREST caps every response at **1000 rows by default**. The `enrollments` table currently has **1016 rows**, so ~16 rows are silently dropped. Whichever students' enrollments happen to fall outside the first 1000 rows show up as "Not enrolled" in the admin table, even though the enrollment (and their diagnostic result) exists in the database.
-
-Confirmed for `pamminasaiswarup@gmail.com`: DB has 2 enrollments and 2 diagnostic results for that profile, but the admin page renders "Not enrolled".
-
-`student_course_mastery` (881 rows) is under the cap today but will hit the same wall soon. `diagnostic_results` isn't queried here, so it's unaffected on this page.
-
-The 634-id `.in(...)` filter is also close to PostgREST's URL length ceiling; keeping it will start failing outright as the student count grows.
-
-## Fix
-
-Update `src/pages/admin/AdminStudents.tsx` `fetch()` only. Two changes:
-
-1. **Paginate the `enrollments` and `student_course_mastery` reads** using `.range()` in a loop until fewer than the page size is returned. Page size 1000, ordered by `student_id` for stable paging. Drop the `.in("student_id", idFilter)` filter — we already restrict downstream by joining against the loaded student profiles, and full-table paging is cheaper than a giant URL with 634 UUIDs.
-2. Keep the rest of the aggregation logic (`enrollmentsByStudent`, `masteryMap`, courses lookup) unchanged.
-
-Sketch:
+In `supabase/functions/generate-practice-questions/index.ts`, the MCQ answer-matching block does:
 
 ```ts
-async function fetchAll<T>(table, columns, orderCol) {
-  const pageSize = 1000;
-  let from = 0;
-  const out: T[] = [];
-  while (true) {
-    const { data, error } = await supabase
-      .from(table).select(columns).order(orderCol).range(from, from + pageSize - 1);
-    if (error || !data) break;
-    out.push(...data);
-    if (data.length < pageSize) break;
-    from += pageSize;
-  }
-  return out;
+if (!options.includes(answer)) {
+  const letter = answer.match(/^[A-Da-d]$/)?.[0];  // only bare "A"/"B"/"C"/"D"
+  if (letter) { ... }
+  if (!options.includes(answer)) answer = options[0];  // silent wrong fallback
 }
 ```
 
-Use it for `enrollments` and `student_course_mastery`. Filter to loaded student ids in JS after the fetch (cheap Set lookup).
+When the LLM returns an `answer` that doesn't verbatim match an option — very common cases include `"B) A neural network trained on..."`, `"A neural network trained on ... language"` (missing trailing period), curly quotes, extra whitespace, or different casing — the code silently sets `answer = options[0]`. The explanation still describes the true correct option, so the UI shows an incoherent state: "Correct answer: <option 1>" with an explanation defending option 2. That's the bug in the screenshot.
+
+The `letter` regex is also too strict: it only catches a lone `"A"`/`"B"`, not the common `"B)"`, `"B."`, `"(B)"`, or `"B) full option text"` formats.
+
+## Fix
+
+Replace the fragile match/fallback with a robust matcher, and drop the question rather than guess when nothing matches.
+
+In the MCQ branch (around lines 535-547):
+
+1. Try a normalized compare against each option: strip leading letter prefixes (`^\s*\(?[A-Da-d]\)?[\.\):\-\s]+`), collapse whitespace, normalize quotes, strip trailing punctuation, lowercase — then compare against options normalized the same way. If exactly one option matches, set `answer` to that option's original string.
+2. If still no match, also try "answer is a prefix/suffix of option (normalized)" and "option is a prefix of answer (normalized)" to catch the "B) full option text" case and truncated model output.
+3. If still no unique match, **return null for that question** (drop it) instead of silently picking `options[0]`. The existing `.filter(...)` will remove it, and if `sanitized.length === 0`, the caller already handles that.
+4. Add a `console.warn` with the raw answer + options when we drop, so we can spot pattern issues in edge function logs.
+
+No client-side change needed. `PracticeQuestionsWidget` already does exact string compare `userAnswer === q.answer`, which is correct once `q.answer` is guaranteed to equal one of the option strings.
+
+## Files touched
+- `supabase/functions/generate-practice-questions/index.ts` — replace the MCQ answer-reconciliation block (~15 lines) with the normalized matcher; add a small `normalizeForMatch(s)` helper near the other helpers.
+
+## Verification
+- Deploy the edge function and re-run practice on the same prompt ("Fundamentals of LLMs"). The mis-labeled question should either come back with the correct option marked correct, or be dropped from the set (never present with a wrong "correct" label).
+- Check edge function logs for any new "dropped question" warnings to gauge how often the LLM produces unmatched answers — if frequent, we can tighten the generator prompt to require verbatim option strings in `answer`.
 
 ## Out of scope
-
-- No RLS changes (admin already has read access via existing policies).
-- No schema changes.
-- No UI/design changes.
-- The professor-roster RLS plan from earlier is separate and untouched.
-
-## Risk
-
-Two more round-trips per extra page (currently 2 pages for enrollments, 1 for mastery). Negligible on an admin-only page.
+- Prompt engineering changes to the Stage 2 generator (can follow up if drops are frequent).
+- Any UI change in `PracticeQuestionsWidget.tsx`.
