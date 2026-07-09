@@ -204,7 +204,7 @@ Type selection (stem must match type):
 - Use "true_false" ONLY when the stem is a single declarative statement that is unambiguously True or False as written. Never use "true_false" for interrogative or "choose one" stems. If unsure, use "mcq".
 
 Item quality:
-- MCQ: exactly 4 distinct, plausible, non-empty options; exactly one correct; "answer" matches one option string verbatim. Distractors must represent realistic misconceptions, not throwaways. Vary the position of the correct option across the set.
+- MCQ: exactly 4 distinct, plausible, non-empty options; exactly one correct; "answer" MUST be the full option string verbatim (never a letter like "A" or "B", never "Option B"). Distractors must represent realistic misconceptions, not throwaways. Vary the position of the correct option across the set.
 - LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match syntactic shape, specificity, and hedging level across all 4 options.
 - True/False: options are exactly ["True","False"]; "answer" is "True" or "False"; stem is a declarative statement, never a question that asks the student to pick among candidates.
 - No question may duplicate or trivially reword another in this set, and none may restate or closely paraphrase any entry in RECENT STEMS.
@@ -555,6 +555,16 @@ Deno.serve(async (req) => {
             .map((s) => s.trim())
             .filter(Boolean);
           if (options.length < 2) return null;
+          if (!options.includes(answer)) {
+            // First try: bare letter answer ("A"/"B"/"C"/"D", possibly with trailing punctuation)
+            const letterMatch = answer.replace(/[^A-Za-z]/g, "").match(/^[A-Da-d]$/);
+            if (letterMatch) {
+              const idx = letterMatch[0].toUpperCase().charCodeAt(0) - 65;
+              if (options[idx]) {
+                answer = options[idx];
+              }
+            }
+          }
           if (!options.includes(answer)) {
             const norm = (s: string) =>
               s
