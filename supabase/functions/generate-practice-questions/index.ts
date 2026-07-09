@@ -199,10 +199,14 @@ Bloom level (1..6) — derive from each question's difficulty_estimate UNLESS IN
 - 0.75..0.90 -> Bloom 4..5 (analyse, evaluate)
 Format caps: MCQ <= Bloom 5; true_false <= Bloom 4. Bloom 6 (create) is never used. For INTENT.goal == "challenge", lean to the upper bound of each band.
 
+Type selection (stem must match type):
+- Use "mcq" for any stem that asks the student to choose among candidates or identify the best option — including any stem starting with "Which", "What", "Select", "Choose", "Identify", "Pick", "Name", or containing "of the following". MCQ requires exactly 4 options.
+- Use "true_false" ONLY when the stem is a single declarative statement that is unambiguously True or False as written. Never use "true_false" for interrogative or "choose one" stems. If unsure, use "mcq".
+
 Item quality:
 - MCQ: exactly 4 distinct, plausible, non-empty options; exactly one correct; "answer" matches one option string verbatim. Distractors must represent realistic misconceptions, not throwaways. Vary the position of the correct option across the set.
 - LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match syntactic shape, specificity, and hedging level across all 4 options.
-- True/False: options are exactly ["True","False"]; "answer" is "True" or "False".
+- True/False: options are exactly ["True","False"]; "answer" is "True" or "False"; stem is a declarative statement, never a question that asks the student to pick among candidates.
 - No question may duplicate or trivially reword another in this set, and none may restate or closely paraphrase any entry in RECENT STEMS.
 - Explanations are 1-3 sentences and reference the concept by its concept_name (fall back to concept_code if name unavailable).
 
