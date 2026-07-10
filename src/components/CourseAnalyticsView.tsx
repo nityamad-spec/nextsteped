@@ -5,8 +5,39 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BookOpen, Users, Brain, GraduationCap, MessageSquare, ClipboardCheck, CheckCircle2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { BookOpen, Users, Brain, GraduationCap, MessageSquare, ClipboardCheck, CheckCircle2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+type LoadStage = "idle" | "course-data" | "students" | "chat" | "computing" | "done";
+
+const STAGE_META: Record<Exclude<LoadStage, "idle" | "done">, { pct: number; label: string }> = {
+  "course-data": { pct: 20, label: "Fetching enrollments, diagnostics and exam results…" },
+  students:      { pct: 55, label: "Loading student profiles and universities…" },
+  chat:          { pct: 80, label: "Aggregating chat activity…" },
+  computing:     { pct: 95, label: "Calculating mastery and engagement…" },
+};
+
+function AnalyticsLoading({ stage }: { stage: LoadStage }) {
+  const meta = stage === "idle" || stage === "done"
+    ? { pct: 10, label: "Preparing…" }
+    : STAGE_META[stage];
+  return (
+    <div className="rounded-lg border bg-card p-6 space-y-4">
+      <div className="flex items-center gap-3">
+        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+        <div>
+          <div className="text-sm font-medium">Loading course analytics</div>
+          <div className="text-xs text-muted-foreground">{meta.label}</div>
+        </div>
+      </div>
+      <Progress value={meta.pct} className="h-2" />
+      <p className="text-[11px] text-muted-foreground">
+        This can take several seconds for large courses.
+      </p>
+    </div>
+  );
+}
 
 export interface CourseLite {
   id: string;
@@ -86,6 +117,7 @@ const NONE = "__none__";
 
 const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
   const [loading, setLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState<LoadStage>("idle");
   const [raw, setRaw] = useState<RawData | null>(null);
   const [universityFilter, setUniversityFilter] = useState<string>(ALL);
   type RosterView = "done" | "pending" | "completed" | "not-completed" | "quiz-completed" | "quiz-partial" | "quiz-not-started";
@@ -93,7 +125,10 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (courseId: string, showSkeleton: boolean) => {
-    if (showSkeleton) setLoading(true);
+    if (showSkeleton) {
+      setLoading(true);
+      setLoadingStage("course-data");
+    }
 
     const PAGE = 1000;
     async function fetchAllRange<T>(
@@ -132,6 +167,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
     const enrollments = (enrRes.data || []) as { student_id: string }[];
     const studentIds = Array.from(new Set(enrollments.map(e => e.student_id)));
 
+    if (showSkeleton) setLoadingStage("students");
     let profiles: RawData["profiles"] = [];
     let universities: { id: string; name: string }[] = [];
     if (studentIds.length > 0) {
@@ -147,6 +183,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       }
     }
 
+    if (showSkeleton) setLoadingStage("chat");
     const sessionIds = (chatSessionsRes.data || []).map(s => s.id as string);
     const chatMessageSessionIds: string[] = [];
     if (sessionIds.length > 0) {
@@ -165,6 +202,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       }
     }
 
+    if (showSkeleton) setLoadingStage("computing");
     setRaw({
       enrollments,
       profiles,
@@ -176,7 +214,10 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       chatSessions: (chatSessionsRes.data || []) as RawData["chatSessions"],
       chatMessageSessionIds,
     });
-    if (showSkeleton) setLoading(false);
+    if (showSkeleton) {
+      setLoadingStage("done");
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -435,11 +476,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       )}
 
       {loading || !stats ? (
-        <div className="space-y-3 py-2">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-24 w-full" />
-        </div>
+        <AnalyticsLoading stage={loading ? loadingStage : "course-data"} />
       ) : (
         <div className="space-y-4 py-2">
           {showUniSelect && (
