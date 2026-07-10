@@ -98,6 +98,8 @@ export default function TeacherProfileDialog({ teacher, open, onOpenChange, onCh
       if (cancelled) return;
       setCourses(merged);
       setAllowedPaths(((permRes.data?.allowed_paths as string[] | undefined) ?? [...TEACHER_NAV_ALWAYS_ON]));
+      setCanCreateCourses(Boolean(permRes.data?.can_create_courses));
+
       setOtherTeachers(teachersRes.data || []);
       setLoading(false);
     })();
