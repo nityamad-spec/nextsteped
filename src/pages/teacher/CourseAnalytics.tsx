@@ -67,10 +67,12 @@ const CourseAnalytics = () => {
       </div>
 
       {loading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-24 w-full" />
+        <div className="rounded-lg border bg-card p-6 flex items-center gap-3">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <div>
+            <div className="text-sm font-medium">Preparing course…</div>
+            <div className="text-xs text-muted-foreground">Resolving your active course.</div>
+          </div>
         </div>
       ) : !course ? (
         <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
