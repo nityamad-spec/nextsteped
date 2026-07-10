@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import TeacherProfileDialog from "@/components/admin/TeacherProfileDialog";
 
 interface TeacherRow {
   id: string;
@@ -30,6 +31,7 @@ const AdminTeachers = () => {
   const [confirmText, setConfirmText] = useState("");
   const [transferTo, setTransferTo] = useState<string>("");
   const [deleting, setDeleting] = useState(false);
+  const [profileTarget, setProfileTarget] = useState<TeacherRow | null>(null);
   const { toast } = useToast();
 
   const fetchAll = async () => {
@@ -138,7 +140,11 @@ const AdminTeachers = () => {
               </TableHeader>
               <TableBody>
                 {teachers.map(t => (
-                  <TableRow key={t.id}>
+                  <TableRow
+                    key={t.id}
+                    className="cursor-pointer hover:bg-muted/40"
+                    onClick={() => setProfileTarget(t)}
+                  >
                     <TableCell className="font-medium">{t.name}</TableCell>
                     <TableCell className="text-muted-foreground">{t.email || "—"}</TableCell>
                     <TableCell>{t.department || "—"}</TableCell>
@@ -151,7 +157,7 @@ const AdminTeachers = () => {
                     <TableCell className="text-muted-foreground text-sm">
                       {new Date(t.created_at).toLocaleDateString()}
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -237,6 +243,13 @@ const AdminTeachers = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <TeacherProfileDialog
+        teacher={profileTarget}
+        open={!!profileTarget}
+        onOpenChange={(o) => { if (!o) setProfileTarget(null); }}
+        onChanged={fetchAll}
+      />
     </div>
   );
 };

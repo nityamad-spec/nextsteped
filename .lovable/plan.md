@@ -1,49 +1,80 @@
-# Course Analytics — Professor Page
+# Teacher Detail Dialog on /admin/teachers
 
-## Goal
-Give professors the same rich course profile view that admins see in the `/admin/courses` row dialog, but as a full page in the professor sidebar, scoped to the course currently selected in the CourseSwitcher.
+Make each row on `/admin/teachers` clickable. Opens a dialog with two sections: **Courses** (with role management) and **Navigation Access** (which teacher-view pages the teacher can see).
 
-## Scope decisions (confirmed)
-- **Data scope:** Current course only (from `useTeacherCourseId` / CourseSwitcher). Auto-updates when the professor switches courses.
-- **Nav placement:** Sidebar order becomes: Course Setup, Course Dashboard, Course Assistant, Lesson Plan & Resources, **Course Analytics**, Support.
-- **Privacy:** Full identities in roster drill-downs (name + email), same as the admin dialog. Relies on the recent RLS work letting teachers read enrolled students' profiles.
-- **Gating:** Locked (with tooltip) until Course Setup is complete, matching Course Dashboard / Assistant / Content Library.
+## 1. Data model
 
-## Deliverables
+New table `public.teacher_nav_permissions`:
+- `teacher_id uuid PK -> profiles.id`
+- `allowed_paths text[]` — list of teacher-nav paths the teacher is allowed to see
+- `updated_at`, `updated_by`
 
-### 1. Extract shared analytics view
-Refactor `src/components/admin/CourseProfileDialog.tsx` into two pieces:
-- `src/components/CourseAnalyticsView.tsx` — presentational + data-loading component. Takes a `CourseLite` prop and renders the entire body currently inside the Dialog (header row, university filter, stat cards, mastery bands, roster drill-down panel). No Dialog chrome.
-- `src/components/admin/CourseProfileDialog.tsx` — thin wrapper that keeps the Dialog/DialogContent/DialogHeader and renders `<CourseAnalyticsView course={course} />` inside. Admin behavior is unchanged.
+Grants: `service_role` full; `authenticated` select+insert+update+delete gated by RLS.
 
-Rationale: one source of truth for the analytics UI so admin and professor views stay in sync.
+RLS:
+- Admins (via `is_admin(auth.uid())`): full read/write on all rows.
+- Teachers: `select` own row only.
 
-### 2. New professor page
-Create `src/pages/teacher/CourseAnalytics.tsx`:
-- Resolve the active course via `useTeacherCourseId` (or the same pattern other teacher pages use — CourseSwitcher writes `currentCourseId` to localStorage and pages read it).
-- Fetch the minimal `CourseLite` fields (`id, name, course_code, term, enrollment_code, published, enrollment_open`, plus teacher name/email from `profiles` for the owner) for that course id.
-- Render `<CourseAnalyticsView course={courseLite} />` inside the standard teacher page shell (page title "Course Analytics", same padding as other teacher pages).
-- Loading + empty states: skeleton while course loads; "Select a course to view analytics" if none resolved.
+Default when no row exists: **only `/teacher/support` is visible** (per your answer). `Course Setup` is `alwaysUnlocked` in nav today — we'll treat Setup as always-visible too so a brand-new teacher can still complete setup; otherwise they'd be stuck. Everything else hidden until admin grants it.
 
-### 3. Route + nav wiring
-- `src/App.tsx`: add `<Route path="/teacher/analytics" element={<CourseAnalytics />} />` inside the existing TeacherLayout block (so it inherits `ProtectedRoute` + `RoleGuard allow={["teacher"]}` + `TeacherLayout`).
-- `src/layouts/TeacherLayout.tsx`: add a new entry to `teacherNav` between "Lesson Plan & Resources" and "Support":
-  ```ts
-  { title: "Course Analytics", path: "/teacher/analytics", icon: BarChart3 }
-  ```
-  No `alwaysUnlocked` flag → automatically gated by the existing setup-complete check, with the same lock icon + tooltip other locked items show.
+## 2. Backend behavior
 
-### 4. RLS / access sanity
-No schema changes required. The admin dialog reads: `enrollments`, `profiles`, `universities`, `diagnostic_results`, `student_course_mastery`, `course_exams`, `assessment_results`, `chat_sessions`, `chat_messages`. The teacher already owns / collaborates on the course, so existing "course member" policies plus the recently added `teacher_can_view_student` profile policy cover reads. We will verify by loading the page as a professor after the change; no migration.
+- No changes to existing course-level RLS. Nav permissions are a UI gate only; route-level guards enforce the same list client-side (redirect to `/teacher/support` if visiting a disallowed path).
+- Course role edits reuse existing tables:
+  - **Owner** = `courses.teacher_id`
+  - **Collaborator** = row in `course_teachers`
+  - "Change role" for a collaborator → promote to owner uses the existing `transfer-course-ownership` edge function (demotes current owner to collaborator).
+  - "Remove from course": for collaborator, delete from `course_teachers`; for owner, require transferring ownership first (reuse existing UX pattern from AdminTeachers delete flow).
+  - "Add to course": admin picks a course from a searchable list → insert into `course_teachers` as collaborator.
 
-## Out of scope
-- No changes to admin dialog behavior or layout.
-- No new charts / metrics beyond what the admin dialog already shows.
-- No student chat content exposure — same aggregate stats (chat_students, chat_messages) the admin sees.
-- No CSV export button in this pass (can be a follow-up).
+## 3. UI
 
-## Verification
-1. Sign in as a professor with an existing course + enrollments → sidebar shows "Course Analytics" (unlocked once setup is complete). Clicking it renders the same layout the admin sees for that course.
-2. Switch courses in the CourseSwitcher → page reloads stats for the new course.
-3. Sign in as a professor whose setup is incomplete → "Course Analytics" appears locked with the tooltip.
-4. Admin `/admin/courses` → row click still opens the dialog unchanged.
+### `/admin/teachers`
+- Rows become clickable (whole row, keyboard-accessible). The existing "Delete user" menu still works via stopPropagation.
+
+### New `TeacherProfileDialog.tsx`
+Header: teacher name, email, department, join date.
+
+**Tab 1 — Courses**
+Table of courses the teacher belongs to:
+| Course code · name | Role | Students | Actions |
+Actions per row:
+- Change role (Owner ⇄ Collaborator) — owner change triggers transfer-ownership confirm.
+- Remove from course (owner needs transfer target).
+"Add to course" button → dialog with course search + adds as collaborator.
+
+**Tab 2 — Navigation Access**
+Checklist of every entry in `teacherNav` (Course Setup, Course Dashboard, Course Assistant, Lesson Plan & Resources, Course Analytics, Support). Each row shows title + path + checkbox.
+- Setup and Support are checked and disabled (always visible).
+- Save button persists to `teacher_nav_permissions`.
+- Info banner: "Unchecked pages are hidden entirely from this teacher's sidebar and blocked from direct URL access."
+
+### `TeacherLayout.tsx`
+- Fetch teacher's `allowed_paths` on mount (cached like role cache).
+- Filter `teacherNav` to intersection of `allowed_paths` ∪ always-on set (`/teacher/setup`, `/teacher/support`).
+- Guard: if `location.pathname` is not allowed, redirect to `/teacher/support`.
+- Combined with existing setup-complete gate (nothing changes there).
+
+## 4. Files touched
+
+New:
+- `supabase/migrations/<ts>_teacher_nav_permissions.sql`
+- `src/components/admin/TeacherProfileDialog.tsx`
+- `src/hooks/useTeacherNavPermissions.ts`
+
+Edited:
+- `src/pages/admin/AdminTeachers.tsx` — row click → open dialog; keep delete menu.
+- `src/layouts/TeacherLayout.tsx` — filter nav + route guard using permissions.
+
+## 5. Out of scope
+
+- No changes to admin, student, or course-level RLS.
+- No audit log for permission changes (can add later if needed).
+- No per-course nav overrides — global per teacher, as chosen.
+
+## 6. Verification
+
+- Admin opens a teacher → sees courses, promotes a collaborator to owner, removes them, adds them to another course.
+- Admin unchecks "Course Dashboard" for a teacher → that teacher's sidebar no longer shows it, and visiting `/teacher/courses/dashboard` redirects to `/teacher/support`.
+- Teacher with no permission row sees only Setup + Support.
+- Other teachers unaffected.
