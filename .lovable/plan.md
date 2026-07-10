@@ -1,48 +1,49 @@
-# Fix: professors can't see their courses (profiles RLS recursion)
+# Course Analytics — Professor Page
 
-## Diagnosis
+## Goal
+Give professors the same rich course profile view that admins see in the `/admin/courses` row dialog, but as a full page in the professor sidebar, scoped to the course currently selected in the CourseSwitcher.
 
-Every failing request in the network log returns:
-`42P17 infinite recursion detected in policy for relation "profiles"`.
+## Scope decisions (confirmed)
+- **Data scope:** Current course only (from `useTeacherCourseId` / CourseSwitcher). Auto-updates when the professor switches courses.
+- **Nav placement:** Sidebar order becomes: Course Setup, Course Dashboard, Course Assistant, Lesson Plan & Resources, **Course Analytics**, Support.
+- **Privacy:** Full identities in roster drill-downs (name + email), same as the admin dialog. Relies on the recent RLS work letting teachers read enrolled students' profiles.
+- **Gating:** Locked (with tooltip) until Course Setup is complete, matching Course Dashboard / Assistant / Content Library.
 
-That's why the teacher→course mapping (and everything else) fails — `courses`, `course_teachers`, `admin_settings`, `profiles?select=role` all error out.
+## Deliverables
 
-Root cause is the recent migration that added the policy **"Teachers can view profiles of their enrolled students"** on `public.profiles`:
+### 1. Extract shared analytics view
+Refactor `src/components/admin/CourseProfileDialog.tsx` into two pieces:
+- `src/components/CourseAnalyticsView.tsx` — presentational + data-loading component. Takes a `CourseLite` prop and renders the entire body currently inside the Dialog (header row, university filter, stat cards, mastery bands, roster drill-down panel). No Dialog chrome.
+- `src/components/admin/CourseProfileDialog.tsx` — thin wrapper that keeps the Dialog/DialogContent/DialogHeader and renders `<CourseAnalyticsView course={course} />` inside. Admin behavior is unchanged.
 
-```
-(role = 'student') AND EXISTS (
-  SELECT 1 FROM enrollments e
-  WHERE e.student_id = profiles.id
-    AND is_course_member(e.course_id, auth.uid())
-)
-```
+Rationale: one source of truth for the analytics UI so admin and professor views stay in sync.
 
-The subquery on `enrollments` runs under the caller's RLS. `enrollments` has an admin policy that inlines `SELECT ... FROM profiles WHERE role='admin'`, which re-enters `profiles` RLS, which re-evaluates the teacher policy, which re-hits `enrollments` → recursion.
+### 2. New professor page
+Create `src/pages/teacher/CourseAnalytics.tsx`:
+- Resolve the active course via `useTeacherCourseId` (or the same pattern other teacher pages use — CourseSwitcher writes `currentCourseId` to localStorage and pages read it).
+- Fetch the minimal `CourseLite` fields (`id, name, course_code, term, enrollment_code, published, enrollment_open`, plus teacher name/email from `profiles` for the owner) for that course id.
+- Render `<CourseAnalyticsView course={courseLite} />` inside the standard teacher page shell (page title "Course Analytics", same padding as other teacher pages).
+- Loading + empty states: skeleton while course loads; "Select a course to view analytics" if none resolved.
 
-Several existing admin policies have the same inline-`profiles` shape and are latent recursion sources:
-- `courses` → "Admins can view all courses", "Admins can update courses"
-- `course_teachers` → "Admins can manage all course_teachers"
-- `enrollments` → "Admins can view all enrollments"
+### 3. Route + nav wiring
+- `src/App.tsx`: add `<Route path="/teacher/analytics" element={<CourseAnalytics />} />` inside the existing TeacherLayout block (so it inherits `ProtectedRoute` + `RoleGuard allow={["teacher"]}` + `TeacherLayout`).
+- `src/layouts/TeacherLayout.tsx`: add a new entry to `teacherNav` between "Lesson Plan & Resources" and "Support":
+  ```ts
+  { title: "Course Analytics", path: "/teacher/analytics", icon: BarChart3 }
+  ```
+  No `alwaysUnlocked` flag → automatically gated by the existing setup-complete check, with the same lock icon + tooltip other locked items show.
 
-The already-defined `public.is_admin(uuid)` is `SECURITY DEFINER` and bypasses RLS — the fix is to route through definer functions everywhere instead of inline `profiles` subqueries.
+### 4. RLS / access sanity
+No schema changes required. The admin dialog reads: `enrollments`, `profiles`, `universities`, `diagnostic_results`, `student_course_mastery`, `course_exams`, `assessment_results`, `chat_sessions`, `chat_messages`. The teacher already owns / collaborates on the course, so existing "course member" policies plus the recently added `teacher_can_view_student` profile policy cover reads. We will verify by loading the page as a professor after the change; no migration.
 
-## Plan (RLS-only migration, no app code changes)
+## Out of scope
+- No changes to admin dialog behavior or layout.
+- No new charts / metrics beyond what the admin dialog already shows.
+- No student chat content exposure — same aggregate stats (chat_students, chat_messages) the admin sees.
+- No CSV export button in this pass (can be a follow-up).
 
-1. Add a `SECURITY DEFINER` helper `public.teacher_can_view_student(_student_id uuid, _teacher_id uuid)` that returns true iff an `enrollments` row exists for `_student_id` in a course where `is_course_member(course_id, _teacher_id)`. Runs as definer so it doesn't trigger `enrollments` RLS.
-2. Drop and recreate the **"Teachers can view profiles of their enrolled students"** policy on `profiles` to use `teacher_can_view_student(profiles.id, auth.uid())` instead of the inline EXISTS. Scope stays `role = 'student'`.
-3. Replace the inline `SELECT FROM profiles WHERE role='admin'` in the admin policies on `courses`, `course_teachers`, and `enrollments` with `public.is_admin(auth.uid())`. Semantics unchanged, no more re-entry into `profiles` RLS.
-4. No changes to grants, no changes to non-admin/non-teacher policies, no schema changes.
-
-## Verification (after apply)
-
-- Re-run the earlier professor/collaborator/unrelated-teacher/self matrix against `profiles` — expect the same 8 outcomes as before.
-- Confirm `SELECT id FROM courses WHERE teacher_id = <teacher>` and `SELECT course_id FROM course_teachers WHERE teacher_id = <teacher>` return rows for `teacher.nextstep@gmail.com` (currently 500ing).
-- Reload `/teacher/courses/dashboard` in the preview signed in as that teacher and confirm the course switcher populates.
-
-## Risks
-
-- **Behavior change in admin policies**: `is_admin()` reads `profiles.role='admin'` with definer rights — same predicate the inline subqueries evaluated, so no functional drift expected. If any admin's profile row is missing, both old and new checks fail identically.
-- **Definer helper on enrollments**: `teacher_can_view_student` bypasses `enrollments` RLS by design. It only exposes a boolean and is gated by the outer `profiles` policy (`role='student'` + `auth.uid()` as `_teacher_id`), so it cannot be used to enumerate enrollments.
-- **Historical enrollments** still count (no `active` flag on `enrollments`) — same caveat called out previously; unchanged by this fix.
-- **Perf**: one EXISTS on `enrollments` per profile row, same as before; wrapped in a definer function so the planner sees a single function call.
-- Migration is reversible: drop the helper and restore the previous `EXISTS` policy if needed.
+## Verification
+1. Sign in as a professor with an existing course + enrollments → sidebar shows "Course Analytics" (unlocked once setup is complete). Clicking it renders the same layout the admin sees for that course.
+2. Switch courses in the CourseSwitcher → page reloads stats for the new course.
+3. Sign in as a professor whose setup is incomplete → "Course Analytics" appears locked with the tooltip.
+4. Admin `/admin/courses` → row click still opens the dialog unchanged.
