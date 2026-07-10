@@ -23,7 +23,7 @@ const TeacherLayout = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const { loading: setupLoading, isComplete: setupComplete, ownsAnyCourse } = useTeacherSetupStatus();
-  const { loading: permLoading, isAllowed } = useTeacherNavPermissions();
+  const { loading: permLoading, ready: permReady, isAllowed } = useTeacherNavPermissions();
 
   // Course Setup must stay reachable while the teacher owns a course whose
   // setup isn't finished — otherwise a teacher whose admin hid Setup would be
@@ -32,7 +32,12 @@ const TeacherLayout = () => {
   const effectiveAllowed = (path: string) =>
     isAllowed(path) || (forceSetup && (path === "/teacher/setup" || path.startsWith("/teacher/setup/")));
 
-  const teacherNav = TEACHER_NAV.filter((item) => item.alwaysVisible || effectiveAllowed(item.path));
+  // Render nav only after permissions are fetched. Support is the sole item
+  // that may render eagerly (it is unconditionally granted for every teacher).
+  // Any other nav item shown before `permReady` would leak un-granted UI.
+  const teacherNav = permReady
+    ? TEACHER_NAV.filter((item) => effectiveAllowed(item.path))
+    : TEACHER_NAV.filter((item) => item.path === "/teacher/support");
 
   // Hard gate: if the professor lands on a non-setup route while setup is
   // incomplete, force them back to /teacher/setup.
@@ -46,12 +51,12 @@ const TeacherLayout = () => {
 
   // Admin-controlled nav permissions: redirect to /teacher/support if visiting a hidden page.
   useEffect(() => {
-    if (permLoading || setupLoading) return;
+    if (!permReady || setupLoading) return;
     if (!effectiveAllowed(location.pathname)) {
       navigate("/teacher/support", { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [permLoading, setupLoading, forceSetup, isAllowed, location.pathname, navigate]);
+  }, [permReady, setupLoading, forceSetup, isAllowed, location.pathname, navigate]);
 
   const isLocked = (item: TeacherNavItem) => !item.alwaysUnlocked && !setupComplete;
 
