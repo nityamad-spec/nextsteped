@@ -12,7 +12,7 @@ export interface TeacherNavItem {
 }
 
 export const TEACHER_NAV: TeacherNavItem[] = [
-  { title: "Course Setup", path: "/teacher/setup", icon: ListChecks, alwaysUnlocked: true, alwaysVisible: true },
+  { title: "Course Setup", path: "/teacher/setup", icon: ListChecks, alwaysUnlocked: true },
   { title: "Course Dashboard", path: "/teacher/courses/dashboard", icon: BookOpen },
   { title: "Course Assistant", path: "/teacher/chat", icon: MessageSquare },
   { title: "Lesson Plan & Resources", path: "/teacher/content-library", icon: Library },
