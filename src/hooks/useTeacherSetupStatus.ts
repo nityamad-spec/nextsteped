@@ -21,11 +21,13 @@ export function useTeacherSetupStatus() {
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [isComplete, setIsComplete] = useState(false);
+  const [ownsAnyCourse, setOwnsAnyCourse] = useState(false);
 
   useEffect(() => {
     if (!user) {
       setLoading(false);
       setIsComplete(false);
+      setOwnsAnyCourse(false);
       return;
     }
     let cancelled = false;
