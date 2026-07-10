@@ -4,6 +4,7 @@ import { Check, ChevronsUpDown, PlusCircle, BookOpen } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useTeacherNavPermissions } from "@/hooks/useTeacherNavPermissions";
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
@@ -11,6 +12,7 @@ import {
   Command, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandSeparator,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+
 
 interface CourseRow {
   id: string;
