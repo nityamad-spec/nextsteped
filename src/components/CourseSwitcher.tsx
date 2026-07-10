@@ -34,10 +34,12 @@ interface CourseRow {
 const CourseSwitcher = ({ collapsed }: { collapsed?: boolean }) => {
   const { user } = useAuth();
   const { currentCourse, setCurrentCourse } = useApp();
+  const { canCreateCourses } = useTeacherNavPermissions();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [loading, setLoading] = useState(true);
+
 
   useEffect(() => {
     if (!user) return;
