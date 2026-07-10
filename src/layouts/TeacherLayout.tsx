@@ -40,14 +40,17 @@ const TeacherLayout = () => {
     : TEACHER_NAV.filter((item) => item.path === "/teacher/support");
 
   // Hard gate: if the professor lands on a non-setup route while setup is
-  // incomplete, force them back to /teacher/setup.
+  // incomplete, force them back to /teacher/setup — UNLESS admin has
+  // explicitly granted that path (admin permission overrides the setup gate).
   useEffect(() => {
-    if (setupLoading) return;
+    if (setupLoading || !permReady) return;
     if (setupComplete) return;
     const path = location.pathname;
-    const allowed = ALWAYS_OPEN_PATHS.some((p) => path === p || path.startsWith(p + "/"));
-    if (!allowed) navigate("/teacher/setup", { replace: true });
-  }, [setupLoading, setupComplete, location.pathname, navigate]);
+    const alwaysOpen = ALWAYS_OPEN_PATHS.some((p) => path === p || path.startsWith(p + "/"));
+    if (alwaysOpen) return;
+    if (isAllowed(path)) return;
+    navigate("/teacher/setup", { replace: true });
+  }, [setupLoading, setupComplete, permReady, isAllowed, location.pathname, navigate]);
 
   // Admin-controlled nav permissions: redirect to /teacher/support if visiting a hidden page.
   useEffect(() => {
@@ -58,7 +61,11 @@ const TeacherLayout = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [permReady, setupLoading, forceSetup, isAllowed, location.pathname, navigate]);
 
-  const isLocked = (item: TeacherNavItem) => !item.alwaysUnlocked && !setupComplete;
+  // A nav item is locked when setup is incomplete, UNLESS it's marked
+  // alwaysUnlocked OR admin has explicitly granted it (permission overrides gate).
+  const isLocked = (item: TeacherNavItem) =>
+    !item.alwaysUnlocked && !setupComplete && !isAllowed(item.path);
+
 
 
   if (isMobile) {
