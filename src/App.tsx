@@ -158,8 +158,8 @@ function TeacherRedirect() {
 }
 
 function RequireCourseCreate({ children }: { children: React.ReactNode }) {
-  const { loading, canCreateCourses } = useTeacherNavPermissions();
-  if (loading) {
+  const { ready, canCreateCourses } = useTeacherNavPermissions();
+  if (!ready) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-muted-foreground">Loading...</div>
@@ -168,6 +168,40 @@ function RequireCourseCreate({ children }: { children: React.ReactNode }) {
   }
   if (!canCreateCourses) {
     return <Navigate to="/teacher/support?reason=course-create-restricted" replace />;
+  }
+  return <>{children}</>;
+}
+
+/**
+ * Per-route guard for teacher pages. Blocks direct URL access to routes the
+ * admin has not granted, closing the URL-typing / race-window bypass that a
+ * layout-level useEffect redirect cannot prevent (the child route renders and
+ * fetches data before the redirect fires).
+ *
+ * `forceSetup` (owner with an unfinished course) keeps `/teacher/setup*`
+ * reachable so a teacher cannot be stranded mid-onboarding.
+ */
+function RequireTeacherPath({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const { ready: permReady, allowed } = useTeacherNavPermissions();
+  const { loading: setupLoading, isComplete: setupComplete, ownsAnyCourse } = useTeacherSetupStatus();
+
+  if (!permReady || setupLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  const path = location.pathname;
+  const forceSetup = !setupComplete && ownsAnyCourse;
+  const isSetupPath = path === "/teacher/setup" || path.startsWith("/teacher/setup/");
+  const permitted =
+    isTeacherPathAllowed(path, allowed) || (forceSetup && isSetupPath);
+
+  if (!permitted) {
+    return <Navigate to="/teacher/support?reason=nav-restricted" replace />;
   }
   return <>{children}</>;
 }
