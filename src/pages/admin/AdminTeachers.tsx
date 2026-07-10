@@ -243,6 +243,13 @@ const AdminTeachers = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <TeacherProfileDialog
+        teacher={profileTarget}
+        open={!!profileTarget}
+        onOpenChange={(o) => { if (!o) setProfileTarget(null); }}
+        onChanged={fetchAll}
+      />
     </div>
   );
 };
