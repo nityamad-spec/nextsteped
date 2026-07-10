@@ -87,6 +87,8 @@ function TeacherRedirect() {
   const [isCollaboratorOnly, setIsCollaboratorOnly] = useState(false);
   const [needsPassword, setNeedsPassword] = useState(false);
   const { loading: setupLoading, isComplete } = useTeacherSetupStatus();
+  const { loading: permLoading, canCreateCourses } = useTeacherNavPermissions();
+
 
   useEffect(() => {
     if (authLoading) return;
