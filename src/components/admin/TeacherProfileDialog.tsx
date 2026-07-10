@@ -66,6 +66,7 @@ export default function TeacherProfileDialog({ teacher, open, onOpenChange, onCh
   const [addOpen, setAddOpen] = useState(false);
   const [availableCourses, setAvailableCourses] = useState<{ id: string; name: string; course_code: string | null }[]>([]);
   const [addCourseId, setAddCourseId] = useState<string>("");
+  const [coursePickerOpen, setCoursePickerOpen] = useState(false);
 
   useEffect(() => {
     if (!open || !teacher) return;
