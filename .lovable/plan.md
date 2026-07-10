@@ -1,36 +1,35 @@
 ## Root cause
 
-The `teacher_applications` table has two RLS policies:
+The teacher invite email's `redirect_to` parameter is being set from the caller's browser origin. When you approve a teacher from inside the Lovable editor, the request's `Origin`/`Referer` header resolves to `https://lovable.dev` (the editor shell), not the preview iframe. So Supabase builds an invite link containing `redirect_to=https://lovable.dev/reset-password`. Since `lovable.dev` isn't in the project's auth redirect allow-list, the invite lands on `lovable.dev` itself — which shows the Lovable login page from your screenshot.
 
-- `Admins can manage teacher applications` — ALL, role `authenticated`, check `is_admin(auth.uid())`
-- `Anon can submit teacher application` — INSERT, role `anon` only, check `true`
-
-The submit form (`TeacherApplicationForm.tsx`) inserts into `teacher_applications`. If the visitor is signed in as **any authenticated non-admin user** (e.g. a previously-approved teacher, or a student who navigated to `/intro/teacher/apply`, or someone who never logged out after an earlier flow), their JWT role is `authenticated`, not `anon`. The anon-only INSERT policy doesn't apply, the admin policy's `WITH CHECK` fails (`is_admin` is false), and Postgres returns the RLS violation shown in the screenshot.
-
-This matches the reported symptom: approved teachers submitting/retrying the application form hit the error because they are signed in.
+Backend auth config is fine:
+- Site URL: `https://nextsteped.lovable.app`
+- Allow-list already includes preview + published domains (no `lovable.dev` entry, and we should NOT add one).
 
 ## Fix
 
-Add an INSERT policy that also permits authenticated users to insert their own application row. Keep it permissive on payload (matches existing anon behavior) since the row is admin-reviewed before it grants any privilege.
+Stop trusting the caller's `Origin`/`Referer` for the invite `redirectTo`. Always send teachers to the published app.
 
-### Migration
+### Files to change
 
-```sql
-CREATE POLICY "Authenticated can submit teacher application"
-ON public.teacher_applications
-FOR INSERT
-TO authenticated
-WITH CHECK (true);
-```
+1. `supabase/functions/approve-teacher/index.ts`
+   - Replace the dynamic `origin`-based `redirectTo` with a constant:
+     `const redirectTo = "https://nextsteped.lovable.app/reset-password";`
+   - Pass it to `adminClient.auth.admin.inviteUserByEmail(...)` as before.
 
-No changes to grants (authenticated already has table privileges via existing admin policy grants — verified by the admin ALL policy working). No changes to the anon policy, admin policy, or any application code.
+2. `supabase/functions/resend-teacher-invite/index.ts`
+   - Same change: hard-code `redirectTo` to `https://nextsteped.lovable.app/reset-password` for both the invite and the recovery fallback paths.
 
-### Out of scope
+### Out of scope (not touching now)
 
-- No change to approval flow, edge functions, or client code.
-- No change to SELECT/UPDATE/DELETE policies.
-- Not tightening the WITH CHECK (e.g. to `email = auth.jwt()->>'email'`) — current anon policy is `true`, so keeping parity avoids breaking legitimate cases where the signed-in user applies with a different institutional email.
+- `student-pending-signup` — same pattern exists, but you only asked about the teacher flow. Happy to apply the same fix there in a follow-up if you want.
+- No changes to Site URL, allow-list, edge function CORS, or client code.
+- No new migration.
 
-## Files touched
+### Verification
 
-- New migration: add INSERT policy for `authenticated` on `public.teacher_applications`.
+- Approve a test teacher from the Lovable editor.
+- Open the invite email — the link's `redirect_to` query param should be `https://nextsteped.lovable.app/reset-password`.
+- Clicking it should land on your app's password reset page, not on `lovable.dev`.
+
+Want me to apply the same hard-coded redirect to `student-pending-signup` in the same change, or leave it alone for now?

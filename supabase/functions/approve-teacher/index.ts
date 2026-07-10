@@ -97,9 +97,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "approve") {
-      // Determine the redirect URL for the invite link from the caller's origin
-      const origin = req.headers.get("origin") ?? req.headers.get("referer")?.replace(/\/$/, "") ?? "";
-      const redirectTo = origin ? `${origin}/reset-password` : undefined;
+      // Always send teachers to the published app — the caller's Origin/Referer
+      // can be the Lovable editor (lovable.dev), which isn't in the auth
+      // redirect allow-list and causes the invite to land on lovable.dev.
+      const redirectTo = "https://nextsteped.lovable.app/reset-password";
 
       // Invite user — this creates the account AND sends an invite email
       const { data: newUser, error: createError } = await adminClient.auth.admin.inviteUserByEmail(
