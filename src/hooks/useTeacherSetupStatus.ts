@@ -141,5 +141,5 @@ export function useTeacherSetupStatus() {
     return () => { cancelled = true; };
   }, [user, location.pathname]);
 
-  return { loading, isComplete };
+  return { loading, isComplete, ownsAnyCourse };
 }
