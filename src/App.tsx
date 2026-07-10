@@ -313,7 +313,7 @@ const App = () => (
               {/* Teacher onboarding (single-page, no layout) */}
               <Route path="/teacher" element={<ProtectedRoute><RoleGuard allow={["teacher"]}><TeacherRedirect /></RoleGuard></ProtectedRoute>} />
               <Route path="/teacher/onboarding" element={<ProtectedRoute><RoleGuard allow={["teacher"]}><TeacherOnboarding /></RoleGuard></ProtectedRoute>} />
-              <Route path="/teacher/courses/new" element={<ProtectedRoute><RoleGuard allow={["teacher"]}><NewCoursePage /></RoleGuard></ProtectedRoute>} />
+              <Route path="/teacher/courses/new" element={<ProtectedRoute><RoleGuard allow={["teacher"]}><RequireCourseCreate><NewCoursePage /></RequireCourseCreate></RoleGuard></ProtectedRoute>} />
               {/* Teacher dashboard + setup modules (all share TeacherLayout) */}
               <Route element={<ProtectedRoute><RoleGuard allow={["teacher"]}><TeacherLayout /></RoleGuard></ProtectedRoute>}>
                 <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
