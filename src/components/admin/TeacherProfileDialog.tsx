@@ -47,7 +47,9 @@ export default function TeacherProfileDialog({ teacher, open, onOpenChange, onCh
   const [loading, setLoading] = useState(false);
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [allowedPaths, setAllowedPaths] = useState<string[]>([]);
+  const [canCreateCourses, setCanCreateCourses] = useState<boolean>(false);
   const [savingPerms, setSavingPerms] = useState(false);
+
 
   // Ownership transfer / remove state
   const [ownerActionCourse, setOwnerActionCourse] = useState<CourseRow | null>(null);
@@ -69,7 +71,7 @@ export default function TeacherProfileDialog({ teacher, open, onOpenChange, onCh
       const [ownedRes, collabRes, permRes, teachersRes] = await Promise.all([
         supabase.from("courses").select("id, name, course_code").eq("teacher_id", teacher.id),
         supabase.from("course_teachers").select("course_id, role, courses:course_id(id, name, course_code)").eq("teacher_id", teacher.id),
-        supabase.from("teacher_nav_permissions").select("allowed_paths").eq("teacher_id", teacher.id).maybeSingle(),
+        supabase.from("teacher_nav_permissions").select("allowed_paths, can_create_courses").eq("teacher_id", teacher.id).maybeSingle(),
         supabase.from("profiles").select("id, name, email").eq("role", "teacher").neq("id", teacher.id),
       ]);
 
@@ -96,6 +98,8 @@ export default function TeacherProfileDialog({ teacher, open, onOpenChange, onCh
       if (cancelled) return;
       setCourses(merged);
       setAllowedPaths(((permRes.data?.allowed_paths as string[] | undefined) ?? [...TEACHER_NAV_ALWAYS_ON]));
+      setCanCreateCourses(Boolean(permRes.data?.can_create_courses));
+
       setOtherTeachers(teachersRes.data || []);
       setLoading(false);
     })();
@@ -145,9 +149,11 @@ export default function TeacherProfileDialog({ teacher, open, onOpenChange, onCh
     const payload = {
       teacher_id: teacher.id,
       allowed_paths: Array.from(new Set([...allowedPaths, ...TEACHER_NAV_ALWAYS_ON])),
+      can_create_courses: canCreateCourses,
       updated_by: user.id,
       updated_at: new Date().toISOString(),
     };
+
     const { error } = await supabase
       .from("teacher_nav_permissions")
       .upsert(payload, { onConflict: "teacher_id" });
@@ -349,8 +355,26 @@ export default function TeacherProfileDialog({ teacher, open, onOpenChange, onCh
                 Course Setup and Support are always visible.
               </div>
               <div className="space-y-2">
+
+                <label
+                  className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/40"
+                >
+                  <Checkbox
+                    checked={canCreateCourses}
+                    disabled={savingPerms}
+                    onCheckedChange={(v) => setCanCreateCourses(!!v)}
+                  />
+                  <Plus className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">Create new courses</div>
+                    <div className="text-xs text-muted-foreground">
+                      When off, this teacher cannot create new courses. Existing courses are unaffected.
+                    </div>
+                  </div>
+                </label>
                 {TEACHER_NAV.map((item) => {
                   const forced = item.alwaysVisible === true;
+
                   const checked = forced || allowedPaths.includes(item.path);
                   return (
                     <label key={item.path}

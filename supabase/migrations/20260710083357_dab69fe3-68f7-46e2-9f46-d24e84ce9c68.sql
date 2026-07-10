@@ -1,0 +1,1 @@
+ALTER TABLE public.teacher_nav_permissions ADD COLUMN IF NOT EXISTS can_create_courses boolean NOT NULL DEFAULT false;

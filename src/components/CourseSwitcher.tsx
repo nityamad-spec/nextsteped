@@ -4,6 +4,7 @@ import { Check, ChevronsUpDown, PlusCircle, BookOpen } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useTeacherNavPermissions } from "@/hooks/useTeacherNavPermissions";
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
@@ -11,6 +12,7 @@ import {
   Command, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandSeparator,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+
 
 interface CourseRow {
   id: string;
@@ -32,10 +34,12 @@ interface CourseRow {
 const CourseSwitcher = ({ collapsed }: { collapsed?: boolean }) => {
   const { user } = useAuth();
   const { currentCourse, setCurrentCourse } = useApp();
+  const { canCreateCourses } = useTeacherNavPermissions();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [loading, setLoading] = useState(true);
+
 
   useEffect(() => {
     if (!user) return;
@@ -92,6 +96,7 @@ const CourseSwitcher = ({ collapsed }: { collapsed?: boolean }) => {
   const label = active?.name ?? (loading ? "Loading…" : "No course");
 
   if (collapsed) {
+    if (!canCreateCourses) return null;
     return (
       <button
         onClick={() => navigate("/teacher/courses/new")}
@@ -102,6 +107,7 @@ const CourseSwitcher = ({ collapsed }: { collapsed?: boolean }) => {
       </button>
     );
   }
+
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -154,19 +160,24 @@ const CourseSwitcher = ({ collapsed }: { collapsed?: boolean }) => {
                 ))}
               </CommandGroup>
             )}
-            <CommandSeparator />
-            <CommandGroup>
-              <CommandItem
-                onSelect={() => {
-                  setOpen(false);
-                  navigate("/teacher/courses/new");
-                }}
-                className="gap-2 text-primary"
-              >
-                <PlusCircle className="h-4 w-4" />
-                Add new course
-              </CommandItem>
-            </CommandGroup>
+            {canCreateCourses && (
+              <>
+                <CommandSeparator />
+                <CommandGroup>
+                  <CommandItem
+                    onSelect={() => {
+                      setOpen(false);
+                      navigate("/teacher/courses/new");
+                    }}
+                    className="gap-2 text-primary"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    Add new course
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            )}
+
           </CommandList>
         </Command>
       </PopoverContent>

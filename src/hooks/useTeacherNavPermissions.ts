@@ -20,6 +20,7 @@ export function useTeacherNavPermissions() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState<string[]>([...TEACHER_NAV_ALWAYS_ON]);
+  const [canCreateCourses, setCanCreateCourses] = useState<boolean>(false);
 
   useEffect(() => {
     if (!user) {
@@ -31,13 +32,14 @@ export function useTeacherNavPermissions() {
       setLoading(true);
       const { data } = await supabase
         .from("teacher_nav_permissions")
-        .select("allowed_paths")
+        .select("allowed_paths, can_create_courses")
         .eq("teacher_id", user.id)
         .maybeSingle();
       if (cancelled) return;
       const paths = (data?.allowed_paths ?? []) as string[];
       const merged = Array.from(new Set([...TEACHER_NAV_ALWAYS_ON, ...paths]));
       setAllowed(merged);
+      setCanCreateCourses(Boolean(data?.can_create_courses));
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -46,5 +48,6 @@ export function useTeacherNavPermissions() {
   const isAllowed = (path: string) =>
     allowed.some((p) => path === p || path.startsWith(p + "/"));
 
-  return { loading, allowed, isAllowed };
+  return { loading, allowed, isAllowed, canCreateCourses };
 }
+

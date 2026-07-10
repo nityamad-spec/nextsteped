@@ -7,6 +7,8 @@ import { AppProvider, useApp } from "@/contexts/AppContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useStudentStatus } from "@/hooks/useStudentStatus";
 import { useTeacherSetupStatus } from "@/hooks/useTeacherSetupStatus";
+import { useTeacherNavPermissions } from "@/hooks/useTeacherNavPermissions";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import Landing from "./pages/Landing";
@@ -85,6 +87,8 @@ function TeacherRedirect() {
   const [isCollaboratorOnly, setIsCollaboratorOnly] = useState(false);
   const [needsPassword, setNeedsPassword] = useState(false);
   const { loading: setupLoading, isComplete } = useTeacherSetupStatus();
+  const { loading: permLoading, canCreateCourses } = useTeacherNavPermissions();
+
 
   useEffect(() => {
     if (authLoading) return;
@@ -126,7 +130,7 @@ function TeacherRedirect() {
     return () => window.clearTimeout(t);
   }, []);
 
-  if (authLoading || checking || setupLoading) {
+  if (authLoading || checking || setupLoading || permLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-muted-foreground">Loading...</div>
@@ -138,9 +142,13 @@ function TeacherRedirect() {
   if (needsPassword) return <Navigate to="/reset-password" replace />;
   // Approved teachers no longer go through TeacherOnboarding — their profile
   // was filled in during the application flow and copied over by the
-  // approve-teacher edge function. If they have no course yet, send them
-  // to the new course creation page (first-course flag).
-  if (!hasCourse) return <Navigate to="/teacher/courses/new?first=1" replace />;
+  // approve-teacher edge function. If they have no course yet, either send
+  // them to the new course page (permitted) or to Support with a notice.
+  if (!hasCourse) {
+    return canCreateCourses
+      ? <Navigate to="/teacher/courses/new?first=1" replace />
+      : <Navigate to="/teacher/support?reason=course-create-restricted" replace />;
+  }
   // Collaborators on an existing course always go straight to its dashboard —
   // they should never be gated by the owner's setup pipeline.
   if (isCollaboratorOnly) return <Navigate to="/teacher/courses/dashboard" replace />;
@@ -148,6 +156,22 @@ function TeacherRedirect() {
   if (!isComplete) return <Navigate to="/teacher/setup" replace />;
   return <Navigate to="/teacher/courses/dashboard" replace />;
 }
+
+function RequireCourseCreate({ children }: { children: React.ReactNode }) {
+  const { loading, canCreateCourses } = useTeacherNavPermissions();
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+  if (!canCreateCourses) {
+    return <Navigate to="/teacher/support?reason=course-create-restricted" replace />;
+  }
+  return <>{children}</>;
+}
+
 
 function StudentRedirect() {
   const { user } = useAuth();
@@ -289,7 +313,7 @@ const App = () => (
               {/* Teacher onboarding (single-page, no layout) */}
               <Route path="/teacher" element={<ProtectedRoute><RoleGuard allow={["teacher"]}><TeacherRedirect /></RoleGuard></ProtectedRoute>} />
               <Route path="/teacher/onboarding" element={<ProtectedRoute><RoleGuard allow={["teacher"]}><TeacherOnboarding /></RoleGuard></ProtectedRoute>} />
-              <Route path="/teacher/courses/new" element={<ProtectedRoute><RoleGuard allow={["teacher"]}><NewCoursePage /></RoleGuard></ProtectedRoute>} />
+              <Route path="/teacher/courses/new" element={<ProtectedRoute><RoleGuard allow={["teacher"]}><RequireCourseCreate><NewCoursePage /></RequireCourseCreate></RoleGuard></ProtectedRoute>} />
               {/* Teacher dashboard + setup modules (all share TeacherLayout) */}
               <Route element={<ProtectedRoute><RoleGuard allow={["teacher"]}><TeacherLayout /></RoleGuard></ProtectedRoute>}>
                 <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />

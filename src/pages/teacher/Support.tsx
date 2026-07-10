@@ -1,15 +1,28 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Building2, Headphones, Send, Check } from "lucide-react";
+import { Mail, Building2, Headphones, Send, Check, ShieldAlert } from "lucide-react";
+
 
 const Support = () => {
-  const [adminSubject, setAdminSubject] = useState("");
-  const [adminMessage, setAdminMessage] = useState("");
+  const [searchParams] = useSearchParams();
+  const reason = searchParams.get("reason");
+  const restrictedFromCreating = reason === "course-create-restricted";
+
+  const [adminSubject, setAdminSubject] = useState(
+    restrictedFromCreating ? "Requesting permission to create courses" : ""
+  );
+  const [adminMessage, setAdminMessage] = useState(
+    restrictedFromCreating
+      ? "Hi, I don't currently have permission to create new courses. Could you please grant me access?"
+      : ""
+  );
   const [adminSent, setAdminSent] = useState(false);
+
 
   const [supportSubject, setSupportSubject] = useState("");
   const [supportMessage, setSupportMessage] = useState("");
@@ -41,8 +54,20 @@ const Support = () => {
         <h1 className="font-heading text-3xl font-bold">Support</h1>
         <p className="text-muted-foreground">Contact your institution's administrator or the NextStep team</p>
       </div>
+      {restrictedFromCreating && (
+        <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-300/60 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" />
+          <div className="text-sm">
+            <p className="font-medium">Course creation is not enabled for your account.</p>
+            <p className="mt-1 text-xs opacity-90">
+              An admin has not granted you permission to create new courses yet. Use the form below to request access.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-6">
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" /> Contact School Administrator</CardTitle>
