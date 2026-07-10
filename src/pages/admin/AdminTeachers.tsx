@@ -140,7 +140,11 @@ const AdminTeachers = () => {
               </TableHeader>
               <TableBody>
                 {teachers.map(t => (
-                  <TableRow key={t.id}>
+                  <TableRow
+                    key={t.id}
+                    className="cursor-pointer hover:bg-muted/40"
+                    onClick={() => setProfileTarget(t)}
+                  >
                     <TableCell className="font-medium">{t.name}</TableCell>
                     <TableCell className="text-muted-foreground">{t.email || "—"}</TableCell>
                     <TableCell>{t.department || "—"}</TableCell>
@@ -153,7 +157,7 @@ const AdminTeachers = () => {
                     <TableCell className="text-muted-foreground text-sm">
                       {new Date(t.created_at).toLocaleDateString()}
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
