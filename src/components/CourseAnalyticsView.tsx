@@ -167,6 +167,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
     const enrollments = (enrRes.data || []) as { student_id: string }[];
     const studentIds = Array.from(new Set(enrollments.map(e => e.student_id)));
 
+    if (showSkeleton) setLoadingStage("students");
     let profiles: RawData["profiles"] = [];
     let universities: { id: string; name: string }[] = [];
     if (studentIds.length > 0) {
@@ -182,6 +183,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       }
     }
 
+    if (showSkeleton) setLoadingStage("chat");
     const sessionIds = (chatSessionsRes.data || []).map(s => s.id as string);
     const chatMessageSessionIds: string[] = [];
     if (sessionIds.length > 0) {
@@ -200,6 +202,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       }
     }
 
+    if (showSkeleton) setLoadingStage("computing");
     setRaw({
       enrollments,
       profiles,
@@ -211,7 +214,10 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       chatSessions: (chatSessionsRes.data || []) as RawData["chatSessions"],
       chatMessageSessionIds,
     });
-    if (showSkeleton) setLoading(false);
+    if (showSkeleton) {
+      setLoadingStage("done");
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
