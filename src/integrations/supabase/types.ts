@@ -1914,6 +1914,10 @@ export type Database = {
         Args: { _course_id: string; _user_id: string }
         Returns: boolean
       }
+      teacher_can_view_student: {
+        Args: { _student_id: string; _teacher_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
