@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import CourseAnalyticsView, { type CourseLite } from "@/components/CourseAnalyticsView";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Loader2 } from "lucide-react";
 
 const CourseAnalytics = () => {
   const courseId = useTeacherCourseId();
