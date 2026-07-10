@@ -466,18 +466,66 @@ export default function TeacherProfileDialog({ teacher, open, onOpenChange, onCh
             <AlertDialogDescription asChild>
               <div className="space-y-3">
                 <p>They will be added as a collaborator.</p>
-                <Select value={addCourseId} onValueChange={setAddCourseId}>
-                  <SelectTrigger><SelectValue placeholder="Select a course…" /></SelectTrigger>
-                  <SelectContent>
-                    {availableCourses.length === 0 ? (
-                      <div className="px-2 py-1.5 text-sm text-muted-foreground">No other courses available</div>
-                    ) : availableCourses.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}{c.course_code ? ` — ${c.course_code}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {(() => {
+                  const selected = availableCourses.find((c) => c.id === addCourseId);
+                  const label = selected
+                    ? `${selected.name}${selected.course_code ? ` — ${selected.course_code}` : ""}`
+                    : "Select a course…";
+                  return (
+                    <Popover open={coursePickerOpen} onOpenChange={setCoursePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={coursePickerOpen}
+                          className="w-full justify-between font-normal"
+                        >
+                          <span className={cn("truncate", !selected && "text-muted-foreground")}>{label}</span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-[--radix-popover-trigger-width] p-0 pointer-events-auto"
+                        align="start"
+                      >
+                        {availableCourses.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">No other courses available</div>
+                        ) : (
+                          <Command>
+                            <CommandInput placeholder="Search courses…" />
+                            <CommandList className="max-h-64 overflow-y-auto">
+                              <CommandEmpty>No courses found.</CommandEmpty>
+                              <CommandGroup>
+                                {availableCourses.map((c) => (
+                                  <CommandItem
+                                    key={c.id}
+                                    value={`${c.name} ${c.course_code ?? ""}`}
+                                    onSelect={() => {
+                                      setAddCourseId(c.id);
+                                      setCoursePickerOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        c.id === addCourseId ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    <span className="truncate">
+                                      {c.name}
+                                      {c.course_code ? ` — ${c.course_code}` : ""}
+                                    </span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  );
+                })()}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
