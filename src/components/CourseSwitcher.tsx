@@ -160,19 +160,24 @@ const CourseSwitcher = ({ collapsed }: { collapsed?: boolean }) => {
                 ))}
               </CommandGroup>
             )}
-            <CommandSeparator />
-            <CommandGroup>
-              <CommandItem
-                onSelect={() => {
-                  setOpen(false);
-                  navigate("/teacher/courses/new");
-                }}
-                className="gap-2 text-primary"
-              >
-                <PlusCircle className="h-4 w-4" />
-                Add new course
-              </CommandItem>
-            </CommandGroup>
+            {canCreateCourses && (
+              <>
+                <CommandSeparator />
+                <CommandGroup>
+                  <CommandItem
+                    onSelect={() => {
+                      setOpen(false);
+                      navigate("/teacher/courses/new");
+                    }}
+                    className="gap-2 text-primary"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    Add new course
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            )}
+
           </CommandList>
         </Command>
       </PopoverContent>
