@@ -1,60 +1,54 @@
-## Fix teacher nav permission bypass
+## Root cause: Course Analytics gated behind full setup completion, not by admin permissions
 
-### What we know
-- Admin-saved permissions live in `teacher_nav_permissions.allowed_paths`. Example current rows:
-  - Teacher A: `[/teacher/support, /teacher/setup, /teacher/content-library]`
-  - Teacher B: `[/teacher/support, /teacher/setup, /teacher/courses/dashboard]` (+can_create_courses)
-  - Newly approved teacher: `[/teacher/support]` only
-- `useTeacherNavPermissions` correctly defaults new teachers to Support-only. Filtering in `TeacherLayout` looks correct on paper, yet the user reports teachers with a saved, restricted row see extra sidebar items. So something is either:
-  1. rendering nav items before `permLoading` resolves (initial state is Support-only, but a stale/cached render may leak more), or
-  2. matching too loosely via `startsWith` (e.g. `/teacher/setup` grant unintentionally lighting up sub-paths that appear in nav), or
-  3. an item flagged `alwaysVisible`/`alwaysUnlocked` slipping through, or
-  4. a saved row silently getting overwritten with a wider set by the admin dialog.
+### What's happening
+Even when admin grants `/teacher/analytics` in `teacher_nav_permissions.allowed_paths`, the page stays inaccessible because a **separate** gate — the "setup complete" gate — blocks every non-setup route for teachers whose Course Setup pipeline isn't fully finished.
 
-Before shipping a fix I want to reproduce and screenshot the actual sidebar for teacher A (limited row) to pinpoint (1)-(4). No code changes during that step.
+Two independent lockouts sit on top of that page:
 
-### Fix (defense in depth, once root cause confirmed)
+1. **Sidebar lock (visual)** — `src/layouts/TeacherLayout.tsx`:
+   ```
+   const isLocked = (item) => !item.alwaysUnlocked && !setupComplete;
+   ```
+   Analytics has no `alwaysUnlocked` flag in `src/config/teacherNav.ts`, so it renders with a Lock icon and a "Complete your Course Setup to unlock this" tooltip — it is not clickable.
 
-1) **Strict nav filtering** in `src/layouts/TeacherLayout.tsx`
-   - While `permLoading` is true, render an empty nav (or a skeleton) — never render items using the default state.
-   - Replace `startsWith(p + "/")` broadening with an exact-match check per top-level nav item. Sub-routes remain reachable only if their own top-level entry is granted.
-   - Remove the `alwaysVisible` escape hatch for anything except Support, and ignore `alwaysUnlocked` for visibility decisions (it currently only affects the lock icon, but I want to audit it doesn't leak).
+2. **Route redirect (hard)** — same file:
+   ```
+   const ALWAYS_OPEN_PATHS = ["/teacher/setup", "/teacher/support"];
+   useEffect(() => {
+     if (setupComplete) return;
+     if (!ALWAYS_OPEN_PATHS.matches(pathname)) navigate("/teacher/setup", { replace: true });
+   });
+   ```
+   Any teacher whose setup is incomplete is bounced to `/teacher/setup` regardless of `allowed_paths`.
 
-2) **Per-route guard** `RequireTeacherPath` in `src/App.tsx`
-   - Wrap every child of the TeacherLayout route (`/teacher/courses/dashboard`, `/teacher/chat`, `/teacher/content-library`, `/teacher/analytics`, each `/teacher/setup/*` sub-page, etc.) with a guard that:
-     - waits for `permLoading` / `setupLoading`,
-     - checks the route path against `allowed_paths` (exact top-level match),
-     - honors the existing `forceSetup` exception for `/teacher/setup`,
-     - redirects unauthorized access to `/teacher/support?reason=nav-restricted`.
-   - This closes the URL-typing bypass and the race window that today's layout-level `useEffect` leaves open.
+`setupComplete` (from `useTeacherSetupStatus`) requires **all** of: profile name+department, course basics, ≥1 uploaded material, ≥1 confirmed concept, AND a published lesson plan file in storage. Missing any one → `setupComplete=false` → Analytics locked + redirected.
 
-3) **Admin dialog correctness** in `src/components/admin/TeacherProfileDialog.tsx`
-   - Confirm the upsert writes exactly the checked paths plus `TEACHER_NAV_ALWAYS_ON`, and never a wider default. Add an explicit unit-safe assertion in `savePermissions` and show the resolved list back to admin after save.
+That's why "no one" sees it: none of the current teachers satisfy every requirement, and admin permissions have no effect on this second gate.
 
-4) **Server-side backstop (optional, low-risk)**
-   - Data for restricted pages (e.g. analytics, content-library) is already RLS-protected by course membership, so a teacher who bypasses the UI still can't read data they don't own. Confirm this is true for each page before considering additional RLS work; if any page reads globally, add a policy check. No schema changes planned unless a gap is found.
+Quick DB confirmation I plan to run before building:
+- For each teacher owner, check whether they have a published lesson plan and ≥1 concept — expected outcome: none do, which matches the reported symptom.
 
-### Out of scope
-- No auth flow changes.
-- No changes to student or admin routes.
-- No new database migrations unless step 4 uncovers a gap.
+### Options to fix
+
+Pick the intended behavior — this is a policy question, not a technical one:
+
+- **A. Admin permission overrides setup gate.** If admin explicitly granted `/teacher/analytics`, allow it even when setup is incomplete. Sidebar shows it unlocked; route loads. Setup remains required for everything else.
+- **B. Analytics is `alwaysUnlocked` for every teacher.** Drop the setup gate on Analytics only (analytics of an empty course simply shows empty state). Admin permission still controls visibility.
+- **C. Keep current gating**, but fix the misleading UX: hide Analytics from the sidebar entirely (not just lock icon) when setup is incomplete, and remove any expectation that admin permission alone unlocks it. Document that Analytics requires setup completion.
+- **D. Loosen the "setup complete" definition** so it doesn't require a published lesson plan (or require only profile + course basics). Any teacher who's created a course sees Analytics.
+
+### Recommended: A
+Rationale: admin permissions should be the source of truth for what a teacher can access. Setup gating should protect only the *setup pipeline itself*, not admin-granted pages. Fix is small and localized to `TeacherLayout` (sidebar lock + redirect) and doesn't touch the setup logic.
+
+### Files that will change (once approved)
+- `src/layouts/TeacherLayout.tsx` — `isLocked` and the setup-redirect effect both check `isAllowed(path)` before locking/redirecting.
+- Possibly `src/config/teacherNav.ts` — no change needed for A; would set `alwaysUnlocked: true` on Analytics only for B.
+- No DB / migration changes.
 
 ### Verification
-- Playwright (headless, signed in as a limited teacher via the injected Supabase session if available; otherwise via test creds) at 1280×1800:
-  1. Load `/teacher/courses/dashboard` → sidebar shows only granted items + Support; URL redirects to Support.
-  2. Type `/teacher/analytics` directly → redirected to Support.
-  3. Load `/teacher/support` → visible.
-  4. Toggle a permission in admin dialog, save, reload teacher session → nav updates to match.
-- Screenshot each state and diff against expectation.
+- Playwright not possible for a specific limited teacher (session injection is admin-only in this sandbox), so I'll verify via:
+  - Unit test on a new helper `isRouteAccessible(path, { setupComplete, isAllowed, ownsAnyCourse })` covering: admin-granted analytics with incomplete setup → true; non-granted route with incomplete setup → false → redirect to setup.
+  - Manual: you sign in as a teacher with `/teacher/analytics` granted and confirm the sidebar item is unlocked and the page loads.
 
-### Technical notes
-- Files touched: `src/hooks/useTeacherNavPermissions.ts` (optional: expose `ready` flag), `src/layouts/TeacherLayout.tsx`, `src/App.tsx` (new `RequireTeacherPath` + wrap routes), `src/components/admin/TeacherProfileDialog.tsx` (defensive save).
-- No changes to `TEACHER_NAV_ALWAYS_ON` semantics beyond Support.
-- No migration expected.
-
-### Question before I build
-The `/teacher/setup` grant currently unlocks every setup sub-page (`upload`, `concept-review`, `lesson-plan`, `diagnostic`, `ai-settings`, `exam-mode`, `enrollment`). Do you want:
-- (a) keep that — one `Setup` grant unlocks all setup sub-pages (simpler for admin), or
-- (b) split each setup sub-page into its own admin-toggleable permission?
-
-I'll default to (a) unless you say otherwise.
+### Question
+Which option (A / B / C / D) matches your intent? I'll default to **A** unless you say otherwise.
