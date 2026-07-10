@@ -31,6 +31,7 @@ const AdminTeachers = () => {
   const [confirmText, setConfirmText] = useState("");
   const [transferTo, setTransferTo] = useState<string>("");
   const [deleting, setDeleting] = useState(false);
+  const [profileTarget, setProfileTarget] = useState<TeacherRow | null>(null);
   const { toast } = useToast();
 
   const fetchAll = async () => {
