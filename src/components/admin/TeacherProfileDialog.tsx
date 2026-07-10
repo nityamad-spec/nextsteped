@@ -71,7 +71,7 @@ export default function TeacherProfileDialog({ teacher, open, onOpenChange, onCh
       const [ownedRes, collabRes, permRes, teachersRes] = await Promise.all([
         supabase.from("courses").select("id, name, course_code").eq("teacher_id", teacher.id),
         supabase.from("course_teachers").select("course_id, role, courses:course_id(id, name, course_code)").eq("teacher_id", teacher.id),
-        supabase.from("teacher_nav_permissions").select("allowed_paths").eq("teacher_id", teacher.id).maybeSingle(),
+        supabase.from("teacher_nav_permissions").select("allowed_paths, can_create_courses").eq("teacher_id", teacher.id).maybeSingle(),
         supabase.from("profiles").select("id, name, email").eq("role", "teacher").neq("id", teacher.id),
       ]);
 
