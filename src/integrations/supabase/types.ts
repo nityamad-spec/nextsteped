@@ -1795,6 +1795,7 @@ export type Database = {
       teacher_nav_permissions: {
         Row: {
           allowed_paths: string[]
+          can_create_courses: boolean
           created_at: string
           teacher_id: string
           updated_at: string
@@ -1802,6 +1803,7 @@ export type Database = {
         }
         Insert: {
           allowed_paths?: string[]
+          can_create_courses?: boolean
           created_at?: string
           teacher_id: string
           updated_at?: string
@@ -1809,6 +1811,7 @@ export type Database = {
         }
         Update: {
           allowed_paths?: string[]
+          can_create_courses?: boolean
           created_at?: string
           teacher_id?: string
           updated_at?: string

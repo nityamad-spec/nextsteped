@@ -1,53 +1,53 @@
-# Prevent teachers from being stranded when admin hides Course Setup
+# Admin Control: Teacher Course Creation Permission
 
-## Problem
+Add an admin-managed permission that decides whether each teacher can create new courses. Default = restricted. Admin toggles it from the TeacherProfileDialog on `/admin/teachers`.
 
-Course Setup is now admin-hideable via `teacher_nav_permissions`. If a teacher whose Setup is hidden creates a new course (`/teacher/courses/new` sits outside `TeacherLayout`, so it's always reachable), the post-creation redirect sends them to `/teacher/setup`, which `TeacherLayout` then bounces to `/teacher/support`. They can never finish setup for the course they just created.
+## Behavior
 
-## Fix — auto-unlock Course Setup while the teacher owns a course with incomplete setup
-
-Course Setup becomes effectively "always visible" whenever the teacher is the owner of at least one course whose setup pipeline is not yet complete. Admin's hide preference still applies the moment setup is finished — so the option stays useful, but never traps a teacher mid-onboarding.
-
-This mirrors intent: admin wants to hide the setup UI from teachers who don't need it, not from teachers who are actively required to complete it.
-
-## Changes
-
-### `src/hooks/useTeacherNavPermissions.ts`
-- Add a second computed set `forcedPaths`. If `useTeacherSetupStatus` reports `isComplete === false` **and** the teacher owns at least one course (owner, not collaborator-only), include `/teacher/setup` in `forcedPaths`.
-- Merge `forcedPaths` into the effective allow-list returned by `isAllowed`.
-- To avoid a circular dep, do the "owner + setup incomplete" check inline in the hook: query `courses` filtered by `teacher_id = auth.uid()` (limit 1) and call the same setup-complete probe already used by `useTeacherSetupStatus`. Reuse that hook directly — it's already in `TeacherLayout`'s tree, so calling it in the permissions hook is safe.
-
-Simpler alternative that avoids a hook-in-hook data dep: pass `forceSetup: boolean` into the filter from `TeacherLayout` (which already calls both hooks). Preferred, because it keeps `useTeacherNavPermissions` a pure read of the DB row.
-
-### `src/layouts/TeacherLayout.tsx`
-- Compute `forceSetup = !setupComplete && ownsAtLeastOneCourse`.
-  - `ownsAtLeastOneCourse` is inferred from `useTeacherSetupStatus`'s existing course lookup — but that hook doesn't currently expose it. Small extension: have `useTeacherSetupStatus` also return `ownsAnyCourse: boolean` (already fetched internally via the `courses` query where `teacher_id = user.id`).
-- Build effective allow-list = `allowed ∪ (forceSetup ? ["/teacher/setup"] : [])`.
-- Use this effective list for both:
-  - the sidebar filter (`teacherNav = TEACHER_NAV.filter(item => effectiveAllowed(item.path))`)
-  - the redirect guard (`if (!effectiveAllowed(location.pathname)) navigate("/teacher/support")`).
-
-### `src/components/admin/TeacherProfileDialog.tsx`
-- Add a small helper note under the Course Setup row: "Automatically shown while any of this teacher's courses still needs setup." — so admins are not surprised to see it appear.
-
-## Behavior after fix
-
-| Case | Course Setup in sidebar? |
+| Case | Result |
 |---|---|
-| Admin hid Setup, teacher owns no course | Hidden |
-| Admin hid Setup, teacher owns a course with incomplete setup | **Auto-visible** (until setup done) |
-| Admin hid Setup, all owned courses have completed setup | Hidden |
-| Admin allowed Setup | Visible (unchanged) |
-| Collaborator-only, no owned courses | Hidden if admin hid it (they don't run setup) |
+| Admin allows create | Teacher sees "Add new course" everywhere, `/teacher/courses/new` opens normally |
+| Admin restricts (default) | All create-course entry points hidden; direct URL redirects to `/teacher/support` with a toast/notice explaining they need admin approval |
+| Restricted teacher with 0 courses | Sent to `/teacher/support` (instead of the current forced `/teacher/courses/new`) with a notice to request access |
+| Existing owned courses | Unaffected — teacher continues to manage them |
+
+## Database
+
+Add a boolean column to `teacher_nav_permissions`:
+
+- `can_create_courses boolean not null default false`
+
+Rationale: this table already stores per-teacher capability config for the admin dialog, so it is the natural home. When no row exists, absence still means restricted (matches new default).
+
+No RLS change needed on `courses` for this iteration — enforcement is client-side (hide + route block), matching the scope the user chose.
+
+## UI — `src/components/admin/TeacherProfileDialog.tsx`
+
+Inside the existing nav-permissions list, add a new row "Create new courses" with the same toggle styling as the sidebar-path rows. Load the boolean alongside `allowed_paths` in the existing fetch, and include it in the same save mutation (single upsert to `teacher_nav_permissions`).
+
+## Hook — `src/hooks/useTeacherNavPermissions.ts`
+
+Extend to also return `canCreateCourses: boolean` (defaults to `false` when no row). Read it from the same query.
+
+## Enforcement
+
+1. `src/components/CourseSwitcher.tsx` — hide the "Add new course" button and dropdown item when `!canCreateCourses`.
+2. `src/App.tsx`
+   - `/teacher/courses/new` route: wrap `NewCoursePage` in a small guard that redirects to `/teacher/support?reason=course-create-restricted` when `!canCreateCourses`.
+   - `RequireCourse` (line ~143): when `!hasCourse && !canCreateCourses`, redirect to `/teacher/support?reason=course-create-restricted` instead of `/teacher/courses/new?first=1`.
+3. `src/pages/teacher/Support.tsx` (or the support page component) — read the `reason` query param and render an inline notice: "An admin has not granted you permission to create courses yet. Please contact your admin."
 
 ## Out of scope
 
-- No change to `/teacher/courses/new` reachability. Course creation stays admin-independent by design (there is no nav-permission entry for it).
-- No changes to student or admin flows.
+- No changes to server-side RLS on `courses` (client-side hide + route block only, per the chosen scope).
+- No changes to existing owned courses or collaborator flows.
+- No bulk admin action; toggle is per-teacher in the existing dialog.
 
-## Verification
+## Files touched
 
-1. Seed a teacher with `allowed_paths = ['/teacher/support']` and no courses → sidebar shows only Support.
-2. Same teacher creates a new course via `/teacher/courses/new` → after redirect, sidebar now shows Course Setup + Support, and `/teacher/setup` loads.
-3. Complete setup for that course → sidebar drops Course Setup on next mount (admin's hide preference kicks back in).
-4. Grant Setup back in the admin dialog → Course Setup is visible regardless of setup state.
+- migration: add `can_create_courses` column to `teacher_nav_permissions`
+- `src/hooks/useTeacherNavPermissions.ts`
+- `src/components/admin/TeacherProfileDialog.tsx`
+- `src/components/CourseSwitcher.tsx`
+- `src/App.tsx`
+- `src/pages/teacher/Support.tsx` (notice banner when `reason=course-create-restricted`)
