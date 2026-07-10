@@ -5,8 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 // Paths that are always visible to teachers regardless of admin config.
 // Setup must remain reachable so brand-new teachers can complete onboarding;
 // Support must remain reachable so they can request help.
+// Paths that are always visible to teachers regardless of admin config.
+// Support must remain reachable so teachers can always request help and
+// serves as the fallback landing for hidden-route redirects.
 export const TEACHER_NAV_ALWAYS_ON: readonly string[] = [
-  "/teacher/setup",
   "/teacher/support",
 ];
 
