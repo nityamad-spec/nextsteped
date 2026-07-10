@@ -21,11 +21,13 @@ export function useTeacherSetupStatus() {
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [isComplete, setIsComplete] = useState(false);
+  const [ownsAnyCourse, setOwnsAnyCourse] = useState(false);
 
   useEffect(() => {
     if (!user) {
       setLoading(false);
       setIsComplete(false);
+      setOwnsAnyCourse(false);
       return;
     }
     let cancelled = false;
@@ -33,6 +35,14 @@ export function useTeacherSetupStatus() {
     const run = async () => {
       setLoading(true);
       try {
+        // Ownership probe (independent of setup completeness).
+        const { data: ownedProbe } = await supabase
+          .from("courses")
+          .select("id")
+          .eq("teacher_id", user.id)
+          .limit(1);
+        if (!cancelled) setOwnsAnyCourse((ownedProbe?.length ?? 0) > 0);
+
         // 1. Profile basics
         const { data: profile } = await supabase
           .from("profiles")
@@ -131,5 +141,5 @@ export function useTeacherSetupStatus() {
     return () => { cancelled = true; };
   }, [user, location.pathname]);
 
-  return { loading, isComplete };
+  return { loading, isComplete, ownsAnyCourse };
 }

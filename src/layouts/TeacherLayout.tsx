@@ -22,10 +22,17 @@ const TeacherLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
-  const { loading: setupLoading, isComplete: setupComplete } = useTeacherSetupStatus();
+  const { loading: setupLoading, isComplete: setupComplete, ownsAnyCourse } = useTeacherSetupStatus();
   const { loading: permLoading, isAllowed } = useTeacherNavPermissions();
 
-  const teacherNav = TEACHER_NAV.filter((item) => item.alwaysVisible || isAllowed(item.path));
+  // Course Setup must stay reachable while the teacher owns a course whose
+  // setup isn't finished — otherwise a teacher whose admin hid Setup would be
+  // stranded on Support with a half-created course they can't finish.
+  const forceSetup = !setupComplete && ownsAnyCourse;
+  const effectiveAllowed = (path: string) =>
+    isAllowed(path) || (forceSetup && (path === "/teacher/setup" || path.startsWith("/teacher/setup/")));
+
+  const teacherNav = TEACHER_NAV.filter((item) => item.alwaysVisible || effectiveAllowed(item.path));
 
   // Hard gate: if the professor lands on a non-setup route while setup is
   // incomplete, force them back to /teacher/setup.
@@ -39,11 +46,12 @@ const TeacherLayout = () => {
 
   // Admin-controlled nav permissions: redirect to /teacher/support if visiting a hidden page.
   useEffect(() => {
-    if (permLoading) return;
-    if (!isAllowed(location.pathname)) {
+    if (permLoading || setupLoading) return;
+    if (!effectiveAllowed(location.pathname)) {
       navigate("/teacher/support", { replace: true });
     }
-  }, [permLoading, isAllowed, location.pathname, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [permLoading, setupLoading, forceSetup, isAllowed, location.pathname, navigate]);
 
   const isLocked = (item: TeacherNavItem) => !item.alwaysUnlocked && !setupComplete;
 

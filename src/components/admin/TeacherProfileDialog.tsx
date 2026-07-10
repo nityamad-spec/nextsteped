@@ -364,6 +364,11 @@ export default function TeacherProfileDialog({ teacher, open, onOpenChange, onCh
                       <div className="flex-1">
                         <div className="text-sm font-medium">{item.title}</div>
                         <div className="text-xs text-muted-foreground">{item.path}</div>
+                        {item.path === "/teacher/setup" && !forced && (
+                          <div className="text-[11px] text-muted-foreground/80 mt-1">
+                            Automatically shown while any of this teacher&apos;s courses still needs setup.
+                          </div>
+                        )}
                       </div>
                       {forced && <Badge variant="outline" className="text-[10px]">Always visible</Badge>}
                     </label>
