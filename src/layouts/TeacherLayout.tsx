@@ -23,7 +23,7 @@ const TeacherLayout = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const { loading: setupLoading, isComplete: setupComplete, ownsAnyCourse } = useTeacherSetupStatus();
-  const { loading: permLoading, ready: permReady, isAllowed } = useTeacherNavPermissions();
+  const { ready: permReady, isAllowed } = useTeacherNavPermissions();
 
   // Course Setup must stay reachable while the teacher owns a course whose
   // setup isn't finished — otherwise a teacher whose admin hid Setup would be
