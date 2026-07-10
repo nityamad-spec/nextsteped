@@ -7,6 +7,8 @@ import { AppProvider, useApp } from "@/contexts/AppContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useStudentStatus } from "@/hooks/useStudentStatus";
 import { useTeacherSetupStatus } from "@/hooks/useTeacherSetupStatus";
+import { useTeacherNavPermissions } from "@/hooks/useTeacherNavPermissions";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import Landing from "./pages/Landing";
