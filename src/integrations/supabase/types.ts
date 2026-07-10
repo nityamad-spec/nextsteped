@@ -1792,6 +1792,45 @@ export type Database = {
           },
         ]
       }
+      teacher_nav_permissions: {
+        Row: {
+          allowed_paths: string[]
+          created_at: string
+          teacher_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          allowed_paths?: string[]
+          created_at?: string
+          teacher_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          allowed_paths?: string[]
+          created_at?: string
+          teacher_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_nav_permissions_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_nav_permissions_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teacher_setup_progress: {
         Row: {
           completed_at: string | null
