@@ -476,11 +476,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       )}
 
       {loading || !stats ? (
-        <div className="space-y-3 py-2">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-24 w-full" />
-        </div>
+        <AnalyticsLoading stage={loading ? loadingStage : "course-data"} />
       ) : (
         <div className="space-y-4 py-2">
           {showUniSelect && (
