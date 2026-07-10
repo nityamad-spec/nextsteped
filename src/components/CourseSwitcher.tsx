@@ -96,6 +96,7 @@ const CourseSwitcher = ({ collapsed }: { collapsed?: boolean }) => {
   const label = active?.name ?? (loading ? "Loading…" : "No course");
 
   if (collapsed) {
+    if (!canCreateCourses) return null;
     return (
       <button
         onClick={() => navigate("/teacher/courses/new")}
@@ -106,6 +107,7 @@ const CourseSwitcher = ({ collapsed }: { collapsed?: boolean }) => {
       </button>
     );
   }
+
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
