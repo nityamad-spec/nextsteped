@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
-import { BookOpen, HelpCircle, Library, MessageSquare, ListChecks, Lock } from "lucide-react";
+import { BookOpen, HelpCircle, Library, MessageSquare, ListChecks, Lock, BarChart3 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -20,6 +20,7 @@ const teacherNav: NavItem[] = [
   { title: "Course Dashboard", path: "/teacher/courses/dashboard", icon: BookOpen },
   { title: "Course Assistant", path: "/teacher/chat", icon: MessageSquare },
   { title: "Lesson Plan & Resources", path: "/teacher/content-library", icon: Library },
+  { title: "Course Analytics", path: "/teacher/analytics", icon: BarChart3 },
   { title: "Support", path: "/teacher/support", icon: HelpCircle, alwaysUnlocked: true },
 ];
 
