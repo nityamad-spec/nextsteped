@@ -9,9 +9,20 @@ import { Mail, Building2, Headphones, Send, Check, ShieldAlert } from "lucide-re
 
 
 const Support = () => {
-  const [adminSubject, setAdminSubject] = useState("");
-  const [adminMessage, setAdminMessage] = useState("");
+  const [searchParams] = useSearchParams();
+  const reason = searchParams.get("reason");
+  const restrictedFromCreating = reason === "course-create-restricted";
+
+  const [adminSubject, setAdminSubject] = useState(
+    restrictedFromCreating ? "Requesting permission to create courses" : ""
+  );
+  const [adminMessage, setAdminMessage] = useState(
+    restrictedFromCreating
+      ? "Hi, I don't currently have permission to create new courses. Could you please grant me access?"
+      : ""
+  );
   const [adminSent, setAdminSent] = useState(false);
+
 
   const [supportSubject, setSupportSubject] = useState("");
   const [supportMessage, setSupportMessage] = useState("");
