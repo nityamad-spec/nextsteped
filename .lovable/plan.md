@@ -1,53 +1,36 @@
-# Admin Control: Teacher Course Creation Permission
+## Root cause
 
-Add an admin-managed permission that decides whether each teacher can create new courses. Default = restricted. Admin toggles it from the TeacherProfileDialog on `/admin/teachers`.
+The `teacher_applications` table has two RLS policies:
 
-## Behavior
+- `Admins can manage teacher applications` — ALL, role `authenticated`, check `is_admin(auth.uid())`
+- `Anon can submit teacher application` — INSERT, role `anon` only, check `true`
 
-| Case | Result |
-|---|---|
-| Admin allows create | Teacher sees "Add new course" everywhere, `/teacher/courses/new` opens normally |
-| Admin restricts (default) | All create-course entry points hidden; direct URL redirects to `/teacher/support` with a toast/notice explaining they need admin approval |
-| Restricted teacher with 0 courses | Sent to `/teacher/support` (instead of the current forced `/teacher/courses/new`) with a notice to request access |
-| Existing owned courses | Unaffected — teacher continues to manage them |
+The submit form (`TeacherApplicationForm.tsx`) inserts into `teacher_applications`. If the visitor is signed in as **any authenticated non-admin user** (e.g. a previously-approved teacher, or a student who navigated to `/intro/teacher/apply`, or someone who never logged out after an earlier flow), their JWT role is `authenticated`, not `anon`. The anon-only INSERT policy doesn't apply, the admin policy's `WITH CHECK` fails (`is_admin` is false), and Postgres returns the RLS violation shown in the screenshot.
 
-## Database
+This matches the reported symptom: approved teachers submitting/retrying the application form hit the error because they are signed in.
 
-Add a boolean column to `teacher_nav_permissions`:
+## Fix
 
-- `can_create_courses boolean not null default false`
+Add an INSERT policy that also permits authenticated users to insert their own application row. Keep it permissive on payload (matches existing anon behavior) since the row is admin-reviewed before it grants any privilege.
 
-Rationale: this table already stores per-teacher capability config for the admin dialog, so it is the natural home. When no row exists, absence still means restricted (matches new default).
+### Migration
 
-No RLS change needed on `courses` for this iteration — enforcement is client-side (hide + route block), matching the scope the user chose.
+```sql
+CREATE POLICY "Authenticated can submit teacher application"
+ON public.teacher_applications
+FOR INSERT
+TO authenticated
+WITH CHECK (true);
+```
 
-## UI — `src/components/admin/TeacherProfileDialog.tsx`
+No changes to grants (authenticated already has table privileges via existing admin policy grants — verified by the admin ALL policy working). No changes to the anon policy, admin policy, or any application code.
 
-Inside the existing nav-permissions list, add a new row "Create new courses" with the same toggle styling as the sidebar-path rows. Load the boolean alongside `allowed_paths` in the existing fetch, and include it in the same save mutation (single upsert to `teacher_nav_permissions`).
+### Out of scope
 
-## Hook — `src/hooks/useTeacherNavPermissions.ts`
-
-Extend to also return `canCreateCourses: boolean` (defaults to `false` when no row). Read it from the same query.
-
-## Enforcement
-
-1. `src/components/CourseSwitcher.tsx` — hide the "Add new course" button and dropdown item when `!canCreateCourses`.
-2. `src/App.tsx`
-   - `/teacher/courses/new` route: wrap `NewCoursePage` in a small guard that redirects to `/teacher/support?reason=course-create-restricted` when `!canCreateCourses`.
-   - `RequireCourse` (line ~143): when `!hasCourse && !canCreateCourses`, redirect to `/teacher/support?reason=course-create-restricted` instead of `/teacher/courses/new?first=1`.
-3. `src/pages/teacher/Support.tsx` (or the support page component) — read the `reason` query param and render an inline notice: "An admin has not granted you permission to create courses yet. Please contact your admin."
-
-## Out of scope
-
-- No changes to server-side RLS on `courses` (client-side hide + route block only, per the chosen scope).
-- No changes to existing owned courses or collaborator flows.
-- No bulk admin action; toggle is per-teacher in the existing dialog.
+- No change to approval flow, edge functions, or client code.
+- No change to SELECT/UPDATE/DELETE policies.
+- Not tightening the WITH CHECK (e.g. to `email = auth.jwt()->>'email'`) — current anon policy is `true`, so keeping parity avoids breaking legitimate cases where the signed-in user applies with a different institutional email.
 
 ## Files touched
 
-- migration: add `can_create_courses` column to `teacher_nav_permissions`
-- `src/hooks/useTeacherNavPermissions.ts`
-- `src/components/admin/TeacherProfileDialog.tsx`
-- `src/components/CourseSwitcher.tsx`
-- `src/App.tsx`
-- `src/pages/teacher/Support.tsx` (notice banner when `reason=course-create-restricted`)
+- New migration: add INSERT policy for `authenticated` on `public.teacher_applications`.
