@@ -149,9 +149,11 @@ export default function TeacherProfileDialog({ teacher, open, onOpenChange, onCh
     const payload = {
       teacher_id: teacher.id,
       allowed_paths: Array.from(new Set([...allowedPaths, ...TEACHER_NAV_ALWAYS_ON])),
+      can_create_courses: canCreateCourses,
       updated_by: user.id,
       updated_at: new Date().toISOString(),
     };
+
     const { error } = await supabase
       .from("teacher_nav_permissions")
       .upsert(payload, { onConflict: "teacher_id" });
