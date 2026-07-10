@@ -1,35 +1,60 @@
-## Root cause
+## Fix teacher nav permission bypass
 
-The teacher invite email's `redirect_to` parameter is being set from the caller's browser origin. When you approve a teacher from inside the Lovable editor, the request's `Origin`/`Referer` header resolves to `https://lovable.dev` (the editor shell), not the preview iframe. So Supabase builds an invite link containing `redirect_to=https://lovable.dev/reset-password`. Since `lovable.dev` isn't in the project's auth redirect allow-list, the invite lands on `lovable.dev` itself — which shows the Lovable login page from your screenshot.
+### What we know
+- Admin-saved permissions live in `teacher_nav_permissions.allowed_paths`. Example current rows:
+  - Teacher A: `[/teacher/support, /teacher/setup, /teacher/content-library]`
+  - Teacher B: `[/teacher/support, /teacher/setup, /teacher/courses/dashboard]` (+can_create_courses)
+  - Newly approved teacher: `[/teacher/support]` only
+- `useTeacherNavPermissions` correctly defaults new teachers to Support-only. Filtering in `TeacherLayout` looks correct on paper, yet the user reports teachers with a saved, restricted row see extra sidebar items. So something is either:
+  1. rendering nav items before `permLoading` resolves (initial state is Support-only, but a stale/cached render may leak more), or
+  2. matching too loosely via `startsWith` (e.g. `/teacher/setup` grant unintentionally lighting up sub-paths that appear in nav), or
+  3. an item flagged `alwaysVisible`/`alwaysUnlocked` slipping through, or
+  4. a saved row silently getting overwritten with a wider set by the admin dialog.
 
-Backend auth config is fine:
-- Site URL: `https://nextsteped.lovable.app`
-- Allow-list already includes preview + published domains (no `lovable.dev` entry, and we should NOT add one).
+Before shipping a fix I want to reproduce and screenshot the actual sidebar for teacher A (limited row) to pinpoint (1)-(4). No code changes during that step.
 
-## Fix
+### Fix (defense in depth, once root cause confirmed)
 
-Stop trusting the caller's `Origin`/`Referer` for the invite `redirectTo`. Always send teachers to the published app.
+1) **Strict nav filtering** in `src/layouts/TeacherLayout.tsx`
+   - While `permLoading` is true, render an empty nav (or a skeleton) — never render items using the default state.
+   - Replace `startsWith(p + "/")` broadening with an exact-match check per top-level nav item. Sub-routes remain reachable only if their own top-level entry is granted.
+   - Remove the `alwaysVisible` escape hatch for anything except Support, and ignore `alwaysUnlocked` for visibility decisions (it currently only affects the lock icon, but I want to audit it doesn't leak).
 
-### Files to change
+2) **Per-route guard** `RequireTeacherPath` in `src/App.tsx`
+   - Wrap every child of the TeacherLayout route (`/teacher/courses/dashboard`, `/teacher/chat`, `/teacher/content-library`, `/teacher/analytics`, each `/teacher/setup/*` sub-page, etc.) with a guard that:
+     - waits for `permLoading` / `setupLoading`,
+     - checks the route path against `allowed_paths` (exact top-level match),
+     - honors the existing `forceSetup` exception for `/teacher/setup`,
+     - redirects unauthorized access to `/teacher/support?reason=nav-restricted`.
+   - This closes the URL-typing bypass and the race window that today's layout-level `useEffect` leaves open.
 
-1. `supabase/functions/approve-teacher/index.ts`
-   - Replace the dynamic `origin`-based `redirectTo` with a constant:
-     `const redirectTo = "https://nextsteped.lovable.app/reset-password";`
-   - Pass it to `adminClient.auth.admin.inviteUserByEmail(...)` as before.
+3) **Admin dialog correctness** in `src/components/admin/TeacherProfileDialog.tsx`
+   - Confirm the upsert writes exactly the checked paths plus `TEACHER_NAV_ALWAYS_ON`, and never a wider default. Add an explicit unit-safe assertion in `savePermissions` and show the resolved list back to admin after save.
 
-2. `supabase/functions/resend-teacher-invite/index.ts`
-   - Same change: hard-code `redirectTo` to `https://nextsteped.lovable.app/reset-password` for both the invite and the recovery fallback paths.
+4) **Server-side backstop (optional, low-risk)**
+   - Data for restricted pages (e.g. analytics, content-library) is already RLS-protected by course membership, so a teacher who bypasses the UI still can't read data they don't own. Confirm this is true for each page before considering additional RLS work; if any page reads globally, add a policy check. No schema changes planned unless a gap is found.
 
-### Out of scope (not touching now)
-
-- `student-pending-signup` — same pattern exists, but you only asked about the teacher flow. Happy to apply the same fix there in a follow-up if you want.
-- No changes to Site URL, allow-list, edge function CORS, or client code.
-- No new migration.
+### Out of scope
+- No auth flow changes.
+- No changes to student or admin routes.
+- No new database migrations unless step 4 uncovers a gap.
 
 ### Verification
+- Playwright (headless, signed in as a limited teacher via the injected Supabase session if available; otherwise via test creds) at 1280×1800:
+  1. Load `/teacher/courses/dashboard` → sidebar shows only granted items + Support; URL redirects to Support.
+  2. Type `/teacher/analytics` directly → redirected to Support.
+  3. Load `/teacher/support` → visible.
+  4. Toggle a permission in admin dialog, save, reload teacher session → nav updates to match.
+- Screenshot each state and diff against expectation.
 
-- Approve a test teacher from the Lovable editor.
-- Open the invite email — the link's `redirect_to` query param should be `https://nextsteped.lovable.app/reset-password`.
-- Clicking it should land on your app's password reset page, not on `lovable.dev`.
+### Technical notes
+- Files touched: `src/hooks/useTeacherNavPermissions.ts` (optional: expose `ready` flag), `src/layouts/TeacherLayout.tsx`, `src/App.tsx` (new `RequireTeacherPath` + wrap routes), `src/components/admin/TeacherProfileDialog.tsx` (defensive save).
+- No changes to `TEACHER_NAV_ALWAYS_ON` semantics beyond Support.
+- No migration expected.
 
-Want me to apply the same hard-coded redirect to `student-pending-signup` in the same change, or leave it alone for now?
+### Question before I build
+The `/teacher/setup` grant currently unlocks every setup sub-page (`upload`, `concept-review`, `lesson-plan`, `diagnostic`, `ai-settings`, `exam-mode`, `enrollment`). Do you want:
+- (a) keep that — one `Setup` grant unlocks all setup sub-pages (simpler for admin), or
+- (b) split each setup sub-page into its own admin-toggleable permission?
+
+I'll default to (a) unless you say otherwise.

@@ -2,12 +2,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useStudentStatus } from "@/hooks/useStudentStatus";
 import { useTeacherSetupStatus } from "@/hooks/useTeacherSetupStatus";
-import { useTeacherNavPermissions } from "@/hooks/useTeacherNavPermissions";
+import { useTeacherNavPermissions, isTeacherPathAllowed } from "@/hooks/useTeacherNavPermissions";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
@@ -158,8 +158,8 @@ function TeacherRedirect() {
 }
 
 function RequireCourseCreate({ children }: { children: React.ReactNode }) {
-  const { loading, canCreateCourses } = useTeacherNavPermissions();
-  if (loading) {
+  const { ready, canCreateCourses } = useTeacherNavPermissions();
+  if (!ready) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-muted-foreground">Loading...</div>
@@ -168,6 +168,40 @@ function RequireCourseCreate({ children }: { children: React.ReactNode }) {
   }
   if (!canCreateCourses) {
     return <Navigate to="/teacher/support?reason=course-create-restricted" replace />;
+  }
+  return <>{children}</>;
+}
+
+/**
+ * Per-route guard for teacher pages. Blocks direct URL access to routes the
+ * admin has not granted, closing the URL-typing / race-window bypass that a
+ * layout-level useEffect redirect cannot prevent (the child route renders and
+ * fetches data before the redirect fires).
+ *
+ * `forceSetup` (owner with an unfinished course) keeps `/teacher/setup*`
+ * reachable so a teacher cannot be stranded mid-onboarding.
+ */
+function RequireTeacherPath({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const { ready: permReady, allowed } = useTeacherNavPermissions();
+  const { loading: setupLoading, isComplete: setupComplete, ownsAnyCourse } = useTeacherSetupStatus();
+
+  if (!permReady || setupLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  const path = location.pathname;
+  const forceSetup = !setupComplete && ownsAnyCourse;
+  const isSetupPath = path === "/teacher/setup" || path.startsWith("/teacher/setup/");
+  const permitted =
+    isTeacherPathAllowed(path, allowed) || (forceSetup && isSetupPath);
+
+  if (!permitted) {
+    return <Navigate to="/teacher/support?reason=nav-restricted" replace />;
   }
   return <>{children}</>;
 }
@@ -316,21 +350,21 @@ const App = () => (
               <Route path="/teacher/courses/new" element={<ProtectedRoute><RoleGuard allow={["teacher"]}><RequireCourseCreate><NewCoursePage /></RequireCourseCreate></RoleGuard></ProtectedRoute>} />
               {/* Teacher dashboard + setup modules (all share TeacherLayout) */}
               <Route element={<ProtectedRoute><RoleGuard allow={["teacher"]}><TeacherLayout /></RoleGuard></ProtectedRoute>}>
-                <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
-                <Route path="/teacher/setup" element={<CourseSetup />} />
-                <Route path="/teacher/setup/upload" element={<CourseMaterials />} />
+                <Route path="/teacher/courses/dashboard" element={<RequireTeacherPath><CourseDashboard /></RequireTeacherPath>} />
+                <Route path="/teacher/setup" element={<RequireTeacherPath><CourseSetup /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/upload" element={<RequireTeacherPath><CourseMaterials /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/materials" element={<Navigate to="/teacher/setup/upload" replace />} />
-                <Route path="/teacher/setup/concept-review" element={<ConceptReview />} />
-                <Route path="/teacher/setup/lesson-plan" element={<CourseCreation />} />
-                <Route path="/teacher/setup/diagnostic" element={<DiagnosticQuestionsSetup />} />
-                <Route path="/teacher/setup/ai-settings" element={<AIAssistantAndSettings />} />
-                <Route path="/teacher/setup/exam-mode" element={<ExamMode />} />
-                <Route path="/teacher/setup/enrollment" element={<EnrollmentSettings />} />
+                <Route path="/teacher/setup/concept-review" element={<RequireTeacherPath><ConceptReview /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/lesson-plan" element={<RequireTeacherPath><CourseCreation /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/diagnostic" element={<RequireTeacherPath><DiagnosticQuestionsSetup /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/ai-settings" element={<RequireTeacherPath><AIAssistantAndSettings /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/exam-mode" element={<RequireTeacherPath><ExamMode /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/enrollment" element={<RequireTeacherPath><EnrollmentSettings /></RequireTeacherPath>} />
                 <Route path="/teacher/assessments" element={<Navigate to="/teacher/setup/exam-mode" replace />} />
-                <Route path="/teacher/teaching-plan" element={<TeachingPlan />} />
-                <Route path="/teacher/chat" element={<TeacherChat />} />
-                <Route path="/teacher/content-library" element={<ContentLibrary />} />
-                <Route path="/teacher/analytics" element={<CourseAnalytics />} />
+                <Route path="/teacher/teaching-plan" element={<RequireTeacherPath><TeachingPlan /></RequireTeacherPath>} />
+                <Route path="/teacher/chat" element={<RequireTeacherPath><TeacherChat /></RequireTeacherPath>} />
+                <Route path="/teacher/content-library" element={<RequireTeacherPath><ContentLibrary /></RequireTeacherPath>} />
+                <Route path="/teacher/analytics" element={<RequireTeacherPath><CourseAnalytics /></RequireTeacherPath>} />
                 <Route path="/teacher/settings" element={<Navigate to="/teacher/setup/ai-settings" replace />} />
                 <Route path="/teacher/support" element={<Support />} />
               </Route>
