@@ -1,28 +1,14 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
-import { BookOpen, HelpCircle, Library, MessageSquare, ListChecks, Lock, BarChart3 } from "lucide-react";
+import { Lock } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTeacherSetupStatus } from "@/hooks/useTeacherSetupStatus";
+import { useTeacherNavPermissions } from "@/hooks/useTeacherNavPermissions";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import CourseSwitcher from "@/components/CourseSwitcher";
-
-interface NavItem {
-  title: string;
-  path: string;
-  icon: typeof BookOpen;
-  alwaysUnlocked?: boolean;
-}
-
-const teacherNav: NavItem[] = [
-  { title: "Course Setup", path: "/teacher/setup", icon: ListChecks, alwaysUnlocked: true },
-  { title: "Course Dashboard", path: "/teacher/courses/dashboard", icon: BookOpen },
-  { title: "Course Assistant", path: "/teacher/chat", icon: MessageSquare },
-  { title: "Lesson Plan & Resources", path: "/teacher/content-library", icon: Library },
-  { title: "Course Analytics", path: "/teacher/analytics", icon: BarChart3 },
-  { title: "Support", path: "/teacher/support", icon: HelpCircle, alwaysUnlocked: true },
-];
+import { TEACHER_NAV, type TeacherNavItem } from "@/config/teacherNav";
 
 // Routes that remain accessible regardless of setup completion. Anything
 // else inside TeacherLayout is gated until setup is fully complete.
@@ -37,6 +23,9 @@ const TeacherLayout = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const { loading: setupLoading, isComplete: setupComplete } = useTeacherSetupStatus();
+  const { loading: permLoading, isAllowed } = useTeacherNavPermissions();
+
+  const teacherNav = TEACHER_NAV.filter((item) => item.alwaysVisible || isAllowed(item.path));
 
   // Hard gate: if the professor lands on a non-setup route while setup is
   // incomplete, force them back to /teacher/setup.
@@ -48,7 +37,15 @@ const TeacherLayout = () => {
     if (!allowed) navigate("/teacher/setup", { replace: true });
   }, [setupLoading, setupComplete, location.pathname, navigate]);
 
-  const isLocked = (item: NavItem) => !item.alwaysUnlocked && !setupComplete;
+  // Admin-controlled nav permissions: redirect to /teacher/support if visiting a hidden page.
+  useEffect(() => {
+    if (permLoading) return;
+    if (!isAllowed(location.pathname)) {
+      navigate("/teacher/support", { replace: true });
+    }
+  }, [permLoading, isAllowed, location.pathname, navigate]);
+
+  const isLocked = (item: TeacherNavItem) => !item.alwaysUnlocked && !setupComplete;
 
 
   if (isMobile) {
