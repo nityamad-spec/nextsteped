@@ -57,6 +57,7 @@ import AdminDiagnosticRuns from "./pages/admin/AdminDiagnosticRuns";
 import ResetPassword from "./pages/ResetPassword";
 import ContentLibrary from "./pages/teacher/ContentLibrary";
 import TeacherChat from "./pages/teacher/TeacherChat";
+import CourseAnalytics from "./pages/teacher/CourseAnalytics";
 import { AUTH_BYPASS } from "@/lib/authBypass";
 import SessionBanner from "@/components/SessionBanner";
 import RoleGuard, { seedRoleCache } from "@/components/RoleGuard";
@@ -305,6 +306,7 @@ const App = () => (
                 <Route path="/teacher/teaching-plan" element={<TeachingPlan />} />
                 <Route path="/teacher/chat" element={<TeacherChat />} />
                 <Route path="/teacher/content-library" element={<ContentLibrary />} />
+                <Route path="/teacher/analytics" element={<CourseAnalytics />} />
                 <Route path="/teacher/settings" element={<Navigate to="/teacher/setup/ai-settings" replace />} />
                 <Route path="/teacher/support" element={<Support />} />
               </Route>
