@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Building2, Headphones, Send, Check } from "lucide-react";
+import { Mail, Building2, Headphones, Send, Check, ShieldAlert } from "lucide-react";
+
 
 const Support = () => {
   const [adminSubject, setAdminSubject] = useState("");
