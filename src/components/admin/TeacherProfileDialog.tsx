@@ -47,7 +47,9 @@ export default function TeacherProfileDialog({ teacher, open, onOpenChange, onCh
   const [loading, setLoading] = useState(false);
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [allowedPaths, setAllowedPaths] = useState<string[]>([]);
+  const [canCreateCourses, setCanCreateCourses] = useState<boolean>(false);
   const [savingPerms, setSavingPerms] = useState(false);
+
 
   // Ownership transfer / remove state
   const [ownerActionCourse, setOwnerActionCourse] = useState<CourseRow | null>(null);
