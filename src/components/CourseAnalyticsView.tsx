@@ -117,6 +117,7 @@ const NONE = "__none__";
 
 const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
   const [loading, setLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState<LoadStage>("idle");
   const [raw, setRaw] = useState<RawData | null>(null);
   const [universityFilter, setUniversityFilter] = useState<string>(ALL);
   type RosterView = "done" | "pending" | "completed" | "not-completed" | "quiz-completed" | "quiz-partial" | "quiz-not-started";
@@ -124,7 +125,10 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (courseId: string, showSkeleton: boolean) => {
-    if (showSkeleton) setLoading(true);
+    if (showSkeleton) {
+      setLoading(true);
+      setLoadingStage("course-data");
+    }
 
     const PAGE = 1000;
     async function fetchAllRange<T>(
