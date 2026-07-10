@@ -350,21 +350,21 @@ const App = () => (
               <Route path="/teacher/courses/new" element={<ProtectedRoute><RoleGuard allow={["teacher"]}><RequireCourseCreate><NewCoursePage /></RequireCourseCreate></RoleGuard></ProtectedRoute>} />
               {/* Teacher dashboard + setup modules (all share TeacherLayout) */}
               <Route element={<ProtectedRoute><RoleGuard allow={["teacher"]}><TeacherLayout /></RoleGuard></ProtectedRoute>}>
-                <Route path="/teacher/courses/dashboard" element={<CourseDashboard />} />
-                <Route path="/teacher/setup" element={<CourseSetup />} />
-                <Route path="/teacher/setup/upload" element={<CourseMaterials />} />
+                <Route path="/teacher/courses/dashboard" element={<RequireTeacherPath><CourseDashboard /></RequireTeacherPath>} />
+                <Route path="/teacher/setup" element={<RequireTeacherPath><CourseSetup /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/upload" element={<RequireTeacherPath><CourseMaterials /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/materials" element={<Navigate to="/teacher/setup/upload" replace />} />
-                <Route path="/teacher/setup/concept-review" element={<ConceptReview />} />
-                <Route path="/teacher/setup/lesson-plan" element={<CourseCreation />} />
-                <Route path="/teacher/setup/diagnostic" element={<DiagnosticQuestionsSetup />} />
-                <Route path="/teacher/setup/ai-settings" element={<AIAssistantAndSettings />} />
-                <Route path="/teacher/setup/exam-mode" element={<ExamMode />} />
-                <Route path="/teacher/setup/enrollment" element={<EnrollmentSettings />} />
+                <Route path="/teacher/setup/concept-review" element={<RequireTeacherPath><ConceptReview /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/lesson-plan" element={<RequireTeacherPath><CourseCreation /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/diagnostic" element={<RequireTeacherPath><DiagnosticQuestionsSetup /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/ai-settings" element={<RequireTeacherPath><AIAssistantAndSettings /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/exam-mode" element={<RequireTeacherPath><ExamMode /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/enrollment" element={<RequireTeacherPath><EnrollmentSettings /></RequireTeacherPath>} />
                 <Route path="/teacher/assessments" element={<Navigate to="/teacher/setup/exam-mode" replace />} />
-                <Route path="/teacher/teaching-plan" element={<TeachingPlan />} />
-                <Route path="/teacher/chat" element={<TeacherChat />} />
-                <Route path="/teacher/content-library" element={<ContentLibrary />} />
-                <Route path="/teacher/analytics" element={<CourseAnalytics />} />
+                <Route path="/teacher/teaching-plan" element={<RequireTeacherPath><TeachingPlan /></RequireTeacherPath>} />
+                <Route path="/teacher/chat" element={<RequireTeacherPath><TeacherChat /></RequireTeacherPath>} />
+                <Route path="/teacher/content-library" element={<RequireTeacherPath><ContentLibrary /></RequireTeacherPath>} />
+                <Route path="/teacher/analytics" element={<RequireTeacherPath><CourseAnalytics /></RequireTeacherPath>} />
                 <Route path="/teacher/settings" element={<Navigate to="/teacher/setup/ai-settings" replace />} />
                 <Route path="/teacher/support" element={<Support />} />
               </Route>
