@@ -695,6 +695,11 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
               "quiz-completed": { title: `Completed all ${qt} weekly quizzes`, list: stats?.quizCompletedAll ?? [], desc: (n) => `${n} students submitted every weekly quiz.` },
               "quiz-partial": { title: `Partially done (1–${Math.max(qt - 1, 0)} quizzes)`, list: stats?.quizPartial ?? [], desc: (n) => `${n} students started but have not finished all ${qt} weekly quizzes.` },
               "quiz-not-started": { title: "Not started weekly quizzes", list: stats?.quizNotStarted ?? [], desc: (n) => `${n} enrolled students have not submitted any weekly quiz.` },
+              "mastery-beginner": { title: "Beginner mastery", list: stats?.masteryStudents.beginner ?? [], desc: (n) => `${n} enrolled students are at Beginner mastery.` },
+              "mastery-developing": { title: "Developing mastery", list: stats?.masteryStudents.developing ?? [], desc: (n) => `${n} enrolled students are at Developing mastery.` },
+              "mastery-proficient": { title: "Proficient mastery", list: stats?.masteryStudents.proficient ?? [], desc: (n) => `${n} enrolled students are at Proficient mastery.` },
+              "mastery-expert": { title: "Expert mastery", list: stats?.masteryStudents.expert ?? [], desc: (n) => `${n} enrolled students are at Expert mastery.` },
+              "mastery-none": { title: "No mastery data", list: stats?.masteryStudents.none ?? [], desc: (n) => `${n} enrolled students have no mastery data yet.` },
             };
             const c = rosterView ? cfg[rosterView] : null;
             const list = c?.list ?? [];
