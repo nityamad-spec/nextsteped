@@ -65,6 +65,7 @@ interface Stats {
   diagnosticDoneStudents: StudentLite[];
   diagnosticPendingStudents: StudentLite[];
   masteryBands: { beginner: number; developing: number; proficient: number; expert: number; none: number };
+  masteryStudents: { beginner: StudentLite[]; developing: StudentLite[]; proficient: StudentLite[]; expert: StudentLite[]; none: StudentLite[] };
   masteryAvgPct: number | null;
   completed: number;
   completedStudents: StudentLite[];
