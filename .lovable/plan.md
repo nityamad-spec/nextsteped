@@ -1,28 +1,64 @@
-# Make course mastery band counts clickable
+# Coding Terminal on /student/chat — UI/placeholder
 
 ## Goal
 
-In `src/components/CourseAnalyticsView.tsx`, the Course mastery card shows five tiles (Beginner, Developing, Proficient, Expert, No data). Today only the number is shown. Make each tile clickable so it opens the existing student-roster dialog filtered to students in that band — same UX pattern already used by Diagnostic done/pending, Completed/Not completed, and the weekly-quiz tiles.
+Add a new "Code" button next to the existing "Practice Questions" button on `/student/chat` (learning mode). Clicking it opens a full-screen coding terminal widget — same surface pattern as `PracticeQuestionsWidget`. This first pass is UI only: layout, controls, empty output state, and mocked Run behavior. Judge0 wiring comes in a follow-up.
 
-## Changes (single file: `src/components/CourseAnalyticsView.tsx`)
+## Scope of this plan (what we build now)
 
-1. **Compute per-band student lists in `computeStats`** (around lines 327–429, where `masteryByStudent` and `bands` are built). While iterating `raw.mastery`, also push `toLite(student_id)` into one of five arrays keyed by band. Bucket rule matches the existing counters:
-   - `beginner`, `developing`, `proficient`, `expert` — from `learner_level` (case-insensitive), same logic that produces `bands[k]`.
-   - `none` — enrolled students with no row in `masteryByStudent` (same fallback used for `bands.none`).
-   Return them on the stats object as `masteryStudents: { beginner: StudentLite[]; developing: StudentLite[]; proficient: StudentLite[]; expert: StudentLite[]; none: StudentLite[] }`.
+1. **New component `src/components/CodingTerminalWidget.tsx**`
+  - Full-screen widget mirroring `PracticeQuestionsWidget` structure (header with title + close button, body fills viewport).
+  - **Header row**
+    - Title: "Code Terminal"
+    - Language selector (`Select`) — populated from the approved-languages list (see §Language control below).
+    - "Run" button (primary) — disabled while `isRunning`; shows a spinner + "Running…" during the mocked call.
+    - "Reset" button — restores the starter snippet for the selected language.
+    - Close (X) button.
+  - **Body — stacked layout**
+    - Top pane (~60%): code editor area. For the placeholder use a styled `<textarea>` (monospace font, `whitespace-pre`, tab handling to insert 2 spaces, line-count-friendly styling). No Monaco/CodeMirror dependency yet — keeps this pass purely presentational.
+    - Bottom pane (~40%): "Output" console. Dark surface (using existing muted/card tokens, not hardcoded colors), monospace, scrollable. Empty state: "Run your code to see output here." After a mocked Run, shows a placeholder line like `[placeholder] Judge0 integration coming soon — your code was not executed.` plus an echo of the language + line count so students see the wiring is live.
+  - **State (local only)**
+    - `language`, `code`, `output`, `isRunning`.
+    - Starter snippet per language (small map, e.g. Python `print("Hello, world!")`).
+  - No persistence, no network calls, no `stdin` pane (per chosen "Editor + Output stacked" layout).
+2. **Trigger button in `src/pages/student/AIChat.tsx**` (around lines 1271–1279)
+  - Add a new `Button` immediately after the Practice Questions button, before "New Chat":
+    - Icon: `Terminal` from lucide-react + label "Code" (mobile: icon only, matching Practice's `hidden sm:inline`).
+    - Same `variant="outline" size="sm" className="h-9 text-sm gap-2"` styling as neighbors.
+    - `onClick={() => setShowTerminal(true)}`.
+  - Add `const [showTerminal, setShowTerminal] = useState(false);` alongside the existing practice widget state (~line 186).
+  - Early-return block for the widget alongside the existing `if (showPractice) { … }` (~line 1069):
+    ```tsx
+    if (showTerminal) {
+      return <CodingTerminalWidget onClose={() => setShowTerminal(false)} approvedLanguages={approvedLanguages} />;
+    }
+    ```
+3. **Language control (placeholder source)**
+  - For this UI-only pass, define the approved-languages list as a **local constant** inside `CodingTerminalWidget` (Python, plus a couple of commented-out entries) so the dropdown renders with real data.
+  - Add a short `// TODO(judge0):` comment noting that this list will later be sourced from a professor-controlled setting (likely `course_ta_settings` — to be decided when we build the professor UI).
+  - No DB, no new table, no professor UI in this pass — you asked to design UI first and check before decisions, and the professor-side control is a separate design conversation.
 
-2. **Extend the `RosterView` union** with `"mastery-beginner" | "mastery-developing" | "mastery-proficient" | "mastery-expert" | "mastery-none"`.
+## Out of scope (explicitly, until we discuss further)
 
-3. **Wire clickability in the Course mastery card** (lines 549–560): replace the plain `<div>` tiles with a button-styled variant (reuse the same clickable pattern as the other `Stat` tiles — cursor-pointer, hover state, keyboard-focusable) that calls `setRosterView('mastery-<k>')` when the band's count > 0. Leave zero-count tiles non-interactive, matching current behavior for other tiles. Apply the same treatment to the "No data" tile.
+- Judge0 API integration, submission polling, real stdout/stderr rendering, execution limits.
+- Professor UI to manage approved languages, and any `course_ta_settings` / migration changes to store it.
+- Real code editor library (Monaco, CodeMirror) — placeholder textarea only for now.
+- Persisting code drafts across sessions, sharing runs into chat, or attaching output to messages.
+- Stdin pane, custom test cases, file uploads.
 
-4. **Add dialog entries** to the `cfg` map (around lines 647–655) for the five new views:
-   - Titles: `"Beginner mastery"`, `"Developing mastery"`, `"Proficient mastery"`, `"Expert mastery"`, `"No mastery data"`.
-   - Lists: `stats.masteryStudents.<band>`.
-   - Descriptions: e.g. `"${n} enrolled students are at Beginner mastery."` and for `none`: `"${n} enrolled students have no mastery data yet."`.
+## Technical notes
 
-No changes to data fetching, RLS, realtime subscriptions, or the mastery bucketing math — this is purely surfacing the student names already reachable from existing `raw.mastery` + `enrolledIds`.
+- Files touched:
+  - **New:** `src/components/CodingTerminalWidget.tsx`
+  - **Edited:** `src/pages/student/AIChat.tsx` (state + button + early return; ~10 lines added)
+- Uses existing shadcn primitives: `Button`, `Select`, `ScrollArea` (or plain overflow), and lucide `Terminal`, `Play`, `RotateCcw`, `X`.
+- Styling stays on semantic tokens (`bg-background`, `bg-muted`, `text-foreground`, `border`) — no hardcoded colors, consistent with project design-system rule.
+- No changes to routing, auth, RLS, edge functions, or data fetching.
 
-## Notes
+## Open questions before I build
 
-- Reuses the existing `Dialog` + `ScrollArea` roster UI, so styling and empty-state behavior stay consistent.
-- Applies to both `/admin/courses` (via `CourseProfileDialog`) and `/teacher/analytics` since they share this component. Per project memory mastery levels are visible to students and admins but hidden from professors — however this card is already rendered as-is in the teacher analytics view today, so this change only affects interactivity, not visibility. If you'd like to hide the whole Course mastery card from the teacher route, say so and I'll add that gating in the same change.
+1. **Starter snippet content** — OK to hardcode a "hello world" per language in the widget for now. 
+2. **Approved-languages placeholder** —  seed Python + C++ + Java + JavaScript so the selector visibly demonstrates the "approved list" concept?
+3. **Mocked Run behavior** — placeholder output say "Judge0 integration coming soon"
+
+I'll wait on your answers to these three before implementing so we lock the placeholder feel you want.
