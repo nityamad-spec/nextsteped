@@ -590,7 +590,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
                     className={cn(
                       "flex items-center justify-between rounded-md border bg-background px-2 py-1.5 text-left",
                       clickable
-                        ? "cursor-pointer hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                        ? "cursor-pointer hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                         : "cursor-default opacity-80",
                     )}
                   >
