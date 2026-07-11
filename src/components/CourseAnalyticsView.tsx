@@ -65,6 +65,7 @@ interface Stats {
   diagnosticDoneStudents: StudentLite[];
   diagnosticPendingStudents: StudentLite[];
   masteryBands: { beginner: number; developing: number; proficient: number; expert: number; none: number };
+  masteryStudents: { beginner: StudentLite[]; developing: StudentLite[]; proficient: StudentLite[]; expert: StudentLite[]; none: StudentLite[] };
   masteryAvgPct: number | null;
   completed: number;
   completedStudents: StudentLite[];
@@ -120,7 +121,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
   const [loadingStage, setLoadingStage] = useState<LoadStage>("idle");
   const [raw, setRaw] = useState<RawData | null>(null);
   const [universityFilter, setUniversityFilter] = useState<string>(ALL);
-  type RosterView = "done" | "pending" | "completed" | "not-completed" | "quiz-completed" | "quiz-partial" | "quiz-not-started";
+  type RosterView = "done" | "pending" | "completed" | "not-completed" | "quiz-completed" | "quiz-partial" | "quiz-not-started" | "mastery-beginner" | "mastery-developing" | "mastery-proficient" | "mastery-expert" | "mastery-none";
   const [rosterView, setRosterView] = useState<RosterView | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -324,6 +325,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
     diagnosticPendingStudents.sort(sortLite);
 
     const bands = { beginner: 0, developing: 0, proficient: 0, expert: 0, none: 0 };
+    const masteryStudents: Stats["masteryStudents"] = { beginner: [], developing: [], proficient: [], expert: [], none: [] };
     const masteryByStudent = new Map<string, { score: number | null; level: string | null }>();
     let masterySum = 0, masteryN = 0;
     raw.mastery.forEach(m => {
@@ -332,13 +334,20 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       masteryByStudent.set(m.student_id, { score, level: m.learner_level || null });
       if (score != null) { masterySum += score; masteryN += 1; }
       const lvl = (m.learner_level || "").toLowerCase();
-      if (lvl === "expert") bands.expert += 1;
-      else if (lvl === "proficient") bands.proficient += 1;
-      else if (lvl === "developing") bands.developing += 1;
-      else if (lvl === "beginner") bands.beginner += 1;
-      else bands.none += 1;
+      const lite = toLite(m.student_id);
+      if (lvl === "expert") { bands.expert += 1; masteryStudents.expert.push(lite); }
+      else if (lvl === "proficient") { bands.proficient += 1; masteryStudents.proficient.push(lite); }
+      else if (lvl === "developing") { bands.developing += 1; masteryStudents.developing.push(lite); }
+      else if (lvl === "beginner") { bands.beginner += 1; masteryStudents.beginner.push(lite); }
+      else { bands.none += 1; masteryStudents.none.push(lite); }
     });
-    enrolledIds.forEach(sid => { if (!masteryByStudent.has(sid)) bands.none += 1; });
+    enrolledIds.forEach(sid => {
+      if (!masteryByStudent.has(sid)) {
+        bands.none += 1;
+        masteryStudents.none.push(toLite(sid));
+      }
+    });
+    (Object.keys(masteryStudents) as (keyof Stats["masteryStudents"])[]).forEach(k => masteryStudents[k].sort(sortLite));
 
     const activeExams = raw.exams.filter(e => !e.archived_at);
     const activeExamIds = new Set(activeExams.map(e => e.id));
@@ -427,6 +436,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       diagnosticDoneStudents,
       diagnosticPendingStudents,
       masteryBands: bands,
+      masteryStudents,
       masteryAvgPct: masteryN > 0 ? masterySum / masteryN : null,
       completed,
       completedStudents,
@@ -547,17 +557,50 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
             )}
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
-              {BAND_KEYS.map(k => (
-                <div key={k} className="flex items-center justify-between rounded-md border bg-background px-2 py-1.5">
-                  <Badge variant="outline" className={cn("capitalize text-[10px]", BAND_TEXT[k])}>{k}</Badge>
-                  <span className="tabular-nums font-medium">{stats.masteryBands[k]}</span>
-                </div>
-              ))}
-              <div className="flex items-center justify-between rounded-md border bg-background px-2 py-1.5">
-                <span className="text-muted-foreground text-[10px] uppercase tracking-wide">No data</span>
-                <span className="tabular-nums font-medium">{stats.masteryBands.none}</span>
-              </div>
+              {BAND_KEYS.map(k => {
+                const n = stats.masteryBands[k];
+                const clickable = n > 0;
+                const view = `mastery-${k}` as RosterView;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    disabled={!clickable}
+                    onClick={clickable ? () => setRosterView(view) : undefined}
+                    className={cn(
+                      "flex items-center justify-between rounded-md border bg-background px-2 py-1.5 text-left",
+                      clickable
+                        ? "cursor-pointer hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                        : "cursor-default opacity-80",
+                    )}
+                  >
+                    <Badge variant="outline" className={cn("capitalize text-[10px]", BAND_TEXT[k])}>{k}</Badge>
+                    <span className="tabular-nums font-medium">{n}</span>
+                  </button>
+                );
+              })}
+              {(() => {
+                const n = stats.masteryBands.none;
+                const clickable = n > 0;
+                return (
+                  <button
+                    type="button"
+                    disabled={!clickable}
+                    onClick={clickable ? () => setRosterView("mastery-none") : undefined}
+                    className={cn(
+                      "flex items-center justify-between rounded-md border bg-background px-2 py-1.5 text-left",
+                      clickable
+                        ? "cursor-pointer hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                        : "cursor-default opacity-80",
+                    )}
+                  >
+                    <span className="text-muted-foreground text-[10px] uppercase tracking-wide">No data</span>
+                    <span className="tabular-nums font-medium">{n}</span>
+                  </button>
+                );
+              })()}
             </div>
+
           </div>
 
           <div className="rounded-lg border bg-card p-4 space-y-3">
@@ -652,6 +695,11 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
               "quiz-completed": { title: `Completed all ${qt} weekly quizzes`, list: stats?.quizCompletedAll ?? [], desc: (n) => `${n} students submitted every weekly quiz.` },
               "quiz-partial": { title: `Partially done (1–${Math.max(qt - 1, 0)} quizzes)`, list: stats?.quizPartial ?? [], desc: (n) => `${n} students started but have not finished all ${qt} weekly quizzes.` },
               "quiz-not-started": { title: "Not started weekly quizzes", list: stats?.quizNotStarted ?? [], desc: (n) => `${n} enrolled students have not submitted any weekly quiz.` },
+              "mastery-beginner": { title: "Beginner mastery", list: stats?.masteryStudents.beginner ?? [], desc: (n) => `${n} enrolled students are at Beginner mastery.` },
+              "mastery-developing": { title: "Developing mastery", list: stats?.masteryStudents.developing ?? [], desc: (n) => `${n} enrolled students are at Developing mastery.` },
+              "mastery-proficient": { title: "Proficient mastery", list: stats?.masteryStudents.proficient ?? [], desc: (n) => `${n} enrolled students are at Proficient mastery.` },
+              "mastery-expert": { title: "Expert mastery", list: stats?.masteryStudents.expert ?? [], desc: (n) => `${n} enrolled students are at Expert mastery.` },
+              "mastery-none": { title: "No mastery data", list: stats?.masteryStudents.none ?? [], desc: (n) => `${n} enrolled students have no mastery data yet.` },
             };
             const c = rosterView ? cfg[rosterView] : null;
             const list = c?.list ?? [];
