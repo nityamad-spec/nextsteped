@@ -325,6 +325,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
     diagnosticPendingStudents.sort(sortLite);
 
     const bands = { beginner: 0, developing: 0, proficient: 0, expert: 0, none: 0 };
+    const masteryStudents: Stats["masteryStudents"] = { beginner: [], developing: [], proficient: [], expert: [], none: [] };
     const masteryByStudent = new Map<string, { score: number | null; level: string | null }>();
     let masterySum = 0, masteryN = 0;
     raw.mastery.forEach(m => {
@@ -333,13 +334,20 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       masteryByStudent.set(m.student_id, { score, level: m.learner_level || null });
       if (score != null) { masterySum += score; masteryN += 1; }
       const lvl = (m.learner_level || "").toLowerCase();
-      if (lvl === "expert") bands.expert += 1;
-      else if (lvl === "proficient") bands.proficient += 1;
-      else if (lvl === "developing") bands.developing += 1;
-      else if (lvl === "beginner") bands.beginner += 1;
-      else bands.none += 1;
+      const lite = toLite(m.student_id);
+      if (lvl === "expert") { bands.expert += 1; masteryStudents.expert.push(lite); }
+      else if (lvl === "proficient") { bands.proficient += 1; masteryStudents.proficient.push(lite); }
+      else if (lvl === "developing") { bands.developing += 1; masteryStudents.developing.push(lite); }
+      else if (lvl === "beginner") { bands.beginner += 1; masteryStudents.beginner.push(lite); }
+      else { bands.none += 1; masteryStudents.none.push(lite); }
     });
-    enrolledIds.forEach(sid => { if (!masteryByStudent.has(sid)) bands.none += 1; });
+    enrolledIds.forEach(sid => {
+      if (!masteryByStudent.has(sid)) {
+        bands.none += 1;
+        masteryStudents.none.push(toLite(sid));
+      }
+    });
+    (Object.keys(masteryStudents) as (keyof Stats["masteryStudents"])[]).forEach(k => masteryStudents[k].sort(sortLite));
 
     const activeExams = raw.exams.filter(e => !e.archived_at);
     const activeExamIds = new Set(activeExams.map(e => e.id));
