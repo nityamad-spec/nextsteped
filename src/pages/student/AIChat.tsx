@@ -1087,6 +1087,10 @@ const AIChat = () => {
     );
   }
 
+  if (showTerminal) {
+    return <CodingTerminalWidget onClose={() => setShowTerminal(false)} />;
+  }
+
   // If assessment is active, show full-screen assessment view
   if (assessmentActive && assessmentQuestions.length > 0) {
     const timeLimit = assessmentType === "exam"
