@@ -436,6 +436,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       diagnosticDoneStudents,
       diagnosticPendingStudents,
       masteryBands: bands,
+      masteryStudents,
       masteryAvgPct: masteryN > 0 ? masterySum / masteryN : null,
       completed,
       completedStudents,
