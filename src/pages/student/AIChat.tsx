@@ -26,6 +26,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import PracticeQuestions, { PracticeQuestion } from "@/components/PracticeQuestions";
 import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
+import CodingTerminalWidget from "@/components/CodingTerminalWidget";
 import MermaidDiagram from "@/components/MermaidDiagram";
 
 const markdownComponents = {
@@ -186,6 +187,7 @@ const AIChat = () => {
   const [showPractice, setShowPractice] = useState(false);
   const [practiceHistory, setPracticeHistory] = useState<any[]>([]);
   const [selectedPracticeHistoryId, setSelectedPracticeHistoryId] = useState<string | null>(null);
+  const [showTerminal, setShowTerminal] = useState(false);
 
   const {
     sessions: chats,
@@ -1085,6 +1087,10 @@ const AIChat = () => {
     );
   }
 
+  if (showTerminal) {
+    return <CodingTerminalWidget onClose={() => setShowTerminal(false)} />;
+  }
+
   // If assessment is active, show full-screen assessment view
   if (assessmentActive && assessmentQuestions.length > 0) {
     const timeLimit = assessmentType === "exam"
@@ -1272,6 +1278,9 @@ const AIChat = () => {
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowPractice(true)}>
                 <Dumbbell className="h-4 w-4" /> <span className="hidden sm:inline">Practice Questions</span>
+              </Button>
+              <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowTerminal(true)}>
+                <Terminal className="h-4 w-4" /> <span className="hidden sm:inline">Code</span>
               </Button>
               <Button variant="outline" size="sm" className="h-9 text-sm" onClick={createNewChat}>
                 <Plus className="sm:mr-2 h-4 w-4" /> <span className="hidden sm:inline">New Chat</span>
