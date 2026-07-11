@@ -26,6 +26,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import PracticeQuestions, { PracticeQuestion } from "@/components/PracticeQuestions";
 import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
+import CodingTerminalWidget from "@/components/CodingTerminalWidget";
 import MermaidDiagram from "@/components/MermaidDiagram";
 
 const markdownComponents = {
