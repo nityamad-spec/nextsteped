@@ -557,17 +557,50 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
             )}
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
-              {BAND_KEYS.map(k => (
-                <div key={k} className="flex items-center justify-between rounded-md border bg-background px-2 py-1.5">
-                  <Badge variant="outline" className={cn("capitalize text-[10px]", BAND_TEXT[k])}>{k}</Badge>
-                  <span className="tabular-nums font-medium">{stats.masteryBands[k]}</span>
-                </div>
-              ))}
-              <div className="flex items-center justify-between rounded-md border bg-background px-2 py-1.5">
-                <span className="text-muted-foreground text-[10px] uppercase tracking-wide">No data</span>
-                <span className="tabular-nums font-medium">{stats.masteryBands.none}</span>
-              </div>
+              {BAND_KEYS.map(k => {
+                const n = stats.masteryBands[k];
+                const clickable = n > 0;
+                const view = `mastery-${k}` as RosterView;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    disabled={!clickable}
+                    onClick={clickable ? () => setRosterView(view) : undefined}
+                    className={cn(
+                      "flex items-center justify-between rounded-md border bg-background px-2 py-1.5 text-left",
+                      clickable
+                        ? "cursor-pointer hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                        : "cursor-default opacity-80",
+                    )}
+                  >
+                    <Badge variant="outline" className={cn("capitalize text-[10px]", BAND_TEXT[k])}>{k}</Badge>
+                    <span className="tabular-nums font-medium">{n}</span>
+                  </button>
+                );
+              })}
+              {(() => {
+                const n = stats.masteryBands.none;
+                const clickable = n > 0;
+                return (
+                  <button
+                    type="button"
+                    disabled={!clickable}
+                    onClick={clickable ? () => setRosterView("mastery-none") : undefined}
+                    className={cn(
+                      "flex items-center justify-between rounded-md border bg-background px-2 py-1.5 text-left",
+                      clickable
+                        ? "cursor-pointer hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                        : "cursor-default opacity-80",
+                    )}
+                  >
+                    <span className="text-muted-foreground text-[10px] uppercase tracking-wide">No data</span>
+                    <span className="tabular-nums font-medium">{n}</span>
+                  </button>
+                );
+              })()}
             </div>
+
           </div>
 
           <div className="rounded-lg border bg-card p-4 space-y-3">
