@@ -187,6 +187,7 @@ const AIChat = () => {
   const [showPractice, setShowPractice] = useState(false);
   const [practiceHistory, setPracticeHistory] = useState<any[]>([]);
   const [selectedPracticeHistoryId, setSelectedPracticeHistoryId] = useState<string | null>(null);
+  const [showTerminal, setShowTerminal] = useState(false);
 
   const {
     sessions: chats,
