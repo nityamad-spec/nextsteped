@@ -1,48 +1,28 @@
-# Fix: Chat engagement empty on /teacher/analytics
+# Make course mastery band counts clickable
 
-## Root cause
+## Goal
 
-Both `/admin/courses` (via `CourseProfileDialog`) and `/teacher/analytics` render the same `src/components/CourseAnalyticsView.tsx`, which queries `chat_sessions` and `chat_messages` to compute the Chat engagement aggregate.
+In `src/components/CourseAnalyticsView.tsx`, the Course mastery card shows five tiles (Beginner, Developing, Proficient, Expert, No data). Today only the number is shown. Make each tile clickable so it opens the existing student-roster dialog filtered to students in that band — same UX pattern already used by Diagnostic done/pending, Completed/Not completed, and the weekly-quiz tiles.
 
-Current RLS policies on those two tables only allow:
-- the row's owning student (`auth.uid() = user_id`), and
-- admins (`profiles.role = 'admin'`).
+## Changes (single file: `src/components/CourseAnalyticsView.tsx`)
 
-There is no policy that lets a **teacher of the course** read chat rows scoped to their `course_id`. So on the teacher page the two queries silently return 0 rows (RLS filters them out, no error), and the widget shows `0/<enrolled>` messages = 0. On the admin dialog the admin policy applies, so numbers appear.
+1. **Compute per-band student lists in `computeStats`** (around lines 327–429, where `masteryByStudent` and `bands` are built). While iterating `raw.mastery`, also push `toLite(student_id)` into one of five arrays keyed by band. Bucket rule matches the existing counters:
+   - `beginner`, `developing`, `proficient`, `expert` — from `learner_level` (case-insensitive), same logic that produces `bands[k]`.
+   - `none` — enrolled students with no row in `masteryByStudent` (same fallback used for `bands.none`).
+   Return them on the stats object as `masteryStudents: { beginner: StudentLite[]; developing: StudentLite[]; proficient: StudentLite[]; expert: StudentLite[]; none: StudentLite[] }`.
 
-This is a data-access issue, not a UI issue — the widget itself renders identically in both places.
+2. **Extend the `RosterView` union** with `"mastery-beginner" | "mastery-developing" | "mastery-proficient" | "mastery-expert" | "mastery-none"`.
 
-## Fix
+3. **Wire clickability in the Course mastery card** (lines 549–560): replace the plain `<div>` tiles with a button-styled variant (reuse the same clickable pattern as the other `Stat` tiles — cursor-pointer, hover state, keyboard-focusable) that calls `setRosterView('mastery-<k>')` when the band's count > 0. Leave zero-count tiles non-interactive, matching current behavior for other tiles. Apply the same treatment to the "No data" tile.
 
-Add two RLS SELECT policies (one per table) that grant read access to teachers of the course the chat row belongs to, reusing the existing `public.is_course_member(course_id, auth.uid())` security-definer function already used elsewhere.
+4. **Add dialog entries** to the `cfg` map (around lines 647–655) for the five new views:
+   - Titles: `"Beginner mastery"`, `"Developing mastery"`, `"Proficient mastery"`, `"Expert mastery"`, `"No mastery data"`.
+   - Lists: `stats.masteryStudents.<band>`.
+   - Descriptions: e.g. `"${n} enrolled students are at Beginner mastery."` and for `none`: `"${n} enrolled students have no mastery data yet."`.
 
-### Migration
+No changes to data fetching, RLS, realtime subscriptions, or the mastery bucketing math — this is purely surfacing the student names already reachable from existing `raw.mastery` + `enrolledIds`.
 
-```sql
-CREATE POLICY "Course teachers can view course chat_sessions"
-  ON public.chat_sessions FOR SELECT
-  TO authenticated
-  USING (public.is_course_member(course_id, auth.uid()));
+## Notes
 
-CREATE POLICY "Course teachers can view course chat_messages"
-  ON public.chat_messages FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.chat_sessions s
-      WHERE s.id = chat_messages.session_id
-        AND public.is_course_member(s.course_id, auth.uid())
-    )
-  );
-```
-
-Notes:
-- Read-only — no change to student ownership policy or admin policy.
-- `chat_messages` has no `course_id` column, so we join through `chat_sessions.session_id` → `course_id`.
-- No frontend code changes needed; `CourseAnalyticsView` will start returning real rows for teachers immediately.
-
-## Verification
-
-1. Sign in as a teacher of a course that has student chats.
-2. Open `/teacher/analytics` → Chat engagement card should show `Students with chats` and `Total messages` matching what the admin sees in `/admin/courses` → course dialog.
-3. Confirm students still only see their own chats and admins still see everything (existing policies untouched).
+- Reuses the existing `Dialog` + `ScrollArea` roster UI, so styling and empty-state behavior stay consistent.
+- Applies to both `/admin/courses` (via `CourseProfileDialog`) and `/teacher/analytics` since they share this component. Per project memory mastery levels are visible to students and admins but hidden from professors — however this card is already rendered as-is in the teacher analytics view today, so this change only affects interactivity, not visibility. If you'd like to hide the whole Course mastery card from the teacher route, say so and I'll add that gating in the same change.
