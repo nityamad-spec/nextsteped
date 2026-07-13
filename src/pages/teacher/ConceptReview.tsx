@@ -740,7 +740,7 @@ const ConceptReview = () => {
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary tabular-nums">
                         {idx + 1}
                       </span>
-                      <span className="text-sm font-medium truncate">{c.concept_code}</span>
+                      <span className="text-sm font-medium truncate" title={c.concept_code}>{c.concept_code}</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="flex items-center gap-1">
