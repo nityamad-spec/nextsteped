@@ -731,7 +731,8 @@ const ConceptReview = () => {
                 No concepts confirmed yet. Use "Identify Concepts" above or add one manually below.
               </div>
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2">
+              <TooltipProvider delayDuration={100}>
+                <div className="grid gap-2 sm:grid-cols-2">
                 {concepts.map((c, idx) => (
                   <div
                     key={c.id}
