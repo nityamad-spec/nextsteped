@@ -817,6 +817,7 @@ const ConceptReview = () => {
 
                 ))}
               </div>
+              </TooltipProvider>
             )}
 
             {/* Manual add */}
