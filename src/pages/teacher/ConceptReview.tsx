@@ -6,6 +6,7 @@ import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, ArrowRight, Plus, X, Loader2, Sparkles, Check, RefreshCw, Info, ListOrdered, Lightbulb, Pencil, Briefcase, Layers, AlertCircle } from "lucide-react";
@@ -730,7 +731,8 @@ const ConceptReview = () => {
                 No concepts confirmed yet. Use "Identify Concepts" above or add one manually below.
               </div>
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2">
+              <TooltipProvider delayDuration={100}>
+                <div className="grid gap-2 sm:grid-cols-2">
                 {concepts.map((c, idx) => (
                   <div
                     key={c.id}
@@ -740,7 +742,14 @@ const ConceptReview = () => {
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary tabular-nums">
                         {idx + 1}
                       </span>
-                      <span className="text-sm font-medium truncate" title={c.concept_code}>{c.concept_code}</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-sm font-medium truncate">{c.concept_code}</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" align="start">
+                          <p className="max-w-xs">{c.concept_code}</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="flex items-center gap-1">
@@ -808,6 +817,7 @@ const ConceptReview = () => {
 
                 ))}
               </div>
+              </TooltipProvider>
             )}
 
             {/* Manual add */}
