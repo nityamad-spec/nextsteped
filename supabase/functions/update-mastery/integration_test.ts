@@ -221,11 +221,12 @@ itest("e2e weekly_quiz: first perfect quiz writes Developing-capped concept row"
     // Evidence cap: <8 attempted → developing even though score band == proficient
     assertEquals(row!.mastery_level, "developing");
 
-    // Course row should also exist; concept B has no row so course score weights only A.
+    // Course row should also exist; concept B has no row so it counts as 0,
+    // and the course score = 0.6923 * 0.5 / (0.5 + 0.5) = 0.3462.
     const course = await readCourse(f.studentId, f.courseId);
     assert(course, "course row not written");
     assertEquals(course!.last_source, "weekly_quiz");
-    assertAlmostEquals(Number(course!.mastery_score), 0.6923, 1e-3);
+    assertAlmostEquals(Number(course!.mastery_score), 0.3462, 1e-3);
   } finally {
     await destroyFixture(f);
   }
