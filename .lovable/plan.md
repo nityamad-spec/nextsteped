@@ -1,10 +1,23 @@
-## Fill quiz dot on completion (any score)
+## Overall course mastery = weighted avg over ALL course concepts
 
-In `src/pages/student/StudentHome.tsx` (Lesson Plan collapsed row, ~lines 645–680), change the quiz-dot rule:
+Current bug: `update-mastery` divides the weighted sum by the sum of weights of **explored** concepts only, so 2/14 explored concepts at 39% and 54% show as 45% overall. Fix: divide by the sum of weights of **every concept in the course**, so unexplored concepts count as 0% and Overall reflects true course-wide progress.
 
-- Replace `quizPassed` gating for the dot with `quizTakenAny = !!takenQuizzes[dp.day]`.
-- Quiz dot renders filled (`bg-primary`, or `bg-emerald-500` when Unit is COMPLETE and it's the last dot) whenever the quiz has been taken, regardless of score.
-- `doneCount` also counts the quiz once it's been taken.
-- Unit `isComplete` rule stays the same: all activities done AND quiz taken with score > 50 (passing still required for the green COMPLETE badge + green avatar).
+### Change
 
-Frontend only, no DB changes.
+`supabase/functions/update-mastery/index.ts` (around lines 279–291):
+
+- Compute `totalCourseWeight = Σ weight for every row in courseConcepts` (already loaded into `byId` at line 127).
+- Keep `weightedSum` as-is (sum of `mastery_score × weight` over concepts with a row).
+- `courseScore = totalCourseWeight > 0 ? clamp01(weightedSum / totalCourseWeight) : 0`
+- `weightTotal` variable (denominator of explored-only weights) is no longer used for `courseScore`, but the `weightTotal === 0` warning stays — repurpose it to warn when `totalCourseWeight === 0` (course has no concepts).
+- `contributing` and `nonPracticeContributors` counters unchanged — they still drive the practice-only gate.
+
+### Test update
+
+`supabase/functions/update-mastery/integration_test.ts` line 228: fixture has 2 concepts A/B each with weight 0.5. Test only writes concept A at 0.6923. New expected course score = `0.6923 × 0.5 / (0.5 + 0.5) = 0.3462`. Update the assertion to `assertAlmostEquals(Number(course!.mastery_score), 0.3462, 1e-3)` and adjust the comment. No other assertions in that file change (the exam test at line 234 populates both concepts).
+
+### Not changed
+
+- `student_concept_mastery` rows and per-concept scores/levels — unchanged.
+- Frontend `StudentHome.tsx` — no changes; it just reads the number.
+- No DB migration.
