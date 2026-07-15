@@ -643,13 +643,16 @@ const StudentHome = () => {
                 const outcomes = outcomesMatch?.[1]?.trim().replace(/\*\*/g, "") || "";
 
                 const activities: any[] = Array.isArray(dp.resources) ? dp.resources : [];
-                const totalCount = activities.length;
-                const doneCount = activities.filter((r: any) => activityDone[r.id]).length;
                 const quizTaken = takenQuizzes[dp.day];
                 const quizPublished = availableQuizDays.has(dp.day);
-                const quizDone = !quizPublished || (quizTaken && quizTaken.score > 50);
-                const allActivitiesDone = totalCount > 0 && doneCount === totalCount;
-                const isComplete = allActivitiesDone && !!quizDone;
+                const quizPassed = !!(quizTaken && quizTaken.score > 50);
+                const quizDone = !quizPublished || quizPassed;
+                const activitiesDoneCount = activities.filter((r: any) => activityDone[r.id]).length;
+                const quizCounts = quizPublished ? 1 : 0;
+                const totalCount = activities.length + quizCounts;
+                const doneCount = activitiesDoneCount + (quizPublished && quizPassed ? 1 : 0);
+                const allActivitiesDone = activities.length === 0 || activitiesDoneCount === activities.length;
+                const isComplete = totalCount > 0 && doneCount === totalCount && allActivitiesDone && !!quizDone;
                 const status: "complete" | "in_progress" | "upcoming" =
                   isComplete ? "complete" : (dp.day > currentWeek ? "upcoming" : "in_progress");
 
@@ -687,12 +690,22 @@ const StudentHome = () => {
                               <div className="flex items-center gap-1">
                                 {activities.map((r: any, i: number) => {
                                   const done = !!activityDone[r.id];
-                                  const isLast = i === totalCount - 1;
+                                  const isLast = !quizPublished && i === activities.length - 1;
                                   const cls = done
-                                    ? (allActivitiesDone && isLast ? "bg-emerald-500" : "bg-primary")
+                                    ? (isComplete && isLast ? "bg-emerald-500" : "bg-primary")
                                     : "bg-muted-foreground/25";
                                   return <span key={r.id || i} className={`h-2 w-2 rounded-full ${cls}`} />;
                                 })}
+                                {quizPublished && (
+                                  <span
+                                    className={`h-2 w-2 rounded-full ${
+                                      quizPassed
+                                        ? (isComplete ? "bg-emerald-500" : "bg-primary")
+                                        : "bg-muted-foreground/25"
+                                    }`}
+                                    title="Weekly quiz"
+                                  />
+                                )}
                               </div>
                               <span className="text-xs text-muted-foreground">{doneCount} / {totalCount} done</span>
                             </div>
