@@ -700,7 +700,7 @@ const StudentHome = () => {
                                 {quizPublished && (
                                   <span
                                     className={`h-2 w-2 rounded-full ${
-                                      quizPassed
+                                      quizTakenAny
                                         ? (isComplete ? "bg-emerald-500" : "bg-primary")
                                         : "bg-muted-foreground/25"
                                     }`}
