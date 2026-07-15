@@ -646,13 +646,14 @@ const StudentHome = () => {
                 const quizTaken = takenQuizzes[dp.day];
                 const quizPublished = availableQuizDays.has(dp.day);
                 const quizPassed = !!(quizTaken && quizTaken.score > 50);
+                const quizTakenAny = !!quizTaken;
                 const quizDone = !quizPublished || quizPassed;
                 const activitiesDoneCount = activities.filter((r: any) => activityDone[r.id]).length;
                 const quizCounts = quizPublished ? 1 : 0;
                 const totalCount = activities.length + quizCounts;
-                const doneCount = activitiesDoneCount + (quizPublished && quizPassed ? 1 : 0);
+                const doneCount = activitiesDoneCount + (quizPublished && quizTakenAny ? 1 : 0);
                 const allActivitiesDone = activities.length === 0 || activitiesDoneCount === activities.length;
-                const isComplete = totalCount > 0 && doneCount === totalCount && allActivitiesDone && !!quizDone;
+                const isComplete = totalCount > 0 && allActivitiesDone && !!quizDone;
                 const status: "complete" | "in_progress" | "upcoming" =
                   isComplete ? "complete" : (dp.day > currentWeek ? "upcoming" : "in_progress");
 
