@@ -82,6 +82,24 @@ const StudentHome = () => {
   const [lessonPlan, setLessonPlan] = useState<any[]>([]);
   const [planLoading, setPlanLoading] = useState(true);
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
+  // Per-activity done state (localStorage-backed, keyed by user + activity id)
+  const activityDoneStorageKey = user?.id ? `student:activity-done:${user.id}` : null;
+  const [activityDone, setActivityDone] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const k = user?.id ? `student:activity-done:${user.id}` : null;
+      if (!k) return {};
+      const raw = window.localStorage.getItem(k);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+  useEffect(() => {
+    if (!activityDoneStorageKey) return;
+    try { window.localStorage.setItem(activityDoneStorageKey, JSON.stringify(activityDone)); } catch {}
+  }, [activityDone, activityDoneStorageKey]);
+  const toggleActivityDone = (id: string) => {
+    setActivityDone(prev => ({ ...prev, [id]: !prev[id] }));
+  };
   const [concepts, setConcepts] = useState<{ id: string; name: string }[]>([]);
   const [quizDialog, setQuizDialog] = useState<{ open: boolean; day: number | null }>({ open: false, day: null });
   const [diagGate, setDiagGate] = useState<{ open: boolean; context: string }>({ open: false, context: "" });
