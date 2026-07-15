@@ -82,6 +82,24 @@ const StudentHome = () => {
   const [lessonPlan, setLessonPlan] = useState<any[]>([]);
   const [planLoading, setPlanLoading] = useState(true);
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
+  // Per-activity done state (localStorage-backed, keyed by user + activity id)
+  const activityDoneStorageKey = user?.id ? `student:activity-done:${user.id}` : null;
+  const [activityDone, setActivityDone] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const k = user?.id ? `student:activity-done:${user.id}` : null;
+      if (!k) return {};
+      const raw = window.localStorage.getItem(k);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+  useEffect(() => {
+    if (!activityDoneStorageKey) return;
+    try { window.localStorage.setItem(activityDoneStorageKey, JSON.stringify(activityDone)); } catch {}
+  }, [activityDone, activityDoneStorageKey]);
+  const toggleActivityDone = (id: string) => {
+    setActivityDone(prev => ({ ...prev, [id]: !prev[id] }));
+  };
   const [concepts, setConcepts] = useState<{ id: string; name: string }[]>([]);
   const [quizDialog, setQuizDialog] = useState<{ open: boolean; day: number | null }>({ open: false, day: null });
   const [diagGate, setDiagGate] = useState<{ open: boolean; context: string }>({ open: false, context: "" });
@@ -624,21 +642,66 @@ const StudentHome = () => {
                 const outcomesMatch = desc.match(/Learning Outcomes:\s*([\s\S]*?)(?=Concepts:|Teaching Strategies:|$)/i);
                 const outcomes = outcomesMatch?.[1]?.trim().replace(/\*\*/g, "") || "";
 
+                const activities: any[] = Array.isArray(dp.resources) ? dp.resources : [];
+                const totalCount = activities.length;
+                const doneCount = activities.filter((r: any) => activityDone[r.id]).length;
+                const quizTaken = takenQuizzes[dp.day];
+                const quizPublished = availableQuizDays.has(dp.day);
+                const quizDone = !quizPublished || (quizTaken && quizTaken.score > 50);
+                const allActivitiesDone = totalCount > 0 && doneCount === totalCount;
+                const isComplete = allActivitiesDone && !!quizDone;
+                const status: "complete" | "in_progress" | "upcoming" =
+                  isComplete ? "complete" : (dp.day > currentWeek ? "upcoming" : "in_progress");
+
+                const statusStyles = {
+                  complete: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+                  in_progress: "bg-primary/15 text-primary",
+                  upcoming: "bg-muted text-muted-foreground",
+                }[status];
+                const statusLabel = { complete: "COMPLETE", in_progress: "IN PROGRESS", upcoming: "UPCOMING" }[status];
+
+                const avatarStyles = {
+                  complete: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+                  in_progress: "bg-primary/10 text-primary border-primary/30",
+                  upcoming: "bg-muted text-muted-foreground border-border",
+                }[status];
+
                 return (
                   <div key={dp.id || dp.day} className={`rounded-lg border ${isExpanded ? "border-primary/20" : ""}`}>
                     <button
-                      className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/30 transition-colors"
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/30 transition-colors"
                       onClick={() => toggleWeek(dp.day)}
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Badge variant={dp.day === currentWeek ? "default" : "outline"} className="shrink-0 text-xs w-[72px] justify-center whitespace-nowrap">
-                          Unit {dp.day}
-                        </Badge>
-                        <span className="text-sm font-medium truncate">{dp.topic}</span>
-                        {dp.day === currentWeek && <Badge variant="secondary" className="text-[10px]">Current</Badge>}
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${avatarStyles}`}>
+                          {status === "complete" ? <Check className="h-5 w-5" strokeWidth={3} /> : status === "upcoming" ? <Lock className="h-4 w-4" /> : <span className="text-xs font-semibold">{dp.day}</span>}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Unit {dp.day}</span>
+                            <span className="text-sm font-semibold truncate">{dp.topic}</span>
+                            <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${statusStyles}`}>{statusLabel}</span>
+                          </div>
+                          {totalCount > 0 && (
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                {activities.map((r: any, i: number) => {
+                                  const done = !!activityDone[r.id];
+                                  const isLast = i === totalCount - 1;
+                                  const cls = done
+                                    ? (allActivitiesDone && isLast ? "bg-emerald-500" : "bg-primary")
+                                    : "bg-muted-foreground/25";
+                                  return <span key={r.id || i} className={`h-2 w-2 rounded-full ${cls}`} />;
+                                })}
+                              </div>
+                              <span className="text-xs text-muted-foreground">{doneCount} / {totalCount} done</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                       {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
                     </button>
+
 
                     {isExpanded && (
                       <div className="px-4 pb-4 space-y-3">
@@ -676,13 +739,22 @@ const StudentHome = () => {
                                   <div className="space-y-1.5 pl-3 border-l-2 border-muted ml-0.5">
                                     {activities.map((r: any, i: number) => {
                                       const hasUrl = typeof r.url === "string" && r.url.length > 0;
+                                      const done = !!activityDone[r.id];
+                                      const toggleBtn = (
+                                        <button
+                                          type="button"
+                                          aria-label={done ? "Mark as not done" : "Mark as done"}
+                                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleActivityDone(r.id); }}
+                                          className={`flex h-6 w-6 items-center justify-center rounded-full border shrink-0 transition-colors ${done ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400" : "bg-background border-muted-foreground/30 text-transparent hover:text-muted-foreground hover:border-muted-foreground/60"}`}
+                                        >
+                                          <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                                        </button>
+                                      );
                                       const inner = (
                                         <>
-                                          <div className="flex h-6 w-6 items-center justify-center rounded bg-primary/10 text-primary shrink-0">
-                                            <BookOpen className="h-3 w-3" />
-                                          </div>
+                                          {toggleBtn}
                                           <div className="min-w-0 flex-1">
-                                            <p className={`text-sm font-medium ${hasUrl ? "text-primary group-hover:underline" : ""}`}>{r.title}</p>
+                                            <p className={`text-sm font-medium ${done ? "line-through text-muted-foreground" : (hasUrl ? "text-primary group-hover:underline" : "")}`}>{r.title}</p>
                                             <p className="text-xs text-muted-foreground">{r.action}</p>
                                           </div>
                                           <Badge variant="outline" className="text-[10px] shrink-0">{r.type}</Badge>
@@ -697,12 +769,12 @@ const StudentHome = () => {
                                           href={r.url}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="group flex items-start gap-3 rounded-lg bg-muted/20 p-2.5 hover:bg-muted/40 transition-colors"
+                                          className="group flex items-center gap-3 rounded-lg bg-muted/20 p-2.5 hover:bg-muted/40 transition-colors"
                                         >
                                           {inner}
                                         </a>
                                       ) : (
-                                        <div key={r.id || i} className="flex items-start gap-3 rounded-lg bg-muted/20 p-2.5">
+                                        <div key={r.id || i} className="flex items-center gap-3 rounded-lg bg-muted/20 p-2.5">
                                           {inner}
                                         </div>
                                       );
