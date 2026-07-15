@@ -422,6 +422,7 @@ const StudentHome = () => {
       title: "Lesson plan not published yet",
       description: "Your professor hasn't published the lesson plan. Check back soon.",
       action: () => { /* no-op */ },
+      category: "HEADS UP",
     });
   } else {
     // Rule 2 — diagnostic not taken
@@ -431,6 +432,7 @@ const StudentHome = () => {
         title: "Take the diagnostic quiz",
         description: "Helps the assistant calibrate to your level",
         action: () => navigate(`/student/diagnostic?course=${enrolledCourseId ?? ""}`),
+        category: "DIAGNOSTIC",
       });
     }
 
@@ -440,9 +442,10 @@ const StudentHome = () => {
     if (currentWeekQuizAvailable && !isExamWeek) {
       nextActions.push({
         icon: ClipboardCheck,
-        title: `Take this week's quiz: ${currentWeekRow?.topic || `Week ${currentWeek}`}`,
+        title: `${currentWeekRow?.topic || `Week ${currentWeek}`}`,
         description: "Quick check-in on this week's concepts",
         action: () => attemptOpenQuiz(currentWeek),
+        category: "THIS WEEK'S QUIZ",
       });
     }
 
@@ -453,6 +456,7 @@ const StudentHome = () => {
         title: "Practice Exam",
         description: "Exam week — simulate a timed exam in chat",
         action: () => attemptExamMode(),
+        category: "PRACTICE",
       });
     }
 
@@ -466,9 +470,10 @@ const StudentHome = () => {
       if (weakest) {
         nextActions.push({
           icon: Sparkles,
-          title: `Strengthen: ${weakest.name}`,
+          title: weakest.name,
           description: "Revisit this concept in the Study Chat",
           action: () => navigate(`/student/chat?newchat=true&concept=${encodeURIComponent(weakest.name)}`),
+          category: "STRENGTHEN",
         });
       }
     }
@@ -480,9 +485,10 @@ const StudentHome = () => {
     if (unexploredThisWeek) {
       nextActions.push({
         icon: BookOpen,
-        title: `Start this week: ${unexploredThisWeek.name}`,
+        title: unexploredThisWeek.name,
         description: `Week ${currentWeek} — open a new chat to dig in`,
         action: () => navigate("/student/chat?newchat=true"),
+        category: "START THIS WEEK",
       });
     }
 
@@ -495,9 +501,10 @@ const StudentHome = () => {
     if (missedEarlier != null) {
       nextActions.push({
         icon: ClipboardCheck,
-        title: `Catch up on Week ${missedEarlier} quiz`,
+        title: `Week ${missedEarlier} quiz`,
         description: "You haven't taken this one yet",
         action: () => attemptOpenQuiz(missedEarlier),
+        category: "REVIEW",
       });
     }
 
@@ -505,9 +512,10 @@ const StudentHome = () => {
     if (!isExamWeek && taSettings?.examEnabled !== false) {
       nextActions.push({
         icon: ClipboardCheck,
-        title: "Practice Exam",
-        description: "Test your knowledge with a timed exam simulation",
+        title: "Practice exam",
+        description: "Test your knowledge with a timed simulation",
         action: () => attemptExamMode(),
+        category: "PRACTICE",
       });
     }
 
@@ -522,6 +530,7 @@ const StudentHome = () => {
         title: "You're caught up — keep practising in chat",
         description: "Try a deeper question or revisit a concept",
         action: () => navigate("/student/chat?newchat=true"),
+        category: "EXPLORE",
       });
     }
 
@@ -532,6 +541,7 @@ const StudentHome = () => {
         title: "Open the Study Chat",
         description: "Ask a question or explore a concept",
         action: () => navigate("/student/chat?newchat=true"),
+        category: "EXPLORE",
       });
     }
   }
