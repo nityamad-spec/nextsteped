@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, ChevronDown, ChevronUp, Lock, Check, Sparkles } from "lucide-react";
+import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, ChevronDown, ChevronUp, Lock, Check, Sparkles, Compass } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
@@ -377,7 +377,22 @@ const StudentHome = () => {
   const nextActionsLoading =
     planLoading || diagnosticTaken === null || (!!enrolledCourseId && concepts.length === 0 && lessonPlanPublished);
 
-  type NextAction = { icon: any; title: string; description: string; action: () => void };
+  type NextActionCategory =
+    | "HEADS UP"
+    | "DIAGNOSTIC"
+    | "THIS WEEK'S QUIZ"
+    | "STRENGTHEN"
+    | "START THIS WEEK"
+    | "REVIEW"
+    | "PRACTICE"
+    | "EXPLORE";
+  type NextAction = {
+    icon: any;
+    title: string;
+    description: string;
+    action: () => void;
+    category: NextActionCategory;
+  };
   const nextActions: NextAction[] = [];
 
   // Build a lookup of concept_code -> concept id for the current course
@@ -407,6 +422,7 @@ const StudentHome = () => {
       title: "Lesson plan not published yet",
       description: "Your professor hasn't published the lesson plan. Check back soon.",
       action: () => { /* no-op */ },
+      category: "HEADS UP",
     });
   } else {
     // Rule 2 — diagnostic not taken
@@ -416,6 +432,7 @@ const StudentHome = () => {
         title: "Take the diagnostic quiz",
         description: "Helps the assistant calibrate to your level",
         action: () => navigate(`/student/diagnostic?course=${enrolledCourseId ?? ""}`),
+        category: "DIAGNOSTIC",
       });
     }
 
@@ -425,9 +442,10 @@ const StudentHome = () => {
     if (currentWeekQuizAvailable && !isExamWeek) {
       nextActions.push({
         icon: ClipboardCheck,
-        title: `Take this week's quiz: ${currentWeekRow?.topic || `Week ${currentWeek}`}`,
+        title: `${currentWeekRow?.topic || `Week ${currentWeek}`}`,
         description: "Quick check-in on this week's concepts",
         action: () => attemptOpenQuiz(currentWeek),
+        category: "THIS WEEK'S QUIZ",
       });
     }
 
@@ -438,6 +456,7 @@ const StudentHome = () => {
         title: "Practice Exam",
         description: "Exam week — simulate a timed exam in chat",
         action: () => attemptExamMode(),
+        category: "PRACTICE",
       });
     }
 
@@ -451,9 +470,10 @@ const StudentHome = () => {
       if (weakest) {
         nextActions.push({
           icon: Sparkles,
-          title: `Strengthen: ${weakest.name}`,
+          title: weakest.name,
           description: "Revisit this concept in the Study Chat",
           action: () => navigate(`/student/chat?newchat=true&concept=${encodeURIComponent(weakest.name)}`),
+          category: "STRENGTHEN",
         });
       }
     }
@@ -465,9 +485,10 @@ const StudentHome = () => {
     if (unexploredThisWeek) {
       nextActions.push({
         icon: BookOpen,
-        title: `Start this week: ${unexploredThisWeek.name}`,
+        title: unexploredThisWeek.name,
         description: `Week ${currentWeek} — open a new chat to dig in`,
         action: () => navigate("/student/chat?newchat=true"),
+        category: "START THIS WEEK",
       });
     }
 
@@ -480,9 +501,10 @@ const StudentHome = () => {
     if (missedEarlier != null) {
       nextActions.push({
         icon: ClipboardCheck,
-        title: `Catch up on Week ${missedEarlier} quiz`,
+        title: `Week ${missedEarlier} quiz`,
         description: "You haven't taken this one yet",
         action: () => attemptOpenQuiz(missedEarlier),
+        category: "REVIEW",
       });
     }
 
@@ -490,9 +512,10 @@ const StudentHome = () => {
     if (!isExamWeek && taSettings?.examEnabled !== false) {
       nextActions.push({
         icon: ClipboardCheck,
-        title: "Practice Exam",
-        description: "Test your knowledge with a timed exam simulation",
+        title: "Practice exam",
+        description: "Test your knowledge with a timed simulation",
         action: () => attemptExamMode(),
+        category: "PRACTICE",
       });
     }
 
@@ -507,6 +530,7 @@ const StudentHome = () => {
         title: "You're caught up — keep practising in chat",
         description: "Try a deeper question or revisit a concept",
         action: () => navigate("/student/chat?newchat=true"),
+        category: "EXPLORE",
       });
     }
 
@@ -517,6 +541,7 @@ const StudentHome = () => {
         title: "Open the Study Chat",
         description: "Ask a question or explore a concept",
         action: () => navigate("/student/chat?newchat=true"),
+        category: "EXPLORE",
       });
     }
   }
@@ -570,37 +595,57 @@ const StudentHome = () => {
       {/* What to do next */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="mb-6">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="h-4 w-4 text-primary" /> What to Do Next
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-3 text-base">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Compass className="h-4 w-4" />
+              </span>
+              What to do next
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-3">
             {nextActionsLoading ? (
-              <div className="flex w-full items-center gap-3 rounded-lg border p-3">
-                <div className="h-8 w-8 rounded-lg bg-muted animate-pulse shrink-0" />
+              <div className="flex w-full items-center gap-4 rounded-xl border p-4">
+                <div className="h-11 w-11 rounded-xl bg-muted animate-pulse shrink-0" />
                 <div className="flex-1 space-y-2">
                   <div className="h-3 w-2/3 bg-muted animate-pulse rounded" />
                   <div className="h-2 w-1/2 bg-muted animate-pulse rounded" />
                 </div>
               </div>
             ) : (
-              nextActions.slice(0, 3).map((action, i) => (
-                <button
-                  key={i}
-                  onClick={action.action}
-                  className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-                    <action.icon className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{action.title}</p>
-                    <p className="text-xs text-muted-foreground">{action.description}</p>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                </button>
-              ))
+              nextActions.slice(0, 3).map((action, i) => {
+                const isAmber = action.category === "PRACTICE";
+                const isMuted = action.category === "HEADS UP";
+                const categoryClass = isAmber
+                  ? "text-amber-600 dark:text-amber-500"
+                  : isMuted
+                  ? "text-muted-foreground"
+                  : "text-primary";
+                const tileClass = isAmber
+                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-500"
+                  : isMuted
+                  ? "bg-muted text-muted-foreground"
+                  : "bg-primary/10 text-primary";
+                return (
+                  <button
+                    key={i}
+                    onClick={action.action}
+                    className="flex w-full items-center gap-4 rounded-xl border p-4 text-left hover:bg-muted/40 transition-colors"
+                  >
+                    <div className={`flex h-11 w-11 items-center justify-center rounded-xl shrink-0 ${tileClass}`}>
+                      <action.icon className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-[11px] font-semibold tracking-wider uppercase ${categoryClass}`}>
+                        {action.category}
+                      </p>
+                      <p className="text-[15px] font-semibold leading-snug mt-0.5">{action.title}</p>
+                      <p className="text-sm text-muted-foreground mt-0.5">{action.description}</p>
+                    </div>
+                    <ArrowRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                  </button>
+                );
+              })
             )}
           </CardContent>
         </Card>
