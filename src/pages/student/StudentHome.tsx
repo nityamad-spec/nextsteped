@@ -771,10 +771,21 @@ const StudentHome = () => {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="mb-6">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Brain className="h-4 w-4 text-primary" /> Concept Exploration & Mastery Map
-            </CardTitle>
-            <CardDescription>Based on your interactions with the Teaching Assistant across diagnostic test, study mode, and practice exam sessions</CardDescription>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Brain className="h-4 w-4 text-primary shrink-0" /> Concept Mastery Map
+                </CardTitle>
+                <CardDescription>Your mastery per concept — grows as you work with the AI tutor, complete quizzes and exams. Separate from lesson completion.</CardDescription>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-2xl font-bold text-primary">{courseMastery !== null ? `${Math.round(courseMastery * 100)}%` : "—"}</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Overall Mastery</p>
+              </div>
+            </div>
+            <div className="mt-3">
+              <Progress value={courseMastery !== null ? Math.round(courseMastery * 100) : 0} className="h-2" />
+            </div>
           </CardHeader>
           <CardContent>
             {concepts.length === 0 ? (
