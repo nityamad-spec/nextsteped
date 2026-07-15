@@ -276,25 +276,28 @@ Deno.serve(async (req) => {
     return json({ error: "course_recompute_failed" }, 500);
   }
 
+  // Denominator = total weight of EVERY concept in the course (unexplored
+  // concepts count as 0), so course mastery reflects true course-wide progress.
+  let totalCourseWeight = 0;
+  for (const c of byId.values()) totalCourseWeight += c.weight;
+
   let weightedSum = 0;
-  let weightTotal = 0;
   let contributing = 0;
   let nonPracticeContributors = 0;
   for (const r of allRows ?? []) {
     const w = byId.get(r.concept_id as string)?.weight ?? 0;
     if (w <= 0) continue;
     weightedSum += Number(r.mastery_score) * w;
-    weightTotal += w;
     contributing += 1;
     if (r.last_source && r.last_source !== "practice") nonPracticeContributors += 1;
   }
-  const courseScore = weightTotal > 0 ? clamp01(weightedSum / weightTotal) : 0;
+  const courseScore = totalCourseWeight > 0 ? clamp01(weightedSum / totalCourseWeight) : 0;
   // Layer 3: practice-only gate — block "expert" at the course level if every
   // contributing concept's most-recent submission was practice.
   const courseLevel = applyPracticeOnlyGate(bandFor(courseScore), contributing, nonPracticeContributors);
 
-  if (weightTotal === 0) {
-    console.warn("update-mastery: weightTotal is 0 — no contributing concepts", {
+  if (totalCourseWeight === 0) {
+    console.warn("update-mastery: totalCourseWeight is 0 — course has no weighted concepts", {
       student_id: studentId,
       course_id: body.course_id,
     });
