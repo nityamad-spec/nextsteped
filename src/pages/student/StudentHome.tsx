@@ -655,7 +655,36 @@ const StudentHome = () => {
                 const isComplete = totalCount > 0 && doneCount === totalCount && allActivitiesDone && !!quizDone;
                 const status: "complete" | "in_progress" | "upcoming" =
                   isComplete ? "complete" : (dp.day > currentWeek ? "upcoming" : "in_progress");
-...
+
+                const statusStyles = {
+                  complete: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+                  in_progress: "bg-primary/15 text-primary",
+                  upcoming: "bg-muted text-muted-foreground",
+                }[status];
+                const statusLabel = { complete: "COMPLETE", in_progress: "IN PROGRESS", upcoming: "UPCOMING" }[status];
+
+                const avatarStyles = {
+                  complete: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+                  in_progress: "bg-primary/10 text-primary border-primary/30",
+                  upcoming: "bg-muted text-muted-foreground border-border",
+                }[status];
+
+                return (
+                  <div key={dp.id || dp.day} className={`rounded-lg border ${isExpanded ? "border-primary/20" : ""}`}>
+                    <button
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/30 transition-colors"
+                      onClick={() => toggleWeek(dp.day)}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${avatarStyles}`}>
+                          {status === "complete" ? <Check className="h-5 w-5" strokeWidth={3} /> : status === "upcoming" ? <Lock className="h-4 w-4" /> : <span className="text-xs font-semibold">{dp.day}</span>}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Unit {dp.day}</span>
+                            <span className="text-sm font-semibold truncate">{dp.topic}</span>
+                            <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${statusStyles}`}>{statusLabel}</span>
+                          </div>
                           {totalCount > 0 && (
                             <div className="mt-1.5 flex items-center gap-2">
                               <div className="flex items-center gap-1">
