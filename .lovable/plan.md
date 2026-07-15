@@ -1,11 +1,12 @@
-Add a native hover tooltip to confirmed concept names on `/teacher/setup/concept-review` so the full `concept_code` is visible when text is truncated.
+Update the "Concept Exploration & Mastery Map" section on `/student/home` to match the attached screenshot, without changing any database code.
 
-Change:
-- File: `src/pages/teacher/ConceptReview.tsx`
-- Line ~743: wrap the confirmed concept name `<span className="text-sm font-medium truncate">` with a `title` attribute set to `{c.concept_code}`.
+Changes to `src/pages/student/StudentHome.tsx`:
 
-Result:
-- Long concept names still truncate visually to keep the layout compact.
-- Hovering the name shows the browser's default tooltip with the complete text.
+1. Rename the section title from "Concept Exploration & Mastery Map" to "Concept Mastery Map".
+2. Replace the existing `CardDescription` with:  
+   "Your mastery per concept — grows as you work with the AI tutor, complete quizzes and exams. Separate from lesson completion."
+3. Add an "Overall Mastery" display in the header row, aligned to the right, showing the existing `courseMastery` value as a percentage (e.g. "46%"). If `courseMastery` is null, show "—" or hide the value.
+4. Add a full-width progress bar directly under the header that reflects the same `courseMastery` value, using the app's existing primary color token.
+5. Keep the existing concept tiles grid and the mastery legend below unchanged.
 
-No other logic, styling, or data changes.
+No database changes. The overall mastery score is already loaded into the `courseMastery` state from `student_course_mastery`.
