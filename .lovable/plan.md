@@ -1,23 +1,48 @@
-## Overall course mastery = weighted avg over ALL course concepts
+## Redesign "What to Do Next" section on `/student/home`
 
-Current bug: `update-mastery` divides the weighted sum by the sum of weights of **explored** concepts only, so 2/14 explored concepts at 39% and 54% show as 45% overall. Fix: divide by the sum of weights of **every concept in the course**, so unexplored concepts count as 0% and Overall reflects true course-wide progress.
+Match the reference screenshot (excluding all XP elements).
 
-### Change
+### Header
+- Card header shows a small circular badge with a **Compass** icon (indigo tint) next to the title "**What to do next**" (lowercase 'to do').
+- Remove the current `Sparkles` icon.
+- No right-side "Earn XP with every step" text (excluded per user).
 
-`supabase/functions/update-mastery/index.ts` (around lines 279–291):
+### Action rows
+Each row shows:
+- **Left**: rounded-square colored icon tile (tinted background matching the row's category color).
+- **Middle**:
+  - A small uppercase **category label** in the category color (e.g. STRENGTHEN, START THIS WEEK, PRACTICE, REVIEW, DIAGNOSTIC, HEADS UP).
+  - **Bold title** below it.
+  - Muted **description** below title.
+- **Right**: only a chevron/arrow (`ArrowRight`). No XP badge.
 
-- Compute `totalCourseWeight = Σ weight for every row in courseConcepts` (already loaded into `byId` at line 127).
-- Keep `weightedSum` as-is (sum of `mastery_score × weight` over concepts with a row).
-- `courseScore = totalCourseWeight > 0 ? clamp01(weightedSum / totalCourseWeight) : 0`
-- `weightTotal` variable (denominator of explored-only weights) is no longer used for `courseScore`, but the `weightTotal === 0` warning stays — repurpose it to warn when `totalCourseWeight === 0` (course has no concepts).
-- `contributing` and `nonPracticeContributors` counters unchanged — they still drive the practice-only gate.
+### Category derivation
+Extend `NextAction` type with a `category` field. Assign in the rules already in `StudentHome.tsx` (lines 404–521):
+- Rule 1 (no lesson plan) → `HEADS UP` (slate/muted)
+- Rule 2 (diagnostic) → `DIAGNOSTIC` (indigo)
+- Rule 3 (this week's quiz) → `THIS WEEK'S QUIZ` (indigo)
+- Rule 4 (weakest concept "Strengthen: …") → `STRENGTHEN` (indigo); strip the "Strengthen: " prefix from title.
+- Rule 5 (unexplored current-week concept "Start this week: …") → `START THIS WEEK` (indigo); strip "Start this week: " prefix.
+- Rule 6 (missed earlier quiz "Catch up …") → `REVIEW` (indigo)
+- Rule 7 (Practice Exam) → `PRACTICE` (amber)
+- Rule 8 / fallback (caught up, open chat) → `EXPLORE` (indigo)
+- Exam-week Practice Exam → `PRACTICE` (amber)
 
-### Test update
+Two color families only, to match the screenshot:
+- **Indigo**: category text `text-primary`, icon tile `bg-primary/10 text-primary`.
+- **Amber** (for PRACTICE): category text `text-amber-600 dark:text-amber-500`, icon tile `bg-amber-500/10 text-amber-600 dark:text-amber-500`.
 
-`supabase/functions/update-mastery/integration_test.ts` line 228: fixture has 2 concepts A/B each with weight 0.5. Test only writes concept A at 0.6923. New expected course score = `0.6923 × 0.5 / (0.5 + 0.5) = 0.3462`. Update the assertion to `assertAlmostEquals(Number(course!.mastery_score), 0.3462, 1e-3)` and adjust the comment. No other assertions in that file change (the exam test at line 234 populates both concepts).
+### Tile styling
+- Larger padding (`p-4`), `rounded-xl`, `border`, hover `bg-muted/40`, gap-4.
+- Icon tile: `h-11 w-11 rounded-xl` (was `h-8 w-8`).
+- Category label: `text-[11px] font-semibold tracking-wider uppercase`.
+- Title: `text-[15px] font-semibold`.
+- Description: `text-sm text-muted-foreground`.
+- Right chevron only (no XP).
 
-### Not changed
-
-- `student_concept_mastery` rows and per-concept scores/levels — unchanged.
-- Frontend `StudentHome.tsx` — no changes; it just reads the number.
-- No DB migration.
+### Scope
+- Only edits `src/pages/student/StudentHome.tsx`:
+  - Lines 380–521 (add `category` to actions).
+  - Lines 570–607 (card header + row rendering).
+- Import `Compass` from `lucide-react`.
+- No backend, no data-model, no other files.

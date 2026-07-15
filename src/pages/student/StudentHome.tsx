@@ -377,7 +377,22 @@ const StudentHome = () => {
   const nextActionsLoading =
     planLoading || diagnosticTaken === null || (!!enrolledCourseId && concepts.length === 0 && lessonPlanPublished);
 
-  type NextAction = { icon: any; title: string; description: string; action: () => void };
+  type NextActionCategory =
+    | "HEADS UP"
+    | "DIAGNOSTIC"
+    | "THIS WEEK'S QUIZ"
+    | "STRENGTHEN"
+    | "START THIS WEEK"
+    | "REVIEW"
+    | "PRACTICE"
+    | "EXPLORE";
+  type NextAction = {
+    icon: any;
+    title: string;
+    description: string;
+    action: () => void;
+    category: NextActionCategory;
+  };
   const nextActions: NextAction[] = [];
 
   // Build a lookup of concept_code -> concept id for the current course
