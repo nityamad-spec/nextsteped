@@ -1,18 +1,10 @@
-## Include Weekly Quiz in Unit progress dots + counter
+## Fill quiz dot on completion (any score)
 
-On `/student/home` collapsed Unit row, the row of dots and the "X / Y done" counter today only count activities (coding exercises / articles). The weekly quiz is factored into `isComplete` but has no dot of its own. Add the quiz as an additional item.
+In `src/pages/student/StudentHome.tsx` (Lesson Plan collapsed row, ~lines 645–680), change the quiz-dot rule:
 
-### Change (frontend only, `src/pages/student/StudentHome.tsx`, ~lines 645–699)
+- Replace `quizPassed` gating for the dot with `quizTakenAny = !!takenQuizzes[dp.day]`.
+- Quiz dot renders filled (`bg-primary`, or `bg-emerald-500` when Unit is COMPLETE and it's the last dot) whenever the quiz has been taken, regardless of score.
+- `doneCount` also counts the quiz once it's been taken.
+- Unit `isComplete` rule stays the same: all activities done AND quiz taken with score > 50 (passing still required for the green COMPLETE badge + green avatar).
 
-- Treat the weekly quiz as one extra item when `quizPublished` is true:
-  - `quizCounts = quizPublished ? 1 : 0`
-  - `totalCount = activities.length + quizCounts`
-  - `doneCount = (activities done) + (quizPublished && quizDone ? 1 : 0)`
-- Render one extra dot after the activity dots when `quizPublished`:
-  - filled `bg-primary` if quiz taken & passed (>50%)
-  - `bg-emerald-500` when it's the last dot AND all items done
-  - `bg-muted-foreground/25` otherwise
-- Keep `isComplete` logic identical (all activities done AND quiz done) — just derived from the new counts.
-- Counter text unchanged in shape: `{doneCount} / {totalCount} done` (now naturally reflects quiz).
-
-No changes to the expanded view, no data/DB changes, no changes to the activity toggle behavior.
+Frontend only, no DB changes.
