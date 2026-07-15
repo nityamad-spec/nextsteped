@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, ChevronDown, ChevronUp, Lock, Check, Sparkles } from "lucide-react";
+import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, ChevronDown, ChevronUp, Lock, Check, Sparkles, Compass } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
