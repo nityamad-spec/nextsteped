@@ -742,12 +742,32 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
                   count={stats.quizNotStarted.length}
                   onClick={stats.quizNotStarted.length > 0 ? () => setRosterView("quiz-not-started") : undefined}
                 />
-                <div className="text-muted-foreground pt-1">Total attempts: <span className="text-foreground tabular-nums">{stats.quizAttempts}</span></div>
+                <div className="text-muted-foreground pt-1">Students attempted: <span className="text-foreground tabular-nums">{stats.quizStudents}</span></div>
+                <div className="text-muted-foreground">Total attempts: <span className="text-foreground tabular-nums">{stats.quizAttempts}</span></div>
                 <div className="text-muted-foreground">Avg score: <span className="text-foreground tabular-nums">{fmtPct(stats.quizAvg)}</span></div>
               </div>
               <div className="rounded-md border bg-background p-2.5 space-y-1">
                 <div className="font-medium">Exams <span className="text-muted-foreground font-normal">({stats.examsTotal} active)</span></div>
-                <div className="text-muted-foreground">Students attempted: <span className="text-foreground tabular-nums">{stats.examStudents}</span></div>
+                {stats.examsTotal > 0 && (
+                  <>
+                    <QuizRow
+                      label={`Completed all ${stats.examsTotal}`}
+                      count={stats.examCompletedAll.length}
+                      onClick={stats.examCompletedAll.length > 0 ? () => setRosterView("exam-completed") : undefined}
+                    />
+                    <QuizRow
+                      label="Completed ≥1 exam"
+                      count={stats.examCompletedOne.length}
+                      onClick={stats.examCompletedOne.length > 0 ? () => setRosterView("exam-one") : undefined}
+                    />
+                  </>
+                )}
+                <QuizRow
+                  label="Not started (0)"
+                  count={stats.examNotStarted.length}
+                  onClick={stats.examNotStarted.length > 0 ? () => setRosterView("exam-not-started") : undefined}
+                />
+                <div className="text-muted-foreground pt-1">Students attempted: <span className="text-foreground tabular-nums">{stats.examStudents}</span></div>
                 <div className="text-muted-foreground">Total attempts: <span className="text-foreground tabular-nums">{stats.examAttempts}</span></div>
                 <div className="text-muted-foreground">Avg score: <span className="text-foreground tabular-nums">{fmtPct(stats.examAvg)}</span></div>
               </div>
