@@ -64,6 +64,12 @@ interface Stats {
   diagnosticAvg: number | null;
   diagnosticDoneStudents: StudentLite[];
   diagnosticPendingStudents: StudentLite[];
+  activeStudentsCount: number;
+  dormantStudentsCount: number;
+  activePct: number | null;
+  dormantPct: number | null;
+  activeStudentsList: StudentLite[];
+  dormantStudentsList: StudentLite[];
   masteryBands: { beginner: number; developing: number; proficient: number; expert: number; none: number };
   masteryStudents: { beginner: StudentLite[]; developing: StudentLite[]; proficient: StudentLite[]; expert: StudentLite[]; none: StudentLite[] };
   masteryAvgPct: number | null;
@@ -89,10 +95,10 @@ interface RawData {
   enrollments: { student_id: string }[];
   profiles: { id: string; university_id: string | null; name: string | null; email: string | null }[];
   universities: { id: string; name: string }[];
-  diagnostics: { student_id: string; score: number | null; total_questions: number | null }[];
+  diagnostics: { student_id: string; score: number | null; total_questions: number | null; created_at: string | null }[];
   mastery: { student_id: string; mastery_score: number | null; learner_level: string | null }[];
   exams: { id: string; archived_at: string | null }[];
-  results: { student_id: string; mode: string | null; quiz_day: number | null; exam_id: string | null; score: number | null; total_questions: number | null }[];
+  results: { student_id: string; mode: string | null; quiz_day: number | null; exam_id: string | null; score: number | null; total_questions: number | null; created_at: string | null }[];
   chatSessions: { id: string; user_id: string }[];
   chatMessageSessionIds: string[];
 }
@@ -121,7 +127,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
   const [loadingStage, setLoadingStage] = useState<LoadStage>("idle");
   const [raw, setRaw] = useState<RawData | null>(null);
   const [universityFilter, setUniversityFilter] = useState<string>(ALL);
-  type RosterView = "done" | "pending" | "completed" | "not-completed" | "quiz-completed" | "quiz-partial" | "quiz-not-started" | "mastery-beginner" | "mastery-developing" | "mastery-proficient" | "mastery-expert" | "mastery-none";
+  type RosterView = "done" | "pending" | "active" | "dormant" | "completed" | "not-completed" | "quiz-completed" | "quiz-partial" | "quiz-not-started" | "mastery-beginner" | "mastery-developing" | "mastery-proficient" | "mastery-expert" | "mastery-none";
   const [rosterView, setRosterView] = useState<RosterView | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -151,13 +157,13 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
 
     const [enrRes, diagRes, masteryRes, examsRes, results, chatSessionsRes] = await Promise.all([
       supabase.from("enrollments").select("student_id").eq("course_id", courseId),
-      supabase.from("diagnostic_results").select("student_id, score, total_questions").eq("course_id", courseId),
+      supabase.from("diagnostic_results").select("student_id, score, total_questions, created_at").eq("course_id", courseId),
       supabase.from("student_course_mastery").select("student_id, mastery_score, learner_level").eq("course_id", courseId),
       supabase.from("course_exams").select("id, archived_at").eq("course_id", courseId),
       fetchAllRange<RawData["results"][number]>((from, to) =>
         supabase
           .from("assessment_results")
-          .select("student_id, mode, quiz_day, exam_id, score, total_questions")
+          .select("student_id, mode, quiz_day, exam_id, score, total_questions, created_at")
           .eq("course_id", courseId)
           .order("id", { ascending: true })
           .range(from, to),
@@ -300,6 +306,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
     const enrolled = enrolledIds.size;
 
     const diagStudents = new Set<string>();
+    const diagFirstAt = new Map<string, number>();
     let diagPctSum = 0, diagPctN = 0;
     raw.diagnostics.forEach(d => {
       if (!enrolledIds.has(d.student_id)) return;
@@ -307,6 +314,11 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       const total = Number(d.total_questions) || 0;
       const score = Number(d.score) || 0;
       if (total > 0) { diagPctSum += score / total; diagPctN += 1; }
+      const ts = d.created_at ? new Date(d.created_at).getTime() : NaN;
+      if (!Number.isNaN(ts)) {
+        const cur = diagFirstAt.get(d.student_id);
+        if (cur === undefined || ts < cur) diagFirstAt.set(d.student_id, ts);
+      }
     });
 
     const profById = new Map(raw.profiles.map(p => [p.id, p]));
@@ -357,6 +369,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
     const quizByStudent = new Map<string, Set<number>>();
     const examByStudent = new Map<string, Set<string>>();
     const activeExamByStudent = new Map<string, Set<string>>();
+    const activeAfterDiag = new Set<string>();
     let quizPctSum = 0, quizPctN = 0, quizAttempts = 0;
     let examPctSum = 0, examPctN = 0, examAttempts = 0;
 
@@ -364,14 +377,23 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       if (!enrolledIds.has(r.student_id)) return;
       const total = Number(r.total_questions) || 0;
       const pct = Number(r.score) / 100;
-      if (r.mode === "daily_quiz" && r.quiz_day != null) {
+      const isQuiz = r.mode === "daily_quiz" && r.quiz_day != null;
+      const isExam = r.mode === "exam";
+      if (isQuiz || isExam) {
+        const rts = r.created_at ? new Date(r.created_at).getTime() : NaN;
+        const dts = diagFirstAt.get(r.student_id);
+        if (!Number.isNaN(rts) && dts !== undefined && rts > dts) {
+          activeAfterDiag.add(r.student_id);
+        }
+      }
+      if (isQuiz) {
         quizDaysSeen.add(Number(r.quiz_day));
         quizAttempts += 1;
         if (total > 0) { quizPctSum += pct; quizPctN += 1; }
         const set = quizByStudent.get(r.student_id) || new Set<number>();
         set.add(Number(r.quiz_day));
         quizByStudent.set(r.student_id, set);
-      } else if (r.mode === "exam") {
+      } else if (isExam) {
         examAttempts += 1;
         if (total > 0) { examPctSum += pct; examPctN += 1; }
         const key = r.exam_id || "__no_exam__";
@@ -385,6 +407,17 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
         }
       }
     });
+
+    const activeStudentsList: StudentLite[] = [];
+    const dormantStudentsList: StudentLite[] = [];
+    diagStudents.forEach(sid => {
+      (activeAfterDiag.has(sid) ? activeStudentsList : dormantStudentsList).push(toLite(sid));
+    });
+    activeStudentsList.sort(sortLite);
+    dormantStudentsList.sort(sortLite);
+    const diagCount = diagStudents.size;
+    const activePct = diagCount > 0 ? activeStudentsList.length / diagCount : null;
+    const dormantPct = diagCount > 0 ? dormantStudentsList.length / diagCount : null;
 
     const quizzesTotal = quizDaysSeen.size;
 
@@ -435,6 +468,12 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       diagnosticAvg: diagPctN > 0 ? diagPctSum / diagPctN : null,
       diagnosticDoneStudents,
       diagnosticPendingStudents,
+      activeStudentsCount: activeStudentsList.length,
+      dormantStudentsCount: dormantStudentsList.length,
+      activePct,
+      dormantPct,
+      activeStudentsList,
+      dormantStudentsList,
       masteryBands: bands,
       masteryStudents,
       masteryAvgPct: masteryN > 0 ? masterySum / masteryN : null,
@@ -518,7 +557,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
             <div className="flex items-center gap-2 text-sm font-medium">
               <Users className="h-4 w-4" /> Enrollment & Diagnostic
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
               <Stat label="Enrolled" value={stats.enrolled} />
               <Stat
                 label="Diagnostic done"
@@ -532,6 +571,18 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
                 onClick={stats.diagnosticPendingStudents.length > 0 ? () => setRosterView("pending") : undefined}
               />
               <Stat label="Avg diagnostic" value={fmtPct(stats.diagnosticAvg)} />
+              <Stat
+                label="Active (post-diagnostic)"
+                value={fmtPct(stats.activePct)}
+                sub={`${stats.activeStudentsCount}/${stats.diagnosticSubmitted}`}
+                onClick={stats.activeStudentsList.length > 0 ? () => setRosterView("active") : undefined}
+              />
+              <Stat
+                label="Dormant (diagnostic only)"
+                value={fmtPct(stats.dormantPct)}
+                sub={`${stats.dormantStudentsCount}/${stats.diagnosticSubmitted}`}
+                onClick={stats.dormantStudentsList.length > 0 ? () => setRosterView("dormant") : undefined}
+              />
             </div>
           </div>
 
@@ -690,6 +741,8 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
             const cfg: Record<RosterView, { title: string; list: ReadonlyArray<StudentLite & { done?: number; remaining?: number }>; desc: (n: number) => string }> = {
               "done": { title: "Diagnostic done", list: stats?.diagnosticDoneStudents ?? [], desc: (n) => `${n} students submitted the diagnostic.` },
               "pending": { title: "Pending diagnostic", list: stats?.diagnosticPendingStudents ?? [], desc: (n) => `${n} enrolled students have not submitted yet.` },
+              "active": { title: "Active after diagnostic", list: stats?.activeStudentsList ?? [], desc: (n) => `${n} students completed at least one weekly quiz or exam after their diagnostic.` },
+              "dormant": { title: "Dormant after diagnostic", list: stats?.dormantStudentsList ?? [], desc: (n) => `${n} students submitted the diagnostic but have done no quizzes or exams since.` },
               "completed": { title: "Completed course", list: stats?.completedStudents ?? [], desc: (n) => `${n} students completed all quizzes & exams with mastery ≥ Proficient.` },
               "not-completed": { title: "Not completed", list: stats?.notCompletedStudents ?? [], desc: (n) => `${n} enrolled students have not completed the course.` },
               "quiz-completed": { title: `Completed all ${qt} weekly quizzes`, list: stats?.quizCompletedAll ?? [], desc: (n) => `${n} students submitted every weekly quiz.` },
