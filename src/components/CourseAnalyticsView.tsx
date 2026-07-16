@@ -87,6 +87,9 @@ interface Stats {
   examStudents: number;
   examAvg: number | null;
   examsTotal: number;
+  examCompletedAll: StudentLite[];
+  examCompletedOne: StudentLite[];
+  examNotStarted: StudentLite[];
   chatStudents: number;
   chatMessages: number;
 }
