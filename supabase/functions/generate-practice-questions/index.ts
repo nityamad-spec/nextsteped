@@ -603,7 +603,7 @@ Deno.serve(async (req) => {
       console.log(`practice: rejected ${rejections.length}/${arr.length} — ${rejections.slice(0, 8).join(" | ")}`);
     }
 
-      .filter((q): q is NonNullable<typeof q> => q !== null);
+
 
     if (sanitized.length === 0) {
       console.error("No valid questions after sanitize. Raw Stage 2 content:", genResp.content.slice(0, 1500));
