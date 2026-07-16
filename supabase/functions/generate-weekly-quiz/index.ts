@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { validateExplanation as sharedValidateExplanation } from "../_shared/question-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
