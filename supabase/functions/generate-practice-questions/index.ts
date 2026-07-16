@@ -524,116 +524,85 @@ Deno.serve(async (req) => {
     const arr = Array.isArray(parsedObj) ? parsedObj : parsedObj?.questions;
     if (!Array.isArray(arr)) return json({ error: "Failed to generate questions" }, 502);
 
-    const normalizeType = (t: any): QType | null => {
-      const s = String(t ?? "")
-        .toLowerCase()
-        .replace(/[\s-]/g, "_");
-      if (s === "mcq" || s === "multiple_choice" || s === "multiple_choice_question") return "mcq";
-      if (s === "true_false" || s === "truefalse" || s === "tf" || s === "boolean") return "true_false";
-      return null;
-    };
     const normalizeOptions = (o: any): string[] => {
       if (Array.isArray(o)) return o.map((x) => String(x));
       if (o && typeof o === "object") return Object.values(o).map((x) => String(x));
       return [];
     };
 
+    // Build set of concept codes the model was *actually allowed* to use.
+    const allowedTopicSet: Record<string, true> = {};
+    for (const code of allowedCodes) allowedTopicSet[code] = true;
+
+    const rejections: string[] = [];
     const sanitized = arr
       .map((q: any, i: number) => {
-        if (!q || typeof q !== "object") return null;
-        const type = normalizeType(q.type);
-        if (!type) return null;
-        const questionText = String(q.question ?? "").trim();
-        // Stem-shape guard: reject TF stems that read as MCQ ("Which of the following...", etc.)
-        if (type === "true_false") {
-          const stemLooksMcq =
-            /^\s*(which|what|select|choose|identify|pick|name)\b/i.test(questionText) ||
-            /of the following/i.test(questionText);
-          if (stemLooksMcq) {
-            console.warn(
-              "practice: dropping question, stem looks MCQ but type is true_false",
-              { question: questionText.slice(0, 160) },
-            );
-            return null;
-          }
-        }
-        let options: string[] | undefined;
-        let answer = String(q.answer ?? "").trim();
-        if (type === "mcq") {
-          options = normalizeOptions(q.options)
-            .map((s) => s.trim())
-            .filter(Boolean);
-          if (options.length < 2) return null;
-          if (!options.includes(answer)) {
-            // First try: bare letter answer ("A"/"B"/"C"/"D", possibly with trailing punctuation)
-            const letterMatch = answer.replace(/[^A-Za-z]/g, "").match(/^[A-Da-d]$/);
-            if (letterMatch) {
-              const idx = letterMatch[0].toUpperCase().charCodeAt(0) - 65;
-              if (options[idx]) {
-                answer = options[idx];
-              }
-            }
-          }
-          if (!options.includes(answer)) {
-            const norm = (s: string) =>
-              s
-                .replace(/^\s*\(?[A-Da-d]\)?[\.\):\-\s]+/, "") // strip "A)", "(B).", "C - " prefixes
-                .replace(/[\u2018\u2019]/g, "'")
-                .replace(/[\u201C\u201D]/g, '"')
-                .replace(/\s+/g, " ")
-                .replace(/[.!?,;:]+$/, "")
-                .trim()
-                .toLowerCase();
-            const na = norm(answer);
-            const nOpts = options.map((o) => norm(o));
-            let matchIdx = nOpts.findIndex((o) => o === na);
-            if (matchIdx < 0 && na.length > 0) {
-              // "B) full option text" or option starts with answer / vice versa
-              const contains = nOpts
-                .map((o, idx) => ({ idx, hit: o.startsWith(na) || na.startsWith(o) }))
-                .filter((x) => x.hit);
-              if (contains.length === 1) matchIdx = contains[0].idx;
-            }
-            if (matchIdx >= 0) {
-              answer = options[matchIdx];
-            } else {
-              console.warn(
-                "practice: dropping question, answer did not match any option",
-                { rawAnswer: String(q.answer ?? ""), options },
-              );
-              return null;
-            }
-          }
-          // Length parity guard: prevent "longest = correct" giveaway.
-          if (options.length === 4) {
-            const lens = options.map((o) => o.length);
-            const minLen = Math.min(...lens);
-            const maxLen = Math.max(...lens);
-            if (minLen > 0 && maxLen / minLen > 1.6) return null;
-            const answerLen = answer.length;
-            const avgLen = lens.reduce((a, b) => a + b, 0) / lens.length;
-            const strictlyLongest =
-              lens.filter((l) => l === maxLen).length === 1 && answerLen === maxLen;
-            if (strictlyLongest && answerLen > avgLen * 1.25) return null;
-          }
+        // 1) Structural (format, stem, options, length parity, T/F stem shape).
+        const raw = { ...q, options: q?.type === "mcq" ? normalizeOptions(q?.options).map((s) => s.trim()).filter(Boolean) : undefined };
+        const structural = validateStructural(raw, {
+          allowedFormats: ["mcq", "true_false"],
+          requireFourOptions: false, // practice allows ≥2 options
+        });
+        if (!structural.ok) { rejections.push(structural.reason); return null; }
+        const { format, content_text, options } = structural.value;
 
+        // 2) Concept ∈ allowed set (was previously trusted from the prompt only).
+        const conceptCheck = validateConcept(q.topic, allowedTopicSet);
+        if (!conceptCheck.ok) { rejections.push(conceptCheck.reason); return null; }
+        const topic = conceptCheck.value;
+
+        // 3) Answer normalisation.
+        let answer: string;
+        if (format === "true_false") {
+          const raw = String(q.answer ?? "").trim();
+          answer = /^t/i.test(raw) ? "True" : /^f/i.test(raw) ? "False" : "";
+          if (!answer) { rejections.push("t/f answer neither True nor False"); return null; }
         } else {
-          answer = /^t/i.test(answer) ? "True" : "False";
+          const ans = normalizeAnswer(q.answer, options);
+          if (!ans.ok) { rejections.push(ans.reason); return null; }
+          answer = ans.value;
+          const parity = validateOptionParity(options, answer);
+          if (!parity.ok) { rejections.push(parity.reason); return null; }
         }
-        const question = String(q.question ?? "").trim();
-        if (!question || !answer) return null;
+
+        // 4) Difficulty (no silent clamp — reject non-numeric).
+        const diff = validateDifficulty(q.difficulty_estimate, { fallback: 0.5 });
+        if (!diff.ok) { rejections.push(diff.reason); return null; }
+
+        // 5) Bloom — must be integer 1..6, plus difficulty consistency.
+        const bloom = validateBloom(q.bloom_level, {
+          min: 1, max: 6,
+          enforceDifficultyConsistency: true,
+          difficulty: diff.value,
+        });
+        if (!bloom.ok) { rejections.push(bloom.reason); return null; }
+
+        // 6) Explanation semantic check.
+        const explanation = String(q.explanation ?? "").trim();
+        const explCheck = validateExplanation({
+          format, options: format === "true_false" ? ["True", "False"] : options,
+          answer, explanation,
+        });
+        if (!explCheck.ok) { rejections.push(explCheck.reason); return null; }
+
         return {
           id: `pq-${Date.now()}-${i}`,
-          question,
-          type,
-          options,
+          question: content_text,
+          type: format as QType,
+          options: format === "mcq" ? options : undefined,
           answer,
-          explanation: String(q.explanation ?? ""),
-          topic: String(q.topic ?? ""),
-          difficulty_estimate: clamp01(q.difficulty_estimate),
-          bloom_level: clampBloom(q.bloom_level),
+          explanation: explCheck.value,
+          topic,
+          difficulty_estimate: diff.value,
+          bloom_level: bloom.value,
         };
       })
+      .filter((q): q is NonNullable<typeof q> => q !== null);
+
+    if (rejections.length > 0) {
+      console.log(`practice: rejected ${rejections.length}/${arr.length} — ${rejections.slice(0, 8).join(" | ")}`);
+    }
+
       .filter((q): q is NonNullable<typeof q> => q !== null);
 
     if (sanitized.length === 0) {
