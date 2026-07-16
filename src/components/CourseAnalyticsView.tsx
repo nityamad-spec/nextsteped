@@ -157,13 +157,13 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
 
     const [enrRes, diagRes, masteryRes, examsRes, results, chatSessionsRes] = await Promise.all([
       supabase.from("enrollments").select("student_id").eq("course_id", courseId),
-      supabase.from("diagnostic_results").select("student_id, score, total_questions").eq("course_id", courseId),
+      supabase.from("diagnostic_results").select("student_id, score, total_questions, created_at").eq("course_id", courseId),
       supabase.from("student_course_mastery").select("student_id, mastery_score, learner_level").eq("course_id", courseId),
       supabase.from("course_exams").select("id, archived_at").eq("course_id", courseId),
       fetchAllRange<RawData["results"][number]>((from, to) =>
         supabase
           .from("assessment_results")
-          .select("student_id, mode, quiz_day, exam_id, score, total_questions")
+          .select("student_id, mode, quiz_day, exam_id, score, total_questions, created_at")
           .eq("course_id", courseId)
           .order("id", { ascending: true })
           .range(from, to),
