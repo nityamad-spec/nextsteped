@@ -143,6 +143,27 @@ difficultyEstimate = probability a typical student answers correctly (lower = ha
     difficultyEstimate = Math.min(1, Math.max(0, difficultyEstimate));
     difficultyEstimate = Math.round(difficultyEstimate * 100) / 100;
 
+    // Consistency check: hard question (difficulty ≥ 0.7) shouldn't be bloom 1.
+    // A trivial "Remember" task can't legitimately be classified as hard, and
+    // vice-versa. When we detect a mismatch, gently correct it toward the
+    // stronger signal (difficulty is usually more diagnostic than bloom here).
+    const consistencyIssue: string[] = [];
+    if (difficultyEstimate >= 0.7 && bloomsLevel < 3) {
+      consistencyIssue.push(`bloom ${bloomsLevel} too low for difficulty ${difficultyEstimate}`);
+      bloomsLevel = 3;
+    }
+    if (difficultyEstimate <= 0.25 && bloomsLevel > 4) {
+      consistencyIssue.push(`bloom ${bloomsLevel} too high for difficulty ${difficultyEstimate}`);
+      bloomsLevel = 2;
+    }
+    if (difficulty === "Easy" && difficultyEstimate < 0.5 === false) {
+      // "Easy" label but estimate >= 0.5 — trust the estimate.
+      consistencyIssue.push(`label Easy but estimate ${difficultyEstimate}`);
+    }
+    if (consistencyIssue.length > 0) {
+      console.warn("generate-question-metadata: adjusted for consistency:", consistencyIssue.join("; "));
+    }
+
     const result = {
       difficulty,
       bloomsLevel,
