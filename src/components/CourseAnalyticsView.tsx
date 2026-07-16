@@ -64,6 +64,12 @@ interface Stats {
   diagnosticAvg: number | null;
   diagnosticDoneStudents: StudentLite[];
   diagnosticPendingStudents: StudentLite[];
+  activeStudentsCount: number;
+  dormantStudentsCount: number;
+  activePct: number | null;
+  dormantPct: number | null;
+  activeStudentsList: StudentLite[];
+  dormantStudentsList: StudentLite[];
   masteryBands: { beginner: number; developing: number; proficient: number; expert: number; none: number };
   masteryStudents: { beginner: StudentLite[]; developing: StudentLite[]; proficient: StudentLite[]; expert: StudentLite[]; none: StudentLite[] };
   masteryAvgPct: number | null;
