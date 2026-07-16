@@ -377,14 +377,23 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       if (!enrolledIds.has(r.student_id)) return;
       const total = Number(r.total_questions) || 0;
       const pct = Number(r.score) / 100;
-      if (r.mode === "daily_quiz" && r.quiz_day != null) {
+      const isQuiz = r.mode === "daily_quiz" && r.quiz_day != null;
+      const isExam = r.mode === "exam";
+      if (isQuiz || isExam) {
+        const rts = r.created_at ? new Date(r.created_at).getTime() : NaN;
+        const dts = diagFirstAt.get(r.student_id);
+        if (!Number.isNaN(rts) && dts !== undefined && rts > dts) {
+          activeAfterDiag.add(r.student_id);
+        }
+      }
+      if (isQuiz) {
         quizDaysSeen.add(Number(r.quiz_day));
         quizAttempts += 1;
         if (total > 0) { quizPctSum += pct; quizPctN += 1; }
         const set = quizByStudent.get(r.student_id) || new Set<number>();
         set.add(Number(r.quiz_day));
         quizByStudent.set(r.student_id, set);
-      } else if (r.mode === "exam") {
+      } else if (isExam) {
         examAttempts += 1;
         if (total > 0) { examPctSum += pct; examPctN += 1; }
         const key = r.exam_id || "__no_exam__";
@@ -398,6 +407,17 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
         }
       }
     });
+
+    const activeStudentsList: StudentLite[] = [];
+    const dormantStudentsList: StudentLite[] = [];
+    diagStudents.forEach(sid => {
+      (activeAfterDiag.has(sid) ? activeStudentsList : dormantStudentsList).push(toLite(sid));
+    });
+    activeStudentsList.sort(sortLite);
+    dormantStudentsList.sort(sortLite);
+    const diagCount = diagStudents.size;
+    const activePct = diagCount > 0 ? activeStudentsList.length / diagCount : null;
+    const dormantPct = diagCount > 0 ? dormantStudentsList.length / diagCount : null;
 
     const quizzesTotal = quizDaysSeen.size;
 
