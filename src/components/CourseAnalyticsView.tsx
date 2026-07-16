@@ -656,31 +656,43 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
           </div>
 
           <div className="rounded-lg border bg-card p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <CheckCircle2 className="h-4 w-4" /> Course completion
-              </div>
-              <div className="text-xs tabular-nums text-muted-foreground">
-                {pctOf(stats.completed)}% of {stats.enrolled}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <Stat
-                label="Completed"
-                value={stats.completed}
-                sub={`${pctOf(stats.completed)}%`}
-                onClick={stats.completedStudents.length > 0 ? () => setRosterView("completed") : undefined}
-              />
-              <Stat
-                label="Not completed"
-                value={stats.notCompletedStudents.length}
-                sub={`${pctOf(stats.notCompletedStudents.length)}%`}
-                onClick={stats.notCompletedStudents.length > 0 ? () => setRosterView("not-completed") : undefined}
-              />
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              All {stats.quizzesTotal} weekly quizzes & {stats.examsTotal} exams submitted, mastery ≥ Proficient.
-            </p>
+            {(() => {
+              const proficientPlus = stats.masteryBands.proficient + stats.masteryBands.expert;
+              const profPct = stats.enrolled > 0 ? Math.round((proficientPlus / stats.enrolled) * 100) : 0;
+              return (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <CheckCircle2 className="h-4 w-4" /> Course completion
+                    </div>
+                    <div className="text-xs tabular-nums text-muted-foreground">
+                      {pctOf(stats.completed)}% of {stats.enrolled}
+                      <span className="mx-2">·</span>
+                      Proficient+: <span className="text-foreground font-medium">{profPct}%</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <Stat
+                      label="Completed"
+                      value={stats.completed}
+                      sub={`${pctOf(stats.completed)}%`}
+                      onClick={stats.completedStudents.length > 0 ? () => setRosterView("completed") : undefined}
+                    />
+                    <Stat
+                      label="Not completed"
+                      value={stats.notCompletedStudents.length}
+                      sub={`${pctOf(stats.notCompletedStudents.length)}%`}
+                      onClick={stats.notCompletedStudents.length > 0 ? () => setRosterView("not-completed") : undefined}
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    All {stats.quizzesTotal} weekly quizzes & {stats.examsTotal} exams submitted, mastery ≥ Proficient.
+                    <span className="mx-1">·</span>
+                    {proficientPlus}/{stats.enrolled} students ({profPct}%) reached Proficient or Expert mastery.
+                  </p>
+                </>
+              );
+            })()}
           </div>
 
           <div className="rounded-lg border bg-card p-4 space-y-3">
