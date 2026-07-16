@@ -282,6 +282,17 @@ function validateTierQuestionSet(
       rejections.push(`${explanationCheck.reason}: "${q.content_text.slice(0, 90)}"`);
       continue;
     }
+    // Additional cross-check: reject explanations that name-drop the wrong option letter.
+    const sharedCheck = sharedValidateExplanation({
+      format: q.format as "mcq" | "true_false",
+      options: q.options,
+      answer: q.answer,
+      explanation: q.explanation,
+    });
+    if (!sharedCheck.ok && /names option/.test(sharedCheck.reason)) {
+      rejections.push(`${sharedCheck.reason}: "${q.content_text.slice(0, 90)}"`);
+      continue;
+    }
 
     survivors.push(q);
   }
