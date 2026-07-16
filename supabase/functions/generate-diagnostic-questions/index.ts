@@ -409,11 +409,18 @@ function validateMcq(
 
 
 function isDuplicate(q: ValidatedQuestion, accepted: ValidatedQuestion[]): boolean {
+  // Exact-prefix fast path.
   const key = q.content_text.slice(0, 120).toLowerCase();
-  return accepted.some(
-    (a) => a.content_text.slice(0, 120).toLowerCase() === key,
+  if (accepted.some((a) => a.content_text.slice(0, 120).toLowerCase() === key)) return true;
+  // Semantic paraphrase / same-fact dedup shared with weekly-quiz.
+  return accepted.some((a) =>
+    isLikelyDuplicate(
+      { content_text: a.content_text, answer: a.answer, topic: a.topic },
+      { content_text: q.content_text, answer: q.answer, topic: q.topic },
+    ),
   );
 }
+
 
 // Hamilton (largest-remainder) allocation: distribute `total` slots across
 // items proportional to weights, guaranteeing the integers sum exactly to total.
