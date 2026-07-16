@@ -509,6 +509,9 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       examStudents: examByStudent.size,
       examAvg: examPctN > 0 ? examPctSum / examPctN : null,
       examsTotal,
+      examCompletedAll,
+      examCompletedOne,
+      examNotStarted,
       chatStudents: chatStudents.size,
       chatMessages,
     };
