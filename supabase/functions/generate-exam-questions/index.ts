@@ -380,6 +380,27 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
   if (accepted.length === 0) {
     throw new Error(`Batch ${batch.index}: generated 0 valid questions after ${MAX_ATTEMPTS} attempts`);
   }
+
+  // Audit final batch against the requested quotas (visible in logs; used by
+  // the top-level residual-batch pass to fill any per-concept or difficulty
+  // shortfalls).
+  try {
+    const audit = auditBatchQuotas(accepted, {
+      perConcept: batch.perConcept,
+      difficulty: batch.difficulty,
+    });
+    const conceptShort = Object.entries(audit.perConcept).filter(([, n]) => n > 0);
+    const diffShort = audit.difficulty
+      ? Object.entries(audit.difficulty).filter(([, n]) => n > 0)
+      : [];
+    if (conceptShort.length || diffShort.length) {
+      console.warn(`[exam batch ${batch.index}] quota shortfall:`,
+        { concepts: Object.fromEntries(conceptShort), difficulty: Object.fromEntries(diffShort) });
+    }
+  } catch (e) {
+    console.warn("auditBatchQuotas failed:", (e as Error).message);
+  }
+
   return accepted;
 }
 
