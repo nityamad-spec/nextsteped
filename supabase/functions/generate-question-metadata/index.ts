@@ -156,7 +156,7 @@ difficultyEstimate = probability a typical student answers correctly (lower = ha
       consistencyIssue.push(`bloom ${bloomsLevel} too high for difficulty ${difficultyEstimate}`);
       bloomsLevel = 2;
     }
-    if (difficulty === "Easy" && difficultyEstimate < 0.5 === false) {
+    if (difficulty === "Easy" && difficultyEstimate >= 0.5) {
       // "Easy" label but estimate >= 0.5 — trust the estimate.
       consistencyIssue.push(`label Easy but estimate ${difficultyEstimate}`);
     }
