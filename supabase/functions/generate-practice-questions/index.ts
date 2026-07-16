@@ -1,4 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  normalizeAnswer,
+  validateStructural,
+  validateOptionParity,
+  validateConcept,
+  validateBloom,
+  validateDifficulty,
+  validateExplanation,
+} from "../_shared/question-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
