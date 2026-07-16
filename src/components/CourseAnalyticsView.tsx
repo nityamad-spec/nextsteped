@@ -591,8 +591,9 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Brain className="h-4 w-4" /> Course mastery
               </div>
-              <div className="text-xs text-muted-foreground">
-                Avg: <span className="text-foreground font-medium tabular-nums">{fmtPct(stats.masteryAvgPct)}</span>
+              <div className="text-xs text-muted-foreground flex items-center gap-3">
+                <span>Students: <span className="text-foreground font-medium tabular-nums">{stats.enrolled}</span> <span className="text-[10px]">(incl. no data)</span></span>
+                <span>Avg: <span className="text-foreground font-medium tabular-nums">{fmtPct(stats.masteryAvgPct)}</span></span>
               </div>
             </div>
 
