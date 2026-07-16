@@ -306,6 +306,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
     const enrolled = enrolledIds.size;
 
     const diagStudents = new Set<string>();
+    const diagFirstAt = new Map<string, number>();
     let diagPctSum = 0, diagPctN = 0;
     raw.diagnostics.forEach(d => {
       if (!enrolledIds.has(d.student_id)) return;
@@ -313,6 +314,11 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       const total = Number(d.total_questions) || 0;
       const score = Number(d.score) || 0;
       if (total > 0) { diagPctSum += score / total; diagPctN += 1; }
+      const ts = d.created_at ? new Date(d.created_at).getTime() : NaN;
+      if (!Number.isNaN(ts)) {
+        const cur = diagFirstAt.get(d.student_id);
+        if (cur === undefined || ts < cur) diagFirstAt.set(d.student_id, ts);
+      }
     });
 
     const profById = new Map(raw.profiles.map(p => [p.id, p]));
