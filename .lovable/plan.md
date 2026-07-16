@@ -1,35 +1,38 @@
 ## Changes to `src/components/CourseAnalyticsView.tsx`
 
-### 1. Course mastery: show measured-student count (including "No data")
+### 1. Exams — add completion breakdown (parallels weekly quizzes)
 
-In the "Course mastery" header (currently shows only `Avg: XX%`), add a leading count of students the bands cover — which equals `stats.enrolled` since every enrolled student is bucketed into one of Beginner/Developing/Proficient/Expert/No data.
+Add three new stats using **active exams only** (already `stats.examsTotal` via `activeExamByStudent`):
 
-Header becomes:
-```
-Course mastery      Students: N (incl. no data)  ·  Avg: XX%
-```
+- `examCompletedAll`  — students where `activeExamByStudent[sid].size >= examsTotal` (and `examsTotal > 0`)
+- `examCompletedOne` — students who completed ≥1 active exam. When `examsTotal === 1` this equals `examCompletedAll` by definition (both rows show the same students, per spec).
+- `examNotStarted`   — enrolled students with no active-exam attempts.
 
-Where `N = stats.enrolled = sum(masteryBands)`. No data change needed — the sum is already exact.
+Extend `Stats` with `examCompletedAll: StudentLite[]`, `examCompletedOne: StudentLite[]`, `examNotStarted: StudentLite[]`. Compute inside the same `stats` memo (loops over `enrolledIds`, no new fetch).
 
-### 2. Course completion: add "% Proficient+" beside Not completed
-
-Add a third derived stat displayed in the Course-completion card header (right-hand side) and as a small caption next to the "Not completed" tile:
+Render three `QuizRow`s in the Exams card mirroring the weekly-quizzes card:
 
 ```
-Course completion                       {completedPct}% of {enrolled}  ·  Proficient+: {profPct}%
+Completed all {examsTotal}     N   (click → roster)
+Completed ≥1 exam              N   (click → roster)     // hidden when examsTotal === 0
+Not started                    N   (click → roster)
 ```
 
-Where:
+Existing "Students attempted / Total attempts / Avg score" rows stay below.
+
+Add three roster views: `exam-completed`, `exam-one`, `exam-not-started`.
+
+### 2. Weekly quizzes — add "Students attempted"
+
+Add a caption row mirroring the exam card, using existing `stats.quizStudents`:
+
 ```
-proficientPlus = masteryBands.proficient + masteryBands.expert
-profPct        = round(proficientPlus / enrolled * 100)   // 0 when enrolled = 0
+Students attempted: {quizStudents}
 ```
 
-Also add a one-line caption under the two tiles:
-> `{proficientPlus}/{enrolled} students ({profPct}%) reached Proficient or Expert mastery.`
-
-Both values come from existing `stats.masteryBands` — no new fetches, no new state.
+Placed right above "Total attempts". No new state.
 
 ### Out of scope
-- No changes to any other card, roster dialog, exports, or backend.
-- No new roster view (Proficient/Expert rosters are already reachable from the mastery band buttons).
+- No backend, no new queries.
+- No changes to Course completion, mastery, chat, or exports.
+- Archived exams remain excluded (consistent with existing `activeExamByStudent`).

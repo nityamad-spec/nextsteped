@@ -87,6 +87,9 @@ interface Stats {
   examStudents: number;
   examAvg: number | null;
   examsTotal: number;
+  examCompletedAll: StudentLite[];
+  examCompletedOne: StudentLite[];
+  examNotStarted: StudentLite[];
   chatStudents: number;
   chatMessages: number;
 }
@@ -127,7 +130,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
   const [loadingStage, setLoadingStage] = useState<LoadStage>("idle");
   const [raw, setRaw] = useState<RawData | null>(null);
   const [universityFilter, setUniversityFilter] = useState<string>(ALL);
-  type RosterView = "done" | "pending" | "active" | "dormant" | "completed" | "not-completed" | "quiz-completed" | "quiz-partial" | "quiz-not-started" | "mastery-beginner" | "mastery-developing" | "mastery-proficient" | "mastery-expert" | "mastery-none";
+  type RosterView = "done" | "pending" | "active" | "dormant" | "completed" | "not-completed" | "quiz-completed" | "quiz-partial" | "quiz-not-started" | "exam-completed" | "exam-one" | "exam-not-started" | "mastery-beginner" | "mastery-developing" | "mastery-proficient" | "mastery-expert" | "mastery-none";
   const [rosterView, setRosterView] = useState<RosterView | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -449,6 +452,21 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
     quizPartial.sort(sortLite);
     quizNotStarted.sort(sortLite);
 
+    const examCompletedAll: StudentLite[] = [];
+    const examCompletedOne: StudentLite[] = [];
+    const examNotStarted: StudentLite[] = [];
+    enrolledIds.forEach(sid => {
+      const done = activeExamByStudent.get(sid)?.size ?? 0;
+      if (done === 0) examNotStarted.push(toLite(sid));
+      else {
+        if (done >= 1) examCompletedOne.push(toLite(sid));
+        if (examsTotal > 0 && done >= examsTotal) examCompletedAll.push(toLite(sid));
+      }
+    });
+    examCompletedAll.sort(sortLite);
+    examCompletedOne.sort(sortLite);
+    examNotStarted.sort(sortLite);
+
     const chatStudents = new Set<string>();
     const allowedSessionIds = new Set<string>();
     raw.chatSessions.forEach(s => {
@@ -491,6 +509,9 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
       examStudents: examByStudent.size,
       examAvg: examPctN > 0 ? examPctSum / examPctN : null,
       examsTotal,
+      examCompletedAll,
+      examCompletedOne,
+      examNotStarted,
       chatStudents: chatStudents.size,
       chatMessages,
     };
@@ -721,12 +742,32 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
                   count={stats.quizNotStarted.length}
                   onClick={stats.quizNotStarted.length > 0 ? () => setRosterView("quiz-not-started") : undefined}
                 />
-                <div className="text-muted-foreground pt-1">Total attempts: <span className="text-foreground tabular-nums">{stats.quizAttempts}</span></div>
+                <div className="text-muted-foreground pt-1">Students attempted: <span className="text-foreground tabular-nums">{stats.quizStudents}</span></div>
+                <div className="text-muted-foreground">Total attempts: <span className="text-foreground tabular-nums">{stats.quizAttempts}</span></div>
                 <div className="text-muted-foreground">Avg score: <span className="text-foreground tabular-nums">{fmtPct(stats.quizAvg)}</span></div>
               </div>
               <div className="rounded-md border bg-background p-2.5 space-y-1">
                 <div className="font-medium">Exams <span className="text-muted-foreground font-normal">({stats.examsTotal} active)</span></div>
-                <div className="text-muted-foreground">Students attempted: <span className="text-foreground tabular-nums">{stats.examStudents}</span></div>
+                {stats.examsTotal > 0 && (
+                  <>
+                    <QuizRow
+                      label={`Completed all ${stats.examsTotal}`}
+                      count={stats.examCompletedAll.length}
+                      onClick={stats.examCompletedAll.length > 0 ? () => setRosterView("exam-completed") : undefined}
+                    />
+                    <QuizRow
+                      label="Completed ≥1 exam"
+                      count={stats.examCompletedOne.length}
+                      onClick={stats.examCompletedOne.length > 0 ? () => setRosterView("exam-one") : undefined}
+                    />
+                  </>
+                )}
+                <QuizRow
+                  label="Not started (0)"
+                  count={stats.examNotStarted.length}
+                  onClick={stats.examNotStarted.length > 0 ? () => setRosterView("exam-not-started") : undefined}
+                />
+                <div className="text-muted-foreground pt-1">Students attempted: <span className="text-foreground tabular-nums">{stats.examStudents}</span></div>
                 <div className="text-muted-foreground">Total attempts: <span className="text-foreground tabular-nums">{stats.examAttempts}</span></div>
                 <div className="text-muted-foreground">Avg score: <span className="text-foreground tabular-nums">{fmtPct(stats.examAvg)}</span></div>
               </div>
@@ -761,6 +802,9 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
               "quiz-completed": { title: `Completed all ${qt} weekly quizzes`, list: stats?.quizCompletedAll ?? [], desc: (n) => `${n} students submitted every weekly quiz.` },
               "quiz-partial": { title: `Partially done (1–${Math.max(qt - 1, 0)} quizzes)`, list: stats?.quizPartial ?? [], desc: (n) => `${n} students started but have not finished all ${qt} weekly quizzes.` },
               "quiz-not-started": { title: "Not started weekly quizzes", list: stats?.quizNotStarted ?? [], desc: (n) => `${n} enrolled students have not submitted any weekly quiz.` },
+              "exam-completed": { title: `Completed all ${stats?.examsTotal ?? 0} exams`, list: stats?.examCompletedAll ?? [], desc: (n) => `${n} students completed every active exam.` },
+              "exam-one": { title: "Completed ≥1 exam", list: stats?.examCompletedOne ?? [], desc: (n) => `${n} students completed at least one active exam.` },
+              "exam-not-started": { title: "Not started exams", list: stats?.examNotStarted ?? [], desc: (n) => `${n} enrolled students have not submitted any active exam.` },
               "mastery-beginner": { title: "Beginner mastery", list: stats?.masteryStudents.beginner ?? [], desc: (n) => `${n} enrolled students are at Beginner mastery.` },
               "mastery-developing": { title: "Developing mastery", list: stats?.masteryStudents.developing ?? [], desc: (n) => `${n} enrolled students are at Developing mastery.` },
               "mastery-proficient": { title: "Proficient mastery", list: stats?.masteryStudents.proficient ?? [], desc: (n) => `${n} enrolled students are at Proficient mastery.` },
