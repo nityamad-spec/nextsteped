@@ -1,48 +1,65 @@
-## Redesign "What to Do Next" section on `/student/home`
+# Harden question-generation validators
 
-Match the reference screenshot (excluding all XP elements).
+Goal: eliminate answer/option/explanation/Bloom/difficulty/concept mismatches across every question-generating edge function by (a) centralizing validation in a shared module, (b) adding semantic checks that today only exist piecemeal, and (c) auditing per-batch quotas after generation.
 
-### Header
-- Card header shows a small circular badge with a **Compass** icon (indigo tint) next to the title "**What to do next**" (lowercase 'to do').
-- Remove the current `Sparkles` icon.
-- No right-side "Earn XP with every step" text (excluded per user).
+## 1. New shared module
 
-### Action rows
-Each row shows:
-- **Left**: rounded-square colored icon tile (tinted background matching the row's category color).
-- **Middle**:
-  - A small uppercase **category label** in the category color (e.g. STRENGTHEN, START THIS WEEK, PRACTICE, REVIEW, DIAGNOSTIC, HEADS UP).
-  - **Bold title** below it.
-  - Muted **description** below title.
-- **Right**: only a chevron/arrow (`ArrowRight`). No XP badge.
+Create `supabase/functions/_shared/question-validation.ts` exposing:
 
-### Category derivation
-Extend `NextAction` type with a `category` field. Assign in the rules already in `StudentHome.tsx` (lines 404–521):
-- Rule 1 (no lesson plan) → `HEADS UP` (slate/muted)
-- Rule 2 (diagnostic) → `DIAGNOSTIC` (indigo)
-- Rule 3 (this week's quiz) → `THIS WEEK'S QUIZ` (indigo)
-- Rule 4 (weakest concept "Strengthen: …") → `STRENGTHEN` (indigo); strip the "Strengthen: " prefix from title.
-- Rule 5 (unexplored current-week concept "Start this week: …") → `START THIS WEEK` (indigo); strip "Start this week: " prefix.
-- Rule 6 (missed earlier quiz "Catch up …") → `REVIEW` (indigo)
-- Rule 7 (Practice Exam) → `PRACTICE` (amber)
-- Rule 8 / fallback (caught up, open chat) → `EXPLORE` (indigo)
-- Exam-week Practice Exam → `PRACTICE` (amber)
+- `normalizeAnswer(answer, options)` — deterministic recovery (verbatim → letter A–D → prefix-strip + unicode quote normalize → token-jaccard best match with a **minimum similarity threshold** and **unique-winner rule**; if two options tie, reject instead of guessing). Returns `{ ok: true, answer } | { ok: false, reason }`. Replaces the fuzzy `startsWith` recovery in `generate-practice-questions` lines 557–597.
+- `validateStructural(q, { allowedFormats })` — 4-option MCQ, no dupes, non-empty; length-parity anti-cue; T/F stems reject "Which/Choose/of the following" shape (port of practice lines 539–550); reject `A) …` prefixes still embedded in options.
+- `validateConcept(q, conceptByCode)` — exact code → case-insensitive → fuzzy against `humanizeConceptCode` synonym set; reject if not found.
+- `validateBloom(q, { allowedRange, tierHint })` — integer in range, no silent coercion (fix `generate-exam-questions` line 193 and practice `clampBloom` behaviour). Optional check that Bloom is consistent with declared difficulty (e.g. `difficulty >= 0.7` implies bloom ≥ 3).
+- `validateDifficulty(q, { spec })` — numeric, in `[0,1]`, and within `spec.difficulty ± spec.band` when a spec is passed; reject on mismatch instead of clamping.
+- `validateExplanation(q)` — port + generalize `explanationSupportsAnswer` from `generate-weekly-quiz` lines 228–262:
+  - non-empty and > 20 chars
+  - for T/F: contradiction detector already in weekly quiz
+  - for MCQ: require ≥ N answer-token overlap AND reject when a distractor's token overlap exceeds the answer's
+  - additional: reject if explanation literally says "Option B" / a letter that isn't the answer's index
+- `validateBloomJustificationPair(q)` — port the CATEGORY-regex + `BLOOM_CATEGORY_BY_LEVEL` cross-check from `generate-diagnostic-questions` lines 365–388 so exam/quiz/practice get it too.
+- `auditBatchQuotas(accepted, batchSpec)` — verify per-concept counts and easy/medium/hard mix produced by `generate-exam-questions` (batch built at lines 71–135 but never audited); return a list of shortfalls to feed into a retry prompt.
+- `dedupWithin(accepted, incoming)` — lift `isNearDuplicate` / `isSameFactAsStandard` from `generate-weekly-quiz` lines 190–216 and apply in diagnostic and exam generators too.
+- Add the entire plan as a commented section in this file for future reference
 
-Two color families only, to match the screenshot:
-- **Indigo**: category text `text-primary`, icon tile `bg-primary/10 text-primary`.
-- **Amber** (for PRACTICE): category text `text-amber-600 dark:text-amber-500`, icon tile `bg-amber-500/10 text-amber-600 dark:text-amber-500`.
+All helpers return the same `{ ok: true, q } | { ok: false, reason }` shape so callers keep a single retry-hint pipeline.
 
-### Tile styling
-- Larger padding (`p-4`), `rounded-xl`, `border`, hover `bg-muted/40`, gap-4.
-- Icon tile: `h-11 w-11 rounded-xl` (was `h-8 w-8`).
-- Category label: `text-[11px] font-semibold tracking-wider uppercase`.
-- Title: `text-[15px] font-semibold`.
-- Description: `text-sm text-muted-foreground`.
-- Right chevron only (no XP).
+## 2. Per-function integration
 
-### Scope
-- Only edits `src/pages/student/StudentHome.tsx`:
-  - Lines 380–521 (add `category` to actions).
-  - Lines 570–607 (card header + row rendering).
-- Import `Compass` from `lucide-react`.
-- No backend, no data-model, no other files.
+- `**generate-diagnostic-questions/index.ts` (validateMcq, 293–405)** — replace inline structural/topic/bloom-justification code with shared helpers; add `validateExplanation` and `dedupWithin` (currently missing).
+- `**generate-exam-questions/index.ts` (validateQuestion, 138–206)** — swap in shared module; stop coercing Bloom silently (line 193); add difficulty-band check driven by batch bucket (easy≈0.2/med≈0.5/hard≈0.85 ±0.15); call `auditBatchQuotas` after the batch loop and trigger a top-up retry when a concept or bucket is short.
+- `**generate-weekly-quiz/index.ts` (309–388)** — keep as-is but re-export `explanationSupportsAnswer` / dedup helpers from the shared module rather than duplicating.
+- `**generate-practice-questions/index.ts` (532–628)** —
+  - Replace silent `clampBloom` / `clamp01` (lines 624–625) with real validation → drop the question when out of range instead of coercing.
+  - Enforce topic ∈ `allowedCodes` (validator currently trusts the prompt).
+  - Replace fuzzy answer recovery (557–597) with the shared `normalizeAnswer`, which refuses ambiguous matches.
+  - Require `explanation.trim().length > 0` and run `validateExplanation`.
+- `**generate-question-metadata/index.ts` (116–150)** — after clamping, cross-check classifier output against the given question via `validateExplanation` and the difficulty↔bloom consistency rule; if inconsistent, retry once with a stricter prompt before returning defaults (2 / 0.5).
+- `**seed-questions/index.ts` (9–128)** — align T/F answer convention with the generators. Store answers as `"True"`/`"False"` (not `"A"`/`"B"`) so downstream code has one shape. Add a call to `validateStructural` before insert so bad seed rows fail loudly.
+
+## 3. Retry-hint plumbing
+
+Every validator failure returns a `reason`. Extend the existing retry loops (already present in diagnostic and weekly quiz) so the next model call receives a compact retry hint like `Previously rejected: 3 items — 2 "answer not in options", 1 "explanation supports distractor"`. This exists in weekly quiz (`retryHint` at line ~404 of generate-weekly-quiz) but not in exam or practice; add it there.
+
+## 4. Tests
+
+Add `_shared/question-validation_test.ts` (Deno tests) covering:
+
+- MCQ with duplicate options / with letter-only answer / with unicode-quoted answer.
+- T/F stem shaped like an MCQ.
+- Explanation that name-drops the wrong option letter.
+- Explanation whose token overlap with a distractor exceeds the answer's.
+- Bloom = 5 on an MCQ (should reject, not coerce).
+- Difficulty out of tier band.
+- Concept code with wrong case + concept code that doesn't exist.
+- Batch audit: 4 concepts requested, model returns 5 of one and 0 of another → shortfall for the missing one, surplus trimmed.
+
+## Non-goals
+
+- No change to model choice, prompts, or DB schema.
+- No change to the diagnostic branching or mastery math.
+- No client-side changes.
+
+## Files touched
+
+- **New:** `supabase/functions/_shared/question-validation.ts`, `supabase/functions/_shared/question-validation_test.ts`
+- **Edited:** `supabase/functions/generate-diagnostic-questions/index.ts`, `generate-exam-questions/index.ts`, `generate-weekly-quiz/index.ts`, `generate-practice-questions/index.ts`, `generate-question-metadata/index.ts`, `seed-questions/index.ts`

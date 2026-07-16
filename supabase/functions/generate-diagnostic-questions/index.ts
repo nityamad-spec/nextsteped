@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  isLikelyDuplicate,
+  validateExplanation as sharedValidateExplanation,
+} from "../_shared/question-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -361,6 +365,16 @@ function validateMcq(
   const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
   if (!explanation) return { ok: false, reason: "empty explanation" };
 
+  // Semantic explanation ↔ answer alignment (letter-name-drop + token overlap).
+  const explCheck = sharedValidateExplanation({
+    format: "mcq",
+    options: opts,
+    answer,
+    explanation,
+  });
+  if (!explCheck.ok) return { ok: false, reason: explCheck.reason };
+
+
   // bloom_justification: CATEGORY: rationale, non-empty, <=300 chars, category matches bloom_level
   const bj = typeof q.bloom_justification === "string" ? q.bloom_justification.trim() : "";
   if (!bj) return { ok: false, reason: "empty bloom_justification" };
@@ -405,11 +419,18 @@ function validateMcq(
 
 
 function isDuplicate(q: ValidatedQuestion, accepted: ValidatedQuestion[]): boolean {
+  // Exact-prefix fast path.
   const key = q.content_text.slice(0, 120).toLowerCase();
-  return accepted.some(
-    (a) => a.content_text.slice(0, 120).toLowerCase() === key,
+  if (accepted.some((a) => a.content_text.slice(0, 120).toLowerCase() === key)) return true;
+  // Semantic paraphrase / same-fact dedup shared with weekly-quiz.
+  return accepted.some((a) =>
+    isLikelyDuplicate(
+      { content_text: a.content_text, answer: a.answer, topic: a.topic },
+      { content_text: q.content_text, answer: q.answer, topic: q.topic },
+    ),
   );
 }
+
 
 // Hamilton (largest-remainder) allocation: distribute `total` slots across
 // items proportional to weights, guaranteeing the integers sum exactly to total.

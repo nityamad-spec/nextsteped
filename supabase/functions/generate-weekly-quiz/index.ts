@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { validateExplanation as sharedValidateExplanation } from "../_shared/question-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -279,6 +280,17 @@ function validateTierQuestionSet(
     const explanationCheck = explanationSupportsAnswer(q);
     if (!explanationCheck.ok) {
       rejections.push(`${explanationCheck.reason}: "${q.content_text.slice(0, 90)}"`);
+      continue;
+    }
+    // Additional cross-check: reject explanations that name-drop the wrong option letter.
+    const sharedCheck = sharedValidateExplanation({
+      format: q.format as "mcq" | "true_false",
+      options: q.options,
+      answer: q.answer,
+      explanation: q.explanation,
+    });
+    if (!sharedCheck.ok && /names option/.test(sharedCheck.reason)) {
+      rejections.push(`${sharedCheck.reason}: "${q.content_text.slice(0, 90)}"`);
       continue;
     }
 

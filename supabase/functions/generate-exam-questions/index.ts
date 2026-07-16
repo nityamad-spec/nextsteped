@@ -1,4 +1,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  normalizeAnswer,
+  validateStructural,
+  validateOptionParity,
+  validateConcept,
+  validateBloom,
+  validateDifficulty,
+  validateExplanation,
+  dedupWithin,
+  auditBatchQuotas,
+} from "../_shared/question-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -140,70 +151,67 @@ function validateQuestion(
   conceptByCode: Record<string, ConceptRow>,
   allowedFormats: Format[],
 ): { ok: true; q: GeneratedQuestion } | { ok: false; reason: string } {
-  if (!q || typeof q !== "object") return { ok: false, reason: "not an object" };
-  const format = q.format;
-  if (!allowedFormats.includes(format)) return { ok: false, reason: `format ${format} not allowed` };
+  // Delegate structural + option checks to the shared module.
+  const structural = validateStructural(q, {
+    allowedFormats: allowedFormats as any,
+    requireFourOptions: true,
+  });
+  if (!structural.ok) return { ok: false, reason: structural.reason };
+  const { format, content_text, options } = structural.value;
+  if (format === "short_answer") return { ok: false, reason: "short_answer not supported here" };
 
-  const content = typeof q.content_text === "string" ? q.content_text.trim() : "";
-  if (!content || content.length > 600) return { ok: false, reason: "bad content_text" };
+  // Concept mapping.
+  const concept = validateConcept(q.topic, conceptByCode);
+  if (!concept.ok) return { ok: false, reason: concept.reason };
+  const topic = concept.value;
 
-  let options: string[];
-  if (format === "mcq") {
-    if (!Array.isArray(q.options) || q.options.length !== 4) return { ok: false, reason: "mcq needs 4 options" };
-    options = q.options.map((o: any) => String(o ?? "").trim());
-    if (options.some((o) => !o)) return { ok: false, reason: "empty option" };
-    if (new Set(options).size !== 4) return { ok: false, reason: "duplicate options" };
-    const lens = options.map((o) => o.length);
-    const maxLen = Math.max(...lens);
-    const minLen = Math.min(...lens);
-    if (minLen > 0 && maxLen / minLen > 1.6) {
-      return { ok: false, reason: `option length imbalance ${minLen}->${maxLen} (>1.6x)` };
-    }
-    const answerStr = typeof q.answer === "string" ? q.answer.trim() : "";
-    const answerLen = answerStr.length;
-    const avgLen = lens.reduce((s, n) => s + n, 0) / 4;
-    const strictlyLongest = lens.filter((l) => l === maxLen).length === 1 && answerLen === maxLen;
-    if (strictlyLongest && answerLen > avgLen * 1.25) {
-      return { ok: false, reason: "correct option is strictly longest and >25% above avg length" };
-    }
+  // Answer normalisation.
+  let answer: string;
+  if (format === "true_false") {
+    const raw = typeof q.answer === "string" ? q.answer.trim() : "";
+    if (!/^(True|False)$/i.test(raw)) return { ok: false, reason: "t/f answer must be True or False" };
+    answer = /^t/i.test(raw) ? "True" : "False";
   } else {
-    options = ["True", "False"];
+    const ans = normalizeAnswer(q.answer, options);
+    if (!ans.ok) return { ok: false, reason: ans.reason };
+    answer = ans.value;
+    const parity = validateOptionParity(options, answer);
+    if (!parity.ok) return { ok: false, reason: parity.reason };
   }
 
+  // Difficulty — exam batches pin buckets to easy≈0.2 / med≈0.5 / hard≈0.85.
+  // We only clamp here; the batch quota audit checks bucket mix at the end.
+  const diff = validateDifficulty(q.difficulty_estimate, { fallback: 0.5 });
+  if (!diff.ok) return { ok: false, reason: diff.reason };
 
-  const answer = typeof q.answer === "string" ? q.answer.trim() : "";
-  if (!options.includes(answer)) return { ok: false, reason: "answer not in options" };
+  // Bloom 1..4 for exam MCQ/TF — do NOT silently coerce (old behaviour hid model errors).
+  const bloom = validateBloom(q.bloom_level, {
+    min: 1, max: 4,
+    enforceDifficultyConsistency: true,
+    difficulty: diff.value,
+  });
+  if (!bloom.ok) return { ok: false, reason: bloom.reason };
 
-  const rawTopic = typeof q.topic === "string" ? q.topic.trim() : "";
-  let canonical: string | null = null;
-  if (rawTopic in conceptByCode) canonical = rawTopic;
-  else {
-    const lower = rawTopic.toLowerCase();
-    for (const code of Object.keys(conceptByCode)) {
-      if (code.toLowerCase() === lower) { canonical = code; break; }
-    }
-  }
-  if (!canonical) return { ok: false, reason: `topic '${rawTopic}' not in course concepts` };
-
-  let diff = Number(q.difficulty_estimate);
-  if (!Number.isFinite(diff)) diff = 0.5;
-  diff = Math.max(0, Math.min(1, diff));
-
-  const bloom = Math.round(Number(q.bloom_level));
-  const bloomSafe = Number.isInteger(bloom) && bloom >= 1 && bloom <= 4 ? bloom : 2;
-
+  // Explanation ↔ answer semantic check.
   const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
-  if (!explanation) return { ok: false, reason: "empty explanation" };
+  const explCheck = validateExplanation({
+    format: format as "mcq" | "true_false",
+    options: format === "true_false" ? ["True", "False"] : options,
+    answer,
+    explanation,
+  });
+  if (!explCheck.ok) return { ok: false, reason: explCheck.reason };
 
   return {
     ok: true,
     q: {
-      content_text: content, format, options, answer,
-      difficulty_estimate: diff, bloom_level: bloomSafe,
-      explanation, topic: canonical,
+      content_text, format: format as Format, options: format === "true_false" ? ["True", "False"] : options,
+      answer, difficulty_estimate: diff.value, bloom_level: bloom.value,
+      explanation: explCheck.value, topic,
     },
   };
 }
+
 
 async function generateBatch(
   batch: BatchSpec,
@@ -317,16 +325,26 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
       if (accepted.length >= acceptCap) break;
       const v = validateQuestion(q, conceptByCode, batch.formats);
       if (!v.ok) { rejects.push(v.reason); continue; }
-      const key = v.q.content_text.slice(0, 120).toLowerCase();
-      if (accepted.some((a) => a.content_text.slice(0, 120).toLowerCase() === key)) {
-        rejects.push("duplicate stem");
+      // Semantic dedup (catches paraphrases and same-fact duplicates, not just exact stems).
+      const dedup = dedupWithin([v.q], accepted);
+      if (dedup.kept.length === 0) {
+        rejects.push(`duplicate/paraphrase of "${dedup.rejected[0].duplicateOf}"`);
         continue;
       }
       accepted.push(v.q);
     }
     if (accepted.length < batch.count && rejects.length) {
-      retryHint = `Previous attempt had ${rejects.length} rejected questions. Reasons: ${rejects.slice(0, 3).join("; ")}`;
+      // Compact reason histogram so the next attempt gets an actionable hint.
+      const hist = new Map<string, number>();
+      for (const r of rejects) {
+        const k = r.replace(/:.*$/, "").slice(0, 60);
+        hist.set(k, (hist.get(k) ?? 0) + 1);
+      }
+      const top = [...hist.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
+        .map(([k, n]) => `${n}× ${k}`).join("; ");
+      retryHint = `Previously rejected ${rejects.length} items — ${top}. Avoid these in the next batch.`;
     }
+
 
     // Position-skew check: if any single correct-answer index dominates (>50%), drop surplus and retry.
     // Skip on the last attempt to avoid returning short.
@@ -362,6 +380,27 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
   if (accepted.length === 0) {
     throw new Error(`Batch ${batch.index}: generated 0 valid questions after ${MAX_ATTEMPTS} attempts`);
   }
+
+  // Audit final batch against the requested quotas (visible in logs; used by
+  // the top-level residual-batch pass to fill any per-concept or difficulty
+  // shortfalls).
+  try {
+    const audit = auditBatchQuotas(accepted, {
+      perConcept: batch.perConcept,
+      difficulty: batch.difficulty,
+    });
+    const conceptShort = Object.entries(audit.perConcept).filter(([, n]) => n > 0);
+    const diffShort = audit.difficulty
+      ? Object.entries(audit.difficulty).filter(([, n]) => n > 0)
+      : [];
+    if (conceptShort.length || diffShort.length) {
+      console.warn(`[exam batch ${batch.index}] quota shortfall:`,
+        { concepts: Object.fromEntries(conceptShort), difficulty: Object.fromEntries(diffShort) });
+    }
+  } catch (e) {
+    console.warn("auditBatchQuotas failed:", (e as Error).message);
+  }
+
   return accepted;
 }
 
