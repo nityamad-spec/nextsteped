@@ -1,65 +1,35 @@
-# Harden question-generation validators
 
-Goal: eliminate answer/option/explanation/Bloom/difficulty/concept mismatches across every question-generating edge function by (a) centralizing validation in a shared module, (b) adding semantic checks that today only exist piecemeal, and (c) auditing per-batch quotas after generation.
+## Goal
+Produce a downloadable, comprehensive Excel workbook covering every student in **Generative AI Leader (GAIL)** (course_id `42e995c8-…e3a3`, 401 enrolled students) for offline learning analysis.
 
-## 1. New shared module
+## Deliverable
+A single file written to `/mnt/documents/GAIL-student-report-<YYYY-MM-DD>.xlsx`, surfaced via a `<presentation-artifact>` tag so you can preview / download it directly.
 
-Create `supabase/functions/_shared/question-validation.ts` exposing:
+## Workbook contents
+One sheet per view, all filtered to the GAIL course:
 
-- `normalizeAnswer(answer, options)` — deterministic recovery (verbatim → letter A–D → prefix-strip + unicode quote normalize → token-jaccard best match with a **minimum similarity threshold** and **unique-winner rule**; if two options tie, reject instead of guessing). Returns `{ ok: true, answer } | { ok: false, reason }`. Replaces the fuzzy `startsWith` recovery in `generate-practice-questions` lines 557–597.
-- `validateStructural(q, { allowedFormats })` — 4-option MCQ, no dupes, non-empty; length-parity anti-cue; T/F stems reject "Which/Choose/of the following" shape (port of practice lines 539–550); reject `A) …` prefixes still embedded in options.
-- `validateConcept(q, conceptByCode)` — exact code → case-insensitive → fuzzy against `humanizeConceptCode` synonym set; reject if not found.
-- `validateBloom(q, { allowedRange, tierHint })` — integer in range, no silent coercion (fix `generate-exam-questions` line 193 and practice `clampBloom` behaviour). Optional check that Bloom is consistent with declared difficulty (e.g. `difficulty >= 0.7` implies bloom ≥ 3).
-- `validateDifficulty(q, { spec })` — numeric, in `[0,1]`, and within `spec.difficulty ± spec.band` when a spec is passed; reject on mismatch instead of clamping.
-- `validateExplanation(q)` — port + generalize `explanationSupportsAnswer` from `generate-weekly-quiz` lines 228–262:
-  - non-empty and > 20 chars
-  - for T/F: contradiction detector already in weekly quiz
-  - for MCQ: require ≥ N answer-token overlap AND reject when a distractor's token overlap exceeds the answer's
-  - additional: reject if explanation literally says "Option B" / a letter that isn't the answer's index
-- `validateBloomJustificationPair(q)` — port the CATEGORY-regex + `BLOOM_CATEGORY_BY_LEVEL` cross-check from `generate-diagnostic-questions` lines 365–388 so exam/quiz/practice get it too.
-- `auditBatchQuotas(accepted, batchSpec)` — verify per-concept counts and easy/medium/hard mix produced by `generate-exam-questions` (batch built at lines 71–135 but never audited); return a list of shortfalls to feed into a retry prompt.
-- `dedupWithin(accepted, incoming)` — lift `isNearDuplicate` / `isSameFactAsStandard` from `generate-weekly-quiz` lines 190–216 and apply in diagnostic and exam generators too.
-- Add the entire plan as a commented section in this file for future reference
+1. **Course Overview** — course metadata, teacher, term, published state, totals (students, concepts, weeks, exams, quiz weeks, chat sessions, assessment attempts).
+2. **Students** — one row per enrolled student: name, email, roll number, enrolled_at, final mastery level & %, diagnostic level & %, quizzes attempted / total, avg quiz %, exams attempted / total, avg exam %, proficient concepts / total, strong concepts, weak concepts, chat messages, practice attempts, practice accuracy %. (Same shape as the app's existing "Course Insights" export, restricted to this course.)
+3. **Concepts** — the 15 course concepts with weights and, per concept, cohort stats: # students with mastery rows, avg mastery %, count by level (Beginner / Developing / Proficient / Expert).
+4. **Concept Mastery (per student)** — long table: student × concept → mastery_level, mastery_score, attempts, correct, last_updated (all 5,581 rows).
+5. **Diagnostic Results** — every diagnostic attempt (401 rows): student, learner_level, mastery_score, raw score, created_at, plus any per-concept breakdown stored on the row.
+6. **Assessment Results** — all 7,526 attempts: student, mode (daily_quiz / exam / practice), quiz_day or exam title, score %, correct / total, time_spent, created_at.
+7. **Weekly Quiz Summary** — per student × week matrix of quiz scores (attempted vs not, best %).
+8. **Exam Summary** — per student × exam matrix: attempted, score %, correct/total, submitted_at.
+9. **Chat Engagement** — per student: session count, message count, last activity; plus a second block with per-session message counts.
+10. **Practice Questions** — per student: attempts, total questions, correct, accuracy %, last attempt.
 
-All helpers return the same `{ ok: true, q } | { ok: false, reason }` shape so callers keep a single retry-hint pipeline.
+## How it will be built
+- Pull all rows with `supabase--read_query` (chunked with LIMIT/OFFSET where any table exceeds 1000 rows — assessment_results, concept mastery, chat messages).
+- Join student names/emails from `profiles`; concept codes from `concepts`; week labels from `lesson_plan_weeks`; exam titles from `course_exams`.
+- Assemble in Python with `pandas` + `openpyxl`, applying the project's formatting conventions (frozen header row, bold headers, number/percent formats, autosized columns, `-` for zeros where meaningful).
+- Verify the file opens cleanly and every sheet has the expected row counts before handing it over.
+- No code in the app is changed; this is a one-off analytical artifact.
 
-## 2. Per-function integration
+## Privacy note
+Per project memory, student data is normally anonymised when shown to professors in-app. This export is a teacher-facing analytical file and will include student names, emails, and roll numbers so you can identify individuals. Tell me if you'd prefer it anonymised (hash IDs, drop email) and I'll switch before generating.
 
-- `**generate-diagnostic-questions/index.ts` (validateMcq, 293–405)** — replace inline structural/topic/bloom-justification code with shared helpers; add `validateExplanation` and `dedupWithin` (currently missing).
-- `**generate-exam-questions/index.ts` (validateQuestion, 138–206)** — swap in shared module; stop coercing Bloom silently (line 193); add difficulty-band check driven by batch bucket (easy≈0.2/med≈0.5/hard≈0.85 ±0.15); call `auditBatchQuotas` after the batch loop and trigger a top-up retry when a concept or bucket is short.
-- `**generate-weekly-quiz/index.ts` (309–388)** — keep as-is but re-export `explanationSupportsAnswer` / dedup helpers from the shared module rather than duplicating.
-- `**generate-practice-questions/index.ts` (532–628)** —
-  - Replace silent `clampBloom` / `clamp01` (lines 624–625) with real validation → drop the question when out of range instead of coercing.
-  - Enforce topic ∈ `allowedCodes` (validator currently trusts the prompt).
-  - Replace fuzzy answer recovery (557–597) with the shared `normalizeAnswer`, which refuses ambiguous matches.
-  - Require `explanation.trim().length > 0` and run `validateExplanation`.
-- `**generate-question-metadata/index.ts` (116–150)** — after clamping, cross-check classifier output against the given question via `validateExplanation` and the difficulty↔bloom consistency rule; if inconsistent, retry once with a stricter prompt before returning defaults (2 / 0.5).
-- `**seed-questions/index.ts` (9–128)** — align T/F answer convention with the generators. Store answers as `"True"`/`"False"` (not `"A"`/`"B"`) so downstream code has one shape. Add a call to `validateStructural` before insert so bad seed rows fail loudly.
-
-## 3. Retry-hint plumbing
-
-Every validator failure returns a `reason`. Extend the existing retry loops (already present in diagnostic and weekly quiz) so the next model call receives a compact retry hint like `Previously rejected: 3 items — 2 "answer not in options", 1 "explanation supports distractor"`. This exists in weekly quiz (`retryHint` at line ~404 of generate-weekly-quiz) but not in exam or practice; add it there.
-
-## 4. Tests
-
-Add `_shared/question-validation_test.ts` (Deno tests) covering:
-
-- MCQ with duplicate options / with letter-only answer / with unicode-quoted answer.
-- T/F stem shaped like an MCQ.
-- Explanation that name-drops the wrong option letter.
-- Explanation whose token overlap with a distractor exceeds the answer's.
-- Bloom = 5 on an MCQ (should reject, not coerce).
-- Difficulty out of tier band.
-- Concept code with wrong case + concept code that doesn't exist.
-- Batch audit: 4 concepts requested, model returns 5 of one and 0 of another → shortfall for the missing one, surplus trimmed.
-
-## Non-goals
-
-- No change to model choice, prompts, or DB schema.
-- No change to the diagnostic branching or mastery math.
-- No client-side changes.
-
-## Files touched
-
-- **New:** `supabase/functions/_shared/question-validation.ts`, `supabase/functions/_shared/question-validation_test.ts`
-- **Edited:** `supabase/functions/generate-diagnostic-questions/index.ts`, `generate-exam-questions/index.ts`, `generate-weekly-quiz/index.ts`, `generate-practice-questions/index.ts`, `generate-question-metadata/index.ts`, `seed-questions/index.ts`
+## Technical notes
+- Source: Lovable Cloud (Supabase) tables `courses`, `enrollments`, `profiles`, `concepts`, `student_concept_mastery`, `student_course_mastery`, `diagnostic_results`, `assessment_results`, `course_exams`, `lesson_plan_weeks`, `chat_sessions`, `chat_messages`.
+- Output path: `/mnt/documents/GAIL-student-report-<date>.xlsx` (single file, ~10 sheets).
+- No schema changes, no edge function changes, no migrations.
