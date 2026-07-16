@@ -452,6 +452,21 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
     quizPartial.sort(sortLite);
     quizNotStarted.sort(sortLite);
 
+    const examCompletedAll: StudentLite[] = [];
+    const examCompletedOne: StudentLite[] = [];
+    const examNotStarted: StudentLite[] = [];
+    enrolledIds.forEach(sid => {
+      const done = activeExamByStudent.get(sid)?.size ?? 0;
+      if (done === 0) examNotStarted.push(toLite(sid));
+      else {
+        if (done >= 1) examCompletedOne.push(toLite(sid));
+        if (examsTotal > 0 && done >= examsTotal) examCompletedAll.push(toLite(sid));
+      }
+    });
+    examCompletedAll.sort(sortLite);
+    examCompletedOne.sort(sortLite);
+    examNotStarted.sort(sortLite);
+
     const chatStudents = new Set<string>();
     const allowedSessionIds = new Set<string>();
     raw.chatSessions.forEach(s => {
