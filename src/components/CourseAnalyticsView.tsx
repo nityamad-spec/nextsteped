@@ -130,7 +130,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
   const [loadingStage, setLoadingStage] = useState<LoadStage>("idle");
   const [raw, setRaw] = useState<RawData | null>(null);
   const [universityFilter, setUniversityFilter] = useState<string>(ALL);
-  type RosterView = "done" | "pending" | "active" | "dormant" | "completed" | "not-completed" | "quiz-completed" | "quiz-partial" | "quiz-not-started" | "mastery-beginner" | "mastery-developing" | "mastery-proficient" | "mastery-expert" | "mastery-none";
+  type RosterView = "done" | "pending" | "active" | "dormant" | "completed" | "not-completed" | "quiz-completed" | "quiz-partial" | "quiz-not-started" | "exam-completed" | "exam-one" | "exam-not-started" | "mastery-beginner" | "mastery-developing" | "mastery-proficient" | "mastery-expert" | "mastery-none";
   const [rosterView, setRosterView] = useState<RosterView | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
