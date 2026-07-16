@@ -95,10 +95,10 @@ interface RawData {
   enrollments: { student_id: string }[];
   profiles: { id: string; university_id: string | null; name: string | null; email: string | null }[];
   universities: { id: string; name: string }[];
-  diagnostics: { student_id: string; score: number | null; total_questions: number | null }[];
+  diagnostics: { student_id: string; score: number | null; total_questions: number | null; created_at: string | null }[];
   mastery: { student_id: string; mastery_score: number | null; learner_level: string | null }[];
   exams: { id: string; archived_at: string | null }[];
-  results: { student_id: string; mode: string | null; quiz_day: number | null; exam_id: string | null; score: number | null; total_questions: number | null }[];
+  results: { student_id: string; mode: string | null; quiz_day: number | null; exam_id: string | null; score: number | null; total_questions: number | null; created_at: string | null }[];
   chatSessions: { id: string; user_id: string }[];
   chatMessageSessionIds: string[];
 }
