@@ -365,6 +365,16 @@ function validateMcq(
   const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
   if (!explanation) return { ok: false, reason: "empty explanation" };
 
+  // Semantic explanation ↔ answer alignment (letter-name-drop + token overlap).
+  const explCheck = sharedValidateExplanation({
+    format: "mcq",
+    options: opts,
+    answer,
+    explanation,
+  });
+  if (!explCheck.ok) return { ok: false, reason: explCheck.reason };
+
+
   // bloom_justification: CATEGORY: rationale, non-empty, <=300 chars, category matches bloom_level
   const bj = typeof q.bloom_justification === "string" ? q.bloom_justification.trim() : "";
   if (!bj) return { ok: false, reason: "empty bloom_justification" };
