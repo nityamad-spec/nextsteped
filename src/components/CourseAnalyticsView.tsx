@@ -741,6 +741,8 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
             const cfg: Record<RosterView, { title: string; list: ReadonlyArray<StudentLite & { done?: number; remaining?: number }>; desc: (n: number) => string }> = {
               "done": { title: "Diagnostic done", list: stats?.diagnosticDoneStudents ?? [], desc: (n) => `${n} students submitted the diagnostic.` },
               "pending": { title: "Pending diagnostic", list: stats?.diagnosticPendingStudents ?? [], desc: (n) => `${n} enrolled students have not submitted yet.` },
+              "active": { title: "Active after diagnostic", list: stats?.activeStudentsList ?? [], desc: (n) => `${n} students completed at least one weekly quiz or exam after their diagnostic.` },
+              "dormant": { title: "Dormant after diagnostic", list: stats?.dormantStudentsList ?? [], desc: (n) => `${n} students submitted the diagnostic but have done no quizzes or exams since.` },
               "completed": { title: "Completed course", list: stats?.completedStudents ?? [], desc: (n) => `${n} students completed all quizzes & exams with mastery ≥ Proficient.` },
               "not-completed": { title: "Not completed", list: stats?.notCompletedStudents ?? [], desc: (n) => `${n} enrolled students have not completed the course.` },
               "quiz-completed": { title: `Completed all ${qt} weekly quizzes`, list: stats?.quizCompletedAll ?? [], desc: (n) => `${n} students submitted every weekly quiz.` },
