@@ -557,7 +557,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
             <div className="flex items-center gap-2 text-sm font-medium">
               <Users className="h-4 w-4" /> Enrollment & Diagnostic
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
               <Stat label="Enrolled" value={stats.enrolled} />
               <Stat
                 label="Diagnostic done"
@@ -571,6 +571,18 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
                 onClick={stats.diagnosticPendingStudents.length > 0 ? () => setRosterView("pending") : undefined}
               />
               <Stat label="Avg diagnostic" value={fmtPct(stats.diagnosticAvg)} />
+              <Stat
+                label="Active (post-diagnostic)"
+                value={fmtPct(stats.activePct)}
+                sub={`${stats.activeStudentsCount}/${stats.diagnosticSubmitted}`}
+                onClick={stats.activeStudentsList.length > 0 ? () => setRosterView("active") : undefined}
+              />
+              <Stat
+                label="Dormant (diagnostic only)"
+                value={fmtPct(stats.dormantPct)}
+                sub={`${stats.dormantStudentsCount}/${stats.diagnosticSubmitted}`}
+                onClick={stats.dormantStudentsList.length > 0 ? () => setRosterView("dormant") : undefined}
+              />
             </div>
           </div>
 
