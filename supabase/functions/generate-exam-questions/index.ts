@@ -325,16 +325,26 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
       if (accepted.length >= acceptCap) break;
       const v = validateQuestion(q, conceptByCode, batch.formats);
       if (!v.ok) { rejects.push(v.reason); continue; }
-      const key = v.q.content_text.slice(0, 120).toLowerCase();
-      if (accepted.some((a) => a.content_text.slice(0, 120).toLowerCase() === key)) {
-        rejects.push("duplicate stem");
+      // Semantic dedup (catches paraphrases and same-fact duplicates, not just exact stems).
+      const dedup = dedupWithin([v.q], accepted);
+      if (dedup.kept.length === 0) {
+        rejects.push(`duplicate/paraphrase of "${dedup.rejected[0].duplicateOf}"`);
         continue;
       }
       accepted.push(v.q);
     }
     if (accepted.length < batch.count && rejects.length) {
-      retryHint = `Previous attempt had ${rejects.length} rejected questions. Reasons: ${rejects.slice(0, 3).join("; ")}`;
+      // Compact reason histogram so the next attempt gets an actionable hint.
+      const hist = new Map<string, number>();
+      for (const r of rejects) {
+        const k = r.replace(/:.*$/, "").slice(0, 60);
+        hist.set(k, (hist.get(k) ?? 0) + 1);
+      }
+      const top = [...hist.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
+        .map(([k, n]) => `${n}× ${k}`).join("; ");
+      retryHint = `Previously rejected ${rejects.length} items — ${top}. Avoid these in the next batch.`;
     }
+
 
     // Position-skew check: if any single correct-answer index dominates (>50%), drop surplus and retry.
     // Skip on the last attempt to avoid returning short.
