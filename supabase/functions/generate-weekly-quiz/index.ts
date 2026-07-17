@@ -73,8 +73,8 @@ const TIER_SPEC: TierSpec[] = [
     difficulty: 0.5,
     label: "Standard tier (common to all students, medium difficulty)",
     batchSize: 3,
-    perCallTimeoutMs: 45_000,
-    maxAttempts: 3,
+    perCallTimeoutMs: 25_000,
+    maxAttempts: 2,
   },
   {
     tier: "easy",
@@ -82,8 +82,8 @@ const TIER_SPEC: TierSpec[] = [
     difficulty: 0.2,
     label: "Easy adaptive tier (for struggling students)",
     batchSize: 3,
-    perCallTimeoutMs: 45_000,
-    maxAttempts: 3,
+    perCallTimeoutMs: 25_000,
+    maxAttempts: 2,
   },
   {
     tier: "medium",
@@ -91,8 +91,8 @@ const TIER_SPEC: TierSpec[] = [
     difficulty: 0.5,
     label: "Medium adaptive tier (for average students)",
     batchSize: 3,
-    perCallTimeoutMs: 45_000,
-    maxAttempts: 3,
+    perCallTimeoutMs: 25_000,
+    maxAttempts: 2,
   },
   {
     tier: "hard",
@@ -100,20 +100,21 @@ const TIER_SPEC: TierSpec[] = [
     difficulty: 0.85,
     label: "Hard adaptive tier (for advanced students)",
     batchSize: 3,
-    perCallTimeoutMs: 60_000,
-    maxAttempts: 4,
+    perCallTimeoutMs: 30_000,
+    maxAttempts: 2,
   },
 ];
 
-const MODEL = "google/gemini-2.5-pro";
+const MODEL = "google/gemini-2.5-flash";
 // Global wall-clock budget. Supabase edge invoke is bounded at ~150s; leave
 // headroom for auth, DB reads, insert, and JSON serialization.
 const GLOBAL_DEADLINE_MS = 130_000;
 
 // Prompt/dedup caps kept symmetric so we never reject a candidate that the
-// model was never warned about (issue J in the plan).
-const SAME_TIER_PROMPT_CAP = 16;
-const CROSS_TIER_PROMPT_CAP = 16;
+// model was never warned about (issue J in the plan). Kept small to reduce
+// TTFT on flash — dedupWithin still catches overlaps server-side.
+const SAME_TIER_PROMPT_CAP = 8;
+const CROSS_TIER_PROMPT_CAP = 8;
 
 class CreditsExhaustedError extends Error {
   constructor(msg = "AI credits exhausted") {
@@ -347,10 +348,13 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 - POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${skewNote ? `\n- ${skewNote}` : ""}${formatExistingQuestionsForPrompt(accepted)}${formatCrossTierAvoidForPrompt(crossTierAvoid)}${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
 
     let response: Response;
+    const remainingBudget = deadlineAt - Date.now() - 2_000;
+    if (remainingBudget < 4_000) break outer;
+    const callTimeoutMs = Math.max(4_000, Math.min(spec.perCallTimeoutMs, remainingBudget));
     try {
       response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        signal: AbortSignal.timeout(spec.perCallTimeoutMs),
+        signal: AbortSignal.timeout(callTimeoutMs),
         headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: MODEL,
@@ -637,39 +641,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Sequence: standard first (canonical), then easy/medium/hard in parallel
-    // with the accepted standard set injected as cross-tier avoid context.
-    // If standard fails outright, fall back to all-parallel so we never zero
-    // out the whole quiz.
+    // Run every tier in parallel. Post-assembly cross-tier dedup (below)
+    // handles any overlap by tier priority — no need to serialise standard
+    // first, which previously blew the global deadline when it timed out.
     const deadlineAt = Date.now() + GLOBAL_DEADLINE_MS;
     const allQuestions: { spec: TierSpec; q: GeneratedQuestion }[] = [];
     let creditsExhausted = false;
     const tierErrors: Record<string, string> = {};
 
-    const standardSpec = TIER_SPEC.find((t) => t.tier === "standard")!;
-    const adaptiveSpecs = TIER_SPEC.filter((t) => t.tier !== "standard");
-
-    let standardQs: GeneratedQuestion[] = [];
-    try {
-      standardQs = await generateTier(
-        standardSpec,
-        course.name ?? "Course",
-        weekNumber,
-        weekRow.week_name ?? "",
-        conceptByCode,
-        lovableKey,
-        deadlineAt,
-        [],
-      );
-      for (const q of standardQs) allQuestions.push({ spec: standardSpec, q });
-    } catch (err) {
-      if (err instanceof CreditsExhaustedError) creditsExhausted = true;
-      tierErrors[standardSpec.tier] = err instanceof Error ? err.message : String(err);
-      console.warn(`[weekly-quiz] tier standard failed:`, tierErrors[standardSpec.tier]);
-    }
-
-    const adaptiveResults = await Promise.allSettled(
-      adaptiveSpecs.map((spec) =>
+    const tierResults = await Promise.allSettled(
+      TIER_SPEC.map((spec) =>
         generateTier(
           spec,
           course.name ?? "Course",
@@ -678,13 +659,13 @@ Deno.serve(async (req) => {
           conceptByCode,
           lovableKey,
           deadlineAt,
-          standardQs,
+          [],
         ).then((qs) => ({ spec, qs })),
       ),
     );
-    for (let i = 0; i < adaptiveResults.length; i++) {
-      const r = adaptiveResults[i];
-      const spec = adaptiveSpecs[i];
+    for (let i = 0; i < tierResults.length; i++) {
+      const r = tierResults[i];
+      const spec = TIER_SPEC[i];
       if (r.status === "fulfilled") {
         for (const q of r.value.qs) allQuestions.push({ spec, q });
       } else {
@@ -743,7 +724,7 @@ Deno.serve(async (req) => {
       const tierItems = allQuestions.filter((x) => x.spec.tier === spec.tier);
       const shortfall = spec.count - tierItems.length;
       if (shortfall <= 0) continue;
-      if (deadlineAt - Date.now() < 25_000) {
+      if (deadlineAt - Date.now() < 12_000) {
         console.warn(`[weekly-quiz] backfill tier=${spec.tier} skipped: deadline budget too low`);
         continue;
       }
