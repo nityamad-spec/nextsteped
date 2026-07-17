@@ -348,10 +348,13 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 - POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${skewNote ? `\n- ${skewNote}` : ""}${formatExistingQuestionsForPrompt(accepted)}${formatCrossTierAvoidForPrompt(crossTierAvoid)}${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
 
     let response: Response;
+    const remainingBudget = deadlineAt - Date.now() - 2_000;
+    if (remainingBudget < 4_000) break outer;
+    const callTimeoutMs = Math.max(4_000, Math.min(spec.perCallTimeoutMs, remainingBudget));
     try {
       response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        signal: AbortSignal.timeout(spec.perCallTimeoutMs),
+        signal: AbortSignal.timeout(callTimeoutMs),
         headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: MODEL,
