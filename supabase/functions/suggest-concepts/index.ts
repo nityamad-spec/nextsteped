@@ -1,3 +1,26 @@
+/**
+ * suggest-concepts
+ *
+ * Purpose:
+ *   Initial concept-list generation from the approved syllabus, producing a
+ *   ranked set of concept codes + weights the teacher can accept or edit.
+ *
+ * Auth / Access:
+ *   Bearer token of the course teacher.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *
+ * Steps:
+ *   1. Authenticate teacher and load approved syllabus JSON from storage.
+ *   2. Prompt the AI to produce concept_code + weight (0–100) items covering the syllabus.
+ *   3. Normalize weights and dedupe.
+ *   4. Return the suggestions (teacher decides which to persist).
+ *
+ * External calls:
+ *   Lovable AI Gateway.
+ */
+
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";

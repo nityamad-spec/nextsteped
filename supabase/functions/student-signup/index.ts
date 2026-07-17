@@ -1,3 +1,27 @@
+/**
+ * student-signup
+ *
+ * Purpose:
+ *   Server-side sign-up for students, mirroring student-signin to avoid
+ *   browser-IP rate limits. Creates the auth user (email confirmation required)
+ *   and records the pre-verification data in pending_signups.
+ *
+ * Auth / Access:
+ *   Public.
+ *
+ * Inputs:
+ *   - email, password, name, roll_number, enrollment_code
+ *
+ * Steps:
+ *   1. Validate inputs and enrollment code (published + enrollment_open + roster).
+ *   2. Call auth.signUp with email confirmation.
+ *   3. Upsert pending_signups so post-verify finalization can wire the profile + enrollment.
+ *   4. Return { needs_verification: true } to the client.
+ *
+ * Side effects:
+ *   auth.users create (unconfirmed), pending_signups upsert.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://esm.sh/zod@3.23.8";
 

@@ -1,3 +1,24 @@
+/**
+ * seed-questions
+ *
+ * Purpose:
+ *   Development helper for bulk-seeding the assessment_questions table with a
+ *   provided question set (used to bootstrap demo courses).
+ *
+ * Auth / Access:
+ *   Service-role backed; not for production traffic.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *   - questions: canonical question rows
+ *
+ * Steps:
+ *   1. Parse and validate input.
+ *   2. Optionally clear existing rows for the course + mode.
+ *   3. Insert the provided questions in batches.
+ *   4. Return counts.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {

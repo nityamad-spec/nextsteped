@@ -1,3 +1,38 @@
+/**
+ * approve-teacher
+ *
+ * Purpose:
+ *   Admin endpoint to approve or reject a teacher application. On approval,
+ *   creates the teacher's auth user via invite email and wires them to a course
+ *   according to the chosen assignment type.
+ *
+ * Auth / Access:
+ *   Requires Bearer token of a user whose profile.role === "admin".
+ *
+ * Inputs:
+ *   - applicationId: uuid — teacher_applications row
+ *   - action: "approve" | "reject"
+ *   - assignmentType?: "new_course" | "collaborator" | "owner_swap"
+ *   - courseId?: uuid — required for collaborator/owner_swap
+ *   - rejectionReason?: string
+ *
+ * Steps:
+ *   1. Verify caller Bearer token and load caller profile; require admin role.
+ *   2. Load the teacher_applications row; ensure status === "pending".
+ *   3. If action === "reject", mark application rejected and return.
+ *   4. If action === "approve", invite the teacher by email (creates auth user + sends invite).
+ *   5. Insert a profiles row for the new teacher (role=teacher, needs_password_setup=true).
+ *   6. Apply assignment:
+ *        - collaborator: insert course_teachers row, set active_course_id.
+ *        - owner_swap: reassign courses.teacher_id, demote old owner, insert new owner, set active_course_id.
+ *        - new_course: no additional action.
+ *   7. Update application status to "approved" with reviewer + assignment metadata.
+ *
+ * Side effects:
+ *   auth.users insert, profiles insert, course_teachers insert/delete,
+ *   courses.teacher_id update, teacher_applications update, invite email sent.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {

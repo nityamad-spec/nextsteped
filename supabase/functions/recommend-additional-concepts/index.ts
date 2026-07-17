@@ -1,3 +1,27 @@
+/**
+ * recommend-additional-concepts
+ *
+ * Purpose:
+ *   Given the current concept list for a course, suggests additional concepts
+ *   the teacher may have missed, ranked by relevance to the syllabus.
+ *
+ * Auth / Access:
+ *   Bearer token of the course teacher.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *   - existingConceptCodes: string[]
+ *
+ * Steps:
+ *   1. Authenticate teacher and load syllabus context.
+ *   2. Prompt the AI with the existing list + syllabus and ask for gaps.
+ *   3. Parse candidates and de-duplicate against existing codes.
+ *   4. Return the ranked suggestions (not persisted; teacher chooses which to add).
+ *
+ * External calls:
+ *   Lovable AI Gateway.
+ */
+
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";

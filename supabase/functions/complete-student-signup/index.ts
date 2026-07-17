@@ -1,3 +1,32 @@
+/**
+ * complete-student-signup
+ *
+ * Purpose:
+ *   Finalizes a student account after email confirmation: creates/updates the
+ *   profile row, enrolls the student in the requested course, and clears the
+ *   pending_signups holding record.
+ *
+ * Auth / Access:
+ *   verify_jwt = true (see supabase/config.toml). Caller must be the newly
+ *   authenticated student.
+ *
+ * Inputs:
+ *   - enrollment_code?: string
+ *   - name?, roll_number? — profile fields captured pre-verification
+ *
+ * Steps:
+ *   1. Validate JWT and extract user id/email.
+ *   2. Look up any pending_signups row for the email to recover pre-verify data.
+ *   3. Upsert the profiles row (role=student, name, roll_number).
+ *   4. Resolve the course by enrollment_code; enforce roster allowlist if enabled.
+ *   5. Insert an enrollments row (idempotent) and set profiles.active_course_id.
+ *   6. Delete the pending_signups row.
+ *   7. Return the resolved course id so the client can route to the diagnostic.
+ *
+ * Side effects:
+ *   profiles upsert, enrollments insert, pending_signups delete.
+ */
+
 // Called by /reset-password (and the StudentRedirect self-heal path) after a
 // student invitee sets their password. Looks up their pending_signups row,
 // materializes a profile + enrollment, marks the pending row consumed, and

@@ -1,3 +1,29 @@
+/**
+ * regenerate-lesson-plan-week
+ *
+ * Purpose:
+ *   Regenerates a single week of the lesson plan (topics, activities, links)
+ *   without touching the rest of the plan.
+ *
+ * Auth / Access:
+ *   Bearer token of the course teacher.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *   - week: number
+ *   - hint?: string — teacher's guidance for the new week
+ *
+ * Steps:
+ *   1. Authenticate and load current lesson plan + syllabus context.
+ *   2. Prompt the AI to author only the requested week, honoring existing labels.
+ *   3. Verify any suggested URLs (allowlist + soft-404 check).
+ *   4. Merge the new week into the persisted plan and bump cache_versions.
+ *   5. Return the updated plan.
+ *
+ * External calls:
+ *   Lovable AI Gateway; outbound HTTPS for URL verification.
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 

@@ -1,3 +1,29 @@
+/**
+ * wipe-syllabus-cascade
+ *
+ * Purpose:
+ *   Resets a course to its pre-syllabus state — clears parsed/approved syllabus,
+ *   generated lesson plan, concepts, diagnostic + exam question banks, and
+ *   related teacher setup progress markers.
+ *
+ * Auth / Access:
+ *   Bearer token of the course teacher or admin.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *
+ * Steps:
+ *   1. Verify caller owns/collaborates on the course (or is admin).
+ *   2. Delete concepts, diagnostic_questions, assessment_questions, teaching insights.
+ *   3. Remove syllabus/lesson-plan artifacts from storage under the course prefix.
+ *   4. Reset teacher_setup_progress markers for syllabus/lesson-plan/concepts/diagnostic/exam.
+ *   5. Bump cache_versions for scopes syllabus/concepts/questions.
+ *   6. Return per-table deletion counts.
+ *
+ * Side effects:
+ *   Deletes across setup tables + storage; cache bumps.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {

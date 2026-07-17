@@ -1,3 +1,28 @@
+/**
+ * explain-answers
+ *
+ * Purpose:
+ *   Generates per-question AI explanations for a completed quiz/exam attempt so
+ *   students can review why answers were right or wrong.
+ *
+ * Auth / Access:
+ *   Public (no JWT); called from student review dialogs.
+ *
+ * Inputs:
+ *   - answers: Array<{ question_text, selected, correct, is_correct, topic }>
+ *
+ * Steps:
+ *   1. Validate that answers[] is a non-empty array.
+ *   2. Build a bulk prompt containing all questions + student vs correct answers.
+ *   3. Call Lovable AI Gateway (google/gemini-2.5-flash-lite) with a 5-minute timeout.
+ *   4. Translate rate-limit/402 responses into typed client errors.
+ *   5. Parse the model's JSON array (stripping ```json fences).
+ *   6. Return { explanations: [{ index, explanation }] }.
+ *
+ * External calls:
+ *   Lovable AI Gateway (Gemini flash-lite).
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {

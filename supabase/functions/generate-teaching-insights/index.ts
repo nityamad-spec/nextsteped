@@ -1,3 +1,28 @@
+/**
+ * generate-teaching-insights
+ *
+ * Purpose:
+ *   Produces teacher-facing "teaching insights" for a course by summarizing
+ *   recent student performance signals (mastery, quiz outcomes, diagnostics).
+ *
+ * Auth / Access:
+ *   Bearer token of the course teacher.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *   - window?: string (e.g. "week", "all")
+ *
+ * Steps:
+ *   1. Authenticate teacher and load course roster + recent aggregates.
+ *   2. Fetch per-concept mastery distributions, quiz completion, and diagnostic level mix.
+ *   3. Prompt the AI to produce ranked actionable insights with rationale.
+ *   4. Upsert into course_teaching_insights (generated_by = teacher id).
+ *   5. Return the insight list.
+ *
+ * External calls:
+ *   Lovable AI Gateway.
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 

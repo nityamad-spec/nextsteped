@@ -1,38 +1,65 @@
-## Changes to `src/components/CourseAnalyticsView.tsx`
+## Goal
 
-### 1. Exams — add completion breakdown (parallels weekly quizzes)
+Add a standardized long-form header comment at the top of every `supabase/functions/*/index.ts` file describing the function's purpose and its behavior as an incremental numbered list of steps.
 
-Add three new stats using **active exams only** (already `stats.examsTotal` via `activeExamByStudent`):
+## Scope
 
-- `examCompletedAll`  — students where `activeExamByStudent[sid].size >= examsTotal` (and `examsTotal > 0`)
-- `examCompletedOne` — students who completed ≥1 active exam. When `examsTotal === 1` this equals `examCompletedAll` by definition (both rows show the same students, per spec).
-- `examNotStarted`   — enrolled students with no active-exam attempts.
+All edge functions under `supabase/functions/` (excluding `_shared/`):
 
-Extend `Stats` with `examCompletedAll: StudentLite[]`, `examCompletedOne: StudentLite[]`, `examNotStarted: StudentLite[]`. Compute inside the same `stats` memo (loops over `enrolledIds`, no new fetch).
+- approve-teacher, chat, classify-question, complete-student-signup, delete-course, delete-user, enroll-additional-course, explain-answers, extract-lesson-plan, extract-youtube-links, generate-diagnostic-questions, generate-exam-questions, generate-lesson-plan, generate-practice-questions, generate-question-metadata, generate-teaching-insights, generate-weekly-quiz, parse-syllabus, quality-check, recommend-additional-concepts, regenerate-lesson-plan-week, resend-teacher-invite, score-diagnostic, seed-admin, seed-concepts, seed-questions, student-pending-signup, student-signin, student-signup, suggest-concepts, suggest-lesson, transfer-course-ownership, update-mastery, validate-enrollment-code, wipe-courses, wipe-syllabus-cascade
 
-Render three `QuizRow`s in the Exams card mirroring the weekly-quizzes card:
+## Comment Format
 
+Placed at the very top of each `index.ts`, above imports:
+
+```text
+/**
+ * <function-name>
+ *
+ * Purpose:
+ *   <1–2 sentence summary of what this function does and when it's called.>
+ *
+ * Auth / Access:
+ *   <who can invoke; JWT verification; role checks (admin/teacher/student/public).>
+ *
+ * Inputs:
+ *   - <field>: <type> — <description>
+ *
+ * Outputs:
+ *   - <shape returned on success> / <error shapes>
+ *
+ * Steps:
+ *   1. <first thing it does — parse/validate>
+ *   2. <auth/role check>
+ *   3. <DB reads>
+ *   4. <core logic / AI call / computation>
+ *   5. <DB writes / side effects>
+ *   6. <response>
+ *
+ * Side effects:
+ *   - <tables written, cache bumps, emails sent, auth users created, etc.>
+ *
+ * External calls:
+ *   - <Lovable AI Gateway model, Supabase admin API, etc.>
+ */
 ```
-Completed all {examsTotal}     N   (click → roster)
-Completed ≥1 exam              N   (click → roster)     // hidden when examsTotal === 0
-Not started                    N   (click → roster)
-```
 
-Existing "Students attempted / Total attempts / Avg score" rows stay below.
+Sections that don't apply to a given function (e.g. no side effects) are omitted rather than left blank.
 
-Add three roster views: `exam-completed`, `exam-one`, `exam-not-started`.
+## Approach
 
-### 2. Weekly quizzes — add "Students attempted"
+- Read each function's `index.ts` and derive the steps from actual code — no invented behavior.
+- Insert only the header comment. Do NOT change any logic, imports, types, CORS, validation, or responses.
+- Preserve existing top-of-file comments if any (merge into the new header).
+- Keep each header concise (roughly 15–35 lines); the numbered `Steps` list is the required "incremental listed format".
 
-Add a caption row mirroring the exam card, using existing `stats.quizStudents`:
+## Out of Scope
 
-```
-Students attempted: {quizStudents}
-```
+- No changes to `_shared/` helpers (not edge functions).
+- No refactors, no behavior changes, no test additions.
+- No changes to `supabase/config.toml`.
+- Frontend code untouched.
 
-Placed right above "Total attempts". No new state.
+## Execution
 
-### Out of scope
-- No backend, no new queries.
-- No changes to Course completion, mastery, chat, or exports.
-- Archived exams remain excluded (consistent with existing `activeExamByStudent`).
+Batch the reads and writes in parallel groups (roughly 6–8 functions per batch) to keep turns efficient. After all files are updated, do a quick `rg` sanity check that every `supabase/functions/*/index.ts` begins with the new header block.

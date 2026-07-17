@@ -1,3 +1,26 @@
+/**
+ * extract-youtube-links
+ *
+ * Purpose:
+ *   Scans teacher course materials for YouTube URLs (watch, shorts, playlist,
+ *   channel, @handle, youtu.be) and stores a canonicalized, deduped list.
+ *
+ * Auth / Access:
+ *   Bearer token of the course teacher.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *   - filePaths?: string[]
+ *
+ * Steps:
+ *   1. Authenticate caller and resolve the course.
+ *   2. Download each source file from storage and extract plain text.
+ *   3. Run the YouTube URL regex to pull out links + video ids.
+ *   4. Deduplicate and canonicalize the results (kind + video_id).
+ *   5. Upsert into course_youtube_links keyed by (course_id, url).
+ *   6. Return the discovered links.
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 

@@ -1,3 +1,26 @@
+/**
+ * enroll-additional-course
+ *
+ * Purpose:
+ *   Lets an already signed-in student join another course via enrollment code,
+ *   then switches their active_course_id so the dashboard routes to it.
+ *
+ * Auth / Access:
+ *   Bearer token of a signed-in student.
+ *
+ * Inputs:
+ *   - enrollment_code: string
+ *
+ * Steps:
+ *   1. Validate body with Zod; require Authorization header.
+ *   2. Resolve the caller via anon client; require profile.role === "student".
+ *   3. Look up the course by enrollment_code; ensure published + enrollment_open.
+ *   4. If roster_enforcement, verify the student email is in course_roster_allowlist.
+ *   5. If already enrolled, just flip active_course_id and return already_enrolled=true.
+ *   6. Otherwise insert enrollments row and update active_course_id.
+ *   7. Return the resolved course id + name.
+ */
+
 // Allows an already-signed-in student to enroll in another course
 // using an enrollment code. Validates the code, creates the enrollment,
 // updates active_course_id, and returns the course id so the client can

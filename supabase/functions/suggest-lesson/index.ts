@@ -1,3 +1,27 @@
+/**
+ * suggest-lesson
+ *
+ * Purpose:
+ *   Suggests a single lesson (topics, activities, resources) for a chosen week
+ *   or concept, used by the teacher's course-assistant chat.
+ *
+ * Auth / Access:
+ *   Bearer token of the course teacher.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *   - week? or conceptCodes?
+ *   - hint?: string
+ *
+ * Steps:
+ *   1. Authenticate and load syllabus + existing plan context.
+ *   2. Prompt the AI to author a single lesson block.
+ *   3. Return the suggestion (not persisted).
+ *
+ * External calls:
+ *   Lovable AI Gateway.
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {

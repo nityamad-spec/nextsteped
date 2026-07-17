@@ -1,3 +1,24 @@
+/**
+ * seed-concepts
+ *
+ * Purpose:
+ *   Development helper that replaces the concepts table for the PWIM demo
+ *   course with a canonical list loaded from a JSON payload.
+ *
+ * Auth / Access:
+ *   Not for production use; service-role backed.
+ *
+ * Inputs:
+ *   - fileContent: string | { concepts: [{ concept_id, weight }] }
+ *
+ * Steps:
+ *   1. Parse fileContent and validate that concepts[] exists.
+ *   2. Look up the courses row where course_code = "PWIM".
+ *   3. Delete all existing concepts rows for that course.
+ *   4. Insert new concepts rows (concept_code, weight, course_id).
+ *   5. Return the inserted row count.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {

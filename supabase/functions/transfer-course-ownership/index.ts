@@ -1,3 +1,31 @@
+/**
+ * transfer-course-ownership
+ *
+ * Purpose:
+ *   Admin endpoint that reassigns a course to a different teacher, optionally
+ *   keeping the previous owner as a collaborator.
+ *
+ * Auth / Access:
+ *   Bearer token of an admin.
+ *
+ * Inputs:
+ *   - course_id: uuid
+ *   - new_teacher_id: uuid
+ *   - keep_previous_as_collaborator?: boolean (default true)
+ *
+ * Steps:
+ *   1. Validate admin caller and uuid inputs.
+ *   2. Load the course + new teacher; ensure the new user is a teacher and not the current owner.
+ *   3. Update courses.teacher_id to new_teacher_id.
+ *   4. Remove any prior course_teachers row for the new owner to avoid duplicates.
+ *   5. If keep_previous_as_collaborator, insert a course_teachers row for the previous owner.
+ *   6. Bump cache_versions for scope "course".
+ *   7. On any step failure after step 3, roll back the ownership swap.
+ *
+ * Side effects:
+ *   courses update, course_teachers insert/delete, cache_versions bump.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {

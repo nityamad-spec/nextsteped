@@ -1,3 +1,37 @@
+/**
+ * chat
+ *
+ * Purpose:
+ *   Primary AI chat endpoint powering student and teacher assistants. Assembles
+ *   course-specific RAG context (syllabus, concepts, question bank, student
+ *   progress, mastery) and streams a response from the Lovable AI Gateway.
+ *
+ * Auth / Access:
+ *   Bearer token required; caller identity used to scope student progress lookups.
+ *
+ * Inputs:
+ *   - messages: chat history
+ *   - courseId: uuid
+ *   - mode: "study" | "exam_prep" | teacher variants
+ *   - sessionId?: uuid
+ *
+ * Steps:
+ *   1. Validate CORS/auth and parse request body.
+ *   2. Resolve caller identity and role from Supabase.
+ *   3. Load cached (versioned) RAG blocks: syllabus JSON, concepts by weight, sample questions.
+ *   4. If student, fetch recent diagnostic + assessment results and concept mastery.
+ *   5. Build system prompt combining role, mode, and RAG blocks; append user messages.
+ *   6. Call Lovable AI Gateway (google/gemini-2.5-*) with timeout; stream/return content.
+ *   7. Persist chat_messages rows for session history; log gateway call metadata.
+ *
+ * Side effects:
+ *   chat_sessions/chat_messages writes; in-memory TTL cache per warm instance;
+ *   ai_gateway_calls audit rows.
+ *
+ * External calls:
+ *   Lovable AI Gateway (Gemini). Supabase storage (approved-syllabus.json).
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 

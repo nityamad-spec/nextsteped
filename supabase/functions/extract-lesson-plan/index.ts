@@ -1,3 +1,28 @@
+/**
+ * extract-lesson-plan
+ *
+ * Purpose:
+ *   Reads teacher-uploaded lesson plan files from storage and asks the model to
+ *   extract a normalized week-by-week lesson plan JSON structure.
+ *
+ * Auth / Access:
+ *   Bearer token required; caller must be the course teacher/collaborator.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *   - filePaths?: string[] — storage paths under course-materials
+ *
+ * Steps:
+ *   1. Validate auth and load course context.
+ *   2. Download each source file from storage and base64-encode with mime type.
+ *   3. Prompt the model with the file bytes and a schema-anchored extraction task.
+ *   4. Parse and validate the returned lesson plan JSON (weeks, topics, activities).
+ *   5. Persist the normalized plan (storage or DB) and return it.
+ *
+ * External calls:
+ *   Lovable AI Gateway (Gemini with inline PDF/DOCX/PPTX support).
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 

@@ -1,3 +1,34 @@
+/**
+ * score-diagnostic
+ *
+ * Purpose:
+ *   Scores a completed diagnostic quiz submission and derives the student's
+ *   overall diagnostic mastery + assigned learner_level. Concept weights are
+ *   NOT used here — only Bloom × difficulty weight questions.
+ *
+ * Auth / Access:
+ *   Bearer token of the student.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *   - answers: [{ question_id, selected, elapsed_ms, confidence }]
+ *
+ * Steps:
+ *   1. Authenticate student; load the diagnostic_questions for the submitted ids.
+ *   2. For each answered item compute earned = difficulty * BLOOM_WEIGHT[bloom] on correct,
+ *      accumulate against max points, and derive accuracyScore = sumEarned / sumMax.
+ *   3. Compute paceScore using EXPECTED_TIME_BASE_MS[bloom] * (0.6 + 1.0 * difficulty)
+ *      passed through paceCurve (exponential decay when actual/expected > 1).
+ *   4. Compute confidenceScore from UI confidence (0/1/2 → 0.0/0.5/1.0).
+ *   5. masteryScore = 0.70 * accuracy + 0.15 * pace + 0.15 * confidence.
+ *   6. Map masteryScore → learner_level (beginner/developing/proficient/expert).
+ *   7. Insert a diagnostic_results row; do NOT write student_concept_mastery.
+ *   8. Return the score + level.
+ *
+ * Side effects:
+ *   diagnostic_results insert.
+ */
+
 // Edge function: score-diagnostic
 // Computes a single course-level mastery score (0..1) + learner level for a
 // student's diagnostic submission, and writes the row to diagnostic_results.

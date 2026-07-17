@@ -1,3 +1,36 @@
+/**
+ * update-mastery
+ *
+ * Purpose:
+ *   Authoritative writer of student_concept_mastery and student_course_mastery.
+ *   Applies three layers per concept: Beta-prior shrinkage → EMA blend with prior
+ *   → evidence-gated display cap. Called after quizzes, exams, and practice.
+ *
+ * Auth / Access:
+ *   Bearer token; typically invoked server-to-server from scoring flows.
+ *
+ * Inputs:
+ *   - studentId, courseId
+ *   - source: "weekly_quiz" | "exam" | "practice" | "diagnostic"
+ *   - answers: per-question outcomes with concept, difficulty, bloom
+ *
+ * Steps:
+ *   1. Validate inputs and load prior mastery rows for the student × course.
+ *   2. For each concept row aggregate earned = Σ(difficulty * BLOOM_WEIGHT[bloom]) on
+ *      correct answers vs Σmax; if per-question data missing, fall back to correct/attempted.
+ *   3. Shrink toward 0.5 with a Beta prior: w = n/(n+8); shrunk = w * raw + (1-w) * 0.5.
+ *   4. EMA blend with prior score using α by source (weekly_quiz 0.4, exam 0.6,
+ *      practice 0.1, diagnostic 0.4).
+ *   5. Compute displayed level (beginner/developing/proficient/expert) using the
+ *      evidence-gated cap; for practice-only evidence the cap tops out at proficient.
+ *   6. Compute course mastery as concept-weight-weighted average of all concept rows,
+ *      with a practice-only gate at the course level.
+ *   7. Upsert student_concept_mastery and student_course_mastery; bump cache_versions.
+ *
+ * Side effects:
+ *   student_concept_mastery / student_course_mastery upserts; cache_versions bump.
+ */
+
 // Edge function: update-mastery
 // SOLE writer of public.student_course_mastery and public.student_concept_mastery.
 // EMA blend per concept; course mastery derived as weighted avg of concept rows.
