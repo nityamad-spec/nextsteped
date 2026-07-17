@@ -22,6 +22,7 @@ import { toast } from "sonner";
 const SYLLABUS_ACCEPT = ".pdf,.docx";
 const LESSON_PLAN_ACCEPT = ".pdf,.docx,.txt";
 const YOUTUBE_LINKS_ACCEPT = ".pdf,.docx,.txt,.csv";
+const TEXTBOOKS_ACCEPT = ".pdf";
 const MATERIALS_ACCEPT =
   ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
 
