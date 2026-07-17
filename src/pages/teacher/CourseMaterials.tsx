@@ -22,6 +22,7 @@ import { toast } from "sonner";
 const SYLLABUS_ACCEPT = ".pdf,.docx";
 const LESSON_PLAN_ACCEPT = ".pdf,.docx,.txt";
 const YOUTUBE_LINKS_ACCEPT = ".pdf,.docx,.txt,.csv";
+const TEXTBOOKS_ACCEPT = ".pdf";
 const MATERIALS_ACCEPT =
   ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
 
@@ -44,6 +45,7 @@ const CourseMaterials = () => {
   const [lessonPlanDocFiles, setLessonPlanDocFiles] = useState<UploadedFile[]>([]);
   const [youtubeLinkFiles, setYoutubeLinkFiles] = useState<UploadedFile[]>([]);
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
+  const [textbookFiles, setTextbookFiles] = useState<UploadedFile[]>([]);
   const [syllabusParseStatus, setSyllabusParseStatus] = useState<Record<string, "parsing" | "parsed" | "failed">>({});
   const [syllabusJsonInStorage, setSyllabusJsonInStorage] = useState(false);
   const [extractedLinks, setExtractedLinks] = useState<Array<{ id: string; url: string; kind: string }>>([]);
@@ -143,6 +145,7 @@ const CourseMaterials = () => {
         setLessonPlanDocFiles(data.filter((f) => f.folder_type === "lesson-plan-docs").map(mapFile));
         setYoutubeLinkFiles(data.filter((f) => f.folder_type === "youtube-links").map(mapFile));
         setLessonPlanFiles(data.filter((f) => f.folder_type === "lesson-plans").map(mapFile));
+        setTextbookFiles(data.filter((f) => f.folder_type === "textbooks").map(mapFile));
       }
     };
     fetchFiles();
@@ -442,6 +445,42 @@ const CourseMaterials = () => {
                 folderType="syllabus"
                 maxFiles={1}
                 onParseStatusChange={setSyllabusParseStatus}
+              />
+            ) : (
+              <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                {resolvingCourse && <Loader2 className="h-4 w-4 animate-spin" />}
+                Preparing upload area…
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Textbooks — Optional but Recommended */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <BookOpen className="h-5 w-5 text-primary" /> Textbooks
+              </CardTitle>
+              <Badge variant="secondary">Optional but Recommended</Badge>
+            </div>
+            <CardDescription>
+              Upload the primary/reference textbooks for this course. Used to ground the AI TA and lesson plan in the same source material your students read.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              <strong>Accepted:</strong> PDF (multiple files allowed)
+            </p>
+            {user && courseId ? (
+              <FileUploadZone
+                folderPath={`${courseId}/textbooks`}
+                accept={TEXTBOOKS_ACCEPT}
+                files={textbookFiles}
+                onFilesChange={setTextbookFiles}
+                courseId={courseId}
+                teacherId={user.id}
+                folderType="textbooks"
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
