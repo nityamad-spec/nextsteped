@@ -45,6 +45,7 @@ const CourseMaterials = () => {
   const [lessonPlanDocFiles, setLessonPlanDocFiles] = useState<UploadedFile[]>([]);
   const [youtubeLinkFiles, setYoutubeLinkFiles] = useState<UploadedFile[]>([]);
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
+  const [textbookFiles, setTextbookFiles] = useState<UploadedFile[]>([]);
   const [syllabusParseStatus, setSyllabusParseStatus] = useState<Record<string, "parsing" | "parsed" | "failed">>({});
   const [syllabusJsonInStorage, setSyllabusJsonInStorage] = useState(false);
   const [extractedLinks, setExtractedLinks] = useState<Array<{ id: string; url: string; kind: string }>>([]);
