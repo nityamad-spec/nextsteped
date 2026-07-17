@@ -724,7 +724,7 @@ Deno.serve(async (req) => {
       const tierItems = allQuestions.filter((x) => x.spec.tier === spec.tier);
       const shortfall = spec.count - tierItems.length;
       if (shortfall <= 0) continue;
-      if (deadlineAt - Date.now() < 25_000) {
+      if (deadlineAt - Date.now() < 12_000) {
         console.warn(`[weekly-quiz] backfill tier=${spec.tier} skipped: deadline budget too low`);
         continue;
       }
