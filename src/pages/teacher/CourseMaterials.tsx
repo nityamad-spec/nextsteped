@@ -145,6 +145,7 @@ const CourseMaterials = () => {
         setLessonPlanDocFiles(data.filter((f) => f.folder_type === "lesson-plan-docs").map(mapFile));
         setYoutubeLinkFiles(data.filter((f) => f.folder_type === "youtube-links").map(mapFile));
         setLessonPlanFiles(data.filter((f) => f.folder_type === "lesson-plans").map(mapFile));
+        setTextbookFiles(data.filter((f) => f.folder_type === "textbooks").map(mapFile));
       }
     };
     fetchFiles();
