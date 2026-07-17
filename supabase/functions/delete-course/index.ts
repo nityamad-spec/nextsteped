@@ -1,3 +1,29 @@
+/**
+ * delete-course
+ *
+ * Purpose:
+ *   Cascade-delete a course and all owned dependent data (enrollments, quizzes,
+ *   questions, mastery, chat sessions scoped to the course, storage files).
+ *
+ * Auth / Access:
+ *   Bearer token required. Caller must be the course owner (courses.teacher_id)
+ *   or an admin.
+ *
+ * Inputs:
+ *   - course_id: uuid
+ *
+ * Steps:
+ *   1. Verify caller identity and authorization (owner or admin).
+ *   2. Enumerate and delete rows across all course-scoped tables in dependency order.
+ *   3. Remove all files under the course's storage prefix in course-materials bucket.
+ *   4. Delete the courses row itself.
+ *   5. Bump cache_versions to invalidate any cached RAG for the course.
+ *   6. Return per-table deletion counts.
+ *
+ * Side effects:
+ *   Mass deletes across assessment/diagnostic/mastery/enrollment tables + storage.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {

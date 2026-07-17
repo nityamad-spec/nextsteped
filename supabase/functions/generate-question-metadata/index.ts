@@ -1,3 +1,28 @@
+/**
+ * generate-question-metadata
+ *
+ * Purpose:
+ *   Given a raw question stem + correct answer, asks the model to produce
+ *   supporting metadata: justification, explanation, Bloom level, difficulty.
+ *   Applies hard character caps so a chatty response never slows the UI.
+ *
+ * Auth / Access:
+ *   Bearer token required.
+ *
+ * Inputs:
+ *   - question_text, correct_answer, options?, topic?
+ *
+ * Steps:
+ *   1. Parse and validate the input.
+ *   2. Prompt the AI with a strict JSON output schema.
+ *   3. Coerce the response into { justification, explanation, bloom_level, difficulty_estimate }.
+ *   4. Truncate justification/explanation to CAP_JUST/CAP_EXPLANATION.
+ *   5. Return the normalized metadata.
+ *
+ * External calls:
+ *   Lovable AI Gateway.
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {

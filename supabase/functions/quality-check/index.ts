@@ -1,3 +1,26 @@
+/**
+ * quality-check
+ *
+ * Purpose:
+ *   Runs an AI quality review over a parsed syllabus, flagging missing
+ *   sections, ambiguities, and consistency issues before the teacher approves it.
+ *
+ * Auth / Access:
+ *   Bearer token of the course teacher.
+ *
+ * Inputs:
+ *   - syllabus: parsed syllabus JSON
+ *
+ * Steps:
+ *   1. Validate the payload.
+ *   2. Prompt the AI with the syllabus and a rubric.
+ *   3. Parse a JSON verdict listing per-section findings + severity.
+ *   4. Return the verdict for teacher review UI.
+ *
+ * External calls:
+ *   Lovable AI Gateway.
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {

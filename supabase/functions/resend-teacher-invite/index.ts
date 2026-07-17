@@ -1,3 +1,27 @@
+/**
+ * resend-teacher-invite
+ *
+ * Purpose:
+ *   Admin endpoint to resend an invite (or recovery) email to an already-approved
+ *   teacher who hasn't yet set their password.
+ *
+ * Auth / Access:
+ *   Bearer token of an admin.
+ *
+ * Inputs:
+ *   - applicationId: uuid
+ *
+ * Steps:
+ *   1. Validate admin caller.
+ *   2. Load the teacher_applications row; require status === "approved".
+ *   3. Call auth.admin.inviteUserByEmail with a redirect to the published reset URL.
+ *   4. If invite succeeds, mark profiles.needs_password_setup = true and return.
+ *   5. Otherwise fall back to auth.resetPasswordForEmail (recovery email).
+ *
+ * Side effects:
+ *   Sends an email; may update profiles.needs_password_setup.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {

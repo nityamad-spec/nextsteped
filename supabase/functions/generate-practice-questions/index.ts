@@ -1,3 +1,32 @@
+/**
+ * generate-practice-questions
+ *
+ * Purpose:
+ *   Generates on-demand practice questions for a student, targeted at chosen
+ *   concepts + difficulty + Bloom level. Used by the practice widget.
+ *
+ * Auth / Access:
+ *   Bearer token of a student.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *   - conceptCodes?: string[]
+ *   - count?: number (1–10)
+ *   - difficulty?: number 0–1
+ *   - bloom?: number 1–6
+ *
+ * Steps:
+ *   1. Validate uuids and clamp numeric inputs.
+ *   2. Load concept metadata for the requested codes.
+ *   3. Prompt the AI to generate the questions with per-item metadata.
+ *   4. Validate each item (structural, option parity, concept, Bloom, difficulty,
+ *      explanation); drop failing items.
+ *   5. Return the accepted items (not persisted — ephemeral practice).
+ *
+ * External calls:
+ *   Lovable AI Gateway.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
   normalizeAnswer,

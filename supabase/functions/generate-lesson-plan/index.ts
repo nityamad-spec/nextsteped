@@ -1,3 +1,32 @@
+/**
+ * generate-lesson-plan
+ *
+ * Purpose:
+ *   Produces a 16-week lesson plan from the approved syllabus and uploaded
+ *   teaching materials, including verified external article links from an
+ *   allowlist of high-trust domains.
+ *
+ * Auth / Access:
+ *   Bearer token of the course teacher.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *   - overrides? — optional weeks/topics adjustments
+ *
+ * Steps:
+ *   1. Authenticate and load syllabus + teaching-material text (bounded by
+ *      MAX_DOC_CHARS_PER_FILE and MAX_TOTAL_DOC_CHARS).
+ *   2. Prompt the model to produce a normalized 16-week plan with topics,
+ *      activities, readings, and candidate article URLs.
+ *   3. For each candidate URL: verify HTTPS + fetch, reject soft-404s and known
+ *      bad redirect paths; deprioritize domains outside LESSON_PLAN_LINK_ALLOWLIST.
+ *   4. Persist the finalized plan to storage/DB and bump cache_versions.
+ *   5. Return the lesson plan JSON.
+ *
+ * External calls:
+ *   Lovable AI Gateway; outbound HTTPS to article URLs.
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 

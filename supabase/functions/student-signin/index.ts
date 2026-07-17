@@ -1,3 +1,23 @@
+/**
+ * student-signin
+ *
+ * Purpose:
+ *   Server-side sign-in for students that bypasses per-IP rate limits imposed
+ *   on the browser client by proxying credentials through the edge function.
+ *
+ * Auth / Access:
+ *   Public; validates credentials against Supabase auth.
+ *
+ * Inputs:
+ *   - email, password
+ *
+ * Steps:
+ *   1. Validate inputs.
+ *   2. Call auth.signInWithPassword via the anon client.
+ *   3. On failure return a normalized error (invalid credentials, unverified, etc.).
+ *   4. On success return the session tokens to the client.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://esm.sh/zod@3.23.8";
 

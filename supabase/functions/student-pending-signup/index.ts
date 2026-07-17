@@ -1,3 +1,28 @@
+/**
+ * student-pending-signup
+ *
+ * Purpose:
+ *   Pre-verification stash for student signups: stores the student's chosen
+ *   name/roll/enrollment code so that complete-student-signup can finalize the
+ *   profile + enrollment after email verification.
+ *
+ * Auth / Access:
+ *   Public.
+ *
+ * Inputs:
+ *   - email, name, roll_number, enrollment_code
+ *
+ * Steps:
+ *   1. Validate the request body.
+ *   2. Look up the course by enrollment_code and verify published + enrollment_open.
+ *   3. If roster_enforcement, verify email against course_roster_allowlist.
+ *   4. Upsert a pending_signups row keyed by email.
+ *   5. Return ok + the resolved course name for the confirmation screen.
+ *
+ * Side effects:
+ *   pending_signups upsert.
+ */
+
 // Step 2 of new-student onboarding: stage profile + enrollment code in
 // pending_signups, then send a verification email via Supabase invite-by-email.
 // The invite link redirects the student to /reset-password where they set

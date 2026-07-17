@@ -1,3 +1,29 @@
+/**
+ * wipe-courses
+ *
+ * Purpose:
+ *   Admin maintenance tool that removes course-scoped data across many tables,
+ *   optionally for a specific course or all courses. Used to reset demo state.
+ *
+ * Auth / Access:
+ *   Bearer token of an admin.
+ *
+ * Inputs:
+ *   - course_id?: uuid — omit to wipe across all courses
+ *   - scopes?: string[] — subset of tables to target
+ *
+ * Steps:
+ *   1. Validate admin caller.
+ *   2. Enumerate target course ids (single or all).
+ *   3. For each scope, delete matching rows in dependency order.
+ *   4. Remove associated storage files under course-materials.
+ *   5. Bump cache_versions for each affected course.
+ *   6. Return per-table deletion counts.
+ *
+ * Side effects:
+ *   Wide deletes + storage removal.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {

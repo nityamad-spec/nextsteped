@@ -1,3 +1,36 @@
+/**
+ * delete-user
+ *
+ * Purpose:
+ *   Admin endpoint that fully removes a user (teacher or student), including
+ *   owned/authored data, storage files, chat history, profile, and the auth user.
+ *   Teachers with owned courses require transfer before deletion.
+ *
+ * Auth / Access:
+ *   Bearer token of an admin.
+ *
+ * Inputs:
+ *   - user_id: uuid
+ *   - course_action?: "transfer" — required when a teacher owns courses
+ *   - transfer_to?: uuid — new owner (another teacher)
+ *
+ * Steps:
+ *   1. Validate admin caller and input body.
+ *   2. Load the target profile; branch by role (teacher vs student).
+ *   3. For teachers: refuse if owned courses exist unless transfer_to is provided;
+ *      reassign courses.teacher_id and bump cache_versions per course.
+ *   4. Delete role-specific rows (course_teachers, applications, insights, materials,
+ *      questions, YouTube links, setup progress).
+ *   5. For students: delete assessment_results, diagnostic_results, mastery, feedback,
+ *      enrollments, chat, and pending_signups.
+ *   6. Remove storage files owned by the user under course-materials.
+ *   7. Delete the profiles row, then auth.users record.
+ *   8. Return per-table deletion counts.
+ *
+ * Side effects:
+ *   Wide-ranging deletes across ~15 tables + storage; auth user removal.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {

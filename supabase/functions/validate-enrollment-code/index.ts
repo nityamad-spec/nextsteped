@@ -1,3 +1,23 @@
+/**
+ * validate-enrollment-code
+ *
+ * Purpose:
+ *   Public real-time check of an enrollment code during student signup, so the
+ *   UI can surface course info (or a specific error) before submission.
+ *
+ * Auth / Access:
+ *   Public (no JWT); service-role backed lookup.
+ *
+ * Inputs:
+ *   - enrollment_code: string
+ *
+ * Steps:
+ *   1. Validate the body with Zod.
+ *   2. Look up the course by enrollment_code.
+ *   3. Return typed errors for not-found / not-published / not-open.
+ *   4. On success return { valid: true, course: { id, name, course_code } }.
+ */
+
 // Public endpoint to validate an enrollment code in real time during signup.
 // Returns { valid: true, course: { id, name, course_code } } or { valid: false, error }.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";

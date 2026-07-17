@@ -1,3 +1,28 @@
+/**
+ * classify-question
+ *
+ * Purpose:
+ *   Lightweight relevance gate that decides whether a user chat message is
+ *   on-topic for the current course before the main chat function answers.
+ *
+ * Auth / Access:
+ *   Bearer token required.
+ *
+ * Inputs:
+ *   - message: string — user's question
+ *   - courseContext: string — brief course/topic summary
+ *
+ * Steps:
+ *   1. Parse and validate the request body.
+ *   2. Build a compact system prompt asking the model to classify relevance.
+ *   3. Call the Lovable AI Gateway with a fast/cheap model.
+ *   4. Parse the model's yes/no + reason into a JSON verdict.
+ *   5. Return { relevant, reason } for the client to enforce.
+ *
+ * External calls:
+ *   Lovable AI Gateway (Gemini flash-lite).
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {

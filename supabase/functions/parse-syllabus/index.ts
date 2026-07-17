@@ -1,3 +1,30 @@
+/**
+ * parse-syllabus
+ *
+ * Purpose:
+ *   Parses one or more uploaded syllabus files (PDF/DOCX/PPTX/TXT) into a
+ *   normalized JSON structure covering course header, objectives, outcomes,
+ *   weekly schedule, and policies.
+ *
+ * Auth / Access:
+ *   Bearer token of the course teacher.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *   - filePaths: string[] — storage paths under course-materials
+ *
+ * Steps:
+ *   1. Authenticate teacher and validate inputs.
+ *   2. Download each file from storage and base64-encode with mime type.
+ *   3. Prompt the AI (Gemini) with the inline bytes + a strict schema.
+ *   4. Parse + validate returned syllabus JSON.
+ *   5. Store as draft syllabus in storage for the teacher review step.
+ *   6. Return the parsed structure to the client.
+ *
+ * External calls:
+ *   Lovable AI Gateway.
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {

@@ -1,3 +1,29 @@
+/**
+ * generate-weekly-quiz
+ *
+ * Purpose:
+ *   Generates the week's optional practice quiz for a course, distributing
+ *   questions across the concepts scheduled for that week (roughly uniform;
+ *   does NOT use concept.weight for allocation).
+ *
+ * Auth / Access:
+ *   Bearer token of the course teacher.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *   - week: number
+ *
+ * Steps:
+ *   1. Authenticate and load the lesson plan to determine the week's concept codes.
+ *   2. Prompt the AI to author quiz items distributed across those concepts.
+ *   3. Validate items with the shared validators; retry batches on failure.
+ *   4. Insert accepted items into assessment_questions (mode="daily_quiz", quiz_day=week).
+ *   5. Return counts and any diagnostics.
+ *
+ * External calls:
+ *   Lovable AI Gateway.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { validateExplanation as sharedValidateExplanation } from "../_shared/question-validation.ts";
 

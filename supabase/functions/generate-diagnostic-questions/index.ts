@@ -1,3 +1,33 @@
+/**
+ * generate-diagnostic-questions
+ *
+ * Purpose:
+ *   Generates the diagnostic question bank for a course. Allocates questions
+ *   across units/concepts proportional to concept.weight (Hamilton's method),
+ *   then prompts the model to author validated MCQ/T-F items per concept.
+ *
+ * Auth / Access:
+ *   Bearer token of the course teacher.
+ *
+ * Inputs:
+ *   - courseId: uuid
+ *   - totalQuestions?: number
+ *   - difficultyMix?, bloomMix? — optional overrides
+ *
+ * Steps:
+ *   1. Authenticate the teacher and load course + units + concepts (with weights).
+ *   2. Allocate question slots per unit using Hamilton's method on unit weight sums,
+ *      then per concept within each unit; fallback to uniform if all weights are 0.
+ *   3. For each concept, prompt the AI to generate the allocated count of items.
+ *   4. Run shared validators: structural, option parity, concept, Bloom, difficulty,
+ *      explanation, and near-duplicate detection; retry batches on failure (up to MAX_ATTEMPTS).
+ *   5. Insert accepted rows into diagnostic_questions with metadata.
+ *   6. Log every AI gateway call outcome to ai_gateway_calls (fire-and-forget).
+ *
+ * External calls:
+ *   Lovable AI Gateway.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   isLikelyDuplicate,

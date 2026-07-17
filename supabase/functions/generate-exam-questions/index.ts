@@ -1,3 +1,30 @@
+/**
+ * generate-exam-questions
+ *
+ * Purpose:
+ *   Generates exam-mode question batches (MCQ + True/False) for a course. Only
+ *   uses concepts already revealed by the lesson-plan schedule.
+ *
+ * Auth / Access:
+ *   Bearer token of the course teacher.
+ *
+ * Inputs:
+ *   - courseId, examId or weekWindow
+ *   - count, format mix, difficulty/bloom targets
+ *
+ * Steps:
+ *   1. Authenticate teacher and load course concepts (with weights) plus visible weeks.
+ *   2. Plan per-concept allocations honoring weight + coverage constraints.
+ *   3. Loop up to MAX_ATTEMPTS generating BATCH_SIZE items at a time via the AI gateway.
+ *   4. Validate each batch with shared validators (structural, option parity, concept,
+ *      Bloom, difficulty, explanation, quotas, within-batch dedup).
+ *   5. Insert accepted items into assessment_questions (mode="exam").
+ *   6. Return counts + any validation diagnostics.
+ *
+ * External calls:
+ *   Lovable AI Gateway (google/gemini-2.5-flash).
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   normalizeAnswer,

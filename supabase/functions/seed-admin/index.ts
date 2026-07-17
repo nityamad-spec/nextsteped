@@ -1,3 +1,23 @@
+/**
+ * seed-admin
+ *
+ * Purpose:
+ *   One-time bootstrap for the built-in admin account. Idempotent — safe to
+ *   invoke repeatedly; ensures both the auth user and profile row exist.
+ *
+ * Auth / Access:
+ *   Public (protected by obscurity + service role); no user JWT required.
+ *
+ * Steps:
+ *   1. List existing auth users and look for the admin email.
+ *   2. If the user exists but has no profile, insert the admin profile and return.
+ *   3. If the user exists with a profile, return "already exists".
+ *   4. Otherwise create the auth user with email_confirm=true and insert the profile.
+ *
+ * Side effects:
+ *   auth.users create, profiles insert.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
