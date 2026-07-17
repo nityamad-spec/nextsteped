@@ -17,6 +17,11 @@
  *   1. Authenticate and load the lesson plan to determine the week's concept codes.
  *   2. Prompt the AI to author quiz items distributed across those concepts.
  *   3. Validate items with the shared validators; retry batches on failure.
+ *      - All structural / semantic / dedup checks come from
+ *        supabase/functions/_shared/question-validation.ts. No local
+ *        re-implementations. Retry hints are aggregated across sub-calls with
+ *        summarizeRejections; per-concept shortfalls come from auditBatchQuotas
+ *        and drive both the next sub-call's prompt and a final top-up call.
  *   4. Insert accepted items into assessment_questions (mode="daily_quiz", quiz_day=week).
  *   5. Return counts and any diagnostics.
  *
@@ -25,7 +30,20 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { validateExplanation as sharedValidateExplanation } from "../_shared/question-validation.ts";
+import {
+  auditBatchQuotas,
+  dedupWithin,
+  isLikelyDuplicate,
+  normalizeAnswer,
+  summarizeRejections,
+  validateBloom,
+  validateConcept,
+  validateDifficulty,
+  validateExplanation,
+  validateOptionParity,
+  validateStructural,
+  type QuestionFormat,
+} from "../_shared/question-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,7 +59,7 @@ interface TierSpec {
   label: string;
   batchSize: number; // max questions requested per gateway sub-call
   perCallTimeoutMs: number; // per-sub-call abort timeout
-  maxAttempts: number; // tier-level retry budget
+  maxAttempts: number; // tier-level retry budget (counts sub-calls + skew/dedup refills)
 }
 
 // Chunked sub-calls + over-generation buffer mirror the diagnostic pattern.
@@ -92,6 +110,11 @@ const MODEL = "google/gemini-2.5-pro";
 // headroom for auth, DB reads, insert, and JSON serialization.
 const GLOBAL_DEADLINE_MS = 130_000;
 
+// Prompt/dedup caps kept symmetric so we never reject a candidate that the
+// model was never warned about (issue J in the plan).
+const SAME_TIER_PROMPT_CAP = 16;
+const CROSS_TIER_PROMPT_CAP = 16;
+
 class CreditsExhaustedError extends Error {
   constructor(msg = "AI credits exhausted") {
     super(msg);
@@ -121,308 +144,137 @@ interface ConceptRow {
   concept_code: string;
 }
 
-const QUESTION_STOP_WORDS = new Set([
-  "a",
-  "an",
-  "and",
-  "are",
-  "as",
-  "at",
-  "be",
-  "by",
-  "can",
-  "do",
-  "does",
-  "for",
-  "from",
-  "how",
-  "in",
-  "is",
-  "it",
-  "of",
-  "on",
-  "or",
-  "should",
-  "that",
-  "the",
-  "their",
-  "this",
-  "to",
-  "what",
-  "when",
-  "which",
-  "why",
-  "with",
-]);
-
-const ANSWER_STOP_WORDS = new Set([
-  ...QUESTION_STOP_WORDS,
-  "about",
-  "because",
-  "best",
-  "correct",
-  "describes",
-  "means",
-  "option",
-  "statement",
-]);
-
-function stripDiacritics(value: string): string {
-  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function stemToken(token: string): string {
-  let t = token.toLowerCase();
-  if (t.length > 5 && t.endsWith("ies")) t = `${t.slice(0, -3)}y`;
-  else if (t.length > 6 && t.endsWith("ing")) t = t.slice(0, -3);
-  else if (t.length > 5 && t.endsWith("ed")) t = t.slice(0, -2);
-  else if (t.length > 4 && t.endsWith("es")) t = t.slice(0, -2);
-  else if (t.length > 3 && t.endsWith("s") && !/(ss|us|is|ias)$/.test(t)) t = t.slice(0, -1);
-  return t;
-}
-
-function tokenize(value: string, stopWords = QUESTION_STOP_WORDS): string[] {
-  const normalized = stripDiacritics(value)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-  if (!normalized) return [];
-  return normalized
-    .split(/\s+/)
-    .map(stemToken)
-    .filter((token) => token.length > 2 && !stopWords.has(token));
-}
-
-function normalizedQuestionKey(value: string): string {
-  return tokenize(value).join(" ");
-}
-
-function jaccardSimilarity(a: string[], b: string[]): number {
-  if (!a.length || !b.length) return 0;
-  const setA = new Set(a);
-  const setB = new Set(b);
-  let intersection = 0;
-  for (const token of setA) if (setB.has(token)) intersection++;
-  const union = new Set([...setA, ...setB]).size;
-  return union ? intersection / union : 0;
-}
-
-function containmentSimilarity(a: string[], b: string[]): number {
-  if (!a.length || !b.length) return 0;
-  const setA = new Set(a);
-  const setB = new Set(b);
-  let intersection = 0;
-  for (const token of setA) if (setB.has(token)) intersection++;
-  return intersection / Math.min(setA.size, setB.size);
-}
-
-function questionSimilarity(a: GeneratedQuestion, b: GeneratedQuestion): number {
-  const aTokens = tokenize(a.content_text);
-  const bTokens = tokenize(b.content_text);
-  const stemJaccard = jaccardSimilarity(aTokens, bTokens);
-  const stemContainment = containmentSimilarity(aTokens, bTokens);
-
-  // Include answer/topic overlap so close paraphrases targeting the same fact
-  // are caught, while unrelated questions that share generic course terms pass.
-  const answerJaccard = jaccardSimilarity(tokenize(a.answer), tokenize(b.answer));
-  const sameTopicBoost = a.topic === b.topic ? 0.08 : 0;
-  return Math.max(stemJaccard, stemContainment * 0.85, stemJaccard * 0.75 + answerJaccard * 0.2 + sameTopicBoost);
-}
-
-function isLikelyDuplicateQuestion(a: GeneratedQuestion, b: GeneratedQuestion): boolean {
-  const keyA = normalizedQuestionKey(a.content_text);
-  const keyB = normalizedQuestionKey(b.content_text);
-  if (keyA && keyA === keyB) return true;
-
-  const similarity = questionSimilarity(a, b);
-  if (similarity >= 0.72) return true;
-
-  const answerOverlap = jaccardSimilarity(tokenize(a.answer), tokenize(b.answer));
-  const stemContainment = containmentSimilarity(tokenize(a.content_text), tokenize(b.content_text));
-  return a.topic === b.topic && stemContainment >= 0.62 && answerOverlap >= 0.35;
-}
-
-function topAnswerTokens(answer: string): string[] {
-  const tokens = tokenize(answer, ANSWER_STOP_WORDS);
-  const seen = new Set<string>();
-  return tokens.filter((token) => {
-    if (seen.has(token)) return false;
-    seen.add(token);
-    return true;
-  });
-}
-
-function explanationSupportsAnswer(q: GeneratedQuestion): { ok: true } | { ok: false; reason: string } {
-  const explanation = q.explanation.trim();
-  if (!explanation) return { ok: false, reason: "empty explanation" };
-
-  if (q.format === "true_false") {
-    const lower = explanation.toLowerCase();
-    if (q.answer === "True" && /\bfalse\b|\bincorrect\b|\bnot true\b/.test(lower) && !/\bnot false\b/.test(lower)) {
-      return { ok: false, reason: "true/false explanation appears to contradict True answer" };
-    }
-    if (q.answer === "False" && /\btrue\b|\bcorrect\b/.test(lower) && !/\bnot true\b|\bincorrect\b/.test(lower)) {
-      return { ok: false, reason: "true/false explanation appears to contradict False answer" };
-    }
-    return { ok: true };
-  }
-
-  const answerTokens = topAnswerTokens(q.answer);
-  if (answerTokens.length === 0) return { ok: true };
-  const explanationTokens = new Set(tokenize(explanation, ANSWER_STOP_WORDS));
-  const matched = answerTokens.filter((token) => explanationTokens.has(token)).length;
-  const required = answerTokens.length <= 2 ? 1 : Math.max(2, Math.ceil(answerTokens.length * 0.3));
-  if (matched < required) {
-    return { ok: false, reason: "explanation does not reference enough key terms from the correct answer" };
-  }
-
-  for (const option of q.options) {
-    if (option === q.answer) continue;
-    const wrongTokens = topAnswerTokens(option);
-    if (wrongTokens.length === 0) continue;
-    const wrongMatches = wrongTokens.filter((token) => explanationTokens.has(token)).length;
-    const wrongRequired = wrongTokens.length <= 2 ? wrongTokens.length : Math.ceil(wrongTokens.length * 0.6);
-    if (wrongMatches >= wrongRequired && matched < wrongMatches) {
-      return { ok: false, reason: "explanation appears to support a distractor more than the correct answer" };
-    }
-  }
-
-  return { ok: true };
-}
-
-function validateTierQuestionSet(
-  questions: GeneratedQuestion[],
-): { questions: GeneratedQuestion[]; rejections: string[] } {
-  const survivors: GeneratedQuestion[] = [];
-  const rejections: string[] = [];
-
-  for (const q of questions) {
-    const duplicateOf = survivors.find((existing) => isLikelyDuplicateQuestion(existing, q));
-    if (duplicateOf) {
-      rejections.push(`duplicate/paraphrase rejected: "${q.content_text.slice(0, 90)}" duplicates "${duplicateOf.content_text.slice(0, 90)}"`);
-      continue;
-    }
-
-    const explanationCheck = explanationSupportsAnswer(q);
-    if (!explanationCheck.ok) {
-      rejections.push(`${explanationCheck.reason}: "${q.content_text.slice(0, 90)}"`);
-      continue;
-    }
-    // Additional cross-check: reject explanations that name-drop the wrong option letter.
-    const sharedCheck = sharedValidateExplanation({
-      format: q.format as "mcq" | "true_false",
-      options: q.options,
-      answer: q.answer,
-      explanation: q.explanation,
-    });
-    if (!sharedCheck.ok && /names option/.test(sharedCheck.reason)) {
-      rejections.push(`${sharedCheck.reason}: "${q.content_text.slice(0, 90)}"`);
-      continue;
-    }
-
-    survivors.push(q);
-  }
-
-  return { questions: survivors, rejections };
-}
+/* -------------------------------------------------------------------------- */
+/* Prompt formatters                                                          */
+/* -------------------------------------------------------------------------- */
 
 function formatExistingQuestionsForPrompt(questions: GeneratedQuestion[]): string {
   if (!questions.length) return "";
-  const compact = questions.slice(-8).map((q, index) => {
+  const compact = questions.slice(-SAME_TIER_PROMPT_CAP).map((q, index) => {
     return `${index + 1}. Stem: ${q.content_text}\n   Topic: ${q.topic}\n   Correct answer: ${q.answer}\n   Explanation: ${q.explanation}`;
   });
-
   return `\n\nEXISTING QUESTIONS IN THIS SAME TIER (do not duplicate, paraphrase, or test the same underlying fact/application; also avoid reusing the same answer rationale):\n${compact.join("\n")}`;
 }
 
 function formatCrossTierAvoidForPrompt(questions: GeneratedQuestion[]): string {
   if (!questions.length) return "";
-  const compact = questions.slice(0, 12).map((q, index) => {
+  const compact = questions.slice(0, CROSS_TIER_PROMPT_CAP).map((q, index) => {
     return `${index + 1}. Stem: ${q.content_text}\n   Topic: ${q.topic}\n   Correct answer: ${q.answer}`;
   });
   return `\n\nQUESTIONS ALREADY USED IN THE STANDARD TIER OF THIS SAME WEEKLY QUIZ — do NOT repeat, paraphrase, or test the same fact/application. Pick a different concept, a different angle on the same concept, or a different scenario. Every student sees the standard tier plus this tier, so overlap wastes the quiz:\n${compact.join("\n")}`;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Per-candidate validation                                                    */
+/* -------------------------------------------------------------------------- */
 
-function validateQuestion(
-  q: any,
+function validateCandidate(
+  raw: unknown,
   spec: TierSpec,
   conceptByCode: Record<string, ConceptRow>,
 ): { ok: true; q: GeneratedQuestion } | { ok: false; reason: string } {
-  if (!q || typeof q !== "object") return { ok: false, reason: "not an object" };
-  const format = q.format;
-  if (format !== "mcq" && format !== "true_false") return { ok: false, reason: `bad format ${format}` };
+  const structural = validateStructural(raw as Record<string, unknown>, {
+    allowedFormats: ["mcq", "true_false"],
+    requireFourOptions: true,
+    maxContentChars: 600,
+  });
+  if (!structural.ok) return structural;
+  const { format, content_text, options } = structural.value;
 
-  const content = typeof q.content_text === "string" ? q.content_text.trim() : "";
-  if (!content || content.length > 600) return { ok: false, reason: "bad content_text" };
+  const answerRes = normalizeAnswer((raw as any)?.answer, options);
+  if (!answerRes.ok) return answerRes;
+  const answer = answerRes.value;
 
-  let options: string[];
   if (format === "mcq") {
-    if (!Array.isArray(q.options) || q.options.length !== 4) return { ok: false, reason: "mcq needs 4 options" };
-    options = q.options.map((o: any) => String(o ?? "").trim());
-    if (options.some((o) => !o)) return { ok: false, reason: "empty option" };
-    if (new Set(options).size !== 4) return { ok: false, reason: "duplicate options" };
-    // Length parity: prevent "longest = correct" giveaway.
-    const lens = options.map((o) => o.length);
-    const maxLen = Math.max(...lens);
-    const minLen = Math.min(...lens);
-    if (minLen > 0 && maxLen / minLen > 1.6) {
-      return { ok: false, reason: `option length imbalance ${minLen}->${maxLen} (>1.6x)` };
-    }
-    const answerStr = typeof q.answer === "string" ? q.answer.trim() : "";
-    const answerLen = answerStr.length;
-    const avgLen = lens.reduce((s, n) => s + n, 0) / 4;
-    const strictlyLongest = lens.filter((l) => l === maxLen).length === 1 && answerLen === maxLen;
-    if (strictlyLongest && answerLen > avgLen * 1.25) {
-      return { ok: false, reason: "correct option is strictly longest and >25% above avg length" };
-    }
-  } else {
-    options = ["True", "False"];
+    const parity = validateOptionParity(options, answer);
+    if (!parity.ok) return parity;
   }
 
-  const answer = typeof q.answer === "string" ? q.answer.trim() : "";
-  if (!options.includes(answer)) return { ok: false, reason: "answer not in options" };
+  const conceptRes = validateConcept((raw as any)?.topic, conceptByCode);
+  if (!conceptRes.ok) return conceptRes;
+  const topic = conceptRes.value;
 
-  const rawTopic = typeof q.topic === "string" ? q.topic.trim() : "";
-  let canonical: string | null = null;
-  if (rawTopic in conceptByCode) canonical = rawTopic;
-  else {
-    const lower = rawTopic.toLowerCase();
-    for (const code of Object.keys(conceptByCode)) {
-      if (code.toLowerCase() === lower) {
-        canonical = code;
-        break;
-      }
-    }
-  }
-  if (!canonical) return { ok: false, reason: `topic '${rawTopic}' not in week concepts` };
+  const diffRes = validateDifficulty((raw as any)?.difficulty_estimate, {
+    midpoint: spec.difficulty,
+    band: 0.15,
+  });
+  if (!diffRes.ok) return diffRes;
+  const difficulty_estimate = diffRes.value;
 
-  let diff = Number(q.difficulty_estimate);
-  if (!Number.isFinite(diff)) diff = spec.difficulty;
-  diff = Math.max(0, Math.min(1, diff));
+  const bloomRes = validateBloom((raw as any)?.bloom_level, {
+    min: 1,
+    max: 4,
+    enforceDifficultyConsistency: true,
+    difficulty: difficulty_estimate,
+  });
+  if (!bloomRes.ok) return bloomRes;
+  const bloom_level = bloomRes.value;
 
-  const bloom = Math.round(Number(q.bloom_level));
-  if (!Number.isInteger(bloom) || bloom < 1 || bloom > 4) {
-    return { ok: false, reason: `bloom_level ${q.bloom_level} not allowed for MCQ/TF (must be 1-4)` };
-  }
-  const bloomSafe = bloom;
-
-  const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
-  if (!explanation) return { ok: false, reason: "empty explanation" };
+  const explanation = String((raw as any)?.explanation ?? "").trim();
+  const explRes = validateExplanation({
+    format: format as QuestionFormat,
+    options,
+    answer,
+    explanation,
+  });
+  if (!explRes.ok) return explRes;
 
   return {
     ok: true,
     q: {
-      content_text: content,
-      format,
+      content_text,
+      format: format as "mcq" | "true_false",
       options,
       answer,
-      difficulty_estimate: diff,
-      bloom_level: bloomSafe,
-      explanation,
-      topic: canonical,
+      difficulty_estimate,
+      bloom_level,
+      explanation: explRes.value,
+      topic,
     },
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Per-concept quota helpers                                                   */
+/* -------------------------------------------------------------------------- */
+
+function buildConceptQuota(codes: string[], total: number): Record<string, number> {
+  const base = Math.floor(total / codes.length);
+  let remainder = total - base * codes.length;
+  const spec: Record<string, number> = {};
+  for (const code of codes) {
+    spec[code] = base + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder--;
+  }
+  return spec;
+}
+
+function shortConcepts(shortfall: Record<string, number>): string[] {
+  return Object.entries(shortfall)
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([code]) => code);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Backoff                                                                     */
+/* -------------------------------------------------------------------------- */
+
+async function jitteredBackoff(deadlineAt: number, baseMs = 400, spreadMs = 600) {
+  const wait = baseMs + Math.floor(Math.random() * spreadMs);
+  if (Date.now() + wait >= deadlineAt) return;
+  await new Promise((r) => setTimeout(r, wait));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Tier generation                                                             */
+/* -------------------------------------------------------------------------- */
+
+interface TierGenOptions {
+  /** When set, restrict prompt concept list + quota audit to these codes. */
+  focusConcepts?: string[];
+  /** Override attempt budget (used for the short top-up pass). */
+  maxAttempts?: number;
 }
 
 async function generateTier(
@@ -434,31 +286,47 @@ async function generateTier(
   lovableKey: string,
   deadlineAt: number,
   crossTierAvoid: GeneratedQuestion[] = [],
+  opts: TierGenOptions = {},
 ): Promise<GeneratedQuestion[]> {
-  const conceptList = Object.keys(conceptByCode)
-    .map((c) => `  - ${c}`)
-    .join("\n");
+  const allConceptCodes = Object.keys(conceptByCode);
+  const focusCodes = opts.focusConcepts?.length ? opts.focusConcepts : allConceptCodes;
+  const conceptList = focusCodes.map((c) => `  - ${c}`).join("\n");
+  const perConceptQuota = buildConceptQuota(focusCodes, spec.count);
+
   const accepted: GeneratedQuestion[] = [];
+  const attemptRejections: string[] = [];
   let retryHint: string | null = null;
+  let skewNote: string | null = null;
+  const maxAttempts = opts.maxAttempts ?? spec.maxAttempts;
 
+  outer: for (let attempt = 0; attempt < maxAttempts && accepted.length < spec.count; attempt++) {
+    // Concepts still short for the next sub-call, so the prompt asks the model
+    // to focus where it owes work (issue F).
+    const shortfall = auditBatchQuotas(accepted, { perConcept: perConceptQuota }).perConcept;
+    const owedConcepts = shortConcepts(shortfall);
+    const promptConcepts = owedConcepts.length ? owedConcepts : focusCodes;
+    const promptConceptList = promptConcepts.map((c) => `  - ${c}`).join("\n");
 
-  outer: for (let attempt = 0; attempt < spec.maxAttempts && accepted.length < spec.count; attempt++) {
-    // Within an attempt, chunk into sub-calls. Each sub-call asks for a small
-    // batch (≤spec.batchSize) plus a +1 over-generation buffer so validator
-    // rejections don't immediately force a new full round-trip.
-    while (accepted.length < spec.count) {
-      if (Date.now() >= deadlineAt) break outer;
-      const remaining = spec.count - accepted.length;
-      const subNeed = Math.min(spec.batchSize, remaining);
-      const askFor = subNeed + 1; // over-generation buffer
+    if (Date.now() >= deadlineAt) break;
+    const remaining = spec.count - accepted.length;
+    const subNeed = Math.min(spec.batchSize, remaining);
+    const askFor = subNeed + 1; // over-generation buffer
 
-      const systemPrompt = `You are an expert assessment designer for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier}-tier WEEKLY QUIZ questions for Week ${weekNumber}${weekName ? ` — ${weekName}` : ""}.
+    const owedLine =
+      owedConcepts.length > 0
+        ? `\n- You still owe questions on these concepts: ${owedConcepts
+            .map((c) => `${c} (${shortfall[c]})`)
+            .join(", ")}. Prioritise them.`
+        : "";
+
+    const systemPrompt = `You are an expert assessment designer for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier}-tier WEEKLY QUIZ questions for Week ${weekNumber}${weekName ? ` — ${weekName}` : ""}.
 
 Tier: ${spec.label}
-Target difficulty (0=easy, 1=hard): ${spec.difficulty}
+Target difficulty (0=easy, 1=hard): ${spec.difficulty} (must be within ±0.15)
 
-CONCEPTS for this week — the 'topic' field of each question MUST be one of these exact concept codes (case-sensitive):
-${conceptList}
+CONCEPTS available for this week — the 'topic' field of each question MUST be one of these exact concept codes (case-sensitive):
+${promptConceptList}
+(Full week concept list: ${conceptList.trim() ? "\n" + conceptList : "(same as above)"})
 
 STRICT RULES:
 - Each question MUST be either multiple-choice (format="mcq") or true/false (format="true_false"). NO short answer, NO problem solving.
@@ -468,184 +336,187 @@ STRICT RULES:
 - bloom_level: integer 1-4 ONLY (1=Remember, 2=Understand, 3=Apply, 4=Analyze). Do NOT use 5 (Evaluate) or 6 (Create) — these cannot be fairly assessed with MCQ or True/False.
 ${spec.tier === "easy" ? "- Bloom target: mostly 1-2 (Remember/Understand)." : spec.tier === "medium" || spec.tier === "standard" ? "- Bloom target: mostly 2-3 (Understand/Apply); at least 40% at bloom 3." : "- Bloom target: 3-4 (Apply/Analyze); at least 60% at bloom 3-4. Prefer scenario, code-trace, or comparison stems over single-fact recall."}
 - content_text: question stem only, ≤ 600 chars.
-- explanation: 1-2 sentences explaining the correct answer.
-- explanation: 1-2 sentences that explicitly support the exact correct answer and do not support any distractor.
+- explanation: 1-2 sentences that explicitly support the exact correct answer (using its key terms) and do not support any distractor. Do NOT name-drop a wrong option letter.
 - topic: MUST exactly match one of the concept codes above.
-- Distribute questions across the listed concepts (don't pile all on one).
+- Distribute questions across the listed concepts (don't pile all on one).${owedLine}
 - Do NOT duplicate or closely paraphrase any question already generated in this same tier. If existing same-tier questions are provided below, create new stems, new examples, and distinct answer rationales.
 
 ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 - LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
 - ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible student misconception (a wrong rule, a swapped operator, an off-by-one, a confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer. No obviously absurd choices.
-- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${formatExistingQuestionsForPrompt(accepted)}${formatCrossTierAvoidForPrompt(crossTierAvoid)}${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${skewNote ? `\n- ${skewNote}` : ""}${formatExistingQuestionsForPrompt(accepted)}${formatCrossTierAvoidForPrompt(crossTierAvoid)}${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
 
-      let response: Response;
-      try {
-        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          signal: AbortSignal.timeout(spec.perCallTimeoutMs),
-          headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: MODEL,
-            temperature: 0.35,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: `Generate ${askFor} ${spec.tier}-tier questions now.` },
-            ],
-            tools: [
-              {
-                type: "function",
-                function: {
-                  name: "submit_questions",
-                  description: "Submit weekly quiz questions",
-                  parameters: {
-                    type: "object",
-                    properties: {
-                      questions: {
-                        type: "array",
-                        items: {
-                          type: "object",
-                          properties: {
-                            content_text: { type: "string" },
-                            format: { type: "string", enum: ["mcq", "true_false"] },
-                            options: { type: "array", items: { type: "string" } },
-                            answer: { type: "string" },
-                            difficulty_estimate: { type: "number" },
-                            bloom_level: { type: "integer", minimum: 1, maximum: 4 },
-                            explanation: { type: "string" },
-                            topic: { type: "string" },
-                          },
-                          required: [
-                            "content_text",
-                            "format",
-                            "options",
-                            "answer",
-                            "difficulty_estimate",
-                            "bloom_level",
-                            "explanation",
-                            "topic",
-                          ],
+    let response: Response;
+    try {
+      response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        signal: AbortSignal.timeout(spec.perCallTimeoutMs),
+        headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: MODEL,
+          temperature: 0.35,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Generate ${askFor} ${spec.tier}-tier questions now.` },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "submit_questions",
+                description: "Submit weekly quiz questions",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    questions: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          content_text: { type: "string" },
+                          format: { type: "string", enum: ["mcq", "true_false"] },
+                          options: { type: "array", items: { type: "string" } },
+                          answer: { type: "string" },
+                          difficulty_estimate: { type: "number" },
+                          bloom_level: { type: "integer", minimum: 1, maximum: 4 },
+                          explanation: { type: "string" },
+                          topic: { type: "string" },
                         },
+                        required: [
+                          "content_text",
+                          "format",
+                          "options",
+                          "answer",
+                          "difficulty_estimate",
+                          "bloom_level",
+                          "explanation",
+                          "topic",
+                        ],
                       },
                     },
-                    required: ["questions"],
                   },
+                  required: ["questions"],
                 },
               },
-            ],
-            tool_choice: { type: "function", function: { name: "submit_questions" } },
-          }),
-        });
-      } catch (err) {
-        // Timeout / abort / network — log, break to next attempt.
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[weekly-quiz] ${spec.tier} sub-call failed (attempt ${attempt + 1}):`, msg);
-        retryHint = `Previous sub-call timed out or errored: ${msg.slice(0, 120)}`;
-        break; // next attempt
-      }
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "submit_questions" } },
+        }),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[weekly-quiz] ${spec.tier} sub-call failed (attempt ${attempt + 1}):`, msg);
+      attemptRejections.push(`transport: ${msg.slice(0, 80)}`);
+      retryHint = summarizeRejections(attemptRejections);
+      await jitteredBackoff(deadlineAt);
+      continue outer;
+    }
 
-      if (!response.ok) {
-        const txt = await response.text().catch(() => "");
-        if (response.status === 429) {
-          retryHint = "Rate limited by gateway";
-          break; // next attempt (small backoff is implicit)
-        }
-        if (response.status === 402) throw new CreditsExhaustedError();
-        console.warn(`[weekly-quiz] ${spec.tier} gateway ${response.status}:`, txt.slice(0, 200));
-        retryHint = `Gateway returned ${response.status}`;
-        break;
+    if (!response.ok) {
+      const txt = await response.text().catch(() => "");
+      if (response.status === 402) throw new CreditsExhaustedError();
+      if (response.status === 429) {
+        attemptRejections.push("gateway: 429 rate-limited");
+        retryHint = summarizeRejections(attemptRejections);
+        await jitteredBackoff(deadlineAt, 800, 1200);
+        continue outer;
       }
+      console.warn(`[weekly-quiz] ${spec.tier} gateway ${response.status}:`, txt.slice(0, 200));
+      attemptRejections.push(`gateway: ${response.status}`);
+      retryHint = summarizeRejections(attemptRejections);
+      await jitteredBackoff(deadlineAt);
+      continue outer;
+    }
 
-      const data = await response.json().catch(() => null);
-      const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
-      if (!toolCall) {
-        retryHint = "no tool call returned";
+    const data = await response.json().catch(() => null);
+    const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall) {
+      attemptRejections.push("no tool call returned");
+      retryHint = summarizeRejections(attemptRejections);
+      continue outer;
+    }
+    let parsed: any;
+    try {
+      parsed = JSON.parse(toolCall.function.arguments);
+    } catch {
+      attemptRejections.push("invalid JSON");
+      retryHint = summarizeRejections(attemptRejections);
+      continue outer;
+    }
+    const arr: any[] = Array.isArray(parsed?.questions) ? parsed.questions : [];
+
+    const subRejects: string[] = [];
+    for (const q of arr) {
+      if (accepted.length >= spec.count) break;
+
+      const v = validateCandidate(q, spec, conceptByCode);
+      if (!v.ok) {
+        subRejects.push(v.reason);
         continue;
       }
-      let parsed: any;
-      try {
-        parsed = JSON.parse(toolCall.function.arguments);
-      } catch {
-        retryHint = "invalid JSON";
+
+      // Dedup: check against everything already accepted (same tier) AND
+      // against cross-tier avoid list. dedupWithin does both in one pass.
+      const { kept, rejected } = dedupWithin([v.q], [...accepted, ...crossTierAvoid]);
+      if (kept.length === 0) {
+        subRejects.push(
+          `duplicate/paraphrase: "${rejected[0]?.duplicateOf ?? v.q.content_text.slice(0, 80)}"`,
+        );
         continue;
       }
-      const arr: any[] = Array.isArray(parsed?.questions) ? parsed.questions : [];
+      accepted.push(v.q);
+    }
 
-      const rejects: string[] = [];
-      for (const q of arr) {
-        if (accepted.length >= spec.count) break;
-        const v = validateQuestion(q, spec, conceptByCode);
-        if (!v.ok) {
-          rejects.push(v.reason);
-          continue;
-        }
-        const explanationCheck = explanationSupportsAnswer(v.q);
-        if (!explanationCheck.ok) {
-          rejects.push(explanationCheck.reason);
-          continue;
-        }
-        const duplicateOf = accepted.find((a) => isLikelyDuplicateQuestion(a, v.q));
-        if (duplicateOf) {
-          rejects.push(`duplicate/paraphrase of existing same-tier question: "${duplicateOf.content_text.slice(0, 90)}"`);
-          continue;
-        }
-        const crossDup = crossTierAvoid.find((a) => isLikelyDuplicateQuestion(a, v.q));
-        if (crossDup) {
-          rejects.push(`duplicate/paraphrase of standard-tier question: "${crossDup.content_text.slice(0, 90)}"`);
-          continue;
-        }
+    attemptRejections.push(...subRejects);
+    retryHint = summarizeRejections(attemptRejections);
 
-        accepted.push(v.q);
-      }
-      if (accepted.length < spec.count && rejects.length) {
-        retryHint = `Previous sub-call had ${rejects.length} rejected questions. Reasons: ${rejects.slice(0, 3).join("; ")}`;
-      }
-
-      // If the sub-call produced zero survivors, break out to start a fresh
-      // attempt rather than spinning on the same prompt with identical hint.
-      if (arr.length > 0 && accepted.length === 0) break;
-
-      // Post-batch position-skew check — only meaningful once tier is full.
-      if (accepted.length >= spec.count) {
-        const mcq = accepted.filter((a) => a.format === "mcq");
-        if (mcq.length >= 4) {
-          const counts = [0, 0, 0, 0];
-          for (const a of mcq) {
-            const idx = a.options.indexOf(a.answer);
-            if (idx >= 0 && idx < 4) counts[idx]++;
-          }
-          const maxC = Math.max(...counts);
-          if (maxC / mcq.length > 0.5) {
-            const skewIdx = counts.indexOf(maxC);
-            const allowed = Math.floor(mcq.length * 0.5);
-            let toRemove = maxC - allowed;
-            for (let i = accepted.length - 1; i >= 0 && toRemove > 0; i--) {
-              const a = accepted[i];
-              if (a.format === "mcq" && a.options.indexOf(a.answer) === skewIdx) {
-                accepted.splice(i, 1);
-                toRemove--;
-              }
+    // Post-batch position-skew check — only meaningful once tier is full.
+    if (accepted.length >= spec.count) {
+      const mcq = accepted.filter((a) => a.format === "mcq");
+      if (mcq.length >= 4) {
+        const counts = [0, 0, 0, 0];
+        for (const a of mcq) {
+          const idx = a.options.indexOf(a.answer);
+          if (idx >= 0 && idx < 4) counts[idx]++;
+        }
+        const maxC = Math.max(...counts);
+        if (maxC / mcq.length > 0.5) {
+          const skewIdx = counts.indexOf(maxC);
+          const allowed = Math.floor(mcq.length * 0.5);
+          let toRemove = maxC - allowed;
+          for (let i = accepted.length - 1; i >= 0 && toRemove > 0; i--) {
+            const a = accepted[i];
+            if (a.format === "mcq" && a.options.indexOf(a.answer) === skewIdx) {
+              accepted.splice(i, 1);
+              toRemove--;
             }
-            retryHint = `Correct-answer position was skewed to index ${skewIdx} (${maxC}/${mcq.length}). Rotate correct positions across 0-3.`;
           }
-        }
-
-        const finalCheck = validateTierQuestionSet(accepted);
-        if (finalCheck.rejections.length) {
-          accepted.splice(0, accepted.length, ...finalCheck.questions);
-          retryHint = `Final tier validation removed ${finalCheck.rejections.length} question(s): ${finalCheck.rejections.slice(0, 3).join("; ")}. Generate replacements that are unique and whose explanations support the exact correct answer.`;
+          // Persist the note into the NEXT prompt (issue G): tell the model
+          // which index was over-represented, not just via retryHint.
+          skewNote = `In the previous batch, correct answers over-clustered at option index ${skewIdx}. Put correct answers at OTHER indexes this time.`;
+          attemptRejections.push(`position-skew idx=${skewIdx}`);
+          retryHint = summarizeRejections(attemptRejections);
         }
       }
     }
   }
 
-  const finalCheck = validateTierQuestionSet(accepted);
-  if (finalCheck.rejections.length) {
-    console.warn(`[weekly-quiz] ${spec.tier} final validation removed ${finalCheck.rejections.length} question(s):`, finalCheck.rejections.slice(0, 5));
+  // Final safety pass (structural + explanation + dedup are already enforced
+  // per-candidate, but run dedupWithin once more in case skew removal + refill
+  // introduced a paraphrase).
+  const finalDedup = dedupWithin(accepted, []);
+  if (finalDedup.rejected.length) {
+    console.warn(
+      `[weekly-quiz] ${spec.tier} final dedup removed ${finalDedup.rejected.length}:`,
+      finalDedup.rejected.map((r) => r.duplicateOf).slice(0, 3),
+    );
   }
-  // Return whatever we have — caller decides whether to accept a partial tier.
-  return finalCheck.questions;
+  return finalDedup.kept;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Handler                                                                     */
+/* -------------------------------------------------------------------------- */
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -850,7 +721,7 @@ Deno.serve(async (req) => {
     const crossTierDrops: Record<string, number> = {};
     for (const tier of tierPriority) {
       for (const item of allQuestions.filter((x) => x.spec.tier === tier)) {
-        const dup = kept.find((k) => isLikelyDuplicateQuestion(k.q, item.q));
+        const dup = kept.find((k) => isLikelyDuplicate(k.q, item.q));
         if (dup) {
           crossTierDrops[tier] = (crossTierDrops[tier] ?? 0) + 1;
           console.warn(`[weekly-quiz] cross-tier dedup: dropped ${tier} "${item.q.content_text.slice(0, 80)}" (duplicates ${dup.spec.tier} "${dup.q.content_text.slice(0, 80)}")`);
@@ -865,16 +736,25 @@ Deno.serve(async (req) => {
     }
     allQuestions.splice(0, allQuestions.length, ...kept);
 
-    // Backfill: any tier short of spec.count after dedup gets one extra
-    // generation call, with all currently kept questions as cross-tier avoid.
+    // Targeted top-up: for any tier still short after the main pass + cross-tier
+    // dedup, run one narrow generateTier call that focuses on the specific
+    // concepts the audit says are short (issue I).
     for (const spec of TIER_SPEC) {
-      const currentCount = allQuestions.filter((x) => x.spec.tier === spec.tier).length;
-      const shortfall = spec.count - currentCount;
+      const tierItems = allQuestions.filter((x) => x.spec.tier === spec.tier);
+      const shortfall = spec.count - tierItems.length;
       if (shortfall <= 0) continue;
       if (deadlineAt - Date.now() < 25_000) {
         console.warn(`[weekly-quiz] backfill tier=${spec.tier} skipped: deadline budget too low`);
         continue;
       }
+
+      const tierQuota = buildConceptQuota(Object.keys(conceptByCode), spec.count);
+      const tierAudit = auditBatchQuotas(
+        tierItems.map((x) => x.q),
+        { perConcept: tierQuota },
+      ).perConcept;
+      const focus = shortConcepts(tierAudit);
+
       const backfillSpec: TierSpec = { ...spec, count: shortfall };
       const avoid = allQuestions.map((x) => x.q);
       try {
@@ -887,15 +767,16 @@ Deno.serve(async (req) => {
           lovableKey,
           deadlineAt,
           avoid,
+          { focusConcepts: focus.length ? focus : undefined, maxAttempts: 1 },
         );
         let delivered = 0;
         for (const q of extra) {
           if (delivered >= shortfall) break;
-          if (allQuestions.some((k) => isLikelyDuplicateQuestion(k.q, q))) continue;
+          if (allQuestions.some((k) => isLikelyDuplicate(k.q, q))) continue;
           allQuestions.push({ spec, q });
           delivered++;
         }
-        console.log(`[weekly-quiz] backfill tier=${spec.tier} requested=${shortfall} delivered=${delivered}`);
+        console.log(`[weekly-quiz] backfill tier=${spec.tier} focus=[${focus.join(",")}] requested=${shortfall} delivered=${delivered}`);
       } catch (err) {
         if (err instanceof CreditsExhaustedError) creditsExhausted = true;
         const msg = err instanceof Error ? err.message : String(err);
@@ -904,7 +785,6 @@ Deno.serve(async (req) => {
         console.warn(`[weekly-quiz] backfill tier=${spec.tier} failed:`, msg);
       }
     }
-
 
     // Replace existing rows for this week
     await admin
