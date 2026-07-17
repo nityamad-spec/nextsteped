@@ -73,7 +73,7 @@ const TIER_SPEC: TierSpec[] = [
     difficulty: 0.5,
     label: "Standard tier (common to all students, medium difficulty)",
     batchSize: 3,
-    perCallTimeoutMs: 25_000,
+    perCallTimeoutMs: 50_000,
     maxAttempts: 2,
   },
   {
@@ -82,7 +82,7 @@ const TIER_SPEC: TierSpec[] = [
     difficulty: 0.2,
     label: "Easy adaptive tier (for struggling students)",
     batchSize: 3,
-    perCallTimeoutMs: 25_000,
+    perCallTimeoutMs: 50_000,
     maxAttempts: 2,
   },
   {
@@ -91,7 +91,7 @@ const TIER_SPEC: TierSpec[] = [
     difficulty: 0.5,
     label: "Medium adaptive tier (for average students)",
     batchSize: 3,
-    perCallTimeoutMs: 25_000,
+    perCallTimeoutMs: 50_000,
     maxAttempts: 2,
   },
   {
@@ -100,15 +100,16 @@ const TIER_SPEC: TierSpec[] = [
     difficulty: 0.85,
     label: "Hard adaptive tier (for advanced students)",
     batchSize: 3,
-    perCallTimeoutMs: 30_000,
+    perCallTimeoutMs: 60_000,
     maxAttempts: 2,
   },
 ];
 
-const MODEL = "google/gemini-2.5-flash";
-// Global wall-clock budget. Supabase edge invoke is bounded at ~150s; leave
+const MODEL = "google/gemini-2.5-pro";
+// Global wall-clock budget. Targeting a ~300s Supabase edge invoke cap; leave
 // headroom for auth, DB reads, insert, and JSON serialization.
-const GLOBAL_DEADLINE_MS = 130_000;
+const GLOBAL_DEADLINE_MS = 280_000;
+
 
 // Prompt/dedup caps kept symmetric so we never reject a candidate that the
 // model was never warned about (issue J in the plan). Kept small to reduce
@@ -644,9 +645,10 @@ Deno.serve(async (req) => {
     // Run every tier in parallel. Post-assembly cross-tier dedup (below)
     // handles any overlap by tier priority — no need to serialise standard
     // first, which previously blew the global deadline when it timed out.
-    // Reserve ~45s of the global deadline for the guaranteed backfill loop.
+    // Reserve ~90s of the global deadline for the guaranteed backfill loop.
     const deadlineAt = Date.now() + GLOBAL_DEADLINE_MS;
-    const mainPassDeadline = Math.min(deadlineAt, Date.now() + (GLOBAL_DEADLINE_MS - 45_000));
+    const mainPassDeadline = Math.min(deadlineAt, Date.now() + (GLOBAL_DEADLINE_MS - 90_000));
+
     const allQuestions: { spec: TierSpec; q: GeneratedQuestion }[] = [];
     let creditsExhausted = false;
     const tierErrors: Record<string, string> = {};
