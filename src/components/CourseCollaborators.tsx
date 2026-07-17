@@ -5,7 +5,7 @@ import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -18,15 +18,26 @@ interface Collaborator {
   role: string;
   created_at: string;
   name: string;
+  email: string | null;
 }
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type AddResults = {
+  added: string[];
+  invalid: string[];
+  notTeacher: string[];
+  duplicate: string[];
+};
 
 export default function CourseCollaborators() {
   const { user } = useAuth();
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
-  const [email, setEmail] = useState("");
+  const [emailsText, setEmailsText] = useState("");
   const [adding, setAdding] = useState(false);
+  const [lastResults, setLastResults] = useState<AddResults | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Collaborator | null>(null);
   const [removing, setRemoving] = useState(false);
 
@@ -36,7 +47,6 @@ export default function CourseCollaborators() {
     if (!courseId || !user) return;
     setLoading(true);
 
-    // 1. Fetch course to determine owner
     const { data: course } = await supabase
       .from("courses")
       .select("teacher_id")
@@ -47,12 +57,11 @@ export default function CourseCollaborators() {
     const ownerIsMe = ownerId === user.id;
     setIsOwner(ownerIsMe);
 
-    // 2. Fetch owner profile
     let ownerRow: Collaborator | null = null;
     if (ownerId) {
       const { data: ownerProfile } = await supabase
         .from("profiles")
-        .select("id, name, created_at")
+        .select("id, name, email, created_at")
         .eq("id", ownerId)
         .single();
 
@@ -63,14 +72,14 @@ export default function CourseCollaborators() {
           role: "owner",
           created_at: ownerProfile.created_at,
           name: ownerProfile.name || "Unknown",
+          email: ownerProfile.email ?? null,
         };
       }
     }
 
-    // 3. Fetch collaborators from course_teachers
     const { data, error } = await supabase
       .from("course_teachers")
-      .select("id, teacher_id, role, created_at, profiles(name)")
+      .select("id, teacher_id, role, created_at, profiles(name, email)")
       .eq("course_id", courseId);
 
     if (error) {
@@ -80,13 +89,14 @@ export default function CourseCollaborators() {
     }
 
     const mapped: Collaborator[] = (data || [])
-      .filter((row: any) => row.teacher_id !== ownerId) // exclude owner if duplicated
+      .filter((row: any) => row.teacher_id !== ownerId)
       .map((row: any) => ({
         id: row.id,
         teacher_id: row.teacher_id,
         role: row.role || "collaborator",
         created_at: row.created_at,
         name: row.profiles?.name || "Unknown",
+        email: row.profiles?.email ?? null,
       }));
 
     setCollaborators(ownerRow ? [ownerRow, ...mapped] : mapped);
@@ -98,39 +108,105 @@ export default function CourseCollaborators() {
   }, [courseId, user]);
 
   const handleAdd = async () => {
-    if (!email.trim() || !courseId) return;
+    if (!courseId || !emailsText.trim()) return;
     setAdding(true);
+    setLastResults(null);
 
-    const { data: teachers, error: searchError } = await supabase
-      .from("profiles")
-      .select("id, name")
-      .eq("role", "teacher")
-      .ilike("name", `%${email.trim()}%`);
-
-    if (searchError || !teachers || teachers.length === 0) {
-      toast({ title: "Teacher not found", description: "No teacher found with that name.", variant: "destructive" });
-      setAdding(false);
-      return;
+    // 1. Parse + normalize
+    const rawTokens = emailsText.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
+    const seen = new Set<string>();
+    const tokens: string[] = [];
+    for (const t of rawTokens) {
+      const lower = t.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        tokens.push(lower);
+      }
     }
 
-    const teacher = teachers[0];
-    if (collaborators.some((c) => c.teacher_id === teacher.id)) {
-      toast({ title: "Already added", description: `${teacher.name} is already a collaborator.`, variant: "destructive" });
-      setAdding(false);
-      return;
+    const invalid: string[] = [];
+    const validEmails: string[] = [];
+    for (const t of tokens) {
+      if (EMAIL_RE.test(t)) validEmails.push(t);
+      else invalid.push(t);
     }
 
-    const { error: insertError } = await supabase
-      .from("course_teachers")
-      .insert({ course_id: courseId, teacher_id: teacher.id, role: "collaborator" });
+    // 2. Skip already-collaborator
+    const existingEmails = new Set(
+      collaborators.map((c) => (c.email || "").toLowerCase()).filter(Boolean),
+    );
+    const duplicate: string[] = [];
+    const toLookup: string[] = [];
+    for (const e of validEmails) {
+      if (existingEmails.has(e)) duplicate.push(e);
+      else toLookup.push(e);
+    }
 
-    if (insertError) {
-      toast({ title: "Failed to add", description: insertError.message, variant: "destructive" });
+    // 3. Batch lookup
+    const notTeacher: string[] = [];
+    const added: string[] = [];
+    let toInsert: { course_id: string; teacher_id: string; role: string }[] = [];
+
+    if (toLookup.length > 0) {
+      const { data: profs, error: lookupErr } = await supabase
+        .from("profiles")
+        .select("id, email, role")
+        .in("email", toLookup);
+
+      if (lookupErr) {
+        toast({ title: "Lookup failed", description: lookupErr.message, variant: "destructive" });
+        setAdding(false);
+        return;
+      }
+
+      const byEmail = new Map<string, { id: string; role: string }>();
+      for (const p of profs || []) {
+        if (p.email) byEmail.set(p.email.toLowerCase(), { id: p.id, role: p.role });
+      }
+
+      for (const e of toLookup) {
+        const hit = byEmail.get(e);
+        if (!hit || hit.role !== "teacher") {
+          notTeacher.push(e);
+        } else {
+          toInsert.push({ course_id: courseId, teacher_id: hit.id, role: "collaborator" });
+          added.push(e);
+        }
+      }
+    }
+
+    if (toInsert.length > 0) {
+      const { error: insertErr } = await supabase.from("course_teachers").insert(toInsert);
+      if (insertErr) {
+        toast({ title: "Failed to add collaborators", description: insertErr.message, variant: "destructive" });
+        setAdding(false);
+        await fetchCollaborators();
+        return;
+      }
+    }
+
+    setLastResults({ added, invalid, notTeacher, duplicate });
+
+    const summary: string[] = [];
+    if (added.length) summary.push(`${added.length} added`);
+    if (duplicate.length) summary.push(`${duplicate.length} already`);
+    if (notTeacher.length) summary.push(`${notTeacher.length} not a teacher`);
+    if (invalid.length) summary.push(`${invalid.length} invalid`);
+
+    if (added.length > 0) {
+      toast({ title: "Collaborators updated", description: summary.join(" · ") });
+      // Remove successfully added from textarea, keep failures for correction
+      const remaining = [...invalid, ...notTeacher];
+      setEmailsText(remaining.join("\n"));
+      await fetchCollaborators();
     } else {
-      toast({ title: "Collaborator added", description: `${teacher.name} has been added to the course.` });
-      setEmail("");
-      fetchCollaborators();
+      toast({
+        title: "No collaborators added",
+        description: summary.join(" · ") || "No valid emails to add.",
+        variant: "destructive",
+      });
     }
+
     setAdding(false);
   };
 
@@ -223,17 +299,55 @@ export default function CourseCollaborators() {
             </div>
 
             {isOwner && (
-              <div className="flex items-center gap-2 pt-2">
-                <Input
-                  placeholder="Search teacher by name..."
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+              <div className="space-y-2 pt-2">
+                <Textarea
+                  placeholder={"one email per line, e.g.\nalice@school.edu\nbob@school.edu"}
+                  value={emailsText}
+                  onChange={(e) => setEmailsText(e.target.value)}
+                  rows={5}
+                  className="font-mono text-sm"
                 />
-                <Button onClick={handleAdd} disabled={adding || !email.trim()} className="shrink-0 gap-1.5">
-                  <UserPlus className="h-4 w-4" />
-                  Add
-                </Button>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    Enter one teacher email per line. Only registered teachers can be added.
+                  </p>
+                  <Button
+                    onClick={handleAdd}
+                    disabled={adding || !emailsText.trim()}
+                    className="shrink-0 gap-1.5"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    {adding ? "Adding..." : "Add collaborators"}
+                  </Button>
+                </div>
+
+                {lastResults && (
+                  <div className="space-y-1 rounded-md border bg-muted/40 p-3 text-xs">
+                    {lastResults.added.length > 0 && (
+                      <p className="text-emerald-600 dark:text-emerald-400">
+                        Added ({lastResults.added.length}): {lastResults.added.join(", ")}
+                      </p>
+                    )}
+                    {lastResults.duplicate.length > 0 && (
+                      <p className="text-muted-foreground">
+                        Already a collaborator ({lastResults.duplicate.length}):{" "}
+                        {lastResults.duplicate.join(", ")}
+                      </p>
+                    )}
+                    {lastResults.notTeacher.length > 0 && (
+                      <p className="text-destructive">
+                        Not a registered teacher ({lastResults.notTeacher.length}):{" "}
+                        {lastResults.notTeacher.join(", ")}
+                      </p>
+                    )}
+                    {lastResults.invalid.length > 0 && (
+                      <p className="text-destructive">
+                        Invalid email ({lastResults.invalid.length}):{" "}
+                        {lastResults.invalid.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </>
