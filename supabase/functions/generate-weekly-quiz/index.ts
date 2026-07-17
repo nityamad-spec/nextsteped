@@ -73,8 +73,8 @@ const TIER_SPEC: TierSpec[] = [
     difficulty: 0.5,
     label: "Standard tier (common to all students, medium difficulty)",
     batchSize: 3,
-    perCallTimeoutMs: 45_000,
-    maxAttempts: 3,
+    perCallTimeoutMs: 25_000,
+    maxAttempts: 2,
   },
   {
     tier: "easy",
@@ -82,8 +82,8 @@ const TIER_SPEC: TierSpec[] = [
     difficulty: 0.2,
     label: "Easy adaptive tier (for struggling students)",
     batchSize: 3,
-    perCallTimeoutMs: 45_000,
-    maxAttempts: 3,
+    perCallTimeoutMs: 25_000,
+    maxAttempts: 2,
   },
   {
     tier: "medium",
@@ -91,8 +91,8 @@ const TIER_SPEC: TierSpec[] = [
     difficulty: 0.5,
     label: "Medium adaptive tier (for average students)",
     batchSize: 3,
-    perCallTimeoutMs: 45_000,
-    maxAttempts: 3,
+    perCallTimeoutMs: 25_000,
+    maxAttempts: 2,
   },
   {
     tier: "hard",
@@ -100,20 +100,21 @@ const TIER_SPEC: TierSpec[] = [
     difficulty: 0.85,
     label: "Hard adaptive tier (for advanced students)",
     batchSize: 3,
-    perCallTimeoutMs: 60_000,
-    maxAttempts: 4,
+    perCallTimeoutMs: 30_000,
+    maxAttempts: 2,
   },
 ];
 
-const MODEL = "google/gemini-2.5-pro";
+const MODEL = "google/gemini-2.5-flash";
 // Global wall-clock budget. Supabase edge invoke is bounded at ~150s; leave
 // headroom for auth, DB reads, insert, and JSON serialization.
 const GLOBAL_DEADLINE_MS = 130_000;
 
 // Prompt/dedup caps kept symmetric so we never reject a candidate that the
-// model was never warned about (issue J in the plan).
-const SAME_TIER_PROMPT_CAP = 16;
-const CROSS_TIER_PROMPT_CAP = 16;
+// model was never warned about (issue J in the plan). Kept small to reduce
+// TTFT on flash — dedupWithin still catches overlaps server-side.
+const SAME_TIER_PROMPT_CAP = 8;
+const CROSS_TIER_PROMPT_CAP = 8;
 
 class CreditsExhaustedError extends Error {
   constructor(msg = "AI credits exhausted") {
