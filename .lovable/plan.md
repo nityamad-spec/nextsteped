@@ -1,67 +1,29 @@
-# Guarantee 5 questions per tier in `generate-weekly-quiz`
+# Switch model to Gemini 2.5 Pro and extend timeout to 300s
 
-Goal: each of the four tiers (`standard`, `easy`, `medium`, `hard`) ships **exactly 5 items** whenever the global deadline allows, using the **same validators and difficulty band** already enforced by `validateCandidate` + `_shared/question-validation.ts`. No relaxed rules, no tier-specific criteria drift.
+Scope: `supabase/functions/generate-weekly-quiz/index.ts` only. No validator, DB, client, or shared-code changes.
 
-## Where shortfall comes from today
+## Changes
 
-In `supabase/functions/generate-weekly-quiz/index.ts`:
+### 1. Model
+- Line 108: `const MODEL = "google/gemini-2.5-flash";` → `const MODEL = "google/gemini-2.5-pro";`
+- Rationale: user wants higher-quality generation for the weekly quiz; Pro tends to reduce validator rejections (better difficulty/Bloom/explanation compliance), which pairs well with the longer budget.
 
-1. `generateTier` exits early when `attempt >= maxAttempts` (2) even if `accepted.length < 5`.
-2. Over-generation buffer is only `subNeed + 1` — a single validator rejection leaves the sub-call short.
-3. Post-assembly cross-tier dedup (lines ~717–732) drops from lower-priority tiers but **does not top them back up**.
-4. Backfill loop (lines ~742–787) runs **once per tier** with `maxAttempts: 1`, no retry if it also comes back short.
-5. Backfill guard skips if `deadlineAt - Date.now() < 12_000`; because the main pass runs all four tiers in parallel with 25–30s timeouts + 2 attempts, budget can be tight when it starts.
+### 2. Global wall-clock budget: 150s → 300s
+- Line 111: `const GLOBAL_DEADLINE_MS = 130_000;` → `const GLOBAL_DEADLINE_MS = 280_000;`
+  - Keeps the same ~20s safety margin under the new 300s Supabase edge invoke cap that the user is targeting (previous value was 130s under a 150s cap).
+- Update the header comment on line 109–110 to reference the new 300s cap.
 
-## Fix (single file: `supabase/functions/generate-weekly-quiz/index.ts`)
+### 3. Per-call timeouts (raised to match Pro's higher latency)
+Pro is slower than Flash; with the wider global budget we can afford longer per-call aborts without starving backfill.
+- Lines 76, 85, 94 (easy/medium/standard): `perCallTimeoutMs: 25_000` → `50_000`
+- Line 103 (hard): `perCallTimeoutMs: 30_000` → `60_000`
 
-### 1. Larger over-generation buffer in `generateTier`
-- Change `askFor = subNeed + 1` → `askFor = Math.min(subNeed + 2, spec.batchSize + 2)`.
-  Absorbs one validator rejection per batch without forcing another sub-call.
+### 4. Reserved backfill window
+- Line 649: keep the "reserve 45s for backfill" split, but widen it to match the new budget:
+  `mainPassDeadline = Math.min(deadlineAt, Date.now() + (GLOBAL_DEADLINE_MS - 90_000))`
+  - Main pass gets ~190s, guarantee-backfill phase gets ~90s (three passes × ~30s each), preserving the 3-pass structure with room for Pro-latency retries.
 
-### 2. Reserve deadline budget for backfill
-- Split the wall clock: main pass gets `deadlineAt - 45_000`, backfill phase gets the remaining ~45s.
-- Pass a `mainPassDeadline` into the initial `Promise.allSettled` so main-tier calls stop early enough to leave room for guaranteed backfill.
-
-### 3. Bounded "guarantee" backfill loop
-Replace the single-pass backfill (lines ~742–787) with a loop:
-
-```text
-for pass in 1..3:
-    shortTiers = tiers where accepted count < spec.count
-    if none: break
-    if deadlineAt - now < 10_000: break
-    run backfill for shortTiers in PARALLEL:
-        - focusConcepts = auditBatchQuotas(...).shortfall  (same helper as today)
-        - maxAttempts = 2 (was 1)
-        - avoid = every accepted question across every tier
-        - count = per-tier shortfall
-    merge results with isLikelyDuplicate check against full accepted set
-```
-
-- Each pass reuses `generateTier` unchanged → identical validators, identical difficulty band, identical dedup.
-- Parallel pass keeps wall-clock cost near a single tier's latency.
-- Loop cap of 3 prevents runaway; deadline guard prevents overshoot.
-
-### 4. Cross-tier dedup priority stays the same, losers get topped up
-Existing priority order (`standard → hard → medium → easy`) is preserved for cross-tier dedup. The new backfill loop then fills whichever tier lost items, using the full accepted pool as `crossTierAvoid` so we do not reintroduce duplicates.
-
-### 5. Consistent request semantics
-Every backfill call goes through the same `generateTier` → same:
-- `validateStructural` (format, options, length parity, prefix checks)
-- `normalizeAnswer` + `validateOptionParity`
-- `validateConcept` against the same `conceptByCode`
-- `validateDifficulty` with the tier's `midpoint ± 0.15`
-- `validateBloom` with `enforceDifficultyConsistency: true`, same 1–4 range
-- `validateExplanation`
-- `dedupWithin` + `isLikelyDuplicate`
-
-No tier-specific loosening. If the model cannot produce a compliant item within the deadline, the response still reports `partial: true` and per-tier counts, but the guarantee loop makes partial outcomes rare.
-
-### 6. Response shape unchanged
-Same JSON: `{ ok, generated, requested, partial, by_tier, tier_errors }`. `partial` becomes `true` only when the deadline expires before every tier reaches 5.
-
-## Out of scope
-- No changes to `_shared/question-validation.ts` (validators stay canonical).
-- No schema/DB changes.
-- No changes to any other edge function or client code.
-- Model stays `google/gemini-2.5-flash`; tier timeouts and `maxAttempts` unchanged from the prior fix.
+## Not changing
+- `MAX_ATTEMPTS`, `SAME_TIER_PROMPT_CAP`, `CROSS_TIER_PROMPT_CAP`, over-generation buffer, validator pipeline, dedup priority, and the 3-pass guarantee-backfill loop all stay as they are.
+- Response shape (`{ ok, generated, requested, partial, by_tier, tier_errors }`) unchanged.
+- Note: user wrote "300ms / 150ms" — read as **seconds** to match the existing `GLOBAL_DEADLINE_MS` units (150s current, 300s target). Confirm if the intent was literally milliseconds.
