@@ -1,29 +1,40 @@
-# Switch model to Gemini 2.5 Pro and extend timeout to 300s
+## Goal
+In the Collaborators card on the Course Dashboard, replace the single-name search input with a textarea that accepts one teacher email per line, validates each, and adds all valid, existing, non-duplicate teachers in one action.
 
-Scope: `supabase/functions/generate-weekly-quiz/index.ts` only. No validator, DB, client, or shared-code changes.
+## Scope
+- File: `src/components/CourseCollaborators.tsx` (frontend only)
+- No DB, RLS, schema, or edge function changes. `profiles.email` already exists and is used for the lookup.
 
-## Changes
+## UX
+- Replace the `Input` + Add button row with:
+  - `Textarea` (min 4 rows) with placeholder: `"one email per line, e.g.\nalice@school.edu\nbob@school.edu"`
+  - Helper caption: "Enter one teacher email per line."
+  - "Add collaborators" button (disabled while empty or submitting).
+- On submit, show per-line results as a summary toast (and inline list under the textarea) with counts:
+  - Added: N
+  - Invalid email: N (list them)
+  - Not a registered teacher: N (list them)
+  - Already a collaborator: N (list them)
+- On success, valid added emails are removed from the textarea; invalid/failed entries remain so the user can fix them.
 
-### 1. Model
-- Line 108: `const MODEL = "google/gemini-2.5-flash";` → `const MODEL = "google/gemini-2.5-pro";`
-- Rationale: user wants higher-quality generation for the weekly quiz; Pro tends to reduce validator rejections (better difficulty/Bloom/explanation compliance), which pairs well with the longer budget.
+## Validation & Processing Logic
+1. Split textarea by newlines / commas / semicolons; trim; drop blanks; lowercase; de-dupe within the input.
+2. Regex validate each: `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`. Invalid → bucket "Invalid email".
+3. Skip any email already present in the current `collaborators` list (match against a fetched email map, see below) → bucket "Already a collaborator".
+4. Batch lookup remaining: `supabase.from("profiles").select("id, name, email, role").in("email", emails)`.
+   - Not returned or `role !== 'teacher'` → bucket "Not a registered teacher".
+5. Insert survivors into `course_teachers` with a single `.insert([...])` call (`role: 'collaborator'`), then `fetchCollaborators()`.
 
-### 2. Global wall-clock budget: 150s → 300s
-- Line 111: `const GLOBAL_DEADLINE_MS = 130_000;` → `const GLOBAL_DEADLINE_MS = 280_000;`
-  - Keeps the same ~20s safety margin under the new 300s Supabase edge invoke cap that the user is targeting (previous value was 130s under a 150s cap).
-- Update the header comment on line 109–110 to reference the new 300s cap.
+## Collaborator email awareness
+`fetchCollaborators` currently doesn't store emails. Extend the `profiles` selects (owner + collaborators join) to also select `email`, add `email` to the `Collaborator` type, and use it for duplicate detection in step 3. UI display unchanged.
 
-### 3. Per-call timeouts (raised to match Pro's higher latency)
-Pro is slower than Flash; with the wider global budget we can afford longer per-call aborts without starving backfill.
-- Lines 76, 85, 94 (easy/medium/standard): `perCallTimeoutMs: 25_000` → `50_000`
-- Line 103 (hard): `perCallTimeoutMs: 30_000` → `60_000`
+## Edge cases
+- Empty textarea → button disabled.
+- All lines invalid → toast "No valid emails to add", keep textarea intact.
+- Partial success → success toast with counts + destructive-styled inline list for failures.
+- Insert error from Postgres (e.g., unique violation race) → surface the error message via toast; refetch to reconcile.
 
-### 4. Reserved backfill window
-- Line 649: keep the "reserve 45s for backfill" split, but widen it to match the new budget:
-  `mainPassDeadline = Math.min(deadlineAt, Date.now() + (GLOBAL_DEADLINE_MS - 90_000))`
-  - Main pass gets ~190s, guarantee-backfill phase gets ~90s (three passes × ~30s each), preserving the 3-pass structure with room for Pro-latency retries.
-
-## Not changing
-- `MAX_ATTEMPTS`, `SAME_TIER_PROMPT_CAP`, `CROSS_TIER_PROMPT_CAP`, over-generation buffer, validator pipeline, dedup priority, and the 3-pass guarantee-backfill loop all stay as they are.
-- Response shape (`{ ok, generated, requested, partial, by_tier, tier_errors }`) unchanged.
-- Note: user wrote "300ms / 150ms" — read as **seconds** to match the existing `GLOBAL_DEADLINE_MS` units (150s current, 300s target). Confirm if the intent was literally milliseconds.
+## Out of scope
+- Inviting non-existing users via email.
+- Any role other than `collaborator`.
+- Owner reassignment.
