@@ -455,6 +455,42 @@ const CourseMaterials = () => {
           </CardContent>
         </Card>
 
+        {/* Textbooks — Optional but Recommended */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <BookOpen className="h-5 w-5 text-primary" /> Textbooks
+              </CardTitle>
+              <Badge variant="secondary">Optional but Recommended</Badge>
+            </div>
+            <CardDescription>
+              Upload the primary/reference textbooks for this course. Used to ground the AI TA and lesson plan in the same source material your students read.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              <strong>Accepted:</strong> PDF (multiple files allowed)
+            </p>
+            {user && courseId ? (
+              <FileUploadZone
+                folderPath={`${courseId}/textbooks`}
+                accept={TEXTBOOKS_ACCEPT}
+                files={textbookFiles}
+                onFilesChange={setTextbookFiles}
+                courseId={courseId}
+                teacherId={user.id}
+                folderType="textbooks"
+              />
+            ) : (
+              <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
+                {resolvingCourse && <Loader2 className="h-4 w-4 animate-spin" />}
+                Preparing upload area…
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Past Course Materials — Optional but Recommended */}
         <Card>
           <CardHeader>
