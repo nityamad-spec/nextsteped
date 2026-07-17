@@ -1,59 +1,67 @@
-# Fix `generate-weekly-quiz` server timeouts
+# Guarantee 5 questions per tier in `generate-weekly-quiz`
 
-## Diagnosis (from logs + code)
+Goal: each of the four tiers (`standard`, `easy`, `medium`, `hard`) ships **exactly 5 items** whenever the global deadline allows, using the **same validators and difficulty band** already enforced by `validateCandidate` + `_shared/question-validation.ts`. No relaxed rules, no tier-specific criteria drift.
 
-Recent invocation timeline:
-- `standard` sub-call **timed out at 45s on attempts 2 and 3** (`Signal timed out.`)
-- Then **every backfill tier was skipped**: "deadline budget too low"
-- Function shutdown ~200s after boot — global deadline was blown
+## Where shortfall comes from today
 
-Root causes in `supabase/functions/generate-weekly-quiz/index.ts`:
+In `supabase/functions/generate-weekly-quiz/index.ts`:
 
-1. **Model is `google/gemini-2.5-pro`** (line 108). Pro is a thinking model; with a heavy system prompt (~200 lines with existing-questions + cross-tier lists + rules), P95 latency easily exceeds 45s per call. Other question generators use `flash` / `flash-lite` for exactly this reason.
-2. **Standard tier runs strictly before adaptive tiers** (lines 653–669 sequential; adaptive `Promise.allSettled` at 671 only starts after `await`). If standard burns its full budget (3 × 45s = 135s > `GLOBAL_DEADLINE_MS = 130s`), adaptive tiers start with **zero** budget and their per-call `AbortSignal.timeout(45_000)` fires immediately or their loops exit on the deadline check.
-3. **Per-call `AbortSignal.timeout` is a fixed constant**, not clamped to remaining deadline. A sub-call spawned near the deadline still waits its full 45–60s, wasting budget and returning after global shutdown.
-4. **Backfill guard requires ≥25s of remaining budget** (line 746). Given (1)+(2), this is almost never satisfied → all four backfills skipped, tiers ship short.
-5. Standard was serialised specifically to feed itself as `crossTierAvoid` into adaptive tiers. That safeguard is redundant — the post-assembly cross-tier dedup (lines 719–732) already catches overlap.
+1. `generateTier` exits early when `attempt >= maxAttempts` (2) even if `accepted.length < 5`.
+2. Over-generation buffer is only `subNeed + 1` — a single validator rejection leaves the sub-call short.
+3. Post-assembly cross-tier dedup (lines ~717–732) drops from lower-priority tiers but **does not top them back up**.
+4. Backfill loop (lines ~742–787) runs **once per tier** with `maxAttempts: 1`, no retry if it also comes back short.
+5. Backfill guard skips if `deadlineAt - Date.now() < 12_000`; because the main pass runs all four tiers in parallel with 25–30s timeouts + 2 attempts, budget can be tight when it starts.
 
 ## Fix (single file: `supabase/functions/generate-weekly-quiz/index.ts`)
 
-### 1. Faster model + tighter tier specs
-- `MODEL = "google/gemini-2.5-flash"` (drop pro).
-- `TIER_SPEC` per tier:
-  - `perCallTimeoutMs`: **25_000** for standard/easy/medium, **30_000** for hard.
-  - `maxAttempts`: **2** for all tiers (was 3–4). With flash and small batches, first attempt usually succeeds; a second attempt is enough retry.
-  - `batchSize` unchanged (3).
+### 1. Larger over-generation buffer in `generateTier`
+- Change `askFor = subNeed + 1` → `askFor = Math.min(subNeed + 2, spec.batchSize + 2)`.
+  Absorbs one validator rejection per batch without forcing another sub-call.
 
-### 2. Deadline-aware per-call timeout
-Introduce a helper used at every gateway fetch:
+### 2. Reserve deadline budget for backfill
+- Split the wall clock: main pass gets `deadlineAt - 45_000`, backfill phase gets the remaining ~45s.
+- Pass a `mainPassDeadline` into the initial `Promise.allSettled` so main-tier calls stop early enough to leave room for guaranteed backfill.
+
+### 3. Bounded "guarantee" backfill loop
+Replace the single-pass backfill (lines ~742–787) with a loop:
+
+```text
+for pass in 1..3:
+    shortTiers = tiers where accepted count < spec.count
+    if none: break
+    if deadlineAt - now < 10_000: break
+    run backfill for shortTiers in PARALLEL:
+        - focusConcepts = auditBatchQuotas(...).shortfall  (same helper as today)
+        - maxAttempts = 2 (was 1)
+        - avoid = every accepted question across every tier
+        - count = per-tier shortfall
+    merge results with isLikelyDuplicate check against full accepted set
 ```
-const timeoutMs = Math.max(4_000, Math.min(spec.perCallTimeoutMs, deadlineAt - Date.now() - 2_000));
-if (timeoutMs <= 4_000 && Date.now() + 4_000 >= deadlineAt) break outer;
-signal: AbortSignal.timeout(timeoutMs)
-```
-So a sub-call never outlives the global deadline and never wastes 45s when only 10s remain.
 
-### 3. Run all tiers in parallel from the start
-Replace the sequential `standard → adaptive` block (lines 652–696) with a single `Promise.allSettled([standard, easy, medium, hard])`. Pass `crossTierAvoid = []` to every tier at generation time; rely on the existing post-assembly cross-tier dedup (lines 719–732) to remove overlaps by tier priority (`standard → hard → medium → easy`).
+- Each pass reuses `generateTier` unchanged → identical validators, identical difficulty band, identical dedup.
+- Parallel pass keeps wall-clock cost near a single tier's latency.
+- Loop cap of 3 prevents runaway; deadline guard prevents overshoot.
 
-Net effect: worst-case wall-clock ≈ `max(tier durations)` instead of `standard duration + max(adaptive durations)`.
+### 4. Cross-tier dedup priority stays the same, losers get topped up
+Existing priority order (`standard → hard → medium → easy`) is preserved for cross-tier dedup. The new backfill loop then fills whichever tier lost items, using the full accepted pool as `crossTierAvoid` so we do not reintroduce duplicates.
 
-### 4. Shrink backfill guard + prompt overhead
-- Lower backfill deadline guard from `< 25_000` to `< 12_000` (line 746). With flash + `maxAttempts=1` + `batchSize` capped to `shortfall`, a backfill call completes well under 12s.
-- Trim `SAME_TIER_PROMPT_CAP` and `CROSS_TIER_PROMPT_CAP` from 16 → **8**. Prompt size directly drives TTFT on flash; existing questions past ~8 rarely change dedup outcomes because `dedupWithin` still runs server-side.
+### 5. Consistent request semantics
+Every backfill call goes through the same `generateTier` → same:
+- `validateStructural` (format, options, length parity, prefix checks)
+- `normalizeAnswer` + `validateOptionParity`
+- `validateConcept` against the same `conceptByCode`
+- `validateDifficulty` with the tier's `midpoint ± 0.15`
+- `validateBloom` with `enforceDifficultyConsistency: true`, same 1–4 range
+- `validateExplanation`
+- `dedupWithin` + `isLikelyDuplicate`
 
-### 5. Preserve current behaviour
-- No schema/DB changes.
-- Validator wiring, quota audit, skew handling, top-up backfill, insert step, and response shape stay identical.
-- `GLOBAL_DEADLINE_MS = 130_000` unchanged (edge cap ~150s).
+No tier-specific loosening. If the model cannot produce a compliant item within the deadline, the response still reports `partial: true` and per-tier counts, but the guarantee loop makes partial outcomes rare.
 
-## Expected outcome
-- Standard tier typically finishes in ~10–20s instead of timing out at 45s×N.
-- All four tiers execute concurrently, so total generation completes in ~25–40s on the happy path.
-- Backfill guard is reachable, so short tiers get topped up instead of shipping partial.
-- If flash occasionally drops a question, per-tier `maxAttempts=2` + backfill still fill the quota within budget.
+### 6. Response shape unchanged
+Same JSON: `{ ok, generated, requested, partial, by_tier, tier_errors }`. `partial` becomes `true` only when the deadline expires before every tier reaches 5.
 
 ## Out of scope
-- No changes to `_shared/question-validation.ts`.
-- No changes to any other edge function.
-- No client-side changes.
+- No changes to `_shared/question-validation.ts` (validators stay canonical).
+- No schema/DB changes.
+- No changes to any other edge function or client code.
+- Model stays `google/gemini-2.5-flash`; tier timeouts and `maxAttempts` unchanged from the prior fix.
