@@ -1,65 +1,20 @@
-## Goal
+## Add "Textbooks" upload section to Course Setup → Upload
 
-Add a standardized long-form header comment at the top of every `supabase/functions/*/index.ts` file describing the function's purpose and its behavior as an incremental numbered list of steps.
+Add a new upload card on `/teacher/setup/upload` (`src/pages/teacher/CourseMaterials.tsx`) so professors can upload one or more textbook PDFs alongside the existing Syllabus, Past Course Materials, Lesson Plans, and YouTube Links inputs.
 
-## Scope
+### Behavior
+- Label: **Textbooks**
+- Badge: **Optional but Recommended** (same neutral/secondary styling used by the other optional cards, not the red Required badge)
+- Icon: `BookOpen` (already imported)
+- Description: "Upload the primary/reference textbooks for this course. Used to ground the AI TA and lesson plan in the same source material your students read."
+- Accepted file types: **PDF only** (`.pdf`), multiple files allowed (no `maxFiles` cap, matching the Past Course Materials card)
+- Uses the existing `FileUploadZone` component with:
+  - `folderPath={courseId}/textbooks`
+  - `folderType="textbooks"` (new folder_type value — the `course_material_files.folder_type` column is free-form text with no CHECK constraint, so no migration is needed)
+  - `courseId` / `teacherId` wired the same way as the other cards
+- New state `textbookFiles` + hydration in the existing `fetchFiles` effect (filter `folder_type === "textbooks"`)
+- Placement: directly below the Syllabus card, above Past Course Materials, so the order reads Syllabus → Textbooks → Past Materials → Lesson Plans → YouTube Links
+- No change to `handleNext`, no change to the Continue gate (textbooks stay fully optional)
 
-All edge functions under `supabase/functions/` (excluding `_shared/`):
-
-- approve-teacher, chat, classify-question, complete-student-signup, delete-course, delete-user, enroll-additional-course, explain-answers, extract-lesson-plan, extract-youtube-links, generate-diagnostic-questions, generate-exam-questions, generate-lesson-plan, generate-practice-questions, generate-question-metadata, generate-teaching-insights, generate-weekly-quiz, parse-syllabus, quality-check, recommend-additional-concepts, regenerate-lesson-plan-week, resend-teacher-invite, score-diagnostic, seed-admin, seed-concepts, seed-questions, student-pending-signup, student-signin, student-signup, suggest-concepts, suggest-lesson, transfer-course-ownership, update-mastery, validate-enrollment-code, wipe-courses, wipe-syllabus-cascade
-
-## Comment Format
-
-Placed at the very top of each `index.ts`, above imports:
-
-```text
-/**
- * <function-name>
- *
- * Purpose:
- *   <1–2 sentence summary of what this function does and when it's called.>
- *
- * Auth / Access:
- *   <who can invoke; JWT verification; role checks (admin/teacher/student/public).>
- *
- * Inputs:
- *   - <field>: <type> — <description>
- *
- * Outputs:
- *   - <shape returned on success> / <error shapes>
- *
- * Steps:
- *   1. <first thing it does — parse/validate>
- *   2. <auth/role check>
- *   3. <DB reads>
- *   4. <core logic / AI call / computation>
- *   5. <DB writes / side effects>
- *   6. <response>
- *
- * Side effects:
- *   - <tables written, cache bumps, emails sent, auth users created, etc.>
- *
- * External calls:
- *   - <Lovable AI Gateway model, Supabase admin API, etc.>
- */
-```
-
-Sections that don't apply to a given function (e.g. no side effects) are omitted rather than left blank.
-
-## Approach
-
-- Read each function's `index.ts` and derive the steps from actual code — no invented behavior.
-- Insert only the header comment. Do NOT change any logic, imports, types, CORS, validation, or responses.
-- Preserve existing top-of-file comments if any (merge into the new header).
-- Keep each header concise (roughly 15–35 lines); the numbered `Steps` list is the required "incremental listed format".
-
-## Out of Scope
-
-- No changes to `_shared/` helpers (not edge functions).
-- No refactors, no behavior changes, no test additions.
-- No changes to `supabase/config.toml`.
-- Frontend code untouched.
-
-## Execution
-
-Batch the reads and writes in parallel groups (roughly 6–8 functions per batch) to keep turns efficient. After all files are updated, do a quick `rg` sanity check that every `supabase/functions/*/index.ts` begins with the new header block.
+### Out of scope
+- No changes to Content Library, analytics, edge functions, DB schema, or lesson-plan / diagnostic generation prompts. Only the upload UI on `/teacher/setup/upload` changes; the files persist through the existing `course_material_files` + `course-materials` storage bucket flow and can be surfaced elsewhere in a follow-up.
