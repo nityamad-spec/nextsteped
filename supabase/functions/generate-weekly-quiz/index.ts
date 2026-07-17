@@ -644,7 +644,9 @@ Deno.serve(async (req) => {
     // Run every tier in parallel. Post-assembly cross-tier dedup (below)
     // handles any overlap by tier priority — no need to serialise standard
     // first, which previously blew the global deadline when it timed out.
+    // Reserve ~45s of the global deadline for the guaranteed backfill loop.
     const deadlineAt = Date.now() + GLOBAL_DEADLINE_MS;
+    const mainPassDeadline = Math.min(deadlineAt, Date.now() + (GLOBAL_DEADLINE_MS - 45_000));
     const allQuestions: { spec: TierSpec; q: GeneratedQuestion }[] = [];
     let creditsExhausted = false;
     const tierErrors: Record<string, string> = {};
@@ -658,7 +660,7 @@ Deno.serve(async (req) => {
           weekRow.week_name ?? "",
           conceptByCode,
           lovableKey,
-          deadlineAt,
+          mainPassDeadline,
           [],
         ).then((qs) => ({ spec, qs })),
       ),
