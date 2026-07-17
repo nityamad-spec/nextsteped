@@ -718,30 +718,34 @@ Deno.serve(async (req) => {
       tierErrors[tier] = existing ? `${existing}; dropped ${n} cross-tier duplicate(s)` : `dropped ${n} cross-tier duplicate(s)`;
     }
     allQuestions.splice(0, allQuestions.length, ...kept);
-
-    // Targeted top-up: for any tier still short after the main pass + cross-tier
-    // dedup, run one narrow generateTier call that focuses on the specific
-    // concepts the audit says are short (issue I).
-    for (const spec of TIER_SPEC) {
-      const tierItems = allQuestions.filter((x) => x.spec.tier === spec.tier);
-      const shortfall = spec.count - tierItems.length;
-      if (shortfall <= 0) continue;
-      if (deadlineAt - Date.now() < 12_000) {
-        console.warn(`[weekly-quiz] backfill tier=${spec.tier} skipped: deadline budget too low`);
-        continue;
+    // Guaranteed backfill loop: for any tier still short, run focused
+    // generateTier calls in parallel using identical validators + difficulty
+    // band. Bounded by pass count AND global deadline so we cannot overshoot.
+    const MAX_BACKFILL_PASSES = 3;
+    for (let pass = 1; pass <= MAX_BACKFILL_PASSES; pass++) {
+      const shortSpecs = TIER_SPEC
+        .map((spec) => ({
+          spec,
+          shortfall: spec.count - allQuestions.filter((x) => x.spec.tier === spec.tier).length,
+        }))
+        .filter((s) => s.shortfall > 0);
+      if (shortSpecs.length === 0) break;
+      if (deadlineAt - Date.now() < 10_000) {
+        console.warn(`[weekly-quiz] backfill pass ${pass} skipped: deadline budget too low`);
+        break;
       }
 
-      const tierQuota = buildConceptQuota(Object.keys(conceptByCode), spec.count);
-      const tierAudit = auditBatchQuotas(
-        tierItems.map((x) => x.q),
-        { perConcept: tierQuota },
-      ).perConcept;
-      const focus = shortConcepts(tierAudit);
-
-      const backfillSpec: TierSpec = { ...spec, count: shortfall };
-      const avoid = allQuestions.map((x) => x.q);
-      try {
-        const extra = await generateTier(
+      const backfillJobs = shortSpecs.map(({ spec, shortfall }) => {
+        const tierItems = allQuestions.filter((x) => x.spec.tier === spec.tier);
+        const tierQuota = buildConceptQuota(Object.keys(conceptByCode), spec.count);
+        const tierAudit = auditBatchQuotas(
+          tierItems.map((x) => x.q),
+          { perConcept: tierQuota },
+        ).perConcept;
+        const focus = shortConcepts(tierAudit);
+        const backfillSpec: TierSpec = { ...spec, count: shortfall };
+        const avoid = allQuestions.map((x) => x.q);
+        return generateTier(
           backfillSpec,
           course.name ?? "Course",
           weekNumber,
@@ -750,24 +754,34 @@ Deno.serve(async (req) => {
           lovableKey,
           deadlineAt,
           avoid,
-          { focusConcepts: focus.length ? focus : undefined, maxAttempts: 1 },
-        );
+          { focusConcepts: focus.length ? focus : undefined, maxAttempts: 2 },
+        )
+          .then((extra) => ({ spec, shortfall, focus, extra }))
+          .catch((err) => ({ spec, shortfall, focus, err }));
+      });
+
+      const results = await Promise.all(backfillJobs);
+      for (const r of results) {
+        if ("err" in r) {
+          const err = r.err as unknown;
+          if (err instanceof CreditsExhaustedError) creditsExhausted = true;
+          const msg = err instanceof Error ? err.message : String(err);
+          const existing = tierErrors[r.spec.tier];
+          tierErrors[r.spec.tier] = existing ? `${existing}; backfill p${pass} failed: ${msg}` : `backfill p${pass} failed: ${msg}`;
+          console.warn(`[weekly-quiz] backfill pass ${pass} tier=${r.spec.tier} failed:`, msg);
+          continue;
+        }
         let delivered = 0;
-        for (const q of extra) {
-          if (delivered >= shortfall) break;
+        for (const q of r.extra) {
+          if (delivered >= r.shortfall) break;
           if (allQuestions.some((k) => isLikelyDuplicate(k.q, q))) continue;
-          allQuestions.push({ spec, q });
+          allQuestions.push({ spec: r.spec, q });
           delivered++;
         }
-        console.log(`[weekly-quiz] backfill tier=${spec.tier} focus=[${focus.join(",")}] requested=${shortfall} delivered=${delivered}`);
-      } catch (err) {
-        if (err instanceof CreditsExhaustedError) creditsExhausted = true;
-        const msg = err instanceof Error ? err.message : String(err);
-        const existing = tierErrors[spec.tier];
-        tierErrors[spec.tier] = existing ? `${existing}; backfill failed: ${msg}` : `backfill failed: ${msg}`;
-        console.warn(`[weekly-quiz] backfill tier=${spec.tier} failed:`, msg);
+        console.log(`[weekly-quiz] backfill p${pass} tier=${r.spec.tier} focus=[${r.focus.join(",")}] requested=${r.shortfall} delivered=${delivered}`);
       }
     }
+
 
     // Replace existing rows for this week
     await admin
