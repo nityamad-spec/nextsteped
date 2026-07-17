@@ -641,39 +641,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Sequence: standard first (canonical), then easy/medium/hard in parallel
-    // with the accepted standard set injected as cross-tier avoid context.
-    // If standard fails outright, fall back to all-parallel so we never zero
-    // out the whole quiz.
+    // Run every tier in parallel. Post-assembly cross-tier dedup (below)
+    // handles any overlap by tier priority — no need to serialise standard
+    // first, which previously blew the global deadline when it timed out.
     const deadlineAt = Date.now() + GLOBAL_DEADLINE_MS;
     const allQuestions: { spec: TierSpec; q: GeneratedQuestion }[] = [];
     let creditsExhausted = false;
     const tierErrors: Record<string, string> = {};
 
-    const standardSpec = TIER_SPEC.find((t) => t.tier === "standard")!;
-    const adaptiveSpecs = TIER_SPEC.filter((t) => t.tier !== "standard");
-
-    let standardQs: GeneratedQuestion[] = [];
-    try {
-      standardQs = await generateTier(
-        standardSpec,
-        course.name ?? "Course",
-        weekNumber,
-        weekRow.week_name ?? "",
-        conceptByCode,
-        lovableKey,
-        deadlineAt,
-        [],
-      );
-      for (const q of standardQs) allQuestions.push({ spec: standardSpec, q });
-    } catch (err) {
-      if (err instanceof CreditsExhaustedError) creditsExhausted = true;
-      tierErrors[standardSpec.tier] = err instanceof Error ? err.message : String(err);
-      console.warn(`[weekly-quiz] tier standard failed:`, tierErrors[standardSpec.tier]);
-    }
-
-    const adaptiveResults = await Promise.allSettled(
-      adaptiveSpecs.map((spec) =>
+    const tierResults = await Promise.allSettled(
+      TIER_SPEC.map((spec) =>
         generateTier(
           spec,
           course.name ?? "Course",
@@ -682,13 +659,13 @@ Deno.serve(async (req) => {
           conceptByCode,
           lovableKey,
           deadlineAt,
-          standardQs,
+          [],
         ).then((qs) => ({ spec, qs })),
       ),
     );
-    for (let i = 0; i < adaptiveResults.length; i++) {
-      const r = adaptiveResults[i];
-      const spec = adaptiveSpecs[i];
+    for (let i = 0; i < tierResults.length; i++) {
+      const r = tierResults[i];
+      const spec = TIER_SPEC[i];
       if (r.status === "fulfilled") {
         for (const q of r.value.qs) allQuestions.push({ spec, q });
       } else {
