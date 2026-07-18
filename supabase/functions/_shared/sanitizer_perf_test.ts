@@ -122,7 +122,12 @@ function buildBatch(n: number): Item[] {
 
 
 
-function runPipeline(items: Item[]) {
+interface PipelineOpts {
+  runDedup?: boolean;
+  existing?: Array<{ content_text: string; answer: string; topic: string }>;
+}
+
+function runPipeline(items: Item[], opts: PipelineOpts = {}) {
   const accepted: Array<{
     content_text: string;
     format: string;
@@ -187,12 +192,19 @@ function runPipeline(items: Item[]) {
     });
   }
 
-  const dedup = dedupWithin(accepted, []);
-  const audit = auditBatchQuotas(dedup.kept, {
+  let finalAccepted = accepted;
+  if (opts.runDedup) {
+    const dedup = dedupWithin(accepted, opts.existing ?? []);
+    finalAccepted = dedup.kept;
+    for (const _ of dedup.rejected) bump("duplicate");
+  }
+
+  const audit = auditBatchQuotas(finalAccepted, {
     perConcept: Object.fromEntries(CONCEPTS.map((c) => [c, 10])),
   });
-  return { accepted: dedup.kept, rejections, audit };
+  return { accepted: finalAccepted, rejections, audit };
 }
+
 
 Deno.test("perf: 2,000-item mixed batch sanitizes under 2000ms", () => {
   const items = buildBatch(2000);
