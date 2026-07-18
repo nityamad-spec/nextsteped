@@ -623,7 +623,7 @@ Deno.test("sanitizer: mixed batch — every valid item kept, every invalid item 
 Deno.test("sanitizer + audit: quota audit reports concept shortfall accurately", () => {
   const items = [
     goodMcq({ topic: "LOOPS" }),
-    goodMcq({ topic: "LOOPS", content_text: "Which construct iterates a fixed number of times?", options: ["for loop", "if statement", "return statement", "class definition"], answer: "for loop", explanation: "A for loop iterates a fixed number of times, unlike the other constructs which do not iterate." }),
+    goodMcq({ topic: "LOOPS", content_text: "Which construct iterates a fixed number of times?", options: ["for loop", "if branch", "def block", "try block"], answer: "for loop", explanation: "A for loop iterates a fixed number of times over a range or sequence, unlike the other constructs which do not iterate." }),
     goodMcq({ topic: "CLASSES", content_text: "Which construct defines a template for objects?", options: ["a class", "a for loop", "a return", "an import"], answer: "a class", explanation: "A class defines a template for creating objects with attributes and methods." }),
   ];
   const r = sanitize(items, { allowedFormats: ["mcq", "true_false"], allowedConceptCodes: CONCEPTS });
