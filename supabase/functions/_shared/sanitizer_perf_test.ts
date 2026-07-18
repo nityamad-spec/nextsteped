@@ -34,6 +34,42 @@ const CONCEPT_MAP: Record<string, true> = Object.fromEntries(
 
 type Item = Record<string, unknown>;
 
+// Distinct MCQ answer templates per concept so answers carry real key tokens
+// that the explanation can reference (validateExplanation requires token
+// overlap between explanation and correct answer).
+const MCQ_TEMPLATES: Record<string, { correct: string; distractors: string[]; explanation: string }> = {
+  LOOPS: {
+    correct: "while loop repeats until condition false",
+    distractors: ["static assignment executes once", "class inheritance chain", "module import declaration"],
+    explanation: "A while loop repeats a block while its condition holds and stops when the condition becomes false; the other options do not iterate.",
+  },
+  CLASSES: {
+    correct: "class inheritance shares behavior across subtypes",
+    distractors: ["global variable mutation only", "for loop iteration counter", "print statement side effect"],
+    explanation: "Class inheritance lets subtypes share and extend behavior defined on a base class; the other options are unrelated to type hierarchies.",
+  },
+  RECURSION: {
+    correct: "recursive base case terminates the recursion",
+    distractors: ["global counter increment", "linear list append", "string concatenation only"],
+    explanation: "A recursive base case is what terminates the recursion; without a base case a recursive call stack grows without bound.",
+  },
+  COMPLEXITY: {
+    correct: "big-O measures asymptotic growth",
+    distractors: ["exact wall-clock runtime", "memory address layout", "compiler flag choice"],
+    explanation: "Big-O notation describes asymptotic growth of an algorithm as input size increases; it is not a precise wall-clock measurement.",
+  },
+  IO: {
+    correct: "file handle must be closed after write",
+    distractors: ["print statement returns string", "input always returns integer", "open call requires no path"],
+    explanation: "A file handle should be closed after writing to flush buffers and release the descriptor; leaving handles open leaks resources.",
+  },
+  TYPES: {
+    correct: "static types checked before runtime",
+    distractors: ["dynamic dispatch at compile time", "garbage collector removes types", "syntax highlighting is a type"],
+    explanation: "Static type checking runs before execution and catches type mismatches at compile time; dynamic checks happen at runtime instead.",
+  },
+};
+
 function buildBatch(n: number): Item[] {
   const items: Item[] = [];
   for (let i = 0; i < n; i++) {
@@ -41,41 +77,42 @@ function buildBatch(n: number): Item[] {
     const isMcq = i % 2 === 0;
     // Every 7th item is intentionally malformed to exercise reject paths.
     const bad = i % 7 === 0;
+    const tpl = MCQ_TEMPLATES[concept];
 
     if (isMcq) {
-      const options = [
-        `alpha option ${i}`,
-        `beta choice ${i}`,
-        `gamma pick ${i}`,
-        `delta answer ${i}`,
-      ];
+      const options = bad
+        ? [tpl.correct, tpl.distractors[0], tpl.distractors[1]] // 3 opts => structural drop
+        : [tpl.correct, tpl.distractors[0], tpl.distractors[1], tpl.distractors[2]];
       items.push({
         format: "mcq",
-        content_text: `MCQ #${i}: which of the following about ${concept} is correct?`,
-        options: bad ? options.slice(0, 3) : options, // bad => only 3 options
-        answer: bad ? "not-in-options" : options[i % 4],
-        explanation:
-          `Because the correct answer for item ${i} explains why the other three distractors are wrong; ${concept} governs this behavior.`,
+        // stem #i keeps stems unique so dedup doesn't collapse the batch
+        content_text: `[q${i}] For ${concept}, which statement is most accurate?`,
+        options,
+        answer: bad ? "not-in-options" : tpl.correct,
+        explanation: tpl.explanation,
         topic: concept,
-        difficulty_estimate: 0.3 + ((i % 5) * 0.1),
-        bloom_level: 1 + (i % 5),
+        difficulty_estimate: 0.3 + ((i % 3) * 0.1), // 0.3 / 0.4 / 0.5 => easy/medium band
+        bloom_level: 2 + (i % 3), // 2..4, safe for both mcq (<=5) and tf (<=4)
       });
     } else {
+      const answerIsTrue = i % 3 !== 0;
       items.push({
         format: "true_false",
         content_text:
-          `T/F #${i}: a ${concept} construct always terminates without further conditions.`,
-        answer: bad ? "maybe" : (i % 3 === 0 ? "True" : "False"),
-        explanation:
-          `The statement is ${i % 3 === 0 ? "true" : "false"} because ${concept} semantics require the described condition to hold; item ${i}.`,
+          `[q${i}] In ${concept}, ${tpl.correct} is a defining property of the concept.`,
+        answer: bad ? "maybe" : (answerIsTrue ? "True" : "False"),
+        explanation: answerIsTrue
+          ? `This statement is accurate because ${tpl.correct} — item ${i}.`
+          : `This statement is not accurate: ${tpl.correct.replace(/^./, (c) => c.toUpperCase())} is misapplied here — item ${i}.`,
         topic: concept,
-        difficulty_estimate: 0.2 + ((i % 4) * 0.1),
-        bloom_level: 1 + (i % 4),
+        difficulty_estimate: 0.3 + ((i % 3) * 0.1),
+        bloom_level: 2 + (i % 3),
       });
     }
   }
   return items;
 }
+
 
 function runPipeline(items: Item[]) {
   const accepted: Array<{
