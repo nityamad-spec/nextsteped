@@ -166,7 +166,7 @@ function sanitize(items: unknown[], opts: SanitizeOptions): PipelineResult {
 
     accepted.push({
       question: content_text,
-      type: format,
+      type: format as Format,
       options: format === "mcq" ? options : undefined,
       answer,
       explanation: explCheck.value,
