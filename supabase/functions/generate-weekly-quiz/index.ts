@@ -523,340 +523,354 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 /* Handler                                                                     */
 /* -------------------------------------------------------------------------- */
 
-Deno.serve(async (req) => {
+// Runs the full quiz-generation pipeline. Returns { status, payload } rather
+// than a Response so the outer Deno.serve handler can stream heartbeats
+// around it and defeat the 150s Edge Runtime IDLE_TIMEOUT.
+async function run(req: Request): Promise<{ status: number; payload: unknown }> {
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!lovableKey) throw new Error("LOVABLE_API_KEY not configured");
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+  const authHeader = req.headers.get("Authorization") ?? "";
+  if (!authHeader.startsWith("Bearer ")) {
+    return { status: 401, payload: { error: "Not authenticated" } };
+  }
+  const token = authHeader.slice("Bearer ".length);
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+  if (claimsErr || !claimsData?.claims?.sub) {
+    return { status: 401, payload: { error: "Not authenticated" } };
+  }
+  const userId = claimsData.claims.sub as string;
+
+  const body = await req.json();
+  const courseId = typeof body?.course_id === "string" ? body.course_id : null;
+  const weekNumber = Number(body?.week_number);
+  if (!courseId || !Number.isInteger(weekNumber) || weekNumber < 1) {
+    return { status: 400, payload: { error: "course_id and week_number required" } };
+  }
+
+  const admin = createClient(supabaseUrl, serviceKey);
+
+  // Authorize: must be course teacher or collaborator (or admin)
+  const { data: course } = await admin
+    .from("courses")
+    .select("id, name, teacher_id")
+    .eq("id", courseId)
+    .maybeSingle();
+  if (!course) {
+    return { status: 404, payload: { error: "Course not found" } };
+  }
+  let allowed = course.teacher_id === userId;
+  if (!allowed) {
+    const { data: ct } = await admin
+      .from("course_teachers")
+      .select("teacher_id")
+      .eq("course_id", courseId)
+      .eq("teacher_id", userId)
+      .maybeSingle();
+    allowed = !!ct;
+  }
+  if (!allowed) {
+    const { data: prof } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
+    allowed = prof?.role === "admin";
+  }
+  if (!allowed) {
+    return { status: 403, payload: { error: "Forbidden" } };
+  }
+
+  // Load week + concept names for the week
+  const { data: weekRow } = await admin
+    .from("lesson_plan_weeks")
+    .select("week_name, concepts")
+    .eq("course_id", courseId)
+    .eq("week_number", weekNumber)
+    .maybeSingle();
+  if (!weekRow) {
+    return { status: 400, payload: { error: `No lesson-plan week ${weekNumber} for this course` } };
+  }
+  const weekConceptNames: string[] = Array.isArray(weekRow.concepts)
+    ? (weekRow.concepts as any[]).map((c) => String(c?.name ?? "").trim()).filter(Boolean)
+    : [];
+  if (weekConceptNames.length === 0) {
+    return { status: 400, payload: { error: "This week has no concepts. Add concepts first." } };
+  }
+
+  // Map concept names → concept rows (id + canonical code) via concepts table
+  const { data: conceptRows } = await admin
+    .from("concepts")
+    .select("id, concept_code")
+    .eq("course_id", courseId)
+    .in("concept_code", weekConceptNames);
+  const conceptByCode: Record<string, ConceptRow> = {};
+  for (const r of conceptRows ?? []) conceptByCode[r.concept_code] = r as ConceptRow;
+  if (Object.keys(conceptByCode).length === 0) {
+    return {
+      status: 400,
+      payload: {
+        error: "Week concepts are not registered in the course concept list. Confirm them in Concept Review.",
+      },
+    };
+  }
+
+  // Run every tier in parallel. Post-assembly cross-tier dedup (below)
+  // handles any overlap by tier priority — no need to serialise standard
+  // first, which previously blew the global deadline when it timed out.
+  // Reserve ~90s of the global deadline for the guaranteed backfill loop.
+  const deadlineAt = Date.now() + GLOBAL_DEADLINE_MS;
+  const mainPassDeadline = Math.min(deadlineAt, Date.now() + (GLOBAL_DEADLINE_MS - 90_000));
+
+  const allQuestions: { spec: TierSpec; q: GeneratedQuestion }[] = [];
+  let creditsExhausted = false;
+  const tierErrors: Record<string, string> = {};
+
+  const tierResults = await Promise.allSettled(
+    TIER_SPEC.map((spec) =>
+      generateTier(
+        spec,
+        course.name ?? "Course",
+        weekNumber,
+        weekRow.week_name ?? "",
+        conceptByCode,
+        lovableKey,
+        mainPassDeadline,
+        [],
+      ).then((qs) => ({ spec, qs })),
+    ),
+  );
+  for (let i = 0; i < tierResults.length; i++) {
+    const r = tierResults[i];
+    const spec = TIER_SPEC[i];
+    if (r.status === "fulfilled") {
+      for (const q of r.value.qs) allQuestions.push({ spec, q });
+    } else {
+      const err = r.reason;
+      if (err instanceof CreditsExhaustedError) creditsExhausted = true;
+      tierErrors[spec.tier] = err instanceof Error ? err.message : String(err);
+      console.warn(`[weekly-quiz] tier ${spec.tier} failed:`, tierErrors[spec.tier]);
+    }
+  }
+  if (creditsExhausted && allQuestions.length === 0) {
+    return { status: 402, payload: { error: "AI credits exhausted", code: "CREDITS_EXHAUSTED" } };
+  }
+  if (allQuestions.length === 0) {
+    return {
+      status: 502,
+      payload: {
+        error: "Failed to generate any questions",
+        code: "GENERATION_FAILED",
+        tier_errors: tierErrors,
+      },
+    };
+  }
+
+  // Post-assembly cross-tier dedup. Priority: standard → hard → medium → easy
+  // (standard is canonical; easy is the most likely offender).
+  const tierPriority: Tier[] = ["standard", "hard", "medium", "easy"];
+  const kept: { spec: TierSpec; q: GeneratedQuestion }[] = [];
+  const crossTierDrops: Record<string, number> = {};
+  for (const tier of tierPriority) {
+    for (const item of allQuestions.filter((x) => x.spec.tier === tier)) {
+      const dup = kept.find((k) => isLikelyDuplicate(k.q, item.q));
+      if (dup) {
+        crossTierDrops[tier] = (crossTierDrops[tier] ?? 0) + 1;
+        console.warn(`[weekly-quiz] cross-tier dedup: dropped ${tier} "${item.q.content_text.slice(0, 80)}" (duplicates ${dup.spec.tier} "${dup.q.content_text.slice(0, 80)}")`);
+        continue;
+      }
+      kept.push(item);
+    }
+  }
+  for (const [tier, n] of Object.entries(crossTierDrops)) {
+    const existing = tierErrors[tier];
+    tierErrors[tier] = existing ? `${existing}; dropped ${n} cross-tier duplicate(s)` : `dropped ${n} cross-tier duplicate(s)`;
+  }
+  allQuestions.splice(0, allQuestions.length, ...kept);
+  // Guaranteed backfill loop: for any tier still short, run focused
+  // generateTier calls in parallel using identical validators + difficulty
+  // band. Bounded by pass count AND global deadline so we cannot overshoot.
+  const MAX_BACKFILL_PASSES = 3;
+  for (let pass = 1; pass <= MAX_BACKFILL_PASSES; pass++) {
+    const shortSpecs = TIER_SPEC
+      .map((spec) => ({
+        spec,
+        shortfall: spec.count - allQuestions.filter((x) => x.spec.tier === spec.tier).length,
+      }))
+      .filter((s) => s.shortfall > 0);
+    if (shortSpecs.length === 0) break;
+    if (deadlineAt - Date.now() < 10_000) {
+      console.warn(`[weekly-quiz] backfill pass ${pass} skipped: deadline budget too low`);
+      break;
+    }
+
+    const backfillJobs = shortSpecs.map(({ spec, shortfall }) => {
+      const tierItems = allQuestions.filter((x) => x.spec.tier === spec.tier);
+      const tierQuota = buildConceptQuota(Object.keys(conceptByCode), spec.count);
+      const tierAudit = auditBatchQuotas(
+        tierItems.map((x) => x.q),
+        { perConcept: tierQuota },
+      ).perConcept;
+      const focus = shortConcepts(tierAudit);
+      const backfillSpec: TierSpec = { ...spec, count: shortfall };
+      const avoid = allQuestions.map((x) => x.q);
+      return generateTier(
+        backfillSpec,
+        course.name ?? "Course",
+        weekNumber,
+        weekRow.week_name ?? "",
+        conceptByCode,
+        lovableKey,
+        deadlineAt,
+        avoid,
+        { focusConcepts: focus.length ? focus : undefined, maxAttempts: 2 },
+      )
+        .then((extra) => ({ spec, shortfall, focus, extra }))
+        .catch((err) => ({ spec, shortfall, focus, err }));
+    });
+
+    const results = await Promise.all(backfillJobs);
+    for (const r of results) {
+      if ("err" in r) {
+        const err = r.err as unknown;
+        if (err instanceof CreditsExhaustedError) creditsExhausted = true;
+        const msg = err instanceof Error ? err.message : String(err);
+        const existing = tierErrors[r.spec.tier];
+        tierErrors[r.spec.tier] = existing ? `${existing}; backfill p${pass} failed: ${msg}` : `backfill p${pass} failed: ${msg}`;
+        console.warn(`[weekly-quiz] backfill pass ${pass} tier=${r.spec.tier} failed:`, msg);
+        continue;
+      }
+      let delivered = 0;
+      for (const q of r.extra) {
+        if (delivered >= r.shortfall) break;
+        if (allQuestions.some((k) => isLikelyDuplicate(k.q, q))) continue;
+        allQuestions.push({ spec: r.spec, q });
+        delivered++;
+      }
+      console.log(`[weekly-quiz] backfill p${pass} tier=${r.spec.tier} focus=[${r.focus.join(",")}] requested=${r.shortfall} delivered=${delivered}`);
+    }
+  }
+
+
+  // Replace existing rows for this week
+  await admin
+    .from("assessment_questions")
+    .delete()
+    .eq("course_id", courseId)
+    .eq("mode", "daily_quiz")
+    .eq("quiz_day", weekNumber);
+
+  const rows = allQuestions.map(({ spec, q }, i) => {
+    const concept = conceptByCode[q.topic];
+    const correctIndex = q.options.indexOf(q.answer);
+    return {
+      course_id: courseId,
+      teacher_id: course.teacher_id,
+      mode: "daily_quiz",
+      quiz_day: weekNumber,
+      tier: spec.tier,
+      question_type: q.format === "mcq" ? "MCQ" : "True/False",
+      format: q.format,
+      question_text: q.content_text,
+      options: q.options,
+      answer: q.answer,
+      correct_index: correctIndex,
+      explanation: q.explanation,
+      topic: q.topic,
+      concept_id: concept.id,
+      difficulty: q.difficulty_estimate < 0.35 ? "Easy" : q.difficulty_estimate > 0.7 ? "Hard" : "Medium",
+      difficulty_estimate: q.difficulty_estimate,
+      bloom_level: q.bloom_level,
+      item_code: `w${weekNumber}-${spec.tier}-${i}`,
+    };
+  });
+
+  const { error: insErr } = await admin.from("assessment_questions").insert(rows);
+  if (insErr) throw new Error(`Insert failed: ${insErr.message}`);
+
+  const byTier: Record<string, number> = {};
+  for (const { spec } of allQuestions) byTier[spec.tier] = (byTier[spec.tier] ?? 0) + 1;
+  const expected = TIER_SPEC.reduce((s, t) => s + t.count, 0);
+  const partial = rows.length < expected;
+
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      generated: rows.length,
+      requested: expected,
+      partial,
+      by_tier: byTier,
+      tier_errors: Object.keys(tierErrors).length ? tierErrors : undefined,
+    },
+  };
+}
+
+Deno.serve((req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  try {
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableKey) throw new Error("LOVABLE_API_KEY not configured");
+  const encoder = new TextEncoder();
+  const startedAt = Date.now();
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-    const authHeader = req.headers.get("Authorization") ?? "";
-    if (!authHeader.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Not authenticated" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const token = authHeader.slice("Bearer ".length);
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
-    if (claimsErr || !claimsData?.claims?.sub) {
-      return new Response(JSON.stringify({ error: "Not authenticated" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const userId = claimsData.claims.sub as string;
-
-    const body = await req.json();
-    const courseId = typeof body?.course_id === "string" ? body.course_id : null;
-    const weekNumber = Number(body?.week_number);
-    if (!courseId || !Number.isInteger(weekNumber) || weekNumber < 1) {
-      return new Response(JSON.stringify({ error: "course_id and week_number required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const admin = createClient(supabaseUrl, serviceKey);
-
-    // Authorize: must be course teacher or collaborator (or admin)
-    const { data: course } = await admin
-      .from("courses")
-      .select("id, name, teacher_id")
-      .eq("id", courseId)
-      .maybeSingle();
-    if (!course) {
-      return new Response(JSON.stringify({ error: "Course not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    let allowed = course.teacher_id === userId;
-    if (!allowed) {
-      const { data: ct } = await admin
-        .from("course_teachers")
-        .select("teacher_id")
-        .eq("course_id", courseId)
-        .eq("teacher_id", userId)
-        .maybeSingle();
-      allowed = !!ct;
-    }
-    if (!allowed) {
-      const { data: prof } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
-      allowed = prof?.role === "admin";
-    }
-    if (!allowed) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Load week + concept names for the week
-    const { data: weekRow } = await admin
-      .from("lesson_plan_weeks")
-      .select("week_name, concepts")
-      .eq("course_id", courseId)
-      .eq("week_number", weekNumber)
-      .maybeSingle();
-    if (!weekRow) {
-      return new Response(JSON.stringify({ error: `No lesson-plan week ${weekNumber} for this course` }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const weekConceptNames: string[] = Array.isArray(weekRow.concepts)
-      ? (weekRow.concepts as any[]).map((c) => String(c?.name ?? "").trim()).filter(Boolean)
-      : [];
-    if (weekConceptNames.length === 0) {
-      return new Response(JSON.stringify({ error: "This week has no concepts. Add concepts first." }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Map concept names → concept rows (id + canonical code) via concepts table
-    const { data: conceptRows } = await admin
-      .from("concepts")
-      .select("id, concept_code")
-      .eq("course_id", courseId)
-      .in("concept_code", weekConceptNames);
-    const conceptByCode: Record<string, ConceptRow> = {};
-    for (const r of conceptRows ?? []) conceptByCode[r.concept_code] = r as ConceptRow;
-    if (Object.keys(conceptByCode).length === 0) {
-      return new Response(
-        JSON.stringify({
-          error: "Week concepts are not registered in the course concept list. Confirm them in Concept Review.",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    // Run every tier in parallel. Post-assembly cross-tier dedup (below)
-    // handles any overlap by tier priority — no need to serialise standard
-    // first, which previously blew the global deadline when it timed out.
-    // Reserve ~90s of the global deadline for the guaranteed backfill loop.
-    const deadlineAt = Date.now() + GLOBAL_DEADLINE_MS;
-    const mainPassDeadline = Math.min(deadlineAt, Date.now() + (GLOBAL_DEADLINE_MS - 90_000));
-
-    const allQuestions: { spec: TierSpec; q: GeneratedQuestion }[] = [];
-    let creditsExhausted = false;
-    const tierErrors: Record<string, string> = {};
-
-    const tierResults = await Promise.allSettled(
-      TIER_SPEC.map((spec) =>
-        generateTier(
-          spec,
-          course.name ?? "Course",
-          weekNumber,
-          weekRow.week_name ?? "",
-          conceptByCode,
-          lovableKey,
-          mainPassDeadline,
-          [],
-        ).then((qs) => ({ spec, qs })),
-      ),
-    );
-    for (let i = 0; i < tierResults.length; i++) {
-      const r = tierResults[i];
-      const spec = TIER_SPEC[i];
-      if (r.status === "fulfilled") {
-        for (const q of r.value.qs) allQuestions.push({ spec, q });
-      } else {
-        const err = r.reason;
-        if (err instanceof CreditsExhaustedError) creditsExhausted = true;
-        tierErrors[spec.tier] = err instanceof Error ? err.message : String(err);
-        console.warn(`[weekly-quiz] tier ${spec.tier} failed:`, tierErrors[spec.tier]);
-      }
-    }
-    if (creditsExhausted && allQuestions.length === 0) {
-      return new Response(JSON.stringify({ error: "AI credits exhausted", code: "CREDITS_EXHAUSTED" }), {
-        status: 402,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (allQuestions.length === 0) {
-      return new Response(
-        JSON.stringify({
-          error: "Failed to generate any questions",
-          code: "GENERATION_FAILED",
-          tier_errors: tierErrors,
-        }),
-        {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    // Post-assembly cross-tier dedup. Priority: standard → hard → medium → easy
-    // (standard is canonical; easy is the most likely offender).
-    const tierPriority: Tier[] = ["standard", "hard", "medium", "easy"];
-    const kept: { spec: TierSpec; q: GeneratedQuestion }[] = [];
-    const crossTierDrops: Record<string, number> = {};
-    for (const tier of tierPriority) {
-      for (const item of allQuestions.filter((x) => x.spec.tier === tier)) {
-        const dup = kept.find((k) => isLikelyDuplicate(k.q, item.q));
-        if (dup) {
-          crossTierDrops[tier] = (crossTierDrops[tier] ?? 0) + 1;
-          console.warn(`[weekly-quiz] cross-tier dedup: dropped ${tier} "${item.q.content_text.slice(0, 80)}" (duplicates ${dup.spec.tier} "${dup.q.content_text.slice(0, 80)}")`);
-          continue;
+  // NDJSON stream: emit heartbeats every 20s so the connection is never
+  // idle for more than the Edge Runtime's 150s IDLE_TIMEOUT. Final frame is
+  // either {type:"result", status, payload} or {type:"error", status, code, message}.
+  const stream = new ReadableStream({
+    async start(controller) {
+      let closed = false;
+      const write = (obj: unknown) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+        } catch {
+          // stream already closed by peer; ignore
         }
-        kept.push(item);
-      }
-    }
-    for (const [tier, n] of Object.entries(crossTierDrops)) {
-      const existing = tierErrors[tier];
-      tierErrors[tier] = existing ? `${existing}; dropped ${n} cross-tier duplicate(s)` : `dropped ${n} cross-tier duplicate(s)`;
-    }
-    allQuestions.splice(0, allQuestions.length, ...kept);
-    // Guaranteed backfill loop: for any tier still short, run focused
-    // generateTier calls in parallel using identical validators + difficulty
-    // band. Bounded by pass count AND global deadline so we cannot overshoot.
-    const MAX_BACKFILL_PASSES = 3;
-    for (let pass = 1; pass <= MAX_BACKFILL_PASSES; pass++) {
-      const shortSpecs = TIER_SPEC
-        .map((spec) => ({
-          spec,
-          shortfall: spec.count - allQuestions.filter((x) => x.spec.tier === spec.tier).length,
-        }))
-        .filter((s) => s.shortfall > 0);
-      if (shortSpecs.length === 0) break;
-      if (deadlineAt - Date.now() < 10_000) {
-        console.warn(`[weekly-quiz] backfill pass ${pass} skipped: deadline budget too low`);
-        break;
-      }
-
-      const backfillJobs = shortSpecs.map(({ spec, shortfall }) => {
-        const tierItems = allQuestions.filter((x) => x.spec.tier === spec.tier);
-        const tierQuota = buildConceptQuota(Object.keys(conceptByCode), spec.count);
-        const tierAudit = auditBatchQuotas(
-          tierItems.map((x) => x.q),
-          { perConcept: tierQuota },
-        ).perConcept;
-        const focus = shortConcepts(tierAudit);
-        const backfillSpec: TierSpec = { ...spec, count: shortfall };
-        const avoid = allQuestions.map((x) => x.q);
-        return generateTier(
-          backfillSpec,
-          course.name ?? "Course",
-          weekNumber,
-          weekRow.week_name ?? "",
-          conceptByCode,
-          lovableKey,
-          deadlineAt,
-          avoid,
-          { focusConcepts: focus.length ? focus : undefined, maxAttempts: 2 },
-        )
-          .then((extra) => ({ spec, shortfall, focus, extra }))
-          .catch((err) => ({ spec, shortfall, focus, err }));
-      });
-
-      const results = await Promise.all(backfillJobs);
-      for (const r of results) {
-        if ("err" in r) {
-          const err = r.err as unknown;
-          if (err instanceof CreditsExhaustedError) creditsExhausted = true;
-          const msg = err instanceof Error ? err.message : String(err);
-          const existing = tierErrors[r.spec.tier];
-          tierErrors[r.spec.tier] = existing ? `${existing}; backfill p${pass} failed: ${msg}` : `backfill p${pass} failed: ${msg}`;
-          console.warn(`[weekly-quiz] backfill pass ${pass} tier=${r.spec.tier} failed:`, msg);
-          continue;
-        }
-        let delivered = 0;
-        for (const q of r.extra) {
-          if (delivered >= r.shortfall) break;
-          if (allQuestions.some((k) => isLikelyDuplicate(k.q, q))) continue;
-          allQuestions.push({ spec: r.spec, q });
-          delivered++;
-        }
-        console.log(`[weekly-quiz] backfill p${pass} tier=${r.spec.tier} focus=[${r.focus.join(",")}] requested=${r.shortfall} delivered=${delivered}`);
-      }
-    }
-
-
-    // Replace existing rows for this week
-    await admin
-      .from("assessment_questions")
-      .delete()
-      .eq("course_id", courseId)
-      .eq("mode", "daily_quiz")
-      .eq("quiz_day", weekNumber);
-
-    const rows = allQuestions.map(({ spec, q }, i) => {
-      const concept = conceptByCode[q.topic];
-      const correctIndex = q.options.indexOf(q.answer);
-      return {
-        course_id: courseId,
-        teacher_id: course.teacher_id,
-        mode: "daily_quiz",
-        quiz_day: weekNumber,
-        tier: spec.tier,
-        question_type: q.format === "mcq" ? "MCQ" : "True/False",
-        format: q.format,
-        question_text: q.content_text,
-        options: q.options,
-        answer: q.answer,
-        correct_index: correctIndex,
-        explanation: q.explanation,
-        topic: q.topic,
-        concept_id: concept.id,
-        difficulty: q.difficulty_estimate < 0.35 ? "Easy" : q.difficulty_estimate > 0.7 ? "Hard" : "Medium",
-        difficulty_estimate: q.difficulty_estimate,
-        bloom_level: q.bloom_level,
-        item_code: `w${weekNumber}-${spec.tier}-${i}`,
       };
-    });
 
-    const { error: insErr } = await admin.from("assessment_questions").insert(rows);
-    if (insErr) throw new Error(`Insert failed: ${insErr.message}`);
+      // Initial heartbeat lands before any Gemini call so the first byte is
+      // always sent well within 150s of request start.
+      write({ type: "heartbeat", t: 0, stage: "start" });
+      const hb = setInterval(() => {
+        write({ type: "heartbeat", t: Date.now() - startedAt });
+      }, 20_000);
 
-    const byTier: Record<string, number> = {};
-    for (const { spec } of allQuestions) byTier[spec.tier] = (byTier[spec.tier] ?? 0) + 1;
-    const expected = TIER_SPEC.reduce((s, t) => s + t.count, 0);
-    const partial = rows.length < expected;
+      try {
+        const { status, payload } = await run(req);
+        write({ type: "result", status, payload });
+      } catch (e: any) {
+        console.error("generate-weekly-quiz error:", e);
+        let status = 500;
+        let code = "INTERNAL";
+        if (e instanceof CreditsExhaustedError) {
+          status = 402;
+          code = "CREDITS_EXHAUSTED";
+        } else if (e instanceof DeadlineExceededError) {
+          status = 504;
+          code = "DEADLINE";
+        }
+        write({ type: "error", status, code, message: e?.message ?? String(e) });
+      } finally {
+        clearInterval(hb);
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          // ignore
+        }
+      }
+    },
+  });
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        generated: rows.length,
-        requested: expected,
-        partial,
-        by_tier: byTier,
-        tier_errors: Object.keys(tierErrors).length ? tierErrors : undefined,
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  } catch (e: any) {
-    console.error("generate-weekly-quiz error:", e);
-    if (e instanceof CreditsExhaustedError) {
-      return new Response(JSON.stringify({ error: e.message, code: "CREDITS_EXHAUSTED" }), {
-        status: 402,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (e instanceof DeadlineExceededError) {
-      return new Response(JSON.stringify({ error: e.message, code: "DEADLINE" }), {
-        status: 504,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    return new Response(JSON.stringify({ error: e?.message ?? String(e), code: "INTERNAL" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/x-ndjson",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+    },
+  });
 });
