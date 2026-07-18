@@ -228,22 +228,40 @@ Deno.test("perf: 2,000-item mixed batch sanitizes under 2000ms", () => {
   );
 });
 
-Deno.test("perf: dedup stays sub-linear-ish on 1,000 accepted vs 500 existing stems", () => {
-  const items = buildBatch(1000).filter((_, i) => i % 7 !== 0); // drop crafted-bad
-  const pre = runPipeline(items);
-  const existing = pre.accepted.slice(0, 500).map((a) => ({
-    content_text: a.content_text,
-    answer: a.answer,
-    topic: a.topic,
-  }));
+Deno.test("perf: dedup on 800 unique + 200 near-duplicate items stays under 1500ms", () => {
+  // Build unique-stem items (long padding phrase kills token overlap between items).
+  const uniquePad = (i: number) =>
+    `nonce ${i} alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima ${i * 31} mike november oscar papa quebec romeo`;
+  const base = buildBatch(800).filter((_, i) => i % 7 !== 0).map((it, i) => {
+    return { ...it, content_text: `${it.content_text} — ${uniquePad(i)}` };
+  });
+  const preBase = runPipeline(base);
 
+  // Craft 200 near-duplicate items of the first 200 accepted (same padding, tiny edit).
+  const dupSeed = preBase.accepted.slice(0, 200);
+  const dupItems: Item[] = dupSeed.map((a, i) => ({
+    format: a.format,
+    content_text: a.content_text.replace(/^Consider/, "Now consider"), // near-duplicate stem
+    options: a.format === "mcq" ? MCQ_TEMPLATES[a.topic].distractors.concat(a.answer).reverse().slice(0, 4) : undefined,
+    answer: a.answer,
+    explanation: `${MCQ_TEMPLATES[a.topic].explanation} restated in item ${i}`,
+    topic: a.topic,
+    difficulty_estimate: a.difficulty_estimate,
+    bloom_level: a.bloom_level,
+  }));
+  const preDupes = runPipeline(dupItems);
+
+  const combined = [...preBase.accepted, ...preDupes.accepted];
   const start = performance.now();
-  const dedup = dedupWithin(pre.accepted, existing);
+  const dedup = dedupWithin(combined, []);
   const elapsed = performance.now() - start;
 
   console.log(
-    `dedup perf: ${pre.accepted.length} accepted vs ${existing.length} existing -> kept=${dedup.kept.length}, elapsed=${elapsed.toFixed(1)}ms`,
+    `dedup perf: ${combined.length} incoming -> kept=${dedup.kept.length}, rejected=${dedup.rejected.length}, elapsed=${elapsed.toFixed(1)}ms`,
   );
 
+  assert(dedup.rejected.length > 0, "expected the crafted near-duplicates to be caught");
+  assert(dedup.kept.length > 0, "expected non-duplicate items to survive");
   assert(elapsed < 1500, `dedupWithin regressed: took ${elapsed.toFixed(1)}ms (budget 1500ms)`);
 });
+
