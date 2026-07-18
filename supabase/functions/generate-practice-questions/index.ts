@@ -441,7 +441,7 @@ Deno.serve(async (req) => {
     if (enrollErr || !enrollment) return json({ error: "Not enrolled in course" }, 403);
 
     // Parallel fetches
-    const [courseRes, conceptsRes, conceptMasteryRes, courseMasteryRes, recentRes] = await Promise.all([
+    const [courseRes, conceptsRes, conceptMasteryRes, courseMasteryRes, recentRes, recentStemsRes] = await Promise.all([
       admin.from("courses").select("name, code").eq("id", courseId).maybeSingle(),
       admin
         .from("concepts")
@@ -467,6 +467,14 @@ Deno.serve(async (req) => {
         .eq("course_id", courseId)
         .order("created_at", { ascending: false })
         .limit(5),
+      admin
+        .from("assessment_results")
+        .select("questions_snapshot")
+        .eq("student_id", studentId)
+        .eq("course_id", courseId)
+        .eq("mode", "practice")
+        .order("created_at", { ascending: false })
+        .limit(10),
     ]);
 
     const course = (courseRes.data ?? null) as { name: string | null; code: string | null } | null;
