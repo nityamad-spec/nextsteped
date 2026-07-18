@@ -275,7 +275,7 @@ Deno.test("sanitizer: valid MCQ batch is fully kept", () => {
     goodMcq(),
     goodMcq({
       content_text: "Which structure stores unique keys mapped to values?",
-      options: ["hash map", "linked list", "binary heap", "priority queue"],
+      options: ["hash map", "list node", "min heap", "queue node"],
       answer: "hash map",
       explanation: "A hash map (or hash table) stores unique keys mapped to values via a hash function.",
       topic: "COMPLEXITY",
