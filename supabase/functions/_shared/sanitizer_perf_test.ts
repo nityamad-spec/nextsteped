@@ -34,39 +34,45 @@ const CONCEPT_MAP: Record<string, true> = Object.fromEntries(
 
 type Item = Record<string, unknown>;
 
-// Distinct MCQ answer templates per concept so answers carry real key tokens
-// that the explanation can reference (validateExplanation requires token
-// overlap between explanation and correct answer).
-const MCQ_TEMPLATES: Record<string, { correct: string; distractors: string[]; explanation: string }> = {
+// Uniform-length options (structural allows max/min <= 1.6x) with distinct
+// key tokens per concept so validateExplanation's token overlap check can
+// distinguish correct from distractors.
+const MCQ_TEMPLATES: Record<string, { correct: string; distractors: string[]; explanation: string; salt: string[] }> = {
   LOOPS: {
-    correct: "while loop repeats until condition false",
-    distractors: ["static assignment executes once", "class inheritance chain", "module import declaration"],
-    explanation: "A while loop repeats a block while its condition holds and stops when the condition becomes false; the other options do not iterate.",
+    correct: "iteration repeats the block",
+    distractors: ["assignment sets a variable", "definition declares a name", "return exits the function"],
+    explanation: "Iteration repeats a block while a condition holds; the other constructs do not repeat execution.",
+    salt: ["counter", "sentinel", "range", "index", "bound", "step", "cursor", "guard"],
   },
   CLASSES: {
-    correct: "class inheritance shares behavior across subtypes",
-    distractors: ["global variable mutation only", "for loop iteration counter", "print statement side effect"],
-    explanation: "Class inheritance lets subtypes share and extend behavior defined on a base class; the other options are unrelated to type hierarchies.",
+    correct: "inheritance extends a base class",
+    distractors: ["assignment binds one value", "iteration walks a sequence", "recursion recomputes a call"],
+    explanation: "Inheritance lets a subclass extend behavior of a base class; the other constructs are unrelated to type hierarchies.",
+    salt: ["subtype", "mixin", "override", "super", "polymorphism", "constructor", "field", "method"],
   },
   RECURSION: {
-    correct: "recursive base case terminates the recursion",
-    distractors: ["global counter increment", "linear list append", "string concatenation only"],
-    explanation: "A recursive base case is what terminates the recursion; without a base case a recursive call stack grows without bound.",
+    correct: "base case stops the recursion",
+    distractors: ["global counter counts calls", "for loop iterates a list", "print statement shows text"],
+    explanation: "The base case is what stops recursion; without it the call stack grows without bound.",
+    salt: ["stack", "frame", "trampoline", "memo", "unwind", "descent", "invariant", "arity"],
   },
   COMPLEXITY: {
-    correct: "big-O measures asymptotic growth",
-    distractors: ["exact wall-clock runtime", "memory address layout", "compiler flag choice"],
-    explanation: "Big-O notation describes asymptotic growth of an algorithm as input size increases; it is not a precise wall-clock measurement.",
+    correct: "big-O describes growth rate",
+    distractors: ["wall-clock returns seconds", "linter formats source code", "compiler emits binary code"],
+    explanation: "Big-O describes asymptotic growth rate as input size increases; wall-clock timing is separate.",
+    salt: ["asymptote", "constant", "linear", "quadratic", "logarithmic", "amortized", "worst", "average"],
   },
   IO: {
-    correct: "file handle must be closed after write",
-    distractors: ["print statement returns string", "input always returns integer", "open call requires no path"],
-    explanation: "A file handle should be closed after writing to flush buffers and release the descriptor; leaving handles open leaks resources.",
+    correct: "close flushes and releases",
+    distractors: ["open returns an integer", "seek deletes the file", "write ignores the buffer"],
+    explanation: "Closing a file flushes buffered writes and releases the descriptor; leaving it open leaks resources.",
+    salt: ["descriptor", "buffer", "flush", "handle", "stream", "socket", "pipe", "duplex"],
   },
   TYPES: {
-    correct: "static types checked before runtime",
-    distractors: ["dynamic dispatch at compile time", "garbage collector removes types", "syntax highlighting is a type"],
-    explanation: "Static type checking runs before execution and catches type mismatches at compile time; dynamic checks happen at runtime instead.",
+    correct: "static types check at compile",
+    distractors: ["dynamic types skip runtime", "gradual types delete types", "phantom types run programs"],
+    explanation: "Static types are checked at compile time; dynamic checks happen while the program runs.",
+    salt: ["annotation", "inference", "generic", "variance", "narrowing", "widening", "signature", "arity"],
   },
 };
 
@@ -75,35 +81,36 @@ function buildBatch(n: number): Item[] {
   for (let i = 0; i < n; i++) {
     const concept = CONCEPTS[i % CONCEPTS.length];
     const isMcq = i % 2 === 0;
-    // Every 7th item is intentionally malformed to exercise reject paths.
     const bad = i % 7 === 0;
     const tpl = MCQ_TEMPLATES[concept];
+    const salt = tpl.salt[i % tpl.salt.length];
+    // Give each stem a unique key token to defeat dedup jaccard collapse.
+    const uniqSuffix = `variant-${i}-${salt}`;
 
     if (isMcq) {
       const options = bad
-        ? [tpl.correct, tpl.distractors[0], tpl.distractors[1]] // 3 opts => structural drop
+        ? [tpl.correct, tpl.distractors[0], tpl.distractors[1]] // 3 opts => drop
         : [tpl.correct, tpl.distractors[0], tpl.distractors[1], tpl.distractors[2]];
       items.push({
         format: "mcq",
-        // stem #i keeps stems unique so dedup doesn't collapse the batch
-        content_text: `[q${i}] For ${concept}, which statement is most accurate?`,
+        content_text: `Consider ${concept} scenario ${uniqSuffix}: which behavior applies here?`,
         options,
         answer: bad ? "not-in-options" : tpl.correct,
-        explanation: tpl.explanation,
+        explanation: `${tpl.explanation} (scenario ${uniqSuffix})`,
         topic: concept,
-        difficulty_estimate: 0.3 + ((i % 3) * 0.1), // 0.3 / 0.4 / 0.5 => easy/medium band
-        bloom_level: 2 + (i % 3), // 2..4, safe for both mcq (<=5) and tf (<=4)
+        difficulty_estimate: 0.3 + ((i % 3) * 0.1),
+        bloom_level: 2 + (i % 3),
       });
     } else {
       const answerIsTrue = i % 3 !== 0;
       items.push({
         format: "true_false",
         content_text:
-          `[q${i}] In ${concept}, ${tpl.correct} is a defining property of the concept.`,
+          `In ${concept} scenario ${uniqSuffix}, the property that ${tpl.correct} always holds.`,
         answer: bad ? "maybe" : (answerIsTrue ? "True" : "False"),
         explanation: answerIsTrue
-          ? `This statement is accurate because ${tpl.correct} — item ${i}.`
-          : `This statement is not accurate: ${tpl.correct.replace(/^./, (c) => c.toUpperCase())} is misapplied here — item ${i}.`,
+          ? `This is accurate: ${tpl.correct} in scenario ${uniqSuffix}.`
+          : `This is not accurate; the claim about ${uniqSuffix} misapplies the rule.`,
         topic: concept,
         difficulty_estimate: 0.3 + ((i % 3) * 0.1),
         bloom_level: 2 + (i % 3),
@@ -112,6 +119,7 @@ function buildBatch(n: number): Item[] {
   }
   return items;
 }
+
 
 
 function runPipeline(items: Item[]) {
