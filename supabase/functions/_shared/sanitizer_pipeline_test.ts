@@ -204,7 +204,7 @@ const goodMcq = (overrides: Record<string, unknown> = {}) => ({
   _expect: "keep",
   format: "mcq",
   content_text: "Which construct repeats a block while a condition holds?",
-  options: ["while loop", "if statement", "class definition", "return statement"],
+  options: ["while loop", "if branch", "for range", "def block"],
   answer: "while loop",
   explanation:
     "A while loop repeats a block of code as long as its condition remains true; the other constructs do not iterate.",
