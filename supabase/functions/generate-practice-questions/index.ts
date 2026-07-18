@@ -36,6 +36,9 @@ import {
   validateBloom,
   validateDifficulty,
   validateExplanation,
+  dedupWithin,
+  auditBatchQuotas,
+  summarizeRejections,
 } from "../_shared/question-validation.ts";
 
 const corsHeaders = {
