@@ -144,7 +144,7 @@ function runPipeline(items: Item[]) {
 
   const dedup = dedupWithin(accepted, []);
   const audit = auditBatchQuotas(dedup.kept, {
-    conceptQuotas: Object.fromEntries(CONCEPTS.map((c) => [c, 10])),
+    perConcept: Object.fromEntries(CONCEPTS.map((c) => [c, 10])),
   });
   return { accepted: dedup.kept, rejections, audit };
 }
