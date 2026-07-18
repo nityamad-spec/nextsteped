@@ -226,10 +226,52 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         );
       if (upsertErr) throw upsertErr;
 
-      const { data, error } = await supabase.functions.invoke("generate-weekly-quiz", {
-        body: { course_id: courseId, week_number: week.week },
+      // generate-weekly-quiz streams NDJSON (heartbeat frames every 20s to
+      // defeat the Edge Runtime's 150s IDLE_TIMEOUT) and finishes with a
+      // single {type:"result"|"error"} frame. Use fetch instead of
+      // supabase.functions.invoke, which buffers the whole body.
+      const { data: sess } = await supabase.auth.getSession();
+      const accessToken = sess.session?.access_token;
+      if (!accessToken) throw new Error("Not authenticated");
+      const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-weekly-quiz`;
+      const resp = await fetch(fnUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+        },
+        body: JSON.stringify({ course_id: courseId, week_number: week.week }),
       });
-      if (error) throw error;
+      if (!resp.ok || !resp.body) {
+        const text = await resp.text().catch(() => "");
+        throw new Error(text || `HTTP ${resp.status}`);
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let finalFrame: { type: string; status?: number; payload?: any; message?: string; code?: string } | null = null;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (!line) continue;
+          let frame: any;
+          try { frame = JSON.parse(line); } catch { continue; }
+          if (frame?.type === "heartbeat" || frame?.type === "progress") continue;
+          if (frame?.type === "result" || frame?.type === "error") {
+            finalFrame = frame;
+          }
+        }
+      }
+      if (!finalFrame) throw new Error("Quiz generation was interrupted");
+      if (finalFrame.type === "error") throw new Error(finalFrame.message || "Quiz generation failed");
+      const data = finalFrame.payload ?? {};
       if ((data as any)?.error) throw new Error((data as any).error);
       const count = Number((data as any)?.generated ?? 0);
       setQuizGenerated((prev) => ({ ...prev, [week.week]: count }));
