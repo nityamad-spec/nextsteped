@@ -618,7 +618,7 @@ Deno.serve(async (req) => {
       const { format, content_text, options } = structural.value;
 
       // 2a) Intent.types filter
-      if (!intent.types.includes(format)) {
+      if (!(intent.types as string[]).includes(format)) {
         recordRejection(`format ${format} not in intent.types`);
         return null;
       }
