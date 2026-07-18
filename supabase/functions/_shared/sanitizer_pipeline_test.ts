@@ -592,7 +592,7 @@ Deno.test("sanitizer: mixed batch — every valid item kept, every invalid item 
     goodTf({ _expect: "drop", content_text: "Which of the following is true?" }), // 7 drop (t/f mcq-shaped)
     goodMcq({
       content_text: "Which data structure gives O(log n) search when balanced?",
-      options: ["binary search tree", "linked list", "hash table", "queue"],
+      options: ["bst tree", "list node", "hash map", "heap node"],
       answer: "binary search tree",
       explanation:
         "A balanced binary search tree keeps its height in O(log n), so searching from the root to a leaf takes logarithmic time.",
