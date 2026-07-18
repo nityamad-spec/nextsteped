@@ -36,6 +36,9 @@ import {
   validateBloom,
   validateDifficulty,
   validateExplanation,
+  dedupWithin,
+  auditBatchQuotas,
+  summarizeRejections,
 } from "../_shared/question-validation.ts";
 
 const corsHeaders = {
@@ -438,7 +441,7 @@ Deno.serve(async (req) => {
     if (enrollErr || !enrollment) return json({ error: "Not enrolled in course" }, 403);
 
     // Parallel fetches
-    const [courseRes, conceptsRes, conceptMasteryRes, courseMasteryRes, recentRes] = await Promise.all([
+    const [courseRes, conceptsRes, conceptMasteryRes, courseMasteryRes, recentRes, recentStemsRes] = await Promise.all([
       admin.from("courses").select("name, code").eq("id", courseId).maybeSingle(),
       admin
         .from("concepts")
@@ -464,6 +467,14 @@ Deno.serve(async (req) => {
         .eq("course_id", courseId)
         .order("created_at", { ascending: false })
         .limit(5),
+      admin
+        .from("assessment_results")
+        .select("questions_snapshot")
+        .eq("student_id", studentId)
+        .eq("course_id", courseId)
+        .eq("mode", "practice")
+        .order("created_at", { ascending: false })
+        .limit(10),
     ]);
 
     const course = (courseRes.data ?? null) as { name: string | null; code: string | null } | null;
@@ -483,6 +494,23 @@ Deno.serve(async (req) => {
       ((recentRes.data ?? []) as any[])
         .map((r) => `${r.mode}:${r.correct_answers}/${r.total_questions}(${r.score}%)`)
         .join(", ") || "(none)";
+
+    // Extract prior practice stems for dedup + prompt "avoid" list.
+    const recentStems: { content_text: string; answer: string; topic: string }[] = [];
+    for (const row of ((recentStemsRes.data ?? []) as any[])) {
+      const snap = row?.questions_snapshot;
+      const items = Array.isArray(snap) ? snap : Array.isArray(snap?.questions) ? snap.questions : [];
+      for (const it of items) {
+        const stem = String(it?.question ?? it?.content_text ?? "").trim();
+        if (!stem) continue;
+        recentStems.push({
+          content_text: stem,
+          answer: String(it?.answer ?? "").trim(),
+          topic: String(it?.topic ?? "").trim(),
+        });
+      }
+    }
+    const recentStemsTrimmed = recentStems.slice(0, 40);
 
     const knownConceptCodes = new Set(concepts.map((c) => c.concept_code));
     const conceptList = concepts.map((c) => ({
@@ -524,34 +552,30 @@ Deno.serve(async (req) => {
         ? intent.concepts
         : snapshotConcepts.map((c) => c.concept_code);
 
-    // ---- Stage 2: Generation ----
-    const genSystem = renderTemplate(SYSTEM_PROMPT_GENERATE_TEMPLATE, {
-      course_name: courseName,
-      course_code: courseCode,
-      target_language: intent.language,
-      intent_json: JSON.stringify(intent),
-      mastery_snapshot_json: JSON.stringify(snapshotConcepts),
-      allowed_concept_codes: allowedCodes.join(", ") || "(none)",
-      course_mastery_score:
-        courseMastery?.mastery_score != null ? String(courseMastery.mastery_score) : "null",
-      course_learner_level: courseMastery?.learner_level || "unknown",
-      recent_stems_json: "[]",
-      recent_assessments_line: recentLine,
-    });
+    // Difficulty band derived from intent for validateDifficulty.
+    const diffBand = (d: Difficulty): { midpoint?: number; band?: number } => {
+      switch (d) {
+        case "easy": return { midpoint: 0.25, band: 0.10 };
+        case "medium": return { midpoint: 0.50, band: 0.10 };
+        case "hard": return { midpoint: 0.775, band: 0.125 };
+        default: return {};
+      }
+    };
+    const diffOpts = { ...diffBand(intent.difficulty), fallback: 0.5 };
 
-    const genResp = await callGateway(LOVABLE_API_KEY, [
-      { role: "system", content: genSystem },
-      { role: "user", content: "Generate the questions now." },
-    ]);
-    if (!genResp.ok) return json({ error: genResp.error }, genResp.status);
-
-    const parsedObj = parseJsonLoose(genResp.content);
-    if (!parsedObj) {
-      console.error("Failed to parse Stage 2 JSON:", genResp.content.slice(0, 500));
-      return json({ error: "Failed to generate questions" }, 502);
+    // Bloom-focus tolerance: allow ±1 to match prompt's "bias toward".
+    const bloomFocusSet = new Set<number>();
+    if (intent.bloom_focus.length > 0) {
+      for (const b of intent.bloom_focus) {
+        bloomFocusSet.add(b);
+        bloomFocusSet.add(b - 1);
+        bloomFocusSet.add(b + 1);
+      }
     }
-    const arr = Array.isArray(parsedObj) ? parsedObj : parsedObj?.questions;
-    if (!Array.isArray(arr)) return json({ error: "Failed to generate questions" }, 502);
+
+    // Build set of concept codes the model was *actually allowed* to use.
+    const allowedTopicSet: Record<string, true> = {};
+    for (const code of allowedCodes) allowedTopicSet[code] = true;
 
     const normalizeOptions = (o: any): string[] => {
       if (Array.isArray(o)) return o.map((x) => String(x));
@@ -559,87 +583,273 @@ Deno.serve(async (req) => {
       return [];
     };
 
-    // Build set of concept codes the model was *actually allowed* to use.
-    const allowedTopicSet: Record<string, true> = {};
-    for (const code of allowedCodes) allowedTopicSet[code] = true;
+    type Accepted = {
+      id: string;
+      question: string;
+      type: QType;
+      options?: string[];
+      answer: string;
+      explanation: string;
+      topic: string;
+      difficulty_estimate: number;
+      bloom_level: number;
+    };
 
-    const rejections: string[] = [];
-    const sanitized = arr
-      .map((q: any, i: number) => {
-        // 1) Structural (format, stem, options, length parity, T/F stem shape).
-        const raw = { ...q, options: q?.type === "mcq" ? normalizeOptions(q?.options).map((s) => s.trim()).filter(Boolean) : undefined };
-        const structural = validateStructural(raw, {
-          allowedFormats: ["mcq", "true_false"],
-          requireFourOptions: false, // practice allows ≥2 options
-        });
-        if (!structural.ok) { rejections.push(structural.reason); return null; }
-        const { format, content_text, options } = structural.value;
+    const rejectionCounts = new Map<string, number>();
+    const rejectionsList: string[] = [];
+    const recordRejection = (reason: string) => {
+      rejectionCounts.set(reason, (rejectionCounts.get(reason) ?? 0) + 1);
+      rejectionsList.push(reason);
+    };
 
-        // 2) Concept ∈ allowed set (was previously trusted from the prompt only).
-        const conceptCheck = validateConcept(q.topic, allowedTopicSet);
-        if (!conceptCheck.ok) { rejections.push(conceptCheck.reason); return null; }
-        const topic = conceptCheck.value;
+    const validateOne = (q: any, idx: number): Accepted | null => {
+      // 1) Structural
+      const raw = {
+        ...q,
+        options: q?.type === "mcq" || q?.format === "mcq"
+          ? normalizeOptions(q?.options).map((s) => s.trim()).filter(Boolean)
+          : undefined,
+      };
+      const structural = validateStructural(raw, {
+        allowedFormats: ["mcq", "true_false"],
+        requireFourOptions: false,
+      });
+      if (!structural.ok) { recordRejection(structural.reason); return null; }
+      const { format, content_text, options } = structural.value;
 
-        // 3) Answer normalisation.
-        let answer: string;
-        if (format === "true_false") {
-          const raw = String(q.answer ?? "").trim();
-          answer = /^t/i.test(raw) ? "True" : /^f/i.test(raw) ? "False" : "";
-          if (!answer) { rejections.push("t/f answer neither True nor False"); return null; }
-        } else {
-          const ans = normalizeAnswer(q.answer, options);
-          if (!ans.ok) { rejections.push(ans.reason); return null; }
-          answer = ans.value;
-          const parity = validateOptionParity(options, answer);
-          if (!parity.ok) { rejections.push(parity.reason); return null; }
+      // 2a) Intent.types filter
+      if (!(intent.types as string[]).includes(format)) {
+        recordRejection(`format ${format} not in intent.types`);
+        return null;
+      }
+
+      // 2b) Concept
+      const conceptCheck = validateConcept(q.topic, allowedTopicSet);
+      if (!conceptCheck.ok) { recordRejection(conceptCheck.reason); return null; }
+      const topic = conceptCheck.value;
+
+      // 3) Answer
+      let answer: string;
+      if (format === "true_false") {
+        const ans = normalizeAnswer(q.answer, ["True", "False"]);
+        if (!ans.ok) { recordRejection(`t/f: ${ans.reason}`); return null; }
+        answer = ans.value;
+      } else {
+        const ans = normalizeAnswer(q.answer, options);
+        if (!ans.ok) { recordRejection(ans.reason); return null; }
+        answer = ans.value;
+        const parity = validateOptionParity(options, answer);
+        if (!parity.ok) { recordRejection(parity.reason); return null; }
+      }
+
+      // 4) Difficulty (with intent-derived band)
+      const diff = validateDifficulty(q.difficulty_estimate, diffOpts);
+      if (!diff.ok) { recordRejection(diff.reason); return null; }
+
+      // 5) Bloom
+      const bloom = validateBloom(q.bloom_level, {
+        min: 1, max: 6,
+        enforceDifficultyConsistency: true,
+        difficulty: diff.value,
+      });
+      if (!bloom.ok) { recordRejection(bloom.reason); return null; }
+
+      // 5a) Format cap on bloom
+      if (format === "mcq" && bloom.value > 5) {
+        recordRejection("bloom > 5 for MCQ");
+        return null;
+      }
+      if (format === "true_false" && bloom.value > 4) {
+        recordRejection("bloom > 4 for T/F");
+        return null;
+      }
+
+      // 5b) Intent bloom_focus (±1)
+      if (bloomFocusSet.size > 0 && !bloomFocusSet.has(bloom.value)) {
+        recordRejection("bloom outside intent.bloom_focus (±1)");
+        return null;
+      }
+
+      // 6) Explanation
+      const explanation = String(q.explanation ?? "").trim();
+      const explCheck = validateExplanation({
+        format,
+        options: format === "true_false" ? ["True", "False"] : options,
+        answer,
+        explanation,
+      });
+      if (!explCheck.ok) { recordRejection(explCheck.reason); return null; }
+
+      return {
+        id: `pq-${Date.now()}-${idx}`,
+        question: content_text,
+        type: format as QType,
+        options: format === "mcq" ? options : undefined,
+        answer,
+        explanation: explCheck.value,
+        topic,
+        difficulty_estimate: diff.value,
+        bloom_level: bloom.value,
+      };
+    };
+
+    // ---- Stage 2: Generation (with bounded retry) ----
+    const buildGenSystem = (extraHint: string, avoidStems: Accepted[]) => {
+      const avoidJson = JSON.stringify([
+        ...recentStemsTrimmed.map((r) => r.content_text),
+        ...avoidStems.map((a) => a.question),
+      ].slice(0, 60));
+      const base = renderTemplate(SYSTEM_PROMPT_GENERATE_TEMPLATE, {
+        course_name: courseName,
+        course_code: courseCode,
+        target_language: intent.language,
+        intent_json: JSON.stringify(intent),
+        mastery_snapshot_json: JSON.stringify(snapshotConcepts),
+        allowed_concept_codes: allowedCodes.join(", ") || "(none)",
+        course_mastery_score:
+          courseMastery?.mastery_score != null ? String(courseMastery.mastery_score) : "null",
+        course_learner_level: courseMastery?.learner_level || "unknown",
+        recent_stems_json: avoidJson,
+        recent_assessments_line: recentLine,
+      });
+      return extraHint ? `${base}\n\n${extraHint}` : base;
+    };
+
+    const accepted: Accepted[] = [];
+    const RETRY_BUDGET_MS = 60_000;
+    const startedAt = Date.now();
+    const MAX_ROUNDS = 3; // initial + up to 2 retries
+    let rawContentSample = "";
+
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      const shortfall = intent.count - accepted.length;
+      if (shortfall <= 0) break;
+      if (round > 0 && Date.now() - startedAt > RETRY_BUDGET_MS) {
+        console.warn("practice: retry budget exhausted");
+        break;
+      }
+
+      const hint = round === 0
+        ? ""
+        : `Generate ${shortfall} more question(s) to reach the target count. ${summarizeRejections(rejectionsList)}`;
+      const genSystem = buildGenSystem(hint, accepted);
+
+      const genResp = await callGateway(LOVABLE_API_KEY, [
+        { role: "system", content: genSystem },
+        {
+          role: "user",
+          content: round === 0
+            ? "Generate the questions now."
+            : `Generate ${shortfall} more question(s) now. Do not repeat any previously accepted or listed stem.`,
+        },
+      ]);
+      if (!genResp.ok) {
+        if (round === 0) return json({ error: genResp.error }, genResp.status);
+        console.warn("practice retry gateway failed:", genResp.error);
+        break;
+      }
+
+      const parsedObj = parseJsonLoose(genResp.content);
+      const arr = Array.isArray(parsedObj) ? parsedObj : parsedObj?.questions;
+      if (!Array.isArray(arr)) {
+        if (round === 0) {
+          console.error("Failed to parse Stage 2 JSON:", genResp.content.slice(0, 500));
+          rawContentSample = genResp.content.slice(0, 1500);
         }
+        continue;
+      }
+      if (round === 0) rawContentSample = genResp.content.slice(0, 1500);
 
-        // 4) Difficulty (no silent clamp — reject non-numeric).
-        const diff = validateDifficulty(q.difficulty_estimate, { fallback: 0.5 });
-        if (!diff.ok) { rejections.push(diff.reason); return null; }
+      // Validate items in this round.
+      const roundCandidates: Accepted[] = [];
+      for (let i = 0; i < arr.length && accepted.length + roundCandidates.length < intent.count; i++) {
+        const item = validateOne(arr[i], accepted.length + roundCandidates.length);
+        if (item) roundCandidates.push(item);
+      }
 
-        // 5) Bloom — must be integer 1..6, plus difficulty consistency.
-        const bloom = validateBloom(q.bloom_level, {
-          min: 1, max: 6,
-          enforceDifficultyConsistency: true,
-          difficulty: diff.value,
-        });
-        if (!bloom.ok) { rejections.push(bloom.reason); return null; }
-
-        // 6) Explanation semantic check.
-        const explanation = String(q.explanation ?? "").trim();
-        const explCheck = validateExplanation({
-          format, options: format === "true_false" ? ["True", "False"] : options,
-          answer, explanation,
-        });
-        if (!explCheck.ok) { rejections.push(explCheck.reason); return null; }
-
-        return {
-          id: `pq-${Date.now()}-${i}`,
-          question: content_text,
-          type: format as QType,
-          options: format === "mcq" ? options : undefined,
-          answer,
-          explanation: explCheck.value,
-          topic,
-          difficulty_estimate: diff.value,
-          bloom_level: bloom.value,
-        };
-      })
-      .filter((q): q is NonNullable<typeof q> => q !== null);
-
-    if (rejections.length > 0) {
-      console.log(`practice: rejected ${rejections.length}/${arr.length} — ${rejections.slice(0, 8).join(" | ")}`);
+      // Dedup within round + against already accepted + against recent stems.
+      const dedupResult = dedupWithin(
+        roundCandidates.map((c) => ({ ...c, content_text: c.question })),
+        [
+          ...accepted.map((a) => ({ content_text: a.question, answer: a.answer, topic: a.topic })),
+          ...recentStemsTrimmed,
+        ],
+      );
+      for (const rej of dedupResult.rejected) {
+        recordRejection(`duplicate of: ${rej.duplicateOf}`);
+      }
+      for (const k of dedupResult.kept) {
+        // strip synthetic content_text field
+        const { content_text: _ignored, ...rest } = k as unknown as Accepted & { content_text?: string };
+        accepted.push(rest as Accepted);
+      }
     }
 
+    // ---- Rejection summary log ----
+    if (rejectionsList.length > 0) {
+      const topReasons = [...rejectionCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([r, n]) => `${n}× ${r}`)
+        .join(" | ");
+      console.log(`practice: rejected ${rejectionsList.length} items — ${topReasons}`);
+    }
 
-
-    if (sanitized.length === 0) {
-      console.error("No valid questions after sanitize. Raw Stage 2 content:", genResp.content.slice(0, 1500));
+    if (accepted.length === 0) {
+      console.error("No valid questions after sanitize. Raw Stage 2 sample:", rawContentSample);
       return json({ error: "No valid questions generated" }, 502);
     }
 
-    return json({ questions: sanitized });
+    // ---- Quota audit ----
+    const perConceptSpec: Record<string, number> = {};
+    if (allowedCodes.length > 0) {
+      if (intent.goal === "exam_prep") {
+        const weights = allowedCodes.map((code) => {
+          const c = snapshotConcepts.find((s) => s.concept_code === code);
+          return { code, w: Math.max(0.0001, c?.exam_weight ?? 0.0001) };
+        });
+        const totalW = weights.reduce((s, x) => s + x.w, 0);
+        let assigned = 0;
+        for (let i = 0; i < weights.length; i++) {
+          const share = i === weights.length - 1
+            ? intent.count - assigned
+            : Math.round((weights[i].w / totalW) * intent.count);
+          perConceptSpec[weights[i].code] = Math.max(0, share);
+          assigned += perConceptSpec[weights[i].code];
+        }
+      } else {
+        // even split
+        const base = Math.floor(intent.count / allowedCodes.length);
+        let remainder = intent.count - base * allowedCodes.length;
+        for (const code of allowedCodes) {
+          perConceptSpec[code] = base + (remainder-- > 0 ? 1 : 0);
+        }
+      }
+    }
+    const audit = auditBatchQuotas(
+      accepted.map((a) => ({ topic: a.topic, difficulty_estimate: a.difficulty_estimate })),
+      { perConcept: perConceptSpec },
+    );
+    const shortfallConcepts = Object.entries(audit.perConcept)
+      .filter(([, n]) => n > 0)
+      .map(([code, n]) => ({ concept_code: code, short_by: n }));
+
+    const warnings: { requested: number; delivered: number; concept_shortfall?: typeof shortfallConcepts } = {
+      requested: intent.count,
+      delivered: accepted.length,
+    };
+    if (shortfallConcepts.length > 0) warnings.concept_shortfall = shortfallConcepts;
+    const hasWarnings = accepted.length < intent.count || shortfallConcepts.length > 0;
+    if (hasWarnings) {
+      console.log("practice: quota audit", JSON.stringify(warnings));
+    }
+
+    // Strip synthetic fields before response.
+    const questions = accepted.map(({ id, question, type, options, answer, explanation, topic, difficulty_estimate, bloom_level }) => ({
+      id, question, type, options, answer, explanation, topic, difficulty_estimate, bloom_level,
+    }));
+
+    return json(hasWarnings ? { questions, warnings } : { questions });
   } catch (e) {
     console.error("generate-practice-questions error:", e);
     return json({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
