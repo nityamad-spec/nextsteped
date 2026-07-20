@@ -1,46 +1,60 @@
-## Goal
+# Suspend student accounts (admin)
 
-Change diagnostic mastery formula to `0.80 * accuracy + 0.20 * pace`, remove confidence from scoring and from the quiz UI, and recompute existing rows with the new formula.
+Add a reversible "suspend" action so an admin can revoke a student's platform access without deleting any of their data.
 
-## Changes
+## Behavior
 
-### 1. `supabase/functions/score-diagnostic/index.ts`
-- Update `CONFIG.WEIGHTS` to `{ accuracy: 0.80, pace: 0.20 }`; remove `confidence`.
-- Remove `CONFIDENCE_LEVELS`, `CONFIDENCE_DEFAULT`, and the per-answer confidence accumulation loop.
-- `masteryScore = 0.80 * accuracyScore + 0.20 * paceScore`.
-- Drop `confidence` from the returned `components`.
-- Keep writing `confidences: []` to `diagnostic_results` (column stays; empty array) OR stop passing it — see DB note below.
-- Update the header docstring (steps 3/4/5) to reflect the new formula.
+- Admin can suspend a student from `/admin/students` (row action + inside the student profile dialog).
+- Suspended students:
+  - Cannot sign in (edge function rejects with a friendly "Account suspended — contact your administrator" message).
+  - Any existing session is revoked immediately on suspension, so they are booted on next request.
+- Admin can reactivate at any time, restoring access. All existing data (enrollments, mastery, chats, results) is untouched.
+- Suspended students are visually flagged in the admin list (badge) and can be filtered.
 
-### 2. `src/pages/student/DiagnosticQuiz.tsx`
-- Remove `confidenceLabels`, the `confidence` state, `confidences` state, and the confidence selector UI block (~lines 665–690).
-- Remove `confidence !== null` from `canProceed` (only `hasAnswer` gates Next).
-- Stop reading/writing `confidence(s)` in save/restore autosave payloads.
-- Stop sending `confidences` and per-answer `confidence` in the `score-diagnostic` invocation payload (send `confidences: []` for backward compat, or drop entirely if we relax the schema — see §4).
+## Data model
 
-### 3. `src/lib/diagnosticsAnalytics.ts` + `src/components/admin/DiagnosticsAnalytics.tsx`
-- Remove any confidence-derived metrics/columns shown in the admin analytics view (the `confidences` field is still selected today). This is presentational cleanup, not a schema change.
+New column on `public.profiles`:
+- `suspended_at timestamptz null` — null = active, non-null = suspended (also serves as the timestamp).
+- Optional `suspended_by uuid null references auth.users(id)` for audit.
 
-### 4. Request-schema compatibility
-- `BodySchema` currently requires `confidences` + per-answer `confidence`. Loosen both to `.optional()` so the client can stop sending them without breaking older cached clients that still do.
+No RLS change needed for the column itself (admins already read/update profiles). Students continue to read their own profile; the suspension is enforced at sign-in, not by hiding the profile.
 
-### 5. Backfill existing `diagnostic_results` rows
-- One-off migration to recompute `mastery_score` for every existing row using the new formula from the persisted `answers` + `question_times` + `question_ids`.
-- Approach: a PL/pgSQL function that, per row, joins to `diagnostic_questions` on the stored `question_ids`, replays the same accuracy (difficulty × Bloom weight) and pace-curve math, writes the new `mastery_score`. `learner_level` is derived from branch tier + correct count and is unaffected, so it stays as-is.
-- Runs once inside the migration; no schema changes to `diagnostic_results`.
-- The `confidences` column is left in place (nullable) to preserve historical data — no drop.
+## Backend
 
-## Dependencies / call-outs
+New edge function `admin-set-student-suspension` (service role):
+1. Verify caller is admin (same pattern as `delete-user`).
+2. Validate `user_id` + `suspended: boolean`.
+3. Update `profiles.suspended_at` / `suspended_by`.
+4. When suspending, call `auth.admin.signOut(user_id, 'global')` to invalidate active sessions.
+5. Return `{ ok, suspended_at }`.
 
-- **learner_level is unchanged.** It's set by `levelFromBranch(branch, correct, answered)`, independent of `mastery_score`, so removing confidence does not shift any student's assigned level.
-- **Score distribution shifts up** for students who previously rated themselves low-confidence (their 0.15 confidence term is redistributed 4:1 into accuracy/pace). Backfill will visibly change historical `mastery_score` values in admin analytics and any student-facing surface that reads it.
-- **`diagnostic_results.confidences` column stays** to preserve history; only the UI capture and scoring use are removed. If you'd rather drop it entirely, say so and I'll add a schema migration.
-- **No `update-mastery` impact.** `score-diagnostic` doesn't feed `student_concept_mastery` / `student_course_mastery`, so course mastery math is untouched.
-- **Autosave payload shape changes.** In-flight quizzes with a cached `confidence` in localStorage will just ignore that field on resume — no crash, but worth mentioning.
-- **Tests:** no existing tests cover `score-diagnostic` scoring math directly; `diagnosticBranching.test.ts` only covers branch/level logic and stays green.
+Update `supabase/functions/student-signin/index.ts`:
+- After password verification, look up `profiles.suspended_at` for the user.
+- If non-null, do NOT return a session; respond `403 { error: "Account suspended. Contact your administrator." }`.
+
+Non-student sign-in path (regular `supabase.auth.signInWithPassword` in `AuthContext`) is untouched — this only targets students, matching the request.
+
+## Frontend
+
+`src/pages/admin/AdminStudents.tsx`:
+- Fetch `suspended_at` alongside existing profile fields.
+- Add a "Suspended" badge in the row when set.
+- Row dropdown menu: add "Suspend access" / "Reactivate access" toggle with a confirm dialog.
+- Add a filter chip "Status: Active / Suspended".
+
+`src/components/admin/StudentProfileDialog.tsx`:
+- Show current status and a Suspend/Reactivate button (same confirm flow).
+
+Both call the new edge function and refresh the list on success via existing toast + refetch pattern.
 
 ## Out of scope
 
-- Renaming or dropping the `confidences` column on `diagnostic_results`.
-- Any change to weekly-quiz / exam / practice scoring.
-- Any change to `learner_level` assignment.
+- No change to teacher accounts.
+- No deletion of any student data.
+- No email notification to the student.
+
+## Technical notes
+
+- Migration adds the column with default null and grants nothing new (admins already have update rights via existing policies; verify the current UPDATE policy on `profiles` covers admin updates — if not, add an admin-only policy using `public.is_admin(auth.uid())`).
+- Session revocation uses `supabaseAdmin.auth.admin.signOut(userId, 'global')`; if any active refresh token races through, the next `student-signin` call will still reject due to the `suspended_at` check.
+- `RoleGuard` doesn't need changes: on next navigation the revoked session forces re-auth, and re-auth is blocked.
