@@ -482,7 +482,16 @@ const AdminStudents = () => {
                         onClick={() => setProfileTarget(s)}
                         className={cn(idx % 2 === 1 && "bg-muted/20", "hover:bg-muted/40 transition-colors cursor-pointer")}
                       >
-                        <TableCell className="font-medium align-top">{s.name}</TableCell>
+                        <TableCell className={cn("font-medium align-top", s.suspended_at && "opacity-60")}>
+                          <div className="flex items-center gap-2">
+                            <span>{s.name}</span>
+                            {s.suspended_at && (
+                              <Badge variant="outline" className="text-[10px] border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 gap-1">
+                                <ShieldOff className="h-3 w-3" /> Suspended
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="align-top">
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-xs text-muted-foreground truncate max-w-[200px]" title={s.email || ""}>
@@ -549,6 +558,15 @@ const AdminStudents = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              {s.suspended_at ? (
+                                <DropdownMenuItem onClick={() => setSuspendTarget(s)}>
+                                  <ShieldCheck className="h-4 w-4 mr-2" /> Reactivate access
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem onClick={() => setSuspendTarget(s)}>
+                                  <ShieldOff className="h-4 w-4 mr-2" /> Suspend access
+                                </DropdownMenuItem>
+                              )}
                               {multiAccount ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
