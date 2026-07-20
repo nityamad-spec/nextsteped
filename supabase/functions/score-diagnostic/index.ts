@@ -121,7 +121,7 @@ const BodySchema = z.object({
   course_id: z.string().uuid(),
   branch_tier: z.enum(["easy", "medium", "hard"]).nullable().optional(),
   answers: z.array(AnswerSchema),
-  confidences: z.array(z.number()),
+  confidences: z.array(z.number()).optional(),
   question_times: z.array(z.number()),
   question_ids: z.array(z.string()),
 });
