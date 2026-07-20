@@ -265,12 +265,10 @@ const DiagnosticQuiz = () => {
                 setCurrentQ(saved.currentQ);
                 setAnswers(saved.answers);
                 setTextAnswers(saved.textAnswers);
-                setConfidences(saved.confidences);
                 setQuestionTimes(saved.questionTimes);
                 setQuestionIds(saved.questionIds);
                 setSelected(typeof saved.selected === "number" ? saved.selected : null);
                 setTextAnswer(typeof saved.textAnswer === "string" ? saved.textAnswer : "");
-                setConfidence(typeof saved.confidence === "number" ? saved.confidence : null);
                 setQuestionStartTime(typeof saved.questionStartTime === "number" ? saved.questionStartTime : Date.now());
                 setPhase("quiz");
                 return;
