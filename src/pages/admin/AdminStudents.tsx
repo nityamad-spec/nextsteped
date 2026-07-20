@@ -273,6 +273,33 @@ const AdminStudents = () => {
     setConfirmText("");
   };
 
+  const handleSuspendToggle = async () => {
+    if (!suspendTarget) return;
+    const willSuspend = !suspendTarget.suspended_at;
+    setSuspending(true);
+    const { data, error } = await supabase.functions.invoke("admin-set-student-suspension", {
+      body: { user_id: suspendTarget.primaryProfileId, suspended: willSuspend },
+    });
+    setSuspending(false);
+    if (error || (data as any)?.error) {
+      toast({
+        title: willSuspend ? "Suspend failed" : "Reactivate failed",
+        description: (data as any)?.error || error?.message,
+        variant: "destructive",
+      });
+      return;
+    }
+    const newVal = (data as any)?.suspended_at ?? null;
+    setStudents(prev => prev.map(s => s.key === suspendTarget.key ? { ...s, suspended_at: newVal } : s));
+    toast({
+      title: willSuspend ? "Student suspended" : "Student reactivated",
+      description: willSuspend
+        ? `${suspendTarget.name} can no longer sign in. Data is preserved.`
+        : `${suspendTarget.name} can sign in again.`,
+    });
+    setSuspendTarget(null);
+  };
+
   const courseOptions = useMemo(() => {
     const s = new Set<string>();
     students.forEach(st => st.courses.forEach(c => s.add(c.name)));
@@ -305,16 +332,20 @@ const AdminStudents = () => {
           : s.courses;
         if (!pool.some(c => c.mastery && masteryFilter.has(c.mastery))) return false;
       }
+      if (statusFilter === "active" && s.suspended_at) return false;
+      if (statusFilter === "suspended" && !s.suspended_at) return false;
       return true;
     });
-  }, [students, search, courseFilter, masteryFilter]);
+  }, [students, search, courseFilter, masteryFilter, statusFilter]);
 
   const hasMultiAccount = useMemo(() => students.some(s => s.profileIds.length > 1), [students]);
-  const filtersActive = search.length > 0 || courseFilter.size > 0 || masteryFilter.size > 0;
+  const suspendedCount = useMemo(() => students.filter(s => s.suspended_at).length, [students]);
+  const filtersActive = search.length > 0 || courseFilter.size > 0 || masteryFilter.size > 0 || statusFilter !== "all";
   const clearAll = () => {
     setSearch("");
     setCourseFilter(new Set());
     setMasteryFilter(new Set());
+    setStatusFilter("all");
   };
 
   const handleExport = async () => {
