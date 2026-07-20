@@ -11,7 +11,7 @@
  *
  * Inputs:
  *   - courseId: uuid
- *   - answers: [{ question_id, selected, elapsed_ms, confidence }]
+ *   - answers: [{ question_id, selected, elapsed_ms }]
  *
  * Steps:
  *   1. Authenticate student; load the diagnostic_questions for the submitted ids.
@@ -19,11 +19,10 @@
  *      accumulate against max points, and derive accuracyScore = sumEarned / sumMax.
  *   3. Compute paceScore using EXPECTED_TIME_BASE_MS[bloom] * (0.6 + 1.0 * difficulty)
  *      passed through paceCurve (exponential decay when actual/expected > 1).
- *   4. Compute confidenceScore from UI confidence (0/1/2 → 0.0/0.5/1.0).
- *   5. masteryScore = 0.70 * accuracy + 0.15 * pace + 0.15 * confidence.
- *   6. Map masteryScore → learner_level (beginner/developing/proficient/expert).
- *   7. Insert a diagnostic_results row; do NOT write student_concept_mastery.
- *   8. Return the score + level.
+ *   4. masteryScore = 0.80 * accuracy + 0.20 * pace.
+ *   5. Map submission → learner_level via branch tier + correct count.
+ *   6. Insert a diagnostic_results row; do NOT write student_concept_mastery.
+ *   7. Return the score + level.
  *
  * Side effects:
  *   diagnostic_results insert.
@@ -35,15 +34,10 @@
 //
 // Scope:
 //   - Writes ONLY to diagnostic_results.
-//   - Does NOT write profiles.learner_level (intentionally — profile-level is
-//     not driven by any quiz/diagnostic flow).
+//   - Does NOT write profiles.learner_level.
 //   - Does NOT write student_concept_mastery or student_course_mastery. Those
-//     tables are populated exclusively by weekly_quiz / exam / practice via
-//     the update-mastery edge function. The diagnostic is a pure
-//     assessment-of-record and does not seed per-concept EMAs, so the EMA
-//     signal stays consistent (raw correct/attempted) across its callers.
-//     Pace and confidence are diagnostic-only signals and stay scoped to
-//     diagnostic_results.
+//     are populated by weekly_quiz / exam / practice via update-mastery.
+//     Pace is a diagnostic-only signal and stays scoped to diagnostic_results.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
