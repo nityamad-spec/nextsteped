@@ -245,7 +245,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             <Badge variant="outline" className="text-xs">{q.topic}</Badge>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs">{q.difficulty}</Badge>
             {answers[q.id] && <CheckCircle className="h-4 w-4 text-primary" />}
           </div>
         </div>
