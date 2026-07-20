@@ -62,6 +62,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const [loadingExplanations, setLoadingExplanations] = useState(false);
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [lockedIndices, setLockedIndices] = useState<Set<number>>(new Set());
   // confidence collection removed for quizzes/exams
   const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
   const questionStartRef = useRef<number>(Date.now());
@@ -588,7 +589,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                     flushTimeFor(questions[safeIndex]?.id);
                     setCurrentIndex((i) => Math.max(0, i - 1));
                   }}
-                  disabled={safeIndex === 0}
+                  disabled={safeIndex === 0 || lockedIndices.has(safeIndex - 1)}
                   className="gap-2"
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -607,7 +608,15 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                 ) : (
                   <Button
                     onClick={() => {
-                      flushTimeFor(questions[safeIndex]?.id);
+                      const currentQid = questions[safeIndex]?.id;
+                      flushTimeFor(currentQid);
+                      if (currentQid && answers[currentQid] !== undefined) {
+                        setLockedIndices((prev) => {
+                          const next = new Set(prev);
+                          next.add(safeIndex);
+                          return next;
+                        });
+                      }
                       setCurrentIndex((i) => Math.min(questions.length - 1, i + 1));
                     }}
                     className="gap-2"
