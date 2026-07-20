@@ -1383,6 +1383,8 @@ export type Database = {
           needs_password_setup: boolean
           role: string
           roll_number: string | null
+          suspended_at: string | null
+          suspended_by: string | null
           university_id: string | null
           updated_at: string
         }
@@ -1402,6 +1404,8 @@ export type Database = {
           needs_password_setup?: boolean
           role: string
           roll_number?: string | null
+          suspended_at?: string | null
+          suspended_by?: string | null
           university_id?: string | null
           updated_at?: string
         }
@@ -1421,6 +1425,8 @@ export type Database = {
           needs_password_setup?: boolean
           role?: string
           roll_number?: string | null
+          suspended_at?: string | null
+          suspended_by?: string | null
           university_id?: string | null
           updated_at?: string
         }
