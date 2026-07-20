@@ -423,6 +423,21 @@ const AdminStudents = () => {
               selected={masteryFilter}
               onChange={setMasteryFilter}
             />
+            <div className="flex items-center gap-1 rounded-md border p-0.5">
+              {(["all", "active", "suspended"] as const).map(k => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setStatusFilter(k)}
+                  className={cn(
+                    "px-2.5 py-1 text-xs rounded-sm capitalize transition-colors",
+                    statusFilter === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {k}{k === "suspended" && suspendedCount > 0 ? ` (${suspendedCount})` : ""}
+                </button>
+              ))}
+            </div>
             <span className="text-[11px] text-muted-foreground">
               Courses use AND (must be in all selected). Mastery uses OR (any selected level matches).
             </span>
