@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, Check, ChevronDown, Download, Filter, GraduationCap, Loader2, MoreHorizontal, Search, Trash2, X } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Download, Filter, GraduationCap, Loader2, MoreHorizontal, Search, ShieldOff, ShieldCheck, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -94,6 +94,7 @@ interface StudentGroup {
   email: string | null;
   roll_number: string | null;
   created_at: string;
+  suspended_at: string | null;
   courses: CourseEnrollment[];
 }
 
@@ -114,6 +115,9 @@ const AdminStudents = () => {
   const [target, setTarget] = useState<StudentGroup | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [suspendTarget, setSuspendTarget] = useState<StudentGroup | null>(null);
+  const [suspending, setSuspending] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "suspended">("all");
   const [search, setSearch] = useState("");
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const [courseFilter, setCourseFilter] = useState<Set<string>>(new Set());
@@ -136,7 +140,7 @@ const AdminStudents = () => {
     const fetch = async () => {
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, name, email, roll_number, created_at")
+        .select("id, name, email, roll_number, created_at, suspended_at")
         .eq("role", "student")
         .order("created_at", { ascending: false });
 
@@ -218,6 +222,7 @@ const AdminStudents = () => {
             email: p.email,
             roll_number: p.roll_number,
             created_at: p.created_at,
+            suspended_at: (p as any).suspended_at ?? null,
             courses: [...profileCourses],
           });
         } else {
@@ -227,6 +232,7 @@ const AdminStudents = () => {
             existing.created_at = p.created_at;
           }
           if (!existing.roll_number && p.roll_number) existing.roll_number = p.roll_number;
+          if (!existing.suspended_at && (p as any).suspended_at) existing.suspended_at = (p as any).suspended_at;
         }
       }
 
