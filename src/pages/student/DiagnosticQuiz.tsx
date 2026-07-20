@@ -646,36 +646,9 @@ const DiagnosticQuiz = () => {
                 </div>
               )}
 
-              {hasAnswer && (
-                <div className="mt-4 border-t pt-4">
-                  <p className="mb-3 text-xs font-medium text-muted-foreground">
-                    How confident are you in your answer?
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[0, 1, 2].map((lvl) => (
-                      <Button
-                        key={lvl}
-                        type="button"
-                        variant={confidence === lvl ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setConfidence(lvl)}
-                        className="h-auto whitespace-normal py-2 text-xs"
-                      >
-                        {confidenceLabels[lvl]}
-                      </Button>
-                    ))}
-                  </div>
-                  {confidence === null && (
-                    <p className="mt-2 text-center text-xs text-muted-foreground">
-                      Select your confidence level to continue.
-                    </p>
-                  )}
-                </div>
-              )}
-
             </motion.div>
             <div className="mt-4 flex justify-between">
-              <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; const prevConfidence = confidences[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setConfidence(prevConfidence ?? null); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { setExitConfirmOpen(true); } }}>
+              <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { setExitConfirmOpen(true); } }}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
               <Button onClick={handleAnswer} disabled={!canProceed || loadingBranch}>
