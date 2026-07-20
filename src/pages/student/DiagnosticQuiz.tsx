@@ -35,11 +35,6 @@ import {
   type BranchTier,
 } from "@/lib/diagnosticBranching";
 
-const confidenceLabels: Record<number, string> = {
-  0: "Not Confident",
-  1: "Somewhat Confident",
-  2: "Very Confident",
-};
 
 interface QuizQuestion {
   id: string;
