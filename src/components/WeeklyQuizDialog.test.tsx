@@ -90,7 +90,7 @@ describe("WeeklyQuizDialog", () => {
         day={1}
       />
     );
-    expect(screen.queryByText(/Daily Quiz/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Weekly Quiz/i)).not.toBeInTheDocument();
   });
 
   it("loads questions and shows the intro screen when opened from the lesson plan", async () => {
@@ -108,7 +108,7 @@ describe("WeeklyQuizDialog", () => {
 
     // Intro phase headline rendered by AssessmentView
     await waitFor(() => {
-      expect(screen.getByText(/Daily Quiz — Day 1/i)).toBeInTheDocument();
+      expect(screen.getByText(/Weekly Quiz — Week 1/i)).toBeInTheDocument();
     });
     expect(screen.getByRole("button", { name: /Start Quiz/i })).toBeInTheDocument();
   });
