@@ -638,6 +638,35 @@ const AdminStudents = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={!!suspendTarget} onOpenChange={(o) => { if (!o) setSuspendTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {suspendTarget?.suspended_at ? "Reactivate student access?" : "Suspend student access?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {suspendTarget?.suspended_at ? (
+                <>
+                  <span className="font-medium text-foreground">{suspendTarget?.name}</span> will be able to sign in again immediately.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-foreground">{suspendTarget?.name}</span> will be signed out and blocked from signing in.
+                  All of their data (enrollments, results, chats) is preserved and can be restored at any time by reactivating.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={suspending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleSuspendToggle(); }} disabled={suspending}>
+              {suspending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {suspendTarget?.suspended_at ? "Reactivate" : "Suspend"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <StudentProfileDialog
         student={profileTarget}
         open={!!profileTarget}
