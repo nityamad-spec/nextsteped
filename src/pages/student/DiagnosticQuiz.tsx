@@ -35,11 +35,6 @@ import {
   type BranchTier,
 } from "@/lib/diagnosticBranching";
 
-const confidenceLabels: Record<number, string> = {
-  0: "Not Confident",
-  1: "Somewhat Confident",
-  2: "Very Confident",
-};
 
 interface QuizQuestion {
   id: string;
@@ -101,10 +96,8 @@ const DiagnosticQuiz = () => {
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [textAnswer, setTextAnswer] = useState("");
-  const [confidence, setConfidence] = useState<number | null>(null);
   const [answers, setAnswers] = useState<number[]>([]);
   const [textAnswers, setTextAnswers] = useState<string[]>([]);
-  const [confidences, setConfidences] = useState<number[]>([]);
   const [phase, setPhase] = useState<"loading" | "intro" | "quiz" | "result" | "already-completed">("loading");
   const [existingResult, setExistingResult] = useState<{
     score: number;
@@ -233,12 +226,10 @@ const DiagnosticQuiz = () => {
               setCurrentQ(saved.currentQ);
               setAnswers(saved.answers);
               setTextAnswers(saved.textAnswers);
-              setConfidences(saved.confidences);
               setQuestionTimes(saved.questionTimes);
               setQuestionIds(saved.questionIds);
               setSelected(typeof saved.selected === "number" ? saved.selected : null);
               setTextAnswer(typeof saved.textAnswer === "string" ? saved.textAnswer : "");
-              setConfidence(typeof saved.confidence === "number" ? saved.confidence : null);
               setQuestionStartTime(typeof saved.questionStartTime === "number" ? saved.questionStartTime : Date.now());
               setPhase("quiz");
               return;
@@ -274,12 +265,10 @@ const DiagnosticQuiz = () => {
                 setCurrentQ(saved.currentQ);
                 setAnswers(saved.answers);
                 setTextAnswers(saved.textAnswers);
-                setConfidences(saved.confidences);
                 setQuestionTimes(saved.questionTimes);
                 setQuestionIds(saved.questionIds);
                 setSelected(typeof saved.selected === "number" ? saved.selected : null);
                 setTextAnswer(typeof saved.textAnswer === "string" ? saved.textAnswer : "");
-                setConfidence(typeof saved.confidence === "number" ? saved.confidence : null);
                 setQuestionStartTime(typeof saved.questionStartTime === "number" ? saved.questionStartTime : Date.now());
                 setPhase("quiz");
                 return;
@@ -300,7 +289,7 @@ const DiagnosticQuiz = () => {
   const question = questions[currentQ];
   const isShortAnswer = question?.format === "short_answer";
   const hasAnswer = isShortAnswer ? textAnswer.trim().length > 0 : selected !== null;
-  const canProceed = hasAnswer && confidence !== null;
+  const canProceed = hasAnswer;
 
 
   // Persist in-progress quiz state so a refresh resumes at the same place.
@@ -315,7 +304,7 @@ const DiagnosticQuiz = () => {
       currentQ,
       answers,
       textAnswers,
-      confidences,
+      confidences: [] as number[],
       questionTimes,
       questionIds,
       standardIds,
@@ -323,7 +312,6 @@ const DiagnosticQuiz = () => {
       branchTier,
       selected,
       textAnswer,
-      confidence,
       questionStartTime,
       savedAt: Date.now(),
     };
@@ -333,7 +321,7 @@ const DiagnosticQuiz = () => {
         JSON.stringify(payload),
       );
     } catch {}
-  }, [user, activeCourseId, phase, currentQ, answers, textAnswers, confidences, questionTimes, questionIds, selected, textAnswer, confidence, questionStartTime, questions, branchTier]);
+  }, [user, activeCourseId, phase, currentQ, answers, textAnswers, questionTimes, questionIds, selected, textAnswer, questionStartTime, questions, branchTier]);
 
   const handleAnswer = async () => {
     if (!canProceed) return;
@@ -341,17 +329,15 @@ const DiagnosticQuiz = () => {
     const answerValue = isShortAnswer ? -1 : selected!;
     const newAnswers = [...answers, answerValue];
     const newTextAnswers = [...textAnswers, isShortAnswer ? textAnswer.trim() : ""];
-    const newConfidences = [...confidences, confidence!];
+    const newConfidences: number[] = [];
     const newQuestionTimes = [...questionTimes, elapsed];
     const newQuestionIds = [...questionIds, question.id];
     setAnswers(newAnswers);
     setTextAnswers(newTextAnswers);
-    setConfidences(newConfidences);
     setQuestionTimes(newQuestionTimes);
     setQuestionIds(newQuestionIds);
     setSelected(null);
     setTextAnswer("");
-    setConfidence(null);
 
     const justFinishedStandard =
       currentQ === STANDARD_COUNT - 1 && !branchTier && activeCourseId;
@@ -660,36 +646,9 @@ const DiagnosticQuiz = () => {
                 </div>
               )}
 
-              {hasAnswer && (
-                <div className="mt-4 border-t pt-4">
-                  <p className="mb-3 text-xs font-medium text-muted-foreground">
-                    How confident are you in your answer?
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[0, 1, 2].map((lvl) => (
-                      <Button
-                        key={lvl}
-                        type="button"
-                        variant={confidence === lvl ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setConfidence(lvl)}
-                        className="h-auto whitespace-normal py-2 text-xs"
-                      >
-                        {confidenceLabels[lvl]}
-                      </Button>
-                    ))}
-                  </div>
-                  {confidence === null && (
-                    <p className="mt-2 text-center text-xs text-muted-foreground">
-                      Select your confidence level to continue.
-                    </p>
-                  )}
-                </div>
-              )}
-
             </motion.div>
             <div className="mt-4 flex justify-between">
-              <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; const prevConfidence = confidences[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setConfidence(prevConfidence ?? null); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setConfidences(confidences.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { setExitConfirmOpen(true); } }}>
+              <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { setExitConfirmOpen(true); } }}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
               <Button onClick={handleAnswer} disabled={!canProceed || loadingBranch}>

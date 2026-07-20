@@ -11,7 +11,7 @@
  *
  * Inputs:
  *   - courseId: uuid
- *   - answers: [{ question_id, selected, elapsed_ms, confidence }]
+ *   - answers: [{ question_id, selected, elapsed_ms }]
  *
  * Steps:
  *   1. Authenticate student; load the diagnostic_questions for the submitted ids.
@@ -19,11 +19,10 @@
  *      accumulate against max points, and derive accuracyScore = sumEarned / sumMax.
  *   3. Compute paceScore using EXPECTED_TIME_BASE_MS[bloom] * (0.6 + 1.0 * difficulty)
  *      passed through paceCurve (exponential decay when actual/expected > 1).
- *   4. Compute confidenceScore from UI confidence (0/1/2 → 0.0/0.5/1.0).
- *   5. masteryScore = 0.70 * accuracy + 0.15 * pace + 0.15 * confidence.
- *   6. Map masteryScore → learner_level (beginner/developing/proficient/expert).
- *   7. Insert a diagnostic_results row; do NOT write student_concept_mastery.
- *   8. Return the score + level.
+ *   4. masteryScore = 0.80 * accuracy + 0.20 * pace.
+ *   5. Map submission → learner_level via branch tier + correct count.
+ *   6. Insert a diagnostic_results row; do NOT write student_concept_mastery.
+ *   7. Return the score + level.
  *
  * Side effects:
  *   diagnostic_results insert.
@@ -35,15 +34,10 @@
 //
 // Scope:
 //   - Writes ONLY to diagnostic_results.
-//   - Does NOT write profiles.learner_level (intentionally — profile-level is
-//     not driven by any quiz/diagnostic flow).
+//   - Does NOT write profiles.learner_level.
 //   - Does NOT write student_concept_mastery or student_course_mastery. Those
-//     tables are populated exclusively by weekly_quiz / exam / practice via
-//     the update-mastery edge function. The diagnostic is a pure
-//     assessment-of-record and does not seed per-concept EMAs, so the EMA
-//     signal stays consistent (raw correct/attempted) across its callers.
-//     Pace and confidence are diagnostic-only signals and stay scoped to
-//     diagnostic_results.
+//     are populated by weekly_quiz / exam / practice via update-mastery.
+//     Pace is a diagnostic-only signal and stays scoped to diagnostic_results.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
@@ -73,12 +67,8 @@ const CONFIG = {
   PACE_FAST_CUTOFF: 0.25,   // r below this is treated as guessing
   PACE_SLOW_DECAY: 2.0,     // exp decay scale for r > 1
 
-  // Final mastery combination weights (sum should be 1.0) — kept for analytics
-  WEIGHTS: { accuracy: 0.70, pace: 0.15, confidence: 0.15 },
-
-  // Confidence: 3-level discrete scale from UI [0,1,2] mapped to [0..1].
-  CONFIDENCE_LEVELS: { 0: 0.0, 1: 0.5, 2: 1.0 } as Record<number, number>,
-  CONFIDENCE_DEFAULT: 1,
+  // Final mastery combination weights (sum should be 1.0)
+  WEIGHTS: { accuracy: 0.80, pace: 0.20 },
 } as const;
 
 type LearnerLevel = "beginner" | "developing" | "proficient";
@@ -131,7 +121,7 @@ const BodySchema = z.object({
   course_id: z.string().uuid(),
   branch_tier: z.enum(["easy", "medium", "hard"]).nullable().optional(),
   answers: z.array(AnswerSchema),
-  confidences: z.array(z.number()),
+  confidences: z.array(z.number()).optional(),
   question_times: z.array(z.number()),
   question_ids: z.array(z.string()),
 });
@@ -213,7 +203,6 @@ Deno.serve(async (req) => {
   let earnedSum = 0;
   let maxSum = 0;
   const paceScores: number[] = [];
-  const confidenceScores: number[] = [];
   let correctCount = 0;
   let answeredCount = 0;
   const droppedQuestionIds: string[] = [];
@@ -246,36 +235,21 @@ Deno.serve(async (req) => {
     answeredCount += 1;
     if (isCorrect) correctCount += 1;
 
-
-
-
     // Pace
     const expectedMs =
       (CONFIG.EXPECTED_TIME_BASE_MS[bloom] ?? 30_000) *
       CONFIG.DIFFICULTY_TIME_FACTOR(difficulty);
     const actualMs = typeof a.time_ms === "number" && a.time_ms > 0 ? a.time_ms : expectedMs;
     paceScores.push(paceCurve(actualMs / expectedMs));
-
-    // Confidence
-    const rawC = Number.isInteger(a.confidence) ? (a.confidence as number) : CONFIG.CONFIDENCE_DEFAULT;
-    const keyC = Math.min(2, Math.max(0, rawC));
-    confidenceScores.push(CONFIG.CONFIDENCE_LEVELS[keyC] ?? 0.5);
   }
 
   const accuracyScore = maxSum > 0 ? clamp01(earnedSum / maxSum) : 0;
   const paceScore = paceScores.length
     ? paceScores.reduce((s, x) => s + x, 0) / paceScores.length
     : 0;
-  const confidenceScore = confidenceScores.length
-    ? confidenceScores.reduce((s, x) => s + x, 0) / confidenceScores.length
-    : 0;
 
   const W = CONFIG.WEIGHTS;
-  const masteryScore = clamp01(
-    W.accuracy * accuracyScore +
-      W.pace * paceScore +
-      W.confidence * confidenceScore,
-  );
+  const masteryScore = clamp01(W.accuracy * accuracyScore + W.pace * paceScore);
   const learnerLevel = levelFromBranch(body.branch_tier ?? null, correctCount, answeredCount);
 
   // ---------- Persist ----------
@@ -290,7 +264,7 @@ Deno.serve(async (req) => {
       mastery_score: Number(masteryScore.toFixed(4)),
       branch_tier: body.branch_tier ?? null,
       answers: body.answers,
-      confidences: body.confidences,
+      confidences: body.confidences ?? [],
       question_times: body.question_times,
       question_ids: body.question_ids,
     })
@@ -305,15 +279,6 @@ Deno.serve(async (req) => {
     return json({ error: "insert_failed", details: insertErr.message }, 500);
   }
 
-  // NOTE: profiles.learner_level is intentionally NOT updated here.
-  // Profile-level state is not driven by any quiz/diagnostic submission.
-
-  // Intentionally does NOT call update-mastery. The diagnostic is a pure
-  // assessment-of-record — student_concept_mastery and student_course_mastery
-  // are populated by weekly_quiz / exam / practice submissions only.
-
-
-
   return json({
     id: inserted?.id,
     mastery_score: masteryScore,
@@ -321,7 +286,6 @@ Deno.serve(async (req) => {
     components: {
       accuracy: accuracyScore,
       pace: paceScore,
-      confidence: confidenceScore,
     },
     score: correctCount,
     total_questions: answeredCount,

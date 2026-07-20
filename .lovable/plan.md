@@ -1,57 +1,46 @@
-
 ## Goal
 
-Refactor Step 4 in `supabase/functions/generate-practice-questions/index.ts` (lines 566–642) so every check goes through helpers in `supabase/functions/_shared/question-validation.ts`. No new shared code — just use what's already there. Scope is limited to this one edge function; no DB/schema/prompt-template changes.
+Change diagnostic mastery formula to `0.80 * accuracy + 0.20 * pace`, remove confidence from scoring and from the quiz UI, and recompute existing rows with the new formula.
 
-## Shared helpers to adopt
+## Changes
 
-| Helper (shared module) | Currently used? | Change |
-|---|---|---|
-| `validateStructural` | yes | keep |
-| `validateConcept` | yes | keep |
-| `normalizeAnswer` | yes (MCQ) | also use for T/F normalisation via `normalizeAnswer(raw, ["True","False"])` — removes the loose `/^t/i` matcher |
-| `validateOptionParity` | yes | keep |
-| `validateDifficulty` | partial (no band) | pass `midpoint` + `band` derived from `intent.difficulty` |
-| `validateBloom` | yes | keep (also enforce MCQ ≤ 5 / T/F ≤ 4 via a thin wrapper around returned value) |
-| `validateExplanation` | yes | keep |
-| `dedupWithin` | **no** | add — dedupe candidates against each other AND recent stems |
-| `auditBatchQuotas` | **no** | add — per-concept audit; log/return shortfall |
-| `summarizeRejections` | **no** | add — feed hint back to the model on the retry pass, plus log summary |
+### 1. `supabase/functions/score-diagnostic/index.ts`
+- Update `CONFIG.WEIGHTS` to `{ accuracy: 0.80, pace: 0.20 }`; remove `confidence`.
+- Remove `CONFIDENCE_LEVELS`, `CONFIDENCE_DEFAULT`, and the per-answer confidence accumulation loop.
+- `masteryScore = 0.80 * accuracyScore + 0.20 * paceScore`.
+- Drop `confidence` from the returned `components`.
+- Keep writing `confidences: []` to `diagnostic_results` (column stays; empty array) OR stop passing it — see DB note below.
+- Update the header docstring (steps 3/4/5) to reflect the new formula.
 
-## Steps
+### 2. `src/pages/student/DiagnosticQuiz.tsx`
+- Remove `confidenceLabels`, the `confidence` state, `confidences` state, and the confidence selector UI block (~lines 665–690).
+- Remove `confidence !== null` from `canProceed` (only `hasAnswer` gates Next).
+- Stop reading/writing `confidence(s)` in save/restore autosave payloads.
+- Stop sending `confidences` and per-answer `confidence` in the `score-diagnostic` invocation payload (send `confidences: []` for backward compat, or drop entirely if we relax the schema — see §4).
 
-1. **Difficulty band from intent.** Build `diffBand(intent.difficulty)` returning `{ midpoint, band }` for `easy/medium/hard`, `undefined` for `mixed`. Pass to `validateDifficulty` so out-of-band values are rejected instead of silently accepted.
-2. **Intent-side filters (before shared checks).** Reject items whose `format` is not in `intent.types`; when `intent.bloom_focus` is non-empty, reject items whose bloom is outside that set (± 1 tolerance).
-3. **Format cap on bloom.** After `validateBloom`, reject MCQ with bloom > 5 and T/F with bloom > 4.
-4. **T/F answer via `normalizeAnswer`.** Replace the current first-letter regex with `normalizeAnswer(q.answer, ["True","False"])` for T/F — same rejection path as MCQ.
-5. **Recent stems fetch.** Extend the parallel fetch (lines 460–466) to also select the last ~30 stems of `mode='practice'` from `assessment_results` (falling back to empty list when practice isn't persisted). Feed them into `recent_stems_json` (currently hard-coded `"[]"` on line 538) so the prompt sees them.
-6. **Cross-item + recent-stem dedup.** After the per-item loop, call `dedupWithin(candidates, recentStems)` and drop rejected duplicates; push their reasons into `rejections`.
-7. **Aggregated rejection log.** Replace the "first 8 raw strings" log with a `Map<reason, count>` summary; call `summarizeRejections` to build a compact string for logging (and for the retry hint in step 8).
-8. **Bounded retry loop.** If `accepted.length < intent.count`, run at most 2 additional generations for the shortfall. Each retry:
-   - Appends `summarizeRejections(rejections)` and the accepted stems ("do not repeat these") to the system prompt.
-   - Runs items through the exact same validation pipeline.
-   - Guarded by a 60 s wall-clock budget across all retries so student latency stays bounded.
-9. **Quota audit.** After retries, run `auditBatchQuotas(accepted, { perConcept: spec })` where `spec` is a roughly-even split across `allowedCodes` (or weighted by `exam_weight` when `intent.goal === "exam_prep"`). Attach the shortfall to the response as `warnings` (non-fatal) and log it.
-10. **Response shape.** Return `{ questions, warnings? }`. Keep 502 only when `accepted.length === 0` after retries.
+### 3. `src/lib/diagnosticsAnalytics.ts` + `src/components/admin/DiagnosticsAnalytics.tsx`
+- Remove any confidence-derived metrics/columns shown in the admin analytics view (the `confidences` field is still selected today). This is presentational cleanup, not a schema change.
 
-## Technical notes
+### 4. Request-schema compatibility
+- `BodySchema` currently requires `confidences` + per-answer `confidence`. Loosen both to `.optional()` so the client can stop sending them without breaking older cached clients that still do.
 
-- All new imports come from the existing `../_shared/question-validation.ts`:
-  ```ts
-  import {
-    dedupWithin,
-    auditBatchQuotas,
-    summarizeRejections,
-  } from "../_shared/question-validation.ts";
-  ```
-- No prompt-template rewrite; only `recent_stems_json` gets real data and the retry pass appends a hint string.
-- No changes to `_shared/question-validation.ts`.
-- No DB migrations. Recent-stems query is read-only against existing `assessment_results`.
-- Client (`PracticeQuestionsWidget.tsx`) already reads `questions`; adding an optional `warnings` field is backward-compatible.
+### 5. Backfill existing `diagnostic_results` rows
+- One-off migration to recompute `mastery_score` for every existing row using the new formula from the persisted `answers` + `question_times` + `question_ids`.
+- Approach: a PL/pgSQL function that, per row, joins to `diagnostic_questions` on the stored `question_ids`, replays the same accuracy (difficulty × Bloom weight) and pace-curve math, writes the new `mastery_score`. `learner_level` is derived from branch tier + correct count and is unaffected, so it stays as-is.
+- Runs once inside the migration; no schema changes to `diagnostic_results`.
+- The `confidences` column is left in place (nullable) to preserve historical data — no drop.
+
+## Dependencies / call-outs
+
+- **learner_level is unchanged.** It's set by `levelFromBranch(branch, correct, answered)`, independent of `mastery_score`, so removing confidence does not shift any student's assigned level.
+- **Score distribution shifts up** for students who previously rated themselves low-confidence (their 0.15 confidence term is redistributed 4:1 into accuracy/pace). Backfill will visibly change historical `mastery_score` values in admin analytics and any student-facing surface that reads it.
+- **`diagnostic_results.confidences` column stays** to preserve history; only the UI capture and scoring use are removed. If you'd rather drop it entirely, say so and I'll add a schema migration.
+- **No `update-mastery` impact.** `score-diagnostic` doesn't feed `student_concept_mastery` / `student_course_mastery`, so course mastery math is untouched.
+- **Autosave payload shape changes.** In-flight quizzes with a cached `confidence` in localStorage will just ignore that field on resume — no crash, but worth mentioning.
+- **Tests:** no existing tests cover `score-diagnostic` scoring math directly; `diagnosticBranching.test.ts` only covers branch/level logic and stays green.
 
 ## Out of scope
 
-- Streaming / heartbeats (practice runs are short, single-call).
-- Model swap.
-- Persisting practice questions.
-- Changes to any other generator (exam / weekly / diagnostic).
+- Renaming or dropping the `confidences` column on `diagnostic_results`.
+- Any change to weekly-quiz / exam / practice scoring.
+- Any change to `learner_level` assignment.
