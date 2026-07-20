@@ -203,7 +203,6 @@ Deno.serve(async (req) => {
   let earnedSum = 0;
   let maxSum = 0;
   const paceScores: number[] = [];
-  const confidenceScores: number[] = [];
   let correctCount = 0;
   let answeredCount = 0;
   const droppedQuestionIds: string[] = [];
@@ -236,36 +235,21 @@ Deno.serve(async (req) => {
     answeredCount += 1;
     if (isCorrect) correctCount += 1;
 
-
-
-
     // Pace
     const expectedMs =
       (CONFIG.EXPECTED_TIME_BASE_MS[bloom] ?? 30_000) *
       CONFIG.DIFFICULTY_TIME_FACTOR(difficulty);
     const actualMs = typeof a.time_ms === "number" && a.time_ms > 0 ? a.time_ms : expectedMs;
     paceScores.push(paceCurve(actualMs / expectedMs));
-
-    // Confidence
-    const rawC = Number.isInteger(a.confidence) ? (a.confidence as number) : CONFIG.CONFIDENCE_DEFAULT;
-    const keyC = Math.min(2, Math.max(0, rawC));
-    confidenceScores.push(CONFIG.CONFIDENCE_LEVELS[keyC] ?? 0.5);
   }
 
   const accuracyScore = maxSum > 0 ? clamp01(earnedSum / maxSum) : 0;
   const paceScore = paceScores.length
     ? paceScores.reduce((s, x) => s + x, 0) / paceScores.length
     : 0;
-  const confidenceScore = confidenceScores.length
-    ? confidenceScores.reduce((s, x) => s + x, 0) / confidenceScores.length
-    : 0;
 
   const W = CONFIG.WEIGHTS;
-  const masteryScore = clamp01(
-    W.accuracy * accuracyScore +
-      W.pace * paceScore +
-      W.confidence * confidenceScore,
-  );
+  const masteryScore = clamp01(W.accuracy * accuracyScore + W.pace * paceScore);
   const learnerLevel = levelFromBranch(body.branch_tier ?? null, correctCount, answeredCount);
 
   // ---------- Persist ----------
@@ -280,7 +264,7 @@ Deno.serve(async (req) => {
       mastery_score: Number(masteryScore.toFixed(4)),
       branch_tier: body.branch_tier ?? null,
       answers: body.answers,
-      confidences: body.confidences,
+      confidences: body.confidences ?? [],
       question_times: body.question_times,
       question_ids: body.question_ids,
     })
@@ -295,15 +279,6 @@ Deno.serve(async (req) => {
     return json({ error: "insert_failed", details: insertErr.message }, 500);
   }
 
-  // NOTE: profiles.learner_level is intentionally NOT updated here.
-  // Profile-level state is not driven by any quiz/diagnostic submission.
-
-  // Intentionally does NOT call update-mastery. The diagnostic is a pure
-  // assessment-of-record — student_concept_mastery and student_course_mastery
-  // are populated by weekly_quiz / exam / practice submissions only.
-
-
-
   return json({
     id: inserted?.id,
     mastery_score: masteryScore,
@@ -311,7 +286,6 @@ Deno.serve(async (req) => {
     components: {
       accuracy: accuracyScore,
       pace: paceScore,
-      confidence: confidenceScore,
     },
     score: correctCount,
     total_questions: answeredCount,
