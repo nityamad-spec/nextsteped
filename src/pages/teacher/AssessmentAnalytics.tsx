@@ -303,7 +303,7 @@ const AssessmentAnalytics = () => {
             <SelectContent>
               <SelectItem value="all">All Modes</SelectItem>
               <SelectItem value="exam">Exams</SelectItem>
-              <SelectItem value="daily_quiz">Daily Quizzes</SelectItem>
+              <SelectItem value="daily_quiz">Weekly Quizzes</SelectItem>
               <SelectItem value="diagnostic">Diagnostic Tests</SelectItem>
             </SelectContent>
           </Select>

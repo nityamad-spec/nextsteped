@@ -326,14 +326,14 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
               {isQuiz ? <ClipboardList className="h-7 w-7 text-primary" /> : <GraduationCap className="h-7 w-7 text-primary" />}
             </div>
             <CardTitle className="text-xl">
-              {isQuiz ? `Daily Quiz — Day ${day || 1}` : "Exam Practice Simulation"}
+              {isQuiz ? `Weekly Quiz — Week ${day || 1}` : "Exam Practice Simulation"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-center">
             <div className="space-y-2 text-sm text-muted-foreground">
               <p><strong className="text-foreground">{questions.length}</strong> questions</p>
               <p><strong className="text-foreground">{timeLimitMinutes} minutes</strong> time limit</p>
-              {isQuiz && <p>Covers Day {day} topics</p>}
+              {isQuiz && <p>Covers Week {day} topics</p>}
               {!isQuiz && <p>Covers all course topics</p>}
             </div>
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
@@ -374,7 +374,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                 <Trophy className={`h-7 w-7 ${passed ? "text-primary" : "text-destructive"}`} />
               </div>
               <CardTitle className="text-xl">
-                {isQuiz ? "Daily Quiz Complete!" : "Exam Practice Complete!"}
+                {isQuiz ? "Weekly Quiz Complete!" : "Exam Practice Complete!"}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -554,7 +554,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
         <div className="flex items-center justify-between px-5 py-3">
           <div className="flex items-center gap-3">
             <Badge variant={isQuiz ? "default" : "secondary"}>
-              {isQuiz ? `Daily Quiz — Day ${day}` : "Exam Simulation"}
+              {isQuiz ? `Weekly Quiz — Week ${day}` : "Exam Simulation"}
             </Badge>
             <span className="text-sm text-muted-foreground">
               {isQuiz

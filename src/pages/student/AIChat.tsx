@@ -130,7 +130,7 @@ const normalizeExamWelcomeMessage = (content: string) => {
 
   return content
     .replace(
-      /Choose \*\*Start Exam\*\* or \*\*Start Daily Quiz\*\* below to begin a timed assessment\./g,
+      /Choose \*\*Start Exam\*\* or \*\*Start Weekly Quiz\*\* below to begin a timed assessment\./g,
       "Configure your practice settings and click **Start Exam** to begin a timed simulation."
     )
     .replace(/Questions are presented by the system — no AI generation involved\.\s*/g, "")
@@ -723,7 +723,7 @@ const AIChat = () => {
       ]);
 
       const summary = [
-        assessmentType === "quiz" ? "✅ **Daily Quiz Complete!**" : "✅ **Exam Practice Complete!**",
+        assessmentType === "quiz" ? "✅ **Weekly Quiz Complete!**" : "✅ **Exam Practice Complete!**",
         "",
         `Score: **${results.score}%** (${results.correctAnswers}/${results.totalQuestions}) · Time: **${Math.floor(results.timeSpent / 60)}m ${results.timeSpent % 60}s**`,
         weakTopics.length > 0 ? `Topics to strengthen in Study mode: **${weakTopics.join(", ")}**` : "Strong work across this attempt.",
@@ -1118,7 +1118,7 @@ const AIChat = () => {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-destructive" />
-                End {assessmentType === "exam" ? "Exam" : "Daily Quiz"}?
+                End {assessmentType === "exam" ? "Exam" : "Weekly Quiz"}?
               </DialogTitle>
               <DialogDescription>
                 If you leave, your progress will be discarded and not submitted.

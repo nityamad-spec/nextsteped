@@ -1,42 +1,38 @@
-# Chat quick-prompt update: news + course-material search
+# Plan: Rename Daily Quiz → Weekly Quiz in quiz UI
+
+## Goal
+Update all student-facing quiz labels from "Daily Quiz — Day X" to "Weekly Quiz — Week X" so the UI matches the weekly-quiz feature naming on `/student/home` and `/student/chat`.
 
 ## Scope
-On `/student/chat`, replace the "Compare two ideas" quick prompt with two new ones and enable real web-grounded answers for the news prompt using Gemini's `:online` variant via the Lovable AI Gateway (OpenRouter web plugin).
+User confirmed this should apply **everywhere** the shared quiz UI appears (both `/student/home` weekly quiz and `/student/chat` quiz flow). Internal database values (e.g. `assessment_results.mode = 'daily_quiz'`) stay unchanged.
 
-## 1. Quick prompts (`src/pages/student/AIChat.tsx`)
-In `STUDENT_SUGGESTED_PROMPTS` (line 51):
-- Remove the `GitCompare` "Compare two ideas" entry.
-- Add:
-  1. `Newspaper` icon — **"Explore this week's news"** — prompt: *"Show me recent news, developments, and real-world examples related to this week's topic."*
-  2. `FolderSearch` icon — **"Search course materials"** — prompt: *"Find and explain information from the syllabus, textbook, slides, or other materials uploaded by my professor."*
+## Changes
 
-Extend the prompt object shape with an optional `mode?: "news" | "materials"` tag so the click handler can pass a routing flag alongside the text.
+### 1. `src/components/AssessmentView.tsx`
+Update the three visible quiz labels and the topic cover line:
+- Intro card title: `Daily Quiz — Day ${day || 1}` → `Weekly Quiz — Week ${day || 1}`
+- Intro card subtitle: `Covers Day {day} topics` → `Covers Week {day} topics`
+- Review screen title: `Daily Quiz Complete!` → `Weekly Quiz Complete!`
+- Active assessment badge: `Daily Quiz — Day ${day}` → `Weekly Quiz — Week ${day}`
 
-## 2. Client → server flag
-When the user clicks a tagged quick prompt, pass `{ mode: "news" }` (or `"materials"`) in the payload sent to the `chat` edge function alongside the message. If the user types the same words freehand, no flag is sent (default behavior).
+### 2. `src/pages/student/AIChat.tsx`
+Keep the chat-side quiz flow consistent:
+- Result summary header: `✅ **Daily Quiz Complete!**` → `✅ **Weekly Quiz Complete!**`
+- Leave-dialog title: `End {… "Daily Quiz"}?` → `End {… "Weekly Quiz"}?`
+- Normalize regex: `Choose **Start Exam** or **Start Daily Quiz** …` → `Choose **Start Exam** or **Start Weekly Quiz** …`
 
-`materials` mode is a placeholder — it sends the flag but the server treats it identically to a normal chat call for now (documented as TODO in the edge function).
+### 3. `src/components/WeeklyQuizDialog.test.tsx`
+Update test expectations:
+- `/Daily Quiz — Day 1/i` → `/Weekly Quiz — Week 1/i`
+- `/Daily Quiz/i` → `/Weekly Quiz/i`
 
-## 3. `chat` edge function — news branch
-In `supabase/functions/chat/index.ts`:
-- Accept optional `mode` in the request body (validated, defaults to `null`).
-- When `mode === "news"`:
-  - Resolve the student's current visible week + concepts from the existing lesson-plan/course context already loaded by the function.
-  - Build a grounded system+user prompt that includes those topics and instructs the model to: prioritize educational relevance; show publication date + source for each item; include clickable citation links; state clearly if no meaningful recent news exists and fall back to recent real-world applications.
-  - Route the call to `google/gemini-2.5-flash:online` (OpenRouter web plugin — appends web search results with citations). Keep all other params identical to the existing chat call.
-  - Stream the response back through the same NDJSON/SSE path used today so the UI renders it in-place (markdown + links already supported).
-- Any other `mode` (including `"materials"`) → existing default chat path unchanged.
-
-## 4. No other changes
-- No DB migrations.
-- No new secrets (uses existing `LOVABLE_API_KEY`).
-- `materials` prompt is UI-only for this iteration; grounding on uploaded materials will be a follow-up.
-
-## Files
-- `src/pages/student/AIChat.tsx` — swap prompt list, add `mode` tag + payload wiring, import `Newspaper` / `FolderSearch` from lucide.
-- `supabase/functions/chat/index.ts` — accept `mode`, add news branch using `google/gemini-2.5-flash:online` with citation-required system prompt.
+### 4. Optional consistency: `src/pages/teacher/AssessmentAnalytics.tsx`
+- Teacher filter label `Daily Quizzes` → `Weekly Quizzes` (keeps `value="daily_quiz"` unchanged).
 
 ## Verification
-- Click "Explore this week's news" → response cites sources with dates and URLs; matches this week's concepts.
-- Click "Search course materials" → sends prompt, gets standard chat answer (placeholder behavior).
-- Removed prompt no longer appears; typing "compare" freehand still works normally.
+- Run the affected unit tests (`WeeklyQuizDialog.test.tsx`).
+- Smoke-test opening a weekly quiz from `/student/home` and a quiz from `/student/chat` to confirm labels read "Weekly Quiz — Week X".
+
+## Notes
+- No database or backend changes.
+- No changes to `mode` enum values, edge functions, or analytics aggregation logic.
