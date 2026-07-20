@@ -638,7 +638,15 @@ Rules:
 --- END NEWS MODE ---`;
     }
 
-    const chatModel = isNews ? "google/gemini-2.5-flash:online" : "google/gemini-2.5-flash";
+    const requestBody: Record<string, unknown> = {
+      model: "google/gemini-2.5-flash",
+      messages: [{ role: "system", content: fullSystemPrompt }, ...messages],
+      stream: true,
+    };
+    if (isNews) {
+      // OpenRouter web search plugin — grounds the response with recent web results + citations.
+      requestBody.plugins = [{ id: "web" }];
+    }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -647,11 +655,7 @@ Rules:
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: chatModel,
-        messages: [{ role: "system", content: fullSystemPrompt }, ...messages],
-        stream: true,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
