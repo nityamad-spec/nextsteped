@@ -407,7 +407,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, mode, studySystemPrompt, examSystemPrompt, relevanceContext, courseId, studentId } =
+    const { messages, mode, promptMode, studySystemPrompt, examSystemPrompt, relevanceContext, courseId, studentId } =
       await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -620,7 +620,25 @@ PROFESSOR STYLE
       systemPrompt = `${systemPrompt}\n\nIMPORTANT: The user's question is not relevant to ${relevanceContext.courseName}.${conceptsList} Do NOT answer it. Reply in 1–2 short sentences saying it's outside the scope of this course and invite them to ask something related (you may suggest one of the listed concepts). Do not provide a partial answer, analogy, workaround, or "real-world bridge" — just decline politely and redirect.`;
     }
 
-    const fullSystemPrompt = systemPrompt + ragContext;
+    let fullSystemPrompt = systemPrompt + ragContext;
+
+    // "Explore this week's news" — enable web-grounded search via OpenRouter :online plugin.
+    // "materials" is a placeholder for now and behaves like normal chat.
+    const isNews = promptMode === "news" && mode === "learning";
+    if (isNews) {
+      fullSystemPrompt += `\n\n--- EXPLORE THIS WEEK'S NEWS MODE ---
+The student clicked "Explore this week's news". Use the attached web search results (grounded browsing is enabled) to surface recent, educationally relevant material tied to this week's topic${courseTopics ? ` (course topics: ${courseTopics})` : ""}.
+Rules:
+- Prioritise items from the last 3 months. Do NOT present older items as current.
+- Focus on: recent news, notable developments, real-world industry examples (prefer Indian companies/context when it fits), certification-relevant updates, and practical applications of the weekly topic.
+- For EACH item include: a 1–2 sentence summary, the publication date, the source name, and a clickable markdown link to the source URL.
+- Skip generic listicles; pick items that genuinely teach or illustrate the concept.
+- If no meaningful recent news exists, say so plainly and instead give 2–3 recent real-world applications with links.
+- End with one short question inviting the student to dive deeper into one of the items.
+--- END NEWS MODE ---`;
+    }
+
+    const chatModel = isNews ? "google/gemini-2.5-flash:online" : "google/gemini-2.5-flash";
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -630,7 +648,7 @@ PROFESSOR STYLE
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: chatModel,
         messages: [{ role: "system", content: fullSystemPrompt }, ...messages],
         stream: true,
       }),
