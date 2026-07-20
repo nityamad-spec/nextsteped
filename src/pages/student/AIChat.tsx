@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User, BarChart3, Dumbbell, Lightbulb, ListChecks, GitCompare, GraduationCap } from "lucide-react";
+import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User, BarChart3, Dumbbell, Lightbulb, ListChecks, GraduationCap, Newspaper, FolderSearch } from "lucide-react";
 import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import ExamHistory from "@/components/ExamHistory";
@@ -48,11 +48,13 @@ const getWelcomeLearning = (courseName?: string | null) =>
   `Hi! I'm your AI Teaching Assistant for **${courseName?.trim() || "your course"}**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?`;
 const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Configure your practice settings and click **Start Exam** to begin a timed simulation. Good luck!";
 
-const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string }[] = [
+type PromptMode = "news" | "materials";
+const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string; promptMode?: PromptMode }[] = [
   { icon: Lightbulb, label: "Explain a concept", prompt: "Explain this week's key concept in simple terms with an example." },
   { icon: BookOpen, label: "Walk through an example", prompt: "Walk me through a worked example for this week's topic step by step." },
   { icon: ListChecks, label: "Quiz me", prompt: "Quiz me with 5 practice questions on this week's material and check my answers." },
-  { icon: GitCompare, label: "Compare two ideas", prompt: "What's the difference between two related concepts from this week, and when do I use each?" },
+  { icon: Newspaper, label: "Explore this week's news", prompt: "Show me recent news, developments, and real-world examples related to this week's topic.", promptMode: "news" },
+  { icon: FolderSearch, label: "Search course materials", prompt: "Find and explain information from the syllabus, textbook, slides, or other materials uploaded by my professor.", promptMode: "materials" },
   { icon: GraduationCap, label: "Prep for the exam", prompt: "What topics should I focus on for the upcoming exam, and how should I study them?" },
 ];
 
@@ -784,7 +786,7 @@ const AIChat = () => {
     return fetch(url, options);
   };
 
-  const sendMessage = useCallback(async (overrideContent?: string) => {
+  const sendMessage = useCallback(async (overrideContent?: string, promptMode?: PromptMode) => {
     const contentToSend = (overrideContent ?? input).trim();
     if (!contentToSend || !activeChat || isStreaming || isCooldown) return;
     if (assessmentActive) return;
@@ -861,6 +863,7 @@ const AIChat = () => {
         body: JSON.stringify({
           messages: historyMessages,
           mode,
+          promptMode,
           studySystemPrompt: taSettings.studySystemPrompt,
           examSystemPrompt: taSettings.examSystemPrompt,
           ...(relevanceContext ? { relevanceContext } : {}),
@@ -1358,7 +1361,7 @@ const AIChat = () => {
                           key={s.label}
                           variant="outline"
                           className="h-auto justify-start gap-3 rounded-2xl border-border/60 bg-card px-3 py-3 text-left hover:bg-accent"
-                          onClick={() => sendMessage(s.prompt)}
+                          onClick={() => sendMessage(s.prompt, s.promptMode)}
                           disabled={isStreaming || isCooldown}
                         >
                           <Icon className="h-4 w-4 shrink-0 text-primary" />
