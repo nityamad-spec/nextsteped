@@ -1,38 +1,23 @@
-# Plan: Rename Daily Quiz → Weekly Quiz in quiz UI
-
 ## Goal
-Update all student-facing quiz labels from "Daily Quiz — Day X" to "Weekly Quiz — Week X" so the UI matches the weekly-quiz feature naming on `/student/home` and `/student/chat`.
+On the weekly quiz (`AssessmentView` in `mode="quiz"`), prevent students from navigating back to previously-answered questions.
 
-## Scope
-User confirmed this should apply **everywhere** the shared quiz UI appears (both `/student/home` weekly quiz and `/student/chat` quiz flow). Internal database values (e.g. `assessment_results.mode = 'daily_quiz'`) stay unchanged.
+## Approach
+In `src/components/AssessmentView.tsx`, make weekly quiz navigation one-way. Track the highest index the student has advanced past once an answer is recorded, and lock the Previous button so they cannot return to any question they have already answered.
+
+Behavior:
+- If the current question has been answered, clicking Next locks it (adds its index to a `lockedIndices` set).
+- The Previous button is disabled whenever `safeIndex - 1` is in `lockedIndices` (i.e., the prior question was already answered and moved past).
+- Exam Practice mode (`isQuiz === false`) is unchanged — it renders all questions on one page anyway.
 
 ## Changes
+- `src/components/AssessmentView.tsx`
+  - Add `const [lockedIndices, setLockedIndices] = useState<Set<number>>(new Set())`.
+  - In the Next button handler (~line 609): if `answers[questions[safeIndex].id]` is set, add `safeIndex` to `lockedIndices` before advancing.
+  - Previous button (~line 585): `disabled={safeIndex === 0 || lockedIndices.has(safeIndex - 1)}`.
 
-### 1. `src/components/AssessmentView.tsx`
-Update the three visible quiz labels and the topic cover line:
-- Intro card title: `Daily Quiz — Day ${day || 1}` → `Weekly Quiz — Week ${day || 1}`
-- Intro card subtitle: `Covers Day {day} topics` → `Covers Week {day} topics`
-- Review screen title: `Daily Quiz Complete!` → `Weekly Quiz Complete!`
-- Active assessment badge: `Daily Quiz — Day ${day}` → `Weekly Quiz — Week ${day}`
+Alternative (simpler) if you'd prefer: just hide/disable the Previous button entirely for weekly quizzes — no per-question tracking. Let me know which you want.
 
-### 2. `src/pages/student/AIChat.tsx`
-Keep the chat-side quiz flow consistent:
-- Result summary header: `✅ **Daily Quiz Complete!**` → `✅ **Weekly Quiz Complete!**`
-- Leave-dialog title: `End {… "Daily Quiz"}?` → `End {… "Weekly Quiz"}?`
-- Normalize regex: `Choose **Start Exam** or **Start Daily Quiz** …` → `Choose **Start Exam** or **Start Weekly Quiz** …`
-
-### 3. `src/components/WeeklyQuizDialog.test.tsx`
-Update test expectations:
-- `/Daily Quiz — Day 1/i` → `/Weekly Quiz — Week 1/i`
-- `/Daily Quiz/i` → `/Weekly Quiz/i`
-
-### 4. Optional consistency: `src/pages/teacher/AssessmentAnalytics.tsx`
-- Teacher filter label `Daily Quizzes` → `Weekly Quizzes` (keeps `value="daily_quiz"` unchanged).
-
-## Verification
-- Run the affected unit tests (`WeeklyQuizDialog.test.tsx`).
-- Smoke-test opening a weekly quiz from `/student/home` and a quiz from `/student/chat` to confirm labels read "Weekly Quiz — Week X".
-
-## Notes
-- No database or backend changes.
-- No changes to `mode` enum values, edge functions, or analytics aggregation logic.
+## Out of scope
+- No DB/schema changes.
+- No changes to exam practice, AI-chat quiz launch flow, or scoring.
+- No new tests (existing `WeeklyQuizDialog.test.tsx` still passes).
