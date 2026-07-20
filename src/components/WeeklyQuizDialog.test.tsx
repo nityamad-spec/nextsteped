@@ -34,6 +34,14 @@ vi.mock("@/integrations/supabase/client", () => {
             },
           };
         }
+        if (table === "student_course_mastery") {
+          const chain: any = {
+            select: () => chain,
+            eq: () => chain,
+            maybeSingle: () => Promise.resolve({ data: { learner_level: "medium" }, error: null }),
+          };
+          return chain;
+        }
         return {};
       },
       functions: {
