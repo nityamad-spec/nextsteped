@@ -130,6 +130,25 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Block suspended accounts
+    const authedUserId = tokenData?.user?.id;
+    if (authedUserId) {
+      const { data: prof } = await adminClient
+        .from("profiles")
+        .select("suspended_at")
+        .eq("id", authedUserId)
+        .maybeSingle();
+      if (prof?.suspended_at) {
+        // Revoke the freshly issued session so nothing lingers
+        try { await adminClient.auth.admin.signOut(authedUserId, "global"); } catch (_) {}
+        await adminClient.from("signin_attempts").insert({ email: email.toLowerCase(), success: false });
+        return new Response(
+          JSON.stringify({ error: "Your account has been suspended. Please contact your administrator." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // Record successful attempt (for audit; won't count against rate limit)
     await adminClient
       .from("signin_attempts")
