@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, Check, ChevronDown, Download, Filter, GraduationCap, Loader2, MoreHorizontal, Search, Trash2, X } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Download, Filter, GraduationCap, Loader2, MoreHorizontal, Search, ShieldOff, ShieldCheck, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -94,6 +94,7 @@ interface StudentGroup {
   email: string | null;
   roll_number: string | null;
   created_at: string;
+  suspended_at: string | null;
   courses: CourseEnrollment[];
 }
 
@@ -114,6 +115,9 @@ const AdminStudents = () => {
   const [target, setTarget] = useState<StudentGroup | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [suspendTarget, setSuspendTarget] = useState<StudentGroup | null>(null);
+  const [suspending, setSuspending] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "suspended">("all");
   const [search, setSearch] = useState("");
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const [courseFilter, setCourseFilter] = useState<Set<string>>(new Set());
@@ -136,7 +140,7 @@ const AdminStudents = () => {
     const fetch = async () => {
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, name, email, roll_number, created_at")
+        .select("id, name, email, roll_number, created_at, suspended_at")
         .eq("role", "student")
         .order("created_at", { ascending: false });
 
@@ -218,6 +222,7 @@ const AdminStudents = () => {
             email: p.email,
             roll_number: p.roll_number,
             created_at: p.created_at,
+            suspended_at: (p as any).suspended_at ?? null,
             courses: [...profileCourses],
           });
         } else {
@@ -227,6 +232,7 @@ const AdminStudents = () => {
             existing.created_at = p.created_at;
           }
           if (!existing.roll_number && p.roll_number) existing.roll_number = p.roll_number;
+          if (!existing.suspended_at && (p as any).suspended_at) existing.suspended_at = (p as any).suspended_at;
         }
       }
 
@@ -267,6 +273,33 @@ const AdminStudents = () => {
     setConfirmText("");
   };
 
+  const handleSuspendToggle = async () => {
+    if (!suspendTarget) return;
+    const willSuspend = !suspendTarget.suspended_at;
+    setSuspending(true);
+    const { data, error } = await supabase.functions.invoke("admin-set-student-suspension", {
+      body: { user_id: suspendTarget.primaryProfileId, suspended: willSuspend },
+    });
+    setSuspending(false);
+    if (error || (data as any)?.error) {
+      toast({
+        title: willSuspend ? "Suspend failed" : "Reactivate failed",
+        description: (data as any)?.error || error?.message,
+        variant: "destructive",
+      });
+      return;
+    }
+    const newVal = (data as any)?.suspended_at ?? null;
+    setStudents(prev => prev.map(s => s.key === suspendTarget.key ? { ...s, suspended_at: newVal } : s));
+    toast({
+      title: willSuspend ? "Student suspended" : "Student reactivated",
+      description: willSuspend
+        ? `${suspendTarget.name} can no longer sign in. Data is preserved.`
+        : `${suspendTarget.name} can sign in again.`,
+    });
+    setSuspendTarget(null);
+  };
+
   const courseOptions = useMemo(() => {
     const s = new Set<string>();
     students.forEach(st => st.courses.forEach(c => s.add(c.name)));
@@ -299,16 +332,20 @@ const AdminStudents = () => {
           : s.courses;
         if (!pool.some(c => c.mastery && masteryFilter.has(c.mastery))) return false;
       }
+      if (statusFilter === "active" && s.suspended_at) return false;
+      if (statusFilter === "suspended" && !s.suspended_at) return false;
       return true;
     });
-  }, [students, search, courseFilter, masteryFilter]);
+  }, [students, search, courseFilter, masteryFilter, statusFilter]);
 
   const hasMultiAccount = useMemo(() => students.some(s => s.profileIds.length > 1), [students]);
-  const filtersActive = search.length > 0 || courseFilter.size > 0 || masteryFilter.size > 0;
+  const suspendedCount = useMemo(() => students.filter(s => s.suspended_at).length, [students]);
+  const filtersActive = search.length > 0 || courseFilter.size > 0 || masteryFilter.size > 0 || statusFilter !== "all";
   const clearAll = () => {
     setSearch("");
     setCourseFilter(new Set());
     setMasteryFilter(new Set());
+    setStatusFilter("all");
   };
 
   const handleExport = async () => {
@@ -386,6 +423,21 @@ const AdminStudents = () => {
               selected={masteryFilter}
               onChange={setMasteryFilter}
             />
+            <div className="flex items-center gap-1 rounded-md border p-0.5">
+              {(["all", "active", "suspended"] as const).map(k => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setStatusFilter(k)}
+                  className={cn(
+                    "px-2.5 py-1 text-xs rounded-sm capitalize transition-colors",
+                    statusFilter === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {k}{k === "suspended" && suspendedCount > 0 ? ` (${suspendedCount})` : ""}
+                </button>
+              ))}
+            </div>
             <span className="text-[11px] text-muted-foreground">
               Courses use AND (must be in all selected). Mastery uses OR (any selected level matches).
             </span>
@@ -430,7 +482,16 @@ const AdminStudents = () => {
                         onClick={() => setProfileTarget(s)}
                         className={cn(idx % 2 === 1 && "bg-muted/20", "hover:bg-muted/40 transition-colors cursor-pointer")}
                       >
-                        <TableCell className="font-medium align-top">{s.name}</TableCell>
+                        <TableCell className={cn("font-medium align-top", s.suspended_at && "opacity-60")}>
+                          <div className="flex items-center gap-2">
+                            <span>{s.name}</span>
+                            {s.suspended_at && (
+                              <Badge variant="outline" className="text-[10px] border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 gap-1">
+                                <ShieldOff className="h-3 w-3" /> Suspended
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="align-top">
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-xs text-muted-foreground truncate max-w-[200px]" title={s.email || ""}>
@@ -497,6 +558,15 @@ const AdminStudents = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              {s.suspended_at ? (
+                                <DropdownMenuItem onClick={() => setSuspendTarget(s)}>
+                                  <ShieldCheck className="h-4 w-4 mr-2" /> Reactivate access
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem onClick={() => setSuspendTarget(s)}>
+                                  <ShieldOff className="h-4 w-4 mr-2" /> Suspend access
+                                </DropdownMenuItem>
+                              )}
                               {multiAccount ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -563,6 +633,35 @@ const AdminStudents = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!suspendTarget} onOpenChange={(o) => { if (!o) setSuspendTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {suspendTarget?.suspended_at ? "Reactivate student access?" : "Suspend student access?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {suspendTarget?.suspended_at ? (
+                <>
+                  <span className="font-medium text-foreground">{suspendTarget?.name}</span> will be able to sign in again immediately.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-foreground">{suspendTarget?.name}</span> will be signed out and blocked from signing in.
+                  All of their data (enrollments, results, chats) is preserved and can be restored at any time by reactivating.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={suspending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleSuspendToggle(); }} disabled={suspending}>
+              {suspending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {suspendTarget?.suspended_at ? "Reactivate" : "Suspend"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
