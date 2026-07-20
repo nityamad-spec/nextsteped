@@ -786,7 +786,7 @@ const AIChat = () => {
     return fetch(url, options);
   };
 
-  const sendMessage = useCallback(async (overrideContent?: string) => {
+  const sendMessage = useCallback(async (overrideContent?: string, promptMode?: PromptMode) => {
     const contentToSend = (overrideContent ?? input).trim();
     if (!contentToSend || !activeChat || isStreaming || isCooldown) return;
     if (assessmentActive) return;
@@ -863,6 +863,7 @@ const AIChat = () => {
         body: JSON.stringify({
           messages: historyMessages,
           mode,
+          promptMode,
           studySystemPrompt: taSettings.studySystemPrompt,
           examSystemPrompt: taSettings.examSystemPrompt,
           ...(relevanceContext ? { relevanceContext } : {}),
@@ -1360,7 +1361,7 @@ const AIChat = () => {
                           key={s.label}
                           variant="outline"
                           className="h-auto justify-start gap-3 rounded-2xl border-border/60 bg-card px-3 py-3 text-left hover:bg-accent"
-                          onClick={() => sendMessage(s.prompt)}
+                          onClick={() => sendMessage(s.prompt, s.promptMode)}
                           disabled={isStreaming || isCooldown}
                         >
                           <Icon className="h-4 w-4 shrink-0 text-primary" />
