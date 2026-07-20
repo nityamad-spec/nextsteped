@@ -67,12 +67,8 @@ const CONFIG = {
   PACE_FAST_CUTOFF: 0.25,   // r below this is treated as guessing
   PACE_SLOW_DECAY: 2.0,     // exp decay scale for r > 1
 
-  // Final mastery combination weights (sum should be 1.0) — kept for analytics
-  WEIGHTS: { accuracy: 0.70, pace: 0.15, confidence: 0.15 },
-
-  // Confidence: 3-level discrete scale from UI [0,1,2] mapped to [0..1].
-  CONFIDENCE_LEVELS: { 0: 0.0, 1: 0.5, 2: 1.0 } as Record<number, number>,
-  CONFIDENCE_DEFAULT: 1,
+  // Final mastery combination weights (sum should be 1.0)
+  WEIGHTS: { accuracy: 0.80, pace: 0.20 },
 } as const;
 
 type LearnerLevel = "beginner" | "developing" | "proficient";
