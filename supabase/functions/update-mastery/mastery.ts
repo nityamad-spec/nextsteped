@@ -15,6 +15,8 @@ export const MASTERY_CONFIG = {
   CAP_PROFICIENT_BELOW_ATTEMPTED: 15,
   CAP_PROFICIENT_MIN_SAMPLES: 2,
   BLOOM_WEIGHT: { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 } as Record<number, number>,
+  REASONING_BOOST_FRACTION: 0.5,
+  REASONING_PENALTY_FRACTION: 0.25,
   LEVEL_BANDS: [
     { max: 0.25, level: "beginner" },
     { max: 0.50, level: "developing" },
