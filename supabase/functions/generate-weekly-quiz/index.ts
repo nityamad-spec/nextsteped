@@ -893,7 +893,11 @@ async function runFollowupPass(
 // Runs the full quiz-generation pipeline. Returns { status, payload } rather
 // than a Response so the outer Deno.serve handler can stream heartbeats
 // around it and defeat the 150s Edge Runtime IDLE_TIMEOUT.
-async function run(req: Request): Promise<{ status: number; payload: unknown }> {
+async function run(
+  req: Request,
+  heartbeat: (msg: unknown) => void = () => {},
+): Promise<{ status: number; payload: unknown }> {
+
   const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   if (!lovableKey) throw new Error("LOVABLE_API_KEY not configured");
 
