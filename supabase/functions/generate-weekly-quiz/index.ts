@@ -339,9 +339,10 @@ async function generateTier(
 
 
     if (Date.now() >= deadlineAt) break;
-    const remaining = spec.count - accepted.length;
+    const remaining = targetCount - accepted.length;
     const subNeed = Math.min(spec.batchSize, remaining);
     const askFor = Math.min(subNeed + 2, spec.batchSize + 2); // over-generation buffer
+
 
     const owedLine =
       owedConcepts.length > 0
