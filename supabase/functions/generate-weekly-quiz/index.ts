@@ -44,6 +44,11 @@ import {
   validateStructural,
   type QuestionFormat,
 } from "../_shared/question-validation.ts";
+import {
+  selectFinalItemsForTier,
+  validateReasoningNovelty,
+  type FinalItem,
+} from "./followup.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
