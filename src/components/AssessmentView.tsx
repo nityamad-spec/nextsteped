@@ -228,7 +228,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     setExpandedQuestions(wrongIndices);
 
     fetchExplanations(standardised);
-  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex, questionMeta]);
+  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex, questionMeta, type, followupsByParentId, followupAnswers, followupCorrectness]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
