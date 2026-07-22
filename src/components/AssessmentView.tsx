@@ -695,35 +695,61 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                   Previous
                 </Button>
 
-                {isLast ? (
-                  <Button
-                    onClick={handleFinish}
-                    className="gap-2 px-6"
-                    disabled={answeredCount === 0}
-                  >
-                    <CheckCircle className="h-5 w-5" />
-                    Submit Quiz ({answeredCount}/{questions.length} answered)
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => {
-                      const currentQid = questions[safeIndex]?.id;
-                      flushTimeFor(currentQid);
-                      if (currentQid && answers[currentQid] !== undefined) {
-                        setLockedIndices((prev) => {
-                          const next = new Set(prev);
-                          next.add(safeIndex);
-                          return next;
-                        });
-                      }
-                      setCurrentIndex((i) => Math.min(questions.length - 1, i + 1));
-                    }}
-                    className="gap-2"
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                )}
+                {(() => {
+                  // Follow-up gating: if primary answered correctly AND a usable
+                  // follow-up exists, require follow-up answer before Submit/Next.
+                  const cq = questions[safeIndex];
+                  const cqAns = cq ? answers[cq.id] : undefined;
+                  const cqCorrect = !!cq && cqAns !== undefined && cqAns !== "" && isPrimaryCorrect(cq, cqAns);
+                  const rawFu = cq && isQuiz ? followupsByParentId?.get(cq.id) : undefined;
+                  const fuUsable = isFollowupUsable(rawFu);
+                  const fuNeeded = isQuiz && cqCorrect && fuUsable;
+                  const fuAnswered = cq ? followupAnswers[cq.id] !== undefined && followupAnswers[cq.id] !== "" : false;
+                  const fuBlock = fuNeeded && !fuAnswered;
+
+                  // If a follow-up map entry exists but is unusable, record null
+                  // so Phase 5 treats it as "no boost, no penalty" and never
+                  // traps the student.
+                  if (isQuiz && cq && cqCorrect && rawFu && !fuUsable && followupCorrectness[cq.id] === undefined) {
+                    // Note: this runs during render; safe because state setter
+                    // is idempotent and gated by the undefined check.
+                    queueMicrotask(() => {
+                      setFollowupCorrectness(prev => (prev[cq.id] === undefined ? { ...prev, [cq.id]: null } : prev));
+                    });
+                  }
+
+                  return isLast ? (
+                    <Button
+                      onClick={handleFinish}
+                      className="gap-2 px-6"
+                      disabled={answeredCount === 0 || fuBlock}
+                    >
+                      <CheckCircle className="h-5 w-5" />
+                      Submit Quiz ({answeredCount}/{questions.length} answered)
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => {
+                        const currentQid = questions[safeIndex]?.id;
+                        flushTimeFor(currentQid);
+                        if (currentQid && answers[currentQid] !== undefined) {
+                          setLockedIndices((prev) => {
+                            const next = new Set(prev);
+                            next.add(safeIndex);
+                            return next;
+                          });
+                        }
+                        setCurrentIndex((i) => Math.min(questions.length - 1, i + 1));
+                      }}
+                      className="gap-2"
+                      disabled={fuBlock}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  );
+                })()}
+
               </div>
             </>
           ) : (
