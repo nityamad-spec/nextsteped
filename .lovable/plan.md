@@ -1,124 +1,81 @@
-## Phase 5 — Mastery update (reasoning boost / penalty)
+# Phase 6 — Analytics & admin visibility
 
-Wire reasoning follow-up outcomes into the existing weighted `earned / max` ratio computed by the `update-mastery` edge function. No new tables, no new EMA/shrinkage/cap knobs — just an extra fractional-weight term inside the ratio already produced from `per_question`. Only `source === 'weekly_quiz'` uses it; other sources ignore the field.
+Primary-based dashboards stay untouched. Add a new **Reasoning follow-ups** analytics surface that makes fairness/coverage/impact of the Phase 2–5 follow-up loop visible per course.
 
-### 1. Client mapper (`src/components/WeeklyQuizDialog.tsx` — `invokeUpdateMastery`)
+## Scope
 
-- Extend the local `per_question` item shape to include an optional `reasoning_correct: boolean | null` and populate it from the answer entry:
-  - `a.reasoning_is_correct === true` → `true`
-  - `a.reasoning_is_correct === false` → `false`
-  - `a.reasoning_is_correct === null` OR field absent → `null` (function treats as no-op)
-- Only the primary rows already emitted by the mapper flow through; no new rows added. Reasoning follow-ups are NOT counted as separate primaries anywhere.
-- Exam / practice / diagnostic callers of `update-mastery` are unchanged; their payloads never include `reasoning_correct`.
+Four signals, one view:
 
-### 2. Function schema (`supabase/functions/update-mastery/index.ts`)
+1. **Per-item reasoning correctness** — for each reasoning row (`question_role='reasoning'`), % of student responses that were `reasoning_is_correct = true`, over responses where it was `true|false` (nulls excluded). Table sorted worst-first, with parent stem shown alongside. Rows below a threshold (default 20% correct, min 5 responses) flagged as **Review**.
+2. **Coverage rate** — of primary answers with `is_correct=true` on a Bloom-3+ primary, % where the sibling `reasoning_is_correct` is non-null. Split into: shown & answered, no follow-up existed, load-failure/null. Confirms the required-follow-up flow is working and exposes the null-path.
+3. **Boost vs penalty distribution** — course-level counts and % of: boost path (primary correct + reasoning correct), penalty path (primary correct + reasoning wrong), neutral (primary wrong, or reasoning null). Net expected mastery impact = `boost_count × R − penalty_count × P` using the Phase 5 constants; shown as an informational figure, not a per-student number.
+4. **Generation coverage per quiz** — for each weekly quiz (course × quiz_day), primaries at Bloom ≥ 3 shipped, follow-ups generated, dropped, demoted, and whether the follow-up pass was skipped for budget. Rederived from the DB (see Data model below), no reliance on transient logs.
 
-- Add `reasoning_correct: z.boolean().nullable().optional()` to `PerQuestionSchema`. Optional so exam/practice payloads validate unchanged.
-- No change to `BodySchema`, no change to `PerConceptSchema`.
+## Placement
 
-### 3. Config (`supabase/functions/update-mastery/mastery.ts`)
+- New tab **"Reasoning follow-ups"** inside `src/pages/teacher/AssessmentAnalytics.tsx`, next to existing exam/diagnostic tabs. Course-scoped via the existing `useTeacherCourseId` context — matches the memory rule for professor course resolution.
+- Admin `CourseProfileDialog` gets one small additive tile: **"Follow-up flags: N items <20%"** linking into the professor view. No layout change to existing tiles.
 
-Add two named constants to `MASTERY_CONFIG` so future tuning is centralized:
+Nothing else moves. `AssessmentAnalytics`'s existing tabs and `CourseAnalyticsView` continue to count primaries only — no regression.
 
-```ts
-REASONING_BOOST_FRACTION: 0.5,   // R
-REASONING_PENALTY_FRACTION: 0.25, // P
+## Data model
+
+No new tables. Signals 1–3 are computed from existing rows:
+
+- `assessment_questions` filtered by `question_role in ('primary','reasoning')`, joined on `parent_question_id`.
+- `assessment_results.answers` (jsonb) already carries `reasoning_question_id`, `reasoning_is_correct`, `reasoning_bloom` from Phase 4.
+
+Signal 4 (generation coverage) currently only exists as the `followup_done` NDJSON heartbeat — it's not persisted. To make it visible after the stream closes, persist per-quiz telemetry. Two options — plan asks the user to pick (see Questions):
+
+- **A. New table** `weekly_quiz_generation_stats` (course_id, quiz_day, tier, primaries_shipped, followup_generated, failed_dropped, failed_demoted, skipped_budget, created_at) written at the end of `generate-weekly-quiz`. Cleanest, queryable, small.
+- **B. Rederive-only**: skip signal 4's generation counts; infer coverage from `assessment_questions` (Bloom-3+ primaries missing a `reasoning` child = dropped/demoted signal, indistinguishable but usable). No schema change. Loses the "skipped_budget" flag and can't tell drop vs demote apart.
+
+## Query strategy
+
+All aggregates are computed via one SECURITY DEFINER SQL function `public.reasoning_followup_analytics(_course_id uuid)` gated by `is_course_member(_course_id, auth.uid())`, returning three result sets (or one JSON blob):
+
+- `per_item[]`: reasoning_question_id, parent stem preview, concept_code, bloom, attempts, correct, pct, flagged.
+- `coverage`: bloom3_correct_primary_answers, followup_answered, no_followup_exists, followup_null.
+- `impact`: boost_count, penalty_count, neutral_count, expected_mastery_delta.
+
+Client hits it once per view load (with the existing cache pattern), no N+1 over primaries. Realtime subscription reuses the `assessment_results` channel already in `CourseAnalyticsView`.
+
+## Config
+
+Add to `MASTERY_CONFIG` (re-exported) or a new `analytics.ts` const block:
+
+```
+REASONING_REVIEW_MIN_CORRECT_PCT = 0.20
+REASONING_REVIEW_MIN_ATTEMPTS    = 5
 ```
 
-No other config changes. Levels bands, EMA alphas, prior strength, and caps stay as-is.
+Kept as code constants (not `admin_settings`) unless the user wants runtime tuning — see Questions.
 
-### 4. Aggregation change (`index.ts`, inside the `body.per_question` loop, ~line 196–213)
+## Privacy
 
-Guarded by `body.source === "weekly_quiz"` so exams/practice are byte-identical:
+Per-item rates are aggregate counts, not per-student — consistent with the "students anonymized for professors" memory. No student identifiers appear in any of the four signals.
 
-```ts
-const maxPoints = difficulty * bloomWeight;
-cur.attempted += 1;
-if (item.is_correct) cur.correct += 1;
-cur.max     += maxPoints;
-if (item.is_correct) cur.earned += maxPoints;
+## Risks & constraints
 
-// Phase 5: reasoning follow-up contribution (weekly_quiz only).
-if (body.source === "weekly_quiz" && item.is_correct && item.reasoning_correct !== null && item.reasoning_correct !== undefined) {
-  const R = MASTERY_CONFIG.REASONING_BOOST_FRACTION;
-  const P = MASTERY_CONFIG.REASONING_PENALTY_FRACTION;
-  if (item.reasoning_correct === true) {
-    cur.earned += R * maxPoints;
-    cur.max    += R * maxPoints;
-  } else { // reasoning_correct === false
-    cur.max    += P * maxPoints;
-    // no earned added — pulls ratio down
-  }
-}
+- **Signal 4 is only meaningful if we persist Phase 2 telemetry.** Option B leaves a partial view.
+- `**answers` jsonb queries** are unindexed. Course-scoped filters keep result sets small (≤ a few thousand rows per course), and we compute in the SQL function server-side, but very large courses may want a `GIN` index on `assessment_results.answers` later. Not adding it now — premature.
+- **Threshold tuning.** 20% / 5 attempts is a first guess. Once real data lands, the professor view will drive whether we raise the min-attempts floor.
+- **Fairness dependency.** Phase 5 penalties are already live per your last approval; shipping this view is the feedback loop for tuning `REASONING_PENALTY_FRACTION`. Without it we're penalising blind.
+- **No new privileges.** The SQL function reuses `is_course_member`; RLS on the underlying tables is unchanged.
 
-cur.weighted = true;
-```
+## Steps
 
-- `cur.attempted` / `cur.correct` are NOT incremented for the follow-up. Counters, evidence-cap gating, and shrinkage `attemptedAfter` remain primary-only, matching the spec that a follow-up is not an extra primary quiz question.
-- Because the primary's `earned` stays in the numerator whenever the primary is correct, the (correct-primary + wrong-reasoning) case is bounded below by the (wrong-primary) contribution for the same question — floor is automatic.
+1. **(Optional, depends on Q1)** Migration: create `weekly_quiz_generation_stats` with `GRANT`s to `authenticated` (SELECT only) + `service_role` (ALL), RLS scoped to `is_course_member`.
+2. **(Optional, depends on Q1)** `generate-weekly-quiz`: after the follow-up pass, upsert one row per tier with the telemetry it already computes. No behaviour change.
+3. Migration: `public.reasoning_followup_analytics(_course_id uuid)` SECURITY DEFINER function returning the three aggregates as JSON, plus `GRANT EXECUTE` to `authenticated`.
+4. New component `src/components/analytics/ReasoningFollowupAnalytics.tsx`: three sections (Per-item table with Review flag, Coverage card, Impact card) + optional Generation card if Q1=A.
+5. Wire as new tab in `src/pages/teacher/AssessmentAnalytics.tsx`.
+6. Small "Follow-up flags" tile in `src/components/admin/CourseProfileDialog.tsx`.
+7. Typecheck; smoke-verify against a course with existing Phase 4 quiz data if any exists.
 
-### 5. Downstream layers (no code changes)
+## Questions
 
-- Beta-prior shrinkage (`PRIOR_STRENGTH=8`) uses `attemptedAfter` = primaries-only counter — unchanged.
-- EMA blend (`weekly_quiz alpha = 0.4`) is applied on the shrunk signal produced from the new ratio — unchanged.
-- Evidence-gated level caps (developing < 8 attempts, proficient < 15 or samples < 2) key off primary counters — unchanged.
-
-Net effect: a single follow-up can nudge the ratio but cannot swing the displayed level on its own.
-
-### 6. Tests (`supabase/functions/update-mastery/mastery_test.ts`)
-
-Add a new test section `reasoning follow-up scoring`. Since the current `mastery.ts` exports pure helpers but the aggregation lives in `index.ts`, add a small pure helper to `mastery.ts` to keep it testable without a DB:
-
-```ts
-export function reasoningAdjustedContribution(
-  maxPoints: number,
-  primaryCorrect: boolean,
-  reasoning: boolean | null | undefined,
-): { earnedDelta: number; maxDelta: number } {
-  const earnedBase = primaryCorrect ? maxPoints : 0;
-  if (!primaryCorrect || reasoning == null) {
-    return { earnedDelta: earnedBase, maxDelta: maxPoints };
-  }
-  const R = MASTERY_CONFIG.REASONING_BOOST_FRACTION;
-  const P = MASTERY_CONFIG.REASONING_PENALTY_FRACTION;
-  if (reasoning) {
-    return { earnedDelta: earnedBase + R * maxPoints, maxDelta: maxPoints + R * maxPoints };
-  }
-  return { earnedDelta: earnedBase, maxDelta: maxPoints + P * maxPoints };
-}
-```
-
-Refactor `index.ts` to call this helper inside the loop so the wire path and the tested path are the same code.
-
-Test cases (each with `maxPoints = 1.0` for arithmetic clarity):
-
-1. **primary correct + reasoning correct** — ratio = (1 + 0.5) / (1 + 0.5) = 1.0; assert > primary-alone ratio of 1.0 for a matching baseline where baseline is the same-primary case aggregated across multiple questions (use a two-question aggregate so the boost is observable, e.g. one primary-correct-with-boost + one primary-wrong → ratio (1 + 0.5) / (1 + 0.5 + 1) = 0.6 vs. baseline (1) / (1 + 1) = 0.5).
-2. **primary correct + reasoning wrong** — same two-question aggregate: (1) / (1 + 0.25 + 1) = 1/2.25 ≈ 0.4444 vs. baseline 0.5. Assert lower than baseline (penalty).
-3. **floor**: primary correct + reasoning wrong contribution ≥ primary wrong contribution for the same question — assert `earnedDelta_correctPrimaryWrongReason (=1.0) ≥ earnedDelta_wrongPrimary (=0)`.
-4. **primary wrong** — reasoning ignored: `reasoningAdjustedContribution(1, false, true)` and `(1, false, false)` both equal `{ earnedDelta: 0, maxDelta: 1 }`.
-5. **null / undefined reasoning** — `(1, true, null)` and `(1, true, undefined)` both equal `{ earnedDelta: 1, maxDelta: 1 }` — behaves as today.
-6. **asymmetry**: for the two-question aggregate, `|baseline - penaltyRatio|` < `|boostRatio - baseline|` — penalty magnitude is smaller than boost magnitude. Baseline 0.5; boost 0.6 (Δ +0.1); penalty ≈ 0.4444 (Δ −0.0556). Assert `0.0556 < 0.1`.
-7. **flipped case flagged in the plan**: an old test asserting "primary correct + reasoning wrong = no penalty" would now be wrong. Grep confirms no such test exists in `mastery_test.ts` today (the file predates reasoning follow-ups) — nothing to remove, only additions needed.
-
-### 7. Out of scope for Phase 5
-
-- No changes to analytics readers of `answers[]` (Phase 6).
-- No changes to the `per_concept` code path — that legacy input has no per-question reasoning signal.
-- No new persistent tables; reasoning contribution is folded into existing `student_concept_mastery` / `student_course_mastery` writes unchanged downstream.
-- No teacher-facing surface change.
-- No integration test additions beyond the pure math helper (integration_test.ts stays as-is unless the schema change breaks its fixture — will re-run it after implementation and patch only if red).
-
-### Risks / constraints
-
-- **Payload back-compat**: `reasoning_correct` is `optional().nullable()`, so older client builds and non-quiz callers keep validating. The guard on `body.source === "weekly_quiz"` is belt-and-suspenders in case a caller ever sets the field on a wrong source.
-- **Ratio can exceed 1.0 without clamp**: the numerator picks up `R * maxPoints` from a correct follow-up while the denominator picks up the same amount, so the ratio can only reach 1.0, not exceed it. `clamp01` in `index.ts` still wraps the final ratio for safety.
-- **`attemptedAfter` semantics**: because `cur.attempted` counts primaries only, the shrinkage denominator matches how students perceive quiz length. Follow-ups accelerate mastery-signal quality without inflating the "n" the cap uses to decide when to reveal proficient/expert.
-- **Test refactor risk**: extracting `reasoningAdjustedContribution` and re-routing `index.ts` through it is a small mechanical change; verify by re-running existing `mastery_test.ts` (all pre-existing tests must still pass unchanged) and the aggregation integration test if present.
-- **Null vs. false vs. absent** must survive the round-trip: `WeeklyQuizDialog.handleSubmit` writes `answers` as jsonb; `undefined` drops to absent, `null` survives as null. The mapper reads `a.reasoning_is_correct` with strict `===` checks, so absent and `null` collapse to the same "ignore" branch — consistent with the Phase 4 spec.
-
-### Files touched
-
-- `supabase/functions/update-mastery/mastery.ts` — add two config constants + `reasoningAdjustedContribution` helper.
-- `supabase/functions/update-mastery/index.ts` — extend `PerQuestionSchema`; route the aggregation loop through the new helper under a `weekly_quiz` guard.
-- `supabase/functions/update-mastery/mastery_test.ts` — new test block covering boost, penalty, floor, asymmetry, ignore-when-primary-wrong, and null/undefined safety.
-- `src/components/WeeklyQuizDialog.tsx` — extend `invokeUpdateMastery` per-question payload to forward `reasoning_correct` from `answers[]`.
+1. Persist Phase 2 generation telemetry - skip it and infer from `assessment_questions` only (Option B, no drop-vs-demote distinction, no skipped_budget)?
+2. Review threshold — keep hardcoded `<20% correct, ≥5 attempts`
+3. Admin-portal tile: single "flags count" chip on `CourseProfileDialog` (proposed)
+4. Realtime updates on the new tab, or a manual "Refresh" button only
