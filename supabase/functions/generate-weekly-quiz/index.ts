@@ -559,27 +559,8 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 /* Follow-up (reasoning MCQ) generation for Bloom≥3 primaries                  */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Reject follow-ups whose stem is a near-duplicate of the parent stem, or
- * whose correct answer is a trivial paraphrase of the parent's correct
- * answer. Reuses the shared dedup / tokenizer heuristics so the threshold
- * matches the rest of the validation pipeline.
- */
-function validateReasoningNovelty(
-  parent: GeneratedQuestion,
-  followup: FollowupQuestion,
-): { ok: true } | { ok: false; reason: string } {
-  const parentAsDedup = { content_text: parent.content_text, answer: parent.answer, topic: parent.topic };
-  const fuAsDedup = { content_text: followup.content_text, answer: followup.answer, topic: followup.topic };
-  if (isLikelyDuplicate(parentAsDedup, fuAsDedup)) {
-    return { ok: false, reason: "follow-up stem/answer too similar to parent" };
-  }
-  // Extra guard: pure paraphrase of the parent's correct answer alone.
-  const pa = parent.answer.trim().toLowerCase();
-  const fa = followup.answer.trim().toLowerCase();
-  if (pa && pa === fa) return { ok: false, reason: "follow-up answer identical to parent answer" };
-  return { ok: true };
-}
+// validateReasoningNovelty is imported from ./followup.ts (moved to enable
+// unit tests without loading the full edge-function module).
 
 /** Validate a single follow-up candidate. Similar shape to validateCandidate
  * but constrained to MCQ, concept locked to parent, difficulty pinned to
