@@ -163,3 +163,39 @@ Deno.test("summarizeRejections: groups reasons with counts", () => {
   assert(/2. answer not in options/.test(hint));
   assert(/1. explanation supports a distractor/.test(hint));
 });
+
+// ---------- Phase 7: reasoning follow-up distractor quality (best-effort) ----
+//
+// Deeper "plausible misconception" quality is model-graded, not validator-
+// graded — these tests pin only what the shared validator can mechanically
+// reject when a follow-up ships obviously-throwaway distractors.
+
+Deno.test("Phase 7: MCQ with an empty distractor is rejected", () => {
+  const r = validateStructural(
+    { format: "mcq", content_text: "Why does len run in O(1)?", options: ["stored size", "recount", "", "cached"] },
+    { allowedFormats: ["mcq"] },
+  );
+  assert(!r.ok, "empty option should be rejected by validateStructural");
+});
+
+Deno.test("Phase 7: MCQ with duplicated correct-answer text as a distractor is rejected", () => {
+  const r = validateStructural(
+    { format: "mcq", content_text: "Why?", options: ["stored size", "stored size", "recount", "cached"] },
+    { allowedFormats: ["mcq"] },
+  );
+  assert(!r.ok && /duplicate/.test(r.reason));
+});
+
+Deno.test("Phase 7: length-parity guard rejects a follow-up whose correct option is far longer than distractors", () => {
+  // Simulates a low-effort reasoning follow-up where the "correct" reason is
+  // padded/hedged and every distractor is a throwaway single word.
+  const options = [
+    "yes",
+    "no",
+    "maybe",
+    "Because Python stores the length as an attribute on the list object, so len(x) returns in constant time.",
+  ];
+  const r = validateOptionParity(options, options[3]);
+  assert(!r.ok, "over-long correct option should trip length parity");
+});
+

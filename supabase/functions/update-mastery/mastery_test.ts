@@ -252,3 +252,48 @@ Deno.test("reasoning: asymmetry — |penalty Δ| < |boost Δ| vs. baseline", () 
     throw new Error(`asymmetry violated: penalty ${dPenalty} >= boost ${dBoost}`);
   }
 });
+
+// ---------- Phase 7 additions: explicit boost/penalty vs baseline ----------
+
+Deno.test("reasoning (Phase 7): boost strictly greater than primary-only baseline", () => {
+  const baseline = reasoningAdjustedContribution(1, true, null);
+  const boost = reasoningAdjustedContribution(1, true, true);
+  const bRatio = boost.earnedDelta / boost.maxDelta;
+  const baseRatio = baseline.earnedDelta / baseline.maxDelta;
+  if (!(bRatio > baseRatio)) {
+    throw new Error(`boost failed to exceed baseline: ${bRatio} <= ${baseRatio}`);
+  }
+});
+
+Deno.test("reasoning (Phase 7): penalty strictly less than primary-only baseline", () => {
+  const baseline = reasoningAdjustedContribution(1, true, null);
+  const penalty = reasoningAdjustedContribution(1, true, false);
+  const pRatio = penalty.earnedDelta / penalty.maxDelta;
+  const baseRatio = baseline.earnedDelta / baseline.maxDelta;
+  if (!(pRatio < baseRatio)) {
+    throw new Error(`penalty failed to fall below baseline: ${pRatio} >= ${baseRatio}`);
+  }
+});
+
+Deno.test("reasoning (Phase 7): wrong primary + reasoning=true is identical to wrong-primary baseline", () => {
+  // Regression guard for the flipped semantics: reasoning is ignored entirely
+  // when the primary was wrong, regardless of the reasoning value.
+  const baseline = reasoningAdjustedContribution(1, false, null);
+  const withRight = reasoningAdjustedContribution(1, false, true);
+  const withWrong = reasoningAdjustedContribution(1, false, false);
+  assertEquals(withRight, baseline);
+  assertEquals(withWrong, baseline);
+});
+
+Deno.test("reasoning (Phase 7): pinned regression — R=0.5, P=0.25 numeric deltas", () => {
+  // Locks in the currently deployed fractions so a silent tuning change breaks the test.
+  assertEquals(MASTERY_CONFIG.REASONING_BOOST_FRACTION, 0.5);
+  assertEquals(MASTERY_CONFIG.REASONING_PENALTY_FRACTION, 0.25);
+  const boost = reasoningAdjustedContribution(1, true, true);
+  assertAlmostEquals(boost.earnedDelta, 1.5, 1e-9);
+  assertAlmostEquals(boost.maxDelta, 1.5, 1e-9);
+  const penalty = reasoningAdjustedContribution(1, true, false);
+  assertAlmostEquals(penalty.earnedDelta, 1.0, 1e-9);
+  assertAlmostEquals(penalty.maxDelta, 1.25, 1e-9);
+});
+
