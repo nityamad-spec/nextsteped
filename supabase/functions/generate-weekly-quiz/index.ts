@@ -60,6 +60,8 @@ interface TierSpec {
   batchSize: number; // max questions requested per gateway sub-call
   perCallTimeoutMs: number; // per-sub-call abort timeout
   maxAttempts: number; // tier-level retry budget (counts sub-calls + skew/dedup refills)
+  reserveExtras: number; // over-generate this many primaries beyond count as a fallback pool
+                          // for the Phase-2 follow-up coverage rule (drop+backfill).
 }
 
 // Chunked sub-calls + over-generation buffer mirror the diagnostic pattern.
@@ -75,6 +77,7 @@ const TIER_SPEC: TierSpec[] = [
     batchSize: 3,
     perCallTimeoutMs: 50_000,
     maxAttempts: 2,
+    reserveExtras: 2,
   },
   {
     tier: "easy",
@@ -84,6 +87,7 @@ const TIER_SPEC: TierSpec[] = [
     batchSize: 3,
     perCallTimeoutMs: 50_000,
     maxAttempts: 2,
+    reserveExtras: 2,
   },
   {
     tier: "medium",
@@ -93,6 +97,7 @@ const TIER_SPEC: TierSpec[] = [
     batchSize: 3,
     perCallTimeoutMs: 50_000,
     maxAttempts: 2,
+    reserveExtras: 2,
   },
   {
     tier: "hard",
@@ -102,8 +107,10 @@ const TIER_SPEC: TierSpec[] = [
     batchSize: 3,
     perCallTimeoutMs: 60_000,
     maxAttempts: 2,
+    reserveExtras: 2,
   },
 ];
+
 
 const MODEL = "google/gemini-2.5-pro";
 // Global wall-clock budget. Targeting a ~300s Supabase edge invoke cap; leave
