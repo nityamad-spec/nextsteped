@@ -20,7 +20,10 @@ interface AssessmentViewProps {
   onSubmit: (results: AssessmentResults) => void;
   onStudyTopics?: (topics: string[]) => void;
   questionMeta?: Map<string, { difficulty: number; bloom: number }>;
+  /** Quiz-only: reasoning follow-up MCQs, keyed by primary question id (Phase 3+). */
+  followupsByParentId?: Map<string, Question>;
 }
+
 
 const BLOOM_WEIGHT: Record<number, number> = { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 };
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
