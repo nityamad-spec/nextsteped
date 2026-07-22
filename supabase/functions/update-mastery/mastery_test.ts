@@ -255,23 +255,32 @@ Deno.test("reasoning: asymmetry — |penalty Δ| < |boost Δ| vs. baseline", () 
 
 // ---------- Phase 7 additions: explicit boost/penalty vs baseline ----------
 
-Deno.test("reasoning (Phase 7): boost strictly greater than primary-only baseline", () => {
-  const baseline = reasoningAdjustedContribution(1, true, null);
-  const boost = reasoningAdjustedContribution(1, true, true);
-  const bRatio = boost.earnedDelta / boost.maxDelta;
-  const baseRatio = baseline.earnedDelta / baseline.maxDelta;
-  if (!(bRatio > baseRatio)) {
-    throw new Error(`boost failed to exceed baseline: ${bRatio} <= ${baseRatio}`);
+Deno.test("reasoning (Phase 7): boost lifts aggregate ratio above the primary-only baseline", () => {
+  // Boost is only observable in aggregate — a single correct-primary item is
+  // already 1.0/1.0 with or without the follow-up. Pair with a wrong primary
+  // so baseline < 1 and the boost path can pull the ratio up.
+  const boostQ = reasoningAdjustedContribution(1, true, true);
+  const wrong = reasoningAdjustedContribution(1, false, null);
+  const withBoost = (boostQ.earnedDelta + wrong.earnedDelta) / (boostQ.maxDelta + wrong.maxDelta);
+
+  const baseQ = reasoningAdjustedContribution(1, true, null);
+  const baseline = (baseQ.earnedDelta + wrong.earnedDelta) / (baseQ.maxDelta + wrong.maxDelta);
+
+  if (!(withBoost > baseline)) {
+    throw new Error(`boost failed to exceed baseline: ${withBoost} <= ${baseline}`);
   }
 });
 
-Deno.test("reasoning (Phase 7): penalty strictly less than primary-only baseline", () => {
-  const baseline = reasoningAdjustedContribution(1, true, null);
-  const penalty = reasoningAdjustedContribution(1, true, false);
-  const pRatio = penalty.earnedDelta / penalty.maxDelta;
-  const baseRatio = baseline.earnedDelta / baseline.maxDelta;
-  if (!(pRatio < baseRatio)) {
-    throw new Error(`penalty failed to fall below baseline: ${pRatio} >= ${baseRatio}`);
+Deno.test("reasoning (Phase 7): penalty drops aggregate ratio below the primary-only baseline", () => {
+  const penaltyQ = reasoningAdjustedContribution(1, true, false);
+  const wrong = reasoningAdjustedContribution(1, false, null);
+  const withPenalty = (penaltyQ.earnedDelta + wrong.earnedDelta) / (penaltyQ.maxDelta + wrong.maxDelta);
+
+  const baseQ = reasoningAdjustedContribution(1, true, null);
+  const baseline = (baseQ.earnedDelta + wrong.earnedDelta) / (baseQ.maxDelta + wrong.maxDelta);
+
+  if (!(withPenalty < baseline)) {
+    throw new Error(`penalty failed to fall below baseline: ${withPenalty} >= ${baseline}`);
   }
 });
 
