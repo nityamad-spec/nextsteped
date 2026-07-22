@@ -148,10 +148,23 @@ interface GeneratedQuestion {
   topic: string;
 }
 
+/** Reasoning follow-up MCQ authored for a Bloom≥3 primary. */
+interface FollowupQuestion {
+  content_text: string;
+  format: "mcq";
+  options: string[];
+  answer: string;
+  difficulty_estimate: number;
+  bloom_level: number;
+  explanation: string;
+  topic: string;
+}
+
 interface ConceptRow {
   id: string;
   concept_code: string;
 }
+
 
 /* -------------------------------------------------------------------------- */
 /* Prompt formatters                                                          */
