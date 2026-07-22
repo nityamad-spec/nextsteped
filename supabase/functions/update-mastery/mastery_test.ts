@@ -11,6 +11,7 @@ import {
   cappedLevel,
   shrink,
   applyPracticeOnlyGate,
+  reasoningAdjustedContribution,
   MASTERY_CONFIG,
 } from "./mastery.ts";
 
@@ -181,4 +182,73 @@ Deno.test("config: prior strength and gates match deployed plan", () => {
   assertEquals(MASTERY_CONFIG.CAP_DEVELOPING_BELOW_ATTEMPTED, 8);
   assertEquals(MASTERY_CONFIG.CAP_PROFICIENT_BELOW_ATTEMPTED, 15);
   assertEquals(MASTERY_CONFIG.CAP_PROFICIENT_MIN_SAMPLES, 2);
+});
+
+// ---------- Phase 5: reasoning follow-up scoring ----------
+
+Deno.test("reasoning config: fractions match Phase 5 spec", () => {
+  assertEquals(MASTERY_CONFIG.REASONING_BOOST_FRACTION, 0.5);
+  assertEquals(MASTERY_CONFIG.REASONING_PENALTY_FRACTION, 0.25);
+});
+
+Deno.test("reasoning: primary wrong → follow-up ignored regardless of value", () => {
+  assertEquals(reasoningAdjustedContribution(1, false, true), { earnedDelta: 0, maxDelta: 1 });
+  assertEquals(reasoningAdjustedContribution(1, false, false), { earnedDelta: 0, maxDelta: 1 });
+  assertEquals(reasoningAdjustedContribution(1, false, null), { earnedDelta: 0, maxDelta: 1 });
+});
+
+Deno.test("reasoning: null/undefined → behaves as today (no boost, no penalty)", () => {
+  assertEquals(reasoningAdjustedContribution(1, true, null), { earnedDelta: 1, maxDelta: 1 });
+  assertEquals(reasoningAdjustedContribution(1, true, undefined), { earnedDelta: 1, maxDelta: 1 });
+});
+
+Deno.test("reasoning: correct primary + correct reasoning → boost fractions", () => {
+  const R = MASTERY_CONFIG.REASONING_BOOST_FRACTION;
+  const r = reasoningAdjustedContribution(1, true, true);
+  assertAlmostEquals(r.earnedDelta, 1 + R, 1e-9);
+  assertAlmostEquals(r.maxDelta, 1 + R, 1e-9);
+});
+
+Deno.test("reasoning: correct primary + wrong reasoning → penalty in denominator only", () => {
+  const P = MASTERY_CONFIG.REASONING_PENALTY_FRACTION;
+  const r = reasoningAdjustedContribution(1, true, false);
+  assertAlmostEquals(r.earnedDelta, 1, 1e-9);
+  assertAlmostEquals(r.maxDelta, 1 + P, 1e-9);
+});
+
+Deno.test("reasoning: floor — correct-primary+wrong-reasoning earned ≥ wrong-primary earned", () => {
+  const cwp = reasoningAdjustedContribution(1, true, false);
+  const wpp = reasoningAdjustedContribution(1, false, false);
+  if (!(cwp.earnedDelta >= wpp.earnedDelta)) {
+    throw new Error(`floor violated: ${cwp.earnedDelta} < ${wpp.earnedDelta}`);
+  }
+});
+
+Deno.test("reasoning: aggregate boost pulls ratio above baseline (two-question worked example)", () => {
+  // Q1: primary correct + reasoning correct; Q2: primary wrong. maxPoints=1 each.
+  const q1 = reasoningAdjustedContribution(1, true, true);
+  const q2 = reasoningAdjustedContribution(1, false, null);
+  const ratio = (q1.earnedDelta + q2.earnedDelta) / (q1.maxDelta + q2.maxDelta);
+  // Baseline (no follow-up): (1+0)/(1+1) = 0.5
+  assertAlmostEquals(ratio, 1.5 / 2.5, 1e-9); // 0.6
+  if (!(ratio > 0.5)) throw new Error(`boost failed: ${ratio} <= 0.5`);
+});
+
+Deno.test("reasoning: aggregate penalty pulls ratio below baseline", () => {
+  const q1 = reasoningAdjustedContribution(1, true, false);
+  const q2 = reasoningAdjustedContribution(1, false, null);
+  const ratio = (q1.earnedDelta + q2.earnedDelta) / (q1.maxDelta + q2.maxDelta);
+  assertAlmostEquals(ratio, 1 / 2.25, 1e-9); // ≈ 0.4444
+  if (!(ratio < 0.5)) throw new Error(`penalty failed: ${ratio} >= 0.5`);
+});
+
+Deno.test("reasoning: asymmetry — |penalty Δ| < |boost Δ| vs. baseline", () => {
+  const baseline = 0.5;
+  const boostRatio = 1.5 / 2.5;                // 0.6
+  const penaltyRatio = 1 / 2.25;               // ≈ 0.4444
+  const dBoost = boostRatio - baseline;
+  const dPenalty = baseline - penaltyRatio;
+  if (!(dPenalty < dBoost)) {
+    throw new Error(`asymmetry violated: penalty ${dPenalty} >= boost ${dBoost}`);
+  }
 });

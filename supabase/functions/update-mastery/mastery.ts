@@ -15,6 +15,8 @@ export const MASTERY_CONFIG = {
   CAP_PROFICIENT_BELOW_ATTEMPTED: 15,
   CAP_PROFICIENT_MIN_SAMPLES: 2,
   BLOOM_WEIGHT: { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 } as Record<number, number>,
+  REASONING_BOOST_FRACTION: 0.5,
+  REASONING_PENALTY_FRACTION: 0.25,
   LEVEL_BANDS: [
     { max: 0.25, level: "beginner" },
     { max: 0.50, level: "developing" },
@@ -89,4 +91,41 @@ export function applyPracticeOnlyGate(
     return "proficient";
   }
   return rawLevel;
+}
+
+/**
+ * Phase 5: reasoning follow-up contribution for a single primary question
+ * (weekly_quiz only). Returns the earned / max deltas to accumulate into
+ * the concept's rawSignal denominator/numerator.
+ *
+ * Semantics:
+ *  - primary wrong                       → reasoning ignored: {0, maxPoints}
+ *  - primary correct + reasoning=null/undef → no boost/penalty: {maxPoints, maxPoints}
+ *  - primary correct + reasoning=true    → boost: {(1+R)*mp, (1+R)*mp}
+ *  - primary correct + reasoning=false   → penalty: {mp, (1+P)*mp}
+ *
+ * Floor is automatic: the correct primary keeps its full mp in earned,
+ * so wrong-reasoning can never drag the contribution below wrong-primary (0).
+ */
+export function reasoningAdjustedContribution(
+  maxPoints: number,
+  primaryCorrect: boolean,
+  reasoning: boolean | null | undefined,
+): { earnedDelta: number; maxDelta: number } {
+  const earnedBase = primaryCorrect ? maxPoints : 0;
+  if (!primaryCorrect || reasoning === null || reasoning === undefined) {
+    return { earnedDelta: earnedBase, maxDelta: maxPoints };
+  }
+  const R = MASTERY_CONFIG.REASONING_BOOST_FRACTION;
+  const P = MASTERY_CONFIG.REASONING_PENALTY_FRACTION;
+  if (reasoning) {
+    return {
+      earnedDelta: earnedBase + R * maxPoints,
+      maxDelta: maxPoints + R * maxPoints,
+    };
+  }
+  return {
+    earnedDelta: earnedBase,
+    maxDelta: maxPoints + P * maxPoints,
+  };
 }
