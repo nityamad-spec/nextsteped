@@ -1234,26 +1234,18 @@ async function run(
       followupTelemetry[spec.tier].failed_demoted++;
     }
 
-    // Anything still stalled AND not chosen is dropped.
-    const usedGlobalIdx = new Set<number>();
-    for (const c of chosen) {
-      // Find matching original items by stem — chosen items reference the
-      // GeneratedQuestion by reference/copy so use content_text as fingerprint.
-      // (We only drop items we could not place; primaries are unique per stem.)
-    }
-    const droppedCount = stalled.length - demotions - Math.min(0, 0);
-    // Simpler: any stalled item not in chosen (by reference) is dropped.
-    const chosenQs = new Set(chosen.map((c) => c.q.content_text));
+    // Any stalled Bloom-3+ item not chosen (via demotion) is dropped.
+    // Demoted items keep their original stem, so we compare by stem.
+    const chosenStems = new Set(chosen.map((c) => c.q.content_text));
     for (const s of stalled) {
-      if (!chosenQs.has(s.q.content_text)) {
+      if (!chosenStems.has(s.q.content_text)) {
         followupTelemetry[spec.tier].failed_dropped++;
       }
     }
-    void usedGlobalIdx;
-    void droppedCount;
 
     finalByTier[spec.tier] = chosen;
   }
+
 
   const finalItems: FinalItem[] = [
     ...finalByTier.standard,
