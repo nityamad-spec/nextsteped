@@ -1,81 +1,59 @@
-# Phase 6 — Analytics & admin visibility
+# Phase 7 — Tests
 
-Primary-based dashboards stay untouched. Add a new **Reasoning follow-ups** analytics surface that makes fairness/coverage/impact of the Phase 2–5 follow-up loop visible per course.
+Add targeted tests at four layers. All new tests are additive; no production code changes.
 
-## Scope
+## 1. Validator tests — `supabase/functions/_shared/question-validation_test.ts`
 
-Four signals, one view:
+Extend the existing Deno test file:
 
-1. **Per-item reasoning correctness** — for each reasoning row (`question_role='reasoning'`), % of student responses that were `reasoning_is_correct = true`, over responses where it was `true|false` (nulls excluded). Table sorted worst-first, with parent stem shown alongside. Rows below a threshold (default 20% correct, min 5 responses) flagged as **Review**.
-2. **Coverage rate** — of primary answers with `is_correct=true` on a Bloom-3+ primary, % where the sibling `reasoning_is_correct` is non-null. Split into: shown & answered, no follow-up existed, load-failure/null. Confirms the required-follow-up flow is working and exposes the null-path.
-3. **Boost vs penalty distribution** — course-level counts and % of: boost path (primary correct + reasoning correct), penalty path (primary correct + reasoning wrong), neutral (primary wrong, or reasoning null). Net expected mastery impact = `boost_count × R − penalty_count × P` using the Phase 5 constants; shown as an informational figure, not a per-student number.
-4. **Generation coverage per quiz** — for each weekly quiz (course × quiz_day), primaries at Bloom ≥ 3 shipped, follow-ups generated, dropped, demoted, and whether the follow-up pass was skipped for budget. Rederived from the DB (see Data model below), no reliance on transient logs.
+- **Reasoning novelty rejection**: fixture where the follow-up stem is a near-duplicate of the parent stem (paraphrase / trivial rewording). Assert `validateReasoningNovelty(parent, followup)` returns a rejection with a novelty-related reason.
+- **Reasoning novelty acceptance**: fixture where the follow-up asks "why" the parent's answer holds (different stem, mechanism-focused). Assert it passes.
+- **Distractor plausibility (best-effort)**: fixture where a reasoning follow-up ships obviously-throwaway distractors (e.g. empty, single-char, or duplicated correct-answer text). Assert whichever existing check catches these (option-parity / structural) rejects it. Document in a comment that deeper "plausible misconception" quality is model-graded, not validator-graded — this test pins only what the validator can mechanically enforce.
 
-## Placement
+## 2. Generator tests — new `supabase/functions/generate-weekly-quiz/index_test.ts`
 
-- New tab **"Reasoning follow-ups"** inside `src/pages/teacher/AssessmentAnalytics.tsx`, next to existing exam/diagnostic tabs. Course-scoped via the existing `useTeacherCourseId` context — matches the memory rule for professor course resolution.
-- Admin `CourseProfileDialog` gets one small additive tile: **"Follow-up flags: N items <20%"** linking into the professor view. No layout change to existing tiles.
+No such test file exists today, so this is a new Deno test module. Approach: extract the follow-up sub-pass orchestration into a testable seam if it isn't already exported, then drive it with a stubbed model client.
 
-Nothing else moves. `AssessmentAnalytics`'s existing tabs and `CourseAnalyticsView` continue to count primaries only — no regression.
+Cases:
+- **Two-strike validation → drop + backfill**: stub the model so a Bloom-3+ primary's follow-up fails validation on both retry passes. Assert the primary is removed from the shipped set and replaced from the tier's reserve pool. Assert `followup_failed_dropped` increments and no demotion occurs (Phase 2 constraint: cap demotions at 1 per tier, prefer drop-and-backfill).
+- **Coverage invariant**: after a full simulated run mixing Bloom-1/2/3/4 items with some follow-up failures, assert every shipped question with `bloom_level >= 3` and `question_role === 'primary'` has a matching `question_role === 'reasoning'` row with `parent_question_id` pointing to it.
+- **Emitted counts**: assert the NDJSON summary (or returned counters) include `followup_generated`, `followup_failed_dropped`, and backfill counts with correct values for the scripted scenario.
+- **Budget exhaustion**: stub `remainingBudget` so the follow-up sub-pass is skipped for a tier. Assert affected Bloom-3+ primaries are dropped-and-backfilled (or, if backfill is exhausted, absent) — never shipped as bare Bloom-3+ primaries.
 
-## Data model
+Risk: if the sub-pass isn't currently exported, we'll need a small refactor to expose it for testing. Flag this — it's the only place Phase 7 might touch production code.
 
-No new tables. Signals 1–3 are computed from existing rows:
+## 3. Dialog tests — extend `src/components/WeeklyQuizDialog.test.tsx`
 
-- `assessment_questions` filtered by `question_role in ('primary','reasoning')`, joined on `parent_question_id`.
-- `assessment_results.answers` (jsonb) already carries `reasoning_question_id`, `reasoning_is_correct`, `reasoning_bloom` from Phase 4.
+Uses existing Vitest + Testing Library setup. Mock the Supabase client to return a scripted primary + reasoning pair.
 
-Signal 4 (generation coverage) currently only exists as the `followup_done` NDJSON heartbeat — it's not persisted. To make it visible after the stream closes, persist per-quiz telemetry. Two options — plan asks the user to pick (see Questions):
+Cases:
+- **Follow-up gated on correctness**: Bloom-3 primary with a follow-up. Answer correctly → assert the follow-up MCQ appears inline. Reset / answer incorrectly → assert the follow-up never renders.
+- **Required (Next locked)**: after correct primary, assert the Next button is disabled until the follow-up is answered.
+- **Inline teaching moment**: after answering the follow-up, assert the correct-reason text and explanation render before Next unlocks.
+- **Payload shape**: intercept the `insert` call to `assessment_results`. Assert `answers[0]` contains `reasoning_question_id`, `reasoning_selected`, `reasoning_correct`, `reasoning_is_correct`, `reasoning_bloom` with the expected values for a boost path and a penalty path.
+- **Defensive gap**: simulate a follow-up fetch failure (missing from `followupsByParentId` despite `parent_question_id` existing, or a thrown error path). Assert Next unlocks normally and the submitted `reasoning_is_correct` is `null`.
 
-- **A. New table** `weekly_quiz_generation_stats` (course_id, quiz_day, tier, primaries_shipped, followup_generated, failed_dropped, failed_demoted, skipped_budget, created_at) written at the end of `generate-weekly-quiz`. Cleanest, queryable, small.
-- **B. Rederive-only**: skip signal 4's generation counts; infer coverage from `assessment_questions` (Bloom-3+ primaries missing a `reasoning` child = dropped/demoted signal, indistinguishable but usable). No schema change. Loses the "skipped_budget" flag and can't tell drop vs demote apart.
+## 4. Mastery tests — extend `supabase/functions/update-mastery/mastery_test.ts`
 
-## Query strategy
+The existing file already covers primary-only math. Add / update:
 
-All aggregates are computed via one SECURITY DEFINER SQL function `public.reasoning_followup_analytics(_course_id uuid)` gated by `is_course_member(_course_id, auth.uid())`, returning three result sets (or one JSON blob):
+- **Boost**: primary correct + `reasoning_correct = true` → aggregated `rawSignal` strictly greater than the same primary alone.
+- **Penalty**: primary correct + `reasoning_correct = false` → `rawSignal` strictly less than primary alone.
+- **Floor**: primary correct + `reasoning_correct = false` → `rawSignal` ≥ primary-wrong contribution for the same item (guaranteed by construction; assert numerically).
+- **Ignored on wrong primary**: primary wrong + any `reasoning_correct` value → identical to primary-wrong baseline.
+- **Null-safe**: `reasoning_correct = null` or field absent → identical to primary-only baseline (no boost, no penalty).
+- **Asymmetry**: for the same item at the same difficulty/bloom, |boost delta| > |penalty delta| (R=0.5 vs P=0.25).
 
-- `per_item[]`: reasoning_question_id, parent stem preview, concept_code, bloom, attempts, correct, pct, flagged.
-- `coverage`: bloom3_correct_primary_answers, followup_answered, no_followup_exists, followup_null.
-- `impact`: boost_count, penalty_count, neutral_count, expected_mastery_delta.
-
-Client hits it once per view load (with the existing cache pattern), no N+1 over primaries. Realtime subscription reuses the `assessment_results` channel already in `CourseAnalyticsView`.
-
-## Config
-
-Add to `MASTERY_CONFIG` (re-exported) or a new `analytics.ts` const block:
-
-```
-REASONING_REVIEW_MIN_CORRECT_PCT = 0.20
-REASONING_REVIEW_MIN_ATTEMPTS    = 5
-```
-
-Kept as code constants (not `admin_settings`) unless the user wants runtime tuning — see Questions.
-
-## Privacy
-
-Per-item rates are aggregate counts, not per-student — consistent with the "students anonymized for professors" memory. No student identifiers appear in any of the four signals.
+Any pre-existing test asserting "primary correct + reasoning wrong = no penalty" is deleted or flipped, since Phase 5 changed that behaviour.
 
 ## Risks & constraints
 
-- **Signal 4 is only meaningful if we persist Phase 2 telemetry.** Option B leaves a partial view.
-- `**answers` jsonb queries** are unindexed. Course-scoped filters keep result sets small (≤ a few thousand rows per course), and we compute in the SQL function server-side, but very large courses may want a `GIN` index on `assessment_results.answers` later. Not adding it now — premature.
-- **Threshold tuning.** 20% / 5 attempts is a first guess. Once real data lands, the professor view will drive whether we raise the min-attempts floor.
-- **Fairness dependency.** Phase 5 penalties are already live per your last approval; shipping this view is the feedback loop for tuning `REASONING_PENALTY_FRACTION`. Without it we're penalising blind.
-- **No new privileges.** The SQL function reuses `is_course_member`; RLS on the underlying tables is unchanged.
-
-## Steps
-
-1. **(Optional, depends on Q1)** Migration: create `weekly_quiz_generation_stats` with `GRANT`s to `authenticated` (SELECT only) + `service_role` (ALL), RLS scoped to `is_course_member`.
-2. **(Optional, depends on Q1)** `generate-weekly-quiz`: after the follow-up pass, upsert one row per tier with the telemetry it already computes. No behaviour change.
-3. Migration: `public.reasoning_followup_analytics(_course_id uuid)` SECURITY DEFINER function returning the three aggregates as JSON, plus `GRANT EXECUTE` to `authenticated`.
-4. New component `src/components/analytics/ReasoningFollowupAnalytics.tsx`: three sections (Per-item table with Review flag, Coverage card, Impact card) + optional Generation card if Q1=A.
-5. Wire as new tab in `src/pages/teacher/AssessmentAnalytics.tsx`.
-6. Small "Follow-up flags" tile in `src/components/admin/CourseProfileDialog.tsx`.
-7. Typecheck; smoke-verify against a course with existing Phase 4 quiz data if any exists.
+- **Testable seam in generate-weekly-quiz**: the follow-up sub-pass may need a small export/refactor to be driven by tests without hitting the real model. If so, this is the only production code touched in Phase 7; keep it a pure move.
+- **Model stubbing**: generator tests must stub the AI gateway call — real calls would be flaky and burn credits. Use dependency injection or module-level mocking consistent with existing edge-function tests.
+- **Vitest mock of Supabase client**: the existing `WeeklyQuizDialog.test.tsx` already mocks it; extend the same pattern rather than introducing a second mocking strategy.
+- **Deterministic numerics**: mastery tests should assert relative inequalities (boost > baseline, penalty < baseline, |boost| > |penalty|) rather than pinning exact floats, so future tuning of R/P doesn't break them — except one pinned case that locks in current R/P as a regression guard.
 
 ## Questions
 
-1. Persist Phase 2 generation telemetry - skip it and infer from `assessment_questions` only (Option B, no drop-vs-demote distinction, no skipped_budget)?
-2. Review threshold — keep hardcoded `<20% correct, ≥5 attempts`
-3. Admin-portal tile: single "flags count" chip on `CourseProfileDialog` (proposed)
-4. Realtime updates on the new tab, or a manual "Refresh" button only
+1. Is a small refactor to expose the follow-up sub-pass for testing acceptable, or would you prefer black-box tests that invoke the full HTTP handler with a stubbed fetch? (Black-box is more faithful but slower and more fragile.)
+2. For mastery tests, do you want one pinned-numeric regression test at current R=0.5 / P=0.25, or all-relative assertions only?
