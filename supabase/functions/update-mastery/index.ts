@@ -97,6 +97,9 @@ const PerQuestionSchema = z
     difficulty: z.number().min(0).max(1),
     bloom: z.number().int().min(1).max(6),
     is_correct: z.boolean(),
+    // Phase 5: reasoning follow-up outcome (weekly_quiz only).
+    // null / undefined → no boost or penalty applied.
+    reasoning_correct: z.boolean().nullable().optional(),
   })
   .refine((v) => v.concept_id || v.concept_code, {
     message: "concept_id or concept_code required",
