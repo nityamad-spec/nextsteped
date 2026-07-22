@@ -70,6 +70,7 @@ import {
   clamp01,
   shrink,
   applyPracticeOnlyGate,
+  reasoningAdjustedContribution,
 } from "./mastery.ts";
 
 const corsHeaders: Record<string, string> = {
