@@ -345,9 +345,75 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
         )}
 
         {/* Confidence selector removed — not collected for quizzes/exams */}
+
+        {showFollowup && followup && (
+          <div className="mt-2 rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Lightbulb className="h-4 w-4 text-primary" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+                Why is that the correct answer?
+              </span>
+            </div>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">{followup.text}</p>
+            <RadioGroup
+              value={followupAnswer || ""}
+              onValueChange={(v) => {
+                if (followupSubmitted) return; // locked after first answer
+                const correct = v === followup.correctAnswer;
+                setFollowupAnswers(prev => ({ ...prev, [q.id]: v }));
+                setFollowupCorrectness(prev => ({ ...prev, [q.id]: correct }));
+              }}
+              className="space-y-2"
+            >
+              {followup.options!.map((opt, i) => {
+                const isPicked = followupAnswer === opt;
+                const isCorrectOpt = opt === followup.correctAnswer;
+                const revealClass = followupSubmitted
+                  ? isCorrectOpt
+                    ? "border-primary bg-primary/10"
+                    : isPicked
+                    ? "border-destructive bg-destructive/10"
+                    : "opacity-70"
+                  : isPicked
+                  ? "border-primary bg-primary/5"
+                  : "";
+                return (
+                  <Label
+                    key={i}
+                    htmlFor={`q${index}-fu-opt-${i}`}
+                    className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
+                      followupSubmitted ? "cursor-default" : "cursor-pointer hover:bg-muted/50"
+                    } ${revealClass}`}
+                  >
+                    <RadioGroupItem
+                      value={opt}
+                      id={`q${index}-fu-opt-${i}`}
+                      disabled={followupSubmitted}
+                    />
+                    <span className="text-sm flex-1">{opt}</span>
+                    {followupSubmitted && isCorrectOpt && (
+                      <CheckCircle className="h-4 w-4 text-primary" />
+                    )}
+                    {followupSubmitted && !isCorrectOpt && isPicked && (
+                      <XCircle className="h-4 w-4 text-destructive" />
+                    )}
+                  </Label>
+                );
+              })}
+            </RadioGroup>
+            {followupSubmitted && followup.explanation && (
+              <div className="rounded-md bg-background/60 border border-border/60 p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Explanation</p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{followup.explanation}</p>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
-  );
+    );
+  };
+
 
 
   // Intro screen
