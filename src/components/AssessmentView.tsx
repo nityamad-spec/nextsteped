@@ -243,9 +243,35 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const isQuiz = type === "quiz";
   const answeredCount = Object.keys(answers).length;
 
+  // Local correctness comparison (mirrors handleFinish rules) — used only for quiz follow-up gating.
+  const isPrimaryCorrect = (q: Question, ans: string | undefined): boolean => {
+    if (!ans) return false;
+    if (q.type === "short_answer") return ans.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+    if (q.type === "problem_solving") {
+      const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+      return norm(ans) === norm(q.correctAnswer);
+    }
+    return ans === q.correctAnswer;
+  };
+
+  // Follow-up validity: needs MCQ shape with ≥2 options and a correctAnswer.
+  const isFollowupUsable = (fu: Question | undefined): fu is Question => {
+    return !!fu && fu.type === "mcq" && Array.isArray(fu.options) && fu.options.length >= 2 && !!fu.correctAnswer;
+  };
+
   // Render a single question card (reused in active phase)
-  const renderQuestionCard = (q: Question, index: number) => (
+  const renderQuestionCard = (q: Question, index: number) => {
+    const primaryAnswered = answers[q.id] !== undefined && answers[q.id] !== "";
+    const primaryCorrect = primaryAnswered && isPrimaryCorrect(q, answers[q.id]);
+    const rawFollowup = isQuiz ? followupsByParentId?.get(q.id) : undefined;
+    const followup = isFollowupUsable(rawFollowup) ? rawFollowup : undefined;
+    const followupAnswer = followupAnswers[q.id];
+    const followupSubmitted = followupAnswer !== undefined && followupAnswer !== "";
+    const showFollowup = isQuiz && primaryCorrect && !!followup;
+
+    return (
     <Card key={q.id} className={`${answers[q.id] ? "border-primary/30" : ""}`}>
+
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
