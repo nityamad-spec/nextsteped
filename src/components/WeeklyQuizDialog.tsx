@@ -284,7 +284,9 @@ const WeeklyQuizDialog = ({
                 day={day ?? 1}
                 onEnd={handleEnd}
                 onSubmit={handleSubmit}
+                followupsByParentId={followupsByParentId}
               />
+
             )}
           </div>
           {(loading || questions.length === 0) && (
