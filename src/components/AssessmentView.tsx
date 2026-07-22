@@ -38,6 +38,15 @@ export interface StandardisedAnswer {
   correct: string;
   is_correct: boolean;
   explanation?: string;
+  // Phase 4: reasoning follow-up fields (quiz mode only).
+  // Absent when no follow-up applies (primary Bloom<3, primary incorrect, or no row shipped).
+  // reasoning_is_correct is tri-state: true/false when answered; null when the
+  // follow-up row was present but malformed / failed to load (Phase 5 no-op).
+  reasoning_question_id?: string | null;
+  reasoning_selected?: string | null;
+  reasoning_correct?: string | null;
+  reasoning_is_correct?: boolean | null;
+  reasoning_bloom?: number | null;
 }
 
 export type ConfidenceLevel = "not_confident" | "somewhat_confident" | "very_confident";
@@ -146,7 +155,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       } else {
         isCorrect = userAnswer === q.correctAnswer;
       }
-      return {
+      const base: StandardisedAnswer = {
         question_id: q.id,
         question_text: q.text,
         type: q.type || "mcq",
@@ -155,7 +164,34 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
         correct: q.correctAnswer,
         is_correct: isCorrect,
       };
+
+      // Phase 4: attach reasoning follow-up fields (quiz mode only, primary correct only).
+      const rawFu = type === "quiz" ? followupsByParentId?.get(q.id) : undefined;
+      const fuUsable = !!rawFu && rawFu.type === "mcq" && Array.isArray(rawFu.options) && rawFu.options.length >= 2 && !!rawFu.correctAnswer;
+      if (isCorrect && rawFu) {
+        const fuBloom = questionMeta?.get(rawFu.id)?.bloom ?? null;
+        if (!fuUsable || followupCorrectness[q.id] === null) {
+          // Follow-up present but malformed / failed to load — Phase 5 no-op sentinel.
+          base.reasoning_question_id = rawFu.id;
+          base.reasoning_selected = null;
+          base.reasoning_correct = rawFu.correctAnswer ?? null;
+          base.reasoning_is_correct = null;
+          base.reasoning_bloom = fuBloom;
+        } else {
+          const fuAns = followupAnswers[q.id];
+          if (fuAns !== undefined && fuAns !== "") {
+            base.reasoning_question_id = rawFu.id;
+            base.reasoning_selected = fuAns;
+            base.reasoning_correct = rawFu.correctAnswer;
+            base.reasoning_is_correct = followupCorrectness[q.id] ?? (fuAns === rawFu.correctAnswer);
+            base.reasoning_bloom = fuBloom;
+          }
+        }
+      }
+
+      return base;
     });
+
     const correct = standardised.filter(a => a.is_correct).length;
     const flatScore = Math.round((correct / questions.length) * 100);
 
@@ -192,7 +228,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     setExpandedQuestions(wrongIndices);
 
     fetchExplanations(standardised);
-  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex, questionMeta]);
+  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex, questionMeta, type, followupsByParentId, followupAnswers, followupCorrectness]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
