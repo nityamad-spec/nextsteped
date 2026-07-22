@@ -14,6 +14,8 @@ import { ClipboardCheck, Clock, Users, TrendingUp, ArrowUpDown, ArrowUp, ArrowDo
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ReasoningFollowupAnalytics from "@/components/analytics/ReasoningFollowupAnalytics";
 
 interface AssessmentResult {
   id: string;
