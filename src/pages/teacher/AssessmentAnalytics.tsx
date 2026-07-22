@@ -569,6 +569,12 @@ const AssessmentAnalytics = () => {
           </Card>
         </>
       )}
+        </TabsContent>
+
+        <TabsContent value="reasoning">
+          <ReasoningFollowupAnalytics courseId={courseId ?? null} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
