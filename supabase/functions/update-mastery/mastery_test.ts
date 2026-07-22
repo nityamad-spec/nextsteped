@@ -11,6 +11,7 @@ import {
   cappedLevel,
   shrink,
   applyPracticeOnlyGate,
+  reasoningAdjustedContribution,
   MASTERY_CONFIG,
 } from "./mastery.ts";
 
