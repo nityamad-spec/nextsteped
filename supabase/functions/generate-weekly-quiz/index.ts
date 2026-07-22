@@ -1126,7 +1126,154 @@ async function run(
   }
 
 
-  // Replace existing rows for this week
+  /* ----------------------------------------------------------------------
+   * Follow-up (reasoning MCQ) sub-pass for Bloom≥3 primaries + coverage rule
+   * -------------------------------------------------------------------- */
+
+  // Collect Bloom≥3 primaries across every tier. We index them by their
+  // position in allQuestions so the follow-up pass can map results back.
+  const b3Parents: { parent: GeneratedQuestion; spec: TierSpec; idx: number }[] = [];
+  for (let i = 0; i < allQuestions.length; i++) {
+    const item = allQuestions[i];
+    if (item.q.bloom_level >= 3) b3Parents.push({ parent: item.q, spec: item.spec, idx: i });
+  }
+
+  heartbeat({ type: "progress", stage: "followup_start", parents: b3Parents.length });
+
+  let followupResult: FollowupPassResult = {
+    followupByParentIndex: new Map(),
+    telemetry: { generated: 0, failed_dropped: 0, attempted: b3Parents.length, skipped_budget: false },
+  };
+  if (b3Parents.length > 0) {
+    try {
+      followupResult = await runFollowupPass(
+        b3Parents,
+        course.name ?? "Course",
+        weekNumber,
+        weekRow.week_name ?? "",
+        conceptByCode,
+        lovableKey,
+        deadlineAt,
+        heartbeat,
+      );
+    } catch (err) {
+      if (err instanceof CreditsExhaustedError) {
+        creditsExhausted = true;
+        // Continue: coverage rule below will demote / drop as needed.
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  /* Coverage selection per tier: pick exactly spec.count primaries. Prefer
+   * items that don't need a follow-up OR whose follow-up succeeded. If short,
+   * demote up to 1 Bloom-3+ item per tier to Bloom-2 (only when the demoted
+   * label passes shared validation for the item's difficulty). Remaining
+   * Bloom-3+ items without follow-ups are dropped (never shipped as-is). */
+  interface FinalItem {
+    spec: TierSpec;
+    q: GeneratedQuestion;
+    followup?: FollowupQuestion;
+    demoted: boolean;
+  }
+  const finalByTier: Record<Tier, FinalItem[]> = {
+    standard: [],
+    easy: [],
+    medium: [],
+    hard: [],
+  };
+  const followupTelemetry: Record<Tier, { generated: number; failed_dropped: number; failed_demoted: number; skipped_budget: boolean }> = {
+    standard: { generated: 0, failed_dropped: 0, failed_demoted: 0, skipped_budget: followupResult.telemetry.skipped_budget },
+    easy: { generated: 0, failed_dropped: 0, failed_demoted: 0, skipped_budget: followupResult.telemetry.skipped_budget },
+    medium: { generated: 0, failed_dropped: 0, failed_demoted: 0, skipped_budget: followupResult.telemetry.skipped_budget },
+    hard: { generated: 0, failed_dropped: 0, failed_demoted: 0, skipped_budget: followupResult.telemetry.skipped_budget },
+  };
+  const DEMOTION_CAP_PER_TIER = 1;
+
+  for (const spec of TIER_SPEC) {
+    const items: { spec: TierSpec; q: GeneratedQuestion; needsFu: boolean; fu?: FollowupQuestion; globalIdx: number }[] = [];
+    for (let i = 0; i < allQuestions.length; i++) {
+      const it = allQuestions[i];
+      if (it.spec.tier !== spec.tier) continue;
+      const needsFu = it.q.bloom_level >= 3;
+      const fu = followupResult.followupByParentIndex.get(i);
+      items.push({ spec: it.spec, q: it.q, needsFu, fu, globalIdx: i });
+    }
+
+    // Preferred pool: no follow-up needed OR follow-up succeeded.
+    const ready = items.filter((x) => !x.needsFu || x.fu);
+    const stalled = items.filter((x) => x.needsFu && !x.fu);
+
+    const chosen: FinalItem[] = [];
+    for (const r of ready) {
+      if (chosen.length >= spec.count) break;
+      chosen.push({ spec: r.spec, q: r.q, followup: r.fu, demoted: false });
+      if (r.fu) followupTelemetry[spec.tier].generated++;
+    }
+
+    // Demote stalled Bloom-3+ items to Bloom-2 (capped) if the demoted label
+    // still passes the shared bloom/difficulty consistency check.
+    let demotions = 0;
+    for (const s of stalled) {
+      if (chosen.length >= spec.count) break;
+      if (demotions >= DEMOTION_CAP_PER_TIER) break;
+      const demoteCheck = validateBloom(2, {
+        min: 1,
+        max: 4,
+        enforceDifficultyConsistency: true,
+        difficulty: s.q.difficulty_estimate,
+      });
+      if (!demoteCheck.ok) continue;
+      chosen.push({
+        spec: s.spec,
+        q: { ...s.q, bloom_level: 2 },
+        demoted: true,
+      });
+      demotions++;
+      followupTelemetry[spec.tier].failed_demoted++;
+    }
+
+    // Anything still stalled AND not chosen is dropped.
+    const usedGlobalIdx = new Set<number>();
+    for (const c of chosen) {
+      // Find matching original items by stem — chosen items reference the
+      // GeneratedQuestion by reference/copy so use content_text as fingerprint.
+      // (We only drop items we could not place; primaries are unique per stem.)
+    }
+    const droppedCount = stalled.length - demotions - Math.min(0, 0);
+    // Simpler: any stalled item not in chosen (by reference) is dropped.
+    const chosenQs = new Set(chosen.map((c) => c.q.content_text));
+    for (const s of stalled) {
+      if (!chosenQs.has(s.q.content_text)) {
+        followupTelemetry[spec.tier].failed_dropped++;
+      }
+    }
+    void usedGlobalIdx;
+    void droppedCount;
+
+    finalByTier[spec.tier] = chosen;
+  }
+
+  const finalItems: FinalItem[] = [
+    ...finalByTier.standard,
+    ...finalByTier.easy,
+    ...finalByTier.medium,
+    ...finalByTier.hard,
+  ];
+
+  heartbeat({
+    type: "progress",
+    stage: "followup_done",
+    telemetry: followupTelemetry,
+  });
+
+  /* ----------------------------------------------------------------------
+   * Persistence: two-stage insert so follow-ups can reference parent IDs.
+   * ON DELETE CASCADE on parent_question_id means the pre-delete for this
+   * (course_id, mode, quiz_day) removes both primaries and reasoning rows.
+   * -------------------------------------------------------------------- */
+
   await admin
     .from("assessment_questions")
     .delete()
@@ -1134,7 +1281,7 @@ async function run(
     .eq("mode", "daily_quiz")
     .eq("quiz_day", weekNumber);
 
-  const rows = allQuestions.map(({ spec, q }, i) => {
+  const primaryRows = finalItems.map(({ spec, q }, i) => {
     const concept = conceptByCode[q.topic];
     const correctIndex = q.options.indexOf(q.answer);
     return {
@@ -1156,29 +1303,85 @@ async function run(
       difficulty_estimate: q.difficulty_estimate,
       bloom_level: q.bloom_level,
       item_code: `w${weekNumber}-${spec.tier}-${i}`,
+      question_role: "primary",
     };
   });
 
-  const { error: insErr } = await admin.from("assessment_questions").insert(rows);
+  const { data: insertedPrimaries, error: insErr } = await admin
+    .from("assessment_questions")
+    .insert(primaryRows)
+    .select("id, item_code");
   if (insErr) throw new Error(`Insert failed: ${insErr.message}`);
 
+  // Map item_code → id for follow-up parent linkage.
+  const primaryIdByCode: Record<string, string> = {};
+  for (const r of insertedPrimaries ?? []) primaryIdByCode[r.item_code as string] = r.id as string;
+
+  const followupRows: Record<string, unknown>[] = [];
+  finalItems.forEach(({ spec, q, followup }, i) => {
+    if (!followup) return;
+    const concept = conceptByCode[followup.topic];
+    const parentItemCode = `w${weekNumber}-${spec.tier}-${i}`;
+    const parentId = primaryIdByCode[parentItemCode];
+    if (!parentId) return; // defensive: primary insert must have succeeded
+    const correctIndex = followup.options.indexOf(followup.answer);
+    followupRows.push({
+      course_id: courseId,
+      teacher_id: course.teacher_id,
+      mode: "daily_quiz",
+      quiz_day: weekNumber,
+      tier: spec.tier,
+      question_type: "MCQ",
+      format: "mcq",
+      question_text: followup.content_text,
+      options: followup.options,
+      answer: followup.answer,
+      correct_index: correctIndex,
+      explanation: followup.explanation,
+      topic: followup.topic,
+      concept_id: concept.id,
+      difficulty: followup.difficulty_estimate < 0.35 ? "Easy" : followup.difficulty_estimate > 0.7 ? "Hard" : "Medium",
+      difficulty_estimate: followup.difficulty_estimate,
+      bloom_level: followup.bloom_level,
+      item_code: `${parentItemCode}-r`,
+      question_role: "reasoning",
+      parent_question_id: parentId,
+    });
+  });
+
+  if (followupRows.length > 0) {
+    const { error: fuErr } = await admin.from("assessment_questions").insert(followupRows);
+    if (fuErr) {
+      // Non-fatal: primaries already shipped. Surface as tier error and return.
+      console.error(`[weekly-quiz] follow-up insert failed:`, fuErr.message);
+      tierErrors["followups"] = `follow-up insert failed: ${fuErr.message}`;
+    }
+  }
+
   const byTier: Record<string, number> = {};
-  for (const { spec } of allQuestions) byTier[spec.tier] = (byTier[spec.tier] ?? 0) + 1;
+  for (const { spec } of finalItems) byTier[spec.tier] = (byTier[spec.tier] ?? 0) + 1;
   const expected = TIER_SPEC.reduce((s, t) => s + t.count, 0);
-  const partial = rows.length < expected;
+  const partial = primaryRows.length < expected;
+
+  if (creditsExhausted && primaryRows.length === 0) {
+    return { status: 402, payload: { error: "AI credits exhausted", code: "CREDITS_EXHAUSTED" } };
+  }
 
   return {
     status: 200,
     payload: {
       ok: true,
-      generated: rows.length,
+      generated: primaryRows.length,
       requested: expected,
       partial,
       by_tier: byTier,
+      followups_generated: followupRows.length,
+      followup_telemetry: followupTelemetry,
       tier_errors: Object.keys(tierErrors).length ? tierErrors : undefined,
     },
   };
 }
+
 
 Deno.serve((req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
