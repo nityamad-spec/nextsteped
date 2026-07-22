@@ -92,3 +92,40 @@ export function applyPracticeOnlyGate(
   }
   return rawLevel;
 }
+
+/**
+ * Phase 5: reasoning follow-up contribution for a single primary question
+ * (weekly_quiz only). Returns the earned / max deltas to accumulate into
+ * the concept's rawSignal denominator/numerator.
+ *
+ * Semantics:
+ *  - primary wrong                       → reasoning ignored: {0, maxPoints}
+ *  - primary correct + reasoning=null/undef → no boost/penalty: {maxPoints, maxPoints}
+ *  - primary correct + reasoning=true    → boost: {(1+R)*mp, (1+R)*mp}
+ *  - primary correct + reasoning=false   → penalty: {mp, (1+P)*mp}
+ *
+ * Floor is automatic: the correct primary keeps its full mp in earned,
+ * so wrong-reasoning can never drag the contribution below wrong-primary (0).
+ */
+export function reasoningAdjustedContribution(
+  maxPoints: number,
+  primaryCorrect: boolean,
+  reasoning: boolean | null | undefined,
+): { earnedDelta: number; maxDelta: number } {
+  const earnedBase = primaryCorrect ? maxPoints : 0;
+  if (!primaryCorrect || reasoning === null || reasoning === undefined) {
+    return { earnedDelta: earnedBase, maxDelta: maxPoints };
+  }
+  const R = MASTERY_CONFIG.REASONING_BOOST_FRACTION;
+  const P = MASTERY_CONFIG.REASONING_PENALTY_FRACTION;
+  if (reasoning) {
+    return {
+      earnedDelta: earnedBase + R * maxPoints,
+      maxDelta: maxPoints + R * maxPoints,
+    };
+  }
+  return {
+    earnedDelta: earnedBase,
+    maxDelta: maxPoints + P * maxPoints,
+  };
+}
