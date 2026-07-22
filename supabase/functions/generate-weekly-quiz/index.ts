@@ -482,7 +482,7 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 
     const subRejects: string[] = [];
     for (const q of arr) {
-      if (accepted.length >= spec.count) break;
+      if (accepted.length >= targetCount) break;
 
       const v = validateCandidate(q, spec, conceptByCode);
       if (!v.ok) {
@@ -506,7 +506,8 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
     retryHint = summarizeRejections(attemptRejections);
 
     // Post-batch position-skew check — only meaningful once tier is full.
-    if (accepted.length >= spec.count) {
+    if (accepted.length >= targetCount) {
+
       const mcq = accepted.filter((a) => a.format === "mcq");
       if (mcq.length >= 4) {
         const counts = [0, 0, 0, 0];
