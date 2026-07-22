@@ -38,6 +38,15 @@ export interface StandardisedAnswer {
   correct: string;
   is_correct: boolean;
   explanation?: string;
+  // Phase 4: reasoning follow-up fields (quiz mode only).
+  // Absent when no follow-up applies (primary Bloom<3, primary incorrect, or no row shipped).
+  // reasoning_is_correct is tri-state: true/false when answered; null when the
+  // follow-up row was present but malformed / failed to load (Phase 5 no-op).
+  reasoning_question_id?: string | null;
+  reasoning_selected?: string | null;
+  reasoning_correct?: string | null;
+  reasoning_is_correct?: boolean | null;
+  reasoning_bloom?: number | null;
 }
 
 export type ConfidenceLevel = "not_confident" | "somewhat_confident" | "very_confident";
