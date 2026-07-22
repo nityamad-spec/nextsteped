@@ -60,6 +60,8 @@ interface TierSpec {
   batchSize: number; // max questions requested per gateway sub-call
   perCallTimeoutMs: number; // per-sub-call abort timeout
   maxAttempts: number; // tier-level retry budget (counts sub-calls + skew/dedup refills)
+  reserveExtras: number; // over-generate this many primaries beyond count as a fallback pool
+                          // for the Phase-2 follow-up coverage rule (drop+backfill).
 }
 
 // Chunked sub-calls + over-generation buffer mirror the diagnostic pattern.
@@ -75,6 +77,7 @@ const TIER_SPEC: TierSpec[] = [
     batchSize: 3,
     perCallTimeoutMs: 50_000,
     maxAttempts: 2,
+    reserveExtras: 2,
   },
   {
     tier: "easy",
@@ -84,6 +87,7 @@ const TIER_SPEC: TierSpec[] = [
     batchSize: 3,
     perCallTimeoutMs: 50_000,
     maxAttempts: 2,
+    reserveExtras: 2,
   },
   {
     tier: "medium",
@@ -93,6 +97,7 @@ const TIER_SPEC: TierSpec[] = [
     batchSize: 3,
     perCallTimeoutMs: 50_000,
     maxAttempts: 2,
+    reserveExtras: 2,
   },
   {
     tier: "hard",
@@ -102,8 +107,10 @@ const TIER_SPEC: TierSpec[] = [
     batchSize: 3,
     perCallTimeoutMs: 60_000,
     maxAttempts: 2,
+    reserveExtras: 2,
   },
 ];
+
 
 const MODEL = "google/gemini-2.5-pro";
 // Global wall-clock budget. Targeting a ~300s Supabase edge invoke cap; leave
@@ -141,10 +148,23 @@ interface GeneratedQuestion {
   topic: string;
 }
 
+/** Reasoning follow-up MCQ authored for a Bloom≥3 primary. */
+interface FollowupQuestion {
+  content_text: string;
+  format: "mcq";
+  options: string[];
+  answer: string;
+  difficulty_estimate: number;
+  bloom_level: number;
+  explanation: string;
+  topic: string;
+}
+
 interface ConceptRow {
   id: string;
   concept_code: string;
 }
+
 
 /* -------------------------------------------------------------------------- */
 /* Prompt formatters                                                          */
@@ -277,6 +297,12 @@ interface TierGenOptions {
   focusConcepts?: string[];
   /** Override attempt budget (used for the short top-up pass). */
   maxAttempts?: number;
+  /**
+   * Extra items to try to generate beyond `spec.count`. When omitted the
+   * generator uses `spec.reserveExtras`. Backfill callers pass 0 because they
+   * are trying to reach exactly `count`.
+   */
+  overGenerate?: number;
 }
 
 async function generateTier(
@@ -293,7 +319,9 @@ async function generateTier(
   const allConceptCodes = Object.keys(conceptByCode);
   const focusCodes = opts.focusConcepts?.length ? opts.focusConcepts : allConceptCodes;
   const conceptList = focusCodes.map((c) => `  - ${c}`).join("\n");
-  const perConceptQuota = buildConceptQuota(focusCodes, spec.count);
+  const overGenerate = Math.max(0, opts.overGenerate ?? spec.reserveExtras ?? 0);
+  const targetCount = spec.count + overGenerate;
+  const perConceptQuota = buildConceptQuota(focusCodes, targetCount);
 
   const accepted: GeneratedQuestion[] = [];
   const attemptRejections: string[] = [];
@@ -301,7 +329,7 @@ async function generateTier(
   let skewNote: string | null = null;
   const maxAttempts = opts.maxAttempts ?? spec.maxAttempts;
 
-  outer: for (let attempt = 0; attempt < maxAttempts && accepted.length < spec.count; attempt++) {
+  outer: for (let attempt = 0; attempt < maxAttempts && accepted.length < targetCount; attempt++) {
     // Concepts still short for the next sub-call, so the prompt asks the model
     // to focus where it owes work (issue F).
     const shortfall = auditBatchQuotas(accepted, { perConcept: perConceptQuota }).perConcept;
@@ -309,10 +337,12 @@ async function generateTier(
     const promptConcepts = owedConcepts.length ? owedConcepts : focusCodes;
     const promptConceptList = promptConcepts.map((c) => `  - ${c}`).join("\n");
 
+
     if (Date.now() >= deadlineAt) break;
-    const remaining = spec.count - accepted.length;
+    const remaining = targetCount - accepted.length;
     const subNeed = Math.min(spec.batchSize, remaining);
     const askFor = Math.min(subNeed + 2, spec.batchSize + 2); // over-generation buffer
+
 
     const owedLine =
       owedConcepts.length > 0
@@ -452,7 +482,7 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 
     const subRejects: string[] = [];
     for (const q of arr) {
-      if (accepted.length >= spec.count) break;
+      if (accepted.length >= targetCount) break;
 
       const v = validateCandidate(q, spec, conceptByCode);
       if (!v.ok) {
@@ -476,7 +506,8 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
     retryHint = summarizeRejections(attemptRejections);
 
     // Post-batch position-skew check — only meaningful once tier is full.
-    if (accepted.length >= spec.count) {
+    if (accepted.length >= targetCount) {
+
       const mcq = accepted.filter((a) => a.format === "mcq");
       if (mcq.length >= 4) {
         const counts = [0, 0, 0, 0];
@@ -520,13 +551,353 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 }
 
 /* -------------------------------------------------------------------------- */
+/* Follow-up (reasoning MCQ) generation for Bloom≥3 primaries                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Reject follow-ups whose stem is a near-duplicate of the parent stem, or
+ * whose correct answer is a trivial paraphrase of the parent's correct
+ * answer. Reuses the shared dedup / tokenizer heuristics so the threshold
+ * matches the rest of the validation pipeline.
+ */
+function validateReasoningNovelty(
+  parent: GeneratedQuestion,
+  followup: FollowupQuestion,
+): { ok: true } | { ok: false; reason: string } {
+  const parentAsDedup = { content_text: parent.content_text, answer: parent.answer, topic: parent.topic };
+  const fuAsDedup = { content_text: followup.content_text, answer: followup.answer, topic: followup.topic };
+  if (isLikelyDuplicate(parentAsDedup, fuAsDedup)) {
+    return { ok: false, reason: "follow-up stem/answer too similar to parent" };
+  }
+  // Extra guard: pure paraphrase of the parent's correct answer alone.
+  const pa = parent.answer.trim().toLowerCase();
+  const fa = followup.answer.trim().toLowerCase();
+  if (pa && pa === fa) return { ok: false, reason: "follow-up answer identical to parent answer" };
+  return { ok: true };
+}
+
+/** Validate a single follow-up candidate. Similar shape to validateCandidate
+ * but constrained to MCQ, concept locked to parent, difficulty pinned to
+ * parent tier band, and Bloom clamped to [parentBloom, min(parentBloom+1, 4)]. */
+function validateFollowupCandidate(
+  raw: unknown,
+  parent: GeneratedQuestion,
+  parentSpec: TierSpec,
+  conceptByCode: Record<string, ConceptRow>,
+): { ok: true; q: FollowupQuestion } | { ok: false; reason: string } {
+  const structural = validateStructural(raw as Record<string, unknown>, {
+    allowedFormats: ["mcq"],
+    requireFourOptions: true,
+    maxContentChars: 600,
+  });
+  if (!structural.ok) return structural;
+  const { content_text, options } = structural.value;
+
+  const answerRes = normalizeAnswer((raw as any)?.answer, options);
+  if (!answerRes.ok) return answerRes;
+  const answer = answerRes.value;
+
+  const parity = validateOptionParity(options, answer);
+  if (!parity.ok) return parity;
+
+  const conceptRes = validateConcept((raw as any)?.topic, conceptByCode);
+  if (!conceptRes.ok) return conceptRes;
+  const topic = conceptRes.value;
+  if (topic !== parent.topic) {
+    return { ok: false, reason: `follow-up concept '${topic}' must equal parent concept '${parent.topic}'` };
+  }
+
+  const diffRes = validateDifficulty((raw as any)?.difficulty_estimate, {
+    midpoint: parentSpec.difficulty,
+    band: 0.15,
+  });
+  if (!diffRes.ok) return diffRes;
+  const difficulty_estimate = diffRes.value;
+
+  const bloomMax = Math.min(parent.bloom_level + 1, 4);
+  const bloomRes = validateBloom((raw as any)?.bloom_level, {
+    min: parent.bloom_level,
+    max: bloomMax,
+  });
+  if (!bloomRes.ok) return bloomRes;
+  const bloom_level = bloomRes.value;
+
+  const explanation = String((raw as any)?.explanation ?? "").trim();
+  const explRes = validateExplanation({ format: "mcq", options, answer, explanation });
+  if (!explRes.ok) return explRes;
+
+  const fu: FollowupQuestion = {
+    content_text,
+    format: "mcq",
+    options,
+    answer,
+    difficulty_estimate,
+    bloom_level,
+    explanation: explRes.value,
+    topic,
+  };
+
+  const novelty = validateReasoningNovelty(parent, fu);
+  if (!novelty.ok) return novelty;
+
+  return { ok: true, q: fu };
+}
+
+interface FollowupBatchInput {
+  parent: GeneratedQuestion;
+  spec: TierSpec;
+}
+
+/** Prompt asks the model to author one reasoning MCQ per parent in the batch. */
+function buildFollowupSystemPrompt(
+  courseName: string,
+  weekNumber: number,
+  weekName: string,
+  batch: FollowupBatchInput[],
+  retryHint: string | null,
+): string {
+  const parentBlocks = batch.map((b, i) => {
+    return `PARENT ${i + 1}:
+  Concept: ${b.parent.topic}
+  Bloom: ${b.parent.bloom_level}
+  Tier difficulty band: ${b.spec.difficulty} (±0.15)
+  Stem: ${b.parent.content_text}
+  Correct answer: ${b.parent.answer}
+  Parent explanation: ${b.parent.explanation}`;
+  }).join("\n\n");
+
+  return `You are an expert assessment designer for "${courseName}", Week ${weekNumber}${weekName ? ` — ${weekName}` : ""}. For each PARENT below, author exactly ONE follow-up REASONING MCQ that tests WHY the parent's correct answer is correct.
+
+${parentBlocks}
+
+STRICT RULES for every follow-up:
+- Format: MCQ with exactly 4 distinct non-empty options. 'answer' is the FULL TEXT of the correct option. NO "A)"/"B)" prefixes inside options.
+- The follow-up MUST assess the underlying rule, mechanism, invariant, or edge case that makes the parent's answer correct. It MUST NOT restate or paraphrase the parent stem, and MUST NOT re-ask the same surface fact.
+- topic: MUST equal the parent's concept code exactly.
+- bloom_level: same as parent's Bloom, or one higher, capped at 4.
+- difficulty_estimate: within the parent's tier band (parent midpoint ±0.15).
+- explanation: 1-2 sentences that reference the exact correct option's key terms; do NOT name-drop a wrong option letter.
+
+DISTRACTOR QUALITY (critical — wrong reasoning answers now carry a mastery penalty, so weak distractors punish students for our authoring, not their understanding):
+- Each of the 3 distractors MUST represent a specific, believable misconception about WHY the parent answer holds. Examples of good distractors: a plausible but wrong rule, an inverted causal direction, an off-by-one boundary, a related-but-not-applicable principle, a confused term. NO throwaway/absurd options.
+- LENGTH PARITY: max/min option length ratio ≤ 1.6. The correct option must not be the strictly longest or most hedged.
+- Rotate the correct option index across the batch — do not always place it at the same position.
+
+Return one follow-up per parent, in the SAME ORDER as the PARENT list above, via the submit_followups tool.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+}
+
+interface FollowupPassResult {
+  followupByParentIndex: Map<number, FollowupQuestion>; // index into `parents` array
+  telemetry: {
+    generated: number;
+    failed_dropped: number; // still counted at pass-end after coverage decisions apply
+    attempted: number;
+    skipped_budget: boolean;
+  };
+}
+
+/**
+ * Runs the follow-up sub-pass over ALL Bloom≥3 parents (across tiers).
+ * Budget-gated per batch; on tight budget the sub-pass is skipped cleanly and
+ * the coverage rule (in run()) will demote or drop the affected primaries.
+ *
+ * Retry policy: up to 2 additional retries per still-failing parent, feeding
+ * aggregated rejection reasons back into the prompt.
+ */
+async function runFollowupPass(
+  parents: { parent: GeneratedQuestion; spec: TierSpec; idx: number }[],
+  courseName: string,
+  weekNumber: number,
+  weekName: string,
+  conceptByCode: Record<string, ConceptRow>,
+  lovableKey: string,
+  deadlineAt: number,
+  heartbeat: (msg: unknown) => void,
+): Promise<FollowupPassResult> {
+  const result: FollowupPassResult = {
+    followupByParentIndex: new Map(),
+    telemetry: { generated: 0, failed_dropped: 0, attempted: parents.length, skipped_budget: false },
+  };
+  if (parents.length === 0) return result;
+
+  const BATCH_SIZE = 3;
+  const MAX_RETRIES = 2; // total passes = 1 initial + 2 retries = 3
+
+  let pending = [...parents];
+  const rejectionReasons: string[] = [];
+
+  for (let pass = 0; pass <= MAX_RETRIES && pending.length > 0; pass++) {
+    const nextPending: typeof pending = [];
+    // Chunk into batches of 3
+    const batches: (typeof pending)[] = [];
+    for (let i = 0; i < pending.length; i += BATCH_SIZE) batches.push(pending.slice(i, i + BATCH_SIZE));
+
+    for (const batch of batches) {
+      // Budget gate: need > perCallTimeoutMs + 4s remaining. Use the largest
+      // per-call timeout in the batch as the gate.
+      const gateTimeout = Math.max(...batch.map((b) => b.spec.perCallTimeoutMs));
+      const remainingBudget = deadlineAt - Date.now();
+      if (remainingBudget < gateTimeout + 4_000) {
+        result.telemetry.skipped_budget = true;
+        // Push the rest of pending as failed
+        for (const p of batch) nextPending.push(p);
+        continue;
+      }
+
+      const retryHint = rejectionReasons.length ? summarizeRejections(rejectionReasons) : null;
+      const systemPrompt = buildFollowupSystemPrompt(
+        courseName,
+        weekNumber,
+        weekName,
+        batch.map((b) => ({ parent: b.parent, spec: b.spec })),
+        retryHint,
+      );
+
+      const callTimeoutMs = Math.max(4_000, Math.min(gateTimeout, remainingBudget - 2_000));
+
+      let response: Response;
+      try {
+        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          signal: AbortSignal.timeout(callTimeoutMs),
+          headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: MODEL,
+            temperature: 0.35,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Author ${batch.length} reasoning follow-up MCQ(s) now — one per parent, in order.` },
+            ],
+            tools: [
+              {
+                type: "function",
+                function: {
+                  name: "submit_followups",
+                  description: "Submit one reasoning follow-up MCQ per parent, in parent order.",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      followups: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            content_text: { type: "string" },
+                            format: { type: "string", enum: ["mcq"] },
+                            options: { type: "array", items: { type: "string" } },
+                            answer: { type: "string" },
+                            difficulty_estimate: { type: "number" },
+                            bloom_level: { type: "integer", minimum: 1, maximum: 4 },
+                            explanation: { type: "string" },
+                            topic: { type: "string" },
+                          },
+                          required: [
+                            "content_text",
+                            "format",
+                            "options",
+                            "answer",
+                            "difficulty_estimate",
+                            "bloom_level",
+                            "explanation",
+                            "topic",
+                          ],
+                        },
+                      },
+                    },
+                    required: ["followups"],
+                  },
+                },
+              },
+            ],
+            tool_choice: { type: "function", function: { name: "submit_followups" } },
+          }),
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[weekly-quiz][followup] batch failed pass=${pass}:`, msg);
+        rejectionReasons.push(`transport: ${msg.slice(0, 60)}`);
+        for (const p of batch) nextPending.push(p);
+        continue;
+      }
+
+      if (!response.ok) {
+        const txt = await response.text().catch(() => "");
+        if (response.status === 402) throw new CreditsExhaustedError();
+        if (response.status === 429) rejectionReasons.push("gateway: 429 rate-limited");
+        else rejectionReasons.push(`gateway: ${response.status}`);
+        console.warn(`[weekly-quiz][followup] gateway ${response.status} pass=${pass}:`, txt.slice(0, 160));
+        for (const p of batch) nextPending.push(p);
+        await jitteredBackoff(deadlineAt);
+        continue;
+      }
+
+      const data = await response.json().catch(() => null);
+      const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
+      if (!toolCall) {
+        rejectionReasons.push("no tool call returned");
+        for (const p of batch) nextPending.push(p);
+        continue;
+      }
+      let parsed: any;
+      try {
+        parsed = JSON.parse(toolCall.function.arguments);
+      } catch {
+        rejectionReasons.push("invalid JSON");
+        for (const p of batch) nextPending.push(p);
+        continue;
+      }
+      const arr: any[] = Array.isArray(parsed?.followups) ? parsed.followups : [];
+
+      // Validate positionally: arr[i] belongs to batch[i].
+      for (let i = 0; i < batch.length; i++) {
+        const bItem = batch[i];
+        const raw = arr[i];
+        if (!raw) {
+          rejectionReasons.push("missing follow-up for parent");
+          nextPending.push(bItem);
+          continue;
+        }
+        const v = validateFollowupCandidate(raw, bItem.parent, bItem.spec, conceptByCode);
+        if (!v.ok) {
+          rejectionReasons.push(v.reason);
+          nextPending.push(bItem);
+          continue;
+        }
+        result.followupByParentIndex.set(bItem.idx, v.q);
+        result.telemetry.generated++;
+      }
+
+      heartbeat({
+        type: "progress",
+        stage: "followup",
+        pass,
+        generated: result.telemetry.generated,
+        remaining: nextPending.length,
+      });
+    }
+
+    pending = nextPending;
+    if (result.telemetry.skipped_budget) break;
+  }
+
+  result.telemetry.failed_dropped = pending.length;
+  return result;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Handler                                                                     */
 /* -------------------------------------------------------------------------- */
+
+
 
 // Runs the full quiz-generation pipeline. Returns { status, payload } rather
 // than a Response so the outer Deno.serve handler can stream heartbeats
 // around it and defeat the 150s Edge Runtime IDLE_TIMEOUT.
-async function run(req: Request): Promise<{ status: number; payload: unknown }> {
+async function run(
+  req: Request,
+  heartbeat: (msg: unknown) => void = () => {},
+): Promise<{ status: number; payload: unknown }> {
+
   const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   if (!lovableKey) throw new Error("LOVABLE_API_KEY not configured");
 
@@ -755,7 +1126,146 @@ async function run(req: Request): Promise<{ status: number; payload: unknown }> 
   }
 
 
-  // Replace existing rows for this week
+  /* ----------------------------------------------------------------------
+   * Follow-up (reasoning MCQ) sub-pass for Bloom≥3 primaries + coverage rule
+   * -------------------------------------------------------------------- */
+
+  // Collect Bloom≥3 primaries across every tier. We index them by their
+  // position in allQuestions so the follow-up pass can map results back.
+  const b3Parents: { parent: GeneratedQuestion; spec: TierSpec; idx: number }[] = [];
+  for (let i = 0; i < allQuestions.length; i++) {
+    const item = allQuestions[i];
+    if (item.q.bloom_level >= 3) b3Parents.push({ parent: item.q, spec: item.spec, idx: i });
+  }
+
+  heartbeat({ type: "progress", stage: "followup_start", parents: b3Parents.length });
+
+  let followupResult: FollowupPassResult = {
+    followupByParentIndex: new Map(),
+    telemetry: { generated: 0, failed_dropped: 0, attempted: b3Parents.length, skipped_budget: false },
+  };
+  if (b3Parents.length > 0) {
+    try {
+      followupResult = await runFollowupPass(
+        b3Parents,
+        course.name ?? "Course",
+        weekNumber,
+        weekRow.week_name ?? "",
+        conceptByCode,
+        lovableKey,
+        deadlineAt,
+        heartbeat,
+      );
+    } catch (err) {
+      if (err instanceof CreditsExhaustedError) {
+        creditsExhausted = true;
+        // Continue: coverage rule below will demote / drop as needed.
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  /* Coverage selection per tier: pick exactly spec.count primaries. Prefer
+   * items that don't need a follow-up OR whose follow-up succeeded. If short,
+   * demote up to 1 Bloom-3+ item per tier to Bloom-2 (only when the demoted
+   * label passes shared validation for the item's difficulty). Remaining
+   * Bloom-3+ items without follow-ups are dropped (never shipped as-is). */
+  interface FinalItem {
+    spec: TierSpec;
+    q: GeneratedQuestion;
+    followup?: FollowupQuestion;
+    demoted: boolean;
+  }
+  const finalByTier: Record<Tier, FinalItem[]> = {
+    standard: [],
+    easy: [],
+    medium: [],
+    hard: [],
+  };
+  const followupTelemetry: Record<Tier, { generated: number; failed_dropped: number; failed_demoted: number; skipped_budget: boolean }> = {
+    standard: { generated: 0, failed_dropped: 0, failed_demoted: 0, skipped_budget: followupResult.telemetry.skipped_budget },
+    easy: { generated: 0, failed_dropped: 0, failed_demoted: 0, skipped_budget: followupResult.telemetry.skipped_budget },
+    medium: { generated: 0, failed_dropped: 0, failed_demoted: 0, skipped_budget: followupResult.telemetry.skipped_budget },
+    hard: { generated: 0, failed_dropped: 0, failed_demoted: 0, skipped_budget: followupResult.telemetry.skipped_budget },
+  };
+  const DEMOTION_CAP_PER_TIER = 1;
+
+  for (const spec of TIER_SPEC) {
+    const items: { spec: TierSpec; q: GeneratedQuestion; needsFu: boolean; fu?: FollowupQuestion; globalIdx: number }[] = [];
+    for (let i = 0; i < allQuestions.length; i++) {
+      const it = allQuestions[i];
+      if (it.spec.tier !== spec.tier) continue;
+      const needsFu = it.q.bloom_level >= 3;
+      const fu = followupResult.followupByParentIndex.get(i);
+      items.push({ spec: it.spec, q: it.q, needsFu, fu, globalIdx: i });
+    }
+
+    // Preferred pool: no follow-up needed OR follow-up succeeded.
+    const ready = items.filter((x) => !x.needsFu || x.fu);
+    const stalled = items.filter((x) => x.needsFu && !x.fu);
+
+    const chosen: FinalItem[] = [];
+    for (const r of ready) {
+      if (chosen.length >= spec.count) break;
+      chosen.push({ spec: r.spec, q: r.q, followup: r.fu, demoted: false });
+      if (r.fu) followupTelemetry[spec.tier].generated++;
+    }
+
+    // Demote stalled Bloom-3+ items to Bloom-2 (capped) if the demoted label
+    // still passes the shared bloom/difficulty consistency check.
+    let demotions = 0;
+    for (const s of stalled) {
+      if (chosen.length >= spec.count) break;
+      if (demotions >= DEMOTION_CAP_PER_TIER) break;
+      const demoteCheck = validateBloom(2, {
+        min: 1,
+        max: 4,
+        enforceDifficultyConsistency: true,
+        difficulty: s.q.difficulty_estimate,
+      });
+      if (!demoteCheck.ok) continue;
+      chosen.push({
+        spec: s.spec,
+        q: { ...s.q, bloom_level: 2 },
+        demoted: true,
+      });
+      demotions++;
+      followupTelemetry[spec.tier].failed_demoted++;
+    }
+
+    // Any stalled Bloom-3+ item not chosen (via demotion) is dropped.
+    // Demoted items keep their original stem, so we compare by stem.
+    const chosenStems = new Set(chosen.map((c) => c.q.content_text));
+    for (const s of stalled) {
+      if (!chosenStems.has(s.q.content_text)) {
+        followupTelemetry[spec.tier].failed_dropped++;
+      }
+    }
+
+    finalByTier[spec.tier] = chosen;
+  }
+
+
+  const finalItems: FinalItem[] = [
+    ...finalByTier.standard,
+    ...finalByTier.easy,
+    ...finalByTier.medium,
+    ...finalByTier.hard,
+  ];
+
+  heartbeat({
+    type: "progress",
+    stage: "followup_done",
+    telemetry: followupTelemetry,
+  });
+
+  /* ----------------------------------------------------------------------
+   * Persistence: two-stage insert so follow-ups can reference parent IDs.
+   * ON DELETE CASCADE on parent_question_id means the pre-delete for this
+   * (course_id, mode, quiz_day) removes both primaries and reasoning rows.
+   * -------------------------------------------------------------------- */
+
   await admin
     .from("assessment_questions")
     .delete()
@@ -763,7 +1273,7 @@ async function run(req: Request): Promise<{ status: number; payload: unknown }> 
     .eq("mode", "daily_quiz")
     .eq("quiz_day", weekNumber);
 
-  const rows = allQuestions.map(({ spec, q }, i) => {
+  const primaryRows = finalItems.map(({ spec, q }, i) => {
     const concept = conceptByCode[q.topic];
     const correctIndex = q.options.indexOf(q.answer);
     return {
@@ -785,29 +1295,85 @@ async function run(req: Request): Promise<{ status: number; payload: unknown }> 
       difficulty_estimate: q.difficulty_estimate,
       bloom_level: q.bloom_level,
       item_code: `w${weekNumber}-${spec.tier}-${i}`,
+      question_role: "primary",
     };
   });
 
-  const { error: insErr } = await admin.from("assessment_questions").insert(rows);
+  const { data: insertedPrimaries, error: insErr } = await admin
+    .from("assessment_questions")
+    .insert(primaryRows)
+    .select("id, item_code");
   if (insErr) throw new Error(`Insert failed: ${insErr.message}`);
 
+  // Map item_code → id for follow-up parent linkage.
+  const primaryIdByCode: Record<string, string> = {};
+  for (const r of insertedPrimaries ?? []) primaryIdByCode[r.item_code as string] = r.id as string;
+
+  const followupRows: Record<string, unknown>[] = [];
+  finalItems.forEach(({ spec, q, followup }, i) => {
+    if (!followup) return;
+    const concept = conceptByCode[followup.topic];
+    const parentItemCode = `w${weekNumber}-${spec.tier}-${i}`;
+    const parentId = primaryIdByCode[parentItemCode];
+    if (!parentId) return; // defensive: primary insert must have succeeded
+    const correctIndex = followup.options.indexOf(followup.answer);
+    followupRows.push({
+      course_id: courseId,
+      teacher_id: course.teacher_id,
+      mode: "daily_quiz",
+      quiz_day: weekNumber,
+      tier: spec.tier,
+      question_type: "MCQ",
+      format: "mcq",
+      question_text: followup.content_text,
+      options: followup.options,
+      answer: followup.answer,
+      correct_index: correctIndex,
+      explanation: followup.explanation,
+      topic: followup.topic,
+      concept_id: concept.id,
+      difficulty: followup.difficulty_estimate < 0.35 ? "Easy" : followup.difficulty_estimate > 0.7 ? "Hard" : "Medium",
+      difficulty_estimate: followup.difficulty_estimate,
+      bloom_level: followup.bloom_level,
+      item_code: `${parentItemCode}-r`,
+      question_role: "reasoning",
+      parent_question_id: parentId,
+    });
+  });
+
+  if (followupRows.length > 0) {
+    const { error: fuErr } = await admin.from("assessment_questions").insert(followupRows);
+    if (fuErr) {
+      // Non-fatal: primaries already shipped. Surface as tier error and return.
+      console.error(`[weekly-quiz] follow-up insert failed:`, fuErr.message);
+      tierErrors["followups"] = `follow-up insert failed: ${fuErr.message}`;
+    }
+  }
+
   const byTier: Record<string, number> = {};
-  for (const { spec } of allQuestions) byTier[spec.tier] = (byTier[spec.tier] ?? 0) + 1;
+  for (const { spec } of finalItems) byTier[spec.tier] = (byTier[spec.tier] ?? 0) + 1;
   const expected = TIER_SPEC.reduce((s, t) => s + t.count, 0);
-  const partial = rows.length < expected;
+  const partial = primaryRows.length < expected;
+
+  if (creditsExhausted && primaryRows.length === 0) {
+    return { status: 402, payload: { error: "AI credits exhausted", code: "CREDITS_EXHAUSTED" } };
+  }
 
   return {
     status: 200,
     payload: {
       ok: true,
-      generated: rows.length,
+      generated: primaryRows.length,
       requested: expected,
       partial,
       by_tier: byTier,
+      followups_generated: followupRows.length,
+      followup_telemetry: followupTelemetry,
       tier_errors: Object.keys(tierErrors).length ? tierErrors : undefined,
     },
   };
 }
+
 
 Deno.serve((req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -838,8 +1404,9 @@ Deno.serve((req) => {
       }, 20_000);
 
       try {
-        const { status, payload } = await run(req);
+        const { status, payload } = await run(req, write);
         write({ type: "result", status, payload });
+
       } catch (e: any) {
         console.error("generate-weekly-quiz error:", e);
         let status = 500;
