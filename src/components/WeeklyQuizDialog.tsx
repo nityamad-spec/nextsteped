@@ -31,16 +31,19 @@ async function invokeUpdateMastery(args: {
       difficulty: number;
       bloom: number;
       is_correct: boolean;
+      reasoning_correct?: boolean | null;
     }> = [];
     for (const a of args.answers ?? []) {
       const code = (a?.topic ?? "").toString().trim();
       const meta = a?.question_id ? args.questionMeta.get(a.question_id) : undefined;
       if (!code || !meta) continue;
+      const rc = a?.reasoning_is_correct;
       per_question.push({
         concept_code: code,
         difficulty: meta.difficulty,
         bloom: meta.bloom,
         is_correct: !!a.is_correct,
+        reasoning_correct: rc === true || rc === false ? rc : null,
       });
     }
     if (per_question.length === 0) return;
