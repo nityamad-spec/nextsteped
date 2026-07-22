@@ -59,8 +59,10 @@ const ReasoningFollowupAnalytics = ({ courseId }: Props) => {
     if (!courseId) return;
     setLoading(true);
     setError(null);
-    const { data: rpc, error: err } = await supabase.rpc(
-      // @ts-expect-error - types regenerate after migration
+    const { data: rpc, error: err } = await (supabase.rpc as unknown as (
+      fn: string,
+      args: Record<string, unknown>,
+    ) => Promise<{ data: unknown; error: { message: string } | null }>)(
       "reasoning_followup_analytics",
       { _course_id: courseId },
     );
