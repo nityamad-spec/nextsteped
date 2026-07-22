@@ -294,8 +294,15 @@ const AssessmentAnalytics = () => {
         <p className="text-sm text-muted-foreground">{currentCourse.name}</p>
       </div>
 
-      {/* Filter Bar */}
-      <div className="flex flex-wrap items-end gap-4">
+      <Tabs defaultValue="primary" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="primary">Primary questions</TabsTrigger>
+          <TabsTrigger value="reasoning">Reasoning follow-ups</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="primary" className="space-y-6">
+          {/* Filter Bar */}
+          <div className="flex flex-wrap items-end gap-4">
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Mode</Label>
           <Select value={modeFilter} onValueChange={setModeFilter}>
