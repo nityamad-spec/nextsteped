@@ -56,7 +56,7 @@ export interface AssessmentResults {
 
 type Phase = "intro" | "active" | "review";
 
-const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta }: AssessmentViewProps) => {
+const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta, followupsByParentId }: AssessmentViewProps) => {
   const [phase, setPhase] = useState<Phase>("intro");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(timeLimitMinutes * 60);
@@ -66,9 +66,14 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
   const [currentIndex, setCurrentIndex] = useState(0);
   const [lockedIndices, setLockedIndices] = useState<Set<number>>(new Set());
+  // Phase 3: reasoning follow-up answers keyed by PRIMARY question id.
+  // followupCorrectness: true / false = student answered; null = follow-up unavailable/malformed.
+  const [followupAnswers, setFollowupAnswers] = useState<Record<string, string>>({});
+  const [followupCorrectness, setFollowupCorrectness] = useState<Record<string, boolean | null>>({});
   // confidence collection removed for quizzes/exams
   const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
   const questionStartRef = useRef<number>(Date.now());
+
 
   // Helper: flush elapsed time onto a question id
   const flushTimeFor = useCallback((qid: string | undefined) => {
