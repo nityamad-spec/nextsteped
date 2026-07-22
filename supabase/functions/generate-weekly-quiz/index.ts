@@ -1412,8 +1412,9 @@ Deno.serve((req) => {
       }, 20_000);
 
       try {
-        const { status, payload } = await run(req);
+        const { status, payload } = await run(req, write);
         write({ type: "result", status, payload });
+
       } catch (e: any) {
         console.error("generate-weekly-quiz error:", e);
         let status = 500;
