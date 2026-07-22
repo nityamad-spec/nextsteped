@@ -297,6 +297,12 @@ interface TierGenOptions {
   focusConcepts?: string[];
   /** Override attempt budget (used for the short top-up pass). */
   maxAttempts?: number;
+  /**
+   * Extra items to try to generate beyond `spec.count`. When omitted the
+   * generator uses `spec.reserveExtras`. Backfill callers pass 0 because they
+   * are trying to reach exactly `count`.
+   */
+  overGenerate?: number;
 }
 
 async function generateTier(
@@ -313,7 +319,9 @@ async function generateTier(
   const allConceptCodes = Object.keys(conceptByCode);
   const focusCodes = opts.focusConcepts?.length ? opts.focusConcepts : allConceptCodes;
   const conceptList = focusCodes.map((c) => `  - ${c}`).join("\n");
-  const perConceptQuota = buildConceptQuota(focusCodes, spec.count);
+  const overGenerate = Math.max(0, opts.overGenerate ?? spec.reserveExtras ?? 0);
+  const targetCount = spec.count + overGenerate;
+  const perConceptQuota = buildConceptQuota(focusCodes, targetCount);
 
   const accepted: GeneratedQuestion[] = [];
   const attemptRejections: string[] = [];
@@ -321,13 +329,14 @@ async function generateTier(
   let skewNote: string | null = null;
   const maxAttempts = opts.maxAttempts ?? spec.maxAttempts;
 
-  outer: for (let attempt = 0; attempt < maxAttempts && accepted.length < spec.count; attempt++) {
+  outer: for (let attempt = 0; attempt < maxAttempts && accepted.length < targetCount; attempt++) {
     // Concepts still short for the next sub-call, so the prompt asks the model
     // to focus where it owes work (issue F).
     const shortfall = auditBatchQuotas(accepted, { perConcept: perConceptQuota }).perConcept;
     const owedConcepts = shortConcepts(shortfall);
     const promptConcepts = owedConcepts.length ? owedConcepts : focusCodes;
     const promptConceptList = promptConcepts.map((c) => `  - ${c}`).join("\n");
+
 
     if (Date.now() >= deadlineAt) break;
     const remaining = spec.count - accepted.length;
