@@ -20,7 +20,10 @@ interface AssessmentViewProps {
   onSubmit: (results: AssessmentResults) => void;
   onStudyTopics?: (topics: string[]) => void;
   questionMeta?: Map<string, { difficulty: number; bloom: number }>;
+  /** Quiz-only: reasoning follow-up MCQs, keyed by primary question id (Phase 3+). */
+  followupsByParentId?: Map<string, Question>;
 }
+
 
 const BLOOM_WEIGHT: Record<number, number> = { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 };
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
@@ -53,7 +56,7 @@ export interface AssessmentResults {
 
 type Phase = "intro" | "active" | "review";
 
-const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta }: AssessmentViewProps) => {
+const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta, followupsByParentId }: AssessmentViewProps) => {
   const [phase, setPhase] = useState<Phase>("intro");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(timeLimitMinutes * 60);
@@ -63,9 +66,14 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
   const [currentIndex, setCurrentIndex] = useState(0);
   const [lockedIndices, setLockedIndices] = useState<Set<number>>(new Set());
+  // Phase 3: reasoning follow-up answers keyed by PRIMARY question id.
+  // followupCorrectness: true / false = student answered; null = follow-up unavailable/malformed.
+  const [followupAnswers, setFollowupAnswers] = useState<Record<string, string>>({});
+  const [followupCorrectness, setFollowupCorrectness] = useState<Record<string, boolean | null>>({});
   // confidence collection removed for quizzes/exams
   const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
   const questionStartRef = useRef<number>(Date.now());
+
 
   // Helper: flush elapsed time onto a question id
   const flushTimeFor = useCallback((qid: string | undefined) => {
@@ -235,9 +243,35 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const isQuiz = type === "quiz";
   const answeredCount = Object.keys(answers).length;
 
+  // Local correctness comparison (mirrors handleFinish rules) — used only for quiz follow-up gating.
+  const isPrimaryCorrect = (q: Question, ans: string | undefined): boolean => {
+    if (!ans) return false;
+    if (q.type === "short_answer") return ans.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+    if (q.type === "problem_solving") {
+      const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+      return norm(ans) === norm(q.correctAnswer);
+    }
+    return ans === q.correctAnswer;
+  };
+
+  // Follow-up validity: needs MCQ shape with ≥2 options and a correctAnswer.
+  const isFollowupUsable = (fu: Question | undefined): fu is Question => {
+    return !!fu && fu.type === "mcq" && Array.isArray(fu.options) && fu.options.length >= 2 && !!fu.correctAnswer;
+  };
+
   // Render a single question card (reused in active phase)
-  const renderQuestionCard = (q: Question, index: number) => (
+  const renderQuestionCard = (q: Question, index: number) => {
+    const primaryAnswered = answers[q.id] !== undefined && answers[q.id] !== "";
+    const primaryCorrect = primaryAnswered && isPrimaryCorrect(q, answers[q.id]);
+    const rawFollowup = isQuiz ? followupsByParentId?.get(q.id) : undefined;
+    const followup = isFollowupUsable(rawFollowup) ? rawFollowup : undefined;
+    const followupAnswer = followupAnswers[q.id];
+    const followupSubmitted = followupAnswer !== undefined && followupAnswer !== "";
+    const showFollowup = isQuiz && primaryCorrect && !!followup;
+
+    return (
     <Card key={q.id} className={`${answers[q.id] ? "border-primary/30" : ""}`}>
+
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -311,9 +345,75 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
         )}
 
         {/* Confidence selector removed — not collected for quizzes/exams */}
+
+        {showFollowup && followup && (
+          <div className="mt-2 rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Lightbulb className="h-4 w-4 text-primary" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+                Why is that the correct answer?
+              </span>
+            </div>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">{followup.text}</p>
+            <RadioGroup
+              value={followupAnswer || ""}
+              onValueChange={(v) => {
+                if (followupSubmitted) return; // locked after first answer
+                const correct = v === followup.correctAnswer;
+                setFollowupAnswers(prev => ({ ...prev, [q.id]: v }));
+                setFollowupCorrectness(prev => ({ ...prev, [q.id]: correct }));
+              }}
+              className="space-y-2"
+            >
+              {followup.options!.map((opt, i) => {
+                const isPicked = followupAnswer === opt;
+                const isCorrectOpt = opt === followup.correctAnswer;
+                const revealClass = followupSubmitted
+                  ? isCorrectOpt
+                    ? "border-primary bg-primary/10"
+                    : isPicked
+                    ? "border-destructive bg-destructive/10"
+                    : "opacity-70"
+                  : isPicked
+                  ? "border-primary bg-primary/5"
+                  : "";
+                return (
+                  <Label
+                    key={i}
+                    htmlFor={`q${index}-fu-opt-${i}`}
+                    className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
+                      followupSubmitted ? "cursor-default" : "cursor-pointer hover:bg-muted/50"
+                    } ${revealClass}`}
+                  >
+                    <RadioGroupItem
+                      value={opt}
+                      id={`q${index}-fu-opt-${i}`}
+                      disabled={followupSubmitted}
+                    />
+                    <span className="text-sm flex-1">{opt}</span>
+                    {followupSubmitted && isCorrectOpt && (
+                      <CheckCircle className="h-4 w-4 text-primary" />
+                    )}
+                    {followupSubmitted && !isCorrectOpt && isPicked && (
+                      <XCircle className="h-4 w-4 text-destructive" />
+                    )}
+                  </Label>
+                );
+              })}
+            </RadioGroup>
+            {followupSubmitted && followup.explanation && (
+              <div className="rounded-md bg-background/60 border border-border/60 p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Explanation</p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{followup.explanation}</p>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
-  );
+    );
+  };
+
 
 
   // Intro screen
@@ -595,35 +695,61 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                   Previous
                 </Button>
 
-                {isLast ? (
-                  <Button
-                    onClick={handleFinish}
-                    className="gap-2 px-6"
-                    disabled={answeredCount === 0}
-                  >
-                    <CheckCircle className="h-5 w-5" />
-                    Submit Quiz ({answeredCount}/{questions.length} answered)
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => {
-                      const currentQid = questions[safeIndex]?.id;
-                      flushTimeFor(currentQid);
-                      if (currentQid && answers[currentQid] !== undefined) {
-                        setLockedIndices((prev) => {
-                          const next = new Set(prev);
-                          next.add(safeIndex);
-                          return next;
-                        });
-                      }
-                      setCurrentIndex((i) => Math.min(questions.length - 1, i + 1));
-                    }}
-                    className="gap-2"
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                )}
+                {(() => {
+                  // Follow-up gating: if primary answered correctly AND a usable
+                  // follow-up exists, require follow-up answer before Submit/Next.
+                  const cq = questions[safeIndex];
+                  const cqAns = cq ? answers[cq.id] : undefined;
+                  const cqCorrect = !!cq && cqAns !== undefined && cqAns !== "" && isPrimaryCorrect(cq, cqAns);
+                  const rawFu = cq && isQuiz ? followupsByParentId?.get(cq.id) : undefined;
+                  const fuUsable = isFollowupUsable(rawFu);
+                  const fuNeeded = isQuiz && cqCorrect && fuUsable;
+                  const fuAnswered = cq ? followupAnswers[cq.id] !== undefined && followupAnswers[cq.id] !== "" : false;
+                  const fuBlock = fuNeeded && !fuAnswered;
+
+                  // If a follow-up map entry exists but is unusable, record null
+                  // so Phase 5 treats it as "no boost, no penalty" and never
+                  // traps the student.
+                  if (isQuiz && cq && cqCorrect && rawFu && !fuUsable && followupCorrectness[cq.id] === undefined) {
+                    // Note: this runs during render; safe because state setter
+                    // is idempotent and gated by the undefined check.
+                    queueMicrotask(() => {
+                      setFollowupCorrectness(prev => (prev[cq.id] === undefined ? { ...prev, [cq.id]: null } : prev));
+                    });
+                  }
+
+                  return isLast ? (
+                    <Button
+                      onClick={handleFinish}
+                      className="gap-2 px-6"
+                      disabled={answeredCount === 0 || fuBlock}
+                    >
+                      <CheckCircle className="h-5 w-5" />
+                      Submit Quiz ({answeredCount}/{questions.length} answered)
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => {
+                        const currentQid = questions[safeIndex]?.id;
+                        flushTimeFor(currentQid);
+                        if (currentQid && answers[currentQid] !== undefined) {
+                          setLockedIndices((prev) => {
+                            const next = new Set(prev);
+                            next.add(safeIndex);
+                            return next;
+                          });
+                        }
+                        setCurrentIndex((i) => Math.min(questions.length - 1, i + 1));
+                      }}
+                      className="gap-2"
+                      disabled={fuBlock}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  );
+                })()}
+
               </div>
             </>
           ) : (
