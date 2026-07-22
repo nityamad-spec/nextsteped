@@ -1,59 +1,44 @@
-# Phase 7 — Tests
+# Plan: Stop auto-fixing test failures — require approval first
 
-Add targeted tests at four layers. All new tests are additive; no production code changes.
+## Goal
 
-## 1. Validator tests — `supabase/functions/_shared/question-validation_test.ts`
+Make it explicit that any failing test (Phase 7 or otherwise) must be reported to you and await your review/approval before code is changed. The agent should not silently patch failing tests.
 
-Extend the existing Deno test file:
+## Why this matters now
 
-- **Reasoning novelty rejection**: fixture where the follow-up stem is a near-duplicate of the parent stem (paraphrase / trivial rewording). Assert `validateReasoningNovelty(parent, followup)` returns a rejection with a novelty-related reason.
-- **Reasoning novelty acceptance**: fixture where the follow-up asks "why" the parent's answer holds (different stem, mechanism-focused). Assert it passes.
-- **Distractor plausibility (best-effort)**: fixture where a reasoning follow-up ships obviously-throwaway distractors (e.g. empty, single-char, or duplicated correct-answer text). Assert whichever existing check catches these (option-parity / structural) rejects it. Document in a comment that deeper "plausible misconception" quality is model-graded, not validator-graded — this test pins only what the validator can mechanically enforce.
+Phase 7 tests are regression guards for the reasoning-follow-up feature. A failure means the implementation may not match the spec (e.g., a Bloom-3+ primary ships without a follow-up, or the mastery penalty math is wrong). Auto-fixing would defeat that signal.
 
-## 2. Generator tests — new `supabase/functions/generate-weekly-quiz/index_test.ts`
+## Proposed changes
 
-No such test file exists today, so this is a new Deno test module. Approach: extract the follow-up sub-pass orchestration into a testable seam if it isn't already exported, then drive it with a stubbed model client.
+1. **Project memory rule**
+  Create `mem://constraints/no-auto-fix-on-test-failure.md` as a `constraint` memory:
+  - Rule: If any test fails during a turn, stop and report the failure to the user. Do not edit source code, tests, or configuration to make the test pass without explicit user approval.
+  - How to report: list the failing test file(s), the specific assertion/error, and a short diagnosis of which part of the implementation likely caused it.
+  - Exception: purely cosmetic/typo fixes in test descriptions or comments are allowed only if the user has already approved a broader change in the same turn.
+2. **Update `mem://index.md**`
+  Add a Core line:  
+   `Failing tests are reported, not auto-fixed — wait for user approval before changing code.`
+3. **(Optional) Add a repo-visible marker**
+  If you want the rule visible outside the memory system, add a short `TESTING.md` note at the project root describing the same policy. This is optional because the memory rule governs agent behavior.
 
-Cases:
-- **Two-strike validation → drop + backfill**: stub the model so a Bloom-3+ primary's follow-up fails validation on both retry passes. Assert the primary is removed from the shipped set and replaced from the tier's reserve pool. Assert `followup_failed_dropped` increments and no demotion occurs (Phase 2 constraint: cap demotions at 1 per tier, prefer drop-and-backfill).
-- **Coverage invariant**: after a full simulated run mixing Bloom-1/2/3/4 items with some follow-up failures, assert every shipped question with `bloom_level >= 3` and `question_role === 'primary'` has a matching `question_role === 'reasoning'` row with `parent_question_id` pointing to it.
-- **Emitted counts**: assert the NDJSON summary (or returned counters) include `followup_generated`, `followup_failed_dropped`, and backfill counts with correct values for the scripted scenario.
-- **Budget exhaustion**: stub `remainingBudget` so the follow-up sub-pass is skipped for a tier. Assert affected Bloom-3+ primaries are dropped-and-backfilled (or, if backfill is exhausted, absent) — never shipped as bare Bloom-3+ primaries.
+## Workflow after this rule is live
 
-Risk: if the sub-pass isn't currently exported, we'll need a small refactor to expose it for testing. Flag this — it's the only place Phase 7 might touch production code.
+1. Agent runs the relevant test suites after implementation changes.
+2. If any test fails, the agent halts code changes and returns a concise report: failing test name, error message, suspected cause, and asks whether to (a) investigate further, (b) attempt a fix, or (c) leave it as-is.
+3. Only after you approve does the agent modify code or tests.
 
-## 3. Dialog tests — extend `src/components/WeeklyQuizDialog.test.tsx`
+## Risks & trade-offs
 
-Uses existing Vitest + Testing Library setup. Mock the Supabase client to return a scripted primary + reasoning pair.
+- **Slower iteration**: every genuine test failure now blocks the agent until you respond. This is the intended cost of preserving test integrity.
+- **Flaky tests**: if a test is flaky, the agent will stop on each flake. We may later need to mark known-flaky tests or quarantine them, but that also requires your approval.
+- **No CI enforcement**: this rule lives in project memory, so it constrains agent behavior but does not add a GitHub Actions gate. If you later want CI-level enforcement, we can add a workflow that fails on test errors with no auto-fix step.
 
-Cases:
-- **Follow-up gated on correctness**: Bloom-3 primary with a follow-up. Answer correctly → assert the follow-up MCQ appears inline. Reset / answer incorrectly → assert the follow-up never renders.
-- **Required (Next locked)**: after correct primary, assert the Next button is disabled until the follow-up is answered.
-- **Inline teaching moment**: after answering the follow-up, assert the correct-reason text and explanation render before Next unlocks.
-- **Payload shape**: intercept the `insert` call to `assessment_results`. Assert `answers[0]` contains `reasoning_question_id`, `reasoning_selected`, `reasoning_correct`, `reasoning_is_correct`, `reasoning_bloom` with the expected values for a boost path and a penalty path.
-- **Defensive gap**: simulate a follow-up fetch failure (missing from `followupsByParentId` despite `parent_question_id` existing, or a thrown error path). Assert Next unlocks normally and the submitted `reasoning_is_correct` is `null`.
+## Questions before implementing
 
-## 4. Mastery tests — extend `supabase/functions/update-mastery/mastery_test.ts`
+1. Do you want the optional `TESTING.md` repo marker, or is the memory rule enough? Yes i want the `TESTING.md` repo marker
+2. Should the rule apply to lint/typecheck failures as well, or only test failures? Both
+3. If a test fails because of an obvious typo in the test itself (e.g., wrong mock data), do you still want to approve the fix, or can the agent fix self-evident test-only typos without asking?  The agent can fix self-evident test-only typos without asking
 
-The existing file already covers primary-only math. Add / update:
+## Approval requested
 
-- **Boost**: primary correct + `reasoning_correct = true` → aggregated `rawSignal` strictly greater than the same primary alone.
-- **Penalty**: primary correct + `reasoning_correct = false` → `rawSignal` strictly less than primary alone.
-- **Floor**: primary correct + `reasoning_correct = false` → `rawSignal` ≥ primary-wrong contribution for the same item (guaranteed by construction; assert numerically).
-- **Ignored on wrong primary**: primary wrong + any `reasoning_correct` value → identical to primary-wrong baseline.
-- **Null-safe**: `reasoning_correct = null` or field absent → identical to primary-only baseline (no boost, no penalty).
-- **Asymmetry**: for the same item at the same difficulty/bloom, |boost delta| > |penalty delta| (R=0.5 vs P=0.25).
-
-Any pre-existing test asserting "primary correct + reasoning wrong = no penalty" is deleted or flipped, since Phase 5 changed that behaviour.
-
-## Risks & constraints
-
-- **Testable seam in generate-weekly-quiz**: the follow-up sub-pass may need a small export/refactor to be driven by tests without hitting the real model. If so, this is the only production code touched in Phase 7; keep it a pure move.
-- **Model stubbing**: generator tests must stub the AI gateway call — real calls would be flaky and burn credits. Use dependency injection or module-level mocking consistent with existing edge-function tests.
-- **Vitest mock of Supabase client**: the existing `WeeklyQuizDialog.test.tsx` already mocks it; extend the same pattern rather than introducing a second mocking strategy.
-- **Deterministic numerics**: mastery tests should assert relative inequalities (boost > baseline, penalty < baseline, |boost| > |penalty|) rather than pinning exact floats, so future tuning of R/P doesn't break them — except one pinned case that locks in current R/P as a regression guard.
-
-## Questions
-
-1. Is a small refactor to expose the follow-up sub-pass for testing acceptable, or would you prefer black-box tests that invoke the full HTTP handler with a stubbed fetch? (Black-box is more faithful but slower and more fragile.)
-2. For mastery tests, do you want one pinned-numeric regression test at current R=0.5 / P=0.25, or all-relative assertions only?
+Approve this plan and I will create the memory rule and update the index. If you also want CI enforcement, let me know and I will add that as an additional phase.
