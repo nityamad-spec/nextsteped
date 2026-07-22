@@ -155,7 +155,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       } else {
         isCorrect = userAnswer === q.correctAnswer;
       }
-      return {
+      const base: StandardisedAnswer = {
         question_id: q.id,
         question_text: q.text,
         type: q.type || "mcq",
@@ -164,7 +164,34 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
         correct: q.correctAnswer,
         is_correct: isCorrect,
       };
+
+      // Phase 4: attach reasoning follow-up fields (quiz mode only, primary correct only).
+      const rawFu = type === "quiz" ? followupsByParentId?.get(q.id) : undefined;
+      const fuUsable = !!rawFu && rawFu.type === "mcq" && Array.isArray(rawFu.options) && rawFu.options.length >= 2 && !!rawFu.correctAnswer;
+      if (isCorrect && rawFu) {
+        const fuBloom = questionMeta?.get(rawFu.id)?.bloom ?? null;
+        if (!fuUsable || followupCorrectness[q.id] === null) {
+          // Follow-up present but malformed / failed to load — Phase 5 no-op sentinel.
+          base.reasoning_question_id = rawFu.id;
+          base.reasoning_selected = null;
+          base.reasoning_correct = rawFu.correctAnswer ?? null;
+          base.reasoning_is_correct = null;
+          base.reasoning_bloom = fuBloom;
+        } else {
+          const fuAns = followupAnswers[q.id];
+          if (fuAns !== undefined && fuAns !== "") {
+            base.reasoning_question_id = rawFu.id;
+            base.reasoning_selected = fuAns;
+            base.reasoning_correct = rawFu.correctAnswer;
+            base.reasoning_is_correct = followupCorrectness[q.id] ?? (fuAns === rawFu.correctAnswer);
+            base.reasoning_bloom = fuBloom;
+          }
+        }
+      }
+
+      return base;
     });
+
     const correct = standardised.filter(a => a.is_correct).length;
     const flatScore = Math.round((correct / questions.length) * 100);
 
