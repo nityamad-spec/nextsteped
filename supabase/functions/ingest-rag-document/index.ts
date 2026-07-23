@@ -319,34 +319,37 @@ serve(async (req) => {
       );
     }
 
-    // Extract text per page.
-    const pages = await extractPdfPages(bytes);
+    // Build chunks. JSON lesson plan → one chunk per week (plus header);
+    // PDF → extract pages, OCR empty ones, then chunkPages().
+    let chunks: Chunk[];
+    if (isJsonPlan) {
+      chunks = await buildLessonPlanChunks(admin, file.course_id, bytes);
+    } else {
+      const pages = await extractPdfPages(bytes);
 
-    // OCR fallback for empty pages.
-    const emptyPageNums = pages
-      .filter((p) => p.text.replace(/\s+/g, "").length < OCR_MIN_CHARS)
-      .map((p) => p.page);
-    if (emptyPageNums.length > 0) {
-      // Base64 the whole PDF once; the model handles page selection via the
-      // prompt. Cheaper than rasterizing in Deno.
-      let bin = "";
-      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-      const b64 = btoa(bin);
-      for (const pageNum of emptyPageNums) {
-        try {
-          const text = await ocrPage(b64, pageNum, lovableKey);
-          const idx = pages.findIndex((p) => p.page === pageNum);
-          if (idx >= 0 && text) {
-            pages[idx] = { page: pageNum, text, source: "ocr" };
+      // OCR fallback for empty pages.
+      const emptyPageNums = pages
+        .filter((p) => p.text.replace(/\s+/g, "").length < OCR_MIN_CHARS)
+        .map((p) => p.page);
+      if (emptyPageNums.length > 0) {
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        const b64 = btoa(bin);
+        for (const pageNum of emptyPageNums) {
+          try {
+            const text = await ocrPage(b64, pageNum, lovableKey);
+            const idx = pages.findIndex((p) => p.page === pageNum);
+            if (idx >= 0 && text) {
+              pages[idx] = { page: pageNum, text, source: "ocr" };
+            }
+          } catch (e) {
+            console.warn(`[ingest-rag] OCR page ${pageNum} failed:`, e);
           }
-        } catch (e) {
-          console.warn(`[ingest-rag] OCR page ${pageNum} failed:`, e);
         }
       }
+      chunks = chunkPages(pages);
     }
 
-    // Chunk.
-    const chunks = chunkPages(pages);
     if (chunks.length === 0) {
       await admin
         .from("course_material_files")
