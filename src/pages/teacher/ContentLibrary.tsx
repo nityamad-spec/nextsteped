@@ -59,6 +59,19 @@ const ContentLibrary = () => {
     fetchFiles();
   }, [user, courseId]);
 
+  // Poll for RAG ingestion progress while any file is still processing (or
+  // pending). Keeps the "Indexing…" badge and any error message in sync
+  // without needing a full page refresh.
+  useEffect(() => {
+    const hasInFlight = files.some(
+      (f) => f.rag_status === "processing" || f.rag_status === "pending" || f.rag_status === null,
+    );
+    if (!hasInFlight) return;
+    const id = setInterval(() => { fetchFiles(); }, 3000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files]);
+
   const handleDownload = async (file: StoredFile) => {
     const { data, error } = await supabase.storage.from("course-materials").download(file.storage_path);
     if (error || !data) { toast.error("Failed to download file"); return; }
