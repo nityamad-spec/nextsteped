@@ -360,6 +360,7 @@ serve(async (req) => {
           rag_status: "indexed",
           rag_indexed_at: new Date().toISOString(),
           rag_error: null,
+          content_hash: contentHash,
         })
         .eq("id", fileId);
       return new Response(
