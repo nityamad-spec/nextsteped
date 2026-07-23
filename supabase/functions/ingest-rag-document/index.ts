@@ -44,6 +44,14 @@ const CHUNK_TARGET = 1000;
 const CHUNK_OVERLAP = 150;
 const EMBED_BATCH = 100;
 const OCR_MIN_CHARS = 20;
+// Hard limits — enforced together with client-side (30 MB) and bucket
+// (31,457,280 bytes) caps. Anything larger is rejected up front so we
+// don't spend embedding budget on files that can't finish reliably.
+const MAX_PDF_PAGES = 1500;
+// Cap OCR work on huge PDFs: we only OCR the first N low-text pages.
+// Beyond that we accept degraded coverage rather than blowing the function
+// timeout or AI Gateway request-size budget.
+const OCR_MAX_PAGES = 50;
 
 type PageText = { page: number; text: string; source: "pdf_text" | "ocr" };
 type Chunk = {
