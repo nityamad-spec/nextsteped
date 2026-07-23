@@ -257,13 +257,18 @@ serve(async (req) => {
     if (fileErr) throw fileErr;
     if (!file) throw new Error(`file_id ${fileId} not found`);
 
-    if (!file.file_name.toLowerCase().endsWith(".pdf")) {
+    const lowerName = file.file_name.toLowerCase();
+    const isJsonPlan =
+      lowerName.endsWith(".json") ||
+      file.folder_type === "lesson-plan-published";
+
+    if (!lowerName.endsWith(".pdf") && !isJsonPlan) {
       await admin
         .from("course_material_files")
         .update({ rag_status: "skipped", rag_error: null })
         .eq("id", fileId);
       return new Response(
-        JSON.stringify({ ok: true, skipped: true, reason: "not a pdf" }),
+        JSON.stringify({ ok: true, skipped: true, reason: "unsupported file type" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
