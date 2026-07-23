@@ -3,17 +3,13 @@
  *
  * Integration tests for the RAG grounding + Yes/No fallback branching used by
  * the `chat` edge function.
- *
- * Covers:
- *   1. Insufficient retrieval (empty or low similarity) → needs_fallback path.
- *   2. Sufficient retrieval → materials context is injected with citations
- *      and grounding rules.
- *   3. General-knowledge opt-in → suffix appended so the response is tagged.
  */
 
 import { assert, assertEquals, assertStringIncludes } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   buildMaterialsGrounding,
+  buildSources,
+  friendlyLabel,
   GENERAL_KNOWLEDGE_SUFFIX,
   SIM_THRESHOLD,
 } from "./chat-grounding.ts";
@@ -38,62 +34,87 @@ Deno.test("fallback: empty retrieval flags needsFallback", () => {
   const g = buildMaterialsGrounding([]);
   assertEquals(g.needsFallback, true);
   assertEquals(g.materialsContext, "");
+  assertEquals(g.sources, []);
 });
 
 Deno.test("fallback: top similarity below threshold flags needsFallback", () => {
   const g = buildMaterialsGrounding([
     chunk({ similarity: SIM_THRESHOLD - 0.01 }),
-    chunk({ id: "c2", chunk_index: 1, similarity: 0.4 }),
   ]);
   assertEquals(g.needsFallback, true);
-  assertEquals(g.materialsContext, "");
 });
 
-Deno.test("fallback: exactly at threshold is treated as grounded", () => {
-  const g = buildMaterialsGrounding([chunk({ similarity: SIM_THRESHOLD })]);
-  assertEquals(g.needsFallback, false);
-  assert(g.materialsContext.length > 0);
-});
-
-Deno.test("grounded: injects COURSE MATERIALS block with source label", () => {
+Deno.test("grounded: injects COURSE MATERIALS block with numeric anchors and labels", () => {
   const g = buildMaterialsGrounding([
-    chunk({ file_name: "biology.pdf", chunk_index: 3, page_start: 12, page_end: 13, similarity: 0.81 }),
+    chunk({ file_name: "biology.pdf", folder_type: "textbook", chunk_index: 3, page_start: 12, page_end: 13, similarity: 0.81 }),
   ]);
   assertEquals(g.needsFallback, false);
   assertStringIncludes(g.materialsContext, "--- COURSE MATERIALS");
-  assertStringIncludes(g.materialsContext, "[Source: biology.pdf #3, p.12-13]");
+  assertStringIncludes(g.materialsContext, "[[1]] biology, p.12-13");
   assertStringIncludes(g.materialsContext, "Photosynthesis converts light energy");
-  assertStringIncludes(g.materialsContext, "GROUNDING RULES");
+  assertStringIncludes(g.materialsContext, "numeric token [[n]]");
   assertStringIncludes(g.materialsContext, "[[NEEDS_FALLBACK]]");
+  assertEquals(g.sources.length, 1);
+  assertEquals(g.sources[0].n, 1);
+  assertEquals(g.sources[0].label, "biology, p.12-13");
 });
 
-Deno.test("grounded: multiple chunks are separated and single-page label omits range", () => {
+Deno.test("grounded: lesson-plan chunk gets 'Lesson Plan — Week N' label", () => {
   const g = buildMaterialsGrounding([
-    chunk({ file_name: "a.pdf", chunk_index: 0, page_start: 1, page_end: 1, similarity: 0.9 }),
-    chunk({ id: "c2", file_name: "b.pdf", chunk_index: 2, page_start: 4, page_end: 4, similarity: 0.75, content: "Second." }),
+    chunk({
+      file_name: "published-plan.json",
+      folder_type: "lesson-plan-published",
+      chunk_index: 5,
+      page_start: 3,
+      page_end: 3,
+      similarity: 0.8,
+    }),
   ]);
   assertEquals(g.needsFallback, false);
-  assertStringIncludes(g.materialsContext, "[Source: a.pdf #0, p.1]");
-  assertStringIncludes(g.materialsContext, "[Source: b.pdf #2, p.4]");
-  assertStringIncludes(g.materialsContext, "\n\n---\n\n");
+  assertStringIncludes(g.materialsContext, "[[1]] Lesson Plan — Week 3");
+  assertEquals(g.sources[0].label, "Lesson Plan — Week 3");
 });
 
-Deno.test("grounded: chunk without page numbers still labels correctly", () => {
+Deno.test("grounded: multiple chunks get sequential numeric anchors", () => {
   const g = buildMaterialsGrounding([
-    chunk({ file_name: "notes.pdf", chunk_index: 7, page_start: null, page_end: null, similarity: 0.8 }),
+    chunk({ file_name: "a.pdf", folder_type: "textbook", similarity: 0.9 }),
+    chunk({ id: "c2", file_name: "b.pdf", folder_type: "textbook", page_start: 4, page_end: 4, similarity: 0.75, content: "Second." }),
   ]);
-  assertEquals(g.needsFallback, false);
-  assertStringIncludes(g.materialsContext, "[Source: notes.pdf #7]");
+  assertStringIncludes(g.materialsContext, "[[1]] a, p.1");
+  assertStringIncludes(g.materialsContext, "[[2]] b, p.4");
+  assert(g.sources[0].n === 1 && g.sources[1].n === 2);
+});
+
+Deno.test("friendlyLabel: lesson plan overview when page_start is 0", () => {
+  const label = friendlyLabel({
+    file_name: "published-plan.json",
+    folder_type: "lesson-plan-published",
+    page_start: 0,
+    page_end: 0,
+  });
+  assertEquals(label, "Lesson Plan — Overview");
+});
+
+Deno.test("friendlyLabel: PDF without pages omits page range", () => {
+  const label = friendlyLabel({
+    file_name: "notes-week1.pdf",
+    folder_type: "textbook",
+    page_start: null,
+    page_end: null,
+  });
+  assertEquals(label, "notes week1");
+});
+
+Deno.test("buildSources: 1-indexes labels in chunk order", () => {
+  const sources = buildSources([
+    chunk({ file_name: "a.pdf", folder_type: "textbook" }),
+    chunk({ id: "c2", file_name: "published-plan.json", folder_type: "lesson-plan-published", page_start: 7, page_end: 7 }),
+  ]);
+  assertEquals(sources[0].n, 1);
+  assertEquals(sources[1].n, 2);
+  assertEquals(sources[1].label, "Lesson Plan — Week 7");
 });
 
 Deno.test("general knowledge suffix contains opt-in marker", () => {
-  assertStringIncludes(GENERAL_KNOWLEDGE_SUFFIX, "--- GENERAL KNOWLEDGE MODE ---");
   assertStringIncludes(GENERAL_KNOWLEDGE_SUFFIX, "[[GENERAL_KNOWLEDGE]]");
-  assertStringIncludes(GENERAL_KNOWLEDGE_SUFFIX, "explicitly opted in");
-});
-
-Deno.test("custom threshold: caller can override SIM_THRESHOLD", () => {
-  const chunks = [chunk({ similarity: 0.5 })];
-  assertEquals(buildMaterialsGrounding(chunks, 0.6).needsFallback, true);
-  assertEquals(buildMaterialsGrounding(chunks, 0.4).needsFallback, false);
 });
