@@ -263,7 +263,7 @@ serve(async (req) => {
     const { data: file, error: fileErr } = await admin
       .from("course_material_files")
       .select(
-        "id, course_id, teacher_id, storage_path, file_name, folder_type, content_hash, rag_status, rag_indexed_at, updated_at",
+        "id, course_id, teacher_id, storage_path, file_name, folder_type, content_hash, rag_status, rag_indexed_at",
       )
       .eq("id", fileId)
       .maybeSingle();
@@ -281,10 +281,11 @@ serve(async (req) => {
       );
     }
 
-    // Concurrency guard: if another invocation started within the last 60s,
-    // skip to avoid duplicate embed work on double-clicks / retries.
-    if (file.rag_status === "processing") {
-      const ts = file.updated_at ? new Date(file.updated_at).getTime() : 0;
+    // Concurrency guard: if a previous run marked this row 'processing' and
+    // successfully indexed within the last 60s, skip. If rag_indexed_at is
+    // null (e.g. a stuck/failed prior run), allow retry.
+    if (file.rag_status === "processing" && file.rag_indexed_at) {
+      const ts = new Date(file.rag_indexed_at).getTime();
       if (Date.now() - ts < 60_000) {
         return new Response(
           JSON.stringify({ ok: true, skipped: true, reason: "in_progress" }),
@@ -292,6 +293,7 @@ serve(async (req) => {
         );
       }
     }
+
 
     await admin
       .from("course_material_files")
