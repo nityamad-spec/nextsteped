@@ -304,6 +304,40 @@ const TeacherChat = () => {
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
           </div>
         ) : msg.content}
+        {msg.role === "assistant" && msg.metadata?.variant === "general_knowledge" && (
+          <div className="mt-2">
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+              <Sparkles className="h-3 w-3" /> AI general knowledge — not from course materials
+            </span>
+          </div>
+        )}
+        {msg.role === "assistant" && msg.metadata?.variant === "fallback_prompt" && !msg.metadata?.fallbackResolved && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              onClick={async () => {
+                const q = msg.metadata?.pendingQuery ?? "";
+                if (!q || !activeChat) return;
+                await updateMessageMetadata(activeChat.id, msg.id, { ...msg.metadata!, fallbackResolved: true });
+                sendMessage(q, { grounding: "general", skipSaveUser: true });
+              }}
+              disabled={isStreaming || isCooldown}
+            >
+              Yes, use general knowledge
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                if (!activeChat) return;
+                await updateMessageMetadata(activeChat.id, msg.id, { ...msg.metadata!, fallbackResolved: true });
+              }}
+              disabled={isStreaming || isCooldown}
+            >
+              No, stay in course materials
+            </Button>
+          </div>
+        )}
       </div>
       {msg.role === "user" && (
         <Avatar className="h-8 w-8 shrink-0 mt-1">
