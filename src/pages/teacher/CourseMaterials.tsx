@@ -47,6 +47,15 @@ const CourseMaterials = () => {
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
   const [textbookFiles, setTextbookFiles] = useState<UploadedFile[]>([]);
   const [syllabusParseStatus, setSyllabusParseStatus] = useState<Record<string, "parsing" | "parsed" | "failed">>({});
+  // Per-zone ingest state so Next is gated until RAG ingestion settles.
+  const [ingestState, setIngestState] = useState<Record<string, { inFlight: boolean; failedCount: number }>>({});
+  const setZoneIngest = (zone: string) => (s: { inFlight: boolean; failedCount: number }) => {
+    setIngestState((prev) => {
+      const cur = prev[zone];
+      if (cur && cur.inFlight === s.inFlight && cur.failedCount === s.failedCount) return prev;
+      return { ...prev, [zone]: s };
+    });
+  };
   const [syllabusJsonInStorage, setSyllabusJsonInStorage] = useState(false);
   const [extractedLinks, setExtractedLinks] = useState<Array<{ id: string; url: string; kind: string }>>([]);
   const [extractingLinks, setExtractingLinks] = useState(false);
