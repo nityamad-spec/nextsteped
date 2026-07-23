@@ -1,36 +1,32 @@
-Phase: UI caption redistribution on the quiz/exam completion screen
+# Bulk suspend on Admin → Students
 
-Goal
-On the completion screen in `src/components/AssessmentView.tsx`, move the explanatory text so each stat card has its own caption:
-- Under **Score**: "Score accounts for question difficulty, accuracy, and time."
-- Under **Correct**: "Score accounts only for accuracy."
-- Under **Time**: "seconds per question"
+Add row checkboxes, a select-all header checkbox, and a bulk action bar that lets an admin suspend (or reactivate) many students in one go. Delete stays single-row for safety.
 
-Resolved requirements from clarifying questions
-- Captions are hover-revealed on desktop, always visible on mobile.
-- Keep the numeric accuracy fraction and average-pace lines, but place them under the **Correct** and **Time** cards respectively.
-- Switch the **Time** card’s big number from total elapsed time to average seconds per question.
-- Apply the same three-card caption layout to both weekly quiz and exam practice completion screens, with a mode-appropriate Score caption (exam score does not include time, so it will read "Score accounts for question difficulty and accuracy.").
+## UX
 
-Implementation steps
-1. Update the completion screen JSX in `src/components/AssessmentView.tsx`.
-   - Remove the current three-line block that sits under the **Score** card.
-   - Wrap each stat card (or its value block) in a `group` container so hover can reveal the caption/details block.
-   - **Score card**: show the composite-score caption on hover / on mobile.
-   - **Correct card**: on hover / mobile, show the caption "Score accounts only for accuracy." and the existing accuracy fraction line (`{correct}/{total} correct ({pct}%)`).
-   - **Time card**: change the big number from `formatTime(total)` to `Math.round(results.timeSpent / (results.totalQuestions || 1))s`. On hover / mobile, show the caption "seconds per question" and the existing average-pace line (which will now match the big number).
-   - Use the existing `isQuiz` flag to decide caption wording, but show the layout for both quiz and exam modes.
-2. Preserve accessibility.
-   - Ensure the hover-only content is still reachable on touch devices by using the `group-hover` + `block` on mobile breakpoint pattern already used elsewhere, or by making the captions always visible below `sm:` breakpoint.
-3. Verify no consumers break.
-   - `AssessmentResults` already exposes `accuracyScore`, `paceScore`, `timeSpent`, `totalQuestions`, and `correctAnswers`; no type changes are needed.
-   - `formatTime` may become unused for the Time card but is still used elsewhere; do not remove it.
-4. Run checks.
-   - TypeScript typecheck.
-   - `WeeklyQuizDialog.test.tsx` and any exam-mode tests that assert the completion screen text.
-   - Report any failures without auto-fixing per project rule.
+- New leftmost column with a `Checkbox` per student row (click doesn't open the profile drawer).
+- Header checkbox reflects tri-state for the currently **filtered** list: unchecked / all-selected / indeterminate. Clicking it selects or clears all filtered rows.
+- When one or more rows are selected, a sticky bar appears above the table:
+  - "N selected" + "Clear"
+  - "Suspend access" button (primary destructive)
+  - "Reactivate access" button (shown when any selected row is currently suspended)
+- Selection persists across filter/search changes but hidden (filtered-out) rows aren't acted on — the bulk buttons operate on `selected ∩ filtered`.
+- Confirmation `AlertDialog` before bulk suspend, listing count and names (first few + "…and X more"). No free-text confirm for bulk (matches the single-row suspend flow, which also has no typed confirm).
+- Toast on completion with success/failure counts; per-row errors are collected and surfaced.
 
-Files changed
-- `src/components/AssessmentView.tsx`
+## Behavior
 
-No database or backend changes are required.
+- Calls the existing `admin-set-student-suspension` edge function once per selected student in parallel (bounded concurrency of ~5) with `{ user_id: primaryProfileId, suspended: true | false }`.
+- Optimistically updates `suspended_at` on success; on failure keeps prior state and reports the row.
+- Admin cannot suspend their own account — the function already blocks this; we also filter it client-side so the bar doesn't offer it.
+- Bulk delete is intentionally out of scope.
+
+## Technical notes
+
+- File: `src/pages/admin/AdminStudents.tsx` only. No backend changes — reuses `admin-set-student-suspension`.
+- New state: `selected: Set<string>` keyed by `StudentGroup.key`.
+- Add `Checkbox` (`@/components/ui/checkbox`) in a new first `TableHead`/`TableCell`; stop click propagation so row-click still opens the profile drawer.
+- Header checkbox uses `data-state="indeterminate"` when `0 < selectedInFiltered < filtered.length`.
+- Bulk action bar rendered above the `<Table>` when `selected.size > 0`.
+- Concurrency: simple `Promise.all` over chunks of 5 to avoid hammering the function.
+- Clear selection after a successful bulk action.
