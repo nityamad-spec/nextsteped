@@ -364,6 +364,53 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     void parseSyllabusInBackground({ storagePath: file.path, fileName: file.name });
   };
 
+  // Upload a single file to Supabase Storage with a real XHR progress bar
+  // by going through a signed upload URL (createSignedUploadUrl → PUT).
+  // Falls back to the standard supabase.storage.upload() if the signed URL
+  // path is unavailable — user then sees an indeterminate bar.
+  const uploadFileWithProgress = async (
+    file: File,
+    storagePath: string,
+    progressKey: string,
+  ): Promise<{ ok: boolean; errorMessage?: string }> => {
+    setUploadProgress((prev) => ({ ...prev, [progressKey]: 0 }));
+    const { data: signed, error: signErr } = await supabase.storage
+      .from("course-materials")
+      .createSignedUploadUrl(storagePath);
+
+    if (!signErr && signed?.signedUrl) {
+      return await new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", signed.signedUrl, true);
+        if (file.type) xhr.setRequestHeader("Content-Type", file.type);
+        xhr.upload.onprogress = (e) => {
+          if (!e.lengthComputable) return;
+          const pct = Math.round((e.loaded / e.total) * 100);
+          setUploadProgress((prev) => ({ ...prev, [progressKey]: pct }));
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setUploadProgress((prev) => ({ ...prev, [progressKey]: 100 }));
+            resolve({ ok: true });
+          } else {
+            resolve({ ok: false, errorMessage: `HTTP ${xhr.status}` });
+          }
+        };
+        xhr.onerror = () => resolve({ ok: false, errorMessage: "Network error" });
+        xhr.send(file);
+      });
+    }
+
+    // Fallback: no signed URL → best-effort upload without % progress.
+    const { error } = await supabase.storage
+      .from("course-materials")
+      .upload(storagePath, file);
+    setUploadProgress((prev) => ({ ...prev, [progressKey]: 100 }));
+    return error
+      ? { ok: false, errorMessage: error.message }
+      : { ok: true };
+  };
+
   const handleConfirmedUpload = async () => {
     if (pending.length === 0 || !confirmed) return;
     setUploading(true);
@@ -377,15 +424,16 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
 
     const newFiles: UploadedFile[] = [];
     const syllabusToParse: Array<{ file: File; path: string }> = [];
+    const uploadedPaths: string[] = [];
 
-    for (const file of pending) {
+    for (let idx = 0; idx < pending.length; idx++) {
+      const file = pending[idx];
       const filePath = `${folderPath}/${Date.now()}_${file.name}`;
-      const { error } = await supabase.storage
-        .from("course-materials")
-        .upload(filePath, file);
+      const progressKey = `${idx}::${file.name}`;
+      const res = await uploadFileWithProgress(file, filePath, progressKey);
 
-      if (error) {
-        toast.error(`Failed to upload ${file.name}: ${error.message}`);
+      if (!res.ok) {
+        toast.error(`Failed to upload ${file.name}: ${res.errorMessage ?? "unknown"}`);
       } else {
         if (teacherId && folderType) {
           const { error: metaError } = await supabase
@@ -403,6 +451,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
           }
         }
         newFiles.push({ name: file.name, size: file.size, path: filePath });
+        uploadedPaths.push(filePath);
         if (folderType === "syllabus") {
           syllabusToParse.push({ file, path: filePath });
         }
@@ -411,13 +460,19 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
 
     if (newFiles.length > 0) {
       onFilesChange([...files, ...newFiles]);
-      toast.success(`${newFiles.length} file(s) uploaded`);
+      toast.success(`${newFiles.length} file(s) uploaded — indexing…`);
       onUploadComplete?.(newFiles);
+      setFreshlyUploadedPaths((prev) => {
+        const next = new Set(prev);
+        for (const p of uploadedPaths) next.add(p);
+        return next;
+      });
     }
 
     setPending([]);
     setConfirmed(false);
     setUploading(false);
+    setUploadProgress({});
     if (folderType === "syllabus") setUploadStartedAt(null);
 
     // Kick off background parsing for syllabus files. Non-blocking.
@@ -425,6 +480,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
       void parseSyllabusInBackground({ file, storagePath: path });
     }
   };
+
 
   const isLastSyllabusDelete = (file: UploadedFile) =>
     folderType === "syllabus" && !!courseId && files.filter((f) => f.path !== file.path).length === 0;
