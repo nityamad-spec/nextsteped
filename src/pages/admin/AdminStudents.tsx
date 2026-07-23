@@ -593,6 +593,13 @@ const AdminStudents = () => {
                         onClick={() => setProfileTarget(s)}
                         className={cn(idx % 2 === 1 && "bg-muted/20", "hover:bg-muted/40 transition-colors cursor-pointer")}
                       >
+                        <TableCell className="align-top" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selected.has(s.key)}
+                            onCheckedChange={() => toggleSelected(s.key)}
+                            aria-label={`Select ${s.name}`}
+                          />
+                        </TableCell>
                         <TableCell className={cn("font-medium align-top", s.suspended_at && "opacity-60")}>
                           <div className="flex items-center gap-2">
                             <span>{s.name}</span>
