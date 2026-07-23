@@ -457,6 +457,7 @@ const CourseMaterials = () => {
                 folderType="syllabus"
                 maxFiles={1}
                 onParseStatusChange={setSyllabusParseStatus}
+                onIngestStatusChange={setZoneIngest("syllabus")}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
@@ -493,6 +494,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="textbooks"
+                onIngestStatusChange={setZoneIngest("textbooks")}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
@@ -534,6 +536,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="lesson-plans"
+                onIngestStatusChange={setZoneIngest("lesson-plans")}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
@@ -570,6 +573,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="lesson-plan-docs"
+                onIngestStatusChange={setZoneIngest("lesson-plan-docs")}
                 onUploadComplete={async () => {
                   const toastId = toast.loading("Extracting lesson plan structure…");
                   const { data, error } = await supabase.functions.invoke(
@@ -626,6 +630,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="youtube-links"
+                onIngestStatusChange={setZoneIngest("youtube-links")}
                 onUploadComplete={handleYoutubeUploadComplete}
               />
             ) : (
