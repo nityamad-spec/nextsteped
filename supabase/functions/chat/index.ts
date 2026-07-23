@@ -408,8 +408,9 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, mode, promptMode, studySystemPrompt, examSystemPrompt, relevanceContext, courseId, studentId } =
+    const { messages, mode, promptMode, studySystemPrompt, examSystemPrompt, relevanceContext, courseId, studentId, grounding: groundingRaw } =
       await req.json();
+    const grounding: "rag" | "general" = groundingRaw === "general" ? "general" : "rag";
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
