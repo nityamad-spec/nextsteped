@@ -40,8 +40,15 @@ function normalizedStem(fileName: string): string {
   return s;
 }
 
-async function fireIngest(fileId: string, fileName: string) {
-  if (!fileName.toLowerCase().endsWith(".pdf")) return;
+async function fireIngest(
+  fileId: string,
+  fileName: string,
+  folderType: MaterialFolderType,
+) {
+  const lower = fileName.toLowerCase();
+  const isPdf = lower.endsWith(".pdf");
+  const isPublishedPlan = folderType === "lesson-plan-published";
+  if (!isPdf && !isPublishedPlan) return;
   void supabase.functions
     .invoke("ingest-rag-document", { body: { file_id: fileId } })
     .catch((e) => console.warn("ingest-rag-document invoke failed:", e));
@@ -134,7 +141,7 @@ export async function upsertCourseMaterialFile(
     });
   }
 
-  await fireIngest(data.id, args.file_name);
+  await fireIngest(data.id, args.file_name, args.folder_type);
 }
 
 export interface ReplaceCourseMaterialFileArgs {
@@ -189,7 +196,7 @@ export async function replaceCourseMaterialFile(
     console.warn("replaceCourseMaterialFile supersede failed:", supErr.message);
   }
 
-  await fireIngest(inserted.id, new_upload.file_name);
+  await fireIngest(inserted.id, new_upload.file_name, new_upload.folder_type);
   return { new_file_id: inserted.id };
 }
 

@@ -220,6 +220,184 @@ async function embedBatch(
     .map((d) => d.embedding as number[]);
 }
 
+// ---------- Lesson-plan JSON → chunks -------------------------------------
+
+type LessonWeek = {
+  week: number;
+  topic: string;
+  overview: string;
+  is_exam_week: boolean;
+  concepts: { name: string; brief?: string }[];
+  resources: { type: string; title: string; description?: string; url?: string }[];
+};
+
+function normalizePlanJson(parsed: unknown): {
+  weeks: LessonWeek[];
+  overallOutcomes: string;
+} {
+  const isObj = (v: unknown): v is Record<string, unknown> =>
+    typeof v === "object" && v !== null;
+
+  let weeks: LessonWeek[] = [];
+  let overallOutcomes = "";
+
+  if (Array.isArray(parsed)) {
+    // Legacy shape: [{ day, topic, description, resources:[{concept,title,action,type,url}] }]
+    weeks = parsed.filter(isObj).map((d: any, idx: number) => {
+      const week = Number(d.day ?? idx + 1) || idx + 1;
+      const resources = Array.isArray(d.resources)
+        ? (d.resources as any[]).filter(isObj).map((r) => ({
+            type: String(r.type ?? "resource"),
+            title: String(r.title ?? ""),
+            description: r.action ? String(r.action) : r.description ? String(r.description) : undefined,
+            url: r.url ? String(r.url) : undefined,
+          }))
+        : [];
+      const conceptNames = Array.from(
+        new Set(
+          (Array.isArray(d.resources) ? (d.resources as any[]) : [])
+            .map((r) => (isObj(r) && r.concept ? String(r.concept) : ""))
+            .filter(Boolean),
+        ),
+      );
+      return {
+        week,
+        topic: String(d.topic ?? d.week_name ?? `Week ${week}`),
+        overview: String(d.description ?? ""),
+        is_exam_week: Boolean(d.is_exam_week),
+        concepts: conceptNames.map((name) => ({ name })),
+        resources,
+      };
+    });
+  } else if (isObj(parsed) && Array.isArray((parsed as any).weeks)) {
+    if (typeof (parsed as any).overall_course_learning_outcomes === "string") {
+      overallOutcomes = String((parsed as any).overall_course_learning_outcomes);
+    }
+    weeks = ((parsed as any).weeks as any[]).filter(isObj).map((w, idx) => {
+      const week = Number(w.week ?? idx + 1) || idx + 1;
+      return {
+        week,
+        topic: String(w.week_name || `Week ${week}`),
+        overview: String(w.overview ?? ""),
+        is_exam_week: Boolean(w.is_exam_week),
+        concepts: Array.isArray(w.concepts)
+          ? (w.concepts as any[]).filter(isObj).map((c) => ({
+              name: String(c.name ?? ""),
+              brief: c.brief_description ? String(c.brief_description) : undefined,
+            }))
+          : [],
+        resources: Array.isArray(w.resources)
+          ? (w.resources as any[]).filter(isObj).map((r) => ({
+              type: String(r.type ?? "resource"),
+              title: String(r.title ?? ""),
+              description: r.description ? String(r.description) : undefined,
+              url: r.url ? String(r.url) : undefined,
+            }))
+          : [],
+      };
+    });
+  }
+
+  return { weeks, overallOutcomes };
+}
+
+function renderWeekChunk(w: LessonWeek): string {
+  const lines: string[] = [];
+  lines.push(`Week ${w.week} — ${w.topic}${w.is_exam_week ? " (Exam Week)" : ""}`);
+  if (w.overview) lines.push(`\nOverview: ${w.overview}`);
+  if (w.concepts.length) {
+    lines.push(`\nConcepts:`);
+    for (const c of w.concepts) {
+      lines.push(`- ${c.name}${c.brief ? ` — ${c.brief}` : ""}`);
+    }
+  }
+  if (w.resources.length) {
+    lines.push(`\nResources:`);
+    for (const r of w.resources) {
+      const parts = [r.type, r.title].filter(Boolean).join(" — ");
+      const tail = r.description ? ` — ${r.description}` : "";
+      const url = r.url ? ` (${r.url})` : "";
+      lines.push(`- ${parts}${tail}${url}`);
+    }
+  }
+  return lines.join("\n").trim();
+}
+
+async function buildLessonPlanChunks(
+  admin: ReturnType<typeof createClient>,
+  courseId: string,
+  bytes: Uint8Array,
+): Promise<Chunk[]> {
+  const text = new TextDecoder().decode(bytes);
+  const parsed = JSON.parse(text);
+  const { weeks, overallOutcomes } = normalizePlanJson(parsed);
+
+  const { data: course } = await admin
+    .from("courses")
+    .select("name, course_code")
+    .eq("id", courseId)
+    .maybeSingle();
+
+  const header: string[] = [];
+  const title = [course?.course_code, course?.name].filter(Boolean).join(" — ");
+  header.push(`Course Lesson Plan${title ? `: ${title}` : ""}`);
+  if (overallOutcomes) header.push(`\nOverall Course Learning Outcomes:\n${overallOutcomes}`);
+  if (weeks.length) {
+    header.push(`\nWeek Index:`);
+    for (const w of weeks) header.push(`- Week ${w.week}: ${w.topic}${w.is_exam_week ? " (Exam)" : ""}`);
+  }
+
+  const chunks: Chunk[] = [
+    {
+      content: header.join("\n").trim(),
+      page_start: 0,
+      page_end: 0,
+      source_type: "pdf_text",
+    },
+  ];
+
+  const MAX_WEEK_CHARS = 2000;
+  for (const w of weeks) {
+    const rendered = renderWeekChunk(w);
+    if (rendered.length <= MAX_WEEK_CHARS) {
+      chunks.push({
+        content: rendered,
+        page_start: w.week,
+        page_end: w.week,
+        source_type: "pdf_text",
+      });
+      continue;
+    }
+    // Overflow: split into ~MAX_WEEK_CHARS pieces on line boundaries.
+    const lines = rendered.split("\n");
+    let buf = "";
+    for (const ln of lines) {
+      if (buf.length + ln.length + 1 > MAX_WEEK_CHARS && buf) {
+        chunks.push({
+          content: buf.trim(),
+          page_start: w.week,
+          page_end: w.week,
+          source_type: "pdf_text",
+        });
+        buf = "";
+      }
+      buf += (buf ? "\n" : "") + ln;
+    }
+    if (buf.trim()) {
+      chunks.push({
+        content: buf.trim(),
+        page_start: w.week,
+        page_end: w.week,
+        source_type: "pdf_text",
+      });
+    }
+  }
+
+  return chunks;
+}
+
+// --------------------------------------------------------------------------
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -257,13 +435,18 @@ serve(async (req) => {
     if (fileErr) throw fileErr;
     if (!file) throw new Error(`file_id ${fileId} not found`);
 
-    if (!file.file_name.toLowerCase().endsWith(".pdf")) {
+    const lowerName = file.file_name.toLowerCase();
+    const isJsonPlan =
+      lowerName.endsWith(".json") ||
+      file.folder_type === "lesson-plan-published";
+
+    if (!lowerName.endsWith(".pdf") && !isJsonPlan) {
       await admin
         .from("course_material_files")
         .update({ rag_status: "skipped", rag_error: null })
         .eq("id", fileId);
       return new Response(
-        JSON.stringify({ ok: true, skipped: true, reason: "not a pdf" }),
+        JSON.stringify({ ok: true, skipped: true, reason: "unsupported file type" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -314,34 +497,37 @@ serve(async (req) => {
       );
     }
 
-    // Extract text per page.
-    const pages = await extractPdfPages(bytes);
+    // Build chunks. JSON lesson plan → one chunk per week (plus header);
+    // PDF → extract pages, OCR empty ones, then chunkPages().
+    let chunks: Chunk[];
+    if (isJsonPlan) {
+      chunks = await buildLessonPlanChunks(admin, file.course_id, bytes);
+    } else {
+      const pages = await extractPdfPages(bytes);
 
-    // OCR fallback for empty pages.
-    const emptyPageNums = pages
-      .filter((p) => p.text.replace(/\s+/g, "").length < OCR_MIN_CHARS)
-      .map((p) => p.page);
-    if (emptyPageNums.length > 0) {
-      // Base64 the whole PDF once; the model handles page selection via the
-      // prompt. Cheaper than rasterizing in Deno.
-      let bin = "";
-      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-      const b64 = btoa(bin);
-      for (const pageNum of emptyPageNums) {
-        try {
-          const text = await ocrPage(b64, pageNum, lovableKey);
-          const idx = pages.findIndex((p) => p.page === pageNum);
-          if (idx >= 0 && text) {
-            pages[idx] = { page: pageNum, text, source: "ocr" };
+      // OCR fallback for empty pages.
+      const emptyPageNums = pages
+        .filter((p) => p.text.replace(/\s+/g, "").length < OCR_MIN_CHARS)
+        .map((p) => p.page);
+      if (emptyPageNums.length > 0) {
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        const b64 = btoa(bin);
+        for (const pageNum of emptyPageNums) {
+          try {
+            const text = await ocrPage(b64, pageNum, lovableKey);
+            const idx = pages.findIndex((p) => p.page === pageNum);
+            if (idx >= 0 && text) {
+              pages[idx] = { page: pageNum, text, source: "ocr" };
+            }
+          } catch (e) {
+            console.warn(`[ingest-rag] OCR page ${pageNum} failed:`, e);
           }
-        } catch (e) {
-          console.warn(`[ingest-rag] OCR page ${pageNum} failed:`, e);
         }
       }
+      chunks = chunkPages(pages);
     }
 
-    // Chunk.
-    const chunks = chunkPages(pages);
     if (chunks.length === 0) {
       await admin
         .from("course_material_files")
