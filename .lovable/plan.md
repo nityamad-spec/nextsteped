@@ -1,32 +1,55 @@
-# Bulk suspend on Admin → Students
+# Plan: Standalone Select-All Button on /admin/students
 
-Add row checkboxes, a select-all header checkbox, and a bulk action bar that lets an admin suspend (or reactivate) many students in one go. Delete stays single-row for safety.
+## Goal
+Add a convenient, standalone "Select all" control above the student table (near the existing filter/export toolbar) that selects every row in the **currently filtered** list. It should work alongside the existing row checkboxes and bulk suspend/reactivate flow.
 
-## UX
+## Current state (verified)
+- `src/pages/admin/AdminStudents.tsx` already has:
+  - Row-level checkboxes keyed by `StudentGroup.key`.
+  - A tri-state header checkbox that selects/deselects all filtered rows.
+  - `filtered`, `selected`, `selectedInFiltered`, `allFilteredSelected`, and `toggleSelectAllFiltered()` helpers.
+  - A sticky bulk action bar with suspend/reactivate actions.
+- There is **no** standalone button above the table; selection only happens via the table header checkbox.
 
-- New leftmost column with a `Checkbox` per student row (click doesn't open the profile drawer).
-- Header checkbox reflects tri-state for the currently **filtered** list: unchecked / all-selected / indeterminate. Clicking it selects or clears all filtered rows.
-- When one or more rows are selected, a sticky bar appears above the table:
-  - "N selected" + "Clear"
-  - "Suspend access" button (primary destructive)
-  - "Reactivate access" button (shown when any selected row is currently suspended)
-- Selection persists across filter/search changes but hidden (filtered-out) rows aren't acted on — the bulk buttons operate on `selected ∩ filtered`.
-- Confirmation `AlertDialog` before bulk suspend, listing count and names (first few + "…and X more"). No free-text confirm for bulk (matches the single-row suspend flow, which also has no typed confirm).
-- Toast on completion with success/failure counts; per-row errors are collected and surfaced.
+## Proposed changes
+All changes are confined to `src/pages/admin/AdminStudents.tsx`.
 
-## Behavior
+### 1. Add a toolbar select-all button
+- Place a text button in the filter/export toolbar row, to the right of the filter chips and near the Export button.
+- Label adapts to state:
+  - If no filtered rows: disabled, label "Select all".
+  - If not all filtered rows selected: "Select all N students" (N = filtered count).
+  - If all filtered rows selected: "Clear selection" or "Deselect all".
+- Use the existing `CheckSquare` / `Square` / `X` icon set from `lucide-react` (or reuse existing icons already imported) to visually reinforce the toggle state.
 
-- Calls the existing `admin-set-student-suspension` edge function once per selected student in parallel (bounded concurrency of ~5) with `{ user_id: primaryProfileId, suspended: true | false }`.
-- Optimistically updates `suspended_at` on success; on failure keeps prior state and reports the row.
-- Admin cannot suspend their own account — the function already blocks this; we also filter it client-side so the bar doesn't offer it.
-- Bulk delete is intentionally out of scope.
+### 2. Wire the toggle behavior
+- Reuse the existing `toggleSelectAllFiltered()` logic:
+  - Clicking "Select all N" adds every `filtered` row key to `selected`.
+  - Clicking "Clear selection" removes every `filtered` row key from `selected`.
+- Selection still persists when filters/search change (hidden rows remain selected), and the bulk action bar continues to operate on `selected ∩ filtered`.
 
-## Technical notes
+### 3. Keep the header checkbox
+- The existing table-header checkbox remains as-is for users who prefer selecting inside the table.
+- Both controls stay in sync because they read from the same `allFilteredSelected` / `someFilteredSelected` state.
 
-- File: `src/pages/admin/AdminStudents.tsx` only. No backend changes — reuses `admin-set-student-suspension`.
-- New state: `selected: Set<string>` keyed by `StudentGroup.key`.
-- Add `Checkbox` (`@/components/ui/checkbox`) in a new first `TableHead`/`TableCell`; stop click propagation so row-click still opens the profile drawer.
-- Header checkbox uses `data-state="indeterminate"` when `0 < selectedInFiltered < filtered.length`.
-- Bulk action bar rendered above the `<Table>` when `selected.size > 0`.
-- Concurrency: simple `Promise.all` over chunks of 5 to avoid hammering the function.
-- Clear selection after a successful bulk action.
+### 4. Edge cases / UX polish
+- If filters reduce the list to zero rows, the button is disabled with a tooltip explaining "No students match the current filters".
+- The button respects the existing rule that the admin cannot suspend their own account: the admin’s own row is still selectable (same as today), but the backend blocks self-suspension and the client reports the failure.
+- No changes to the bulk action bar, confirmation dialog, concurrency, or edge-function invocation.
+
+## Files changed
+- `src/pages/admin/AdminStudents.tsx` only.
+
+## Out of scope
+- Backend changes.
+- Server-side pagination / "select all pages" behavior (all students are currently loaded client-side).
+- Changes to the existing header checkbox or row checkbox behavior.
+
+## Verification
+- Manual check: filter the list, click "Select all N students", confirm the bulk action bar shows N selected and the header checkbox becomes checked.
+- Manual check: click "Clear selection", confirm the bar disappears and checkboxes clear.
+- Manual check: select a few rows individually, then click "Select all N"; confirm the remaining filtered rows are added.
+- Run existing tests / typecheck to ensure no regressions.
+
+## Open question for you
+Should the button label count update to show the number of **currently selected** students when some but not all filtered rows are selected (e.g., "Select remaining 23")?
