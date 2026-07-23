@@ -538,6 +538,7 @@ export type Database = {
       }
       course_material_files: {
         Row: {
+          content_hash: string | null
           course_id: string
           created_at: string
           file_name: string
@@ -548,9 +549,12 @@ export type Database = {
           rag_indexed_at: string | null
           rag_status: string
           storage_path: string
+          superseded_at: string | null
+          superseded_by: string | null
           teacher_id: string
         }
         Insert: {
+          content_hash?: string | null
           course_id: string
           created_at?: string
           file_name: string
@@ -561,9 +565,12 @@ export type Database = {
           rag_indexed_at?: string | null
           rag_status?: string
           storage_path: string
+          superseded_at?: string | null
+          superseded_by?: string | null
           teacher_id: string
         }
         Update: {
+          content_hash?: string | null
           course_id?: string
           created_at?: string
           file_name?: string
@@ -574,6 +581,8 @@ export type Database = {
           rag_indexed_at?: string | null
           rag_status?: string
           storage_path?: string
+          superseded_at?: string | null
+          superseded_by?: string | null
           teacher_id?: string
         }
         Relationships: [
@@ -582,6 +591,13 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_material_files_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "course_material_files"
             referencedColumns: ["id"]
           },
           {

@@ -263,7 +263,7 @@ serve(async (req) => {
     const { data: file, error: fileErr } = await admin
       .from("course_material_files")
       .select(
-        "id, course_id, teacher_id, storage_path, file_name, folder_type",
+        "id, course_id, teacher_id, storage_path, file_name, folder_type, content_hash, rag_status, rag_indexed_at, updated_at",
       )
       .eq("id", fileId)
       .maybeSingle();
@@ -281,6 +281,18 @@ serve(async (req) => {
       );
     }
 
+    // Concurrency guard: if another invocation started within the last 60s,
+    // skip to avoid duplicate embed work on double-clicks / retries.
+    if (file.rag_status === "processing") {
+      const ts = file.updated_at ? new Date(file.updated_at).getTime() : 0;
+      if (Date.now() - ts < 60_000) {
+        return new Response(
+          JSON.stringify({ ok: true, skipped: true, reason: "in_progress" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
     await admin
       .from("course_material_files")
       .update({ rag_status: "processing", rag_error: null })
@@ -292,6 +304,26 @@ serve(async (req) => {
       .download(file.storage_path);
     if (dlErr || !blob) throw dlErr ?? new Error("download returned empty");
     const bytes = new Uint8Array(await blob.arrayBuffer());
+
+    // Content-hash short-circuit: if bytes match what we already indexed,
+    // skip extraction/embedding entirely.
+    const hashBuf = await crypto.subtle.digest("SHA-256", bytes);
+    const contentHash = Array.from(new Uint8Array(hashBuf))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    if (
+      file.content_hash === contentHash &&
+      file.rag_status === "indexed"
+    ) {
+      await admin
+        .from("course_material_files")
+        .update({ rag_indexed_at: new Date().toISOString(), rag_error: null })
+        .eq("id", fileId);
+      return new Response(
+        JSON.stringify({ ok: true, skipped: true, reason: "unchanged" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     // Extract text per page.
     const pages = await extractPdfPages(bytes);
@@ -328,6 +360,7 @@ serve(async (req) => {
           rag_status: "indexed",
           rag_indexed_at: new Date().toISOString(),
           rag_error: null,
+          content_hash: contentHash,
         })
         .eq("id", fileId);
       return new Response(
@@ -378,6 +411,7 @@ serve(async (req) => {
         rag_status: "indexed",
         rag_indexed_at: new Date().toISOString(),
         rag_error: null,
+        content_hash: contentHash,
       })
       .eq("id", fileId);
 

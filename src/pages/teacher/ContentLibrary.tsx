@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { FileText, Download, Upload, Trash2, Loader2, BookOpen, Library, FolderOpen } from "lucide-react";
+import { FileText, Download, Upload, Trash2, Loader2, BookOpen, Library, FolderOpen, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
@@ -10,6 +10,7 @@ import FileUploadZone from "@/components/FileUploadZone";
 import { toast } from "sonner";
 import CourseCreation from "@/pages/teacher/CourseCreation";
 import CourseStatusBanner from "@/components/CourseStatusBanner";
+import { replaceCourseMaterialFile, type MaterialFolderType } from "@/lib/courseMaterialFiles";
 
 interface StoredFile {
   id: string;
@@ -34,6 +35,9 @@ const ContentLibrary = () => {
   const [files, setFiles] = useState<StoredFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingFolder, setUploadingFolder] = useState<string | null>(null);
+  const [replacingId, setReplacingId] = useState<string | null>(null);
+  const replaceInputRef = useRef<HTMLInputElement | null>(null);
+  const replaceTargetRef = useRef<StoredFile | null>(null);
 
   const fetchFiles = async () => {
     if (!user || !courseId) { setLoading(false); return; }
@@ -70,6 +74,61 @@ const ContentLibrary = () => {
     setFiles((prev) => prev.filter((f) => f.id !== file.id));
     toast.success("File deleted");
   };
+
+  const openReplacePicker = (file: StoredFile) => {
+    replaceTargetRef.current = file;
+    replaceInputRef.current?.click();
+  };
+
+  const handleReplaceFileSelected = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const picked = e.target.files?.[0];
+    // Clear the input immediately so re-selecting the same file re-triggers.
+    if (replaceInputRef.current) replaceInputRef.current.value = "";
+    const target = replaceTargetRef.current;
+    replaceTargetRef.current = null;
+    if (!picked || !target || !user || !courseId) return;
+
+    setReplacingId(target.id);
+    try {
+      const stamp = Date.now();
+      const newPath = `${courseId}/${target.folder_type}/${stamp}-${picked.name}`;
+
+      const { error: upErr } = await supabase.storage
+        .from("course-materials")
+        .upload(newPath, picked, { upsert: false, contentType: picked.type || undefined });
+      if (upErr) {
+        toast.error(`Upload failed: ${upErr.message}`);
+        return;
+      }
+
+      const res = await replaceCourseMaterialFile({
+        old_file_id: target.id,
+        new_upload: {
+          course_id: courseId,
+          teacher_id: user.id,
+          storage_path: newPath,
+          file_name: picked.name,
+          file_size: picked.size,
+          folder_type: target.folder_type as MaterialFolderType,
+        },
+      });
+      if (!res) {
+        toast.error("Failed to register replacement");
+        return;
+      }
+      toast.success("Replacement uploaded — re-indexing in the background");
+      await fetchFiles();
+    } catch (err) {
+      console.error(err);
+      toast.error("Replace failed");
+    } finally {
+      setReplacingId(null);
+    }
+  };
+
+
 
   const handleDownloadSyllabus = async () => {
     if (!courseId) return;
@@ -137,6 +196,18 @@ const ContentLibrary = () => {
               <Button variant="ghost" size="sm" className="h-8" onClick={() => handleDownload(file)} title="Download">
                 <Download className="h-3.5 w-3.5" />
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8"
+                onClick={() => openReplacePicker(file)}
+                disabled={replacingId === file.id}
+                title="Replace with new version"
+              >
+                {replacingId === file.id
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <RefreshCw className="h-3.5 w-3.5" />}
+              </Button>
               <Button variant="ghost" size="sm" className="h-8 text-destructive hover:text-destructive" onClick={() => handleDelete(file)} title="Delete">
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -157,6 +228,13 @@ const ContentLibrary = () => {
 
   return (
     <div className="p-6">
+      <input
+        ref={replaceInputRef}
+        type="file"
+        accept={UPLOAD_ACCEPT}
+        className="hidden"
+        onChange={handleReplaceFileSelected}
+      />
       <div className="mb-6">
         <h1 className="font-heading text-3xl font-bold">Lesson Plan & Resources</h1>
         <p className="text-muted-foreground">Your published lesson plan and all course materials in one place. Edits here go live to students and the AI Teaching Assistant when you re-publish.</p>
