@@ -197,18 +197,44 @@ const ContentLibrary = () => {
           </div>
         )}
 
-        {folderFiles.map(file => (
-          <div key={file.id} className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        {folderFiles.map(file => {
+          const status = file.rag_status;
+          const isInFlight = status === "processing" || status === "pending" || (status === null && file.file_name.toLowerCase().endsWith(".pdf"));
+          return (
+          <div key={file.id} className="flex items-start gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
               <FileText className="h-5 w-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{file.file_name}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-medium truncate">{file.file_name}</p>
+                {isInFlight && (
+                  <Badge variant="secondary" className="gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Indexing…
+                  </Badge>
+                )}
+                {status === "indexed" && (
+                  <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-200">
+                    <CheckCircle2 className="h-3 w-3" /> Indexed
+                  </Badge>
+                )}
+                {status === "failed" && (
+                  <Badge variant="destructive" className="gap-1">
+                    <AlertCircle className="h-3 w-3" /> Failed
+                  </Badge>
+                )}
+                {status === "skipped" && (
+                  <Badge variant="outline" className="gap-1 text-muted-foreground">Skipped</Badge>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
                 {formatSize(file.file_size)} • Uploaded {new Date(file.created_at).toLocaleDateString()}
               </p>
+              {status === "failed" && file.rag_error && (
+                <p className="text-xs text-destructive mt-1 break-words">{file.rag_error}</p>
+              )}
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 shrink-0">
               <Button variant="ghost" size="sm" className="h-8" onClick={() => handleDownload(file)} title="Download">
                 <Download className="h-3.5 w-3.5" />
               </Button>
@@ -229,7 +255,8 @@ const ContentLibrary = () => {
               </Button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
