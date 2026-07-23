@@ -58,6 +58,10 @@ export interface AssessmentResults {
   score: number;
   flatScore?: number;
   weightedScore?: number;
+  /** Phase 8: 0..1 accuracy component of the 80/20 mastery score (quiz mode). */
+  accuracyScore?: number;
+  /** Phase 8: 0..1 pace component of the 80/20 mastery score (quiz mode). */
+  paceScore?: number;
   answers: StandardisedAnswer[];
   timeSpent: number;
   confidences?: Record<string, ConfidenceLevel>;
