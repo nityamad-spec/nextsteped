@@ -544,6 +544,9 @@ export type Database = {
           file_size: number
           folder_type: string
           id: string
+          rag_error: string | null
+          rag_indexed_at: string | null
+          rag_status: string
           storage_path: string
           teacher_id: string
         }
@@ -554,6 +557,9 @@ export type Database = {
           file_size: number
           folder_type: string
           id?: string
+          rag_error?: string | null
+          rag_indexed_at?: string | null
+          rag_status?: string
           storage_path: string
           teacher_id: string
         }
@@ -564,6 +570,9 @@ export type Database = {
           file_size?: number
           folder_type?: string
           id?: string
+          rag_error?: string | null
+          rag_indexed_at?: string | null
+          rag_status?: string
           storage_path?: string
           teacher_id?: string
         }
@@ -1474,6 +1483,75 @@ export type Database = {
           },
         ]
       }
+      rag_chunks: {
+        Row: {
+          chunk_index: number
+          content: string
+          course_id: string
+          created_at: string
+          embedding: string
+          file_id: string
+          file_name: string
+          folder_type: string | null
+          id: string
+          model_version: string
+          page_end: number | null
+          page_start: number | null
+          source_type: string
+          storage_path: string
+          token_count: number | null
+        }
+        Insert: {
+          chunk_index: number
+          content: string
+          course_id: string
+          created_at?: string
+          embedding: string
+          file_id: string
+          file_name: string
+          folder_type?: string | null
+          id?: string
+          model_version: string
+          page_end?: number | null
+          page_start?: number | null
+          source_type?: string
+          storage_path: string
+          token_count?: number | null
+        }
+        Update: {
+          chunk_index?: number
+          content?: string
+          course_id?: string
+          created_at?: string
+          embedding?: string
+          file_id?: string
+          file_name?: string
+          folder_type?: string | null
+          id?: string
+          model_version?: string
+          page_end?: number | null
+          page_start?: number | null
+          source_type?: string
+          storage_path?: string
+          token_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rag_chunks_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rag_chunks_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "course_material_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       setup_progress_log: {
         Row: {
           action: string
@@ -1974,6 +2052,25 @@ export type Database = {
       is_course_member: {
         Args: { _course_id: string; _user_id: string }
         Returns: boolean
+      }
+      match_rag_chunks: {
+        Args: {
+          _course_id: string
+          _folder_types?: string[]
+          _match_count?: number
+          _query_embedding: string
+        }
+        Returns: {
+          chunk_index: number
+          content: string
+          file_id: string
+          file_name: string
+          folder_type: string
+          id: string
+          page_end: number
+          page_start: number
+          similarity: number
+        }[]
       }
       reasoning_followup_analytics: {
         Args: { _course_id: string }
