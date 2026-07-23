@@ -57,6 +57,7 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher", courseId?
             hasCode: m.has_code ?? false,
             codeContent: m.code_content ?? undefined,
             codeLanguage: m.code_language ?? undefined,
+            metadata: ((m as any).metadata as ChatMessage["metadata"]) ?? undefined,
           })),
       }));
 
