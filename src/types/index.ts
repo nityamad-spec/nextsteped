@@ -47,6 +47,16 @@ export interface QuizQuestion {
   explanation: string;
 }
 
+export type ChatMessageVariant = "grounded" | "general_knowledge" | "fallback_prompt";
+
+export interface ChatMessageMetadata {
+  variant?: ChatMessageVariant;
+  /** Original user query the fallback prompt is asking about. */
+  pendingQuery?: string;
+  /** Once the user answers the fallback prompt, mark it resolved so buttons hide. */
+  fallbackResolved?: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -55,6 +65,7 @@ export interface ChatMessage {
   hasCode?: boolean;
   codeContent?: string;
   codeLanguage?: string;
+  metadata?: ChatMessageMetadata;
 }
 
 export interface ChatSession {

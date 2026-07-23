@@ -347,6 +347,7 @@ export type Database = {
           created_at: string
           has_code: boolean | null
           id: string
+          metadata: Json
           role: string
           session_id: string
           user_id: string
@@ -358,6 +359,7 @@ export type Database = {
           created_at?: string
           has_code?: boolean | null
           id?: string
+          metadata?: Json
           role: string
           session_id: string
           user_id: string
@@ -369,6 +371,7 @@ export type Database = {
           created_at?: string
           has_code?: boolean | null
           id?: string
+          metadata?: Json
           role?: string
           session_id?: string
           user_id?: string

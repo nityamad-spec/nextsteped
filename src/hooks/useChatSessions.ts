@@ -57,6 +57,7 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher", courseId?
             hasCode: m.has_code ?? false,
             codeContent: m.code_content ?? undefined,
             codeLanguage: m.code_language ?? undefined,
+            metadata: ((m as any).metadata as ChatMessage["metadata"]) ?? undefined,
           })),
       }));
 
@@ -127,12 +128,19 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher", courseId?
 
   // Add a message to the active session in DB
   const addMessage = useCallback(
-    async (sessionId: string, role: "user" | "assistant", content: string): Promise<string | null> => {
+    async (
+      sessionId: string,
+      role: "user" | "assistant",
+      content: string,
+      metadata?: ChatMessage["metadata"],
+    ): Promise<string | null> => {
       if (!user) return null;
       try {
+        const insertPayload: Record<string, unknown> = { session_id: sessionId, user_id: user.id, role, content };
+        if (metadata) insertPayload.metadata = metadata;
         const { data: msg, error } = await supabase
           .from("chat_messages")
-          .insert({ session_id: sessionId, user_id: user.id, role, content })
+          .insert(insertPayload as any)
           .select()
           .single();
 
@@ -149,6 +157,7 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher", courseId?
           role: role,
           content: msg.content,
           timestamp: new Date(msg.created_at).getTime(),
+          metadata: metadata ?? undefined,
         };
 
         setSessions((prev) =>
@@ -166,6 +175,33 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher", courseId?
       }
     },
     [user]
+  );
+
+  // Update metadata on an existing message (e.g. mark a fallback prompt as resolved).
+  const updateMessageMetadata = useCallback(
+    async (sessionId: string, messageId: string, metadata: ChatMessage["metadata"]) => {
+      try {
+        await supabase
+          .from("chat_messages")
+          .update({ metadata: metadata ?? {} } as any)
+          .eq("id", messageId);
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id !== sessionId
+              ? s
+              : {
+                  ...s,
+                  messages: s.messages.map((m) =>
+                    m.id === messageId ? { ...m, metadata } : m,
+                  ),
+                },
+          ),
+        );
+      } catch (e) {
+        console.error("Failed to update message metadata:", e);
+      }
+    },
+    []
   );
 
   // Update title based on first user message
@@ -225,6 +261,7 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher", courseId?
     loading,
     createSession,
     addMessage,
+    updateMessageMetadata,
     addMessageLocally,
     updateLastMessage,
     updateSessionTitle,
