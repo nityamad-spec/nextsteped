@@ -54,18 +54,20 @@ type Chunk = {
 };
 
 async function extractPdfPages(bytes: Uint8Array): Promise<PageText[]> {
-  // Point workerSrc at the legacy worker module. Deno resolves the npm:
-  // specifier and pdfjs is happy that the option is set. disableWorker still
-  // ensures we run inline (no Worker constructor in the edge runtime).
+  // pdfjs still tries to load a worker even when disableWorker is true if
+  // workerSrc is empty. Point it at a valid data: URL of an empty ES module
+  // so the fake-worker setup succeeds; disableWorker keeps execution inline.
   // deno-lint-ignore no-explicit-any
   (pdfjs as any).GlobalWorkerOptions.workerSrc =
-    "npm:pdfjs-dist@4.7.76/legacy/build/pdf.worker.mjs";
+    "data:application/javascript;base64,";
   const doc = await pdfjs.getDocument({
     data: bytes,
     disableWorker: true,
     isEvalSupported: false,
     useSystemFonts: true,
+    verbosity: 0,
   }).promise;
+
 
 
   const pages: PageText[] = [];
