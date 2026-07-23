@@ -189,19 +189,26 @@ const StudentHome = () => {
     (async () => {
       const { data, error } = await supabase
         .from("assessment_results")
-        .select("quiz_day, score")
+        .select("quiz_day, score, correct_answers, total_questions, time_spent")
         .eq("student_id", user.id)
         .eq("course_id", enrolledCourseId)
         .eq("mode", "daily_quiz");
       if (cancelled) return;
       if (error) { console.error("Taken quizzes load error:", error); setTakenQuizzes({}); return; }
-      const map: Record<number, { score: number }> = {};
+      const map: Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }> = {};
       (data || []).forEach((r: any) => {
         if (r.quiz_day != null) {
           const day = Number(r.quiz_day);
           const score = Number(r.score) || 0;
           // Keep the highest score in case any duplicates exist
-          if (!map[day] || score > map[day].score) map[day] = { score };
+          if (!map[day] || score > map[day].score) {
+            map[day] = {
+              score,
+              correctAnswers: Number(r.correct_answers) || 0,
+              totalQuestions: Number(r.total_questions) || 0,
+              timeSpent: Number(r.time_spent) || 0,
+            };
+          }
         }
       });
       setTakenQuizzes(map);
