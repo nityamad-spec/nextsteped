@@ -92,7 +92,6 @@ const ContentLibrary = () => {
 
     setReplacingId(target.id);
     try {
-      const ext = picked.name.includes(".") ? picked.name.slice(picked.name.lastIndexOf(".")) : "";
       const stamp = Date.now();
       const newPath = `${courseId}/${target.folder_type}/${stamp}-${picked.name}`;
 
@@ -127,8 +126,8 @@ const ContentLibrary = () => {
     } finally {
       setReplacingId(null);
     }
-    void ext;
   };
+
 
 
   const handleDownloadSyllabus = async () => {
