@@ -692,28 +692,47 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
           </div>
 
           <div className="space-y-1.5">
-            {pending.map((f, idx) => (
-              <div
-                key={`${f.name}-${idx}`}
-                className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm"
-              >
-                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="flex-1 truncate font-medium">{f.name}</span>
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
-                  {getExt(f.name)}
-                </span>
-                <span className="text-xs text-muted-foreground">{formatSize(f.size)}</span>
-                <button
-                  type="button"
-                  onClick={() => removePending(idx)}
-                  className="text-muted-foreground hover:text-destructive"
-                  title="Remove from list"
+            {pending.map((f, idx) => {
+              const progressKey = `${idx}::${f.name}`;
+              const pct = uploadProgress[progressKey];
+              const showBar = uploading && typeof pct === "number";
+              return (
+                <div
+                  key={`${f.name}-${idx}`}
+                  className="rounded-md border bg-background px-3 py-2 text-sm"
                 >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 truncate font-medium">{f.name}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                      {getExt(f.name)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{formatSize(f.size)}</span>
+                    {!uploading && (
+                      <button
+                        type="button"
+                        onClick={() => removePending(idx)}
+                        className="text-muted-foreground hover:text-destructive"
+                        title="Remove from list"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {showBar && (
+                    <div className="mt-2 space-y-1">
+                      <Progress value={pct} className="h-1.5" />
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                        <span>{pct < 100 ? "Uploading…" : "Upload complete"}</span>
+                        <span>{pct}%</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
+
 
           <label className="flex items-start gap-2 cursor-pointer pt-1">
             <Checkbox
