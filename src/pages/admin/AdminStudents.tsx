@@ -528,6 +528,36 @@ const AdminStudents = () => {
           </div>
         </CardHeader>
         <CardContent className="p-0">
+          {selectedInFiltered.length > 0 && (
+            <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/40 sticky top-0 z-10">
+              <span className="text-sm font-medium">{selectedInFiltered.length} selected</span>
+              <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelected(new Set())}>
+                Clear
+              </Button>
+              <div className="ml-auto flex items-center gap-2">
+                {selectedHasActive && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-8 gap-1.5"
+                    onClick={() => setBulkAction("suspend")}
+                  >
+                    <ShieldOff className="h-3.5 w-3.5" /> Suspend access
+                  </Button>
+                )}
+                {selectedHasSuspended && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5"
+                    onClick={() => setBulkAction("reactivate")}
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" /> Reactivate access
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
           {filtered.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center text-muted-foreground">
               <GraduationCap className="h-8 w-8 mb-2 opacity-60" />
@@ -538,6 +568,13 @@ const AdminStudents = () => {
               <Table>
                 <TableHeader className="bg-muted/40">
                   <TableRow>
+                    <TableHead className="w-[40px]">
+                      <Checkbox
+                        checked={allFilteredSelected ? true : someFilteredSelected ? "indeterminate" : false}
+                        onCheckedChange={toggleSelectAllFiltered}
+                        aria-label="Select all filtered students"
+                      />
+                    </TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Roll Number</TableHead>
