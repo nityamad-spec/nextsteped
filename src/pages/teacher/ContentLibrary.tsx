@@ -35,6 +35,9 @@ const ContentLibrary = () => {
   const [files, setFiles] = useState<StoredFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingFolder, setUploadingFolder] = useState<string | null>(null);
+  const [replacingId, setReplacingId] = useState<string | null>(null);
+  const replaceInputRef = useRef<HTMLInputElement | null>(null);
+  const replaceTargetRef = useRef<StoredFile | null>(null);
 
   const fetchFiles = async () => {
     if (!user || !courseId) { setLoading(false); return; }
