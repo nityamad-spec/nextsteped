@@ -701,6 +701,16 @@ const CourseMaterials = () => {
             Syllabus parsing failed. Use Retry on the file above before continuing.
           </p>
         )}
+        {anyIngestInFlight && (
+          <p className="text-xs text-muted-foreground text-center">
+            Indexing uploaded documents for AI retrieval… Next will enable when all files finish. Large PDFs can take a few minutes.
+          </p>
+        )}
+        {!anyIngestInFlight && totalIngestFailed > 0 && (
+          <p className="text-xs text-amber-600 text-center">
+            {totalIngestFailed} file{totalIngestFailed === 1 ? "" : "s"} failed to index for AI retrieval. You can continue, but those documents won't be searchable by the AI TA until re-uploaded.
+          </p>
+        )}
 
         <SetupModuleNav
           nextPath="/teacher/setup/concept-review"
