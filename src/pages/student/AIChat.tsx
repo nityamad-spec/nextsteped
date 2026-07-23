@@ -202,6 +202,7 @@ const AIChat = () => {
     addMessageLocally,
     updateLastMessage,
     updateSessionTitle,
+    updateMessageMetadata,
   } = useChatSessions(mode, enrolledCourseId);
 
   // Fetch course context for relevance classification + RAG metadata
