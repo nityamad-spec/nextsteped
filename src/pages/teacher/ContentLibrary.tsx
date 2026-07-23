@@ -75,6 +75,62 @@ const ContentLibrary = () => {
     toast.success("File deleted");
   };
 
+  const openReplacePicker = (file: StoredFile) => {
+    replaceTargetRef.current = file;
+    replaceInputRef.current?.click();
+  };
+
+  const handleReplaceFileSelected = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const picked = e.target.files?.[0];
+    // Clear the input immediately so re-selecting the same file re-triggers.
+    if (replaceInputRef.current) replaceInputRef.current.value = "";
+    const target = replaceTargetRef.current;
+    replaceTargetRef.current = null;
+    if (!picked || !target || !user || !courseId) return;
+
+    setReplacingId(target.id);
+    try {
+      const ext = picked.name.includes(".") ? picked.name.slice(picked.name.lastIndexOf(".")) : "";
+      const stamp = Date.now();
+      const newPath = `${courseId}/${target.folder_type}/${stamp}-${picked.name}`;
+
+      const { error: upErr } = await supabase.storage
+        .from("course-materials")
+        .upload(newPath, picked, { upsert: false, contentType: picked.type || undefined });
+      if (upErr) {
+        toast.error(`Upload failed: ${upErr.message}`);
+        return;
+      }
+
+      const res = await replaceCourseMaterialFile({
+        old_file_id: target.id,
+        new_upload: {
+          course_id: courseId,
+          teacher_id: user.id,
+          storage_path: newPath,
+          file_name: picked.name,
+          file_size: picked.size,
+          folder_type: target.folder_type as MaterialFolderType,
+        },
+      });
+      if (!res) {
+        toast.error("Failed to register replacement");
+        return;
+      }
+      toast.success("Replacement uploaded — re-indexing in the background");
+      await fetchFiles();
+    } catch (err) {
+      console.error(err);
+      toast.error("Replace failed");
+    } finally {
+      setReplacingId(null);
+    }
+    void ext;
+  };
+
+
   const handleDownloadSyllabus = async () => {
     if (!courseId) return;
     const { data, error } = await supabase.storage.from("course-materials").download(`${courseId}/syllabus/approved-syllabus.json`);
