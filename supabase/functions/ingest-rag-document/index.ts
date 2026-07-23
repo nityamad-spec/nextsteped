@@ -28,8 +28,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-// @ts-ignore - Deno type resolution for legacy build entry
-import * as pdfjs from "npm:pdfjs-dist@4.7.76/legacy/build/pdf.mjs";
+import { extractText, getDocumentProxy } from "npm:unpdf@0.12.1";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,30 +54,17 @@ type Chunk = {
 };
 
 async function extractPdfPages(bytes: Uint8Array): Promise<PageText[]> {
-  // Disable worker in Deno.
-  // deno-lint-ignore no-explicit-any
-  (pdfjs as any).GlobalWorkerOptions.workerSrc = "";
-  const doc = await pdfjs.getDocument({
-    data: bytes,
-    disableWorker: true,
-    isEvalSupported: false,
-    useSystemFonts: true,
-  }).promise;
-
-  const pages: PageText[] = [];
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const content = await page.getTextContent();
-    // deno-lint-ignore no-explicit-any
-    const text = (content.items as any[])
-      .map((it) => ("str" in it ? it.str : ""))
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim();
-    pages.push({ page: i, text, source: "pdf_text" });
-  }
-  return pages;
+  // unpdf wraps pdfjs for serverless/Deno — no worker setup required.
+  const pdf = await getDocumentProxy(bytes);
+  const { text } = await extractText(pdf, { mergePages: false });
+  const perPage = Array.isArray(text) ? text : [text];
+  return perPage.map((raw, idx) => ({
+    page: idx + 1,
+    text: (raw ?? "").replace(/\s+/g, " ").trim(),
+    source: "pdf_text" as const,
+  }));
 }
+
 
 async function ocrPage(
   pdfBase64: string,
@@ -263,7 +250,7 @@ serve(async (req) => {
     const { data: file, error: fileErr } = await admin
       .from("course_material_files")
       .select(
-        "id, course_id, teacher_id, storage_path, file_name, folder_type, content_hash, rag_status, rag_indexed_at, updated_at",
+        "id, course_id, teacher_id, storage_path, file_name, folder_type, content_hash, rag_status, rag_indexed_at",
       )
       .eq("id", fileId)
       .maybeSingle();
@@ -281,10 +268,11 @@ serve(async (req) => {
       );
     }
 
-    // Concurrency guard: if another invocation started within the last 60s,
-    // skip to avoid duplicate embed work on double-clicks / retries.
-    if (file.rag_status === "processing") {
-      const ts = file.updated_at ? new Date(file.updated_at).getTime() : 0;
+    // Concurrency guard: if a previous run marked this row 'processing' and
+    // successfully indexed within the last 60s, skip. If rag_indexed_at is
+    // null (e.g. a stuck/failed prior run), allow retry.
+    if (file.rag_status === "processing" && file.rag_indexed_at) {
+      const ts = new Date(file.rag_indexed_at).getTime();
       if (Date.now() - ts < 60_000) {
         return new Response(
           JSON.stringify({ ok: true, skipped: true, reason: "in_progress" }),
@@ -292,6 +280,7 @@ serve(async (req) => {
         );
       }
     }
+
 
     await admin
       .from("course_material_files")
@@ -420,8 +409,17 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    // Handle Error, Supabase PostgrestError (plain object), or unknown.
+    const anyE = e as { message?: string; error_description?: string; hint?: string; details?: string; code?: string };
+    let msg: string;
+    if (e instanceof Error) msg = e.message;
+    else if (anyE?.message) msg = anyE.message + (anyE.details ? ` (${anyE.details})` : "") + (anyE.code ? ` [${anyE.code}]` : "");
+    else if (anyE?.error_description) msg = anyE.error_description;
+    else {
+      try { msg = JSON.stringify(e); } catch { msg = String(e); }
+    }
     console.error("ingest-rag-document error:", msg);
+
     if (fileId) {
       await admin
         .from("course_material_files")
