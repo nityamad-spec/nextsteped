@@ -422,8 +422,17 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    // Handle Error, Supabase PostgrestError (plain object), or unknown.
+    const anyE = e as { message?: string; error_description?: string; hint?: string; details?: string; code?: string };
+    let msg: string;
+    if (e instanceof Error) msg = e.message;
+    else if (anyE?.message) msg = anyE.message + (anyE.details ? ` (${anyE.details})` : "") + (anyE.code ? ` [${anyE.code}]` : "");
+    else if (anyE?.error_description) msg = anyE.error_description;
+    else {
+      try { msg = JSON.stringify(e); } catch { msg = String(e); }
+    }
     console.error("ingest-rag-document error:", msg);
+
     if (fileId) {
       await admin
         .from("course_material_files")
