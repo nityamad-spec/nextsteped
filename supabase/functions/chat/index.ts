@@ -731,9 +731,17 @@ Rules:
       });
     }
 
-    return new Response(response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-    });
+    const streamHeaders: Record<string, string> = {
+      ...corsHeaders,
+      "Content-Type": "text/event-stream",
+    };
+    if (ragSources.length > 0) {
+      // Base64-encode to keep header ASCII-safe regardless of file names.
+      streamHeaders["x-rag-sources"] = btoa(
+        unescape(encodeURIComponent(JSON.stringify(ragSources))),
+      );
+    }
+    return new Response(response.body, { headers: streamHeaders });
   } catch (e) {
     console.error("Chat function error:", e);
     return new Response(
