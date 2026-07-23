@@ -785,6 +785,50 @@ const AdminStudents = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={!!bulkAction} onOpenChange={(o) => { if (!o && !bulkRunning) setBulkAction(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkAction === "suspend" ? "Suspend selected students?" : "Reactivate selected students?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                {(() => {
+                  const willSuspend = bulkAction === "suspend";
+                  const targets = selectedInFiltered.filter(s => willSuspend ? !s.suspended_at : !!s.suspended_at);
+                  const preview = targets.slice(0, 5).map(t => t.name).join(", ");
+                  const more = targets.length > 5 ? ` …and ${targets.length - 5} more` : "";
+                  return (
+                    <>
+                      <p>
+                        {willSuspend
+                          ? `${targets.length} student${targets.length === 1 ? "" : "s"} will be signed out and blocked from signing in. All their data is preserved and can be restored by reactivating.`
+                          : `${targets.length} student${targets.length === 1 ? "" : "s"} will be able to sign in again immediately.`}
+                      </p>
+                      {targets.length > 0 && (
+                        <p className="text-xs text-muted-foreground">{preview}{more}</p>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkRunning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); if (bulkAction) runBulk(bulkAction); }}
+              disabled={bulkRunning}
+              className={bulkAction === "suspend" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+            >
+              {bulkRunning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {bulkAction === "suspend" ? "Suspend all" : "Reactivate all"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+
       <StudentProfileDialog
         student={profileTarget}
         open={!!profileTarget}
