@@ -551,30 +551,47 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="rounded-lg bg-muted p-3">
+                <div className="group rounded-lg bg-muted p-3">
                   <p className="text-2xl font-bold text-primary">{results.score}%</p>
                   <p className="text-xs text-muted-foreground">Score</p>
-                  {isQuiz && (
-                    <div className="mt-2 space-y-0.5 text-left">
-                      <p className="text-[10px] leading-tight text-muted-foreground/80">
-                        Score accounts for question difficulty, accuracy, and time.
-                      </p>
-                      <p className="text-[10px] font-medium text-muted-foreground">
-                        {results.correctAnswers}/{results.totalQuestions} correct ({Math.round((results.correctAnswers / (results.totalQuestions || 1)) * 100)}%)
-                      </p>
-                      <p className="text-[10px] font-medium text-muted-foreground">
-                        {Math.round(results.timeSpent / (results.totalQuestions || 1))}s/question
-                      </p>
-                    </div>
-                  )}
+                  <div className="mt-2 space-y-0.5 text-left opacity-100 max-h-24 transition-all duration-200 sm:opacity-0 sm:max-h-0 sm:group-hover:opacity-100 sm:group-hover:max-h-24 overflow-hidden">
+                    <p className="text-[10px] leading-tight text-muted-foreground/80">
+                      {isQuiz
+                        ? "Score accounts for question difficulty, accuracy, and time."
+                        : "Score accounts for question difficulty and accuracy."}
+                    </p>
+                  </div>
                 </div>
-                <div className="rounded-lg bg-muted p-3">
+                <div className="group rounded-lg bg-muted p-3">
                   <p className="text-2xl font-bold">{results.correctAnswers}/{results.totalQuestions}</p>
                   <p className="text-xs text-muted-foreground">Correct</p>
+                  <div className="mt-2 space-y-0.5 text-left opacity-100 max-h-24 transition-all duration-200 sm:opacity-0 sm:max-h-0 sm:group-hover:opacity-100 sm:group-hover:max-h-24 overflow-hidden">
+                    <p className="text-[10px] leading-tight text-muted-foreground/80">
+                      Score accounts only for accuracy.
+                    </p>
+                    <p className="text-[10px] font-medium text-muted-foreground">
+                      {results.correctAnswers}/{results.totalQuestions} correct ({Math.round((results.correctAnswers / (results.totalQuestions || 1)) * 100)}%)
+                    </p>
+                  </div>
                 </div>
-                <div className="rounded-lg bg-muted p-3">
-                  <p className="text-2xl font-bold">{formatTime(results.timeSpent)}</p>
-                  <p className="text-xs text-muted-foreground">Time</p>
+                <div className="group rounded-lg bg-muted p-3">
+                  {(() => {
+                    const avgSec = Math.round(results.timeSpent / (results.totalQuestions || 1));
+                    return (
+                      <>
+                        <p className="text-2xl font-bold">{avgSec}s</p>
+                        <p className="text-xs text-muted-foreground">Time</p>
+                        <div className="mt-2 space-y-0.5 text-left opacity-100 max-h-24 transition-all duration-200 sm:opacity-0 sm:max-h-0 sm:group-hover:opacity-100 sm:group-hover:max-h-24 overflow-hidden">
+                          <p className="text-[10px] leading-tight text-muted-foreground/80">
+                            seconds per question
+                          </p>
+                          <p className="text-[10px] font-medium text-muted-foreground">
+                            {avgSec}s/question
+                          </p>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
               <Progress value={results.score} className="h-3" />
