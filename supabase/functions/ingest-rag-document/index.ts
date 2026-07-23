@@ -28,8 +28,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-// @ts-ignore - Deno type resolution for legacy build entry
-import * as pdfjs from "npm:pdfjs-dist@4.7.76/legacy/build/pdf.mjs";
+import { extractText, getDocumentProxy } from "npm:unpdf@0.12.1";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
