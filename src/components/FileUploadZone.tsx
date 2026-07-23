@@ -844,7 +844,8 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
             const isPdf = f.name.toLowerCase().endsWith(".pdf");
             const showIngest = isPdf || isFresh || !!ingest;
             const inFlightForFile = showIngest && (
-              (ingest ? isRagInFlight(ingest.status) : isFresh)
+              ingest?.status === "pending" || ingest?.status === "processing" ||
+              (isFresh && (!ingest || ingest.status === null))
             );
             return (
               <div
