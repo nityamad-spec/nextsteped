@@ -228,6 +228,13 @@ const ContentLibrary = () => {
 
   return (
     <div className="p-6">
+      <input
+        ref={replaceInputRef}
+        type="file"
+        accept={UPLOAD_ACCEPT}
+        className="hidden"
+        onChange={handleReplaceFileSelected}
+      />
       <div className="mb-6">
         <h1 className="font-heading text-3xl font-bold">Lesson Plan & Resources</h1>
         <p className="text-muted-foreground">Your published lesson plan and all course materials in one place. Edits here go live to students and the AI Teaching Assistant when you re-publish.</p>
