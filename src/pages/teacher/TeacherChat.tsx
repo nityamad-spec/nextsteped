@@ -314,11 +314,27 @@ const TeacherChat = () => {
       <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
         msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
       }`}>
-        {msg.role === "assistant" ? (
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-          </div>
-        ) : msg.content}
+        {msg.role === "assistant" ? (() => {
+          const { content: renderedContent, footnotes } = renderCitations(msg.content, msg.metadata?.sources);
+          const showFootnotes = footnotes.length > 0 && msg.metadata?.variant !== "general_knowledge";
+          return (
+            <>
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{renderedContent}</ReactMarkdown>
+              </div>
+              {showFootnotes && (
+                <div className="mt-3 border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
+                  <div className="mb-1 font-medium uppercase tracking-wide">Sources</div>
+                  <ol className="list-decimal space-y-0.5 pl-4">
+                    {footnotes.map((f) => (
+                      <li key={f.n}>{f.label}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </>
+          );
+        })() : msg.content}
         {msg.role === "assistant" && msg.metadata?.variant === "general_knowledge" && (
           <div className="mt-2">
             <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
