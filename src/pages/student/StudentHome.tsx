@@ -56,6 +56,14 @@ const MASTERY_SWATCH_CLASS: Record<MasteryLevel, string> = {
   expert: "bg-primary",
 };
 
+const accuracyPct = (correct: number, total: number) =>
+  total > 0 ? Math.round((correct / total) * 100) : 0;
+
+const formatAvgTime = (seconds: number, totalQuestions: number) => {
+  if (totalQuestions <= 0 || seconds <= 0) return "—";
+  return `${Math.round(seconds / totalQuestions)}s/question`;
+};
+
 
 const StudentHome = () => {
   const { studentProfile, currentCourse } = useApp();
