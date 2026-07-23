@@ -51,6 +51,11 @@ interface FileUploadZoneProps {
    *  rows are inserted). Use for post-upload side-effects like extracting
    *  links, kicking off background jobs, etc. */
   onUploadComplete?: (newFiles: UploadedFile[]) => void;
+  /** Fires when the aggregate ingest state for this zone changes. Parents use
+   *  this to gate Next-button navigation. `inFlight` is true while any file
+   *  is pending/processing; `failedCount` is the number of files whose ingest
+   *  ended in a failed state. */
+  onIngestStatusChange?: (state: { inFlight: boolean; failedCount: number }) => void;
 }
 
 function formatSize(bytes: number) {
