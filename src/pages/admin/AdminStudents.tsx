@@ -516,6 +516,39 @@ const AdminStudents = () => {
               Courses use AND (must be in all selected). Mastery uses OR (any selected level matches).
             </span>
             <div className="flex items-center gap-2 ml-auto">
+              {filtered.length === 0 ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button variant="outline" size="sm" className="h-8 gap-1.5" disabled>
+                        <Square className="h-3.5 w-3.5" /> Select all
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>No students match the current filters</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5"
+                  onClick={toggleSelectAllFiltered}
+                  aria-label={allFilteredSelected ? "Clear selection" : `Select all ${filtered.length} filtered students`}
+                >
+                  {allFilteredSelected ? (
+                    <X className="h-3.5 w-3.5" />
+                  ) : selectedInFiltered.length > 0 ? (
+                    <CheckSquare className="h-3.5 w-3.5" />
+                  ) : (
+                    <Square className="h-3.5 w-3.5" />
+                  )}
+                  {allFilteredSelected
+                    ? "Clear selection"
+                    : selectedInFiltered.length > 0
+                      ? `Select remaining ${filtered.length - selectedInFiltered.length}`
+                      : `Select all ${filtered.length}`}
+                </Button>
+              )}
               <span className="text-xs text-muted-foreground tabular-nums">
                 Showing {filtered.length} of {students.length}
               </span>
