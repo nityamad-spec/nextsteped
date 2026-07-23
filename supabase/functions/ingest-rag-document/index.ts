@@ -54,36 +54,17 @@ type Chunk = {
 };
 
 async function extractPdfPages(bytes: Uint8Array): Promise<PageText[]> {
-  // pdfjs still tries to load a worker even when disableWorker is true if
-  // workerSrc is empty. Point it at a valid data: URL of an empty ES module
-  // so the fake-worker setup succeeds; disableWorker keeps execution inline.
-  // deno-lint-ignore no-explicit-any
-  (pdfjs as any).GlobalWorkerOptions.workerSrc =
-    "data:application/javascript;base64,";
-  const doc = await pdfjs.getDocument({
-    data: bytes,
-    disableWorker: true,
-    isEvalSupported: false,
-    useSystemFonts: true,
-    verbosity: 0,
-  }).promise;
-
-
-
-  const pages: PageText[] = [];
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const content = await page.getTextContent();
-    // deno-lint-ignore no-explicit-any
-    const text = (content.items as any[])
-      .map((it) => ("str" in it ? it.str : ""))
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim();
-    pages.push({ page: i, text, source: "pdf_text" });
-  }
-  return pages;
+  // unpdf wraps pdfjs for serverless/Deno — no worker setup required.
+  const pdf = await getDocumentProxy(bytes);
+  const { text } = await extractText(pdf, { mergePages: false });
+  const perPage = Array.isArray(text) ? text : [text];
+  return perPage.map((raw, idx) => ({
+    page: idx + 1,
+    text: (raw ?? "").replace(/\s+/g, " ").trim(),
+    source: "pdf_text" as const,
+  }));
 }
+
 
 async function ocrPage(
   pdfBase64: string,
