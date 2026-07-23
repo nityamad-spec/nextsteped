@@ -1,48 +1,30 @@
-Plan: Show weekly quiz scoring breakdown on Student Home
+## Plan: Update weekly quiz score card with breakdown lines
 
-Goal
-On /student/home, inside each unit's weekly-quiz card, show a short explanation of how the displayed score is calculated and surface the accuracy-only score plus average time per question.
+### Goal
+Update the "Weekly Quiz Complete" score card in `src/components/AssessmentView.tsx` so that the **Score** stat card shows three explanatory lines underneath the percentage, matching the uploaded screenshot reference.
 
-Current state
-- `StudentHome.tsx` loads `assessment_results` for the enrolled course and stores `takenQuizzes` as `Record<number, { score: number }>`.
-- The unit card renders: `Completed — ${taken.score}%` when a quiz has been taken.
-- `assessment_results` already stores `correct_answers`, `total_questions`, and `time_spent`, so no backend/schema changes are needed.
+### Current state
+- The review screen renders three stat cards: **Score**, **Correct**, **Time**.
+- `AssessmentResults` already carries `score`, `correctAnswers`, `totalQuestions`, and `timeSpent`.
+- No data model or backend changes are required.
 
-Changes
+### Changes
+1. **UI update in `src/components/AssessmentView.tsx`** (review screen, ~lines 553–566)
+   - Under the `Score` stat card, add three lines in small muted text:
+     - `Score accounts for question difficulty, accuracy, and time.`
+     - `Correct accuracy: {correctAnswers}/{totalQuestions} correct ({pct}%)`
+     - `Average pace: {avg}s/question`
+   - Compute `pct` as `Math.round((correctAnswers / (totalQuestions || 1)) * 100)`.
+   - Compute `avg` as `Math.round(timeSpent / (totalQuestions || 1))`.
+   - Guard against division by zero with `|| 1`.
 
-1. Extend quiz-result fetch
-   - In the `assessment_results` query inside `StudentHome.tsx`, also select `correct_answers`, `total_questions`, and `time_spent`.
-   - Update `takenQuizzes` state to `Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }>`.
-   - Keep the existing "highest score wins" merge logic, but now merge all four fields from the row with the highest score.
+2. **Scope**
+   - Apply only to `isQuiz === true` (weekly quiz), since the uploaded image and request refer to the weekly quiz completion card.
+   - Leave the existing **Correct** and **Time** stat cards unchanged so the summary still displays them prominently.
 
-2. Add display helpers
-   - `formatAvgTime(seconds, totalQuestions)` → returns a compact string like `"45s/question"`, with safe handling for zero questions.
-   - `accuracyPct(correct, total)` → returns the integer percentage used in the breakdown.
+### Verification
+- Run TypeScript typecheck.
+- If any existing tests fail, report them for approval before fixing (per `TESTING.md` / project memory rule).
 
-3. Update the unit-card quiz row UI
-   - Keep the existing `Completed — ${score}%` line.
-   - Directly underneath it, render three small muted lines:
-     - `"Score accounts for question difficulty, accuracy, and time."`
-     - `"${correctAnswers}/${totalQuestions} correct (${accuracyPct}%)"`
-     - `"${avgTime}s/question"`
-   - Use the existing `text-xs text-muted-foreground` style so the breakdown is subordinate to the main score.
-   - Hide the new lines when the quiz has not been taken (unchanged behavior).
-
-4. Verify no regressions
-   - `passedQuizCount` and `progressPct` still rely on `score > 50`; no logic change is required.
-   - Any other consumers of `takenQuizzes` only read `.score`; the type change is backward-compatible in runtime.
-   - Run typecheck and the existing `StudentHome.test.tsx` suite; report failures rather than auto-fixing per project memory.
-
-Files touched
-- `src/pages/student/StudentHome.tsx` (fetch, state, UI)
-
-Out of scope
-- No changes to the scoring math itself (already implemented in `masteryScoring.ts` / `AssessmentView.tsx`).
-- No changes to the Course Progress top-line summary.
-- No new backend migrations or edge functions.
-
-Risks / constraints
-- Historical rows that pre-date `correct_answers`/`time_spent` may have zeros; the helper should guard against division by zero and display `"—"` for missing time.
-- The UI should remain compact inside the unit card so the lesson-plan accordion does not become unwieldy.
-
-Estimated size: small, single-file frontend change.
+### Open question
+- Should the same three lines also appear on the **Exam Practice Complete** card, or is this strictly for the weekly quiz?

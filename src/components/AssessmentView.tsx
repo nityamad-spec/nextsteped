@@ -554,6 +554,19 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                 <div className="rounded-lg bg-muted p-3">
                   <p className="text-2xl font-bold text-primary">{results.score}%</p>
                   <p className="text-xs text-muted-foreground">Score</p>
+                  {isQuiz && (
+                    <div className="mt-2 space-y-0.5 text-left">
+                      <p className="text-[10px] leading-tight text-muted-foreground/80">
+                        Score accounts for question difficulty, accuracy, and time.
+                      </p>
+                      <p className="text-[10px] font-medium text-muted-foreground">
+                        {results.correctAnswers}/{results.totalQuestions} correct ({Math.round((results.correctAnswers / (results.totalQuestions || 1)) * 100)}%)
+                      </p>
+                      <p className="text-[10px] font-medium text-muted-foreground">
+                        {Math.round(results.timeSpent / (results.totalQuestions || 1))}s/question
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="rounded-lg bg-muted p-3">
                   <p className="text-2xl font-bold">{results.correctAnswers}/{results.totalQuestions}</p>
