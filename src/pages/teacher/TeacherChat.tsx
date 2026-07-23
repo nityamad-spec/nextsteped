@@ -207,6 +207,17 @@ const TeacherChat = () => {
         return;
       }
 
+      // Structured RAG citations (base64-encoded JSON) — safe to ignore if absent.
+      let ragSources: RagSource[] | undefined;
+      const rawSources = resp.headers.get("x-rag-sources");
+      if (rawSources) {
+        try {
+          ragSources = JSON.parse(decodeURIComponent(escape(atob(rawSources)))) as RagSource[];
+        } catch (e) {
+          console.warn("Failed to parse x-rag-sources header:", e);
+        }
+      }
+
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let textBuffer = "";
@@ -276,7 +287,10 @@ const TeacherChat = () => {
             activeChat.id,
             "assistant",
             cleaned,
-            { variant: isGeneral ? "general_knowledge" : "grounded" },
+            {
+              variant: isGeneral ? "general_knowledge" : "grounded",
+              ...(ragSources && ragSources.length ? { sources: ragSources } : {}),
+            },
           );
         }
       }
