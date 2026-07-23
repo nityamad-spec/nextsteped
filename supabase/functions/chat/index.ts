@@ -35,12 +35,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { retrieveContext } from "../_shared/rag-retrieve.ts";
-import { buildMaterialsGrounding, GENERAL_KNOWLEDGE_SUFFIX, SIM_THRESHOLD } from "../_shared/chat-grounding.ts";
+import { buildMaterialsGrounding, GENERAL_KNOWLEDGE_SUFFIX, SIM_THRESHOLD, type RagSource } from "../_shared/chat-grounding.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Expose-Headers": "x-rag-sources",
 };
 
 // ---------- In-memory TTL cache (per warm instance) ----------
@@ -497,6 +498,7 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
     // can ask the user whether to answer from general knowledge instead.
     let materialsContext = "";
     let materialsInsufficient = false;
+    let ragSources: RagSource[] = [];
     if (grounding === "rag" && courseId) {
       const latestUserMessage = (messages?.[messages.length - 1]?.content || "").toString();
       if (latestUserMessage.trim()) {
@@ -507,6 +509,7 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
             materialsInsufficient = true;
           } else {
             materialsContext = grounded.materialsContext;
+            ragSources = grounded.sources;
           }
         } catch (e) {
           console.warn("RAG retrieval failed:", e);
@@ -728,9 +731,17 @@ Rules:
       });
     }
 
-    return new Response(response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-    });
+    const streamHeaders: Record<string, string> = {
+      ...corsHeaders,
+      "Content-Type": "text/event-stream",
+    };
+    if (ragSources.length > 0) {
+      // Base64-encode to keep header ASCII-safe regardless of file names.
+      streamHeaders["x-rag-sources"] = btoa(
+        unescape(encodeURIComponent(JSON.stringify(ragSources))),
+      );
+    }
+    return new Response(response.body, { headers: streamHeaders });
   } catch (e) {
     console.error("Chat function error:", e);
     return new Response(

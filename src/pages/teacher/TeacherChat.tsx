@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
 import { useChatSessions } from "@/hooks/useChatSessions";
-import { ChatMessage } from "@/types";
+import { ChatMessage, RagSource } from "@/types";
+import { renderCitations } from "@/lib/renderCitations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Plus, History, MessageSquare, ChevronLeft, Loader2, Sparkles, User, ListChecks, BookOpen, Search, ClipboardList, Lightbulb, MessageCircle } from "lucide-react";
@@ -10,6 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
@@ -207,6 +209,17 @@ const TeacherChat = () => {
         return;
       }
 
+      // Structured RAG citations (base64-encoded JSON) — safe to ignore if absent.
+      let ragSources: RagSource[] | undefined;
+      const rawSources = resp.headers.get("x-rag-sources");
+      if (rawSources) {
+        try {
+          ragSources = JSON.parse(decodeURIComponent(escape(atob(rawSources)))) as RagSource[];
+        } catch (e) {
+          console.warn("Failed to parse x-rag-sources header:", e);
+        }
+      }
+
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let textBuffer = "";
@@ -276,7 +289,10 @@ const TeacherChat = () => {
             activeChat.id,
             "assistant",
             cleaned,
-            { variant: isGeneral ? "general_knowledge" : "grounded" },
+            {
+              variant: isGeneral ? "general_knowledge" : "grounded",
+              ...(ragSources && ragSources.length ? { sources: ragSources } : {}),
+            },
           );
         }
       }
@@ -299,11 +315,27 @@ const TeacherChat = () => {
       <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
         msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
       }`}>
-        {msg.role === "assistant" ? (
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-          </div>
-        ) : msg.content}
+        {msg.role === "assistant" ? (() => {
+          const { content: renderedContent, footnotes } = renderCitations(msg.content, msg.metadata?.sources);
+          const showFootnotes = footnotes.length > 0 && msg.metadata?.variant !== "general_knowledge";
+          return (
+            <>
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{renderedContent}</ReactMarkdown>
+              </div>
+              {showFootnotes && (
+                <div className="mt-3 border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
+                  <div className="mb-1 font-medium uppercase tracking-wide">Sources</div>
+                  <ol className="list-decimal space-y-0.5 pl-4">
+                    {footnotes.map((f) => (
+                      <li key={f.n}>{f.label}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </>
+          );
+        })() : msg.content}
         {msg.role === "assistant" && msg.metadata?.variant === "general_knowledge" && (
           <div className="mt-2">
             <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">

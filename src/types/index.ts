@@ -49,12 +49,25 @@ export interface QuizQuestion {
 
 export type ChatMessageVariant = "grounded" | "general_knowledge" | "fallback_prompt";
 
+export interface RagSource {
+  n: number;
+  file_id?: string;
+  file_name: string;
+  folder_type?: string | null;
+  chunk_index?: number;
+  page_start?: number | null;
+  page_end?: number | null;
+  label: string;
+}
+
 export interface ChatMessageMetadata {
   variant?: ChatMessageVariant;
   /** Original user query the fallback prompt is asking about. */
   pendingQuery?: string;
   /** Once the user answers the fallback prompt, mark it resolved so buttons hide. */
   fallbackResolved?: boolean;
+  /** Structured RAG citations rendered as footnotes below the message. */
+  sources?: RagSource[];
 }
 
 export interface ChatMessage {
