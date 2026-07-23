@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Upload, Check, X, FileText, Loader2, Trash2, RefreshCw, AlertTriangle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { markStepCompleted } from "@/lib/setupProgress";
 import { emitWipe } from "@/lib/wipeEvents";
 import { upsertCourseMaterialFile } from "@/lib/courseMaterialFiles";
+import RagStatusBadge from "@/components/RagStatusBadge";
+import { useRagStatus, isRagInFlight } from "@/hooks/useRagStatus";
 import {
   AlertDialog,
   AlertDialogAction,
