@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import StudentProfileDialog from "@/components/admin/StudentProfileDialog";
@@ -124,8 +125,10 @@ const AdminStudents = () => {
   const [masteryFilter, setMasteryFilter] = useState<Set<string>>(new Set());
   const [profileTarget, setProfileTarget] = useState<StudentGroup | null>(null);
   const [exporting, setExporting] = useState(false);
-  
-  
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<"suspend" | "reactivate" | null>(null);
+  const [bulkRunning, setBulkRunning] = useState(false);
+
   const { toast } = useToast();
 
   const toggleRow = (key: string) => {
@@ -361,6 +364,77 @@ const AdminStudents = () => {
     }
   };
 
+  const selectedInFiltered = useMemo(
+    () => filtered.filter(s => selected.has(s.key)),
+    [filtered, selected],
+  );
+  const allFilteredSelected = filtered.length > 0 && selectedInFiltered.length === filtered.length;
+  const someFilteredSelected = selectedInFiltered.length > 0 && !allFilteredSelected;
+  const selectedHasSuspended = selectedInFiltered.some(s => s.suspended_at);
+  const selectedHasActive = selectedInFiltered.some(s => !s.suspended_at);
+
+  const toggleSelectAllFiltered = () => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        filtered.forEach(s => next.delete(s.key));
+      } else {
+        filtered.forEach(s => next.add(s.key));
+      }
+      return next;
+    });
+  };
+  const toggleSelected = (key: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const runBulk = async (action: "suspend" | "reactivate") => {
+    const willSuspend = action === "suspend";
+    const targets = selectedInFiltered.filter(s => willSuspend ? !s.suspended_at : !!s.suspended_at);
+    if (targets.length === 0) { setBulkAction(null); return; }
+    setBulkRunning(true);
+    const successes: string[] = [];
+    const failures: { name: string; err: string }[] = [];
+    const CONCURRENCY = 5;
+    for (let i = 0; i < targets.length; i += CONCURRENCY) {
+      const chunk = targets.slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(async (s) => {
+        const { data, error } = await supabase.functions.invoke("admin-set-student-suspension", {
+          body: { user_id: s.primaryProfileId, suspended: willSuspend },
+        });
+        if (error || (data as any)?.error) {
+          failures.push({ name: s.name, err: (data as any)?.error || error?.message || "Unknown error" });
+        } else {
+          successes.push(s.key);
+          const newVal = (data as any)?.suspended_at ?? null;
+          setStudents(prev => prev.map(x => x.key === s.key ? { ...x, suspended_at: newVal } : x));
+        }
+      }));
+    }
+    setBulkRunning(false);
+    setBulkAction(null);
+    setSelected(new Set());
+    if (failures.length === 0) {
+      toast({
+        title: willSuspend ? `Suspended ${successes.length}` : `Reactivated ${successes.length}`,
+        description: willSuspend
+          ? "Selected students can no longer sign in. Data is preserved."
+          : "Selected students can sign in again.",
+      });
+    } else {
+      toast({
+        title: `${successes.length} succeeded, ${failures.length} failed`,
+        description: failures.slice(0, 3).map(f => `${f.name}: ${f.err}`).join("; ") + (failures.length > 3 ? `; …and ${failures.length - 3} more` : ""),
+        variant: "destructive",
+      });
+    }
+  };
+
+
   if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
 
   const expectedConfirm = (target?.email || target?.name || "").trim();
@@ -454,6 +528,36 @@ const AdminStudents = () => {
           </div>
         </CardHeader>
         <CardContent className="p-0">
+          {selectedInFiltered.length > 0 && (
+            <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/40 sticky top-0 z-10">
+              <span className="text-sm font-medium">{selectedInFiltered.length} selected</span>
+              <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelected(new Set())}>
+                Clear
+              </Button>
+              <div className="ml-auto flex items-center gap-2">
+                {selectedHasActive && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-8 gap-1.5"
+                    onClick={() => setBulkAction("suspend")}
+                  >
+                    <ShieldOff className="h-3.5 w-3.5" /> Suspend access
+                  </Button>
+                )}
+                {selectedHasSuspended && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5"
+                    onClick={() => setBulkAction("reactivate")}
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" /> Reactivate access
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
           {filtered.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center text-muted-foreground">
               <GraduationCap className="h-8 w-8 mb-2 opacity-60" />
@@ -464,6 +568,13 @@ const AdminStudents = () => {
               <Table>
                 <TableHeader className="bg-muted/40">
                   <TableRow>
+                    <TableHead className="w-[40px]">
+                      <Checkbox
+                        checked={allFilteredSelected ? true : someFilteredSelected ? "indeterminate" : false}
+                        onCheckedChange={toggleSelectAllFiltered}
+                        aria-label="Select all filtered students"
+                      />
+                    </TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Roll Number</TableHead>
@@ -482,6 +593,13 @@ const AdminStudents = () => {
                         onClick={() => setProfileTarget(s)}
                         className={cn(idx % 2 === 1 && "bg-muted/20", "hover:bg-muted/40 transition-colors cursor-pointer")}
                       >
+                        <TableCell className="align-top" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selected.has(s.key)}
+                            onCheckedChange={() => toggleSelected(s.key)}
+                            aria-label={`Select ${s.name}`}
+                          />
+                        </TableCell>
                         <TableCell className={cn("font-medium align-top", s.suspended_at && "opacity-60")}>
                           <div className="flex items-center gap-2">
                             <span>{s.name}</span>
@@ -666,6 +784,50 @@ const AdminStudents = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={!!bulkAction} onOpenChange={(o) => { if (!o && !bulkRunning) setBulkAction(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkAction === "suspend" ? "Suspend selected students?" : "Reactivate selected students?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                {(() => {
+                  const willSuspend = bulkAction === "suspend";
+                  const targets = selectedInFiltered.filter(s => willSuspend ? !s.suspended_at : !!s.suspended_at);
+                  const preview = targets.slice(0, 5).map(t => t.name).join(", ");
+                  const more = targets.length > 5 ? ` …and ${targets.length - 5} more` : "";
+                  return (
+                    <>
+                      <p>
+                        {willSuspend
+                          ? `${targets.length} student${targets.length === 1 ? "" : "s"} will be signed out and blocked from signing in. All their data is preserved and can be restored by reactivating.`
+                          : `${targets.length} student${targets.length === 1 ? "" : "s"} will be able to sign in again immediately.`}
+                      </p>
+                      {targets.length > 0 && (
+                        <p className="text-xs text-muted-foreground">{preview}{more}</p>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkRunning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); if (bulkAction) runBulk(bulkAction); }}
+              disabled={bulkRunning}
+              className={bulkAction === "suspend" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+            >
+              {bulkRunning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {bulkAction === "suspend" ? "Suspend all" : "Reactivate all"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       <StudentProfileDialog
         student={profileTarget}
