@@ -511,17 +511,32 @@ serve(async (req) => {
     if (isJsonPlan) {
       chunks = await buildLessonPlanChunks(admin, file.course_id, bytes);
     } else {
+      // Guard: reject PDFs above MAX_PDF_PAGES before doing any expensive work.
+      const pdfProxy = await getDocumentProxy(bytes);
+      if (pdfProxy.numPages > MAX_PDF_PAGES) {
+        throw new Error(
+          `PDF has ${pdfProxy.numPages} pages, exceeds ${MAX_PDF_PAGES}-page limit`,
+        );
+      }
       const pages = await extractPdfPages(bytes);
 
-      // OCR fallback for empty pages.
+      // OCR fallback for empty pages — capped at OCR_MAX_PAGES so a scanned
+      // 1500-page book doesn't try to OCR every page.
       const emptyPageNums = pages
         .filter((p) => p.text.replace(/\s+/g, "").length < OCR_MIN_CHARS)
         .map((p) => p.page);
-      if (emptyPageNums.length > 0) {
+      const ocrTargets = emptyPageNums.slice(0, OCR_MAX_PAGES);
+      const ocrSkipped = emptyPageNums.length - ocrTargets.length;
+      if (ocrSkipped > 0) {
+        console.warn(
+          `[ingest-rag] OCR cap hit: OCRing ${ocrTargets.length} of ${emptyPageNums.length} low-text pages (skipped ${ocrSkipped})`,
+        );
+      }
+      if (ocrTargets.length > 0) {
         let bin = "";
         for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
         const b64 = btoa(bin);
-        for (const pageNum of emptyPageNums) {
+        for (const pageNum of ocrTargets) {
           try {
             const text = await ocrPage(b64, pageNum, lovableKey);
             const idx = pages.findIndex((p) => p.page === pageNum);
