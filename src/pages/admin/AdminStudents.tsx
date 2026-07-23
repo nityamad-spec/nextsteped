@@ -125,8 +125,10 @@ const AdminStudents = () => {
   const [masteryFilter, setMasteryFilter] = useState<Set<string>>(new Set());
   const [profileTarget, setProfileTarget] = useState<StudentGroup | null>(null);
   const [exporting, setExporting] = useState(false);
-  
-  
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<"suspend" | "reactivate" | null>(null);
+  const [bulkRunning, setBulkRunning] = useState(false);
+
   const { toast } = useToast();
 
   const toggleRow = (key: string) => {
