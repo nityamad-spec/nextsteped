@@ -1001,7 +1001,10 @@ const AIChat = () => {
             activeChat.id,
             "assistant",
             cleaned,
-            { variant: isGeneral ? "general_knowledge" : "grounded" },
+            {
+              variant: isGeneral ? "general_knowledge" : "grounded",
+              ...(ragSources && ragSources.length ? { sources: ragSources } : {}),
+            },
           );
         }
       }
