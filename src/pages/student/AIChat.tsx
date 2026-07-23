@@ -1107,6 +1107,40 @@ const AIChat = () => {
               <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>{displayContent}</ReactMarkdown>
             </div>
           )}
+          {!isUser && msg.metadata?.variant === "general_knowledge" && (
+            <div className="mt-2">
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                <Sparkles className="h-3 w-3" /> AI general knowledge — not from course materials
+              </span>
+            </div>
+          )}
+          {!isUser && msg.metadata?.variant === "fallback_prompt" && !msg.metadata?.fallbackResolved && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={async () => {
+                  const q = msg.metadata?.pendingQuery ?? "";
+                  if (!q || !activeChat) return;
+                  await updateMessageMetadata(activeChat.id, msg.id, { ...msg.metadata!, fallbackResolved: true });
+                  sendMessage(q, undefined, { grounding: "general", skipSaveUser: true });
+                }}
+                disabled={isStreaming || isCooldown}
+              >
+                Yes, use general knowledge
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  if (!activeChat) return;
+                  await updateMessageMetadata(activeChat.id, msg.id, { ...msg.metadata!, fallbackResolved: true });
+                }}
+                disabled={isStreaming || isCooldown}
+              >
+                No, stay in course materials
+              </Button>
+            </div>
+          )}
           {msg.timestamp && (
             <div className={`text-[10px] mt-1.5 ${isUser ? "text-primary-foreground/60 text-right" : "text-muted-foreground text-right"}`}>
               {formatTimestamp(msg.timestamp)}
