@@ -176,6 +176,35 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     return () => { cancelled = true; };
   }, [folderType, courseId, files]);
 
+  // RAG ingest status for every file this zone is responsible for. Polls
+  // course_material_files.rag_status while anything is still in-flight.
+  const trackedPaths = useMemo(() => {
+    const set = new Set<string>();
+    for (const f of files) set.add(f.path);
+    for (const p of freshlyUploadedPaths) set.add(p);
+    return Array.from(set);
+  }, [files, freshlyUploadedPaths]);
+  const ragStatus = useRagStatus(trackedPaths, { enabled: trackedPaths.length > 0 });
+
+  // Aggregate ingest state → parent (Next-button gate).
+  const ingestInFlight = useMemo(() => {
+    return trackedPaths.some((p) => {
+      const entry = ragStatus[p];
+      // Freshly uploaded but not yet in DB → treat as in-flight.
+      if (!entry && freshlyUploadedPaths.has(p)) return true;
+      return entry ? isRagInFlight(entry.status) : false;
+    });
+  }, [trackedPaths, ragStatus, freshlyUploadedPaths]);
+  const ingestFailedCount = useMemo(
+    () => trackedPaths.filter((p) => ragStatus[p]?.status === "failed").length,
+    [trackedPaths, ragStatus],
+  );
+  useEffect(() => {
+    onIngestStatusChange?.({ inFlight: ingestInFlight, failedCount: ingestFailedCount });
+  }, [ingestInFlight, ingestFailedCount, onIngestStatusChange]);
+
+
+
   const atCapacity = typeof maxFiles === "number" && files.length + pending.length >= maxFiles;
   const remainingSlots = typeof maxFiles === "number"
     ? Math.max(0, maxFiles - files.length - pending.length)
