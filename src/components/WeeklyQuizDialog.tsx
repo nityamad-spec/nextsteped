@@ -287,6 +287,7 @@ const WeeklyQuizDialog = ({
                 day={day ?? 1}
                 onEnd={handleEnd}
                 onSubmit={handleSubmit}
+                questionMeta={questionMeta}
                 followupsByParentId={followupsByParentId}
               />
 

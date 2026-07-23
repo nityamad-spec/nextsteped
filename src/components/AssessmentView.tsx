@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle, Clock, Trophy, ClipboardList, GraduationCap, ShieldCheck, Loader2, BookOpen, Lightbulb, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { computeWeeklyQuizScore, type ScoreItem } from "@/lib/masteryScoring";
 
 interface AssessmentViewProps {
   type: "quiz" | "exam";
@@ -57,6 +58,10 @@ export interface AssessmentResults {
   score: number;
   flatScore?: number;
   weightedScore?: number;
+  /** Phase 8: 0..1 accuracy component of the 80/20 mastery score (quiz mode). */
+  accuracyScore?: number;
+  /** Phase 8: 0..1 pace component of the 80/20 mastery score (quiz mode). */
+  paceScore?: number;
   answers: StandardisedAnswer[];
   timeSpent: number;
   confidences?: Record<string, ConfidenceLevel>;
@@ -195,7 +200,8 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     const correct = standardised.filter(a => a.is_correct).length;
     const flatScore = Math.round((correct / questions.length) * 100);
 
-    // Weighted score (difficulty × Bloom) when meta is available.
+    // Weighted score (difficulty × Bloom) when meta is available. Retained for
+    // backward compatibility with existing review UI + analytics consumers.
     let weightedScore: number | undefined;
     if (questionMeta && questionMeta.size > 0) {
       let num = 0;
@@ -209,12 +215,42 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       if (den > 0) weightedScore = Math.round((num / den) * 100);
     }
 
+    // Phase 8: quiz mode uses the diagnostic 80% accuracy + 20% pace blend,
+    // extended with the Phase 5 reasoning boost/penalty inside accuracy.
+    // Exam / other modes keep the legacy weighted-accuracy display.
+    let accuracyScore: number | undefined;
+    let paceScore: number | undefined;
+    let displayScore = weightedScore ?? flatScore;
+    if (type === "quiz" && questionMeta && questionMeta.size > 0) {
+      const items: ScoreItem[] = standardised.map(a => {
+        const meta = questionMeta.get(a.question_id) ?? { difficulty: 0.5, bloom: 1 };
+        // questionTimes is tracked in seconds; convert to ms for the pace formula.
+        const secs = finalTimes[a.question_id] ?? 0;
+        return {
+          difficulty: meta.difficulty,
+          bloom: meta.bloom,
+          is_correct: a.is_correct,
+          time_ms: secs * 1000,
+          reasoning_is_correct:
+            a.reasoning_is_correct === true || a.reasoning_is_correct === false
+              ? a.reasoning_is_correct
+              : null,
+        };
+      });
+      const scored = computeWeeklyQuizScore(items);
+      accuracyScore = scored.accuracyScore;
+      paceScore = scored.paceScore;
+      displayScore = scored.displayScore;
+    }
+
     const res: AssessmentResults = {
       totalQuestions: questions.length,
       correctAnswers: correct,
-      score: weightedScore ?? flatScore,
+      score: displayScore,
       flatScore,
       weightedScore,
+      accuracyScore,
+      paceScore,
       answers: standardised,
       timeSpent: timeLimitMinutes * 60 - timeLeft,
       questionTimes: finalTimes,
