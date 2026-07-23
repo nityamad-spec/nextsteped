@@ -1,82 +1,48 @@
-# Phase 8 — Align weekly-quiz scoring with diagnostic (80% accuracy + 20% pace)
+Plan: Show weekly quiz scoring breakdown on Student Home
 
-Replace the current weighted-accuracy-only score in `AssessmentView.handleFinish` (for `type === "quiz"`) with the same formula `score-diagnostic` uses, computed client-side. Historical `assessment_results` rows are left as-is.
+Goal
+On /student/home, inside each unit's weekly-quiz card, show a short explanation of how the displayed score is calculated and surface the accuracy-only score plus average time per question.
 
-## Current behavior (to replace)
+Current state
+- `StudentHome.tsx` loads `assessment_results` for the enrolled course and stores `takenQuizzes` as `Record<number, { score: number }>`.
+- The unit card renders: `Completed — ${taken.score}%` when a quiz has been taken.
+- `assessment_results` already stores `correct_answers`, `total_questions`, and `time_spent`, so no backend/schema changes are needed.
 
-`src/components/AssessmentView.tsx` (lines ~195–215) computes two scores:
-- `flatScore = correct / total * 100`
-- `weightedScore = Σ(earned) / Σ(maxPoints) * 100`, where `maxPoints = difficulty × BLOOM_WEIGHT[bloom]`
+Changes
 
-It stores `score = weightedScore ?? flatScore`. There is no pace component. Reasoning follow-ups already flow into `answers[]` but do not affect the displayed score.
+1. Extend quiz-result fetch
+   - In the `assessment_results` query inside `StudentHome.tsx`, also select `correct_answers`, `total_questions`, and `time_spent`.
+   - Update `takenQuizzes` state to `Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }>`.
+   - Keep the existing "highest score wins" merge logic, but now merge all four fields from the row with the highest score.
 
-## Target formula (mirrors `supabase/functions/score-diagnostic/index.ts`)
+2. Add display helpers
+   - `formatAvgTime(seconds, totalQuestions)` → returns a compact string like `"45s/question"`, with safe handling for zero questions.
+   - `accuracyPct(correct, total)` → returns the integer percentage used in the breakdown.
 
-```
-accuracyScore = Σ(earned) / Σ(maxPoints)          // primaries + reasoning (see below)
-paceScore     = mean(paceCurve(actualMs / expectedMs))  // primaries only
-masteryScore  = 0.80 * accuracyScore + 0.20 * paceScore
-displayScore  = round(masteryScore * 100)
-```
+3. Update the unit-card quiz row UI
+   - Keep the existing `Completed — ${score}%` line.
+   - Directly underneath it, render three small muted lines:
+     - `"Score accounts for question difficulty, accuracy, and time."`
+     - `"${correctAnswers}/${totalQuestions} correct (${accuracyPct}%)"`
+     - `"${avgTime}s/question"`
+   - Use the existing `text-xs text-muted-foreground` style so the breakdown is subordinate to the main score.
+   - Hide the new lines when the quiz has not been taken (unchanged behavior).
 
-Constants copied verbatim from `score-diagnostic` CONFIG:
-- `BLOOM_WEIGHT { 1:1.0, 2:1.2, 3:1.5, 4:1.8, 5:2.1, 6:2.5 }`
-- `EXPECTED_TIME_BASE_MS { 1:20k, 2:30k, 3:45k, 4:60k, 5:80k, 6:110k }`
-- `DIFFICULTY_TIME_FACTOR(d) = 0.6 + 1.0 * clamp01(d)`
-- `paceCurve` (guess floor 0.2, fast cutoff 0.25, slow decay 2.0)
-- `WEIGHTS { accuracy: 0.80, pace: 0.20 }`
+4. Verify no regressions
+   - `passedQuizCount` and `progressPct` still rely on `score > 50`; no logic change is required.
+   - Any other consumers of `takenQuizzes` only read `.score`; the type change is backward-compatible in runtime.
+   - Run typecheck and the existing `StudentHome.test.tsx` suite; report failures rather than auto-fixing per project memory.
 
-## Reasoning follow-up contribution to displayed score
+Files touched
+- `src/pages/student/StudentHome.tsx` (fetch, state, UI)
 
-Reuse the Phase 5 numerator/denominator math so on-screen score reflects the same signal `update-mastery` uses:
+Out of scope
+- No changes to the scoring math itself (already implemented in `masteryScoring.ts` / `AssessmentView.tsx`).
+- No changes to the Course Progress top-line summary.
+- No new backend migrations or edge functions.
 
-```
-For each primary i with maxPoints_i = difficulty_i × BLOOM_WEIGHT[bloom_i]:
-  earned        += is_correct ? maxPoints_i : 0
-  maxPoints_sum += maxPoints_i
+Risks / constraints
+- Historical rows that pre-date `correct_answers`/`time_spent` may have zeros; the helper should guard against division by zero and display `"—"` for missing time.
+- The UI should remain compact inside the unit card so the lesson-plan accordion does not become unwieldy.
 
-  if is_correct && reasoning_is_correct === true:
-      earned        += 0.5 * maxPoints_i        // REASONING_BOOST_FRACTION
-      maxPoints_sum += 0.5 * maxPoints_i
-  else if is_correct && reasoning_is_correct === false:
-      maxPoints_sum += 0.25 * maxPoints_i       // REASONING_PENALTY_FRACTION (denominator only)
-  // reasoning_is_correct === null → ignored
-  // primary incorrect → reasoning ignored
-```
-
-Pace uses **primaries only** (matches diagnostic; reasoning items don't have calibrated expected times and adding them would distort pace).
-
-`correctAnswers` and `totalQuestions` continue to count primaries only — no analytics regression.
-
-## Files touched
-
-1. **`src/components/AssessmentView.tsx`** (quiz-only branch of `handleFinish`)
-   - Add local `BLOOM_WEIGHT`, `EXPECTED_TIME_BASE_MS`, `paceCurve`, `clamp01` constants matching `score-diagnostic`. (Note: `BLOOM_WEIGHT` already exists in the file; reuse it and verify parity.)
-   - Compute `accuracyScore` including reasoning boost/penalty as above.
-   - Compute `paceScore` from `questionTimes[q.id]` (ms) using `EXPECTED_TIME_BASE_MS[bloom] * DIFFICULTY_TIME_FACTOR(difficulty)`; skip questions with missing/zero time (fallback to expected → pace 1.0), matching diagnostic.
-   - `score = round((0.80 * accuracy + 0.20 * pace) * 100)`.
-   - Only apply to `type === "quiz"`. Exam / practice keep existing math.
-   - Keep `flatScore` and `weightedScore` fields on `AssessmentResults` for backward compatibility (existing review UI reads them); add optional `paceScore` and `accuracyScore` fields for future analytics.
-
-2. **`src/data/questionBank.ts` / result types** — extend `AssessmentResults` with optional `accuracyScore` and `paceScore` (0..1).
-
-## Non-goals
-
-- No edge function (`score-weekly-quiz` deferred).
-- No changes to `update-mastery` — Phase 5 math is unchanged.
-- No changes to `assessment_results` schema.
-- No backfill of historical rows.
-- No changes to exam or practice scoring.
-
-## Risks
-
-- **Score drops on the same performance.** Adding a 20% pace factor typically lowers scores for slow-but-correct students. Acceptable and intended (matches diagnostic).
-- **`questionTimes` reliability.** If per-question timing is ever missing (older sessions, race conditions), pace defaults to 1.0 for that item — no crash, but pace signal is weakened. Verified `AssessmentView` already tracks `questionTimes` per question.
-- **Constants drift.** Constants are duplicated between client and `score-diagnostic`. Mitigation: colocate in a small `src/lib/masteryScoring.ts` module and document that it must stay in sync with the edge function's CONFIG. A future edge-function migration (option B/C) would collapse the duplication.
-- **Reasoning-in-accuracy vs mastery double count.** The displayed score and `update-mastery` both apply the boost/penalty. This is intentional (student sees the same signal that drives mastery), but worth flagging.
-
-## Test updates
-
-- Extend `src/components/WeeklyQuizDialog.test.tsx` with a case asserting the submitted `score` reflects the 80/20 split (e.g., all-correct + slow answers scores below 100).
-- Add a unit test on the new scoring helper (if extracted to `src/lib/masteryScoring.ts`) covering: all-correct fast, all-correct slow, half-correct, reasoning boost, reasoning penalty, missing timings.
-- Per the `no-auto-fix-on-test-failure` rule, any failing tests will be reported for approval before code changes.
+Estimated size: small, single-file frontend change.

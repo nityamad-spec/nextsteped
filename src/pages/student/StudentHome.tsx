@@ -56,6 +56,14 @@ const MASTERY_SWATCH_CLASS: Record<MasteryLevel, string> = {
   expert: "bg-primary",
 };
 
+const accuracyPct = (correct: number, total: number) =>
+  total > 0 ? Math.round((correct / total) * 100) : 0;
+
+const formatAvgTime = (seconds: number, totalQuestions: number) => {
+  if (totalQuestions <= 0 || seconds <= 0) return "—";
+  return `${Math.round(seconds / totalQuestions)}s/question`;
+};
+
 
 const StudentHome = () => {
   const { studentProfile, currentCourse } = useApp();
@@ -105,7 +113,9 @@ const StudentHome = () => {
   const [diagGate, setDiagGate] = useState<{ open: boolean; context: string }>({ open: false, context: "" });
   const [conceptMastery, setConceptMastery] = useState<Record<string, { score: number; attempted: number }>>({});
   const [courseMastery, setCourseMastery] = useState<number | null>(null);
-  const [takenQuizzes, setTakenQuizzes] = useState<Record<number, { score: number }>>({});
+  const [takenQuizzes, setTakenQuizzes] = useState<
+    Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }>
+  >({});
   const [availableQuizDays, setAvailableQuizDays] = useState<Set<number>>(new Set());
 
   // Course Progress: weekly quizzes passed (score > 50%) / quizzes the professor has published
@@ -187,19 +197,26 @@ const StudentHome = () => {
     (async () => {
       const { data, error } = await supabase
         .from("assessment_results")
-        .select("quiz_day, score")
+        .select("quiz_day, score, correct_answers, total_questions, time_spent")
         .eq("student_id", user.id)
         .eq("course_id", enrolledCourseId)
         .eq("mode", "daily_quiz");
       if (cancelled) return;
       if (error) { console.error("Taken quizzes load error:", error); setTakenQuizzes({}); return; }
-      const map: Record<number, { score: number }> = {};
+      const map: Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }> = {};
       (data || []).forEach((r: any) => {
         if (r.quiz_day != null) {
           const day = Number(r.quiz_day);
           const score = Number(r.score) || 0;
           // Keep the highest score in case any duplicates exist
-          if (!map[day] || score > map[day].score) map[day] = { score };
+          if (!map[day] || score > map[day].score) {
+            map[day] = {
+              score,
+              correctAnswers: Number(r.correct_answers) || 0,
+              totalQuestions: Number(r.total_questions) || 0,
+              timeSpent: Number(r.time_spent) || 0,
+            };
+          }
         }
       });
       setTakenQuizzes(map);
@@ -867,6 +884,19 @@ const StudentHome = () => {
                                       ? `Completed — ${taken.score}%`
                                       : "Optional — one attempt only"}
                                   </p>
+                                  {taken && (
+                                    <div className="mt-1 space-y-0.5">
+                                      <p className="text-[10px] text-muted-foreground">
+                                        Score accounts for question difficulty, accuracy, and time.
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {taken.correctAnswers}/{taken.totalQuestions} correct ({accuracyPct(taken.correctAnswers, taken.totalQuestions)}%)
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {formatAvgTime(taken.timeSpent, taken.totalQuestions)}
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               {taken ? (
