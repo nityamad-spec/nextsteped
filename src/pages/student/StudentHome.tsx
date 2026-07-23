@@ -884,6 +884,19 @@ const StudentHome = () => {
                                       ? `Completed — ${taken.score}%`
                                       : "Optional — one attempt only"}
                                   </p>
+                                  {taken && (
+                                    <div className="mt-1 space-y-0.5">
+                                      <p className="text-[10px] text-muted-foreground">
+                                        Score accounts for question difficulty, accuracy, and time.
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {taken.correctAnswers}/{taken.totalQuestions} correct ({accuracyPct(taken.correctAnswers, taken.totalQuestions)}%)
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {formatAvgTime(taken.timeSpent, taken.totalQuestions)}
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               {taken ? (
