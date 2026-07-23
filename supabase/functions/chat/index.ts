@@ -658,8 +658,7 @@ PROFESSOR STYLE
 
     let fullSystemPrompt = systemPrompt + ragContext + materialsContext;
     if (grounding === "general") {
-      fullSystemPrompt +=
-        `\n\n--- GENERAL KNOWLEDGE MODE ---\nThe course's uploaded materials did not sufficiently cover this question, and the student explicitly opted in to a general-knowledge answer. Answer from your general knowledge, keeping it accurate and educational. Note briefly that this answer is not drawn from the professor's uploaded course materials. End your response with the exact token [[GENERAL_KNOWLEDGE]] on its own line.\n--- END GENERAL KNOWLEDGE MODE ---`;
+      fullSystemPrompt += GENERAL_KNOWLEDGE_SUFFIX;
     }
 
     // "Explore this week's news" — enable web-grounded search via OpenRouter :online plugin.
