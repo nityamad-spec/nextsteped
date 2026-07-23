@@ -105,7 +105,9 @@ const StudentHome = () => {
   const [diagGate, setDiagGate] = useState<{ open: boolean; context: string }>({ open: false, context: "" });
   const [conceptMastery, setConceptMastery] = useState<Record<string, { score: number; attempted: number }>>({});
   const [courseMastery, setCourseMastery] = useState<number | null>(null);
-  const [takenQuizzes, setTakenQuizzes] = useState<Record<number, { score: number }>>({});
+  const [takenQuizzes, setTakenQuizzes] = useState<
+    Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }>
+  >({});
   const [availableQuizDays, setAvailableQuizDays] = useState<Set<number>>(new Set());
 
   // Course Progress: weekly quizzes passed (score > 50%) / quizzes the professor has published
