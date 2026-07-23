@@ -19,6 +19,8 @@ interface StoredFile {
   folder_type: string;
   storage_path: string;
   created_at: string;
+  rag_status: string | null;
+  rag_error: string | null;
 }
 
 const UPLOAD_ACCEPT = ".pdf,.pptx,.docx,.txt,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp";
