@@ -786,10 +786,17 @@ const AIChat = () => {
     return fetch(url, options);
   };
 
-  const sendMessage = useCallback(async (overrideContent?: string, promptMode?: PromptMode) => {
+  const sendMessage = useCallback(async (
+    overrideContent?: string,
+    promptMode?: PromptMode,
+    opts?: { grounding?: "rag" | "general"; skipSaveUser?: boolean },
+  ) => {
     const contentToSend = (overrideContent ?? input).trim();
     if (!contentToSend || !activeChat || isStreaming || isCooldown) return;
     if (assessmentActive) return;
+
+    const grounding: "rag" | "general" = opts?.grounding ?? "rag";
+    const skipSaveUser = !!opts?.skipSaveUser;
 
     // Rate limiting: enforce 3-second minimum gap
     const now = Date.now();
@@ -800,15 +807,17 @@ const AIChat = () => {
     lastSendTime.current = now;
 
     const userContent = contentToSend;
-    setInput("");
+    if (!skipSaveUser) setInput("");
     setIsStreaming(true);
     setIsCooldown(true);
     setTimeout(() => setIsCooldown(false), 3000);
 
-    await addMessage(activeChat.id, "user", userContent);
+    if (!skipSaveUser) {
+      await addMessage(activeChat.id, "user", userContent);
+    }
 
     const userMsgCount = activeChat.messages.filter((m) => m.role === "user").length;
-    if (userMsgCount === 0) {
+    if (userMsgCount === 0 && !skipSaveUser) {
       const shortTitle = userContent.slice(0, 50) + (userContent.length > 50 ? "..." : "");
       updateSessionTitle(activeChat.id, shortTitle);
     }
@@ -869,6 +878,7 @@ const AIChat = () => {
           ...(relevanceContext ? { relevanceContext } : {}),
           courseId: enrolledCourseId || undefined,
           studentId: user?.id || undefined,
+          grounding,
         }),
       });
 
@@ -877,6 +887,22 @@ const AIChat = () => {
         toast.error(errorData.error || "Failed to get AI response");
         setIsStreaming(false);
         return;
+      }
+
+      // Non-stream JSON fallback: RAG returned insufficient context
+      const contentType = resp.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        const data = await resp.json().catch(() => ({} as any));
+        if (data?.needs_fallback) {
+          await addMessage(
+            activeChat.id,
+            "assistant",
+            "I couldn't find enough in the uploaded course materials to answer this. Would you like me to answer from general knowledge instead?",
+            { variant: "fallback_prompt", pendingQuery: userContent },
+          );
+          setIsStreaming(false);
+          return;
+        }
       }
 
       if (!resp.body) {
@@ -942,7 +968,27 @@ const AIChat = () => {
       }
 
       if (assistantContent) {
-        await addMessage(activeChat.id, "assistant", assistantContent);
+        // Model-signalled fallback via [[NEEDS_FALLBACK]] sentinel
+        if (assistantContent.trim() === "[[NEEDS_FALLBACK]]" || assistantContent.includes("[[NEEDS_FALLBACK]]")) {
+          await addMessage(
+            activeChat.id,
+            "assistant",
+            "I couldn't find enough in the uploaded course materials to answer this. Would you like me to answer from general knowledge instead?",
+            { variant: "fallback_prompt", pendingQuery: userContent },
+          );
+        } else {
+          const isGeneral = grounding === "general" || assistantContent.includes("[[GENERAL_KNOWLEDGE]]");
+          const cleaned = assistantContent
+            .replace(/\[\[GENERAL_KNOWLEDGE\]\]/g, "")
+            .replace(/\[\[NEEDS_FALLBACK\]\]/g, "")
+            .trim();
+          await addMessage(
+            activeChat.id,
+            "assistant",
+            cleaned,
+            { variant: isGeneral ? "general_knowledge" : "grounded" },
+          );
+        }
       }
     } catch (e) {
       console.error("Chat error:", e);
@@ -951,7 +997,7 @@ const AIChat = () => {
       setIsStreaming(false);
       setStreamingMessage(null);
     }
-  }, [input, activeChat, isStreaming, isCooldown, mode, assessmentActive, addMessage, updateSessionTitle]);
+  }, [input, activeChat, isStreaming, isCooldown, mode, assessmentActive, addMessage, updateSessionTitle, courseContext, taSettings, enrolledCourseId, user?.id]);
 
   const handleCodeSubmit = () => {
     if (!codeInput.trim()) return;
