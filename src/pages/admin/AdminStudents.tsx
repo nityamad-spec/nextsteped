@@ -364,6 +364,77 @@ const AdminStudents = () => {
     }
   };
 
+  const selectedInFiltered = useMemo(
+    () => filtered.filter(s => selected.has(s.key)),
+    [filtered, selected],
+  );
+  const allFilteredSelected = filtered.length > 0 && selectedInFiltered.length === filtered.length;
+  const someFilteredSelected = selectedInFiltered.length > 0 && !allFilteredSelected;
+  const selectedHasSuspended = selectedInFiltered.some(s => s.suspended_at);
+  const selectedHasActive = selectedInFiltered.some(s => !s.suspended_at);
+
+  const toggleSelectAllFiltered = () => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        filtered.forEach(s => next.delete(s.key));
+      } else {
+        filtered.forEach(s => next.add(s.key));
+      }
+      return next;
+    });
+  };
+  const toggleSelected = (key: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const runBulk = async (action: "suspend" | "reactivate") => {
+    const willSuspend = action === "suspend";
+    const targets = selectedInFiltered.filter(s => willSuspend ? !s.suspended_at : !!s.suspended_at);
+    if (targets.length === 0) { setBulkAction(null); return; }
+    setBulkRunning(true);
+    const successes: string[] = [];
+    const failures: { name: string; err: string }[] = [];
+    const CONCURRENCY = 5;
+    for (let i = 0; i < targets.length; i += CONCURRENCY) {
+      const chunk = targets.slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(async (s) => {
+        const { data, error } = await supabase.functions.invoke("admin-set-student-suspension", {
+          body: { user_id: s.primaryProfileId, suspended: willSuspend },
+        });
+        if (error || (data as any)?.error) {
+          failures.push({ name: s.name, err: (data as any)?.error || error?.message || "Unknown error" });
+        } else {
+          successes.push(s.key);
+          const newVal = (data as any)?.suspended_at ?? null;
+          setStudents(prev => prev.map(x => x.key === s.key ? { ...x, suspended_at: newVal } : x));
+        }
+      }));
+    }
+    setBulkRunning(false);
+    setBulkAction(null);
+    setSelected(new Set());
+    if (failures.length === 0) {
+      toast({
+        title: willSuspend ? `Suspended ${successes.length}` : `Reactivated ${successes.length}`,
+        description: willSuspend
+          ? "Selected students can no longer sign in. Data is preserved."
+          : "Selected students can sign in again.",
+      });
+    } else {
+      toast({
+        title: `${successes.length} succeeded, ${failures.length} failed`,
+        description: failures.slice(0, 3).map(f => `${f.name}: ${f.err}`).join("; ") + (failures.length > 3 ? `; …and ${failures.length - 3} more` : ""),
+        variant: "destructive",
+      });
+    }
+  };
+
+
   if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
 
   const expectedConfirm = (target?.email || target?.name || "").trim();
