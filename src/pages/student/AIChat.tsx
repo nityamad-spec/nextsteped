@@ -1069,6 +1069,13 @@ const AIChat = () => {
     const displayContent = !isUser ? normalizeExamWelcomeMessage(msg.content) : msg.content;
     const hasPracticeQuestions = !isUser && displayContent.includes("```practice-questions");
     const parsed = hasPracticeQuestions ? parsePracticeQuestions(displayContent) : null;
+    const citation = !isUser ? renderCitations(displayContent, msg.metadata?.sources) : null;
+    const displayContentForRender = citation ? citation.content : displayContent;
+    const showFootnotes = !isUser && citation && citation.footnotes.length > 0 && msg.metadata?.variant !== "general_knowledge";
+    const renderText = (raw: string) => {
+      const { content } = !isUser ? renderCitations(raw, msg.metadata?.sources) : { content: raw };
+      return content;
+    };
 
     return (
       <div key={msg.id} className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
@@ -1095,7 +1102,7 @@ const AIChat = () => {
                   <div key={pi} className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
                     isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
                   }`}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>{part.content.trim()}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>{renderText(part.content.trim())}</ReactMarkdown>
                   </div>
                 ) : null
               )}
@@ -1104,7 +1111,17 @@ const AIChat = () => {
             <div className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
               isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
             }`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={markdownComponents}>{displayContent}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>{displayContentForRender}</ReactMarkdown>
+            </div>
+          )}
+          {showFootnotes && (
+            <div className="mt-3 border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
+              <div className="mb-1 font-medium uppercase tracking-wide">Sources</div>
+              <ol className="list-decimal space-y-0.5 pl-4">
+                {citation!.footnotes.map((f) => (
+                  <li key={f.n}>{f.label}</li>
+                ))}
+              </ol>
             </div>
           )}
           {!isUser && msg.metadata?.variant === "general_knowledge" && (
