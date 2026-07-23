@@ -141,7 +141,7 @@ export async function upsertCourseMaterialFile(
     });
   }
 
-  await fireIngest(data.id, args.file_name);
+  await fireIngest(data.id, args.file_name, args.folder_type);
 }
 
 export interface ReplaceCourseMaterialFileArgs {
