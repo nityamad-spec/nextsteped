@@ -261,6 +261,7 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher", courseId?
     loading,
     createSession,
     addMessage,
+    updateMessageMetadata,
     addMessageLocally,
     updateLastMessage,
     updateSessionTitle,
