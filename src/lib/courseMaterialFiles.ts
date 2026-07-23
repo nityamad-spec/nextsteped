@@ -196,7 +196,7 @@ export async function replaceCourseMaterialFile(
     console.warn("replaceCourseMaterialFile supersede failed:", supErr.message);
   }
 
-  await fireIngest(inserted.id, new_upload.file_name);
+  await fireIngest(inserted.id, new_upload.file_name, new_upload.folder_type);
   return { new_file_id: inserted.id };
 }
 
