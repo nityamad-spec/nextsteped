@@ -73,6 +73,7 @@ const TeacherChat = () => {
     addMessageLocally,
     updateLastMessage,
     updateSessionTitle,
+    updateMessageMetadata,
   } = useChatSessions("teacher", courseId);
 
   // Fetch course context
