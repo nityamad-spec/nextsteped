@@ -84,7 +84,7 @@ async function fileToBase64(file: File): Promise<string> {
   return btoa(binary);
 }
 
-const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, teacherId, folderType, maxFiles, onParseStatusChange, onUploadComplete }: FileUploadZoneProps) => {
+const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, teacherId, folderType, maxFiles, onParseStatusChange, onUploadComplete, onIngestStatusChange }: FileUploadZoneProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [pending, setPending] = useState<File[]>([]);
@@ -96,6 +96,11 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const [parseStartedAt, setParseStartedAt] = useState<Record<string, number>>({});
   const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
+  // Per-pending-file upload % (keyed by file.name + idx while in pending set).
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  // Paths uploaded during this component's lifetime — surfaces the "Indexing…"
+  // badge immediately without needing rag_status to arrive first.
+  const [freshlyUploadedPaths, setFreshlyUploadedPaths] = useState<Set<string>>(new Set());
 
   // Estimated durations (ms) for the syllabus upload + parse pipeline.
   const UPLOAD_EST_MS = 4000;
