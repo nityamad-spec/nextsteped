@@ -664,7 +664,11 @@ PROFESSOR STYLE
       systemPrompt = `${systemPrompt}\n\nIMPORTANT: The user's question is not relevant to ${relevanceContext.courseName}.${conceptsList} Do NOT answer it. Reply in 1–2 short sentences saying it's outside the scope of this course and invite them to ask something related (you may suggest one of the listed concepts). Do not provide a partial answer, analogy, workaround, or "real-world bridge" — just decline politely and redirect.`;
     }
 
-    let fullSystemPrompt = systemPrompt + ragContext;
+    let fullSystemPrompt = systemPrompt + ragContext + materialsContext;
+    if (grounding === "general") {
+      fullSystemPrompt +=
+        `\n\n--- GENERAL KNOWLEDGE MODE ---\nThe course's uploaded materials did not sufficiently cover this question, and the student explicitly opted in to a general-knowledge answer. Answer from your general knowledge, keeping it accurate and educational. Note briefly that this answer is not drawn from the professor's uploaded course materials. End your response with the exact token [[GENERAL_KNOWLEDGE]] on its own line.\n--- END GENERAL KNOWLEDGE MODE ---`;
+    }
 
     // "Explore this week's news" — enable web-grounded search via OpenRouter :online plugin.
     // "materials" is a placeholder for now and behaves like normal chat.
