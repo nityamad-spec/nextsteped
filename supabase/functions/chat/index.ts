@@ -498,6 +498,7 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
     // can ask the user whether to answer from general knowledge instead.
     let materialsContext = "";
     let materialsInsufficient = false;
+    let ragSources: RagSource[] = [];
     if (grounding === "rag" && courseId) {
       const latestUserMessage = (messages?.[messages.length - 1]?.content || "").toString();
       if (latestUserMessage.trim()) {
@@ -508,6 +509,7 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
             materialsInsufficient = true;
           } else {
             materialsContext = grounded.materialsContext;
+            ragSources = grounded.sources;
           }
         } catch (e) {
           console.warn("RAG retrieval failed:", e);
