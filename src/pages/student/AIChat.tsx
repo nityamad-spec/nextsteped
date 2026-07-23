@@ -6,7 +6,7 @@ import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { useDiagnosticStatus } from "@/hooks/useDiagnosticStatus";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
-import { ChatMessage } from "@/types";
+import { ChatMessage, RagSource } from "@/types";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
