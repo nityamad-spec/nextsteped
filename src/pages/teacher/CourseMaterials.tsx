@@ -411,7 +411,10 @@ const CourseMaterials = () => {
   const syllabusStatuses = syllabusFiles.map((f) => syllabusParseStatus[f.path]);
   const anyParsed = syllabusStatuses.some((s) => s === "parsed");
   const allFailed = hasSyllabus && syllabusStatuses.every((s) => s === "failed");
-  const canContinue = hasSyllabus && (anyParsed || syllabusJsonInStorage);
+  const anyIngestInFlight = Object.values(ingestState).some((s) => s.inFlight);
+  const totalIngestFailed = Object.values(ingestState).reduce((sum, s) => sum + s.failedCount, 0);
+  const canContinue =
+    hasSyllabus && (anyParsed || syllabusJsonInStorage) && !anyIngestInFlight;
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-8">
