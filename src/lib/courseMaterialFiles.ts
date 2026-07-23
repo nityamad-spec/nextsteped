@@ -30,7 +30,7 @@ export interface UpsertCourseMaterialFileArgs {
 export async function upsertCourseMaterialFile(
   args: UpsertCourseMaterialFileArgs,
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("course_material_files")
     .upsert(
       {
@@ -42,8 +42,20 @@ export async function upsertCourseMaterialFile(
         folder_type: args.folder_type,
       },
       { onConflict: "course_id,storage_path" },
-    );
+    )
+    .select("id")
+    .maybeSingle();
   if (error) {
     console.error("upsertCourseMaterialFile failed:", error.message, args);
+    return;
+  }
+
+  // Fire-and-forget RAG ingestion for PDF uploads. Non-PDFs are skipped
+  // server-side; failures are logged but do not affect the upload flow.
+  if (data?.id && args.file_name.toLowerCase().endsWith(".pdf")) {
+    void supabase.functions
+      .invoke("ingest-rag-document", { body: { file_id: data.id } })
+      .catch((e) => console.warn("ingest-rag-document invoke failed:", e));
   }
 }
+
