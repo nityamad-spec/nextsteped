@@ -1,30 +1,41 @@
-## Plan: Update weekly quiz score card with breakdown lines
+## Goal
+Update the weekly quiz score card on `/student/home` so the three breakdown lines only appear when hovering over the "Completed — X%" line. On mobile, the breakdown remains always visible.
 
-### Goal
-Update the "Weekly Quiz Complete" score card in `src/components/AssessmentView.tsx` so that the **Score** stat card shows three explanatory lines underneath the percentage, matching the uploaded screenshot reference.
+## Requirements (confirmed)
+- **Hover target**: the entire "Completed — X%" text line.
+- **Mobile behavior**: breakdown is always visible on touch devices.
+- **Animation**: subtle fade-in when appearing.
 
-### Current state
-- The review screen renders three stat cards: **Score**, **Correct**, **Time**.
-- `AssessmentResults` already carries `score`, `correctAnswers`, `totalQuestions`, and `timeSpent`.
-- No data model or backend changes are required.
+## Current state
+The breakdown is rendered unconditionally below the score line in `src/pages/student/StudentHome.tsx` (around the weekly quiz card inside the unit accordion). The data (`correctAnswers`, `totalQuestions`, `timeSpent`) is already fetched and formatted via existing helpers.
 
-### Changes
-1. **UI update in `src/components/AssessmentView.tsx`** (review screen, ~lines 553–566)
-   - Under the `Score` stat card, add three lines in small muted text:
-     - `Score accounts for question difficulty, accuracy, and time.`
-     - `Correct accuracy: {correctAnswers}/{totalQuestions} correct ({pct}%)`
-     - `Average pace: {avg}s/question`
-   - Compute `pct` as `Math.round((correctAnswers / (totalQuestions || 1)) * 100)`.
-   - Compute `avg` as `Math.round(timeSpent / (totalQuestions || 1))`.
-   - Guard against division by zero with `|| 1`.
+## Implementation plan
 
-2. **Scope**
-   - Apply only to `isQuiz === true` (weekly quiz), since the uploaded image and request refer to the weekly quiz completion card.
-   - Leave the existing **Correct** and **Time** stat cards unchanged so the summary still displays them prominently.
+### 1. Wrap the score line in a hover group
+In `src/pages/student/StudentHome.tsx`, wrap the `<p>` that shows `Completed — ${taken.score}%` and the conditional breakdown block in a container with Tailwind `group` and `relative` classes.
 
-### Verification
+### 2. Hide breakdown by default, show on group hover
+Apply Tailwind classes to the breakdown container:
+- Hidden by default: `hidden` or `opacity-0`.
+- Show on group hover: `group-hover:block` or `group-hover:opacity-100`.
+- Add `transition-opacity duration-200` and `animate-fade-in` for the subtle fade animation.
+
+### 3. Keep breakdown always visible on mobile
+Use a responsive variant so mobile breakpoints bypass the hover hide:
+- `max-sm:block` or `sm:group-hover:block sm:hidden` pattern, depending on the project's breakpoint convention.
+
+### 4. Preserve existing content and helpers
+Do not change the text, formatting helpers (`accuracyPct`, `formatAvgTime`), or the data fetch. Only change the visibility behavior of the existing breakdown block.
+
+### 5. Verify
 - Run TypeScript typecheck.
-- If any existing tests fail, report them for approval before fixing (per `TESTING.md` / project memory rule).
+- Run `StudentHome.test.tsx` and any related tests.
+- Report any failures per the project rule; do not auto-fix without approval.
 
-### Open question
-- Should the same three lines also appear on the **Exam Practice Complete** card, or is this strictly for the weekly quiz?
+## Risks / constraints
+- **Touch devices**: hover groups do not work on touch, so the mobile override is required. The confirmed approach handles this.
+- **Accessibility**: hiding information behind hover reduces discoverability. Since mobile always shows it and the score itself remains visible, this is acceptable for a score breakdown.
+- **No data changes**: this is purely presentational; no backend or schema changes needed.
+
+## Files to edit
+- `src/pages/student/StudentHome.tsx`
