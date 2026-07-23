@@ -1,44 +1,82 @@
-# Plan: Stop auto-fixing test failures — require approval first
+# Phase 8 — Align weekly-quiz scoring with diagnostic (80% accuracy + 20% pace)
 
-## Goal
+Replace the current weighted-accuracy-only score in `AssessmentView.handleFinish` (for `type === "quiz"`) with the same formula `score-diagnostic` uses, computed client-side. Historical `assessment_results` rows are left as-is.
 
-Make it explicit that any failing test (Phase 7 or otherwise) must be reported to you and await your review/approval before code is changed. The agent should not silently patch failing tests.
+## Current behavior (to replace)
 
-## Why this matters now
+`src/components/AssessmentView.tsx` (lines ~195–215) computes two scores:
+- `flatScore = correct / total * 100`
+- `weightedScore = Σ(earned) / Σ(maxPoints) * 100`, where `maxPoints = difficulty × BLOOM_WEIGHT[bloom]`
 
-Phase 7 tests are regression guards for the reasoning-follow-up feature. A failure means the implementation may not match the spec (e.g., a Bloom-3+ primary ships without a follow-up, or the mastery penalty math is wrong). Auto-fixing would defeat that signal.
+It stores `score = weightedScore ?? flatScore`. There is no pace component. Reasoning follow-ups already flow into `answers[]` but do not affect the displayed score.
 
-## Proposed changes
+## Target formula (mirrors `supabase/functions/score-diagnostic/index.ts`)
 
-1. **Project memory rule**
-  Create `mem://constraints/no-auto-fix-on-test-failure.md` as a `constraint` memory:
-  - Rule: If any test fails during a turn, stop and report the failure to the user. Do not edit source code, tests, or configuration to make the test pass without explicit user approval.
-  - How to report: list the failing test file(s), the specific assertion/error, and a short diagnosis of which part of the implementation likely caused it.
-  - Exception: purely cosmetic/typo fixes in test descriptions or comments are allowed only if the user has already approved a broader change in the same turn.
-2. **Update `mem://index.md**`
-  Add a Core line:  
-   `Failing tests are reported, not auto-fixed — wait for user approval before changing code.`
-3. **(Optional) Add a repo-visible marker**
-  If you want the rule visible outside the memory system, add a short `TESTING.md` note at the project root describing the same policy. This is optional because the memory rule governs agent behavior.
+```
+accuracyScore = Σ(earned) / Σ(maxPoints)          // primaries + reasoning (see below)
+paceScore     = mean(paceCurve(actualMs / expectedMs))  // primaries only
+masteryScore  = 0.80 * accuracyScore + 0.20 * paceScore
+displayScore  = round(masteryScore * 100)
+```
 
-## Workflow after this rule is live
+Constants copied verbatim from `score-diagnostic` CONFIG:
+- `BLOOM_WEIGHT { 1:1.0, 2:1.2, 3:1.5, 4:1.8, 5:2.1, 6:2.5 }`
+- `EXPECTED_TIME_BASE_MS { 1:20k, 2:30k, 3:45k, 4:60k, 5:80k, 6:110k }`
+- `DIFFICULTY_TIME_FACTOR(d) = 0.6 + 1.0 * clamp01(d)`
+- `paceCurve` (guess floor 0.2, fast cutoff 0.25, slow decay 2.0)
+- `WEIGHTS { accuracy: 0.80, pace: 0.20 }`
 
-1. Agent runs the relevant test suites after implementation changes.
-2. If any test fails, the agent halts code changes and returns a concise report: failing test name, error message, suspected cause, and asks whether to (a) investigate further, (b) attempt a fix, or (c) leave it as-is.
-3. Only after you approve does the agent modify code or tests.
+## Reasoning follow-up contribution to displayed score
 
-## Risks & trade-offs
+Reuse the Phase 5 numerator/denominator math so on-screen score reflects the same signal `update-mastery` uses:
 
-- **Slower iteration**: every genuine test failure now blocks the agent until you respond. This is the intended cost of preserving test integrity.
-- **Flaky tests**: if a test is flaky, the agent will stop on each flake. We may later need to mark known-flaky tests or quarantine them, but that also requires your approval.
-- **No CI enforcement**: this rule lives in project memory, so it constrains agent behavior but does not add a GitHub Actions gate. If you later want CI-level enforcement, we can add a workflow that fails on test errors with no auto-fix step.
+```
+For each primary i with maxPoints_i = difficulty_i × BLOOM_WEIGHT[bloom_i]:
+  earned        += is_correct ? maxPoints_i : 0
+  maxPoints_sum += maxPoints_i
 
-## Questions before implementing
+  if is_correct && reasoning_is_correct === true:
+      earned        += 0.5 * maxPoints_i        // REASONING_BOOST_FRACTION
+      maxPoints_sum += 0.5 * maxPoints_i
+  else if is_correct && reasoning_is_correct === false:
+      maxPoints_sum += 0.25 * maxPoints_i       // REASONING_PENALTY_FRACTION (denominator only)
+  // reasoning_is_correct === null → ignored
+  // primary incorrect → reasoning ignored
+```
 
-1. Do you want the optional `TESTING.md` repo marker, or is the memory rule enough? Yes i want the `TESTING.md` repo marker
-2. Should the rule apply to lint/typecheck failures as well, or only test failures? Both
-3. If a test fails because of an obvious typo in the test itself (e.g., wrong mock data), do you still want to approve the fix, or can the agent fix self-evident test-only typos without asking?  The agent can fix self-evident test-only typos without asking
+Pace uses **primaries only** (matches diagnostic; reasoning items don't have calibrated expected times and adding them would distort pace).
 
-## Approval requested
+`correctAnswers` and `totalQuestions` continue to count primaries only — no analytics regression.
 
-Approve this plan and I will create the memory rule and update the index. If you also want CI enforcement, let me know and I will add that as an additional phase.
+## Files touched
+
+1. **`src/components/AssessmentView.tsx`** (quiz-only branch of `handleFinish`)
+   - Add local `BLOOM_WEIGHT`, `EXPECTED_TIME_BASE_MS`, `paceCurve`, `clamp01` constants matching `score-diagnostic`. (Note: `BLOOM_WEIGHT` already exists in the file; reuse it and verify parity.)
+   - Compute `accuracyScore` including reasoning boost/penalty as above.
+   - Compute `paceScore` from `questionTimes[q.id]` (ms) using `EXPECTED_TIME_BASE_MS[bloom] * DIFFICULTY_TIME_FACTOR(difficulty)`; skip questions with missing/zero time (fallback to expected → pace 1.0), matching diagnostic.
+   - `score = round((0.80 * accuracy + 0.20 * pace) * 100)`.
+   - Only apply to `type === "quiz"`. Exam / practice keep existing math.
+   - Keep `flatScore` and `weightedScore` fields on `AssessmentResults` for backward compatibility (existing review UI reads them); add optional `paceScore` and `accuracyScore` fields for future analytics.
+
+2. **`src/data/questionBank.ts` / result types** — extend `AssessmentResults` with optional `accuracyScore` and `paceScore` (0..1).
+
+## Non-goals
+
+- No edge function (`score-weekly-quiz` deferred).
+- No changes to `update-mastery` — Phase 5 math is unchanged.
+- No changes to `assessment_results` schema.
+- No backfill of historical rows.
+- No changes to exam or practice scoring.
+
+## Risks
+
+- **Score drops on the same performance.** Adding a 20% pace factor typically lowers scores for slow-but-correct students. Acceptable and intended (matches diagnostic).
+- **`questionTimes` reliability.** If per-question timing is ever missing (older sessions, race conditions), pace defaults to 1.0 for that item — no crash, but pace signal is weakened. Verified `AssessmentView` already tracks `questionTimes` per question.
+- **Constants drift.** Constants are duplicated between client and `score-diagnostic`. Mitigation: colocate in a small `src/lib/masteryScoring.ts` module and document that it must stay in sync with the edge function's CONFIG. A future edge-function migration (option B/C) would collapse the duplication.
+- **Reasoning-in-accuracy vs mastery double count.** The displayed score and `update-mastery` both apply the boost/penalty. This is intentional (student sees the same signal that drives mastery), but worth flagging.
+
+## Test updates
+
+- Extend `src/components/WeeklyQuizDialog.test.tsx` with a case asserting the submitted `score` reflects the 80/20 split (e.g., all-correct + slow answers scores below 100).
+- Add a unit test on the new scoring helper (if extracted to `src/lib/masteryScoring.ts`) covering: all-correct fast, all-correct slow, half-correct, reasoning boost, reasoning penalty, missing timings.
+- Per the `no-auto-fix-on-test-failure` rule, any failing tests will be reported for approval before code changes.
