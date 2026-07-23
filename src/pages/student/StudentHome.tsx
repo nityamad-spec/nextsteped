@@ -879,24 +879,26 @@ const StudentHome = () => {
                                 <ClipboardCheck className="h-4 w-4 text-primary" />
                                 <div>
                                   <p className="text-sm font-medium">Unit {dp.day} Quiz</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {taken
-                                      ? `Completed — ${taken.score}%`
-                                      : "Optional — one attempt only"}
-                                  </p>
-                                  {taken && (
-                                    <div className="mt-1 space-y-0.5">
-                                      <p className="text-[10px] text-muted-foreground">
-                                        Score accounts for question difficulty, accuracy, and time.
-                                      </p>
-                                      <p className="text-[10px] text-muted-foreground">
-                                        {taken.correctAnswers}/{taken.totalQuestions} correct ({accuracyPct(taken.correctAnswers, taken.totalQuestions)}%)
-                                      </p>
-                                      <p className="text-[10px] text-muted-foreground">
-                                        {formatAvgTime(taken.timeSpent, taken.totalQuestions)}
-                                      </p>
-                                    </div>
-                                  )}
+                                  <div className="group">
+                                    <p className="text-xs text-muted-foreground">
+                                      {taken
+                                        ? `Completed — ${taken.score}%`
+                                        : "Optional — one attempt only"}
+                                    </p>
+                                    {taken && (
+                                      <div className="mt-1 space-y-0.5 block sm:hidden sm:group-hover:block sm:group-hover:animate-fade-in">
+                                        <p className="text-[10px] text-muted-foreground">
+                                          Score accounts for question difficulty, accuracy, and time.
+                                        </p>
+                                        <p className="text-[10px] text-muted-foreground">
+                                          {taken.correctAnswers}/{taken.totalQuestions} correct ({accuracyPct(taken.correctAnswers, taken.totalQuestions)}%)
+                                        </p>
+                                        <p className="text-[10px] text-muted-foreground">
+                                          {formatAvgTime(taken.timeSpent, taken.totalQuestions)}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                               {taken ? (
