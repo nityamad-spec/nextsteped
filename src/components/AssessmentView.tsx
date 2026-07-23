@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle, Clock, Trophy, ClipboardList, GraduationCap, ShieldCheck, Loader2, BookOpen, Lightbulb, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { computeWeeklyQuizScore, type ScoreItem } from "@/lib/masteryScoring";
 
 interface AssessmentViewProps {
   type: "quiz" | "exam";
