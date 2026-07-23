@@ -44,6 +44,14 @@ const CHUNK_TARGET = 1000;
 const CHUNK_OVERLAP = 150;
 const EMBED_BATCH = 100;
 const OCR_MIN_CHARS = 20;
+// Hard limits — enforced together with client-side (30 MB) and bucket
+// (31,457,280 bytes) caps. Anything larger is rejected up front so we
+// don't spend embedding budget on files that can't finish reliably.
+const MAX_PDF_PAGES = 1500;
+// Cap OCR work on huge PDFs: we only OCR the first N low-text pages.
+// Beyond that we accept degraded coverage rather than blowing the function
+// timeout or AI Gateway request-size budget.
+const OCR_MAX_PAGES = 50;
 
 type PageText = { page: number; text: string; source: "pdf_text" | "ocr" };
 type Chunk = {
@@ -503,17 +511,32 @@ serve(async (req) => {
     if (isJsonPlan) {
       chunks = await buildLessonPlanChunks(admin, file.course_id, bytes);
     } else {
+      // Guard: reject PDFs above MAX_PDF_PAGES before doing any expensive work.
+      const pdfProxy = await getDocumentProxy(bytes);
+      if (pdfProxy.numPages > MAX_PDF_PAGES) {
+        throw new Error(
+          `PDF has ${pdfProxy.numPages} pages, exceeds ${MAX_PDF_PAGES}-page limit`,
+        );
+      }
       const pages = await extractPdfPages(bytes);
 
-      // OCR fallback for empty pages.
+      // OCR fallback for empty pages — capped at OCR_MAX_PAGES so a scanned
+      // 1500-page book doesn't try to OCR every page.
       const emptyPageNums = pages
         .filter((p) => p.text.replace(/\s+/g, "").length < OCR_MIN_CHARS)
         .map((p) => p.page);
-      if (emptyPageNums.length > 0) {
+      const ocrTargets = emptyPageNums.slice(0, OCR_MAX_PAGES);
+      const ocrSkipped = emptyPageNums.length - ocrTargets.length;
+      if (ocrSkipped > 0) {
+        console.warn(
+          `[ingest-rag] OCR cap hit: OCRing ${ocrTargets.length} of ${emptyPageNums.length} low-text pages (skipped ${ocrSkipped})`,
+        );
+      }
+      if (ocrTargets.length > 0) {
         let bin = "";
         for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
         const b64 = btoa(bin);
-        for (const pageNum of emptyPageNums) {
+        for (const pageNum of ocrTargets) {
           try {
             const text = await ocrPage(b64, pageNum, lovableKey);
             const idx = pages.findIndex((p) => p.page === pageNum);

@@ -179,8 +179,8 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     const valid: File[] = [];
     let dropped = 0;
     for (const file of Array.from(fileList)) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(`${file.name} exceeds 10 MB limit`);
+      if (file.size > 30 * 1024 * 1024) {
+        toast.error(`${file.name} exceeds 30 MB limit`);
         continue;
       }
       if (valid.length >= remainingSlots) { dropped++; continue; }

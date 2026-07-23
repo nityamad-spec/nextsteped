@@ -1,60 +1,66 @@
-# Fix raw `[[published-plan.json #1]]` citation tokens in TA chat
+## Current state (verified)
 
-Today, the grounding prompt tells the model to cite inline as `[<file_name> #<chunk_index>]`, but the model often emits `[[file #N]]` and those tokens render verbatim in the chat bubble. We'll transform them into footnote-style superscripts (¹ ² ³) with a Sources list at the bottom of the message. Applies to all RAG citations (PDFs and lesson-plan JSON).
+- **Client cap: 10 MB** — `src/components/FileUploadZone.tsx:182` rejects files >`10 * 1024 * 1024`.
+- **Storage bucket cap: 10 MB** — `course-materials` bucket created with `file_size_limit = 10485760` (migration `20260320132100_...sql`).
+- **No page-count cap** anywhere. `ingest-rag-document` parses every page via `unpdf` and OCRs pages with <20 chars via Gemini vision on the *entire* PDF bytes as base64.
+- **Storage MIME/extension enforcement**: not currently constrained beyond client-side extension checks.
 
-## Phase 1 — Prompt: cleaner citation contract (edge function)
+## Target
 
-File: `supabase/functions/_shared/chat-grounding.ts`
+- Max file size: **30 MB**
+- Max PDF pages: **1500**
 
-- Change the GROUNDING RULES so the model:
-  - Cites inline **only** as `[[n]]` where `n` is 1-based index of the excerpt as listed in COURSE MATERIALS.
-  - Never repeats file names or chunk indices inline.
-- Change the excerpt block header so each excerpt is prefixed with `[[n]]` and its human-readable label (see Phase 2 label rules), so the model has a stable numeric anchor to cite.
+## Phased plan (no code yet)
 
-## Phase 2 — Emit structured sources with the response (edge function)
+### Phase 1 — Raise limits
 
-File: `supabase/functions/chat/index.ts` (+ helper in `chat-grounding.ts`)
+1. Update `FileUploadZone.tsx` size guard to 30 MB and error copy.
+2. New migration to update the `course-materials` bucket `file_size_limit` to `31457280` (via `supabase--storage_update_bucket`, not raw SQL).
+3. Add a 1500-page guard in `ingest-rag-document/index.ts` after `getDocumentProxy` (read `pdf.numPages`); if exceeded, mark `rag_status='skipped'` with a clear `rag_error` and return 400. Surface this to the uploader via existing toast on failed ingest.
+4. Mirror the 30 MB / 1500-page limits in user-facing helper text in `ContentLibrary.tsx` and the upload zone.
 
-- Build a `sources` array from the retrieved chunks in the order they appear in the grounded prompt:
-  ```
-  { n, file_name, folder_type, page_start, page_end, chunk_index, label }
-  ```
-- `label` rules (all citations covered):
-  - `folder_type === 'lesson-plan-published'` → `"Lesson Plan — Week {page_start}"` (or `"Lesson Plan — Overview"` when `page_start === 0`).
-  - PDF with pages → `"{friendlyName}, p.{page_start}[-{page_end}]"`.
-  - Otherwise → `"{friendlyName}"`.
-  - `friendlyName` strips extension and replaces `-`/`_` with spaces; `published-plan.json` → `"Lesson Plan"`.
-- Return `sources` in the JSON response envelope alongside the assistant text; persist it on the message via the existing `metadata` jsonb column (`metadata.sources`).
-- Fallback / general-knowledge branches return `sources: []`.
+### Phase 2 — Ingestion hardening (needed to make 30 MB / 1500 pages viable)
 
-## Phase 3 — Client renderer: footnotes + Sources list
+1. **Chunked embedding pacing**: current `EMBED_BATCH=100` × up to ~1500 pages could yield thousands of chunks. Add concurrency=1 with small delays and retry-with-backoff on 429/5xx from the AI Gateway.
+2. **OCR gating**: today, every low-text page triggers an OCR call that re-uploads the *whole* PDF as base64. At 30 MB × N pages this will blow past the function memory/time budget and the Gateway's request-size cap. Options:
+  - Cap OCR to first N low-text pages (e.g. 50) and log the rest as skipped.
+  - Or hard-disable OCR when file size > ~8 MB.
+3. **Function timeout & memory**: Edge Functions have a hard 400s / ~256 MB budget. Base64-encoding a 30 MB PDF alone is ~40 MB in memory. Confirm we stream / avoid duplicating buffers; consider processing on a background invocation and updating `rag_status` as it progresses.
+4. **DB write batching**: keep `INSERT_BATCH=50`, but wrap in a resumable loop keyed by `chunk_index` so a mid-run failure can restart without duplicating rows (currently we `DELETE` then `INSERT` — fine, but a partial insert leaves the file un-indexed).
 
-Files: `src/pages/student/AIChat.tsx`, `src/pages/teacher/TeacherChat.tsx`, and a new shared util `src/lib/renderCitations.ts`.
+### Phase 3 — UX + observability
 
-- Add `renderCitations(content, sources)` that:
-  1. **Prompt-compliant path** — replaces `[[n]]` with a superscript `<sup>n</sup>` linked to the sources list.
-  2. **Legacy/retroactive path** — regex-matches `[[<file> #<idx>]]` and `[<file> #<idx>]` tokens, maps each unique `(file, idx)` to a footnote number, and rewrites inline. Used both for old stored messages and for any new response where the model ignored the new prompt.
-  3. Deduplicates repeated citations to the same source into one footnote number.
-  4. Returns `{ transformedContent, footnotes: [{n, label}] }`.
-- Update `renderMessage` in both chat pages:
-  - Feed `transformedContent` through `ReactMarkdown` (`sup` renders natively).
-  - Below the markdown, render a compact `Sources` list (small muted text) when `footnotes.length > 0`. Skip when the message has the general-knowledge badge.
-- Keep the existing `[[NEEDS_FALLBACK]]` / `[[GENERAL_KNOWLEDGE]]` handling untouched — those sentinels are stripped before `renderCitations` runs.
+1. Show an inline progress state in `ContentLibrary` while `rag_status IN ('processing')`, plus estimated time hint for large files.
+2. Surface `rag_error` inline (already stored) so a rejected 1501-page or 31 MB file gives an actionable message.
+3. Admin visibility: extend the existing RAG coverage view to flag files over, say, 20 MB or 1000 pages so we can spot risk before users hit them.
 
-## Phase 4 — Verify
+### Phase 4 — Verification
 
-- Deno test extending `chat-grounding_test.ts`: assert new prompt/format + `sources` builder output for PDF and lesson-plan chunks.
-- Vitest for `renderCitations`: covers prompt-compliant `[[n]]`, legacy `[[file #N]]`, dedupe, and no-citation passthrough.
-- Manual: ask a teacher-chat question that hits a lesson-plan chunk and a PDF chunk; confirm superscripts render and Sources list appears with the friendly labels.
+- Manually test: 9 MB (regression), 25 MB / ~800 pages, 30 MB / ~1500 pages, 31 MB (rejected), 1501-page file (rejected).
+- Confirm retrieval still returns citations for the large file and that TA chat latency stays acceptable.
 
-## Risks / constraints
+## Risks & constraints
 
-- **Retroactive rendering** — old stored assistant messages contain raw tokens with no `metadata.sources`. The legacy regex path still produces friendly labels from the token itself (`published-plan.json #1` → `"Lesson Plan — Week 1"` when `folder_type` is inferable from filename; otherwise falls back to file name). No DB migration required.
-- **Model compliance** — Gemini may still emit the old bracket style occasionally; the client legacy parser is the safety net, so UX stays clean either way.
-- **Chunk-index vs. week number** — for lesson-plan JSON, `chunk_index` is not the week number, but `page_start` is (set in `buildLessonPlanChunks`). The label builder uses `page_start`, not the raw token's `#N`, when `metadata.sources` is present. Legacy path (no metadata) can only show the raw index; acceptable for backward messages.
-- **No UI framework changes** — pure additions in the two chat pages and one shared util; no new components required.
 
-## Out of scope
+| Risk                                              | Impact                                                     | Mitigation                                                                                                  |
+| ------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Edge Function 400s timeout on large PDFs          | Ingestion fails midway, file stuck in `processing`         | Concurrency + backoff, OCR cap, background retries; resumable insert loop                                   |
+| OCR whole-PDF-as-base64 per empty page            | Massive AI Gateway payloads, rate-limit / cost blowup      | Cap OCR pages; disable OCR above size threshold; consider per-page rasterization later                      |
+| Embedding cost/latency scales linearly            | Thousands of chunks per 1500-page book; slower first-index | Pace batches; show progress UI; consider deferred/nightly indexing for very large uploads                   |
+| pgvector index size grows fast (3072-dim halfvec) | Storage + query latency                                    | Monitor `rag_chunks` row counts; keep the existing HNSW index tuned; consider per-course partitioning later |
+| Browser upload of 30 MB over flaky networks       | User-visible failures                                      | Rely on Supabase Storage resumable uploads if not already enabled                                           |
+| Bucket policy vs Storage global cap               | Some Supabase plans cap per-object size below 30 MB        | Verify project storage limits before shipping                                                               |
+| Retrieval quality on very large docs              | Top-K=5 may miss relevant chunks in a 1500-page book       | Consider raising K or adding per-file re-rank later (out of scope for this change)                          |
 
-- Clickable citations that open the source PDF/lesson week (would need a viewer route).
-- Backfilling old messages with structured `metadata.sources`.
+
+## Suggested improvements beyond the immediate ask
+
+- Track `page_count` on `course_material_files` to power admin dashboards and pre-flight warnings.
+- Move ingestion to a queued/background job (pg_cron or a dedicated worker function) so uploads return instantly and progress is polled.
+- Introduce a per-course storage quota so a single 30 MB upload can't dominate a course's footprint.
+
+## Questions before I implement
+
+1. Should oversize files be **hard-rejected** at upload time, or **accepted but skipped for RAG** (still downloadable)? Hard reject at upload time
+2. For very large PDFs, is it acceptable to **cap OCR to the first ~50 low-text pages** rather than OCR the entire book? **cap OCR to the first ~50 low-text pages**
+3. Do you want ingestion to move to a **background job with progress UI** as part of this change, or defer that to a follow-up? defer that to a follow-up. Show real time upload and ingestion progress update on UI
