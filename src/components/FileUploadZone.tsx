@@ -833,41 +833,72 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
 
       {files.length > 0 && (
         <div className="space-y-1.5 pt-1">
-          {files.map((f) => (
-            <div
-              key={f.path}
-              className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
-            >
-              <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="flex-1 truncate">{f.name}</span>
-              {folderType === "syllabus" && renderParsePill(f.path)}
-              {folderType === "syllabus" && parseStatus[f.path] === "failed" && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    retryParse(f);
-                  }}
-                  className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  title="Retry parsing this syllabus"
-                >
-                  <RefreshCw className="h-2.5 w-2.5" /> Retry
-                </button>
-              )}
-              <span className="text-xs text-muted-foreground">{formatSize(f.size)}</span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDeleteTarget(f);
-                }}
-                className="text-muted-foreground hover:text-destructive"
-                title="Delete file"
+          {files.map((f) => {
+            const ingest = ragStatus[f.path];
+            const isFresh = freshlyUploadedPaths.has(f.path);
+            const isPdf = f.name.toLowerCase().endsWith(".pdf");
+            const showIngest = isPdf || isFresh || !!ingest;
+            const inFlightForFile = showIngest && (
+              (ingest ? isRagInFlight(ingest.status) : isFresh)
+            );
+            return (
+              <div
+                key={f.path}
+                className="rounded-md border px-3 py-2 text-sm"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="flex-1 truncate">{f.name}</span>
+                  {folderType === "syllabus" && renderParsePill(f.path)}
+                  {folderType === "syllabus" && parseStatus[f.path] === "failed" && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        retryParse(f);
+                      }}
+                      className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                      title="Retry parsing this syllabus"
+                    >
+                      <RefreshCw className="h-2.5 w-2.5" /> Retry
+                    </button>
+                  )}
+                  {showIngest && (
+                    <RagStatusBadge
+                      status={ingest?.status ?? null}
+                      assumeInFlight={isFresh}
+                    />
+                  )}
+                  <span className="text-xs text-muted-foreground">{formatSize(f.size)}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteTarget(f);
+                    }}
+                    className="text-muted-foreground hover:text-destructive"
+                    title="Delete file"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                {inFlightForFile && (
+                  <div className="mt-2 space-y-1">
+                    <Progress value={undefined as unknown as number} className="h-1.5 animate-pulse" />
+                    <div className="text-[10px] text-muted-foreground">
+                      Indexing for AI retrieval — large PDFs can take a few minutes.
+                    </div>
+                  </div>
+                )}
+                {ingest?.status === "failed" && ingest.error && (
+                  <div className="mt-1 text-[11px] text-destructive break-words">
+                    {ingest.error}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
         </div>
       )}
 
