@@ -187,12 +187,17 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const ragStatus = useRagStatus(trackedPaths, { enabled: trackedPaths.length > 0 });
 
   // Aggregate ingest state → parent (Next-button gate).
+  // Null status on a pre-existing file (uploaded before RAG rolled out) is NOT
+  // treated as in-flight — only freshly uploaded files or explicit
+  // pending/processing statuses block.
   const ingestInFlight = useMemo(() => {
     return trackedPaths.some((p) => {
       const entry = ragStatus[p];
-      // Freshly uploaded but not yet in DB → treat as in-flight.
-      if (!entry && freshlyUploadedPaths.has(p)) return true;
-      return entry ? isRagInFlight(entry.status) : false;
+      const isFresh = freshlyUploadedPaths.has(p);
+      if (!entry) return isFresh;
+      if (entry.status === "pending" || entry.status === "processing") return true;
+      if (entry.status === null && isFresh) return true;
+      return false;
     });
   }, [trackedPaths, ragStatus, freshlyUploadedPaths]);
   const ingestFailedCount = useMemo(
