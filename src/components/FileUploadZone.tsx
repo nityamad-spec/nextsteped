@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Upload, Check, X, FileText, Loader2, Trash2, RefreshCw, AlertTriangle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { markStepCompleted } from "@/lib/setupProgress";
 import { emitWipe } from "@/lib/wipeEvents";
 import { upsertCourseMaterialFile } from "@/lib/courseMaterialFiles";
+import RagStatusBadge from "@/components/RagStatusBadge";
+import { useRagStatus, isRagInFlight } from "@/hooks/useRagStatus";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,6 +51,11 @@ interface FileUploadZoneProps {
    *  rows are inserted). Use for post-upload side-effects like extracting
    *  links, kicking off background jobs, etc. */
   onUploadComplete?: (newFiles: UploadedFile[]) => void;
+  /** Fires when the aggregate ingest state for this zone changes. Parents use
+   *  this to gate Next-button navigation. `inFlight` is true while any file
+   *  is pending/processing; `failedCount` is the number of files whose ingest
+   *  ended in a failed state. */
+  onIngestStatusChange?: (state: { inFlight: boolean; failedCount: number }) => void;
 }
 
 function formatSize(bytes: number) {
@@ -77,7 +84,7 @@ async function fileToBase64(file: File): Promise<string> {
   return btoa(binary);
 }
 
-const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, teacherId, folderType, maxFiles, onParseStatusChange, onUploadComplete }: FileUploadZoneProps) => {
+const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, teacherId, folderType, maxFiles, onParseStatusChange, onUploadComplete, onIngestStatusChange }: FileUploadZoneProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [pending, setPending] = useState<File[]>([]);
@@ -89,6 +96,11 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const [parseStartedAt, setParseStartedAt] = useState<Record<string, number>>({});
   const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
+  // Per-pending-file upload % (keyed by file.name + idx while in pending set).
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  // Paths uploaded during this component's lifetime — surfaces the "Indexing…"
+  // badge immediately without needing rag_status to arrive first.
+  const [freshlyUploadedPaths, setFreshlyUploadedPaths] = useState<Set<string>>(new Set());
 
   // Estimated durations (ms) for the syllabus upload + parse pipeline.
   const UPLOAD_EST_MS = 4000;
@@ -163,6 +175,40 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     })();
     return () => { cancelled = true; };
   }, [folderType, courseId, files]);
+
+  // RAG ingest status for every file this zone is responsible for. Polls
+  // course_material_files.rag_status while anything is still in-flight.
+  const trackedPaths = useMemo(() => {
+    const set = new Set<string>();
+    for (const f of files) set.add(f.path);
+    for (const p of freshlyUploadedPaths) set.add(p);
+    return Array.from(set);
+  }, [files, freshlyUploadedPaths]);
+  const ragStatus = useRagStatus(trackedPaths, { enabled: trackedPaths.length > 0 });
+
+  // Aggregate ingest state → parent (Next-button gate).
+  // Null status on a pre-existing file (uploaded before RAG rolled out) is NOT
+  // treated as in-flight — only freshly uploaded files or explicit
+  // pending/processing statuses block.
+  const ingestInFlight = useMemo(() => {
+    return trackedPaths.some((p) => {
+      const entry = ragStatus[p];
+      const isFresh = freshlyUploadedPaths.has(p);
+      if (!entry) return isFresh;
+      if (entry.status === "pending" || entry.status === "processing") return true;
+      if (entry.status === null && isFresh) return true;
+      return false;
+    });
+  }, [trackedPaths, ragStatus, freshlyUploadedPaths]);
+  const ingestFailedCount = useMemo(
+    () => trackedPaths.filter((p) => ragStatus[p]?.status === "failed").length,
+    [trackedPaths, ragStatus],
+  );
+  useEffect(() => {
+    onIngestStatusChange?.({ inFlight: ingestInFlight, failedCount: ingestFailedCount });
+  }, [ingestInFlight, ingestFailedCount, onIngestStatusChange]);
+
+
 
   const atCapacity = typeof maxFiles === "number" && files.length + pending.length >= maxFiles;
   const remainingSlots = typeof maxFiles === "number"
@@ -323,6 +369,53 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     void parseSyllabusInBackground({ storagePath: file.path, fileName: file.name });
   };
 
+  // Upload a single file to Supabase Storage with a real XHR progress bar
+  // by going through a signed upload URL (createSignedUploadUrl → PUT).
+  // Falls back to the standard supabase.storage.upload() if the signed URL
+  // path is unavailable — user then sees an indeterminate bar.
+  const uploadFileWithProgress = async (
+    file: File,
+    storagePath: string,
+    progressKey: string,
+  ): Promise<{ ok: boolean; errorMessage?: string }> => {
+    setUploadProgress((prev) => ({ ...prev, [progressKey]: 0 }));
+    const { data: signed, error: signErr } = await supabase.storage
+      .from("course-materials")
+      .createSignedUploadUrl(storagePath);
+
+    if (!signErr && signed?.signedUrl) {
+      return await new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", signed.signedUrl, true);
+        if (file.type) xhr.setRequestHeader("Content-Type", file.type);
+        xhr.upload.onprogress = (e) => {
+          if (!e.lengthComputable) return;
+          const pct = Math.round((e.loaded / e.total) * 100);
+          setUploadProgress((prev) => ({ ...prev, [progressKey]: pct }));
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setUploadProgress((prev) => ({ ...prev, [progressKey]: 100 }));
+            resolve({ ok: true });
+          } else {
+            resolve({ ok: false, errorMessage: `HTTP ${xhr.status}` });
+          }
+        };
+        xhr.onerror = () => resolve({ ok: false, errorMessage: "Network error" });
+        xhr.send(file);
+      });
+    }
+
+    // Fallback: no signed URL → best-effort upload without % progress.
+    const { error } = await supabase.storage
+      .from("course-materials")
+      .upload(storagePath, file);
+    setUploadProgress((prev) => ({ ...prev, [progressKey]: 100 }));
+    return error
+      ? { ok: false, errorMessage: error.message }
+      : { ok: true };
+  };
+
   const handleConfirmedUpload = async () => {
     if (pending.length === 0 || !confirmed) return;
     setUploading(true);
@@ -336,15 +429,16 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
 
     const newFiles: UploadedFile[] = [];
     const syllabusToParse: Array<{ file: File; path: string }> = [];
+    const uploadedPaths: string[] = [];
 
-    for (const file of pending) {
+    for (let idx = 0; idx < pending.length; idx++) {
+      const file = pending[idx];
       const filePath = `${folderPath}/${Date.now()}_${file.name}`;
-      const { error } = await supabase.storage
-        .from("course-materials")
-        .upload(filePath, file);
+      const progressKey = `${idx}::${file.name}`;
+      const res = await uploadFileWithProgress(file, filePath, progressKey);
 
-      if (error) {
-        toast.error(`Failed to upload ${file.name}: ${error.message}`);
+      if (!res.ok) {
+        toast.error(`Failed to upload ${file.name}: ${res.errorMessage ?? "unknown"}`);
       } else {
         if (teacherId && folderType) {
           const { error: metaError } = await supabase
@@ -362,6 +456,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
           }
         }
         newFiles.push({ name: file.name, size: file.size, path: filePath });
+        uploadedPaths.push(filePath);
         if (folderType === "syllabus") {
           syllabusToParse.push({ file, path: filePath });
         }
@@ -370,13 +465,19 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
 
     if (newFiles.length > 0) {
       onFilesChange([...files, ...newFiles]);
-      toast.success(`${newFiles.length} file(s) uploaded`);
+      toast.success(`${newFiles.length} file(s) uploaded — indexing…`);
       onUploadComplete?.(newFiles);
+      setFreshlyUploadedPaths((prev) => {
+        const next = new Set(prev);
+        for (const p of uploadedPaths) next.add(p);
+        return next;
+      });
     }
 
     setPending([]);
     setConfirmed(false);
     setUploading(false);
+    setUploadProgress({});
     if (folderType === "syllabus") setUploadStartedAt(null);
 
     // Kick off background parsing for syllabus files. Non-blocking.
@@ -384,6 +485,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
       void parseSyllabusInBackground({ file, storagePath: path });
     }
   };
+
 
   const isLastSyllabusDelete = (file: UploadedFile) =>
     folderType === "syllabus" && !!courseId && files.filter((f) => f.path !== file.path).length === 0;
@@ -595,28 +697,47 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
           </div>
 
           <div className="space-y-1.5">
-            {pending.map((f, idx) => (
-              <div
-                key={`${f.name}-${idx}`}
-                className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm"
-              >
-                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="flex-1 truncate font-medium">{f.name}</span>
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
-                  {getExt(f.name)}
-                </span>
-                <span className="text-xs text-muted-foreground">{formatSize(f.size)}</span>
-                <button
-                  type="button"
-                  onClick={() => removePending(idx)}
-                  className="text-muted-foreground hover:text-destructive"
-                  title="Remove from list"
+            {pending.map((f, idx) => {
+              const progressKey = `${idx}::${f.name}`;
+              const pct = uploadProgress[progressKey];
+              const showBar = uploading && typeof pct === "number";
+              return (
+                <div
+                  key={`${f.name}-${idx}`}
+                  className="rounded-md border bg-background px-3 py-2 text-sm"
                 >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 truncate font-medium">{f.name}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                      {getExt(f.name)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{formatSize(f.size)}</span>
+                    {!uploading && (
+                      <button
+                        type="button"
+                        onClick={() => removePending(idx)}
+                        className="text-muted-foreground hover:text-destructive"
+                        title="Remove from list"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {showBar && (
+                    <div className="mt-2 space-y-1">
+                      <Progress value={pct} className="h-1.5" />
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                        <span>{pct < 100 ? "Uploading…" : "Upload complete"}</span>
+                        <span>{pct}%</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
+
 
           <label className="flex items-start gap-2 cursor-pointer pt-1">
             <Checkbox
@@ -717,41 +838,73 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
 
       {files.length > 0 && (
         <div className="space-y-1.5 pt-1">
-          {files.map((f) => (
-            <div
-              key={f.path}
-              className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
-            >
-              <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="flex-1 truncate">{f.name}</span>
-              {folderType === "syllabus" && renderParsePill(f.path)}
-              {folderType === "syllabus" && parseStatus[f.path] === "failed" && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    retryParse(f);
-                  }}
-                  className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  title="Retry parsing this syllabus"
-                >
-                  <RefreshCw className="h-2.5 w-2.5" /> Retry
-                </button>
-              )}
-              <span className="text-xs text-muted-foreground">{formatSize(f.size)}</span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDeleteTarget(f);
-                }}
-                className="text-muted-foreground hover:text-destructive"
-                title="Delete file"
+          {files.map((f) => {
+            const ingest = ragStatus[f.path];
+            const isFresh = freshlyUploadedPaths.has(f.path);
+            const isPdf = f.name.toLowerCase().endsWith(".pdf");
+            const showIngest = isPdf || isFresh || !!ingest;
+            const inFlightForFile = showIngest && (
+              ingest?.status === "pending" || ingest?.status === "processing" ||
+              (isFresh && (!ingest || ingest.status === null))
+            );
+            return (
+              <div
+                key={f.path}
+                className="rounded-md border px-3 py-2 text-sm"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="flex-1 truncate">{f.name}</span>
+                  {folderType === "syllabus" && renderParsePill(f.path)}
+                  {folderType === "syllabus" && parseStatus[f.path] === "failed" && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        retryParse(f);
+                      }}
+                      className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                      title="Retry parsing this syllabus"
+                    >
+                      <RefreshCw className="h-2.5 w-2.5" /> Retry
+                    </button>
+                  )}
+                  {showIngest && (
+                    <RagStatusBadge
+                      status={ingest?.status ?? null}
+                      assumeInFlight={isFresh}
+                    />
+                  )}
+                  <span className="text-xs text-muted-foreground">{formatSize(f.size)}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteTarget(f);
+                    }}
+                    className="text-muted-foreground hover:text-destructive"
+                    title="Delete file"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                {inFlightForFile && (
+                  <div className="mt-2 space-y-1">
+                    <Progress value={undefined as unknown as number} className="h-1.5 animate-pulse" />
+                    <div className="text-[10px] text-muted-foreground">
+                      Indexing for AI retrieval — large PDFs can take a few minutes.
+                    </div>
+                  </div>
+                )}
+                {ingest?.status === "failed" && ingest.error && (
+                  <div className="mt-1 text-[11px] text-destructive break-words">
+                    {ingest.error}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
         </div>
       )}
 

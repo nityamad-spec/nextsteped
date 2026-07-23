@@ -47,6 +47,15 @@ const CourseMaterials = () => {
   const [lessonPlanFiles, setLessonPlanFiles] = useState<UploadedFile[]>([]);
   const [textbookFiles, setTextbookFiles] = useState<UploadedFile[]>([]);
   const [syllabusParseStatus, setSyllabusParseStatus] = useState<Record<string, "parsing" | "parsed" | "failed">>({});
+  // Per-zone ingest state so Next is gated until RAG ingestion settles.
+  const [ingestState, setIngestState] = useState<Record<string, { inFlight: boolean; failedCount: number }>>({});
+  const setZoneIngest = (zone: string) => (s: { inFlight: boolean; failedCount: number }) => {
+    setIngestState((prev) => {
+      const cur = prev[zone];
+      if (cur && cur.inFlight === s.inFlight && cur.failedCount === s.failedCount) return prev;
+      return { ...prev, [zone]: s };
+    });
+  };
   const [syllabusJsonInStorage, setSyllabusJsonInStorage] = useState(false);
   const [extractedLinks, setExtractedLinks] = useState<Array<{ id: string; url: string; kind: string }>>([]);
   const [extractingLinks, setExtractingLinks] = useState(false);
@@ -402,7 +411,10 @@ const CourseMaterials = () => {
   const syllabusStatuses = syllabusFiles.map((f) => syllabusParseStatus[f.path]);
   const anyParsed = syllabusStatuses.some((s) => s === "parsed");
   const allFailed = hasSyllabus && syllabusStatuses.every((s) => s === "failed");
-  const canContinue = hasSyllabus && (anyParsed || syllabusJsonInStorage);
+  const anyIngestInFlight = Object.values(ingestState).some((s) => s.inFlight);
+  const totalIngestFailed = Object.values(ingestState).reduce((sum, s) => sum + s.failedCount, 0);
+  const canContinue =
+    hasSyllabus && (anyParsed || syllabusJsonInStorage) && !anyIngestInFlight;
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-8">
@@ -445,6 +457,7 @@ const CourseMaterials = () => {
                 folderType="syllabus"
                 maxFiles={1}
                 onParseStatusChange={setSyllabusParseStatus}
+                onIngestStatusChange={setZoneIngest("syllabus")}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
@@ -481,6 +494,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="textbooks"
+                onIngestStatusChange={setZoneIngest("textbooks")}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
@@ -522,6 +536,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="lesson-plans"
+                onIngestStatusChange={setZoneIngest("lesson-plans")}
               />
             ) : (
               <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-sm text-muted-foreground">
@@ -558,6 +573,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="lesson-plan-docs"
+                onIngestStatusChange={setZoneIngest("lesson-plan-docs")}
                 onUploadComplete={async () => {
                   const toastId = toast.loading("Extracting lesson plan structure…");
                   const { data, error } = await supabase.functions.invoke(
@@ -614,6 +630,7 @@ const CourseMaterials = () => {
                 courseId={courseId}
                 teacherId={user.id}
                 folderType="youtube-links"
+                onIngestStatusChange={setZoneIngest("youtube-links")}
                 onUploadComplete={handleYoutubeUploadComplete}
               />
             ) : (
@@ -682,6 +699,16 @@ const CourseMaterials = () => {
         {allFailed && (
           <p className="text-xs text-destructive text-center">
             Syllabus parsing failed. Use Retry on the file above before continuing.
+          </p>
+        )}
+        {anyIngestInFlight && (
+          <p className="text-xs text-muted-foreground text-center">
+            Indexing uploaded documents for AI retrieval… Next will enable when all files finish. Large PDFs can take a few minutes.
+          </p>
+        )}
+        {!anyIngestInFlight && totalIngestFailed > 0 && (
+          <p className="text-xs text-amber-600 text-center">
+            {totalIngestFailed} file{totalIngestFailed === 1 ? "" : "s"} failed to index for AI retrieval. You can continue, but those documents won't be searchable by the AI TA until re-uploaded.
           </p>
         )}
 
