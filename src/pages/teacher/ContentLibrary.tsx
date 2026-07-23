@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { FileText, Download, Upload, Trash2, Loader2, BookOpen, Library, FolderOpen } from "lucide-react";
+import { FileText, Download, Upload, Trash2, Loader2, BookOpen, Library, FolderOpen, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
@@ -10,6 +10,7 @@ import FileUploadZone from "@/components/FileUploadZone";
 import { toast } from "sonner";
 import CourseCreation from "@/pages/teacher/CourseCreation";
 import CourseStatusBanner from "@/components/CourseStatusBanner";
+import { replaceCourseMaterialFile, type MaterialFolderType } from "@/lib/courseMaterialFiles";
 
 interface StoredFile {
   id: string;
