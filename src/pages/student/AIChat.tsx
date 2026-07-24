@@ -1095,6 +1095,83 @@ const AIChat = () => {
       return content;
     };
 
+    const isFirstAssistantWelcome = !isUser && activeChat?.messages[0]?.id === msg.id && mode === "learning";
+
+    const bubbleContent = (
+      <>
+        {parsed ? (
+          <div className="space-y-3">
+            {parsed.parts.map((part, pi) =>
+              part.type === "practice" && part.questions ? (
+                <PracticeQuestions key={pi} questions={part.questions} />
+              ) : part.content.trim() ? (
+                <div key={pi} className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
+                  isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
+                }`}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>{renderText(part.content.trim())}</ReactMarkdown>
+                </div>
+              ) : null
+            )}
+          </div>
+        ) : (
+          <div className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
+            isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
+          }`}>
+            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>{displayContentForRender}</ReactMarkdown>
+          </div>
+        )}
+        {showFootnotes && (
+          <div className="mt-3 border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
+            <div className="mb-1 font-medium uppercase tracking-wide">Sources</div>
+            <ol className="list-decimal space-y-0.5 pl-4">
+              {citation!.footnotes.map((f) => (
+                <li key={f.n}>{f.label}</li>
+              ))}
+            </ol>
+          </div>
+        )}
+        {!isUser && msg.metadata?.variant === "general_knowledge" && (
+          <div className="mt-2">
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+              <Sparkles className="h-3 w-3" /> AI general knowledge — not from course materials
+            </span>
+          </div>
+        )}
+        {!isUser && msg.metadata?.variant === "fallback_prompt" && !msg.metadata?.fallbackResolved && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              onClick={async () => {
+                const q = msg.metadata?.pendingQuery ?? "";
+                if (!q || !activeChat) return;
+                await updateMessageMetadata(activeChat.id, msg.id, { ...msg.metadata!, fallbackResolved: true });
+                sendMessage(q, undefined, { grounding: "general", skipSaveUser: true });
+              }}
+              disabled={isStreaming || isCooldown}
+            >
+              Yes, use general knowledge
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                if (!activeChat) return;
+                await updateMessageMetadata(activeChat.id, msg.id, { ...msg.metadata!, fallbackResolved: true });
+              }}
+              disabled={isStreaming || isCooldown}
+            >
+              No, stay in course materials
+            </Button>
+          </div>
+        )}
+        {msg.timestamp && (
+          <div className={`text-[10px] mt-1.5 ${isUser ? "text-primary-foreground/60 text-right" : "text-muted-foreground text-right"}`}>
+            {formatTimestamp(msg.timestamp)}
+          </div>
+        )}
+      </>
+    );
+
     return (
       <div key={msg.id} className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
         {/* Avatar */}
@@ -1105,83 +1182,31 @@ const AIChat = () => {
         }`}>
           {isUser ? userInitial : <Sparkles className="w-4 h-4" />}
         </div>
-        {/* Bubble */}
-        <div className={`max-w-[85%] min-w-0 rounded-xl px-4 py-3 text-sm break-words [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:max-w-full ${
-          isUser
-            ? "bg-primary text-primary-foreground shadow-sm"
-            : "bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm"
-        }`}>
-          {parsed ? (
-            <div className="space-y-3">
-              {parsed.parts.map((part, pi) =>
-                part.type === "practice" && part.questions ? (
-                  <PracticeQuestions key={pi} questions={part.questions} />
-                ) : part.content.trim() ? (
-                  <div key={pi} className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
-                    isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
-                  }`}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>{renderText(part.content.trim())}</ReactMarkdown>
-                  </div>
-                ) : null
-              )}
+        {isFirstAssistantWelcome ? (
+          <div className="flex items-start gap-2 flex-1 min-w-0">
+            <div className="max-w-[65%] md:max-w-[55%] min-w-0 rounded-xl px-4 py-3 text-sm break-words [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:max-w-full bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm">
+              {bubbleContent}
             </div>
-          ) : (
-            <div className={`prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 ${
-              isUser ? "[&_*]:text-primary-foreground" : "dark:prose-invert"
-            }`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>{displayContentForRender}</ReactMarkdown>
-            </div>
-          )}
-          {showFootnotes && (
-            <div className="mt-3 border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
-              <div className="mb-1 font-medium uppercase tracking-wide">Sources</div>
-              <ol className="list-decimal space-y-0.5 pl-4">
-                {citation!.footnotes.map((f) => (
-                  <li key={f.n}>{f.label}</li>
-                ))}
-              </ol>
-            </div>
-          )}
-          {!isUser && msg.metadata?.variant === "general_knowledge" && (
-            <div className="mt-2">
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
-                <Sparkles className="h-3 w-3" /> AI general knowledge — not from course materials
-              </span>
-            </div>
-          )}
-          {!isUser && msg.metadata?.variant === "fallback_prompt" && !msg.metadata?.fallbackResolved && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                onClick={async () => {
-                  const q = msg.metadata?.pendingQuery ?? "";
-                  if (!q || !activeChat) return;
-                  await updateMessageMetadata(activeChat.id, msg.id, { ...msg.metadata!, fallbackResolved: true });
-                  sendMessage(q, undefined, { grounding: "general", skipSaveUser: true });
-                }}
-                disabled={isStreaming || isCooldown}
-              >
-                Yes, use general knowledge
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={async () => {
-                  if (!activeChat) return;
-                  await updateMessageMetadata(activeChat.id, msg.id, { ...msg.metadata!, fallbackResolved: true });
-                }}
-                disabled={isStreaming || isCooldown}
-              >
-                No, stay in course materials
-              </Button>
-            </div>
-          )}
-          {msg.timestamp && (
-            <div className={`text-[10px] mt-1.5 ${isUser ? "text-primary-foreground/60 text-right" : "text-muted-foreground text-right"}`}>
-              {formatTimestamp(msg.timestamp)}
-            </div>
-          )}
-        </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 gap-1"
+              onClick={createNewChat}
+              disabled={isStreaming || isCooldown}
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">New Chat</span>
+            </Button>
+          </div>
+        ) : (
+          <div className={`max-w-[85%] min-w-0 rounded-xl px-4 py-3 text-sm break-words [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:max-w-full ${
+            isUser
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm"
+          }`}>
+            {bubbleContent}
+          </div>
+        )}
       </div>
     );
   };
@@ -1397,9 +1422,6 @@ const AIChat = () => {
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowTerminal(true)}>
                 <Terminal className="h-4 w-4" /> <span className="hidden sm:inline">Code</span>
-              </Button>
-              <Button variant="outline" size="sm" className="h-9 text-sm" onClick={createNewChat}>
-                <Plus className="sm:mr-2 h-4 w-4" /> <span className="hidden sm:inline">New Chat</span>
               </Button>
             </div>
           )}
