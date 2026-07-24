@@ -1095,22 +1095,14 @@ const AIChat = () => {
       return content;
     };
 
-    return (
-      <div key={msg.id} className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
-        {/* Avatar */}
-        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-primary/10 text-primary"
-        }`}>
-          {isUser ? userInitial : <Sparkles className="w-4 h-4" />}
-        </div>
-        {/* Bubble */}
-        <div className={`max-w-[85%] min-w-0 rounded-xl px-4 py-3 text-sm break-words [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:max-w-full ${
-          isUser
-            ? "bg-primary text-primary-foreground shadow-sm"
-            : "bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm"
-        }`}>
+    const isFirstAssistantWelcome = !isUser && activeChat?.messages[0]?.id === msg.id && mode === "learning";
+
+    const bubble = (
+      <div className={`${isFirstAssistantWelcome ? "max-w-[75%] md:max-w-[65%]" : "max-w-[85%]"} min-w-0 rounded-xl px-4 py-3 text-sm break-words [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:max-w-full ${
+        isUser
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm"
+      }`}>
           {parsed ? (
             <div className="space-y-3">
               {parsed.parts.map((part, pi) =>
