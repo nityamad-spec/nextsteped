@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { AUTH_BYPASS, BYPASS_ADMIN_EMAIL, BYPASS_ADMIN_PASSWORD } from "@/lib/authBypass";
