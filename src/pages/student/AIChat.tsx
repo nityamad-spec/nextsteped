@@ -1486,7 +1486,7 @@ const AIChat = () => {
                 </div>
               )}
               {mode === "learning" && !assessmentActive && !isStreaming && activeChat.messages.length <= 1 && (
-                <div className="pt-2">
+                <div className="pt-2 max-w-[65%] md:max-w-[55%]">
                   <p className="text-xs font-medium text-muted-foreground mb-2 px-1">Try one of these to get started</p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {STUDENT_SUGGESTED_PROMPTS.map((s) => {
