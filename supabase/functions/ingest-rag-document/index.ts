@@ -93,14 +93,14 @@ async function ocrPage(
           {
             role: "system",
             content:
-              "You are an OCR engine. Transcribe the readable text on the specified PDF page verbatim. Preserve paragraph breaks. Do not summarize, explain, or add commentary. If a page is blank, return an empty string.",
+              "You are an OCR engine for academic course materials. The page may contain printed text, cursive or block handwriting, whiteboard/blackboard photographs, and margin annotations on printed content. Transcribe every readable character verbatim in natural reading order, preserving paragraph and line breaks. For handwritten mathematics, transcribe expressions inline using plain-text math (e.g. `x^2 + 2x = 0`, `∫ f(x) dx`, `sqrt(a^2+b^2)`); do not use LaTeX. If a word or symbol is unclear, transcribe your best guess followed by `[?]`. If a region is fully unreadable, write `[illegible]`. Do not summarize, translate, explain, or add commentary. If the page is blank, return an empty string.",
           },
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: `Transcribe page ${pageNumber} of the attached PDF verbatim.`,
+                text: `Transcribe page ${pageNumber} of the attached PDF verbatim, including any handwritten notes, board work, or margin annotations.`,
               },
               {
                 type: "file",
