@@ -1183,7 +1183,7 @@ const AIChat = () => {
           {isUser ? userInitial : <Sparkles className="w-4 h-4" />}
         </div>
         {isFirstAssistantWelcome ? (
-          <div className="flex items-start gap-2 flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2 flex-1 min-w-0">
             <div className="max-w-[65%] md:max-w-[55%] min-w-0 rounded-xl px-4 py-3 text-sm break-words [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:max-w-full bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm">
               {bubbleContent}
             </div>
