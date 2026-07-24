@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { AUTH_BYPASS, BYPASS_ADMIN_EMAIL, BYPASS_ADMIN_PASSWORD } from "@/lib/authBypass";
@@ -18,6 +18,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  // Ref mirror of `session` so async auth listeners can inspect the current
+  // token expiry without capturing stale closure state.
+  const sessionRef = useRef<Session | null>(null);
+  // Flip to true only around a user-initiated `signOut()` so we can tell
+  // deliberate sign-outs from transient SDK `SIGNED_OUT` events fired after a
+  // failed background refresh (e.g. mid-upload) where our access token is
+  // still valid.
+  const signOutInFlightRef = useRef(false);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   const parseFunctionResponse = async (response: Response) => {
     const rawBody = await response.text();
@@ -57,9 +69,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      // Suppress spurious sign-outs (e.g. a failed background refreshSession)
+      // when our currently-held access token is still valid and the user
+      // didn't initiate the sign-out themselves. Genuine expiry still flows
+      // through because sessionRef.current.expires_at will be in the past.
+      if (!newSession && !signOutInFlightRef.current) {
+        const currentExpiresAt = sessionRef.current?.expires_at;
+        if (currentExpiresAt && currentExpiresAt * 1000 > Date.now()) {
+          console.warn("[Auth] Ignoring spurious sign-out; access token still valid");
+          setLoading(false);
+          return;
+        }
+      }
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
       setLoading(false);
     });
 
@@ -225,9 +249,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    setUser(null);
+    signOutInFlightRef.current = true;
+    try {
+      await supabase.auth.signOut();
+      setSession(null);
+      setUser(null);
+    } finally {
+      // Give the auth listener a tick to observe the SIGNED_OUT event before
+      // we drop the guard flag.
+      setTimeout(() => { signOutInFlightRef.current = false; }, 0);
+    }
   };
 
   return (

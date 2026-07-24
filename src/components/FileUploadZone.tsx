@@ -96,8 +96,17 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const [parseStartedAt, setParseStartedAt] = useState<Record<string, number>>({});
   const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
-  // Per-pending-file upload % (keyed by file.name + idx while in pending set).
+  // Per-pending-file DISPLAYED upload % (keyed by file.name + idx while in pending set).
+  // Eased via rAF so small-file uploads don't visually skip the bar (see
+  // MIN_FILL_MS below).
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  // rAF-driven animator state per progressKey. `target` is the real upload %
+  // reported by XHR; the displayed value in `uploadProgress` eases toward it
+  // over at least MIN_FILL_MS for a full 0→100 sweep.
+  const MIN_FILL_MS = 400;
+  const progressAnimRef = useRef<
+    Record<string, { target: number; startAt: number; raf: number | null }>
+  >({});
   // Paths uploaded during this component's lifetime — surfaces the "Indexing…"
   // badge immediately without needing rag_status to arrive first.
   const [freshlyUploadedPaths, setFreshlyUploadedPaths] = useState<Set<string>>(new Set());
@@ -369,6 +378,54 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     void parseSyllabusInBackground({ storagePath: file.path, fileName: file.name });
   };
 
+  // Advance the displayed progress bar toward `target`, easing so that a full
+  // 0→100 fill takes at least MIN_FILL_MS. Safe to call repeatedly from
+  // XHR onprogress; a single rAF loop per key coalesces updates.
+  const scheduleProgress = (key: string, target: number) => {
+    const clampedTarget = Math.max(0, Math.min(100, target));
+    const existing = progressAnimRef.current[key];
+    const state = existing ?? { target: 0, startAt: performance.now(), raf: null };
+    state.target = Math.max(state.target, clampedTarget);
+    progressAnimRef.current[key] = state;
+    if (state.raf !== null) return;
+    const step = () => {
+      const elapsed = performance.now() - state.startAt;
+      const minPct = Math.min(100, (elapsed / MIN_FILL_MS) * 100);
+      setUploadProgress((prev) => {
+        const cur = prev[key] ?? 0;
+        const next = Math.max(cur, Math.min(state.target, minPct));
+        if (next >= 100) {
+          state.raf = null;
+          return { ...prev, [key]: 100 };
+        }
+        if (next >= state.target && minPct >= state.target) {
+          // Caught up to a non-terminal target — pause until the next bump.
+          state.raf = null;
+          return { ...prev, [key]: next };
+        }
+        state.raf = requestAnimationFrame(step);
+        return { ...prev, [key]: next };
+      });
+    };
+    state.raf = requestAnimationFrame(step);
+  };
+
+  const resetProgress = (key: string) => {
+    const existing = progressAnimRef.current[key];
+    if (existing?.raf != null) cancelAnimationFrame(existing.raf);
+    progressAnimRef.current[key] = { target: 0, startAt: performance.now(), raf: null };
+    setUploadProgress((prev) => ({ ...prev, [key]: 0 }));
+  };
+
+  useEffect(() => {
+    return () => {
+      Object.values(progressAnimRef.current).forEach((s) => {
+        if (s.raf != null) cancelAnimationFrame(s.raf);
+      });
+      progressAnimRef.current = {};
+    };
+  }, []);
+
   // Upload a single file to Supabase Storage with a real XHR progress bar
   // by going through a signed upload URL (createSignedUploadUrl → PUT).
   // Falls back to the standard supabase.storage.upload() if the signed URL
@@ -378,7 +435,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     storagePath: string,
     progressKey: string,
   ): Promise<{ ok: boolean; errorMessage?: string }> => {
-    setUploadProgress((prev) => ({ ...prev, [progressKey]: 0 }));
+    resetProgress(progressKey);
     const { data: signed, error: signErr } = await supabase.storage
       .from("course-materials")
       .createSignedUploadUrl(storagePath);
@@ -391,11 +448,11 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         xhr.upload.onprogress = (e) => {
           if (!e.lengthComputable) return;
           const pct = Math.round((e.loaded / e.total) * 100);
-          setUploadProgress((prev) => ({ ...prev, [progressKey]: pct }));
+          scheduleProgress(progressKey, pct);
         };
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
-            setUploadProgress((prev) => ({ ...prev, [progressKey]: 100 }));
+            scheduleProgress(progressKey, 100);
             resolve({ ok: true });
           } else {
             resolve({ ok: false, errorMessage: `HTTP ${xhr.status}` });
@@ -410,7 +467,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     const { error } = await supabase.storage
       .from("course-materials")
       .upload(storagePath, file);
-    setUploadProgress((prev) => ({ ...prev, [progressKey]: 100 }));
+    scheduleProgress(progressKey, 100);
     return error
       ? { ok: false, errorMessage: error.message }
       : { ok: true };
@@ -421,11 +478,22 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     setUploading(true);
     if (folderType === "syllabus") setUploadStartedAt(Date.now());
 
-    // Ensure we have a fresh session token before uploading
-    const { error: refreshError } = await supabase.auth.refreshSession();
-    if (refreshError) {
-      console.warn("Session refresh failed, proceeding with current session:", refreshError.message);
+    // Only refresh the session when it's actually about to expire (< 60s).
+    // Refreshing unconditionally caused a mid-upload SIGNED_OUT → redirect to
+    // /auth on transient network failures, which looked like a page reload.
+    const { data: sessionData } = await supabase.auth.getSession();
+    const expiresAt = sessionData.session?.expires_at ?? 0;
+    const secondsUntilExpiry = expiresAt - Math.floor(Date.now() / 1000);
+    if (!expiresAt || secondsUntilExpiry < 60) {
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) {
+        // Warn only — a still-valid access_token is enough to complete the
+        // signed-URL upload, and AuthContext now suppresses spurious
+        // SIGNED_OUT events while the token is still valid.
+        console.warn("Session refresh failed, proceeding with current session:", refreshError.message);
+      }
     }
+
 
     const newFiles: UploadedFile[] = [];
     const syllabusToParse: Array<{ file: File; path: string }> = [];
@@ -477,6 +545,10 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     setPending([]);
     setConfirmed(false);
     setUploading(false);
+    Object.values(progressAnimRef.current).forEach((s) => {
+      if (s.raf != null) cancelAnimationFrame(s.raf);
+    });
+    progressAnimRef.current = {};
     setUploadProgress({});
     if (folderType === "syllabus") setUploadStartedAt(null);
 
