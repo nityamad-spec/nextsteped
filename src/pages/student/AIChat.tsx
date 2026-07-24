@@ -1423,9 +1423,6 @@ const AIChat = () => {
               <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowTerminal(true)}>
                 <Terminal className="h-4 w-4" /> <span className="hidden sm:inline">Code</span>
               </Button>
-              <Button variant="outline" size="sm" className="h-9 text-sm" onClick={createNewChat}>
-                <Plus className="sm:mr-2 h-4 w-4" /> <span className="hidden sm:inline">New Chat</span>
-              </Button>
             </div>
           )}
         </div>
