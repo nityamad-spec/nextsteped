@@ -1,0 +1,1 @@
+UPDATE public.course_material_files SET rag_status = 'skipped' WHERE rag_status = 'pending' AND (lower(file_name) LIKE '%.json' OR folder_type IN ('syllabus-json'));
