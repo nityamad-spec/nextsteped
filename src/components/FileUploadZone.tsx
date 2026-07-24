@@ -378,6 +378,54 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     void parseSyllabusInBackground({ storagePath: file.path, fileName: file.name });
   };
 
+  // Advance the displayed progress bar toward `target`, easing so that a full
+  // 0→100 fill takes at least MIN_FILL_MS. Safe to call repeatedly from
+  // XHR onprogress; a single rAF loop per key coalesces updates.
+  const scheduleProgress = (key: string, target: number) => {
+    const clampedTarget = Math.max(0, Math.min(100, target));
+    const existing = progressAnimRef.current[key];
+    const state = existing ?? { target: 0, startAt: performance.now(), raf: null };
+    state.target = Math.max(state.target, clampedTarget);
+    progressAnimRef.current[key] = state;
+    if (state.raf !== null) return;
+    const step = () => {
+      const elapsed = performance.now() - state.startAt;
+      const minPct = Math.min(100, (elapsed / MIN_FILL_MS) * 100);
+      setUploadProgress((prev) => {
+        const cur = prev[key] ?? 0;
+        const next = Math.max(cur, Math.min(state.target, minPct));
+        if (next >= 100) {
+          state.raf = null;
+          return { ...prev, [key]: 100 };
+        }
+        if (next >= state.target && minPct >= state.target) {
+          // Caught up to a non-terminal target — pause until the next bump.
+          state.raf = null;
+          return { ...prev, [key]: next };
+        }
+        state.raf = requestAnimationFrame(step);
+        return { ...prev, [key]: next };
+      });
+    };
+    state.raf = requestAnimationFrame(step);
+  };
+
+  const resetProgress = (key: string) => {
+    const existing = progressAnimRef.current[key];
+    if (existing?.raf != null) cancelAnimationFrame(existing.raf);
+    progressAnimRef.current[key] = { target: 0, startAt: performance.now(), raf: null };
+    setUploadProgress((prev) => ({ ...prev, [key]: 0 }));
+  };
+
+  useEffect(() => {
+    return () => {
+      Object.values(progressAnimRef.current).forEach((s) => {
+        if (s.raf != null) cancelAnimationFrame(s.raf);
+      });
+      progressAnimRef.current = {};
+    };
+  }, []);
+
   // Upload a single file to Supabase Storage with a real XHR progress bar
   // by going through a signed upload URL (createSignedUploadUrl → PUT).
   // Falls back to the standard supabase.storage.upload() if the signed URL
@@ -387,7 +435,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     storagePath: string,
     progressKey: string,
   ): Promise<{ ok: boolean; errorMessage?: string }> => {
-    setUploadProgress((prev) => ({ ...prev, [progressKey]: 0 }));
+    resetProgress(progressKey);
     const { data: signed, error: signErr } = await supabase.storage
       .from("course-materials")
       .createSignedUploadUrl(storagePath);
@@ -400,11 +448,11 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         xhr.upload.onprogress = (e) => {
           if (!e.lengthComputable) return;
           const pct = Math.round((e.loaded / e.total) * 100);
-          setUploadProgress((prev) => ({ ...prev, [progressKey]: pct }));
+          scheduleProgress(progressKey, pct);
         };
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
-            setUploadProgress((prev) => ({ ...prev, [progressKey]: 100 }));
+            scheduleProgress(progressKey, 100);
             resolve({ ok: true });
           } else {
             resolve({ ok: false, errorMessage: `HTTP ${xhr.status}` });
@@ -419,7 +467,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     const { error } = await supabase.storage
       .from("course-materials")
       .upload(storagePath, file);
-    setUploadProgress((prev) => ({ ...prev, [progressKey]: 100 }));
+    scheduleProgress(progressKey, 100);
     return error
       ? { ok: false, errorMessage: error.message }
       : { ok: true };
