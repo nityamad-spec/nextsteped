@@ -86,7 +86,7 @@ const StudentHome = () => {
   const [lessonPlanPublished, setLessonPlanPublished] = useState(false);
   const [lessonPlanError, setLessonPlanError] = useState(false);
 
-  // Lesson plan
+  // Learning path
   const [lessonPlan, setLessonPlan] = useState<any[]>([]);
   const [planLoading, setPlanLoading] = useState(true);
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
@@ -313,7 +313,7 @@ const StudentHome = () => {
           .order("week_number");
 
         if (rowsError) {
-          console.error("Lesson plan load error:", rowsError);
+          console.error("Learning path load error:", rowsError);
           setLessonPlanPublished(false);
           setLessonPlanError(Boolean(publishedAt));
           setLessonPlan([]);
@@ -376,7 +376,7 @@ const StudentHome = () => {
         setPlanLoading(false);
         return;
       } catch (err) {
-        console.error("Lesson plan load error:", err);
+        console.error("Learning path load error:", err);
         setLessonPlanError(Boolean(publishedAt));
       }
       setLessonPlanPublished(false);
@@ -416,9 +416,9 @@ const StudentHome = () => {
   const conceptIdByName = new Map<string, string>();
   concepts.forEach((c) => conceptIdByName.set(c.name, c.id));
 
-  // Concept ids that appear in any visible lesson-plan week
+  // Concept ids that appear in any visible learning-path week
   const visibleConceptIds = new Set<string>();
-  // Current-week concept names (in order) from the lesson plan
+  // Current-week concept names (in order) from the learning path
   const currentWeekConcepts: { id?: string; name: string }[] = [];
   lessonPlan.forEach((wk: any) => {
     (wk.concepts || []).forEach((c: any) => {
