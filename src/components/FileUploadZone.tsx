@@ -421,11 +421,22 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     setUploading(true);
     if (folderType === "syllabus") setUploadStartedAt(Date.now());
 
-    // Ensure we have a fresh session token before uploading
-    const { error: refreshError } = await supabase.auth.refreshSession();
-    if (refreshError) {
-      console.warn("Session refresh failed, proceeding with current session:", refreshError.message);
+    // Only refresh the session when it's actually about to expire (< 60s).
+    // Refreshing unconditionally caused a mid-upload SIGNED_OUT → redirect to
+    // /auth on transient network failures, which looked like a page reload.
+    const { data: sessionData } = await supabase.auth.getSession();
+    const expiresAt = sessionData.session?.expires_at ?? 0;
+    const secondsUntilExpiry = expiresAt - Math.floor(Date.now() / 1000);
+    if (!expiresAt || secondsUntilExpiry < 60) {
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) {
+        // Warn only — a still-valid access_token is enough to complete the
+        // signed-URL upload, and AuthContext now suppresses spurious
+        // SIGNED_OUT events while the token is still valid.
+        console.warn("Session refresh failed, proceeding with current session:", refreshError.message);
+      }
     }
+
 
     const newFiles: UploadedFile[] = [];
     const syllabusToParse: Array<{ file: File; path: string }> = [];
