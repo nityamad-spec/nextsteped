@@ -432,12 +432,12 @@ const StudentHome = () => {
   const currentWeekRow = lessonPlan.find((wk: any) => wk.day === currentWeek);
   const isExamWeek = !!currentWeekRow?.is_exam_week;
 
-  // Rule 1 — no lesson plan published
+  // Rule 1 — no learning path published
   if (!lessonPlanPublished) {
     nextActions.push({
       icon: BookOpen,
-      title: "Lesson plan not published yet",
-      description: "Your professor hasn't published the lesson plan. Check back soon.",
+      title: "Learning path not published yet",
+      description: "Your professor hasn't published the learning path. Check back soon.",
       action: () => { /* no-op */ },
       category: "HEADS UP",
     });
@@ -658,30 +658,30 @@ const StudentHome = () => {
         </Card>
       </motion.div>
 
-      {/* Lesson Plan */}
+      {/* Learning Path */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <BookOpen className="h-4 w-4 text-primary" /> Lesson Plan
+              <BookOpen className="h-4 w-4 text-primary" /> Learning Path
             </CardTitle>
-            <CardDescription>Unit-by-unit course plan with learning outcomes and activities</CardDescription>
+            <CardDescription>Your personalized learning path with units, outcomes, and activities</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {planLoading ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Loading lesson plan...</p>
+              <p className="text-sm text-muted-foreground text-center py-4">Loading learning path...</p>
             ) : !lessonPlanPublished ? (
               <div className="text-center py-6 space-y-1">
                 <BookOpen className="h-8 w-8 mx-auto text-muted-foreground/40" />
                 {lessonPlanError ? (
                   <>
-                    <p className="text-sm font-medium text-muted-foreground">Lesson plan is being updated</p>
+                    <p className="text-sm font-medium text-muted-foreground">Learning path is being updated</p>
                     <p className="text-xs text-muted-foreground">Please refresh in a moment. If this keeps showing, let your professor know.</p>
                   </>
                 ) : (
                   <>
-                    <p className="text-sm font-medium text-muted-foreground">Lesson plan not yet available</p>
-                    <p className="text-xs text-muted-foreground">Your professor hasn't published the lesson plan yet. You're currently on Unit {currentWeek} of {totalWeeks}.</p>
+                    <p className="text-sm font-medium text-muted-foreground">Learning path not yet available</p>
+                    <p className="text-xs text-muted-foreground">Your professor hasn't published the learning path yet. You're currently on Unit {currentWeek} of {totalWeeks}.</p>
                   </>
                 )}
               </div>
