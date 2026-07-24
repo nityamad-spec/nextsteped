@@ -249,9 +249,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    setUser(null);
+    signOutInFlightRef.current = true;
+    try {
+      await supabase.auth.signOut();
+      setSession(null);
+      setUser(null);
+    } finally {
+      // Give the auth listener a tick to observe the SIGNED_OUT event before
+      // we drop the guard flag.
+      setTimeout(() => { signOutInFlightRef.current = false; }, 0);
+    }
   };
 
   return (
