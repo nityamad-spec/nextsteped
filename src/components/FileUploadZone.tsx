@@ -508,20 +508,19 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
       if (!res.ok) {
         toast.error(`Failed to upload ${file.name}: ${res.errorMessage ?? "unknown"}`);
       } else {
+        if (!courseId) {
+          toast.error(`Cannot register ${file.name}: missing course context`);
+          continue;
+        }
         if (teacherId && folderType) {
-          const { error: metaError } = await supabase
-            .from("course_material_files")
-            .insert({
-              teacher_id: teacherId,
-              course_id: courseId ?? null,
-              file_name: file.name,
-              file_size: file.size,
-              storage_path: filePath,
-              folder_type: folderType,
-            });
-          if (metaError) {
-            console.error("Failed to save file metadata:", metaError.message);
-          }
+          await upsertCourseMaterialFile({
+            course_id: courseId,
+            teacher_id: teacherId,
+            storage_path: filePath,
+            file_name: file.name,
+            file_size: file.size,
+            folder_type: folderType,
+          });
         }
         newFiles.push({ name: file.name, size: file.size, path: filePath });
         uploadedPaths.push(filePath);
@@ -529,6 +528,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
           syllabusToParse.push({ file, path: filePath });
         }
       }
+
     }
 
     if (newFiles.length > 0) {
