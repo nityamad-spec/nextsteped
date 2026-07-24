@@ -545,6 +545,10 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
     setPending([]);
     setConfirmed(false);
     setUploading(false);
+    Object.values(progressAnimRef.current).forEach((s) => {
+      if (s.raf != null) cancelAnimationFrame(s.raf);
+    });
+    progressAnimRef.current = {};
     setUploadProgress({});
     if (folderType === "syllabus") setUploadStartedAt(null);
 
