@@ -1474,8 +1474,14 @@ const AIChat = () => {
                           key={s.label}
                           variant="outline"
                           className="h-auto justify-start gap-3 rounded-2xl border-border/60 bg-card px-3 py-3 text-left hover:bg-accent"
-                          onClick={() => sendMessage(s.prompt, s.promptMode)}
-                          disabled={isStreaming || isCooldown}
+                          onClick={() => {
+                            if (s.action === "practice") {
+                              setShowPractice(true);
+                            } else {
+                              sendMessage(s.prompt, s.promptMode);
+                            }
+                          }}
+                          disabled={s.action === "practice" ? false : (isStreaming || isCooldown)}
                         >
                           <Icon className="h-4 w-4 shrink-0 text-primary" />
                           <span className="flex flex-col gap-0.5 min-w-0">
