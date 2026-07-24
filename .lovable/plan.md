@@ -1,23 +1,44 @@
-## Goal
-Produce a downloadable Excel workbook of all student and course data for **Introduction to Generative AI (GenAI01)** — course id `2ccc8090-8e90-4eee-9e0a-4e94871d4f14`, 437 enrolled students.
+# Fix auto-reload during PDF upload + smoother progress bar
 
-## Approach
-Reuse the exact same logic as the in-app export (`src/lib/exportCourseToExcel.ts`) so the output matches what teachers/admins already see, but run it server-side via psql + Python (`openpyxl`) and drop the file in `/mnt/documents` for you to download. No app code changes.
+Two small, isolated changes. No backend or DB changes.
 
-## Workbook contents (mirrors in-app export)
-1. **Overview** — course metadata (name, code, term, professor, enrollment code, status), enrolled count, diagnostic submitted counts, mastery band distribution, completion counts, quiz/exam totals, chat message total.
-2. **Students** — one row per enrolled student: Name, Email, Roll Number, Enrolled At, Diagnostic Status/Score/Level, Final Mastery Level/%, Quizzes Attempted (x/y), Avg Quiz %, Exams Attempted (x/y), Avg Exam %, Chat Messages, Course Completed.
-3. **Diagnostic — Submitted** and **Diagnostic — Not Submitted**.
-4. **Mastery — Beginner / Developing / Proficient / Expert / Not Started** (5 sheets).
-5. **Completion — Completed** and **Completion — Not Completed**.
+## 1. Conditional pre-upload session refresh (`src/components/FileUploadZone.tsx`)
 
-## Data sources
-`courses`, `profiles`, `enrollments`, `diagnostic_results`, `student_course_mastery`, `assessment_results` (daily_quiz + exam modes), `course_exams` (active = not archived), `chat_sessions` + `chat_messages`.
+Currently `handleConfirmedUpload` unconditionally calls `supabase.auth.refreshSession()` right before uploading. If the refresh token round-trip fails or returns a `SIGNED_OUT`, `AuthContext.onAuthStateChange` clears `user`, the route guard bounces to `/auth`, and the upload dialog is torn down mid-flight — the "page reloads on its own" symptom.
 
-## Deliverable
-`Introduction_to_Generative_AI-GenAI01-<today>.xlsx` in `/mnt/documents`, surfaced via `<presentation-artifact>` for one-click download.
+Change:
+- Read the current session via `supabase.auth.getSession()`.
+- Compute `secondsUntilExpiry = (expires_at * 1000 - Date.now()) / 1000`.
+- Only call `refreshSession()` when `secondsUntilExpiry < 60` (or when no `expires_at` is available).
+- If `refreshSession()` returns an error but a still-valid `access_token` exists (expiry still in the future), swallow it with a `console.warn` and proceed with the upload — do not surface, do not force sign-out.
 
-## Notes / risks
-- Read-only; no schema or app changes.
-- Student data is anonymized only in the professor UI — this export includes name/email/roll (matches existing admin export behavior). Let me know if you'd like PII stripped.
-- Chat message counts require joining `chat_messages` on ~hundreds of sessions; will be batched.
+## 2. Suppress spurious sign-out from a failed refresh (`src/contexts/AuthContext.tsx`)
+
+The `onAuthStateChange` listener today sets `user`/`session` from whatever the SDK emits. When a refresh fails transiently, Supabase may fire `TOKEN_REFRESHED` with a null session or `SIGNED_OUT` even though the previously stored access token has not yet expired.
+
+Change the listener to:
+- Ignore `SIGNED_OUT` / null-session events when the current in-memory `session.access_token` is still valid (expiry in the future by > 0s) AND the event is not `USER_DELETED` and was not initiated by our own `signOut()` (tracked via a small `signOutInFlightRef`).
+- On `signOut()`, set the ref before calling `supabase.auth.signOut()` so a genuine user-initiated sign-out still clears state.
+- All other events (`SIGNED_IN`, `TOKEN_REFRESHED` with a real session, `USER_UPDATED`) behave as today.
+
+This makes an upload-time refresh hiccup a warning, not a logout.
+
+## 3. Minimum-visible-duration progress animation (`src/components/FileUploadZone.tsx`)
+
+XHR `progress` events on small files jump 0 → 100 in a single tick, so the `<Progress>` bar visually skips. Add a lightweight animator local to `uploadFileWithProgress`:
+
+- Maintain a `displayedProgress` state alongside the existing real `uploadProgress`.
+- When real progress advances, ease `displayedProgress` toward it via `requestAnimationFrame` such that any full 0 → 100 transition takes at least ~400 ms (min-duration clamp; never rewind, never delay a completed upload's post-processing).
+- Render `<Progress value={displayedProgress[progressKey]} />` in the three existing progress spots (lines 729, 808 stay; line 893 `animate-pulse` indeterminate bar stays as-is).
+- Once real progress hits 100 and the animation catches up, we still trigger the existing indexing-badge flow without extra delay for the network step — only the visual fill is smoothed.
+
+## Risks
+
+- **Session semantics**: Suppressing `SIGNED_OUT` when the token is still valid is intentional but changes AuthContext behavior globally. Mitigation: only suppress when `expires_at` in stored session is in the future and the event wasn't user-initiated; genuine expiry still logs the user out via the natural token expiry path.
+- **Progress animator**: Must be cancelled on unmount / new upload to avoid leaked `rAF` loops.
+- No changes to upload payload, storage bucket, or RAG ingestion.
+
+## Out of scope
+
+- Changing upload chunking, retry, or the RAG indexing badge.
+- Any UI copy or layout changes beyond the smoother fill.
