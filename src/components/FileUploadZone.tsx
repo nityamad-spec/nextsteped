@@ -96,8 +96,17 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const [parseStartedAt, setParseStartedAt] = useState<Record<string, number>>({});
   const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
-  // Per-pending-file upload % (keyed by file.name + idx while in pending set).
+  // Per-pending-file DISPLAYED upload % (keyed by file.name + idx while in pending set).
+  // Eased via rAF so small-file uploads don't visually skip the bar (see
+  // MIN_FILL_MS below).
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  // rAF-driven animator state per progressKey. `target` is the real upload %
+  // reported by XHR; the displayed value in `uploadProgress` eases toward it
+  // over at least MIN_FILL_MS for a full 0→100 sweep.
+  const MIN_FILL_MS = 400;
+  const progressAnimRef = useRef<
+    Record<string, { target: number; startAt: number; raf: number | null }>
+  >({});
   // Paths uploaded during this component's lifetime — surfaces the "Indexing…"
   // badge immediately without needing rag_status to arrive first.
   const [freshlyUploadedPaths, setFreshlyUploadedPaths] = useState<Set<string>>(new Set());
