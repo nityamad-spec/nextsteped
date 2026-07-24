@@ -519,7 +519,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
             storage_path: filePath,
             file_name: file.name,
             file_size: file.size,
-            folder_type: folderType,
+            folder_type: folderType as import("@/lib/courseMaterialFiles").MaterialFolderType,
           });
         }
         newFiles.push({ name: file.name, size: file.size, path: filePath });
