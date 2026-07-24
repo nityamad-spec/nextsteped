@@ -1,44 +1,78 @@
-# Fix auto-reload during PDF upload + smoother progress bar
+# Fix: uploaded PDFs stuck on "Indexing…"
 
-Two small, isolated changes. No backend or DB changes.
+## Root cause
 
-## 1. Conditional pre-upload session refresh (`src/components/FileUploadZone.tsx`)
+`FileUploadZone.handleConfirmedUpload` (src/components/FileUploadZone.tsx, ~lines 511-525) registers the newly uploaded file by calling `supabase.from("course_material_files").insert(...)` **directly**. That skips the shared helper `upsertCourseMaterialFile()` in `src/lib/courseMaterialFiles.ts`, which is the only place that fires the ingest edge function (`fireIngest → supabase.functions.invoke("ingest-rag-document")`).
 
-Currently `handleConfirmedUpload` unconditionally calls `supabase.auth.refreshSession()` right before uploading. If the refresh token round-trip fails or returns a `SIGNED_OUT`, `AuthContext.onAuthStateChange` clears `user`, the route guard bounces to `/auth`, and the upload dialog is torn down mid-flight — the "page reloads on its own" symptom.
+Consequence:
 
-Change:
-- Read the current session via `supabase.auth.getSession()`.
-- Compute `secondsUntilExpiry = (expires_at * 1000 - Date.now()) / 1000`.
-- Only call `refreshSession()` when `secondsUntilExpiry < 60` (or when no `expires_at` is available).
-- If `refreshSession()` returns an error but a still-valid `access_token` exists (expiry still in the future), swallow it with a `console.warn` and proceed with the upload — do not surface, do not force sign-out.
+- Row is created with the DB default `rag_status = 'pending'`.
+- `ingest-rag-document` is never invoked (edge-function logs show zero calls; the row's `rag_status` stays `pending`, `rag_error` stays `null`, `rag_indexed_at` stays `null` — the function never even reached the "processing" write).
+- `useRagStatus` keeps polling `pending` forever → "Indexing…" badge never clears.
 
-## 2. Suppress spurious sign-out from a failed refresh (`src/contexts/AuthContext.tsx`)
+This explains the current stuck file `Introduction of Finite Automata - GeeksforGeeks.pdf` (id `fc1e2c1d…`) and any past-materials / lesson-plan / textbook PDF that was uploaded through the standard uploader after this code path landed. The 19 already-indexed rows came from the earlier backfill / from the syllabus + Replace paths (both of which do go through `upsertCourseMaterialFile`).
 
-The `onAuthStateChange` listener today sets `user`/`session` from whatever the SDK emits. When a refresh fails transiently, Supabase may fire `TOKEN_REFRESHED` with a null session or `SIGNED_OUT` even though the previously stored access token has not yet expired.
+Nothing on the backend is broken — the edge function, embedding pipeline, and DB are fine. It's purely a missing client-side trigger.
 
-Change the listener to:
-- Ignore `SIGNED_OUT` / null-session events when the current in-memory `session.access_token` is still valid (expiry in the future by > 0s) AND the event is not `USER_DELETED` and was not initiated by our own `signOut()` (tracked via a small `signOutInFlightRef`).
-- On `signOut()`, set the ref before calling `supabase.auth.signOut()` so a genuine user-initiated sign-out still clears state.
-- All other events (`SIGNED_IN`, `TOKEN_REFRESHED` with a real session, `USER_UPDATED`) behave as today.
+## Fix (one file, one call)
 
-This makes an upload-time refresh hiccup a warning, not a logout.
+Replace the direct insert inside the upload loop with a call to the shared helper, so every successful storage upload gets registered and immediately triggers `ingest-rag-document`.
 
-## 3. Minimum-visible-duration progress animation (`src/components/FileUploadZone.tsx`)
+**File:** `src/components/FileUploadZone.tsx`
 
-XHR `progress` events on small files jump 0 → 100 in a single tick, so the `<Progress>` bar visually skips. Add a lightweight animator local to `uploadFileWithProgress`:
+Around lines 511-525, swap:
 
-- Maintain a `displayedProgress` state alongside the existing real `uploadProgress`.
-- When real progress advances, ease `displayedProgress` toward it via `requestAnimationFrame` such that any full 0 → 100 transition takes at least ~400 ms (min-duration clamp; never rewind, never delay a completed upload's post-processing).
-- Render `<Progress value={displayedProgress[progressKey]} />` in the three existing progress spots (lines 729, 808 stay; line 893 `animate-pulse` indeterminate bar stays as-is).
-- Once real progress hits 100 and the animation catches up, we still trigger the existing indexing-badge flow without extra delay for the network step — only the visual fill is smoothed.
+```ts
+const { error: metaError } = await supabase
+  .from("course_material_files")
+  .insert({ teacher_id, course_id, file_name, file_size, storage_path, folder_type });
+```
+
+for:
+
+```ts
+if (teacherId && courseId && folderType) {
+  await upsertCourseMaterialFile({
+    course_id: courseId,
+    teacher_id: teacherId,
+    storage_path: filePath,
+    file_name: file.name,
+    file_size: file.size,
+    folder_type: folderType,
+  });
+}
+```
+
+Notes:
+
+- `upsertCourseMaterialFile` already:
+  - upserts on `(course_id, storage_path)` (safe on retries),
+  - runs the same-stem auto-supersede check,
+  - and calls `fireIngest`, which only invokes for `.pdf` files or `lesson-plan-published` folder (matches current expectations — JSON drafts/syllabus stay skipped as before).
+- `courseId` is currently optional in the raw insert (`course_id: courseId ?? null`). We should require it before firing ingest to avoid orphan rows the edge function can't attribute. If `courseId` is missing, fall back to the current raw insert (or skip entirely) to preserve existing behavior for non-course uploaders.
+
+## Backfill the currently stuck row
+
+After the code change, kick the one visibly-stuck PDF once so the user's current file finishes indexing without a re-upload:
+
+- Invoke `ingest-rag-document` with `{ file_id: "fc1e2c1d-a7c3-4229-b480-7c7837bdcc7f" }`.
+- The 9 stale `approved-syllabus.json` / `draft-plan-v2.json` rows in `pending` are intentional (their folder types are excluded from ingest) — leave them; if the badge annoyance matters we can flip their status to `skipped` in the same pass, but that's optional and separate from this bug.
+
+## Verification
+
+1. Upload a new PDF into any folder (past materials, lesson plans, textbook).
+2. Watch `course_material_files.rag_status` transition `pending → processing → indexed` within a few seconds.
+3. Confirm edge-function logs for `ingest-rag-document` show a fresh invocation.
+4. Confirm the "Indexing…" badge clears and switches to "Indexed" via the existing `useRagStatus` polling.
 
 ## Risks
 
-- **Session semantics**: Suppressing `SIGNED_OUT` when the token is still valid is intentional but changes AuthContext behavior globally. Mitigation: only suppress when `expires_at` in stored session is in the future and the event wasn't user-initiated; genuine expiry still logs the user out via the natural token expiry path.
-- **Progress animator**: Must be cancelled on unmount / new upload to avoid leaked `rAF` loops.
-- No changes to upload payload, storage bucket, or RAG ingestion.
+- **Existing raw-insert behavior with `course_id: null`.** Some historical call sites may rely on being able to upload without a course context. Guarding on `courseId` preserves that path.
+- **Double-fire on retries.** `upsertCourseMaterialFile` is idempotent (upsert on path), and `ingest-rag-document` short-circuits on unchanged `content_hash`, so re-invocations are safe.
+- **No new permissions or migrations.** Pure client change plus one manual ingest for the stuck row.
 
-## Out of scope
+## Questions before I implement
 
-- Changing upload chunking, retry, or the RAG indexing badge.
-- Any UI copy or layout changes beyond the smoother fill.
+1. **Backfill scope:** just the one visibly-stuck file (`Introduction of Finite Automata…`), or should I also scan for any other `pending` PDF rows created since the FileUploadZone regression landed and re-fire them in one pass? Yes do it for all pdf rows
+2. **Stale JSON rows (`approved-syllabus.json`, `draft-plan-v2.json`) sitting in `pending`:** leave as-is, or flip their `rag_status` to `skipped` so the admin data model reflects reality? (No UI impact — they don't appear in the uploader badge list.) change status to skipped
+3. **Missing `courseId` guard:** if a caller ever mounts `FileUploadZone` without a `courseId`, do you want the upload to still register (raw insert, no ingest) or be refused outright? refuse upload when there is no course id
