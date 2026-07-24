@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // when our currently-held access token is still valid and the user
       // didn't initiate the sign-out themselves. Genuine expiry still flows
       // through because sessionRef.current.expires_at will be in the past.
-      if (!newSession && !signOutInFlightRef.current && event !== "USER_DELETED") {
+      if (!newSession && !signOutInFlightRef.current && event !== "SIGNED_OUT" ? false : !newSession && !signOutInFlightRef.current) {
         const currentExpiresAt = sessionRef.current?.expires_at;
         if (currentExpiresAt && currentExpiresAt * 1000 > Date.now()) {
           console.warn("[Auth] Ignoring spurious sign-out; access token still valid");
