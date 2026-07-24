@@ -51,10 +51,11 @@ const getWelcomeLearning = (courseName?: string | null) =>
 const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Configure your practice settings and click **Start Exam** to begin a timed simulation. Good luck!";
 
 type PromptMode = "news" | "materials";
-const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string; promptMode?: PromptMode }[] = [
+type PromptAction = "practice";
+const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string; promptMode?: PromptMode; action?: PromptAction }[] = [
   { icon: Lightbulb, label: "Explain a concept", prompt: "Explain this week's key concept in simple terms with an example." },
   { icon: BookOpen, label: "Walk through an example", prompt: "Walk me through a worked example for this week's topic step by step." },
-  { icon: ListChecks, label: "Quiz me", prompt: "Quiz me with 5 practice questions on this week's material and check my answers." },
+  { icon: ListChecks, label: "Quiz me", prompt: "Open Practice Questions to generate a quiz on your recent topics.", action: "practice" },
   { icon: Newspaper, label: "Explore this week's news", prompt: "Show me recent news, developments, and real-world examples related to this week's topic.", promptMode: "news" },
   { icon: FolderSearch, label: "Search course materials", prompt: "Find and explain information from the syllabus, textbook, slides, or other materials uploaded by my professor.", promptMode: "materials" },
   { icon: GraduationCap, label: "Prep for the exam", prompt: "What topics should I focus on for the upcoming exam, and how should I study them?" },
@@ -1394,9 +1395,6 @@ const AIChat = () => {
           </div>
           {mode === "learning" && (
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowPractice(true)}>
-                <Dumbbell className="h-4 w-4" /> <span className="hidden sm:inline">Practice Questions</span>
-              </Button>
               <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowTerminal(true)}>
                 <Terminal className="h-4 w-4" /> <span className="hidden sm:inline">Code</span>
               </Button>
@@ -1476,8 +1474,14 @@ const AIChat = () => {
                           key={s.label}
                           variant="outline"
                           className="h-auto justify-start gap-3 rounded-2xl border-border/60 bg-card px-3 py-3 text-left hover:bg-accent"
-                          onClick={() => sendMessage(s.prompt, s.promptMode)}
-                          disabled={isStreaming || isCooldown}
+                          onClick={() => {
+                            if (s.action === "practice") {
+                              setShowPractice(true);
+                            } else {
+                              sendMessage(s.prompt, s.promptMode);
+                            }
+                          }}
+                          disabled={s.action === "practice" ? false : (isStreaming || isCooldown)}
                         >
                           <Icon className="h-4 w-4 shrink-0 text-primary" />
                           <span className="flex flex-col gap-0.5 min-w-0">
