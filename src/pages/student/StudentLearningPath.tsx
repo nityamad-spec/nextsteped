@@ -47,6 +47,7 @@ const StudentLearningPath = () => {
   const {
     courseName,
     currentWeek,
+    totalWeeks,
     lessonPlan,
     planLoading,
     lessonPlanPublished,
