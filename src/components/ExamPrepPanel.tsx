@@ -54,28 +54,22 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard, examCount = 0, ne
   };
 
   const noExamAvailable = examCount === 0;
-  const upcomingExamPosition = examCount > 0 ? (nextExamIndex % examCount) + 1 : 0;
-  const availabilityNote =
+  const examAvailabilityLine =
     examCount === 0
-      ? "All practice exams completed (or none published yet). Each exam can only be attempted once — review your Performance dashboard for past results."
+      ? "There are no practice exams available to take right now."
       : examCount === 1
-        ? "1 practice exam remaining — each exam can only be attempted once."
-        : `${examCount} practice exams remaining — each exam can only be attempted once (next up: Exam ${upcomingExamPosition} of ${examCount}).`;
+        ? "There is 1 practice exam you can take."
+        : `There are ${examCount} practice exams you can take.`;
 
 
   return (
     <div className="border-b bg-muted/20 px-5 py-4 space-y-3">
-      {/* Availability note about professor-published exams */}
+      {/* Combined professor recommendation + availability note */}
       <div className="flex items-start gap-2 rounded-lg border border-border bg-background/60 px-3 py-2">
         <Info className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-        <p className="text-xs text-muted-foreground">{availabilityNote}</p>
-      </div>
-
-      {/* Recommendation banner */}
-      <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
-        <Info className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
         <p className="text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">Professor recommended settings</span> — these simulate the real exam. You can customize them for your practice.
+          <span className="font-medium text-foreground">Professor Recommended Settings: These simulate the exam.</span>
+          {" "}{examAvailabilityLine}
         </p>
       </div>
 
