@@ -1,77 +1,72 @@
-## Plan: Add Learning Path and Project Lab tabs to student navigation
+# Plan: Redesign "What to do next" on /student/home
 
-### Goal
+## Goal
+Update the existing "What to do next" card on `/student/home` to match the visual structure in the attached screenshot: a header with Preview/activity-count badges and a "View full learning path" link, followed by up to three structured activity cards (Quiz, Reading, Continue learning) with category badges, metadata, descriptions, and right-aligned action buttons.
 
-Add two new tabs to the left-side student navigation bar:
+## Scope
+UI-only changes in `src/pages/student/StudentHome.tsx`. No backend or data-model changes.
 
-1. **Learning Path** — directly underneath **Home**
-2. **Project Lab** — directly underneath **Teaching Assistant**
+## Detailed changes
 
-### Decisions confirmed
+### 1. Section header
+- Change title from "What to do next" → "What to do today".
+- Add subtitle: "Three focused activities based on your course schedule and recent mastery."
+- Add a top-row flex layout containing:
+  - A "Preview" badge (neutral/secondary variant) linking to `/student/learning-path`.
+  - An activity-count badge showing the number of rendered cards (e.g., "3 activities").
+  - A "View full learning path →" text/button link on the right, also navigating to `/student/learning-path`.
 
-- **Learning Path** becomes a new dedicated page (`/student/learning-path`).
-- The existing Learning Path section on `/student/home` will be removed.
-- **Project Lab** will be a placeholder / Coming Soon page.
-- New tabs will appear on both desktop sidebar and mobile bottom navigation.
+### 2. Refactor `nextActions` data model
+Extend the `NextAction` type so each item carries the fields needed by the new card layout:
+- `visualCategory`: `'quiz' | 'reading' | 'continue' | 'practice' | 'heads-up'`
+- `badgeLabel`: human category label shown in the card (e.g., "Quiz", "Reading", "Continue learning").
+- `badgeTone`: `'neutral' | 'green'` (green for Continue learning, neutral for others).
+- `metadata`: short secondary line (e.g., "10 questions · 8–10 min", "12 min", "Unit 2 · Based on your last session").
+- `buttonLabel`: dynamic CTA text (e.g., "Start quiz", "Open reading", "Review with TA").
+- `buttonVariant`: `'default' | 'outline'`.
 
-### Proposed defaults (review/override)
+### 3. Map existing dynamic actions to visual categories
+Keep the existing priority logic, but map each generated action to the new visual category:
+- `THIS WEEK'S QUIZ`, `REVIEW` (missed earlier quiz) → **Quiz** card.
+- `PRACTICE` (practice exam) → **Quiz** card (or its own category if preferred; treat as quiz-style for layout consistency).
+- `DIAGNOSTIC` → **Quiz** card.
+- `START THIS WEEK`, `STRENGTHEN`, `EXPLORE` → **Continue learning** card (green badge).
+- `HEADS UP` (learning path not published) → single neutral card, no header badges needed.
 
-- **Icons**: `Route` for Learning Path, `FlaskConical` for Project Lab.
-- **Project Lab placeholder text**: "Project Lab — hands-on projects are coming soon."
+### 4. Add Reading card
+- Derive one Reading card from the current week's `lessonPlan` resources.
+- Pick the first resource of type `'reading'` or `'material'` in the current week; fallback to the first resource of any type if no reading exists.
+- Metadata: derive a read time from the resource description/title heuristically, or use a fixed fallback (e.g., "~10 min").
+- Title: "Read: {resource.title}".
+- Description: resource description or a generic prompt.
+- Action: navigate to `/student/learning-path`.
+- If the current week has no resources, omit the Reading card.
 
-### Implementation steps
+### 5. Quiz metadata
+For Quiz cards, use live TA settings:
+- Question count: `taSettings.quizNumQuestions || 5`.
+- Time limit: `taSettings.quizTimeLimit || 10`.
+- Render as: "{count} questions · {time} min".
 
-#### 1. Create `src/pages/student/StudentLearningPath.tsx`
+### 6. Card layout update
+Replace the current `<button>` row with a structured card row:
+- Left: rounded-square icon container (keep existing color logic, but align with badge tone).
+- Middle top: category badge + metadata on the same line.
+- Middle: title (semibold) + description (muted).
+- Right: action `<Button>` with dynamic label and variant.
+- Entire row remains clickable; the button is the primary action target.
+- Keep max 3 cards and the existing skeleton loading state, styled to match the new layout.
 
-- Extract the Learning Path rendering logic from `StudentHome.tsx` (lesson plan loading, week expansion, activity done state, resources, quiz dialogs, diagnostic gate).
-- Keep the same data fetching and behavior; move helper constants/types as needed.
-- Render inside the existing `StudentLayout` via `<Outlet>`.
+### 7. Styling guardrails
+- Use project design tokens only (`bg-primary`, `text-muted-foreground`, `border`, etc.).
+- No hardcoded hex colors.
+- Continue-learning badge uses `bg-green-100 text-green-700` or semantic equivalents (`bg-green-500/10 text-green-600`).
 
-#### 2. Create `src/pages/student/StudentProjectLab.tsx`
+## Verification
+- Run `tsc --noEmit` and production build.
+- Visually verify via Playwright screenshot that the section renders with the new header, three activity cards, and correct navigation links.
 
-- New placeholder page using the existing `ComingSoon` component or a simple centered card.
-- Route: `/student/project-lab`.
-
-#### 3. Update `src/App.tsx`
-
-- Add imports for `StudentLearningPath` and `StudentProjectLab`.
-- Add two new `<Route>` entries under the `/student/*` layout:
-  - `/student/learning-path`
-  - `/student/project-lab`
-
-#### 4. Update `src/layouts/StudentLayout.tsx`
-
-- Update the `studentNav` array to include the new items in order:
-  1. Home (`/student/home`)
-  2. Learning Path (`/student/learning-path`)
-  3. Teaching Assistant (`/student/chat`)
-  4. Project Lab (`/student/project-lab`)
-  5. Feedback (`/student/feedback`)
-- Import the chosen icons (`Route`, `FlaskConical` by default).
-- Both desktop sidebar and mobile bottom nav iterate the same array, so the new tabs appear automatically.
-
-#### 5. Update `src/pages/student/StudentHome.tsx`
-
-- Remove the Learning Path section and all related state/effects that are moving to `StudentLearningPath.tsx`.
-- Keep the Home dashboard content: course progress, mastery heatmap, "What to do next", weekly quiz CTA, etc.
-- Remove unused imports that were only needed for the Learning Path section.
-
-#### 6. Verify and test
-
-- Run TypeScript typecheck.
-- Run the existing test suite (especially `StudentHome.test.tsx`).
-- Visually verify desktop sidebar and mobile bottom nav render correctly with 5 items.
-- Confirm active-tab highlighting works for the two new routes.
-
-### Risks and considerations
-
-- **Mobile bottom nav crowding**: Adding two tabs brings the total to 5 items. On narrow screens the labels may wrap or feel cramped. We can keep labels short or consider a "More" overflow menu later if needed.
-- **State duplication**: Extracting Learning Path from `StudentHome.tsx` must not leave orphaned state or broken quiz dialogs. The `WeeklyQuizDialog` and `DiagnosticGateDialog` usage moves with the section.
-- **Route redirects**: Any hardcoded redirects to `/student/home#learning-path` or similar will need updating; a quick search will confirm there are none.
-- **Active route matching**: `NavLink` uses `end={false}`, so `/student/learning-path` and `/student/chat` will highlight independently without overlap.
-
-### Open questions for you
-
-1. happy with the default icons (`Route` / `FlaskConical`) and Project Lab placeholder text 
-2. Shorten them (e.g., "Path", "Lab") to avoid crowding?
-3. On `/student/home` add a card/link pointing students to the new Learning Path page. 
+## Risks / open items
+- Reading-card duration is heuristic/fallback because lesson-plan resources do not currently store a read-time field. If exact durations are required later, a backend field should be added.
+- If no current-week resource exists, the Reading card is omitted and the section may show fewer than three cards; this matches the dynamic nature of the existing list.
+- The green badge tone is reserved for Continue-learning actions to match the screenshot; other categories remain neutral.

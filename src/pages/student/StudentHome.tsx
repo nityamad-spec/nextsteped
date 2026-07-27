@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, Check, Sparkles, Compass } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -261,12 +262,21 @@ const StudentHome = () => {
     | "REVIEW"
     | "PRACTICE"
     | "EXPLORE";
+  type VisualCategory = "quiz" | "reading" | "continue" | "practice" | "heads-up";
+  type BadgeTone = "neutral" | "green";
+  type ButtonVariant = "default" | "outline";
   type NextAction = {
     icon: any;
     title: string;
     description: string;
     action: () => void;
     category: NextActionCategory;
+    visualCategory: VisualCategory;
+    badgeLabel: string;
+    badgeTone: BadgeTone;
+    metadata: string;
+    buttonLabel: string;
+    buttonVariant: ButtonVariant;
   };
   const nextActions: NextAction[] = [];
 
@@ -290,6 +300,16 @@ const StudentHome = () => {
   const currentWeekRow = lessonPlan.find((wk: any) => wk.day === currentWeek);
   const isExamWeek = !!currentWeekRow?.is_exam_week;
 
+  const quizQuestionCount = taSettings?.quizNumQuestions || 5;
+  const quizTimeLimit = taSettings?.quizTimeLimit || 10;
+  const quizMetadata = `${quizQuestionCount} questions · ${quizTimeLimit} min`;
+
+  const deriveReadTime = (resource: { title?: string; description?: string }) => {
+    const text = `${resource.title || ""} ${resource.description || ""}`;
+    const match = text.match(/(\d+)\s*(?:min|minute|mins|minutes)/i);
+    return match ? `${match[1]} min` : "~10 min";
+  };
+
   // Rule 1 — no learning path published
   if (!lessonPlanPublished) {
     nextActions.push({
@@ -298,6 +318,12 @@ const StudentHome = () => {
       description: "Your professor hasn't published the learning path. Check back soon.",
       action: () => { /* no-op */ },
       category: "HEADS UP",
+      visualCategory: "heads-up",
+      badgeLabel: "Heads up",
+      badgeTone: "neutral",
+      metadata: "",
+      buttonLabel: "View learning path",
+      buttonVariant: "outline",
     });
   } else {
     // Rule 2 — diagnostic not taken
@@ -308,6 +334,12 @@ const StudentHome = () => {
         description: "Helps the assistant calibrate to your level",
         action: () => navigate(`/student/diagnostic?course=${enrolledCourseId ?? ""}`),
         category: "DIAGNOSTIC",
+        visualCategory: "quiz",
+        badgeLabel: "Diagnostic",
+        badgeTone: "neutral",
+        metadata: quizMetadata,
+        buttonLabel: "Start quiz",
+        buttonVariant: "default",
       });
     }
 
@@ -321,6 +353,12 @@ const StudentHome = () => {
         description: "Quick check-in on this week's concepts",
         action: () => attemptOpenQuiz(currentWeek),
         category: "THIS WEEK'S QUIZ",
+        visualCategory: "quiz",
+        badgeLabel: "Quiz",
+        badgeTone: "neutral",
+        metadata: quizMetadata,
+        buttonLabel: "Start quiz",
+        buttonVariant: "default",
       });
     }
 
@@ -332,8 +370,20 @@ const StudentHome = () => {
         description: "Exam week — simulate a timed exam in chat",
         action: () => attemptExamMode(),
         category: "PRACTICE",
+        visualCategory: "quiz",
+        badgeLabel: "Practice exam",
+        badgeTone: "neutral",
+        metadata: "Timed simulation",
+        buttonLabel: "Start exam",
+        buttonVariant: "default",
       });
     }
+
+    // Reading card derived from current week's resources
+    const currentWeekResources = Array.isArray(currentWeekRow?.resources) ? currentWeekRow.resources : [];
+    const readingResource = currentWeekResources.find(
+      (r: any) => typeof r?.type === "string" && /reading|material|article|text/i.test(r.type),
+    ) || currentWeekResources[0];
 
     // Rule 4 — weakest touched concept within visible scope
     const touchedVisible = Object.entries(conceptMastery)
@@ -349,6 +399,12 @@ const StudentHome = () => {
           description: "Revisit this concept in the Study Chat",
           action: () => navigate(`/student/chat?newchat=true&concept=${encodeURIComponent(weakest.name)}`),
           category: "STRENGTHEN",
+          visualCategory: "continue",
+          badgeLabel: "Continue learning",
+          badgeTone: "green",
+          metadata: "Based on your mastery",
+          buttonLabel: "Review with TA",
+          buttonVariant: "outline",
         });
       }
     }
@@ -364,6 +420,12 @@ const StudentHome = () => {
         description: `Week ${currentWeek} — open a new chat to dig in`,
         action: () => navigate("/student/chat?newchat=true"),
         category: "START THIS WEEK",
+        visualCategory: "continue",
+        badgeLabel: "Continue learning",
+        badgeTone: "green",
+        metadata: `Unit ${currentWeek}`,
+        buttonLabel: "Review with TA",
+        buttonVariant: "outline",
       });
     }
 
@@ -380,6 +442,12 @@ const StudentHome = () => {
         description: "You haven't taken this one yet",
         action: () => attemptOpenQuiz(missedEarlier),
         category: "REVIEW",
+        visualCategory: "quiz",
+        badgeLabel: "Quiz",
+        badgeTone: "neutral",
+        metadata: quizMetadata,
+        buttonLabel: "Start quiz",
+        buttonVariant: "default",
       });
     }
 
@@ -391,6 +459,12 @@ const StudentHome = () => {
         description: "Test your knowledge with a timed simulation",
         action: () => attemptExamMode(),
         category: "PRACTICE",
+        visualCategory: "practice",
+        badgeLabel: "Practice",
+        badgeTone: "neutral",
+        metadata: "Timed simulation",
+        buttonLabel: "Start exam",
+        buttonVariant: "outline",
       });
     }
 
@@ -406,6 +480,12 @@ const StudentHome = () => {
         description: "Try a deeper question or revisit a concept",
         action: () => navigate("/student/chat?newchat=true"),
         category: "EXPLORE",
+        visualCategory: "continue",
+        badgeLabel: "Continue learning",
+        badgeTone: "green",
+        metadata: "Based on your last session",
+        buttonLabel: "Review with TA",
+        buttonVariant: "outline",
       });
     }
 
@@ -417,7 +497,32 @@ const StudentHome = () => {
         description: "Ask a question or explore a concept",
         action: () => navigate("/student/chat?newchat=true"),
         category: "EXPLORE",
+        visualCategory: "continue",
+        badgeLabel: "Continue learning",
+        badgeTone: "green",
+        metadata: "Based on your last session",
+        buttonLabel: "Review with TA",
+        buttonVariant: "outline",
       });
+    }
+
+    // Splice in a Reading card after the highest-priority action when available
+    if (readingResource) {
+      const readTime = deriveReadTime(readingResource);
+      const readingAction: NextAction = {
+        icon: BookOpen,
+        title: `Read: ${readingResource.title || "Course reading"}`,
+        description: readingResource.description || "Prepare for the next part of the unit with a short guided course reading.",
+        action: () => navigate("/student/learning-path"),
+        category: "START THIS WEEK",
+        visualCategory: "reading",
+        badgeLabel: "Reading",
+        badgeTone: "neutral",
+        metadata: readTime,
+        buttonLabel: "Open reading",
+        buttonVariant: "outline",
+      };
+      nextActions.splice(1, 0, readingAction);
     }
   }
 
@@ -461,12 +566,34 @@ const StudentHome = () => {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="mb-6">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-3 text-base">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Compass className="h-4 w-4" />
-              </span>
-              What to do next
-            </CardTitle>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <CardTitle className="flex items-center gap-3 text-base">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <Compass className="h-4 w-4" />
+                  </span>
+                  What to do today
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Three focused activities based on your course schedule and recent mastery.
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/student/learning-path")}
+                className="shrink-0"
+              >
+                View full learning path
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <Badge variant="secondary">Preview</Badge>
+              <Badge variant="outline">
+                {nextActionsLoading ? "— activities" : `${Math.min(nextActions.length, 3)} activities`}
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {nextActionsLoading ? (
@@ -479,18 +606,16 @@ const StudentHome = () => {
               </div>
             ) : (
               nextActions.slice(0, 3).map((action, i) => {
-                const isAmber = action.category === "PRACTICE";
-                const isMuted = action.category === "HEADS UP";
-                const categoryClass = isAmber
-                  ? "text-amber-600 dark:text-amber-500"
-                  : isMuted
-                  ? "text-muted-foreground"
-                  : "text-primary";
-                const tileClass = isAmber
-                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-500"
+                const isGreen = action.badgeTone === "green";
+                const isMuted = action.visualCategory === "heads-up";
+                const tileClass = isGreen
+                  ? "bg-green-500/10 text-green-600 dark:text-green-500"
                   : isMuted
                   ? "bg-muted text-muted-foreground"
                   : "bg-primary/10 text-primary";
+                const badgeClass = isGreen
+                  ? "bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-500/20 dark:text-green-400"
+                  : "bg-muted text-muted-foreground hover:bg-muted";
                 return (
                   <button
                     key={i}
@@ -501,13 +626,29 @@ const StudentHome = () => {
                       <action.icon className="h-5 w-5" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-[11px] font-semibold tracking-wider uppercase ${categoryClass}`}>
-                        {action.category}
-                      </p>
-                      <p className="text-[15px] font-semibold leading-snug mt-0.5">{action.title}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="secondary" className={`text-[10px] font-semibold uppercase tracking-wider ${badgeClass}`}>
+                          {action.badgeLabel}
+                        </Badge>
+                        {action.metadata && (
+                          <span className="text-xs text-muted-foreground">{action.metadata}</span>
+                        )}
+                      </div>
+                      <p className="text-[15px] font-semibold leading-snug mt-1">{action.title}</p>
                       <p className="text-sm text-muted-foreground mt-0.5">{action.description}</p>
                     </div>
-                    <ArrowRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                    <Button
+                      variant={action.buttonVariant}
+                      size="sm"
+                      className="shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        action.action();
+                      }}
+                    >
+                      {action.buttonLabel}
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Button>
                   </button>
                 );
               })
