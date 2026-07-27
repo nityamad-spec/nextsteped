@@ -17,6 +17,7 @@ import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, Check, Spar
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
+import ConceptMasteryDialog from "@/components/student/ConceptMasteryDialog";
 
 
 /* Concepts are loaded from the DB for the student's enrolled course.
@@ -99,6 +100,7 @@ const StudentHome = () => {
   const [diagGate, setDiagGate] = useState<{ open: boolean; context: string }>({ open: false, context: "" });
   const [conceptMastery, setConceptMastery] = useState<Record<string, { score: number; attempted: number }>>({});
   const [courseMastery, setCourseMastery] = useState<number | null>(null);
+  const [masteryDialogOpen, setMasteryDialogOpen] = useState(false);
   const [takenQuizzes, setTakenQuizzes] = useState<
     Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }>
   >({});
@@ -655,20 +657,20 @@ const StudentHome = () => {
         </Card>
       </motion.div>
 
-      {/* Concept Mastery Heat Map */}
+      {/* Concept Mastery — summary */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="mb-6">
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Brain className="h-4 w-4 text-primary shrink-0" /> Concept Mastery Map
-                </CardTitle>
-                <CardDescription>Your mastery per concept — grows as you work with the AI tutor, complete quizzes and exams. Separate from lesson completion.</CardDescription>
+                <CardTitle className="text-xl font-serif">Concept mastery</CardTitle>
+                <CardDescription>A quick view of where you stand</CardDescription>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-2xl font-bold text-primary">{courseMastery !== null ? `${Math.round(courseMastery * 100)}%` : "—"}</p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Overall Mastery</p>
+                <p className="text-3xl font-bold text-primary leading-none">
+                  {courseMastery !== null ? `${Math.round(courseMastery * 100)}%` : "—"}
+                </p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">Overall</p>
               </div>
             </div>
             <div className="mt-3">
@@ -676,55 +678,75 @@ const StudentHome = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {concepts.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">
-                Concepts will appear here once your professor sets them up.
-              </p>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {concepts.map((concept) => {
-                  const m = conceptMastery[concept.id];
-                  const attempted = m?.attempted ?? 0;
-                  const score = m?.score ?? 0;
-                  const level = getMasteryLevel(attempted, score);
-                  const pct = attempted > 0 ? Math.floor(score * 100) : null;
-                  return (
-                    <Tooltip key={concept.id}>
-                      <TooltipTrigger asChild>
-                        <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${MASTERY_TILE_CLASS[level]}`}>
-                          <p className="text-xs font-medium truncate">{concept.name}</p>
-                          <p className="text-sm font-semibold mt-1">{MASTERY_LABEL[level]}</p>
-                          {pct !== null && (
-                            <p className="text-[10px] opacity-80 mt-0.5">{pct}%</p>
-                          )}
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>
-                          {concept.name}: {MASTERY_LABEL[level]}
-                          {pct !== null ? ` (${pct}% mastery)` : ""}
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  );
-                })}
-              </div>
+            {(() => {
+              const attemptedList = concepts
+                .map((c) => ({ c, m: conceptMastery[c.id] }))
+                .filter((x) => (x.m?.attempted ?? 0) > 0)
+                .map((x) => ({
+                  id: x.c.id,
+                  name: x.c.name,
+                  score: x.m!.score,
+                  pct: Math.floor(x.m!.score * 100),
+                  level: getMasteryLevel(x.m!.attempted, x.m!.score),
+                }));
+              const strongest = attemptedList.length
+                ? attemptedList.reduce((a, b) => (b.score > a.score ? b : a))
+                : null;
+              const weakest =
+                attemptedList.length > 1
+                  ? attemptedList.reduce((a, b) => (b.score < a.score ? b : a))
+                  : null;
 
-            )}
-            <div className="flex items-center justify-center gap-3 mt-3 flex-wrap">
-              {(["not_explored", "beginner", "developing", "proficient", "expert"] as MasteryLevel[]).map((lvl) => (
-                <div key={lvl} className="flex items-center gap-1.5">
-                  <div className={`h-3 w-3 rounded ${MASTERY_SWATCH_CLASS[lvl]}`} />
-                  <span className="text-[10px] text-muted-foreground">{MASTERY_LABEL[lvl]}</span>
+              if (!strongest) {
+                return (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Take a quiz or chat with the Teaching Assistant to start building your mastery.
+                  </p>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+                    <p className="text-xs text-muted-foreground">Strong concept</p>
+                    <p className="font-semibold text-foreground truncate mt-0.5">{strongest.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {strongest.pct}% · {MASTERY_LABEL[strongest.level]}
+                    </p>
+                  </div>
+                  {weakest && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                      <p className="text-xs text-muted-foreground">Needs attention</p>
+                      <p className="font-semibold text-foreground truncate mt-0.5">{weakest.name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {weakest.pct}% · {MASTERY_LABEL[weakest.level]}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              ))}
+              );
+            })()}
+            <div className="mt-4">
+              <Button
+                variant="link"
+                className="px-0 h-auto text-primary"
+                onClick={() => setMasteryDialogOpen(true)}
+              >
+                View full mastery map →
+              </Button>
             </div>
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              The more you engage with the Teaching Assistant, the more accurate your exploration and mastery insights become
-            </p>
           </CardContent>
         </Card>
       </motion.div>
+
+      <ConceptMasteryDialog
+        open={masteryDialogOpen}
+        onOpenChange={setMasteryDialogOpen}
+        concepts={concepts}
+        conceptMastery={conceptMastery}
+        courseMastery={courseMastery}
+      />
+
 
 
       <WeeklyQuizDialog
