@@ -34,8 +34,6 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard, exams = [] }: Exa
   const [questionCount, setQuestionCount] = useState(profCount);
   const [showSettings, setShowSettings] = useState(false);
 
-  const isDefault = timeLimit === profTime && questionCount === profCount;
-
   const resetToRecommended = () => {
     setTimeLimit(profTime);
     setQuestionCount(profCount);
