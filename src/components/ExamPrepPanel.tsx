@@ -104,11 +104,9 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard, exams = [] }: Exa
         <div className="rounded-lg border bg-background p-4 space-y-4 animate-in slide-in-from-top-2 duration-200">
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium">Practice Settings</Label>
-            {!isDefault && (
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetToRecommended}>
-                Reset to Recommended
-              </Button>
-            )}
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetToRecommended}>
+              Reset to Recommended
+            </Button>
           </div>
 
           <div className="space-y-3">
