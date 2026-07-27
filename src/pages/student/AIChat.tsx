@@ -1507,20 +1507,40 @@ const AIChat = () => {
         )}
 
         {/* Input */}
-        <div className="border-t p-4">
-          <div className="flex gap-2">
-            <Input
-              placeholder={mode === "learning" ? "Ask your Teaching Assistant anything..." : "Exam Prep chat is off here — use the controls above to run a practice exam."}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-              className="flex-1"
-              disabled={mode === "exam"}
-            />
-            <Button onClick={() => sendMessage()} size="icon" disabled={!input.trim() || isStreaming || isCooldown || mode === "exam"}>
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
+        <div className={mode === "learning" ? "border-t px-4 md:px-6 pt-4 pb-8 md:pb-10" : "border-t p-4"}>
+          {mode === "learning" ? (
+            <div className="flex items-end gap-2">
+              <Textarea
+                placeholder="Ask your Teaching Assistant anything..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
+                className="flex-1 min-h-[72px] max-h-[200px] resize-none"
+              />
+              <Button onClick={() => sendMessage()} size="icon" disabled={!input.trim() || isStreaming || isCooldown}>
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Input
+                placeholder="Exam Prep chat is off here — use the controls above to run a practice exam."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                className="flex-1"
+                disabled
+              />
+              <Button size="icon" disabled>
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           <div className="mt-2 flex items-center justify-center gap-1.5">
             <ShieldCheck className="h-3 w-3 text-primary" />
             <p className="text-[11px] text-muted-foreground">

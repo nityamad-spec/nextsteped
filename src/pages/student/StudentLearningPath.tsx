@@ -292,9 +292,11 @@ const StudentLearningPath = () => {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Unit {dp.day}</span>
                             <span className="text-sm font-semibold truncate">{dp.topic}</span>
-                            <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${statusStyles}`}>
-                              {statusLabel}
-                            </span>
+                            {status !== "in_progress" && (
+                              <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${statusStyles}`}>
+                                {statusLabel}
+                              </span>
+                            )}
                           </div>
                           {totalCount > 0 && (
                             <div className="mt-1.5 flex items-center gap-2">
