@@ -79,38 +79,25 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard, exams = [] }: Exa
       </div>
 
 
-      {/* Global settings summary */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="outline" className="text-xs gap-1">
-            <Clock className="h-3 w-3" /> {timeLimit} min
-          </Badge>
-          <Badge variant="outline" className="text-xs">
-            {questionCount} questions
-          </Badge>
-          {!isDefault && (
-            <Badge variant="secondary" className="text-xs">Customized</Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 text-xs gap-1"
-            onClick={() => setShowSettings(!showSettings)}
-            disabled
-            title="Settings are fixed by your professor"
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-            {showSettings ? "Hide" : "Edit"} Settings
-            {showSettings ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+      {/* Global action bar */}
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 text-xs gap-1"
+          onClick={() => setShowSettings(!showSettings)}
+          disabled
+          title="Settings are fixed by your professor"
+        >
+          <Settings2 className="h-3.5 w-3.5" />
+          {showSettings ? "Hide" : "Edit"} Settings
+          {showSettings ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        </Button>
+        {onShowDashboard && (
+          <Button variant="outline" size="sm" onClick={onShowDashboard} className="h-8 gap-2">
+            <BarChart3 className="h-4 w-4" /> Performance
           </Button>
-          {onShowDashboard && (
-            <Button variant="outline" onClick={onShowDashboard} className="gap-2">
-              <BarChart3 className="h-4 w-4" /> Performance
-            </Button>
-          )}
-        </div>
+        )}
       </div>
 
 
