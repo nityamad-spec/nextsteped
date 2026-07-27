@@ -25,6 +25,20 @@ const formatAvgTime = (seconds: number, totalQuestions: number) => {
 const parseList = (text: string) =>
   text.split("\n").map((l) => l.replace(/^[-•]\s*/, "").trim()).filter(Boolean);
 
+interface QuizResultRow {
+  quiz_day: number | string;
+  score: number | string;
+  correct_answers: number | string;
+  total_questions: number | string;
+  time_spent: number | string;
+}
+
+interface QuestionDayRow {
+  quiz_day: number | string;
+}
+
+type ResourceItem = LearningPlanWeek["resources"][number];
+
 const StudentLearningPath = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
