@@ -574,7 +574,7 @@ const StudentHome = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => navigate("/student/learning-path")}
+                onClick={() => { markLearningPathOpened(enrolledCourseId); navigate("/student/learning-path"); }}
                 className="shrink-0"
               >
                 View full learning path
