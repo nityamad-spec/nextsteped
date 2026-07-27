@@ -14,8 +14,8 @@ const AchievementsCard = ({ achievements, earnedCount }: Props) => {
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
-              <Medal className="h-5 w-5 text-amber-600" />
+            <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+              <Medal className="h-5 w-5 text-primary" />
             </div>
             <div className="min-w-0">
               <h3 className="text-xl font-serif font-semibold leading-tight">Achievements</h3>
