@@ -14,8 +14,8 @@ const AchievementsCard = ({ achievements, earnedCount }: Props) => {
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
-              <Medal className="h-5 w-5 text-amber-600" />
+            <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+              <Medal className="h-5 w-5 text-primary" />
             </div>
             <div className="min-w-0">
               <h3 className="text-xl font-serif font-semibold leading-tight">Achievements</h3>
@@ -39,7 +39,7 @@ const AchievementsCard = ({ achievements, earnedCount }: Props) => {
                   <div
                     className={`h-16 w-16 rounded-2xl flex items-center justify-center text-3xl transition-colors ${
                       a.earned
-                        ? "bg-emerald-500/15 border border-emerald-500/30"
+                        ? "bg-primary/15 border border-primary/30"
                         : "bg-muted border border-border opacity-60 grayscale"
                     }`}
                   >
@@ -64,7 +64,7 @@ const AchievementsCard = ({ achievements, earnedCount }: Props) => {
                     <ul className="space-y-1">
                       {a.howTo.steps.map((s, i) => (
                         <li key={i} className="flex items-start gap-1.5 text-xs">
-                          <span aria-hidden className={s.done ? "text-emerald-500" : "text-muted-foreground"}>
+                          <span aria-hidden className={s.done ? "text-primary" : "text-muted-foreground"}>
                             {s.done ? "✓" : "○"}
                           </span>
                           <span className={s.done ? "text-muted-foreground line-through" : ""}>

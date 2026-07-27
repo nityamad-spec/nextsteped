@@ -576,12 +576,7 @@ const StudentHome = () => {
             ) : (
               nextActions.slice(0, 3).map((action, i) => {
                 const isGreen = action.badgeTone === "green";
-                const isMuted = action.visualCategory === "heads-up";
-                const tileClass = isGreen
-                  ? "bg-green-500/10 text-green-600 dark:text-green-500"
-                  : isMuted
-                  ? "bg-muted text-muted-foreground"
-                  : "bg-primary/10 text-primary";
+                const tileClass = "bg-primary/10 text-primary";
                 const badgeClass = isGreen
                   ? "bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-500/20 dark:text-green-400"
                   : "bg-muted text-muted-foreground hover:bg-muted";
@@ -674,7 +669,7 @@ const StudentHome = () => {
 
               return (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+                  <div className="rounded-lg border border-primary/40 bg-primary/20 p-3">
                     <p className="text-xs text-muted-foreground">Strong concept</p>
                     <p className="font-semibold text-foreground truncate mt-0.5">{strongest.name}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -682,7 +677,7 @@ const StudentHome = () => {
                     </p>
                   </div>
                   {weakest && (
-                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                       <p className="text-xs text-muted-foreground">Needs attention</p>
                       <p className="font-semibold text-foreground truncate mt-0.5">{weakest.name}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
