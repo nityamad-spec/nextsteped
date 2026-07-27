@@ -56,7 +56,7 @@ type PromptAction = "practice";
 const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string; promptMode?: PromptMode; action?: PromptAction }[] = [
   { icon: BookOpen, label: "Explain a concept", prompt: "Explain this week's key concept in simple terms with an example." },
   { icon: ListChecks, label: "Quiz me", prompt: "Open Practice Questions to generate a quiz on your recent topics.", action: "practice" },
-  { icon: FolderSearch, label: "Search course materials", prompt: "Find and explain information from the syllabus, textbook, slides, or other materials uploaded by my professor.", promptMode: "materials" },
+  { icon: FolderSearch, label: "Search course materials", prompt: "Find and explain information from materials uploaded by my professor on topic X.", promptMode: "materials", action: "populate" },
   { icon: GraduationCap, label: "Prep for the exam", prompt: "What topics should I focus on for the upcoming exam, and how should I study them?" },
 ];
 
