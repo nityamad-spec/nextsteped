@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { BookOpen, ClipboardCheck, ChevronDown, ChevronUp, Lock, Check } from "lucide-react";
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
@@ -47,6 +48,7 @@ const StudentLearningPath = () => {
   const {
     courseName,
     currentWeek,
+    totalWeeks,
     lessonPlan,
     planLoading,
     lessonPlanPublished,
@@ -199,12 +201,43 @@ const StudentLearningPath = () => {
     setExpandedWeeks((prev) => (prev.includes(week) ? prev.filter((w) => w !== week) : [...prev, week]));
   };
 
+  const passedQuizCount = Object.values(takenQuizzes).filter((q) => q.score > 50).length;
+  const publishedQuizCount = availableQuizDays.size;
+  const progressPct = publishedQuizCount > 0
+    ? Math.max(0, Math.min(100, Math.round((passedQuizCount / publishedQuizCount) * 100)))
+    : 0;
+  const lastPassedUnit = Object.entries(takenQuizzes)
+    .filter(([, q]) => q.score > 50)
+    .reduce((max, [day]) => Math.max(max, Number(day) || 0), 0);
+  const displayedUnit = Math.max(1, Math.min(totalWeeks, lastPassedUnit + 1));
+
   return (
     <div className="p-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
         <h1 className="font-heading text-3xl font-bold">Learning Path</h1>
         {courseName && <p className="mt-1 text-sm text-muted-foreground">{courseName}</p>}
       </motion.div>
+
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 }} className="mb-6">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-primary" />
+                <p className="text-sm font-medium">Course Progress</p>
+              </div>
+              <span className="text-sm text-muted-foreground">Unit {displayedUnit} of {totalWeeks}</span>
+            </div>
+            <Progress value={progressPct} className="h-2 mb-1" />
+            <p className="text-xs text-muted-foreground">
+              {publishedQuizCount === 0
+                ? "No quizzes published yet"
+                : `${passedQuizCount} of ${publishedQuizCount} weekly quizzes passed (>50%)`}
+            </p>
+          </CardContent>
+        </Card>
+      </motion.div>
+
 
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
         <Card>

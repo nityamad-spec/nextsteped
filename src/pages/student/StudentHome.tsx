@@ -109,18 +109,6 @@ const StudentHome = () => {
   >({});
   const [availableQuizDays, setAvailableQuizDays] = useState<Set<number>>(new Set());
 
-  // Course Progress: weekly quizzes passed (score > 50%) / quizzes the professor has published
-  const passedQuizCount = Object.values(takenQuizzes).filter((q) => q.score > 50).length;
-  const publishedQuizCount = availableQuizDays.size;
-  const progressPct = publishedQuizCount > 0
-    ? Math.max(0, Math.min(100, Math.round((passedQuizCount / publishedQuizCount) * 100)))
-    : 0;
-
-  // Displayed unit = next unit after the last passed quiz, clamped to totalWeeks
-  const lastPassedUnit = Object.entries(takenQuizzes)
-    .filter(([, q]) => q.score > 50)
-    .reduce((max, [day]) => Math.max(max, Number(day) || 0), 0);
-  const displayedUnit = Math.max(1, Math.min(totalWeeks, lastPassedUnit + 1));
 
   useEffect(() => {
     if (!enrolledCourseId) { setConcepts([]); return; }
@@ -536,28 +524,6 @@ const StudentHome = () => {
           Welcome back, {displayName}!
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">{courseName}</p>
-      </motion.div>
-
-
-      {/* Course Progress */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-6">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-primary" />
-                <p className="text-sm font-medium">Course Progress</p>
-              </div>
-              <span className="text-sm text-muted-foreground">Unit {displayedUnit} of {totalWeeks}</span>
-            </div>
-            <Progress value={progressPct} className="h-2 mb-1" />
-            <p className="text-xs text-muted-foreground">
-              {publishedQuizCount === 0
-                ? "No quizzes published yet"
-                : `${passedQuizCount} of ${publishedQuizCount} weekly quizzes passed (>50%)`}
-            </p>
-          </CardContent>
-        </Card>
       </motion.div>
 
       {/* What to do next */}
