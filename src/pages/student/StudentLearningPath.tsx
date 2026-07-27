@@ -247,7 +247,7 @@ const StudentLearningPath = () => {
                 const quizPassed = !!(quizTaken && quizTaken.score > 50);
                 const quizTakenAny = !!quizTaken;
                 const quizDone = !quizPublished || quizPassed;
-                const activitiesDoneCount = activities.filter((r: any) => activityDone[r.id]).length;
+                const activitiesDoneCount = activities.filter((r: ResourceItem) => activityDone[r.id]).length;
                 const quizCounts = quizPublished ? 1 : 0;
                 const totalCount = activities.length + quizCounts;
                 const doneCount = activitiesDoneCount + (quizPublished && quizTakenAny ? 1 : 0);
