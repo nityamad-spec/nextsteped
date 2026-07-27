@@ -299,28 +299,15 @@ const StudentLearningPath = () => {
                           {totalCount > 0 && (
                             <div className="mt-1.5 flex items-center gap-2">
                               <div className="flex items-center gap-1">
-                                {activities.map((r: ResourceItem, i: number) => {
-                                  const done = !!activityDone[r.id];
-                                  const isLast = !quizPublished && i === activities.length - 1;
-                                  const cls = done
-                                    ? isComplete && isLast
+                                {Array.from({ length: totalCount }).map((_, i) => {
+                                  const filled = i < doneCount;
+                                  const cls = filled
+                                    ? isComplete
                                       ? "bg-emerald-500"
                                       : "bg-primary"
                                     : "bg-muted-foreground/25";
-                                  return <span key={r.id || i} className={`h-2 w-2 rounded-full ${cls}`} />;
+                                  return <span key={i} className={`h-2 w-2 rounded-full ${cls}`} />;
                                 })}
-                                {quizPublished && (
-                                  <span
-                                    className={`h-2 w-2 rounded-full ${
-                                      quizTakenAny
-                                        ? isComplete
-                                          ? "bg-emerald-500"
-                                          : "bg-primary"
-                                        : "bg-muted-foreground/25"
-                                    }`}
-                                    title="Weekly quiz"
-                                  />
-                                )}
                               </div>
                               <span className="text-xs text-muted-foreground">
                                 {doneCount} / {totalCount} done
