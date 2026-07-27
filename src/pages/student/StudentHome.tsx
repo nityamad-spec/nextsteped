@@ -300,6 +300,16 @@ const StudentHome = () => {
   const currentWeekRow = lessonPlan.find((wk: any) => wk.day === currentWeek);
   const isExamWeek = !!currentWeekRow?.is_exam_week;
 
+  const quizQuestionCount = taSettings?.quizNumQuestions || 5;
+  const quizTimeLimit = taSettings?.quizTimeLimit || 10;
+  const quizMetadata = `${quizQuestionCount} questions · ${quizTimeLimit} min`;
+
+  const deriveReadTime = (resource: { title?: string; description?: string }) => {
+    const text = `${resource.title || ""} ${resource.description || ""}`;
+    const match = text.match(/(\d+)\s*(?:min|minute|mins|minutes)/i);
+    return match ? `${match[1]} min` : "~10 min";
+  };
+
   // Rule 1 — no learning path published
   if (!lessonPlanPublished) {
     nextActions.push({
@@ -308,6 +318,12 @@ const StudentHome = () => {
       description: "Your professor hasn't published the learning path. Check back soon.",
       action: () => { /* no-op */ },
       category: "HEADS UP",
+      visualCategory: "heads-up",
+      badgeLabel: "Heads up",
+      badgeTone: "neutral",
+      metadata: "",
+      buttonLabel: "View learning path",
+      buttonVariant: "outline",
     });
   } else {
     // Rule 2 — diagnostic not taken
@@ -318,6 +334,12 @@ const StudentHome = () => {
         description: "Helps the assistant calibrate to your level",
         action: () => navigate(`/student/diagnostic?course=${enrolledCourseId ?? ""}`),
         category: "DIAGNOSTIC",
+        visualCategory: "quiz",
+        badgeLabel: "Diagnostic",
+        badgeTone: "neutral",
+        metadata: quizMetadata,
+        buttonLabel: "Start quiz",
+        buttonVariant: "default",
       });
     }
 
@@ -331,6 +353,12 @@ const StudentHome = () => {
         description: "Quick check-in on this week's concepts",
         action: () => attemptOpenQuiz(currentWeek),
         category: "THIS WEEK'S QUIZ",
+        visualCategory: "quiz",
+        badgeLabel: "Quiz",
+        badgeTone: "neutral",
+        metadata: quizMetadata,
+        buttonLabel: "Start quiz",
+        buttonVariant: "default",
       });
     }
 
@@ -342,8 +370,20 @@ const StudentHome = () => {
         description: "Exam week — simulate a timed exam in chat",
         action: () => attemptExamMode(),
         category: "PRACTICE",
+        visualCategory: "quiz",
+        badgeLabel: "Practice exam",
+        badgeTone: "neutral",
+        metadata: "Timed simulation",
+        buttonLabel: "Start exam",
+        buttonVariant: "default",
       });
     }
+
+    // Reading card derived from current week's resources
+    const currentWeekResources = Array.isArray(currentWeekRow?.resources) ? currentWeekRow.resources : [];
+    const readingResource = currentWeekResources.find(
+      (r: any) => typeof r?.type === "string" && /reading|material|article|text/i.test(r.type),
+    ) || currentWeekResources[0];
 
     // Rule 4 — weakest touched concept within visible scope
     const touchedVisible = Object.entries(conceptMastery)
@@ -359,6 +399,12 @@ const StudentHome = () => {
           description: "Revisit this concept in the Study Chat",
           action: () => navigate(`/student/chat?newchat=true&concept=${encodeURIComponent(weakest.name)}`),
           category: "STRENGTHEN",
+          visualCategory: "continue",
+          badgeLabel: "Continue learning",
+          badgeTone: "green",
+          metadata: "Based on your mastery",
+          buttonLabel: "Review with TA",
+          buttonVariant: "outline",
         });
       }
     }
@@ -374,6 +420,12 @@ const StudentHome = () => {
         description: `Week ${currentWeek} — open a new chat to dig in`,
         action: () => navigate("/student/chat?newchat=true"),
         category: "START THIS WEEK",
+        visualCategory: "continue",
+        badgeLabel: "Continue learning",
+        badgeTone: "green",
+        metadata: `Unit ${currentWeek}`,
+        buttonLabel: "Review with TA",
+        buttonVariant: "outline",
       });
     }
 
@@ -390,6 +442,12 @@ const StudentHome = () => {
         description: "You haven't taken this one yet",
         action: () => attemptOpenQuiz(missedEarlier),
         category: "REVIEW",
+        visualCategory: "quiz",
+        badgeLabel: "Quiz",
+        badgeTone: "neutral",
+        metadata: quizMetadata,
+        buttonLabel: "Start quiz",
+        buttonVariant: "default",
       });
     }
 
@@ -401,6 +459,12 @@ const StudentHome = () => {
         description: "Test your knowledge with a timed simulation",
         action: () => attemptExamMode(),
         category: "PRACTICE",
+        visualCategory: "practice",
+        badgeLabel: "Practice",
+        badgeTone: "neutral",
+        metadata: "Timed simulation",
+        buttonLabel: "Start exam",
+        buttonVariant: "outline",
       });
     }
 
@@ -416,6 +480,12 @@ const StudentHome = () => {
         description: "Try a deeper question or revisit a concept",
         action: () => navigate("/student/chat?newchat=true"),
         category: "EXPLORE",
+        visualCategory: "continue",
+        badgeLabel: "Continue learning",
+        badgeTone: "green",
+        metadata: "Based on your last session",
+        buttonLabel: "Review with TA",
+        buttonVariant: "outline",
       });
     }
 
@@ -427,7 +497,32 @@ const StudentHome = () => {
         description: "Ask a question or explore a concept",
         action: () => navigate("/student/chat?newchat=true"),
         category: "EXPLORE",
+        visualCategory: "continue",
+        badgeLabel: "Continue learning",
+        badgeTone: "green",
+        metadata: "Based on your last session",
+        buttonLabel: "Review with TA",
+        buttonVariant: "outline",
       });
+    }
+
+    // Splice in a Reading card after the highest-priority action when available
+    if (readingResource) {
+      const readTime = deriveReadTime(readingResource);
+      const readingAction: NextAction = {
+        icon: BookOpen,
+        title: `Read: ${readingResource.title || "Course reading"}`,
+        description: readingResource.description || "Prepare for the next part of the unit with a short guided course reading.",
+        action: () => navigate("/student/learning-path"),
+        category: "START THIS WEEK",
+        visualCategory: "reading",
+        badgeLabel: "Reading",
+        badgeTone: "neutral",
+        metadata: readTime,
+        buttonLabel: "Open reading",
+        buttonVariant: "outline",
+      };
+      nextActions.splice(1, 0, readingAction);
     }
   }
 
