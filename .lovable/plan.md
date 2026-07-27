@@ -1,43 +1,21 @@
-## Goal
-Replace the "Coming Soon" placeholder on `/student/project-lab` with a real Project Lab page matching the two attached screenshots. Static content only — no backend, no persistence.
+Plan: Add a "What you'll learn" subsection under the Mission column for the Jail Breaking lab only.
 
-## Change — `src/pages/student/StudentProjectLab.tsx`
-Rewrite the file to render:
+Current state
 
-1. **Header**
-   - Title "Project Lab" (serif, matches page headings elsewhere).
-   - Subtitle: "Apply AI concepts through short, practical challenges."
+- `src/pages/student/StudentProjectLab.tsx` defines a `Lab` type with `mission`, `caution`, and `steps`.
+- The Jail Breaking lab (index "01") currently shows only the mission paragraph md caution in the left Mission column.
 
-2. **"Learn by doing" intro banner**
-   - Purple-tinted rounded card with a flask icon tile (lucide `FlaskConical`).
-   - Eyebrow "LEARN BY DOING", bold line "Choose a lab and expand it to see the mission", helper paragraph from screenshot 1.
+Changes
 
-3. **Expandable lab cards** (accordion-style; multiple can be open). Each card shows:
-   - Left: 2-digit index (`01`, `02`, `03`) in muted style.
-   - Row 1: `Available` purple badge + tag chips (e.g. `15 minutes`, `Prompt injection`).
-   - Row 2: bold title + one-line summary.
-   - Chevron toggle on the right.
-   - Expanded body split into two columns:
-     - **MISSION** (left, purple eyebrow) — paragraph + optional amber "safe use" callout.
-     - **INSTRUCTIONS** (right, purple eyebrow) — numbered steps with purple circle badges. Steps can contain: paragraph text, monospace prompt blocks (muted background, rounded), inline "Open <link>" button (external icon), 2×2 or 1×N grids of small labelled tiles, and green-check bullet grids.
+1. Extend the `Lab` type with an optional `learnings` array of strings.
+2. Add the three specified learning outcomes to the Jail Breaking lab data:
+  1. Prompt Injection attacks – manipulating instructions to bypass model restrictions.
+  2. Sensitive data exposure – getting the model to reveal hidden information.
+  3. Context manipulation – altering how the model interprets or applies rules.
+3. Render `learnings` in the Mission column when present, using a "What you'll learn" subheading and an ordered list to preserve the numbering.
+4. Keep existing styling consistent with the Mission section (uppercase eyebrow label, muted text).
 
-4. **Lab content (verbatim from screenshots)**
-   - **01 Jail Breaking** — 15 minutes · Prompt injection. Mission + amber caution. Steps: (1) Go to the game with "Open hackmerlin.io" link; (2) Beat as many levels as possible in 15 minutes with 4 level tiles (Level 1 / Levels 2–3 / Levels 4–6 / Level 7+); (3) Try different prompt-injection strategies with 3 monospace prompt boxes (Ignore instructions, Roleplay, Logical transformation) and closing note.
-   - **02 Build a Working Game** — Build challenge · Claude Artifacts. Mission + steps: (1) Open the Claude mobile app with two monospace prompt blocks (build + course-correct); (2) Test the game — 2×2 green-check grid (Do the controls work?, Does it keep track of score?, Is it easy to use?, Is anything missing, such as a rotation button?); (3) Personalise it paragraph.
-   - **03 Eye Exam for LLMs** — Model evaluation · Suno. Mission + steps: (1) Open Suno with "Open suno.com" link; (2) Generate a song with monospace prompt; (3) Compare and score the results — 2×2 green-check grid (Genre / Instrumentation / Mood / Duration accuracy); (4) Identify the model's assumptions paragraph.
+R8
 
-5. **Interaction**
-   - Local `useState<number[]>` of expanded indices; clicking header toggles.
-   - External links open in new tab (`target="_blank"`, `rel="noopener noreferrer"`) with lucide `ExternalLink` icon.
-
-## Styling
-- Semantic tokens only (`bg-primary/10`, `text-primary`, `border-border`, `bg-muted`, `text-muted-foreground`, `bg-amber-50 text-amber-900 border-amber-200` for the caution callout).
-- Monospace prompt blocks: `font-mono text-sm bg-muted rounded-md p-3`.
-- Purple step-number circles: `bg-primary/10 text-primary`.
-- Matches existing student-page container width used on `/student/learning-path`.
-
-## Out of scope
-- No routing changes (route already exists).
-- No sidebar/nav changes.
-- No progress tracking, completion state, or backend writes.
-- No changes to other pages or shared components.
+- Should the numbering be preserved as 1/2/3
+- Do you want the `learnings` field reusable for future labs
