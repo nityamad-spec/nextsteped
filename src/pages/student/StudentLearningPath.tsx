@@ -174,7 +174,7 @@ const StudentLearningPath = () => {
         return;
       }
       const days = new Set<number>();
-      (data || []).forEach((r: any) => {
+      (data || []).forEach((r: QuestionDayRow) => {
         if (r.quiz_day != null) days.add(Number(r.quiz_day));
       });
       setAvailableQuizDays(days);
