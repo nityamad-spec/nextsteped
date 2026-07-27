@@ -18,6 +18,7 @@ type Lab = {
   tags: string[];
   mission: string;
   caution?: string;
+  learnings?: string[];
   steps: Step[];
 };
 
@@ -31,6 +32,11 @@ const LABS: Lab[] = [
       "You are testing the security of Merlin, an AI guarding a secret password. Your goal is to use prompt-injection techniques to trick the model into revealing the password, despite its instructions to keep it secret.",
     caution:
       "Use these techniques only inside the HackMerlin game or another authorised testing environment.",
+    learnings: [
+      "Prompt Injection attacks – manipulating instructions to bypass model restrictions.",
+      "Sensitive data exposure – getting the model to reveal hidden information.",
+      "Context manipulation – altering how the model interprets or applies rules.",
+    ],
     steps: [
       {
         title: "Go to the game",
@@ -215,6 +221,18 @@ const StudentProjectLab = () => {
                       {lab.caution && (
                         <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
                           {lab.caution}
+                        </div>
+                      )}
+                      {lab.learnings && (
+                        <div className="mt-6">
+                          <div className="text-xs font-semibold uppercase tracking-wider text-primary">
+                            What you'll learn
+                          </div>
+                          <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
+                            {lab.learnings.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ol>
                         </div>
                       )}
                     </div>
