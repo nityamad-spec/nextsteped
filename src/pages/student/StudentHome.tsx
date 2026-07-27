@@ -526,28 +526,6 @@ const StudentHome = () => {
         <p className="mt-1 text-sm text-muted-foreground">{courseName}</p>
       </motion.div>
 
-
-      {/* Course Progress */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mb-6">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-primary" />
-                <p className="text-sm font-medium">Course Progress</p>
-              </div>
-              <span className="text-sm text-muted-foreground">Unit {displayedUnit} of {totalWeeks}</span>
-            </div>
-            <Progress value={progressPct} className="h-2 mb-1" />
-            <p className="text-xs text-muted-foreground">
-              {publishedQuizCount === 0
-                ? "No quizzes published yet"
-                : `${passedQuizCount} of ${publishedQuizCount} weekly quizzes passed (>50%)`}
-            </p>
-          </CardContent>
-        </Card>
-      </motion.div>
-
       {/* What to do next */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="mb-6">
         <Card>
