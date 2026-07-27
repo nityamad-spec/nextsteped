@@ -5,6 +5,7 @@ import { useTASettings } from "@/hooks/useTASettings";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { useDiagnosticStatus } from "@/hooks/useDiagnosticStatus";
+import { useLearningPlan } from "@/hooks/useLearningPlan";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 import { ChatMessage, RagSource, StudentExamInfo } from "@/types";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -52,11 +53,11 @@ const getWelcomeLearning = (courseName?: string | null) =>
 const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Configure your practice settings and click **Start Exam** to begin a timed simulation. Good luck!";
 
 type PromptMode = "materials";
-type PromptAction = "practice";
+type PromptAction = "practice" | "populate";
 const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string; promptMode?: PromptMode; action?: PromptAction }[] = [
   { icon: BookOpen, label: "Explain a concept", prompt: "Explain this week's key concept in simple terms with an example." },
   { icon: ListChecks, label: "Quiz me", prompt: "Open Practice Questions to generate a quiz on your recent topics.", action: "practice" },
-  { icon: FolderSearch, label: "Search course materials", prompt: "Find and explain information from the syllabus, textbook, slides, or other materials uploaded by my professor.", promptMode: "materials" },
+  { icon: FolderSearch, label: "Search course materials", prompt: "Find and explain information from materials uploaded by my professor on topic X.", promptMode: "materials", action: "populate" },
   { icon: GraduationCap, label: "Prep for the exam", prompt: "What topics should I focus on for the upcoming exam, and how should I study them?" },
 ];
 
@@ -164,7 +165,10 @@ const AIChat = () => {
   const [isCooldown, setIsCooldown] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const lastSendTime = useRef<number>(0);
+  const { lessonPlan, currentWeek } = useLearningPlan();
+  const currentWeekTopic = lessonPlan.find((w) => w.day === currentWeek)?.topic ?? null;
 
   // Course context for relevance classification
   const [courseContext, setCourseContext] = useState<{ courseName: string; objectives: string[]; concepts: string[] } | null>(null);
@@ -1452,11 +1456,15 @@ const AIChat = () => {
                             onClick={() => {
                               if (s.action === "practice") {
                                 setShowPractice(true);
+                              } else if (s.action === "populate") {
+                                const topic = currentWeekTopic ?? "X";
+                                setInput(`Find and explain information from materials uploaded by my professor on topic ${topic}.`);
+                                setTimeout(() => inputRef.current?.focus(), 0);
                               } else {
                                 sendMessage(s.prompt, s.promptMode);
                               }
                             }}
-                            disabled={s.action === "practice" ? false : (isStreaming || isCooldown)}
+                            disabled={s.action === "practice" || s.action === "populate" ? false : (isStreaming || isCooldown)}
                           >
                             <Icon className="h-4 w-4 shrink-0 text-primary" />
                             <span className="flex flex-col gap-0.5 min-w-0">
@@ -1515,6 +1523,7 @@ const AIChat = () => {
           <div className="border-t px-4 md:px-6 pt-4 pb-8 md:pb-10">
             <div className="flex items-end gap-2">
               <Textarea
+                ref={inputRef}
                 placeholder="Ask your Teaching Assistant anything..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
