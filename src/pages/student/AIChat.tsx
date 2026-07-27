@@ -468,73 +468,79 @@ const AIChat = () => {
     return filtered.length > 0 ? filtered : questions; // Fallback to all if no matches
   };
 
-  const rotationKey = enrolledCourseId && user
-    ? `examPrepRotation:${enrolledCourseId}:${user.id}`
-    : null;
-
-  /** Load distinct exam_id values that have generated questions for this course,
-   *  reconciled against the professor's ACTIVE (non-archived) exam list in
-   *  course_exams so archived exams never appear in the student rotation. */
-  const loadAvailableExamIds = useCallback(async () => {
+  /** Load published, active exams for this course, enriched with the professor's
+   *  configured question count, time limit, and whether the student has already
+   *  completed each exam. */
+  const loadAvailableExams = useCallback(async () => {
     if (!enrolledCourseId) {
-      setAvailableExamIds([]);
-      return [] as string[];
+      setAvailableExams([]);
+      return [] as StudentExamInfo[];
     }
-    const [{ data: qRows }, { data: examRows }, { data: attemptRows }] = await Promise.all([
+    const [{ data: examRows }, { data: attemptRows }, { data: qRows }] = await Promise.all([
+      supabase
+        .from("course_exams")
+        .select("id, label, length_min, breakdown, position, created_at")
+        .eq("course_id", enrolledCourseId)
+        .is("archived_at", null)
+        .not("published_at", "is", null)
+        .order("position", { ascending: true }),
+      user
+        ? supabase
+            .from("assessment_results")
+            .select("exam_id, score, created_at")
+            .eq("course_id", enrolledCourseId)
+            .eq("student_id", user.id)
+            .eq("mode", "exam")
+            .not("exam_id", "is", null)
+            .order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as { exam_id: string | null; score: number | null; created_at: string | null }[] }),
       supabase
         .from("assessment_questions")
         .select("exam_id")
         .eq("course_id", enrolledCourseId)
         .eq("mode", "exam")
         .not("exam_id", "is", null),
-      supabase
-        .from("course_exams")
-        .select("id")
-        .eq("course_id", enrolledCourseId)
-        .is("archived_at", null)
-        .not("published_at", "is", null),
-
-      user
-        ? supabase
-            .from("assessment_results")
-            .select("exam_id")
-            .eq("course_id", enrolledCourseId)
-            .eq("student_id", user.id)
-            .eq("mode", "exam")
-            .not("exam_id", "is", null)
-        : Promise.resolve({ data: [] as { exam_id: string | null }[] }),
     ]);
-    if (!qRows) {
-      setAvailableExamIds([]);
-      return [] as string[];
+
+    const questionsByExam = new Map<string, number>();
+    for (const row of (qRows ?? []) as { exam_id: string | null }[]) {
+      if (!row.exam_id) continue;
+      questionsByExam.set(row.exam_id, (questionsByExam.get(row.exam_id) || 0) + 1);
     }
-    const activeIds = new Set((examRows ?? []).map((r: any) => r.id).filter(Boolean));
-    const attemptedIds = new Set(
-      ((attemptRows as { exam_id: string | null }[] | null) ?? [])
-        .map((r) => r.exam_id)
-        .filter((x): x is string => Boolean(x))
-    );
-    const ids = Array.from(
-      new Set(qRows.map((r: any) => r.exam_id).filter(Boolean))
-    )
-      .filter((id: string) => activeIds.has(id) && !attemptedIds.has(id))
-      .sort();
-    setAvailableExamIds(ids);
-    if (rotationKey) {
-      const stored = parseInt(localStorage.getItem(rotationKey) || "0", 10);
-      const clamped = ids.length > 0 ? (Number.isFinite(stored) ? stored : 0) % ids.length : 0;
-      setNextExamIndex(clamped);
-      try { localStorage.setItem(rotationKey, String(clamped)); } catch { /* ignore */ }
+
+    const latestAttemptByExam = new Map<string, { score: number | null; created_at: string | null }>();
+    for (const row of (attemptRows ?? []) as { exam_id: string | null; score: number | null; created_at: string | null }[]) {
+      if (!row.exam_id || latestAttemptByExam.has(row.exam_id)) continue;
+      latestAttemptByExam.set(row.exam_id, { score: row.score, created_at: row.created_at });
     }
-    return ids;
-  }, [enrolledCourseId, rotationKey, user]);
+
+    const exams: StudentExamInfo[] = ((examRows ?? []) as any[]).map((row) => {
+      const breakdown = row.breakdown && typeof row.breakdown === "object" ? (row.breakdown as Record<string, number>) : {};
+      const questionCount = Object.values(breakdown).reduce((sum, n) => sum + (typeof n === "number" ? n : 0), 0);
+      const hasQuestions = (questionsByExam.get(row.id) || 0) > 0;
+      const attempt = latestAttemptByExam.get(row.id);
+      return {
+        id: row.id,
+        label: row.label || "",
+        lengthMin: row.length_min ?? 60,
+        questionCount,
+        position: row.position ?? 0,
+        isCompleted: !!attempt,
+        bestScore: attempt?.score ?? null,
+        hasQuestions,
+      };
+    });
+
+    setAvailableExams(exams);
+    return exams;
+  }, [enrolledCourseId, user]);
 
 
 
   // Load whenever course resolves or mode flips to exam
   useEffect(() => {
-    if (mode === "exam") loadAvailableExamIds();
-  }, [mode, loadAvailableExamIds]);
+    if (mode === "exam") loadAvailableExams();
+  }, [mode, loadAvailableExams]);
 
   const fetchDBQuestions = async (
     mode: string,
