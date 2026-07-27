@@ -104,6 +104,17 @@ export interface ExamScheduleItem {
   breakdownDirty?: boolean;
 }
 
+export interface StudentExamInfo {
+  id: string;
+  label: string;
+  lengthMin: number;
+  questionCount: number;
+  position: number;
+  isCompleted: boolean;
+  bestScore?: number | null;
+  hasQuestions: boolean;
+}
+
 
 
 export interface TASettings {

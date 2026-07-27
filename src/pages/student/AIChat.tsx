@@ -6,7 +6,7 @@ import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { useDiagnosticStatus } from "@/hooks/useDiagnosticStatus";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
-import { ChatMessage, RagSource } from "@/types";
+import { ChatMessage, RagSource, StudentExamInfo } from "@/types";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -179,9 +179,8 @@ const AIChat = () => {
   const [customExamTimeLimit, setCustomExamTimeLimit] = useState<number | null>(null);
   const [currentAssessmentSessionId, setCurrentAssessmentSessionId] = useState<string | null>(null);
 
-  // Exam rotation: list of distinct exam_id values the professor has generated for this course
-  const [availableExamIds, setAvailableExamIds] = useState<string[]>([]);
-  const [nextExamIndex, setNextExamIndex] = useState(0);
+  // Published exams for this course (active + published), with completion status.
+  const [availableExams, setAvailableExams] = useState<StudentExamInfo[]>([]);
   // Exam id chosen for the current in-progress attempt (so we can persist it on submit)
   const [currentExamId, setCurrentExamId] = useState<string | null>(null);
 
@@ -469,73 +468,79 @@ const AIChat = () => {
     return filtered.length > 0 ? filtered : questions; // Fallback to all if no matches
   };
 
-  const rotationKey = enrolledCourseId && user
-    ? `examPrepRotation:${enrolledCourseId}:${user.id}`
-    : null;
-
-  /** Load distinct exam_id values that have generated questions for this course,
-   *  reconciled against the professor's ACTIVE (non-archived) exam list in
-   *  course_exams so archived exams never appear in the student rotation. */
-  const loadAvailableExamIds = useCallback(async () => {
+  /** Load published, active exams for this course, enriched with the professor's
+   *  configured question count, time limit, and whether the student has already
+   *  completed each exam. */
+  const loadAvailableExams = useCallback(async () => {
     if (!enrolledCourseId) {
-      setAvailableExamIds([]);
-      return [] as string[];
+      setAvailableExams([]);
+      return [] as StudentExamInfo[];
     }
-    const [{ data: qRows }, { data: examRows }, { data: attemptRows }] = await Promise.all([
+    const [{ data: examRows }, { data: attemptRows }, { data: qRows }] = await Promise.all([
+      supabase
+        .from("course_exams")
+        .select("id, label, length_min, breakdown, position, created_at")
+        .eq("course_id", enrolledCourseId)
+        .is("archived_at", null)
+        .not("published_at", "is", null)
+        .order("position", { ascending: true }),
+      user
+        ? supabase
+            .from("assessment_results")
+            .select("exam_id, score, created_at")
+            .eq("course_id", enrolledCourseId)
+            .eq("student_id", user.id)
+            .eq("mode", "exam")
+            .not("exam_id", "is", null)
+            .order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as { exam_id: string | null; score: number | null; created_at: string | null }[] }),
       supabase
         .from("assessment_questions")
         .select("exam_id")
         .eq("course_id", enrolledCourseId)
         .eq("mode", "exam")
         .not("exam_id", "is", null),
-      supabase
-        .from("course_exams")
-        .select("id")
-        .eq("course_id", enrolledCourseId)
-        .is("archived_at", null)
-        .not("published_at", "is", null),
-
-      user
-        ? supabase
-            .from("assessment_results")
-            .select("exam_id")
-            .eq("course_id", enrolledCourseId)
-            .eq("student_id", user.id)
-            .eq("mode", "exam")
-            .not("exam_id", "is", null)
-        : Promise.resolve({ data: [] as { exam_id: string | null }[] }),
     ]);
-    if (!qRows) {
-      setAvailableExamIds([]);
-      return [] as string[];
+
+    const questionsByExam = new Map<string, number>();
+    for (const row of (qRows ?? []) as { exam_id: string | null }[]) {
+      if (!row.exam_id) continue;
+      questionsByExam.set(row.exam_id, (questionsByExam.get(row.exam_id) || 0) + 1);
     }
-    const activeIds = new Set((examRows ?? []).map((r: any) => r.id).filter(Boolean));
-    const attemptedIds = new Set(
-      ((attemptRows as { exam_id: string | null }[] | null) ?? [])
-        .map((r) => r.exam_id)
-        .filter((x): x is string => Boolean(x))
-    );
-    const ids = Array.from(
-      new Set(qRows.map((r: any) => r.exam_id).filter(Boolean))
-    )
-      .filter((id: string) => activeIds.has(id) && !attemptedIds.has(id))
-      .sort();
-    setAvailableExamIds(ids);
-    if (rotationKey) {
-      const stored = parseInt(localStorage.getItem(rotationKey) || "0", 10);
-      const clamped = ids.length > 0 ? (Number.isFinite(stored) ? stored : 0) % ids.length : 0;
-      setNextExamIndex(clamped);
-      try { localStorage.setItem(rotationKey, String(clamped)); } catch { /* ignore */ }
+
+    const latestAttemptByExam = new Map<string, { score: number | null; created_at: string | null }>();
+    for (const row of (attemptRows ?? []) as { exam_id: string | null; score: number | null; created_at: string | null }[]) {
+      if (!row.exam_id || latestAttemptByExam.has(row.exam_id)) continue;
+      latestAttemptByExam.set(row.exam_id, { score: row.score, created_at: row.created_at });
     }
-    return ids;
-  }, [enrolledCourseId, rotationKey, user]);
+
+    const exams: StudentExamInfo[] = ((examRows ?? []) as any[]).map((row) => {
+      const breakdown = row.breakdown && typeof row.breakdown === "object" ? (row.breakdown as Record<string, number>) : {};
+      const questionCount = Object.values(breakdown).reduce((sum, n) => sum + (typeof n === "number" ? n : 0), 0);
+      const hasQuestions = (questionsByExam.get(row.id) || 0) > 0;
+      const attempt = latestAttemptByExam.get(row.id);
+      return {
+        id: row.id,
+        label: row.label || "",
+        lengthMin: row.length_min ?? 60,
+        questionCount,
+        position: row.position ?? 0,
+        isCompleted: !!attempt,
+        bestScore: attempt?.score ?? null,
+        hasQuestions,
+      };
+    });
+
+    setAvailableExams(exams);
+    return exams;
+  }, [enrolledCourseId, user]);
 
 
 
   // Load whenever course resolves or mode flips to exam
   useEffect(() => {
-    if (mode === "exam") loadAvailableExamIds();
-  }, [mode, loadAvailableExamIds]);
+    if (mode === "exam") loadAvailableExams();
+  }, [mode, loadAvailableExams]);
 
   const fetchDBQuestions = async (
     mode: string,
@@ -572,70 +577,19 @@ const AIChat = () => {
     return { questions, meta };
   };
 
-  /**
-   * Pick the next exam_id in rotation and advance the persisted index.
-   * Returns null when professor hasn't generated any exam.
-   */
-  const consumeNextExamId = (ids: string[]): string | null => {
-    if (ids.length === 0) return null;
-    const idx = nextExamIndex % ids.length;
-    const examId = ids[idx];
-    const advanced = (idx + 1) % ids.length;
-    setNextExamIndex(advanced);
-    if (rotationKey) {
-      try { localStorage.setItem(rotationKey, String(advanced)); } catch { /* ignore */ }
-    }
-    return examId;
-  };
-
-
-  const handleStartExam = async () => {
-    const count = taSettings.examManualCount || Math.max(5, Math.round((taSettings.examTimeLimit || 60) / 3));
-    const visibleTopics = await fetchVisibleTopics();
-    const ids = await loadAvailableExamIds();
-    if (ids.length === 0) {
-      toast.info("You've completed every practice exam your professor published. Check Performance for your results.");
-      return;
-    }
-    const examId = consumeNextExamId(ids);
-
-    const fetched = await fetchDBQuestions("exam", undefined, examId ?? undefined);
-    // Option 2: trust the professor — when the exam was generated by the professor (examId present),
-    // surface all generated questions regardless of lesson-plan week visibility.
-    let questions = examId ? fetched.questions : filterByVisibleTopics(fetched.questions, visibleTopics);
-    const meta = fetched.meta;
-    if (questions.length === 0) {
-      toast.info("Your professor hasn't published a practice exam for this course yet.");
-      return;
-    }
-    const seed = (user?.id || "anon") + (enrolledCourseId || "") + (examId || "");
-    const shuffled = seededShuffle(questions, seed);
-    // For professor-authored exams (examId present), serve every question.
-    // Only apply the TA-settings length cap for AI-generated exams.
-    const cap = examId ? shuffled.length : Math.min(count, shuffled.length);
-    questions = shuffled.slice(0, cap);
-    setAssessmentQuestions(questions);
-    setAssessmentQuestionMeta(meta);
-    setAssessmentType("exam");
-    setAssessmentDay(3);
-    setCurrentExamId(examId ?? null);
-    setAssessmentActive(true);
-  };
-
-  const handleStartExamWithSettings = async (custom: ExamCustomSettings) => {
+  const handleStartExamWithSettings = async (custom: ExamCustomSettings, examId: string) => {
     const visibleTopics = await fetchVisibleTopics();
     const count = custom.questionCount;
-    const ids = await loadAvailableExamIds();
-    if (ids.length === 0) {
-      toast.info("You've completed every practice exam your professor published. Check Performance for your results.");
+    const exam = availableExams.find((e) => e.id === examId);
+    if (!exam) {
+      toast.info("This practice exam is no longer available.");
       return;
     }
-    const examId = consumeNextExamId(ids);
-    const fetched = await fetchDBQuestions("exam", undefined, examId ?? undefined);
-    let questions = examId ? fetched.questions : filterByVisibleTopics(fetched.questions, visibleTopics);
+    const fetched = await fetchDBQuestions("exam", undefined, examId);
+    let questions = fetched.questions;
     const meta = fetched.meta;
     if (questions.length === 0) {
-      toast.info("Your professor hasn't published a practice exam for this course yet.");
+      toast.info("Your professor hasn't published questions for this practice exam yet.");
       return;
     }
 
@@ -768,9 +722,9 @@ const AIChat = () => {
 
     setCurrentAssessmentSessionId(null);
     setCurrentExamId(null);
-    // Refresh available exams so the completed attempt is excluded from the pool.
+    // Refresh available exams so the completed attempt is reflected in the list.
     if (assessmentType === "exam") {
-      void loadAvailableExamIds();
+      void loadAvailableExams();
     }
 
   };
@@ -1432,10 +1386,9 @@ const AIChat = () => {
           <div className="border-b">
             <ExamPrepPanel
               taSettings={taSettings}
-              examCount={availableExamIds.length}
-              nextExamIndex={nextExamIndex}
-              onStart={(customSettings) => {
-                handleStartExamWithSettings(customSettings);
+              exams={availableExams}
+              onStart={(customSettings, examId) => {
+                handleStartExamWithSettings(customSettings, examId);
               }}
               onShowDashboard={() => setShowPerformanceDashboard(true)}
             />
