@@ -17,6 +17,7 @@ import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, Check, Spar
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
+import ConceptMasteryDialog from "@/components/student/ConceptMasteryDialog";
 
 
 /* Concepts are loaded from the DB for the student's enrolled course.
