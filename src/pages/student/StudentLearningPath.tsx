@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTASettings } from "@/hooks/useTASettings";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
-import { useLearningPlan } from "@/hooks/useLearningPlan";
+import { useLearningPlan, type LearningPlanWeek } from "@/hooks/useLearningPlan";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
