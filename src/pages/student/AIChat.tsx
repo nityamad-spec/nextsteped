@@ -1137,12 +1137,12 @@ const AIChat = () => {
         }`}>
           {isUser ? userInitial : <Sparkles className="w-4 h-4" />}
         </div>
-        {isFirstAssistantWelcome ? (
-          <div className="flex items-start justify-between gap-2 flex-1 min-w-0">
-            <div className="max-w-[65%] md:max-w-[55%] min-w-0 rounded-xl px-4 py-3 text-sm break-words [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:max-w-full bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm">
-              {bubbleContent}
-            </div>
-            <Button
+          {isFirstAssistantWelcome ? (
+            <div className="flex items-start justify-between gap-2 flex-1 min-w-0">
+              <div className="max-w-[85%] md:max-w-[80%] min-w-0 rounded-xl px-4 py-3 text-sm break-words [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:max-w-full bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm">
+                {bubbleContent}
+              </div>
+              <Button
               variant="outline"
               size="sm"
               className="h-9 shrink-0 gap-1"
@@ -1441,7 +1441,7 @@ const AIChat = () => {
                   </div>
                 )}
                 {mode === "learning" && !assessmentActive && !isStreaming && activeChat.messages.length <= 1 && (
-                  <div className="pt-2 max-w-[65%] md:max-w-[55%]">
+                  <div className="pt-2 max-w-[85%] md:max-w-[80%]">
                     <p className="text-xs font-medium text-muted-foreground mb-2 px-1">Try one of these to get started</p>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {STUDENT_SUGGESTED_PROMPTS.map((s) => {
