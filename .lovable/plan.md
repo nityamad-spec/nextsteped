@@ -1,40 +1,77 @@
-## Plan: Clean up Exam Prep action bar
-
-### Current state
-
-`src/components/ExamPrepPanel.tsx` currently shows:
-
-- A global summary row with two badge "buttons": `{timeLimit} min` and `{questionCount} questions`.
-- On the same row, `Edit Settings` and `Performance` buttons.
-- Below that, a list of exam cards; each card shows its own `{lengthMin} min` / `{questionCount} questions` info and a `Start Exam` button.
+## Plan: Add Learning Path and Project Lab tabs to student navigation
 
 ### Goal
 
-1. Remove the global `{timeLimit} min` and `{questionCount} questions` badges from the header row.
-2. Keep the per-exam time and question count inside each exam card (already present).
-3. Visually align/style each exam card's `Start Exam` button so it sits at the same level as the `Edit Settings` / `Performance` actions (consistent height/variant/spacing).
+Add two new tabs to the left-side student navigation bar:
 
-### Changes
+1. **Learning Path** — directly underneath **Home**
+2. **Project Lab** — directly underneath **Teaching Assistant**
 
-- `src/components/ExamPrepPanel.tsx`
-  - Delete the two `Badge` elements that render the global time and question count (lines ~85-90).
-  - Keep the `Customized` badge logic if still relevant, or remove it if it only made sense next to the removed badges (decision point below).
-  - Ensure the right-side action group (`Edit Settings`, `Performance`) remains unchanged.
-  - For each exam card, keep the existing `Button` but adjust its size/variant/classes so it matches the header action-button height/prominence (e.g., same `h-8` / `size="sm"` treatment, consistent gap).
+### Decisions confirmed
 
-### Decision needed
+- **Learning Path** becomes a new dedicated page (`/student/learning-path`).
+- The existing Learning Path section on `/student/home` will be removed.
+- **Project Lab** will be a placeholder / Coming Soon page.
+- New tabs will appear on both desktop sidebar and mobile bottom navigation.
 
-Should the `Customized` badge also be removed? It currently appears only when the user has deviated from the professor's recommended time/question count. Since the global summary badges are going away, the `Customized` badge may look odd alone. Options:
+### Proposed defaults (review/override)
 
-- Remove it entirely (settings are professor-fixed and disabled anyway).
+- **Icons**: `Route` for Learning Path, `FlaskConical` for Project Lab.
+- **Project Lab placeholder text**: "Project Lab — hands-on projects are coming soon."
 
-### Risks / constraints
+### Implementation steps
 
-- Very low risk; this is a presentational change only.
-- No data model or API changes.
-- Need to verify the exam list still looks balanced after the header row loses its left-side content (the row may become right-aligned actions only).
+#### 1. Create `src/pages/student/StudentLearningPath.tsx`
 
-### Verification
+- Extract the Learning Path rendering logic from `StudentHome.tsx` (lesson plan loading, week expansion, activity done state, resources, quiz dialogs, diagnostic gate).
+- Keep the same data fetching and behavior; move helper constants/types as needed.
+- Render inside the existing `StudentLayout` via `<Outlet>`.
 
-- Typecheck and build.
-- Playwright screenshot of `/student/chat?mode=exam` with at least one published exam to confirm the header is clean and per-exam Start buttons align with the top action bar.
+#### 2. Create `src/pages/student/StudentProjectLab.tsx`
+
+- New placeholder page using the existing `ComingSoon` component or a simple centered card.
+- Route: `/student/project-lab`.
+
+#### 3. Update `src/App.tsx`
+
+- Add imports for `StudentLearningPath` and `StudentProjectLab`.
+- Add two new `<Route>` entries under the `/student/*` layout:
+  - `/student/learning-path`
+  - `/student/project-lab`
+
+#### 4. Update `src/layouts/StudentLayout.tsx`
+
+- Update the `studentNav` array to include the new items in order:
+  1. Home (`/student/home`)
+  2. Learning Path (`/student/learning-path`)
+  3. Teaching Assistant (`/student/chat`)
+  4. Project Lab (`/student/project-lab`)
+  5. Feedback (`/student/feedback`)
+- Import the chosen icons (`Route`, `FlaskConical` by default).
+- Both desktop sidebar and mobile bottom nav iterate the same array, so the new tabs appear automatically.
+
+#### 5. Update `src/pages/student/StudentHome.tsx`
+
+- Remove the Learning Path section and all related state/effects that are moving to `StudentLearningPath.tsx`.
+- Keep the Home dashboard content: course progress, mastery heatmap, "What to do next", weekly quiz CTA, etc.
+- Remove unused imports that were only needed for the Learning Path section.
+
+#### 6. Verify and test
+
+- Run TypeScript typecheck.
+- Run the existing test suite (especially `StudentHome.test.tsx`).
+- Visually verify desktop sidebar and mobile bottom nav render correctly with 5 items.
+- Confirm active-tab highlighting works for the two new routes.
+
+### Risks and considerations
+
+- **Mobile bottom nav crowding**: Adding two tabs brings the total to 5 items. On narrow screens the labels may wrap or feel cramped. We can keep labels short or consider a "More" overflow menu later if needed.
+- **State duplication**: Extracting Learning Path from `StudentHome.tsx` must not leave orphaned state or broken quiz dialogs. The `WeeklyQuizDialog` and `DiagnosticGateDialog` usage moves with the section.
+- **Route redirects**: Any hardcoded redirects to `/student/home#learning-path` or similar will need updating; a quick search will confirm there are none.
+- **Active route matching**: `NavLink` uses `end={false}`, so `/student/learning-path` and `/student/chat` will highlight independently without overlap.
+
+### Open questions for you
+
+1. happy with the default icons (`Route` / `FlaskConical`) and Project Lab placeholder text 
+2. Shorten them (e.g., "Path", "Lab") to avoid crowding?
+3. On `/student/home` add a card/link pointing students to the new Learning Path page. 
