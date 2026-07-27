@@ -100,6 +100,7 @@ const StudentHome = () => {
   const [diagGate, setDiagGate] = useState<{ open: boolean; context: string }>({ open: false, context: "" });
   const [conceptMastery, setConceptMastery] = useState<Record<string, { score: number; attempted: number }>>({});
   const [courseMastery, setCourseMastery] = useState<number | null>(null);
+  const [masteryDialogOpen, setMasteryDialogOpen] = useState(false);
   const [takenQuizzes, setTakenQuizzes] = useState<
     Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }>
   >({});
