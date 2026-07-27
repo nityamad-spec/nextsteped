@@ -3,6 +3,31 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 
+interface RawConcept {
+  id?: string | number;
+  name?: string;
+  brief_description?: string;
+}
+
+interface RawResource {
+  id?: string | number;
+  type?: string;
+  title?: string;
+  description?: string;
+  url?: string;
+  concept?: string;
+  action?: string;
+}
+
+interface RawLessonPlanRow {
+  week_number: number;
+  week_name?: string;
+  overview?: string;
+  is_exam_week?: boolean;
+  concepts?: unknown;
+  resources?: unknown;
+}
+
 export interface LearningPlanWeek {
   id: string;
   day: number;
