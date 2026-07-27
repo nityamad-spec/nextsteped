@@ -12,12 +12,21 @@ export const getMasteryLevel = (attempted: number, score: number): MasteryLevel 
   return "expert";
 };
 
+export interface AchievementStep {
+  label: string;
+  done: boolean;
+}
+
 export interface Achievement {
   id: string;
   label: string;
   emoji: string;
   earned: boolean;
   tooltip: string;
+  howTo: {
+    title: string;
+    steps: AchievementStep[];
+  };
 }
 
 const isoYearWeekOf = (d: Date): string => {
@@ -93,24 +102,54 @@ export const useAchievements = (
       emoji: "🚀",
       earned: hasWeek1Quiz && openedLpThisWeek,
       tooltip: `Complete Unit 1: weekly quiz ${hasWeek1Quiz ? "✓" : "✗"} · readings ${openedLpThisWeek ? "✓" : "✗"}`,
+      howTo: {
+        title: "Complete Unit 1 basics",
+        steps: [
+          { label: "Take the Week 1 quiz", done: hasWeek1Quiz },
+          { label: "Open this week's Learning Path readings", done: openedLpThisWeek },
+        ],
+      },
     };
 
     // Comeback — any concept whose baseline was beginner and current is expert
     let comebackConcept: string | null = null;
     let promotedCount = 0;
+    let bestJump: { name: string; from: MasteryLevel; to: MasteryLevel; delta: number } | null = null;
+    const LEVEL_RANK: Record<MasteryLevel, number> = {
+      not_explored: 0, beginner: 1, developing: 2, proficient: 3, expert: 4,
+    };
     if (studentId) {
       for (const c of concepts) {
         const m = conceptMastery[c.id];
         if (!m) continue;
         const current = getMasteryLevel(m.attempted, m.score);
-        let baseline: string | null = null;
-        try { baseline = localStorage.getItem(baselineKey(studentId, c.id)); } catch { /* ignore */ }
+        let baseline: MasteryLevel | null = null;
+        try {
+          const raw = localStorage.getItem(baselineKey(studentId, c.id));
+          if (raw && raw in LEVEL_RANK) baseline = raw as MasteryLevel;
+        } catch { /* ignore */ }
         if (baseline === "beginner" && current === "expert") {
           promotedCount += 1;
           if (!comebackConcept) comebackConcept = c.name;
         }
+        if (baseline) {
+          const delta = LEVEL_RANK[current] - LEVEL_RANK[baseline];
+          if (delta > 0 && (!bestJump || delta > bestJump.delta)) {
+            bestJump = { name: c.name, from: baseline, to: current, delta };
+          }
+        }
       }
     }
+    const LEVEL_LABEL: Record<MasteryLevel, string> = {
+      not_explored: "Not explored",
+      beginner: "Beginner",
+      developing: "Developing",
+      proficient: "Proficient",
+      expert: "Expert",
+    };
+    const comebackHint = bestJump
+      ? `Best jump so far: ${bestJump.name} (${LEVEL_LABEL[bestJump.from]} → ${LEVEL_LABEL[bestJump.to]})`
+      : "No concept promoted yet — keep practicing your weakest topics";
     const comeback: Achievement = {
       id: "comeback",
       label: "Comeback",
@@ -119,19 +158,34 @@ export const useAchievements = (
       tooltip: promotedCount > 0
         ? `Earned via ${comebackConcept} (Beginner → Expert)`
         : "Grow any concept from Beginner to Expert",
+      howTo: {
+        title: "Grow any concept from Beginner to Expert",
+        steps: [
+          { label: comebackHint, done: false },
+        ],
+      },
     };
 
     // Consistency — quiz submitted this ISO week and the previous ISO week
     const thisWk = isoYearWeekOf(new Date());
     const prevWk = previousIsoYearWeek(new Date());
     const weeksWithQuiz = new Set(rows.map((r) => isoYearWeekOf(new Date(r.created_at))));
-    const consistencyCount = (weeksWithQuiz.has(thisWk) ? 1 : 0) + (weeksWithQuiz.has(prevWk) ? 1 : 0);
+    const tookThisWk = weeksWithQuiz.has(thisWk);
+    const tookPrevWk = weeksWithQuiz.has(prevWk);
+    const consistencyCount = (tookThisWk ? 1 : 0) + (tookPrevWk ? 1 : 0);
     const consistency: Achievement = {
       id: "consistency",
       label: "Consistency",
       emoji: "🔥",
       earned: consistencyCount >= 2,
       tooltip: `Take weekly quizzes 2 weeks in a row · ${consistencyCount}/2 weeks`,
+      howTo: {
+        title: "Take a weekly quiz two weeks in a row",
+        steps: [
+          { label: "Last week's quiz", done: tookPrevWk },
+          { label: "This week's quiz", done: tookThisWk },
+        ],
+      },
     };
 
     // Concept Master — every concept at proficient or expert
@@ -148,6 +202,15 @@ export const useAchievements = (
       emoji: "🏆",
       earned: totalConcepts > 0 && proficientCount === totalConcepts,
       tooltip: `Reach Proficient or Expert on every concept · ${proficientCount}/${totalConcepts}`,
+      howTo: {
+        title: "Reach Proficient or Expert on every concept",
+        steps: [
+          {
+            label: `${proficientCount} of ${totalConcepts} concepts at Proficient+`,
+            done: totalConcepts > 0 && proficientCount === totalConcepts,
+          },
+        ],
+      },
     };
 
     const achievements = [firstSteps, comeback, consistency, conceptMaster];
