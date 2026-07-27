@@ -39,7 +39,7 @@ const AchievementsCard = ({ achievements, earnedCount }: Props) => {
                   <div
                     className={`h-16 w-16 rounded-2xl flex items-center justify-center text-3xl transition-colors ${
                       a.earned
-                        ? "bg-emerald-500/15 border border-emerald-500/30"
+                        ? "bg-primary/15 border border-primary/30"
                         : "bg-muted border border-border opacity-60 grayscale"
                     }`}
                   >
