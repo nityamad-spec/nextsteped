@@ -52,7 +52,7 @@ const getWelcomeLearning = (courseName?: string | null) =>
 const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Configure your practice settings and click **Start Exam** to begin a timed simulation. Good luck!";
 
 type PromptMode = "materials";
-type PromptAction = "practice";
+type PromptAction = "practice" | "populate";
 const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string; promptMode?: PromptMode; action?: PromptAction }[] = [
   { icon: BookOpen, label: "Explain a concept", prompt: "Explain this week's key concept in simple terms with an example." },
   { icon: ListChecks, label: "Quiz me", prompt: "Open Practice Questions to generate a quiz on your recent topics.", action: "practice" },
