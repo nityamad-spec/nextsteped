@@ -722,9 +722,9 @@ const AIChat = () => {
 
     setCurrentAssessmentSessionId(null);
     setCurrentExamId(null);
-    // Refresh available exams so the completed attempt is excluded from the pool.
+    // Refresh available exams so the completed attempt is reflected in the list.
     if (assessmentType === "exam") {
-      void loadAvailableExamIds();
+      void loadAvailableExams();
     }
 
   };
