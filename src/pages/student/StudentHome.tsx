@@ -576,12 +576,7 @@ const StudentHome = () => {
             ) : (
               nextActions.slice(0, 3).map((action, i) => {
                 const isGreen = action.badgeTone === "green";
-                const isMuted = action.visualCategory === "heads-up";
-                const tileClass = isGreen
-                  ? "bg-green-500/10 text-green-600 dark:text-green-500"
-                  : isMuted
-                  ? "bg-muted text-muted-foreground"
-                  : "bg-primary/10 text-primary";
+                const tileClass = "bg-primary/10 text-primary";
                 const badgeClass = isGreen
                   ? "bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-500/20 dark:text-green-400"
                   : "bg-muted text-muted-foreground hover:bg-muted";
