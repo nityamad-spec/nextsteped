@@ -299,7 +299,7 @@ const StudentLearningPath = () => {
                           {totalCount > 0 && (
                             <div className="mt-1.5 flex items-center gap-2">
                               <div className="flex items-center gap-1">
-                                {activities.map((r: any, i: number) => {
+                                {activities.map((r: ResourceItem, i: number) => {
                                   const done = !!activityDone[r.id];
                                   const isLast = !quizPublished && i === activities.length - 1;
                                   const cls = done
