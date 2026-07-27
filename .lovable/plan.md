@@ -1,72 +1,50 @@
-# Plan: Redesign "What to do next" on /student/home
-
 ## Goal
-Update the existing "What to do next" card on `/student/home` to match the visual structure in the attached screenshot: a header with Preview/activity-count badges and a "View full learning path" link, followed by up to three structured activity cards (Quiz, Reading, Continue learning) with category badges, metadata, descriptions, and right-aligned action buttons.
 
-## Scope
-UI-only changes in `src/pages/student/StudentHome.tsx`. No backend or data-model changes.
+Rebuild the ordering logic behind the "What to do today" cards on `/student/home` so the mix and priority match the intended flow. UI/card visuals stay as-is — only the selection + ordering rules in `StudentHome.tsx` change.
 
-## Detailed changes
+## New priority order
 
-### 1. Section header
-- Change title from "What to do next" → "What to do today".
-- Add subtitle: "Three focused activities based on your course schedule and recent mastery."
-- Add a top-row flex layout containing:
-  - A "Preview" badge (neutral/secondary variant) linking to `/student/learning-path`.
-  - An activity-count badge showing the number of rendered cards (e.g., "3 activities").
-  - A "View full learning path →" text/button link on the right, also navigating to `/student/learning-path`.
+The card list is built by walking these rules in order and stopping at 3 cards.
 
-### 2. Refactor `nextActions` data model
-Extend the `NextAction` type so each item carries the fields needed by the new card layout:
-- `visualCategory`: `'quiz' | 'reading' | 'continue' | 'practice' | 'heads-up'`
-- `badgeLabel`: human category label shown in the card (e.g., "Quiz", "Reading", "Continue learning").
-- `badgeTone`: `'neutral' | 'green'` (green for Continue learning, neutral for others).
-- `metadata`: short secondary line (e.g., "10 questions · 8–10 min", "12 min", "Unit 2 · Based on your last session").
-- `buttonLabel`: dynamic CTA text (e.g., "Start quiz", "Open reading", "Review with TA").
-- `buttonVariant`: `'default' | 'outline'`.
+1. **Learning path not published** → single "Heads up" card (unchanged).
+2. **Diagnostic (if untaken)** → always first, above everything else.
+3. **Weekly Quiz slot** (exactly one card):
+  - a. Missed earlier weekly quiz (available + untaken).
+  - b. Else this week's quiz if available and untaken.
+  - c. Else omit the slot.
+4. **Chatbot slot** (smart fallback, exactly one card):
+  - a. Weakest touched concept in visible scope → Study Chat pre-seeded with that concept.
+  - b. Else first unexplored current-week concept → Study Chat pre-seeded with that concept.
+  - c. Else generic "Open Study Chat".
+5. **Reading slot** — only if:
+  - current week has a resource of type reading/material/article/text, AND
+  - student has not opened `/student/learning-path` in the current ISO week.
+   Reading links to `/student/learning-path` and, on click, marks the week as "opened" so it stops appearing.
+6. **Practice Exam** — only when *all visible lesson-plan weeks have been reached* (i.e. every week ≤ currentWeek is in `availableQuizDays`... actually: `visibleWeekNumbers.every(w => w <= currentWeek)` for the published plan) AND *every published weekly quiz has been taken* AND `taSettings.examEnabled !== false`. Replaces the current exam-week special-case and the fallback exam card.
+7. Safe default: if list is still empty, show generic "Open Study Chat".
 
-### 3. Map existing dynamic actions to visual categories
-Keep the existing priority logic, but map each generated action to the new visual category:
-- `THIS WEEK'S QUIZ`, `REVIEW` (missed earlier quiz) → **Quiz** card.
-- `PRACTICE` (practice exam) → **Quiz** card (or its own category if preferred; treat as quiz-style for layout consistency).
-- `DIAGNOSTIC` → **Quiz** card.
-- `START THIS WEEK`, `STRENGTHEN`, `EXPLORE` → **Continue learning** card (green badge).
-- `HEADS UP` (learning path not published) → single neutral card, no header badges needed.
+Diagnostic (rule 2) sits above the weekly-quiz slot. Missed earlier quizzes only appear inside the weekly-quiz slot, they no longer generate a separate REVIEW card.
 
-### 4. Add Reading card
-- Derive one Reading card from the current week's `lessonPlan` resources.
-- Pick the first resource of type `'reading'` or `'material'` in the current week; fallback to the first resource of any type if no reading exists.
-- Metadata: derive a read time from the resource description/title heuristically, or use a fixed fallback (e.g., "~10 min").
-- Title: "Read: {resource.title}".
-- Description: resource description or a generic prompt.
-- Action: navigate to `/student/learning-path`.
-- If the current week has no resources, omit the Reading card.
+## Reading "opened this week" tracking
 
-### 5. Quiz metadata
-For Quiz cards, use live TA settings:
-- Question count: `taSettings.quizNumQuestions || 5`.
-- Time limit: `taSettings.quizTimeLimit || 10`.
-- Render as: "{count} questions · {time} min".
+- New `localStorage` key: `student:lp-opened:{courseId}:{isoYearWeek}`.
+- Set the key when the Reading card's "Open reading" button is clicked, and also when the student navigates to `/student/learning-path` from anywhere in `StudentHome` (Learning Path nav click and the "View full learning path" link in the header).
+- Rule 5 checks presence of that key for the current ISO week before adding the Reading card.
+- ISO year+week derived from `new Date()` at render time — no schema changes.
 
-### 6. Card layout update
-Replace the current `<button>` row with a structured card row:
-- Left: rounded-square icon container (keep existing color logic, but align with badge tone).
-- Middle top: category badge + metadata on the same line.
-- Middle: title (semibold) + description (muted).
-- Right: action `<Button>` with dynamic label and variant.
-- Entire row remains clickable; the button is the primary action target.
-- Keep max 3 cards and the existing skeleton loading state, styled to match the new layout.
+## Files touched
 
-### 7. Styling guardrails
-- Use project design tokens only (`bg-primary`, `text-muted-foreground`, `border`, etc.).
-- No hardcoded hex colors.
-- Continue-learning badge uses `bg-green-100 text-green-700` or semantic equivalents (`bg-green-500/10 text-green-600`).
+- `src/pages/student/StudentHome.tsx` — replace the `nextActions` builder block (rules 1–8 + splice) with the new ordered pipeline; remove the standalone REVIEW missed-quiz card, the standalone Practice-exam fallback, and the exam-week early Practice card; keep card shape, badges, metadata, and `NextAction` type unchanged.
+- Small helper (inside the file or new `src/lib/isoWeek.ts` if it stays under ~15 lines) for ISO-week key + localStorage read/write.
 
-## Verification
-- Run `tsc --noEmit` and production build.
-- Visually verify via Playwright screenshot that the section renders with the new header, three activity cards, and correct navigation links.
+## Out of scope
 
-## Risks / open items
-- Reading-card duration is heuristic/fallback because lesson-plan resources do not currently store a read-time field. If exact durations are required later, a backend field should be added.
-- If no current-week resource exists, the Reading card is omitted and the section may show fewer than three cards; this matches the dynamic nature of the existing list.
-- The green badge tone is reserved for Continue-learning actions to match the screenshot; other categories remain neutral.
+- No changes to `useLearningPlan`, DB schema, edge functions, or card visual layout.
+- No new tracking beyond the localStorage flag for reading.
+
+## Risks / constraints
+
+- **localStorage tracking is per-device.** A student on two devices will see the Reading card independently on each. Acceptable given no backend changes were requested.
+- **"All visible weeks reached" is strict** — in a 16-week course the Practice Exam won't surface until week 16 unless quizzes are also all done. That matches the "all units complete" ask but is stricter than today's fallback.
+- **Cap of 3 cards** means when diagnostic is pending the student will see Diagnostic + Weekly Quiz + Chatbot and no Reading card until diagnostic is done. Confirming this trade-off is fine before implementation, otherwise I'll ship with diagnostic-wins behavior.
+- **Chat pre-seed URLs** already exist (`?newchat=true&concept=…`), so the smart chatbot slot reuses current wiring — no chat-page changes needed.

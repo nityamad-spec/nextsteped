@@ -64,6 +64,24 @@ const formatAvgTime = (seconds: number, totalQuestions: number) => {
   return `${Math.round(seconds / totalQuestions)}s/question`;
 };
 
+// ISO year+week key so the "opened learning path this week" flag rolls over weekly.
+const isoYearWeek = (d: Date = new Date()) => {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((t.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${t.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+};
+const lpOpenedKey = (courseId: string | null | undefined) =>
+  `student:lp-opened:${courseId ?? "none"}:${isoYearWeek()}`;
+const hasOpenedLearningPathThisWeek = (courseId: string | null | undefined) => {
+  try { return !!localStorage.getItem(lpOpenedKey(courseId)); } catch { return false; }
+};
+const markLearningPathOpened = (courseId: string | null | undefined) => {
+  try { localStorage.setItem(lpOpenedKey(courseId), "1"); } catch { /* ignore */ }
+};
+
 
 const StudentHome = () => {
   const { studentProfile, currentCourse } = useApp();
@@ -298,7 +316,6 @@ const StudentHome = () => {
   });
 
   const currentWeekRow = lessonPlan.find((wk: any) => wk.day === currentWeek);
-  const isExamWeek = !!currentWeekRow?.is_exam_week;
 
   const quizQuestionCount = taSettings?.quizNumQuestions || 5;
   const quizTimeLimit = taSettings?.quizTimeLimit || 10;
@@ -326,7 +343,7 @@ const StudentHome = () => {
       buttonVariant: "outline",
     });
   } else {
-    // Rule 2 — diagnostic not taken
+    // Rule 2 — diagnostic not taken (always first)
     if (diagnosticTaken === false) {
       nextActions.push({
         icon: Brain,
@@ -343,10 +360,16 @@ const StudentHome = () => {
       });
     }
 
+    // Rule 3 — Weekly Quiz slot: this week's untaken quiz, else earliest missed earlier quiz
     const currentWeekQuizAvailable = availableQuizDays.has(currentWeek) && !takenQuizzes[currentWeek];
-
-    // Rule 3 (normal) — this week's untaken quiz; bumps down on exam weeks
-    if (currentWeekQuizAvailable && !isExamWeek) {
+    const earlierWeekNumbers = lessonPlan
+      .map((wk: any) => Number(wk.day))
+      .filter((d: number) => Number.isFinite(d) && d < currentWeek)
+      .sort((a: number, b: number) => a - b);
+    const missedEarlier = earlierWeekNumbers.find(
+      (w: number) => availableQuizDays.has(w) && !takenQuizzes[w],
+    );
+    if (currentWeekQuizAvailable) {
       nextActions.push({
         icon: ClipboardCheck,
         title: `${currentWeekRow?.topic || `Week ${currentWeek}`}`,
@@ -360,82 +383,7 @@ const StudentHome = () => {
         buttonLabel: "Start quiz",
         buttonVariant: "default",
       });
-    }
-
-    // On exam weeks, surface Practice Exam earlier
-    if (isExamWeek && taSettings?.examEnabled !== false) {
-      nextActions.push({
-        icon: ClipboardCheck,
-        title: "Practice Exam",
-        description: "Exam week — simulate a timed exam in chat",
-        action: () => attemptExamMode(),
-        category: "PRACTICE",
-        visualCategory: "quiz",
-        badgeLabel: "Practice exam",
-        badgeTone: "neutral",
-        metadata: "Timed simulation",
-        buttonLabel: "Start exam",
-        buttonVariant: "default",
-      });
-    }
-
-    // Reading card derived from current week's resources
-    const currentWeekResources = Array.isArray(currentWeekRow?.resources) ? currentWeekRow.resources : [];
-    const readingResource = currentWeekResources.find(
-      (r: any) => typeof r?.type === "string" && /reading|material|article|text/i.test(r.type),
-    ) || currentWeekResources[0];
-
-    // Rule 4 — weakest touched concept within visible scope
-    const touchedVisible = Object.entries(conceptMastery)
-      .filter(([id, m]) => visibleConceptIds.has(id) && m.attempted > 0)
-      .sort(([, a], [, b]) => a.score - b.score);
-    if (touchedVisible.length > 0) {
-      const [weakestId] = touchedVisible[0];
-      const weakest = concepts.find((c) => c.id === weakestId);
-      if (weakest) {
-        nextActions.push({
-          icon: Sparkles,
-          title: weakest.name,
-          description: "Revisit this concept in the Study Chat",
-          action: () => navigate(`/student/chat?newchat=true&concept=${encodeURIComponent(weakest.name)}`),
-          category: "STRENGTHEN",
-          visualCategory: "continue",
-          badgeLabel: "Continue learning",
-          badgeTone: "green",
-          metadata: "Based on your mastery",
-          buttonLabel: "Review with TA",
-          buttonVariant: "outline",
-        });
-      }
-    }
-
-    // Rule 5 — first unexplored current-week concept
-    const unexploredThisWeek = currentWeekConcepts.find(
-      (c) => !c.id || !conceptMastery[c.id] || conceptMastery[c.id].attempted === 0,
-    );
-    if (unexploredThisWeek) {
-      nextActions.push({
-        icon: BookOpen,
-        title: unexploredThisWeek.name,
-        description: `Week ${currentWeek} — open a new chat to dig in`,
-        action: () => navigate("/student/chat?newchat=true"),
-        category: "START THIS WEEK",
-        visualCategory: "continue",
-        badgeLabel: "Continue learning",
-        badgeTone: "green",
-        metadata: `Unit ${currentWeek}`,
-        buttonLabel: "Review with TA",
-        buttonVariant: "outline",
-      });
-    }
-
-    // Rule 6 — earliest missed earlier weekly quiz
-    const visibleWeekNumbers = lessonPlan
-      .map((wk: any) => Number(wk.day))
-      .filter((d: number) => Number.isFinite(d) && d < currentWeek)
-      .sort((a: number, b: number) => a - b);
-    const missedEarlier = visibleWeekNumbers.find((w: number) => availableQuizDays.has(w) && !takenQuizzes[w]);
-    if (missedEarlier != null) {
+    } else if (missedEarlier != null) {
       nextActions.push({
         icon: ClipboardCheck,
         title: `Week ${missedEarlier} quiz`,
@@ -451,46 +399,45 @@ const StudentHome = () => {
       });
     }
 
-    // Rule 7 — practice exam (default fallback when exam enabled and not already pushed)
-    if (!isExamWeek && taSettings?.examEnabled !== false) {
-      nextActions.push({
-        icon: ClipboardCheck,
-        title: "Practice exam",
-        description: "Test your knowledge with a timed simulation",
-        action: () => attemptExamMode(),
-        category: "PRACTICE",
-        visualCategory: "practice",
-        badgeLabel: "Practice",
-        badgeTone: "neutral",
-        metadata: "Timed simulation",
-        buttonLabel: "Start exam",
-        buttonVariant: "outline",
-      });
-    }
-
-    // Rule 8 — everything done
-    const allQuizzesTaken = Array.from(availableQuizDays).every((w) => !!takenQuizzes[w]);
-    const allVisibleConceptsTouched =
-      visibleConceptIds.size > 0 &&
-      Array.from(visibleConceptIds).every((id) => (conceptMastery[id]?.attempted ?? 0) > 0);
-    if (nextActions.length === 0 && allQuizzesTaken && allVisibleConceptsTouched) {
+    // Rule 4 — Chatbot slot (smart fallback: weakest touched → first unexplored current-week → generic)
+    const touchedVisible = Object.entries(conceptMastery)
+      .filter(([id, m]) => visibleConceptIds.has(id) && m.attempted > 0)
+      .sort(([, a], [, b]) => a.score - b.score);
+    const weakest = touchedVisible.length > 0
+      ? concepts.find((c) => c.id === touchedVisible[0][0])
+      : undefined;
+    const unexploredThisWeek = currentWeekConcepts.find(
+      (c) => !c.id || !conceptMastery[c.id] || conceptMastery[c.id].attempted === 0,
+    );
+    if (weakest) {
       nextActions.push({
         icon: Sparkles,
-        title: "You're caught up — keep practising in chat",
-        description: "Try a deeper question or revisit a concept",
-        action: () => navigate("/student/chat?newchat=true"),
-        category: "EXPLORE",
+        title: weakest.name,
+        description: "Revisit this concept in the Study Chat",
+        action: () => navigate(`/student/chat?newchat=true&concept=${encodeURIComponent(weakest.name)}`),
+        category: "STRENGTHEN",
         visualCategory: "continue",
         badgeLabel: "Continue learning",
         badgeTone: "green",
-        metadata: "Based on your last session",
+        metadata: "Based on your mastery",
         buttonLabel: "Review with TA",
         buttonVariant: "outline",
       });
-    }
-
-    // Always have at least one card to show as a safe default
-    if (nextActions.length === 0) {
+    } else if (unexploredThisWeek) {
+      nextActions.push({
+        icon: BookOpen,
+        title: unexploredThisWeek.name,
+        description: `Week ${currentWeek} — open a new chat to dig in`,
+        action: () => navigate(`/student/chat?newchat=true&concept=${encodeURIComponent(unexploredThisWeek.name)}`),
+        category: "START THIS WEEK",
+        visualCategory: "continue",
+        badgeLabel: "Continue learning",
+        badgeTone: "green",
+        metadata: `Unit ${currentWeek}`,
+        buttonLabel: "Review with TA",
+        buttonVariant: "outline",
+      });
+    } else {
       nextActions.push({
         icon: MessageSquare,
         title: "Open the Study Chat",
@@ -506,25 +453,71 @@ const StudentHome = () => {
       });
     }
 
-    // Splice in a Reading card after the highest-priority action when available
-    if (readingResource) {
-      const readTime = deriveReadTime(readingResource);
-      const readingAction: NextAction = {
+    // Rule 5 — Reading slot (only if unread + student hasn't opened learning path this week)
+    const currentWeekResources = Array.isArray(currentWeekRow?.resources) ? currentWeekRow.resources : [];
+    const readingResource = currentWeekResources.find(
+      (r: any) => typeof r?.type === "string" && /reading|material|article|text/i.test(r.type),
+    ) || currentWeekResources[0];
+    if (readingResource && !hasOpenedLearningPathThisWeek(enrolledCourseId)) {
+      nextActions.push({
         icon: BookOpen,
         title: `Read: ${readingResource.title || "Course reading"}`,
         description: readingResource.description || "Prepare for the next part of the unit with a short guided course reading.",
-        action: () => navigate("/student/learning-path"),
+        action: () => {
+          markLearningPathOpened(enrolledCourseId);
+          navigate("/student/learning-path");
+        },
         category: "START THIS WEEK",
         visualCategory: "reading",
         badgeLabel: "Reading",
         badgeTone: "neutral",
-        metadata: readTime,
+        metadata: deriveReadTime(readingResource),
         buttonLabel: "Open reading",
         buttonVariant: "outline",
-      };
-      nextActions.splice(1, 0, readingAction);
+      });
+    }
+
+    // Rule 6 — Practice Exam (only once all visible weeks reached AND all published quizzes taken)
+    const allVisibleWeeksReached =
+      lessonPlan.length > 0 &&
+      lessonPlan.every((wk: any) => Number(wk.day) <= currentWeek);
+    const allQuizzesTaken =
+      availableQuizDays.size > 0 &&
+      Array.from(availableQuizDays).every((w) => !!takenQuizzes[w]);
+    if (allVisibleWeeksReached && allQuizzesTaken && taSettings?.examEnabled !== false) {
+      nextActions.push({
+        icon: ClipboardCheck,
+        title: "Practice exam",
+        description: "You've reached the end of the course — try a timed simulation",
+        action: () => attemptExamMode(),
+        category: "PRACTICE",
+        visualCategory: "practice",
+        badgeLabel: "Practice exam",
+        badgeTone: "neutral",
+        metadata: "Timed simulation",
+        buttonLabel: "Start exam",
+        buttonVariant: "outline",
+      });
+    }
+
+    // Safe default — never show an empty list
+    if (nextActions.length === 0) {
+      nextActions.push({
+        icon: MessageSquare,
+        title: "Open the Study Chat",
+        description: "Ask a question or explore a concept",
+        action: () => navigate("/student/chat?newchat=true"),
+        category: "EXPLORE",
+        visualCategory: "continue",
+        badgeLabel: "Continue learning",
+        badgeTone: "green",
+        metadata: "Based on your last session",
+        buttonLabel: "Review with TA",
+        buttonVariant: "outline",
+      });
     }
   }
+
 
 
   const parseList = (text: string) =>
@@ -581,7 +574,7 @@ const StudentHome = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => navigate("/student/learning-path")}
+                onClick={() => { markLearningPathOpened(enrolledCourseId); navigate("/student/learning-path"); }}
                 className="shrink-0"
               >
                 View full learning path
