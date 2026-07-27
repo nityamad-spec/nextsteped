@@ -378,7 +378,9 @@ const App = () => (
               <Route path="/student/diagnostic" element={<ProtectedRoute><RoleGuard allow={["student"]}><DiagnosticQuiz /></RoleGuard></ProtectedRoute>} />
               <Route element={<ProtectedRoute><RoleGuard allow={["student"]}><StudentLayout /></RoleGuard></ProtectedRoute>}>
                 <Route path="/student/home" element={<StudentHome />} />
+                <Route path="/student/learning-path" element={<StudentLearningPath />} />
                 <Route path="/student/chat" element={<AIChat />} />
+                <Route path="/student/project-lab" element={<StudentProjectLab />} />
                 <Route path="/student/feedback" element={<Feedback />} />
                 <Route path="/student/progress" element={<StudentProgress />} />
               </Route>
