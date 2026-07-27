@@ -1,32 +1,41 @@
-## Plan: Narrower prompts + right-aligned New Chat on /student/chat
+## Plan: Combine Exam Prep Banners on `/student/chat`
 
-### What we’ll change
+### Goal
 
-1. **Match prompt width to welcome message**
-  - Wrap the suggested-prompts grid in a container capped at the same `max-w-[65%] md:max-w-[55%]` used for the welcome bubble.
-  - Keep the 2-column grid layout inside that container so individual prompt cards are narrower and visually aligned with the welcome message width.
-2. **Move New Chat to the far right**
-  - Change the welcome-message row from `flex items-start gap-2 flex-1 min-w-0` to `flex items-start justify-between gap-2` so the New Chat button is pushed to the right edge of the chat area.
-  - The welcome bubble keeps its current max-width; the button sits at the trailing edge with the existing gap.
+Merge the two separate banners currently shown in `ExamPrepPanel` (availability note + professor-recommended settings) into a single unified banner with the wording you specified.
 
-### Files to edit
+### Current State
 
-- `src/pages/student/AIChat.tsx` (welcome bubble + suggested prompts section)
+`src/components/ExamPrepPanel.tsx` renders two stacked info boxes at the top:
+
+1. Availability note: e.g. "2 practice exams remaining — each exam can only be attempted once (next up: Exam 1 of 2)."
+2. Recommendation note: "Professor recommended settings — these simulate the real exam. You can customize them for your practice."
+
+### Proposed Change
+
+1. **Remove** the separate availability banner and the separate recommendation banner.
+2. **Add** a single combined banner at the top of `ExamPrepPanel` using an `Info` icon and muted styling.
+3. **Copy** to be:
+  - Primary line: **"Professor Recommended Settings: These simulate the exam."**
+  - Secondary line: dynamic count, e.g. **"There are 2 practice exams you can take."**
+4. **Preserve the existing count logic** but simplify the phrasing:
+  - `examCount === 0`: "There are no practice exams available to take right now."
+  - `examCount === 1`: "There is 1 practice exam you can take."
+  - `examCount > 1`: "There are {examCount} practice exams you can take."
+
+### Open Question
+
+ "There are N practice exams you can take" wording for all cases. 
+
+### Files to Change
+
+- `src/components/ExamPrepPanel.tsx` only.
 
 ### Verification
 
-- TypeScript check (`bunx tsc --noEmit` or project lint command).
-- Playwright screenshot of `/student/chat` in Study mode to confirm:
-  - Welcome bubble and prompt grid share the same width.
-  - New Chat button is flush right.
-  - No overlap or truncation on mobile/smaller viewports.
+- Run TypeScript typecheck.
+- Visually confirm on `/student/chat?mode=exam` that only one banner appears and the count text is correct.
 
-### Risks / considerations
+### Risks
 
-- **Responsiveness**: On very small screens the capped width may feel cramped; we can keep the existing padding and let the grid collapse to 1 column below `sm`.
-- **No functional changes**: This only affects layout; chat history, streaming, fallback prompts, and practice-widget routing remain untouched.
-
-### Questions
-
-1.  prompt grid stay 2 columns inside the narrower containers.
-2. On mobile (< `sm`), drop below it to avoid crowding
+- Very low. This is a presentational change; no logic, state, or API contracts change.
