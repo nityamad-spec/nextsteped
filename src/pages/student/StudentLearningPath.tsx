@@ -353,7 +353,7 @@ const StudentLearningPath = () => {
                         )}
 
                         {dp.resources && dp.resources.length > 0 && (() => {
-                          const conceptGroups = new Map<string, any[]>();
+                          const conceptGroups = new Map<string, ResourceItem[]>();
                           for (const r of dp.resources) {
                             const key = r.concept || "General";
                             if (!conceptGroups.has(key)) conceptGroups.set(key, []);
