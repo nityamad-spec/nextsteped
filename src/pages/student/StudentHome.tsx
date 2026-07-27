@@ -262,12 +262,21 @@ const StudentHome = () => {
     | "REVIEW"
     | "PRACTICE"
     | "EXPLORE";
+  type VisualCategory = "quiz" | "reading" | "continue" | "practice" | "heads-up";
+  type BadgeTone = "neutral" | "green";
+  type ButtonVariant = "default" | "outline";
   type NextAction = {
     icon: any;
     title: string;
     description: string;
     action: () => void;
     category: NextActionCategory;
+    visualCategory: VisualCategory;
+    badgeLabel: string;
+    badgeTone: BadgeTone;
+    metadata: string;
+    buttonLabel: string;
+    buttonVariant: ButtonVariant;
   };
   const nextActions: NextAction[] = [];
 
