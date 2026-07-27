@@ -568,7 +568,12 @@ const StudentHome = () => {
                   What to do today
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  Three focused activities based on your course schedule and recent mastery.
+                  {nextActionsLoading
+                    ? "Loading your activities…"
+                    : (() => {
+                        const count = Math.min(nextActions.length, 3);
+                        return `${count} focused activit${count === 1 ? "y" : "ies"} based on your course schedule and recent mastery.`;
+                      })()}
                 </CardDescription>
               </div>
               <Button
@@ -582,7 +587,7 @@ const StudentHome = () => {
               </Button>
             </div>
             <div className="flex items-center gap-2 mt-3">
-              <Badge variant="secondary">Preview</Badge>
+              <Badge variant="secondary">Personalised</Badge>
               <Badge variant="outline">
                 {nextActionsLoading ? "— activities" : `${Math.min(nextActions.length, 3)} activities`}
               </Badge>
