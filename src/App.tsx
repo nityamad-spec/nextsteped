@@ -43,7 +43,9 @@ import StudentOnboarding from "./pages/student/StudentOnboarding";
 import VerifyEmail from "./pages/student/VerifyEmail";
 import DiagnosticQuiz from "./pages/student/DiagnosticQuiz";
 import StudentHome from "./pages/student/StudentHome";
+import StudentLearningPath from "./pages/student/StudentLearningPath";
 import AIChat from "./pages/student/AIChat";
+import StudentProjectLab from "./pages/student/StudentProjectLab";
 import StudentProgress from "./pages/student/Progress";
 import Feedback from "./pages/student/Feedback";
 import ComingSoon from "./components/ComingSoon";
@@ -376,7 +378,9 @@ const App = () => (
               <Route path="/student/diagnostic" element={<ProtectedRoute><RoleGuard allow={["student"]}><DiagnosticQuiz /></RoleGuard></ProtectedRoute>} />
               <Route element={<ProtectedRoute><RoleGuard allow={["student"]}><StudentLayout /></RoleGuard></ProtectedRoute>}>
                 <Route path="/student/home" element={<StudentHome />} />
+                <Route path="/student/learning-path" element={<StudentLearningPath />} />
                 <Route path="/student/chat" element={<AIChat />} />
+                <Route path="/student/project-lab" element={<StudentProjectLab />} />
                 <Route path="/student/feedback" element={<Feedback />} />
                 <Route path="/student/progress" element={<StudentProgress />} />
               </Route>

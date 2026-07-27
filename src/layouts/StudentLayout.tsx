@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { Home, MessageSquare, MessageSquareHeart } from "lucide-react";
+import { Home, Route, MessageSquare, FlaskConical, MessageSquareHeart } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -9,7 +9,9 @@ import AddCourseDialog from "@/components/AddCourseDialog";
 
 const studentNav = [
   { title: "Home", path: "/student/home", icon: Home },
+  { title: "Learning Path", path: "/student/learning-path", icon: Route },
   { title: "Teaching Assistant", path: "/student/chat", icon: MessageSquare },
+  { title: "Project Lab", path: "/student/project-lab", icon: FlaskConical },
   { title: "Feedback", path: "/student/feedback", icon: MessageSquareHeart },
 ];
 
