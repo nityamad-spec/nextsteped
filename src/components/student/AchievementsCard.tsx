@@ -28,57 +28,58 @@ const AchievementsCard = ({ achievements, earnedCount }: Props) => {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-4 gap-3">
-          {achievements.map((a) => (
-            <Tooltip key={a.id}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="flex flex-col items-center gap-2 cursor-default bg-transparent border-0 p-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-2xl"
-                >
-                  <div
-                    className={`h-16 w-16 rounded-2xl flex items-center justify-center text-3xl transition-colors ${
-                      a.earned
-                        ? "bg-primary/15 border border-primary/30"
-                        : "bg-muted border border-border opacity-60 grayscale"
-                    }`}
+        <TooltipProvider delayDuration={100}>
+          <div className="grid grid-cols-4 gap-3">
+            {achievements.map((a) => (
+              <Tooltip key={a.id}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex flex-col items-center gap-2 cursor-default bg-transparent border-0 p-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-2xl"
                   >
-                    <span aria-hidden>{a.emoji}</span>
-                  </div>
-                  <p
-                    className={`text-xs font-semibold text-center truncate w-full ${
-                      a.earned ? "text-foreground" : "text-muted-foreground"
-                    }`}
-                    title={a.label}
-                  >
-                    {a.label}
-                  </p>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-[260px]">
-                {a.earned ? (
-                  <p className="text-xs">{a.tooltip}</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-semibold">{a.howTo.title}</p>
-                    <ul className="space-y-1">
-                      {a.howTo.steps.map((s, i) => (
-                        <li key={i} className="flex items-start gap-1.5 text-xs">
-                          <span aria-hidden className={s.done ? "text-primary" : "text-muted-foreground"}>
-                            {s.done ? "✓" : "○"}
-                          </span>
-                          <span className={s.done ? "text-muted-foreground line-through" : ""}>
-                            {s.label}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </TooltipContent>
-            </Tooltip>
-          ))}
-        </div>
+                    <div
+                      className={`h-16 w-16 rounded-2xl flex items-center justify-center text-3xl transition-colors ${
+                        a.earned
+                          ? "bg-primary/15 border border-primary/30"
+                          : "bg-muted border border-border opacity-60 grayscale"
+                      }`}
+                    >
+                      <span aria-hidden>{a.emoji}</span>
+                    </div>
+                    <p
+                      className={`text-xs font-semibold text-center truncate w-full ${
+                        a.earned ? "text-foreground" : "text-muted-foreground"
+                      }`}
+                    >
+                      {a.label}
+                    </p>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6} className="max-w-[260px]">
+                  {a.earned ? (
+                    <p className="text-xs">{a.tooltip}</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold">{a.howTo.title}</p>
+                      <ul className="space-y-1">
+                        {a.howTo.steps.map((s, i) => (
+                          <li key={i} className="flex items-start gap-1.5 text-xs">
+                            <span aria-hidden className={s.done ? "text-primary" : "text-muted-foreground"}>
+                              {s.done ? "✓" : "○"}
+                            </span>
+                            <span className={s.done ? "text-muted-foreground line-through" : ""}>
+                              {s.label}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
+        </TooltipProvider>
       </CardContent>
     </Card>
   );
