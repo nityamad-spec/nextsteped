@@ -587,7 +587,7 @@ const StudentHome = () => {
               </Button>
             </div>
             <div className="flex items-center gap-2 mt-3">
-              <Badge variant="secondary">Preview</Badge>
+              <Badge variant="secondary">Personalised</Badge>
               <Badge variant="outline">
                 {nextActionsLoading ? "— activities" : `${Math.min(nextActions.length, 3)} activities`}
               </Badge>
