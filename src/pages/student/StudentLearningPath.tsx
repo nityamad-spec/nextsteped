@@ -133,7 +133,7 @@ const StudentLearningPath = () => {
         return;
       }
       const map: Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }> = {};
-      (data || []).forEach((r: any) => {
+      (data || []).forEach((r: QuizResultRow) => {
         if (r.quiz_day != null) {
           const day = Number(r.quiz_day);
           const score = Number(r.score) || 0;
