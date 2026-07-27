@@ -1,30 +1,43 @@
-## 1) `/student/learning-path` — restrict "Upcoming" pill to locked units
-File: `src/pages/student/StudentLearningPath.tsx` (~lines 267, 295–297).
+## Plan
 
-Current behavior: each unit header renders a status pill — `COMPLETE`, `IN PROGRESS`, or `UPCOMING`. `UPCOMING` fires whenever `dp.day > currentWeek`, so future-but-visible units all get the pill.
+### 1) Move Course Progress bar from `/student/home` to top of `/student/learning-path`
 
-Change: only render the status pill when it is meaningfully different from the default in-progress state — i.e., render it for `complete` and `upcoming`, and skip it for `in_progress`. `UPCOMING` will then only appear on units that are locked / not yet reached (the same units that already show the Lock icon in the avatar). No logic change to `status` itself.
+**On `StudentLearningPath.tsx`:**
 
-```tsx
-{status !== "in_progress" && (
-  <span className={`text-[10px] ... ${statusStyles}`}>{statusLabel}</span>
-)}
-```
+- Add the same data the Home page uses to compute progress. `takenQuizzes` and `availableQuizDays` are already loaded in this file, and `totalWeeks` is already returned by `useLearningPlan`. So we just replicate the derived values:
+  - `passedQuizCount = quizzes with score > 50`
+  - `publishedQuizCount = availableQuizDays.size`
+  - `progressPct = round(passedQuizCount / publishedQuizCount * 100)`
+  - `displayedUnit = clamp(lastPassedUnit + 1, 1, totalWeeks)`
+- Insert a new Course Progress `Card` immediately after the page heading (before the "Your Learning Path" card), visually matching the existing Home version (BookOpen icon, "Unit X of Y" label, `Progress` bar, "X of Y weekly quizzes passed (>50%)" caption).
 
-## 2) `/student/chat` — enlarge and lift the input (study mode)
-File: `src/pages/student/AIChat.tsx` (~lines 1509–1530).
+**On `StudentHome.tsx`:**
 
-Current: single-line `<Input>` in a `flex gap-2` row inside a `border-t p-4` footer glued to the bottom.
+- Remove the Course Progress `motion.div` block (currently lines ~542–561).
+- Keep the underlying `passedQuizCount` / `progressPct` / `displayedUnit` calculations only if still consumed elsewhere on Home; otherwise drop the now-unused derived vars and imports (`Progress`, `BookOpen`) if no other use remains. I'll verify before deleting.
 
-Changes (only when `mode === "learning"`):
-- Replace `<Input>` with an auto-resizing `<Textarea>` (`min-h-[64px]`, `max-h-[200px]`, `resize-none`, `Enter` sends, `Shift+Enter` newline).
-- Widen: keep `flex-1` (already page-width) and remove the tight `p-4` → use `px-4 md:px-6 pt-4` with bottom padding `pb-8 md:pb-10` so the composer sits noticeably above the bottom edge.
-- Send button: move to bottom-right of the textarea (`items-end` on the flex row) so the taller textarea reads as the primary surface.
+### 2) `/student/feedback` — widen textbox, add "Report an issue" box
 
-Exam mode keeps the current compact `<Input>` layout unchanged (chat is disabled there).
+**On `Feedback.tsx`:**
 
-## Scope
-Frontend only. Two files. No data/query/backend changes. No new dependencies (`Textarea` is already in `@/components/ui/textarea`).
+- Change the two feedback cards from `max-w-2xl` to full page width (`max-w-full` or drop the constraint) so the textareas span the page width. Keep them inside the existing `p-6` page padding.
+- Increase the existing "Share Feedback Anytime" `Textarea` `rows` from 3 to ~5 for a taller box.
+- Add a **third card** below: **"Report an Issue"**
+  - Icon: `AlertCircle` (lucide) in the same avatar treatment.
+  - Description: "Found a bug or something not working? Send us the details."
+  - Full-width `Textarea` (rows ~5), separate state (`issueReport`, `issueSubmitting`).
+  - Submit button opens a prefilled `mailto:` link to `info@nextsteped.com`:
+    - Subject: `NextStep issue report`
+    - Body: the textarea content plus the signed-in user's email for context.
+  - Use `window.location.href = mailto:...` on click; clear the textarea and toast "Opening your email app…" on success.
+  - No DB insert (email is the delivery channel, per request). If you'd rather also log the issue to a table, tell me and I'll add it.
 
-## Assumption to confirm on approval
-For #1, "UPCOMING only when locked" is interpreted as: hide the pill on the current in-progress unit and only show it on future/locked units (which already show a Lock avatar). If you instead meant "add a new distinct 'Locked' pill separate from 'Upcoming'", say so and I'll adjust.
+### Risks / notes
+
+- The Course Progress metric on Home currently uses the *published quiz* count. That's identical to what's already fetched in Learning Path, so the number will match 1:1 after the move.
+- `mailto:` depends on the user having a default mail client. If you want a more reliable path (edge function → email), say so and I'll wire it via the existing Lovable email infra instead.
+- No backend / schema changes.
+
+### Open question
+
+- For "Report an issue": mailto-only. 
