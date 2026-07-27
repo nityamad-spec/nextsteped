@@ -18,6 +18,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 import ConceptMasteryDialog from "@/components/student/ConceptMasteryDialog";
+import AchievementsCard from "@/components/student/AchievementsCard";
+import { useAchievements } from "@/hooks/useAchievements";
 
 
 /* Concepts are loaded from the DB for the student's enrolled course.
@@ -101,6 +103,7 @@ const StudentHome = () => {
   const [conceptMastery, setConceptMastery] = useState<Record<string, { score: number; attempted: number }>>({});
   const [courseMastery, setCourseMastery] = useState<number | null>(null);
   const [masteryDialogOpen, setMasteryDialogOpen] = useState(false);
+  const achievementsData = useAchievements(enrolledCourseId, user?.id ?? null, concepts, conceptMastery);
   const [takenQuizzes, setTakenQuizzes] = useState<
     Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }>
   >({});
@@ -657,9 +660,9 @@ const StudentHome = () => {
         </Card>
       </motion.div>
 
-      {/* Concept Mastery — summary */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="mb-6">
-        <Card>
+      {/* Concept Mastery + Achievements */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="h-full">
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
@@ -737,6 +740,8 @@ const StudentHome = () => {
             </div>
           </CardContent>
         </Card>
+
+        <AchievementsCard {...achievementsData} />
       </motion.div>
 
       <ConceptMasteryDialog
