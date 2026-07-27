@@ -640,18 +640,16 @@ const StudentHome = () => {
                       <p className="text-[15px] font-semibold leading-snug mt-1">{action.title}</p>
                       <p className="text-sm text-muted-foreground mt-0.5">{action.description}</p>
                     </div>
-                    <Button
-                      variant={action.buttonVariant}
-                      size="sm"
-                      className="shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        action.action();
-                      }}
+                    <span
+                      className={`shrink-0 inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium ${
+                        action.buttonVariant === "default"
+                          ? "bg-primary text-primary-foreground"
+                          : "border border-input bg-background"
+                      }`}
                     >
                       {action.buttonLabel}
                       <ArrowRight className="ml-1 h-4 w-4" />
-                    </Button>
+                    </span>
                   </button>
                 );
               })
