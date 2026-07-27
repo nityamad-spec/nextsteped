@@ -64,6 +64,24 @@ const formatAvgTime = (seconds: number, totalQuestions: number) => {
   return `${Math.round(seconds / totalQuestions)}s/question`;
 };
 
+// ISO year+week key so the "opened learning path this week" flag rolls over weekly.
+const isoYearWeek = (d: Date = new Date()) => {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((t.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${t.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+};
+const lpOpenedKey = (courseId: string | null | undefined) =>
+  `student:lp-opened:${courseId ?? "none"}:${isoYearWeek()}`;
+const hasOpenedLearningPathThisWeek = (courseId: string | null | undefined) => {
+  try { return !!localStorage.getItem(lpOpenedKey(courseId)); } catch { return false; }
+};
+const markLearningPathOpened = (courseId: string | null | undefined) => {
+  try { localStorage.setItem(lpOpenedKey(courseId), "1"); } catch { /* ignore */ }
+};
+
 
 const StudentHome = () => {
   const { studentProfile, currentCourse } = useApp();
