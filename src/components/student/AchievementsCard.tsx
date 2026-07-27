@@ -52,8 +52,26 @@ const AchievementsCard = ({ achievements, earnedCount }: Props) => {
                   </p>
                 </div>
               </TooltipTrigger>
-              <TooltipContent>
-                <p className="max-w-xs">{a.tooltip}</p>
+              <TooltipContent className="max-w-[260px]">
+                {a.earned ? (
+                  <p className="text-xs">{a.tooltip}</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold">{a.howTo.title}</p>
+                    <ul className="space-y-1">
+                      {a.howTo.steps.map((s, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-xs">
+                          <span aria-hidden className={s.done ? "text-emerald-500" : "text-muted-foreground"}>
+                            {s.done ? "✓" : "○"}
+                          </span>
+                          <span className={s.done ? "text-muted-foreground line-through" : ""}>
+                            {s.label}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </TooltipContent>
             </Tooltip>
           ))}
