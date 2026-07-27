@@ -58,7 +58,9 @@ const StudentLearningPath = () => {
     if (!activityDoneStorageKey) return;
     try {
       window.localStorage.setItem(activityDoneStorageKey, JSON.stringify(activityDone));
-    } catch {}
+    } catch {
+      // ignore localStorage write errors
+    }
   }, [activityDone, activityDoneStorageKey]);
   const toggleActivityDone = (id: string) => {
     setActivityDone((prev) => ({ ...prev, [id]: !prev[id] }));
