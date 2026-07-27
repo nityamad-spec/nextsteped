@@ -32,7 +32,10 @@ const AchievementsCard = ({ achievements, earnedCount }: Props) => {
           {achievements.map((a) => (
             <Tooltip key={a.id}>
               <TooltipTrigger asChild>
-                <div className="flex flex-col items-center gap-2 cursor-default">
+                <button
+                  type="button"
+                  className="flex flex-col items-center gap-2 cursor-default bg-transparent border-0 p-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-2xl"
+                >
                   <div
                     className={`h-16 w-16 rounded-2xl flex items-center justify-center text-3xl transition-colors ${
                       a.earned
@@ -50,7 +53,7 @@ const AchievementsCard = ({ achievements, earnedCount }: Props) => {
                   >
                     {a.label}
                   </p>
-                </div>
+                </button>
               </TooltipTrigger>
               <TooltipContent className="max-w-[260px]">
                 {a.earned ? (
