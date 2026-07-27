@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User, BarChart3, Dumbbell, Lightbulb, ListChecks, GraduationCap, Newspaper, FolderSearch } from "lucide-react";
+import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User, BarChart3, Dumbbell, ListChecks, GraduationCap, FolderSearch } from "lucide-react";
 import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import ExamHistory from "@/components/ExamHistory";
@@ -51,13 +51,11 @@ const getWelcomeLearning = (courseName?: string | null) =>
   `Hi! I'm your AI Teaching Assistant for **${courseName?.trim() || "your course"}**. I'm here to help you understand concepts, work through problems, and build your knowledge. What would you like to explore?`;
 const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. Configure your practice settings and click **Start Exam** to begin a timed simulation. Good luck!";
 
-type PromptMode = "news" | "materials";
+type PromptMode = "materials";
 type PromptAction = "practice";
 const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string; promptMode?: PromptMode; action?: PromptAction }[] = [
-  { icon: Lightbulb, label: "Explain a concept", prompt: "Explain this week's key concept in simple terms with an example." },
-  { icon: BookOpen, label: "Walk through an example", prompt: "Walk me through a worked example for this week's topic step by step." },
+  { icon: BookOpen, label: "Explain a concept", prompt: "Explain this week's key concept in simple terms with an example." },
   { icon: ListChecks, label: "Quiz me", prompt: "Open Practice Questions to generate a quiz on your recent topics.", action: "practice" },
-  { icon: Newspaper, label: "Explore this week's news", prompt: "Show me recent news, developments, and real-world examples related to this week's topic.", promptMode: "news" },
   { icon: FolderSearch, label: "Search course materials", prompt: "Find and explain information from the syllabus, textbook, slides, or other materials uploaded by my professor.", promptMode: "materials" },
   { icon: GraduationCap, label: "Prep for the exam", prompt: "What topics should I focus on for the upcoming exam, and how should I study them?" },
 ];
