@@ -6,15 +6,14 @@ import { useApp } from "@/contexts/AppContext";
 import { useStudentStatus } from "@/hooks/useStudentStatus";
 import { useTASettings } from "@/hooks/useTASettings";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
+import { useLearningPlan } from "@/hooks/useLearningPlan";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, ChevronDown, ChevronUp, Lock, Check, Sparkles, Compass } from "lucide-react";
+import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, Check, Sparkles, Compass } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 
@@ -72,42 +71,10 @@ const StudentHome = () => {
   const { taSettings } = useTASettings(enrolledCourseId);
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [courseNameDb, setCourseNameDb] = useState<string | null>(null);
-  const courseName = courseNameDb || currentCourse?.name || "";
+  const { courseName: courseNameFromPlan, currentWeek, totalWeeks, lessonPlan, planLoading, lessonPlanPublished } = useLearningPlan();
+  const courseName = courseNameFromPlan || currentCourse?.name || "";
   const displayName = profileData?.name || studentProfile?.name || "Student";
 
-  // Semester progress — compute from course start_date
-  const [courseStartDate, setCourseStartDate] = useState<string | null>(null);
-  const [totalWeeks, setTotalWeeks] = useState(16);
-  const currentWeek = courseStartDate
-    ? Math.max(1, Math.min(totalWeeks, Math.floor((Date.now() - new Date(courseStartDate).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1))
-    : 1;
-  // progressPct is derived from passed weekly quizzes — computed below after takenQuizzes/availableQuizDays state.
-  const [lessonPlanPublished, setLessonPlanPublished] = useState(false);
-  const [lessonPlanError, setLessonPlanError] = useState(false);
-
-  // Learning path
-  const [lessonPlan, setLessonPlan] = useState<any[]>([]);
-  const [planLoading, setPlanLoading] = useState(true);
-  const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
-  // Per-activity done state (localStorage-backed, keyed by user + activity id)
-  const activityDoneStorageKey = user?.id ? `student:activity-done:${user.id}` : null;
-  const [activityDone, setActivityDone] = useState<Record<string, boolean>>(() => {
-    if (typeof window === "undefined") return {};
-    try {
-      const k = user?.id ? `student:activity-done:${user.id}` : null;
-      if (!k) return {};
-      const raw = window.localStorage.getItem(k);
-      return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
-  });
-  useEffect(() => {
-    if (!activityDoneStorageKey) return;
-    try { window.localStorage.setItem(activityDoneStorageKey, JSON.stringify(activityDone)); } catch {}
-  }, [activityDone, activityDoneStorageKey]);
-  const toggleActivityDone = (id: string) => {
-    setActivityDone(prev => ({ ...prev, [id]: !prev[id] }));
-  };
   const [concepts, setConcepts] = useState<{ id: string; name: string }[]>([]);
   const [quizDialog, setQuizDialog] = useState<{ open: boolean; day: number | null }>({ open: false, day: null });
   const [diagGate, setDiagGate] = useState<{ open: boolean; context: string }>({ open: false, context: "" });
