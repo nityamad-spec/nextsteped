@@ -568,7 +568,12 @@ const StudentHome = () => {
                   What to do today
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  Three focused activities based on your course schedule and recent mastery.
+                  {nextActionsLoading
+                    ? "Loading your activities…"
+                    : (() => {
+                        const count = Math.min(nextActions.length, 3);
+                        return `${count} focused activit${count === 1 ? "y" : "ies"} based on your course schedule and recent mastery.`;
+                      })()}
                 </CardDescription>
               </div>
               <Button
