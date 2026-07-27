@@ -179,9 +179,8 @@ const AIChat = () => {
   const [customExamTimeLimit, setCustomExamTimeLimit] = useState<number | null>(null);
   const [currentAssessmentSessionId, setCurrentAssessmentSessionId] = useState<string | null>(null);
 
-  // Exam rotation: list of distinct exam_id values the professor has generated for this course
-  const [availableExamIds, setAvailableExamIds] = useState<string[]>([]);
-  const [nextExamIndex, setNextExamIndex] = useState(0);
+  // Published exams for this course (active + published), with completion status.
+  const [availableExams, setAvailableExams] = useState<StudentExamInfo[]>([]);
   // Exam id chosen for the current in-progress attempt (so we can persist it on submit)
   const [currentExamId, setCurrentExamId] = useState<string | null>(null);
 
