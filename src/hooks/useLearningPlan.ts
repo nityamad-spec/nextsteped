@@ -128,12 +128,12 @@ export function useLearningPlan(): UseLearningPlanResult {
           return;
         }
 
-        const mapped: LearningPlanWeek[] = (rows || []).map((r: any) => {
-          const conceptList = Array.isArray(r.concepts) ? r.concepts : [];
+        const mapped: LearningPlanWeek[] = (rows || []).map((r: RawLessonPlanRow) => {
+          const conceptList = Array.isArray(r.concepts) ? (r.concepts as RawConcept[]) : [];
           const conceptNames: string[] = conceptList
-            .map((c: any) => c?.name)
-            .filter((n: any) => typeof n === "string" && n.length > 0);
-          const resources = (Array.isArray(r.resources) ? r.resources : []).map((res: any, i: number) => ({
+            .map((c) => c?.name)
+            .filter((n): n is string => typeof n === "string" && n.length > 0);
+          const resources = (Array.isArray(r.resources) ? (r.resources as RawResource[]) : []).map((res, i: number) => ({
             id: String(res?.id ?? `r_${r.week_number}_${i}`),
             type: String(res?.type ?? "resource"),
             title: String(res?.title ?? ""),
@@ -149,7 +149,7 @@ export function useLearningPlan(): UseLearningPlanResult {
             description: r.overview || "",
             is_exam_week: !!r.is_exam_week,
             locked: false,
-            concepts: conceptList.map((c: any, i: number) => ({
+            concepts: conceptList.map((c, i: number) => ({
               id: String(c?.id ?? `c_${r.week_number}_${i}`),
               name: String(c?.name ?? ""),
               brief_description: c?.brief_description ? String(c.brief_description) : undefined,
