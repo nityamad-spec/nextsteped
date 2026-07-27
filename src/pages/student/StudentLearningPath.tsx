@@ -368,7 +368,7 @@ const StudentLearningPath = () => {
                                     <p className="text-sm font-semibold text-foreground">{concept}</p>
                                   </div>
                                   <div className="space-y-1.5 pl-3 border-l-2 border-muted ml-0.5">
-                                    {activities.map((r: any, i: number) => {
+                                    {activities.map((r: ResourceItem, i: number) => {
                                       const hasUrl = typeof r.url === "string" && r.url.length > 0;
                                       const done = !!activityDone[r.id];
                                       const toggleBtn = (
