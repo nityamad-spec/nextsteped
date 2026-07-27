@@ -1,49 +1,21 @@
-## Plan — Redesign Exam Prep panel to match screenshot
+## Goal
+In `/student/chat` Exam Prep mode, hide the chat surface entirely so only the Exam Prep panel (welcome hero + practice exams) is visible when no assessment is active.
 
-File: `src/components/ExamPrepPanel.tsx` only. No prop or logic changes.
+## Changes (all in `src/pages/student/AIChat.tsx`)
 
-### 1. Replace top info banner with a welcome hero card
+1. **Messages area (line ~1418)** — wrap in a condition so it only renders when `mode === "learning"` OR `assessmentActive` is true. In exam mode outside an active assessment, the welcome message, message list, and empty-chat placeholder are not rendered.
 
-Swap the small info strip for a large card:
+2. **Input composer (line ~1511)** — wrap in the same condition. The disabled input row + "Exam Prep chat is off here…" placeholder is removed in exam mode. During an active exam assessment, the input stays hidden (AssessmentView handles its own UI).
 
-- Left: rounded square icon tile (primary-tinted) with `ClipboardList` / `FileText` icon.
-- Right: eyebrow label `EXAM PREP MODE` (uppercase, tracking, primary color), serif H2 `Welcome to Exam Prep Mode!`, and description below: `Your professor created the following practice exam(s) to simulate the real exam. There is/are N practice exam(s) you can take.` (reusing existing `examAvailabilityLine`).
-- Subtle bordered card with light gradient/muted background.
+3. **Privacy footer (line ~1545)** — keep visible in both modes (unchanged), OR move inside the messages/input block. Recommend keeping it visible under the Exam Prep panel since it's a persistent trust signal.
 
-### 2. Section header row
+4. **Layout** — ensure the ExamPrepPanel container fills the available vertical space when the chat area is hidden (change `border-b` wrapper to flex-1 with scroll in exam mode, so the panel doesn't collapse to top).
 
-Below the hero, add:
+## Preserved behavior
+- When an exam assessment is actively running (`assessmentActive === true` in exam mode), the AssessmentView renders as today.
+- Study mode is unchanged.
+- ExamPrepPanel, Performance dashboard dialog, and leave-warning dialog unchanged.
 
-- Left: bold `Practice exams` heading + muted subtitle `Complete professor-created simulations and review your performance after each attempt.`
-- Right: existing `Performance` outline button (moved here, no other actions in this row).
-
-Remove the standalone action bar and the disabled `Edit Settings` button entirely (settings are professor-controlled and were already disabled). The `showSettings` state and expandable settings block become dead code — delete them along with `resetToRecommended`, `handleQuestionCountChange`, unused Slider/Input/Label imports, `timeLimit`/`questionCount` state.
-
-Since `onStart` still needs settings, pass fixed values from professor recommendation: `{ timeLimit: profTime, questionCount: profCount, difficulty: "Mixed", questionMix: "mixed" }`.
-
-### 3. Exam card
-
-Match screenshot layout:
-
-- Left icon tile (same style as hero, smaller) with `FileText` icon.
-- Top row of small pill badges: solid primary-tinted `Professor created` + outline `Available` (or `Completed` when done, `No questions yet` fallback).
-- Bold title `exam.label`.
-- Metadata row below: `Clock` `{lengthMin} minutes` · `FileText` `{questionCount} questions` · `Plus` `{attemptsRemaining} attempt{plural} available` (attempts is currently unused; if `StudentExamInfo` doesn't expose it I'll display `1 attempt available` as a static default and note it — see open question).
-- Right side: primary solid `Start exam →` button (with `ChevronRight`), disabled states unchanged.
-
-Best-score line kept but moved under metadata when present.
-
-### 4. Empty state
-
-Keep current empty state block, restyled to match new card treatment.
-
-### Risks / notes
-
-- Purely presentational. Logic, callbacks, and data shape unchanged.
-- Deleting the (already-disabled) settings toggle removes UI that today does nothing — no behavior lost.
-
-### Open question
-
-- Attempts remaining: `StudentExamInfo` doesn't currently carry an attempts count in this component's prop usage. Options:
-(a) Show static `1 attempt available` when not completed, `0 attempts available` when completed.
-- &nbsp;
+## Risks
+- Layout flicker if `assessmentActive` toggles — mitigated by keeping the same outer flex container.
+- If any effect depends on the messages `<div ref={messagesEndRef}>` being mounted in exam mode, scroll-to-bottom calls become no-ops (safe; ref will be null).

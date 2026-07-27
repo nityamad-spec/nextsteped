@@ -1414,76 +1414,81 @@ const AIChat = () => {
         </Dialog>
 
 
-        {/* Messages */}
-        <div className="flex-1 overflow-auto p-4 space-y-4 min-w-0">
-          {chatsLoading ? (
-            <div className="flex h-full items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : activeChat ? (
-            <>
-              {activeChat.messages.map(renderMessage)}
-              {streamingMessage && renderMessage(streamingMessage)}
-              {isStreaming && !streamingMessage && (
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <div className="bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm rounded-xl px-4 py-3 text-sm flex items-center gap-2">
-                    <span className="flex gap-1">
-                      <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
-                      <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
-                      <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:300ms]" />
-                    </span>
-                    <span className="text-muted-foreground ml-1">Thinking...</span>
-                  </div>
-                </div>
-              )}
-              {mode === "learning" && !assessmentActive && !isStreaming && activeChat.messages.length <= 1 && (
-                <div className="pt-2 max-w-[65%] md:max-w-[55%]">
-                  <p className="text-xs font-medium text-muted-foreground mb-2 px-1">Try one of these to get started</p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {STUDENT_SUGGESTED_PROMPTS.map((s) => {
-                      const Icon = s.icon;
-                      return (
-                        <Button
-                          key={s.label}
-                          variant="outline"
-                          className="h-auto justify-start gap-3 rounded-2xl border-border/60 bg-card px-3 py-3 text-left hover:bg-accent"
-                          onClick={() => {
-                            if (s.action === "practice") {
-                              setShowPractice(true);
-                            } else {
-                              sendMessage(s.prompt, s.promptMode);
-                            }
-                          }}
-                          disabled={s.action === "practice" ? false : (isStreaming || isCooldown)}
-                        >
-                          <Icon className="h-4 w-4 shrink-0 text-primary" />
-                          <span className="flex flex-col gap-0.5 min-w-0">
-                            <span className="text-sm font-medium leading-tight">{s.label}</span>
-                            <span className="text-xs text-muted-foreground leading-snug whitespace-normal line-clamp-2">{s.prompt}</span>
-                          </span>
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </>
-          ) : (
-            <div className="flex h-full items-center justify-center text-center">
-              <div>
-                <MessageSquare className="mx-auto h-12 w-12 text-muted-foreground/30" />
-                <p className="mt-3 text-sm text-muted-foreground">No active chat. Start a new conversation!</p>
-                <Button variant="outline" size="sm" className="mt-3" onClick={createNewChat}>
-                  <Plus className="mr-1 h-4 w-4" /> New Chat
-                </Button>
+        {/* Messages - hidden in exam mode when no assessment is active */}
+        {(mode === "learning" || assessmentActive) && (
+          <div className="flex-1 overflow-auto p-4 space-y-4 min-w-0">
+            {chatsLoading ? (
+              <div className="flex h-full items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            </div>
-          )}
-        </div>
+            ) : activeChat ? (
+              <>
+                {activeChat.messages.map(renderMessage)}
+                {streamingMessage && renderMessage(streamingMessage)}
+                {isStreaming && !streamingMessage && (
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div className="bg-card border border-border/50 border-l-4 border-l-primary/40 shadow-sm rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+                      <span className="flex gap-1">
+                        <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
+                        <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
+                        <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:300ms]" />
+                      </span>
+                      <span className="text-muted-foreground ml-1">Thinking...</span>
+                    </div>
+                  </div>
+                )}
+                {mode === "learning" && !assessmentActive && !isStreaming && activeChat.messages.length <= 1 && (
+                  <div className="pt-2 max-w-[65%] md:max-w-[55%]">
+                    <p className="text-xs font-medium text-muted-foreground mb-2 px-1">Try one of these to get started</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {STUDENT_SUGGESTED_PROMPTS.map((s) => {
+                        const Icon = s.icon;
+                        return (
+                          <Button
+                            key={s.label}
+                            variant="outline"
+                            className="h-auto justify-start gap-3 rounded-2xl border-border/60 bg-card px-3 py-3 text-left hover:bg-accent"
+                            onClick={() => {
+                              if (s.action === "practice") {
+                                setShowPractice(true);
+                              } else {
+                                sendMessage(s.prompt, s.promptMode);
+                              }
+                            }}
+                            disabled={s.action === "practice" ? false : (isStreaming || isCooldown)}
+                          >
+                            <Icon className="h-4 w-4 shrink-0 text-primary" />
+                            <span className="flex flex-col gap-0.5 min-w-0">
+                              <span className="text-sm font-medium leading-tight">{s.label}</span>
+                              <span className="text-xs text-muted-foreground leading-snug whitespace-normal line-clamp-2">{s.prompt}</span>
+                            </span>
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </>
+            ) : (
+              <div className="flex h-full items-center justify-center text-center">
+                <div>
+                  <MessageSquare className="mx-auto h-12 w-12 text-muted-foreground/30" />
+                  <p className="mt-3 text-sm text-muted-foreground">No active chat. Start a new conversation!</p>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={createNewChat}>
+                    <Plus className="mr-1 h-4 w-4" /> New Chat
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Spacer to push footer down in exam mode */}
+        {mode === "exam" && !assessmentActive && <div className="flex-1" />}
 
         {/* Code Terminal - only in study mode */}
         {mode === "learning" && showCodeTerminal && (
@@ -1507,9 +1512,9 @@ const AIChat = () => {
           </div>
         )}
 
-        {/* Input */}
-        <div className={mode === "learning" ? "border-t px-4 md:px-6 pt-4 pb-8 md:pb-10" : "border-t p-4"}>
-          {mode === "learning" ? (
+        {/* Input - hidden entirely in exam mode */}
+        {mode === "learning" && (
+          <div className="border-t px-4 md:px-6 pt-4 pb-8 md:pb-10">
             <div className="flex items-end gap-2">
               <Textarea
                 placeholder="Ask your Teaching Assistant anything..."
@@ -1527,28 +1532,25 @@ const AIChat = () => {
                 <Send className="h-4 w-4" />
               </Button>
             </div>
-          ) : (
-            <div className="flex gap-2">
-              <Input
-                placeholder="Exam Prep chat is off here — use the controls above to run a practice exam."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                className="flex-1"
-                disabled
-              />
-              <Button size="icon" disabled>
-                <Send className="h-4 w-4" />
-              </Button>
+            <div className="mt-2 flex items-center justify-center gap-1.5">
+              <ShieldCheck className="h-3 w-3 text-primary" />
+              <p className="text-[11px] text-muted-foreground">
+                <span className="font-medium text-foreground">Private & anonymized</span> — your professor never sees your individual chats, answers, or performance.
+              </p>
             </div>
-          )}
-          <div className="mt-2 flex items-center justify-center gap-1.5">
+          </div>
+        )}
+
+        {/* Privacy footer in exam mode (no input) */}
+        {mode === "exam" && !assessmentActive && (
+          <div className="border-t px-4 py-3 flex items-center justify-center gap-1.5">
             <ShieldCheck className="h-3 w-3 text-primary" />
             <p className="text-[11px] text-muted-foreground">
               <span className="font-medium text-foreground">Private & anonymized</span> — your professor never sees your individual chats, answers, or performance.
             </p>
           </div>
-        </div>
+        )}
+
       </div>
 
       {/* Leave Warning Dialog */}
