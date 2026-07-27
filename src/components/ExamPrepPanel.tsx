@@ -193,6 +193,7 @@ const ExamPrepPanel = ({ taSettings, onStart, onShowDashboard, exams = [] }: Exa
 
                 <Button
                   size="sm"
+                  className="h-8"
                   onClick={() => onStart({ timeLimit, questionCount, difficulty: "Mixed", questionMix: "mixed" }, exam.id)}
                   disabled={!exam.hasQuestions || exam.isCompleted}
                 >
