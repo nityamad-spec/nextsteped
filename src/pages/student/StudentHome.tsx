@@ -566,12 +566,34 @@ const StudentHome = () => {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="mb-6">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-3 text-base">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Compass className="h-4 w-4" />
-              </span>
-              What to do next
-            </CardTitle>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <CardTitle className="flex items-center gap-3 text-base">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <Compass className="h-4 w-4" />
+                  </span>
+                  What to do today
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Three focused activities based on your course schedule and recent mastery.
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/student/learning-path")}
+                className="shrink-0"
+              >
+                View full learning path
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <Badge variant="secondary">Preview</Badge>
+              <Badge variant="outline">
+                {nextActionsLoading ? "— activities" : `${Math.min(nextActions.length, 3)} activities`}
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {nextActionsLoading ? (
@@ -584,18 +606,16 @@ const StudentHome = () => {
               </div>
             ) : (
               nextActions.slice(0, 3).map((action, i) => {
-                const isAmber = action.category === "PRACTICE";
-                const isMuted = action.category === "HEADS UP";
-                const categoryClass = isAmber
-                  ? "text-amber-600 dark:text-amber-500"
-                  : isMuted
-                  ? "text-muted-foreground"
-                  : "text-primary";
-                const tileClass = isAmber
-                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-500"
+                const isGreen = action.badgeTone === "green";
+                const isMuted = action.visualCategory === "heads-up";
+                const tileClass = isGreen
+                  ? "bg-green-500/10 text-green-600 dark:text-green-500"
                   : isMuted
                   ? "bg-muted text-muted-foreground"
                   : "bg-primary/10 text-primary";
+                const badgeClass = isGreen
+                  ? "bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-500/20 dark:text-green-400"
+                  : "bg-muted text-muted-foreground hover:bg-muted";
                 return (
                   <button
                     key={i}
@@ -606,13 +626,29 @@ const StudentHome = () => {
                       <action.icon className="h-5 w-5" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-[11px] font-semibold tracking-wider uppercase ${categoryClass}`}>
-                        {action.category}
-                      </p>
-                      <p className="text-[15px] font-semibold leading-snug mt-0.5">{action.title}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="secondary" className={`text-[10px] font-semibold uppercase tracking-wider ${badgeClass}`}>
+                          {action.badgeLabel}
+                        </Badge>
+                        {action.metadata && (
+                          <span className="text-xs text-muted-foreground">{action.metadata}</span>
+                        )}
+                      </div>
+                      <p className="text-[15px] font-semibold leading-snug mt-1">{action.title}</p>
                       <p className="text-sm text-muted-foreground mt-0.5">{action.description}</p>
                     </div>
-                    <ArrowRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                    <Button
+                      variant={action.buttonVariant}
+                      size="sm"
+                      className="shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        action.action();
+                      }}
+                    >
+                      {action.buttonLabel}
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Button>
                   </button>
                 );
               })
