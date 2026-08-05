@@ -1,0 +1,1 @@
+ALTER TABLE public.lesson_plan_weeks ADD COLUMN IF NOT EXISTS exam_type text;
