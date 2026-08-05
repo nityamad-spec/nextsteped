@@ -1315,7 +1315,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           </div>
         </Card>
 
-        {/* Course Schedule — Total Weeks / Midterm / Final */}
+        {/* Course Schedule — Total Weeks / cadence */}
         <Card className="overflow-hidden">
           <button
             type="button"
