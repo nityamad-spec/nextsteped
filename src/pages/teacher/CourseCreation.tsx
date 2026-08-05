@@ -540,6 +540,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               week_name: w.week_name,
               overview: w.overview,
               is_exam_week: w.is_exam_week,
+              exam_type: w.exam_type,
               locked: w.locked,
               concepts: w.concepts,
               resources: w.resources,
