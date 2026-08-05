@@ -133,10 +133,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const draftLocalKey = `lessonPlanDraftV2:${courseId || user?.id || "default"}`;
   const draftStoragePath = courseId ? canonicalDraftPath(courseId) : null;
 
-  // ─── Course schedule settings (Total Weeks / Midterm / Final) ───
+  // ─── Course schedule settings (Total Weeks / cadence) ───
   const [totalWeeks, setTotalWeeks] = useState<number | null>(null);
-  const [midtermWeek, setMidtermWeek] = useState<number | null>(null);
-  const [finalWeek, setFinalWeek] = useState<number | null>(null);
   const [sessionsPerWeek, setSessionsPerWeek] = useState<number | null>(null);
   const [sessionLength, setSessionLength] = useState<number | null>(null);
   const [scheduleLoaded, setScheduleLoaded] = useState(false);
