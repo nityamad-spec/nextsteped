@@ -38,6 +38,7 @@ export async function upsertPublishedWeeks(
       week_name: w.week_name || `Week ${w.week_number}`,
       overview: w.overview || "",
       is_exam_week: !!w.is_exam_week,
+      exam_type: w.is_exam_week ? (w.exam_type ?? null) : null,
       locked: !!w.locked,
       concepts: w.concepts || [],
       resources: w.resources || [],
