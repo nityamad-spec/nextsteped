@@ -612,6 +612,62 @@ export type Database = {
           },
         ]
       }
+      course_project_labs: {
+        Row: {
+          caution: string | null
+          course_id: string
+          created_at: string
+          id: string
+          learnings: string[]
+          mission: string
+          position: number
+          published: boolean
+          steps: Json
+          summary: string
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          caution?: string | null
+          course_id: string
+          created_at?: string
+          id?: string
+          learnings?: string[]
+          mission?: string
+          position?: number
+          published?: boolean
+          steps?: Json
+          summary?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          caution?: string | null
+          course_id?: string
+          created_at?: string
+          id?: string
+          learnings?: string[]
+          mission?: string
+          position?: number
+          published?: boolean
+          steps?: Json
+          summary?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_project_labs_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_roster_allowlist: {
         Row: {
           added_by: string | null

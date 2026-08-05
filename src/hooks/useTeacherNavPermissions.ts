@@ -51,8 +51,9 @@ export function useTeacherNavPermissions() {
   }, [user]);
 
   const isAllowed = (path: string) => isTeacherPathAllowed(path, allowed);
+  const isExactlyGranted = (path: string) => allowed.includes(path);
 
-  return { loading, ready, allowed, isAllowed, canCreateCourses };
+  return { loading, ready, allowed, isAllowed, isExactlyGranted, canCreateCourses };
 }
 
 /**
@@ -64,3 +65,9 @@ export function useTeacherNavPermissions() {
 export function isTeacherPathAllowed(path: string, allowed: string[]): boolean {
   return allowed.some((p) => path === p || path.startsWith(p + "/"));
 }
+
+/**
+ * Optional setup steps that require their OWN explicit grant. A grant on
+ * `/teacher/setup` does not implicitly unlock these (unlike normal sub-paths).
+ */
+export const PROJECT_LAB_SETUP_PATH = "/teacher/setup/project-lab";

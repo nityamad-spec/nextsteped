@@ -18,9 +18,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Users, BookOpen, Plus, Trash2, ArrowUpDown, ShieldCheck } from "lucide-react";
+import { Users, BookOpen, Plus, Trash2, ArrowUpDown, ShieldCheck, FlaskConical } from "lucide-react";
 import { TEACHER_NAV } from "@/config/teacherNav";
-import { TEACHER_NAV_ALWAYS_ON } from "@/hooks/useTeacherNavPermissions";
+import { TEACHER_NAV_ALWAYS_ON, PROJECT_LAB_SETUP_PATH } from "@/hooks/useTeacherNavPermissions";
 
 interface TeacherLite {
   id: string;
@@ -374,6 +374,21 @@ export default function TeacherProfileDialog({ teacher, open, onOpenChange, onCh
                     <div className="text-sm font-medium">Create new courses</div>
                     <div className="text-xs text-muted-foreground">
                       When off, this teacher cannot create new courses. Existing courses are unaffected.
+                    </div>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/40">
+                  <Checkbox
+                    checked={allowedPaths.includes(PROJECT_LAB_SETUP_PATH)}
+                    disabled={savingPerms}
+                    onCheckedChange={(v) => togglePath(PROJECT_LAB_SETUP_PATH, !!v)}
+                  />
+                  <FlaskConical className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">Project Lab (setup step)</div>
+                    <div className="text-xs text-muted-foreground">{PROJECT_LAB_SETUP_PATH}</div>
+                    <div className="text-[11px] text-muted-foreground/80 mt-1">
+                      Optional step. When on, this teacher can author the labs shown in their students&apos; Project Lab tab.
                     </div>
                   </div>
                 </label>
