@@ -1478,6 +1478,22 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
+                          <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                            <Select
+                              value={w.is_exam_week ? (w.exam_type ?? "other") : "teaching"}
+                              onValueChange={(v) => setWeekExamMode(w.id, v as "teaching" | "midterm" | "final" | "other")}
+                            >
+                              <SelectTrigger className="h-7 w-[132px] text-xs" aria-label={`Week ${w.week} type`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="teaching">Teaching week</SelectItem>
+                                <SelectItem value="midterm">Midterm exam</SelectItem>
+                                <SelectItem value="final">Final exam</SelectItem>
+                                <SelectItem value="other">Exam week</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                           <Button
                             variant="ghost"
                             size="sm"
