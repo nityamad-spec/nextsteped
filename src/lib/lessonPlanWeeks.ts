@@ -80,7 +80,7 @@ export async function setWeekLocked(
 export async function fetchVisibleWeeks(courseId: string) {
   const { data, error } = await supabase
     .from("lesson_plan_weeks")
-    .select("week_number, week_name, overview, is_exam_week, locked, concepts, resources")
+    .select("week_number, week_name, overview, is_exam_week, exam_type, locked, concepts, resources")
     .eq("course_id", courseId)
     .order("week_number");
   if (error) throw error;
