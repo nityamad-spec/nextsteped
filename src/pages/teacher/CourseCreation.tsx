@@ -216,6 +216,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             week_name: week.week_name || `Week ${week.week}`,
             overview: week.overview || "",
             is_exam_week: !!week.is_exam_week,
+            exam_type: week.is_exam_week ? (week.exam_type ?? null) : null,
             locked: !!week.locked,
             concepts: week.concepts || [],
             resources: week.resources || [],
