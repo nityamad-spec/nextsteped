@@ -14,9 +14,11 @@ import {
   CircleDashed,
   CircleDot,
   Layers,
+  FlaskConical,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
+import { useTeacherNavPermissions, PROJECT_LAB_SETUP_PATH } from "@/hooks/useTeacherNavPermissions";
 import { supabase } from "@/integrations/supabase/client";
 // lesson plan completion is derived from the courses row, not storage
 import { fetchStepProgress, markStepOpened, markStepCompleted, clearStepCompleted } from "@/lib/setupProgress";
@@ -29,12 +31,15 @@ interface CardDef {
   description: string;
   icon: typeof Upload;
   path: string;
+  /** Optional steps never block setup completion. */
+  optional?: boolean;
 }
 
 const CARDS: CardDef[] = [
   { id: "upload", title: "Upload Course Materials", description: "Upload your syllabus and any supporting teaching materials.", icon: Upload, path: "/teacher/setup/upload" },
   { id: "concept-review", title: "Concept Review", description: "Review concepts extracted from your materials before generating the lesson plan.", icon: Layers, path: "/teacher/setup/concept-review" },
   { id: "lesson-plan", title: "Generate Lesson Plan", description: "Generate a structured weekly lesson plan based on your confirmed concepts.", icon: ClipboardList, path: "/teacher/setup/lesson-plan" },
+  { id: "project-lab", title: "Project Lab", description: "Optional. Author hands-on labs that appear in your students' Project Lab tab.", icon: FlaskConical, path: "/teacher/setup/project-lab", optional: true },
   { id: "diagnostic", title: "Approve Diagnostic Quiz", description: "Review and approve the AI-generated diagnostic quiz for your students.", icon: Brain, path: "/teacher/setup/diagnostic" },
   { id: "ai-settings", title: "AI Assistant Settings", description: "Configure the AI TA for your students and access your own professor AI assistant.", icon: Bot, path: "/teacher/setup/ai-settings" },
   { id: "exam-mode", title: "Exam Mode Settings", description: "Set up and customise the exam mode experience for your students.", icon: GraduationCap, path: "/teacher/setup/exam-mode" },
@@ -70,10 +75,12 @@ const CourseSetup = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const courseId = useTeacherCourseId();
+  const { ready: permReady, isExactlyGranted } = useTeacherNavPermissions();
   const [statuses, setStatuses] = useState<Record<string, Status>>({
     upload: "Not Started",
     "concept-review": "Not Started",
     "lesson-plan": "Not Started",
+    "project-lab": "Not Started",
     diagnostic: "Not Started",
     "ai-settings": "Not Started",
     "exam-mode": "Not Started",
@@ -89,6 +96,7 @@ const CourseSetup = () => {
       upload: "Not Started",
       "concept-review": "Not Started",
       "lesson-plan": "Not Started",
+      "project-lab": "Not Started",
       diagnostic: "Not Started",
       "ai-settings": "Not Started",
       "exam-mode": "Not Started",
@@ -170,6 +178,15 @@ const CourseSetup = () => {
         if ((dqCount ?? 0) >= 20) next.diagnostic = "Complete";
         else if ((dqCount ?? 0) > 0 || opened.diagnostic) next.diagnostic = "In Progress";
 
+        // Project Lab (optional): Complete when at least one lab is published.
+        const { count: labCount } = await supabase
+          .from("course_project_labs")
+          .select("id", { count: "exact", head: true })
+          .eq("course_id", courseId)
+          .eq("published", true);
+        if ((labCount ?? 0) > 0) next["project-lab"] = "Complete";
+        else if (opened["project-lab"]) next["project-lab"] = "In Progress";
+
         // Cards 5 & 6 (TA settings)
         const { data: ta } = await supabase
           .from("course_ta_settings")
@@ -225,12 +242,14 @@ const CourseSetup = () => {
   const isCardLocked = (id: string) => {
     if (id === "concept-review") return statuses.upload !== "Complete";
     if (id === "lesson-plan") return statuses["concept-review"] !== "Complete";
+    if (id === "project-lab") return statuses["lesson-plan"] !== "Complete";
     return false;
   };
 
   const lockMessage = (id: string) => {
     if (id === "concept-review") return "Upload your syllabus in Step 1 to unlock this.";
     if (id === "lesson-plan") return "Confirm your concepts in Step 2 to unlock this.";
+    if (id === "project-lab") return "Publish your lesson plan in Step 3 to unlock this.";
     return "";
   };
 
@@ -244,6 +263,11 @@ const CourseSetup = () => {
     navigate(path);
   };
 
+  // The Project Lab step is opt-in per teacher: admins grant it explicitly.
+  const visibleCards = CARDS.filter(
+    (c) => c.id !== "project-lab" || (permReady && isExactlyGranted(PROJECT_LAB_SETUP_PATH)),
+  );
+
   return (
     <div className="p-6 md:p-8">
       <div className="mb-8">
@@ -254,7 +278,7 @@ const CourseSetup = () => {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {CARDS.map((c, idx) => {
+        {visibleCards.map((c, idx) => {
           const status = statuses[c.id];
           const locked = isCardLocked(c.id);
           const Icon = c.icon;
