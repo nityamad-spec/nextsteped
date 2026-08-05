@@ -90,8 +90,8 @@ function DraggableWeekItem({
 
 type ScheduleSnapshot = {
   total_weeks: number | null;
-  midterm_week: number | null;
-  final_week: number | null;
+  midterm_week?: number | null;
+  final_week?: number | null;
   sessions_per_week: number | null;
   session_length_minutes: number | null;
 };
