@@ -219,11 +219,14 @@ const CourseSetup = () => {
       if (next["concept-review"] !== "Complete") {
         next["lesson-plan"] = "Not Started";
       }
+      if (next["lesson-plan"] !== "Complete") {
+        next["project-lab"] = "Not Started";
+      }
 
       // Backfill or clear `completed_at` in teacher_setup_progress to keep the
       // persisted state in sync with the derived status. Fire-and-forget.
       if (courseId) {
-        const AUTO_COMPLETE_STEPS = ["upload", "concept-review", "lesson-plan", "diagnostic", "exam-mode"];
+        const AUTO_COMPLETE_STEPS = ["upload", "concept-review", "lesson-plan", "diagnostic", "exam-mode", "project-lab"];
         for (const stepId of AUTO_COMPLETE_STEPS) {
           if (next[stepId] === "Complete" && !completed[stepId]) {
             void markStepCompleted(user.id, stepId, courseId, { source: "CourseSetup.backfill" });
