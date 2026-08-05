@@ -6,6 +6,8 @@ import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
 import StudentCourseSwitcher from "@/components/StudentCourseSwitcher";
 import AddCourseDialog from "@/components/AddCourseDialog";
+import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
+import { useCourseProjectLabs } from "@/hooks/useCourseProjectLabs";
 
 const studentNav = [
   { title: "Home", path: "/student/home", icon: Home },
@@ -19,6 +21,13 @@ const StudentLayout = () => {
   const { studentProfile } = useApp();
   const isMobile = useIsMobile();
   const [addCourseOpen, setAddCourseOpen] = useState(false);
+  const enrolledCourseId = useEnrolledCourseId();
+  const { labs: projectLabs, loading: labsLoading } = useCourseProjectLabs(enrolledCourseId, true);
+
+  // Project Lab is professor-authored and optional: hide the tab entirely
+  // when the active course has no published labs.
+  const showProjectLab = !labsLoading && projectLabs.length > 0;
+  const nav = studentNav.filter((i) => i.path !== "/student/project-lab" || showProjectLab);
 
   if (isMobile) {
     return (
@@ -35,7 +44,7 @@ const StudentLayout = () => {
           <Outlet />
         </main>
         <nav className="flex border-t bg-card">
-          {studentNav.map((item) => (
+          {nav.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -65,7 +74,7 @@ const StudentLayout = () => {
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
-          {studentNav.map((item) => (
+          {nav.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}

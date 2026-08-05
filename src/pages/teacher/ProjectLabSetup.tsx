@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
+import { useTeacherNavPermissions, PROJECT_LAB_SETUP_PATH } from "@/hooks/useTeacherNavPermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import SetupModuleNav from "@/components/SetupModuleNav";
@@ -43,6 +45,7 @@ const textToList = (text: string) =>
 const ProjectLabSetup = () => {
   const { user } = useAuth();
   const courseId = useTeacherCourseId();
+  const { ready: permReady, isExactlyGranted } = useTeacherNavPermissions();
   const [labs, setLabs] = useState<ProjectLab[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -202,6 +205,10 @@ const ProjectLabSetup = () => {
   };
 
   const publishedCount = labs.filter((l) => l.published).length;
+
+  if (permReady && !isExactlyGranted(PROJECT_LAB_SETUP_PATH)) {
+    return <Navigate to="/teacher/setup" replace />;
+  }
 
   return (
     <div className="p-6 md:p-8 space-y-6">

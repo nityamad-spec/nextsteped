@@ -18,7 +18,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Users, BookOpen, Plus, Trash2, ArrowUpDown, ShieldCheck } from "lucide-react";
+import { Users, BookOpen, Plus, Trash2, ArrowUpDown, ShieldCheck, FlaskConical } from "lucide-react";
 import { TEACHER_NAV } from "@/config/teacherNav";
 import { TEACHER_NAV_ALWAYS_ON, PROJECT_LAB_SETUP_PATH } from "@/hooks/useTeacherNavPermissions";
 
