@@ -109,6 +109,7 @@ const CourseSetup = () => {
         upload: "Not Started",
         "concept-review": "Not Started",
         "lesson-plan": "Not Started",
+        "project-lab": "Not Started",
         diagnostic: "Not Started",
         "ai-settings": "Not Started",
         "exam-mode": "Not Started",
