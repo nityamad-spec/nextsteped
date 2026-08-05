@@ -713,7 +713,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       setExpandedWeeks(generated.length > 0 ? [generated[0].id] : []);
       setOverallOutcomes(typeof data.overall_course_learning_outcomes === "string" ? data.overall_course_learning_outcomes : "");
       setGapMode(false);
-      setLastGeneratedSchedule({ total_weeks: totalWeeks, midterm_week: midtermWeek, final_week: finalWeek, sessions_per_week: sessionsPerWeek, session_length_minutes: sessionLength });
+      setLastGeneratedSchedule({ total_weeks: totalWeeks, sessions_per_week: sessionsPerWeek, session_length_minutes: sessionLength });
       setGenStep(genSteps.length);
       setTimeout(() => setPhase("plan"), 500);
     } catch (err: any) {
