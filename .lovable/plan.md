@@ -1,55 +1,45 @@
-# Retire "Topic" — standardize on "Concept"
+# Project Lab setup step for professors
 
-## What "topic" means today
+Add an optional eighth step to Course Setup where professors author the labs their students see, with admin control over which professors get the step, and make the student Project Lab page render those labs instead of the hardcoded list.
 
-Three unrelated things share the word:
+## How it works
 
-1. **Question tagging** — `assessment_questions.topic` and `diagnostic_questions.topic` are text columns that database triggers force to equal `concepts.concept_code`. They are an exact duplicate of the concept, under a different name.
-2. **Lesson plan** — each week has a name/theme plus a "Topics Covered" list. That list is the week's concepts; the week name is just a label.
-3. **Loose copy** — analytics column headers ("Topic"), result screens ("review these topics"), and AI prompt text.
+**Admin (per teacher)**
+- In the teacher profile dialog, a new "Project Lab (setup step)" toggle is added alongside the existing page-permission checkboxes.
+- Off by default. When off, the professor never sees the Project Lab card in Course Setup.
 
-## Decisions applied
+**Professor (`/teacher/setup/project-lab`)**
+- New card on `/teacher/setup`, positioned after Generate Lesson Plan. Locked until Lesson Plan is Complete. Never blocks overall setup completion — status badge is informational only.
+- The step opens a lab manager for the active course:
+  - Start from the three built-in labs (Jail Breaking, Build a Working Game, Eye Exam for LLMs) via a "Add starter lab" picker, or create a lab from scratch.
+  - Per lab: title, summary, tags, mission, optional caution note, optional "What you'll learn" list, and an ordered list of steps.
+  - Per step: title, body text, optional external link, optional prompt blocks, optional tiles, optional checklist items, optional footnote — the same shapes the student page already renders.
+  - Reorder labs and steps, duplicate, delete, and toggle each lab published/unpublished.
+- Changes save to the database per course.
 
-- Rename user-facing wording and code identifiers; keep the database columns named `topic` (no migration, no data risk).
-- Lesson plan: rename "Topics Covered" to "Concepts Covered". The week name/theme stays as-is.
-- `assessment_results.answers` keeps its `topic` JSONB key so all historical results keep working; only the display label changes.
+**Student (`/student/project-lab`)**
+- Renders published labs for the active course, in the professor's order, using the existing card/expand UI.
+- If the course has no published labs, the "Project Lab" item is hidden from the student sidebar and the route redirects home. No empty state.
 
-## Phase 1 — User-facing wording
+## Technical details
 
-Every visible string that says Topic/Topics becomes Concept/Concepts:
+**Database (one migration)**
+- `public.course_project_labs`: `id`, `course_id` (FK courses), `position` int, `title`, `summary`, `tags` text[], `mission`, `caution`, `learnings` text[], `steps` jsonb (array of step objects), `published` bool default false, `created_at`, `updated_at` + updated-at trigger.
+- Grants: `SELECT, INSERT, UPDATE, DELETE` to `authenticated`; `ALL` to `service_role`. No anon grant.
+- RLS: course members (`public.is_course_member(course_id, auth.uid())`) can do everything; enrolled students can read rows where `published = true` and they have an `enrollments` row for the course.
 
-- Assessment analytics: "Topic Performance" table and its "Topic" column header.
-- Diagnostics analytics (admin) per-topic breakdown headings.
-- Assessment results screen: "review these topics", "Covers Week N topics", "Covers all course topics", weak-topic badges.
-- Exam history, weekly quiz review, exam questions dialog, practice questions widget, question type selector, diagnostic setup, exam mode, assessments page.
-- Lesson plan renderer: "Topics Covered" to "Concepts Covered".
+**Frontend**
+- `src/config/projectLabTemplates.ts` — the three current hardcoded labs moved out of `StudentProjectLab.tsx` and reused as starter templates in the professor editor.
+- `src/pages/teacher/ProjectLabSetup.tsx` — new step page using the shared `SetupModuleNav`; marks the step opened/completed through `src/lib/setupProgress.ts` (`projectLabId = "project-lab"`, course-scoped).
+- `src/pages/teacher/CourseSetup.tsx` — add the `project-lab` card definition, status derivation (Complete when ≥1 published lab exists), locking after `lesson-plan`, and filter the card out unless the admin grant is present.
+- `src/App.tsx` — route `/teacher/setup/project-lab`.
+- `src/hooks/useTeacherNavPermissions.ts` — add a helper for exact-match setup-step grants so `/teacher/setup` alone does not implicitly unlock the Project Lab step.
+- `src/components/admin/TeacherProfileDialog.tsx` — render the extra toggle and persist `/teacher/setup/project-lab` into `allowed_paths`.
+- `src/hooks/useCourseProjectLabs.ts` — shared fetch used by the student page and the sidebar visibility check.
+- `src/pages/student/StudentProjectLab.tsx` — read labs from the hook; keep the existing visual design.
+- `src/layouts/StudentLayout.tsx` — hide the Project Lab nav item when the active course has no published labs.
 
-## Phase 2 — AI prompt text
-
-Update prompt wording in the edge functions so the model reasons in terms of concepts and its labels match the UI: `generate-weekly-quiz`, `generate-exam-questions`, `generate-diagnostic-questions`, `generate-practice-questions`, `suggest-concepts`, `recommend-additional-concepts`, `suggest-lesson`, `parse-syllabus`, `chat`.
-
-The JSON field the model returns stays `topic` where a change would break the existing validator contract; where the validator is updated in Phase 3, the field is renamed to `concept_code` together with it.
-
-## Phase 3 — Code identifiers
-
-Rename variables, types, props, and object fields from `topic` to `conceptCode` (and `TopicPerformance` to `ConceptPerformance`, `weakTopics` to `weakConcepts`, `onStudyTopics` to `onStudyConcepts`, etc.) in:
-
-- `src/components/AssessmentView.tsx`, `ExamHistory.tsx`, `ExamQuestionsViewDialog.tsx`, `PracticeQuestionsWidget.tsx`, `WeeklyQuizReviewDialog.tsx`, `QuestionTypeSelector.tsx`
-- `src/pages/teacher/AssessmentAnalytics.tsx`, `Assessments.tsx`, `ExamMode.tsx`, `DiagnosticQuestionsSetup.tsx`, `ContentReview.tsx`
-- `src/components/admin/DiagnosticsAnalytics.tsx`, `src/lib/diagnosticsAnalytics.ts`
-- `supabase/functions/_shared/question-validation.ts`, `generate-weekly-quiz/followup.ts`, and the generator functions above
-
-At each database boundary the column is mapped explicitly, e.g. `select("... topic ...")` then `conceptCode: row.topic`, and inserts write `topic: conceptCode`. Same for the `answers` JSONB: it is still written and read with the `topic` key.
-
-Excluded from renaming: `lessonPlanShape.ts` `topic` field (that is the week name, not a concept) and `TeachingPlan.tsx` week-topic state.
-
-## Phase 4 — Tests and verification
-
-Update the affected test files (`diagnosticsAnalytics.test.ts`, `question-validation_test.ts`, `followup_test.ts`, `WeeklyQuizDialog.test.tsx`, sanitizer pipeline tests) to the new identifiers, then run the suite and a typecheck.
-
-## Risks
-
-- **Database column keeps the old name.** `assessment_questions.topic` and `diagnostic_questions.topic` stay, along with the triggers that keep them equal to `concepts.concept_code`. Code will read "concept" while the schema says "topic" — a documented mismatch, and removing it later needs a migration plus a rewrite of every historical `answers` row.
-- **Wide, shallow diff.** Roughly 25 files change. Each rename is mechanical, but a missed database-boundary mapping produces `undefined` concept labels rather than a compile error, so the boundaries need checking one by one.
-- **AI prompt changes affect generation.** Renaming a field in a model's output schema requires the validator to change in the same step or generation silently rejects every item. Prompt and validator are changed together per function.
-- **Lesson plan ambiguity remains.** After this change a week still has a name and a concept list; "topic" simply stops being used for either.
+**Notes and risks**
+- Existing hardcoded labs stop showing for every course once the page becomes data-driven. To avoid a regression for courses already using them, the migration seeds the three starter labs as `published = true` for courses that currently have enrolled students; new courses start empty.
+- `teacher_nav_permissions.allowed_paths` currently grants by prefix. The new step relies on an exact-match check, which does not change behaviour for any existing path.
+- Free-form professor text is rendered as plain text (no HTML injection); external links open with `rel="noopener noreferrer"`.
