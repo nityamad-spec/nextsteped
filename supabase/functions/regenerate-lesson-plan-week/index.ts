@@ -110,7 +110,7 @@ serve(async (req) => {
 
     const { data: course } = await supabaseAdmin
       .from("courses")
-      .select("name, course_code, term, total_weeks, sessions_per_week, session_length_minutes, objectives, midterm_week, final_week")
+      .select("name, course_code, term, total_weeks, sessions_per_week, session_length_minutes, objectives")
       .eq("id", courseId)
       .single();
 
@@ -122,8 +122,8 @@ serve(async (req) => {
 
     // Exam week — return canonical exam metadata, no LLM needed.
     if (isExamWeek) {
-      const isMidterm = examType === "midterm" || weekNumber === course.midterm_week;
-      const isFinal = examType === "final" || weekNumber === course.final_week;
+      const isMidterm = examType === "midterm";
+      const isFinal = examType === "final";
       return new Response(JSON.stringify({
         week_name: isMidterm ? "Midterm Exam" : isFinal ? "Final Exam" : "Exam Week",
         overview: "Exam week — review prior content.",
