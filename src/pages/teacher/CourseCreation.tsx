@@ -90,8 +90,8 @@ function DraggableWeekItem({
 
 type ScheduleSnapshot = {
   total_weeks: number | null;
-  midterm_week: number | null;
-  final_week: number | null;
+  midterm_week?: number | null;
+  final_week?: number | null;
   sessions_per_week: number | null;
   session_length_minutes: number | null;
 };
@@ -133,10 +133,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const draftLocalKey = `lessonPlanDraftV2:${courseId || user?.id || "default"}`;
   const draftStoragePath = courseId ? canonicalDraftPath(courseId) : null;
 
-  // ─── Course schedule settings (Total Weeks / Midterm / Final) ───
+  // ─── Course schedule settings (Total Weeks / cadence) ───
   const [totalWeeks, setTotalWeeks] = useState<number | null>(null);
-  const [midtermWeek, setMidtermWeek] = useState<number | null>(null);
-  const [finalWeek, setFinalWeek] = useState<number | null>(null);
   const [sessionsPerWeek, setSessionsPerWeek] = useState<number | null>(null);
   const [sessionLength, setSessionLength] = useState<number | null>(null);
   const [scheduleLoaded, setScheduleLoaded] = useState(false);
@@ -218,6 +216,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             week_name: week.week_name || `Week ${week.week}`,
             overview: week.overview || "",
             is_exam_week: !!week.is_exam_week,
+            exam_type: week.is_exam_week ? (week.exam_type ?? null) : null,
             locked: !!week.locked,
             concepts: week.concepts || [],
             resources: week.resources || [],
@@ -342,29 +341,25 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     return () => { cancelled = true; };
   }, [courseId, user]);
 
-  // ─── Load course schedule (total_weeks / midterm / final) ───
+  // ─── Load course schedule (total_weeks / cadence) ───
   useEffect(() => {
     if (!courseId) return;
     let cancelled = false;
     (async () => {
       const { data } = await supabase
         .from("courses")
-        .select("total_weeks, midterm_week, final_week, sessions_per_week, session_length_minutes")
+        .select("total_weeks, sessions_per_week, session_length_minutes")
         .eq("id", courseId)
         .maybeSingle();
       if (cancelled) return;
       const tw = data?.total_weeks ?? 16;
-      const mw = data?.midterm_week ?? null;
-      const fw = data?.final_week ?? null;
       const spw = (data as any)?.sessions_per_week ?? null;
       const sl = (data as any)?.session_length_minutes ?? null;
       setTotalWeeks(tw);
-      setMidtermWeek(mw);
-      setFinalWeek(fw);
       setSessionsPerWeek(spw);
       setSessionLength(sl);
       // Auto-expand the schedule card if anything is unset
-      setScheduleExpanded(!data?.total_weeks || (mw == null && fw == null) || spw == null || sl == null);
+      setScheduleExpanded(!data?.total_weeks || spw == null || sl == null);
       setScheduleLoaded(true);
     })();
     return () => { cancelled = true; };
@@ -373,8 +368,6 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   // Persist a single schedule field to the courses table
   const persistSchedule = useCallback(async (patch: {
     total_weeks?: number;
-    midterm_week?: number | null;
-    final_week?: number | null;
     sessions_per_week?: number | null;
     session_length_minutes?: number | null;
   }) => {
@@ -476,29 +469,25 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           const [weeksRes, courseRes] = await Promise.all([
             supabase
               .from("lesson_plan_weeks")
-              .select("week_number, week_name, overview, is_exam_week, locked, concepts, resources")
+              .select("week_number, week_name, overview, is_exam_week, exam_type, locked, concepts, resources")
               .eq("course_id", courseId)
               .order("week_number", { ascending: true }),
             supabase
               .from("courses")
-              .select("lesson_plan_published_at, lesson_plan_overall_outcomes, midterm_week, final_week")
+              .select("lesson_plan_published_at, lesson_plan_overall_outcomes")
               .eq("id", courseId)
               .maybeSingle(),
           ]);
 
           const rows = weeksRes.data || [];
           if (!weeksRes.error && rows.length > 0) {
-            const midterm = courseRes.data?.midterm_week ?? null;
-            const final = courseRes.data?.final_week ?? null;
             const dbWeeks: WeekPlan[] = rows.map((r: any) => ({
               id: makeId(),
               week: r.week_number,
               week_name: r.week_name || `Week ${r.week_number}`,
               overview: r.overview || "",
               is_exam_week: !!r.is_exam_week,
-              exam_type: r.is_exam_week
-                ? (midterm === r.week_number ? "midterm" : final === r.week_number ? "final" : null)
-                : null,
+              exam_type: r.is_exam_week ? (r.exam_type ?? null) : null,
               concepts: Array.isArray(r.concepts) ? r.concepts : [],
               resources: Array.isArray(r.resources) ? r.resources : [],
               locked: !!r.locked,
@@ -551,6 +540,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               week_name: w.week_name,
               overview: w.overview,
               is_exam_week: w.is_exam_week,
+              exam_type: w.exam_type,
               locked: w.locked,
               concepts: w.concepts,
               resources: w.resources,
@@ -715,7 +705,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       setExpandedWeeks(generated.length > 0 ? [generated[0].id] : []);
       setOverallOutcomes(typeof data.overall_course_learning_outcomes === "string" ? data.overall_course_learning_outcomes : "");
       setGapMode(false);
-      setLastGeneratedSchedule({ total_weeks: totalWeeks, midterm_week: midtermWeek, final_week: finalWeek, sessions_per_week: sessionsPerWeek, session_length_minutes: sessionLength });
+      setLastGeneratedSchedule({ total_weeks: totalWeeks, sessions_per_week: sessionsPerWeek, session_length_minutes: sessionLength });
       setGenStep(genSteps.length);
       setTimeout(() => setPhase("plan"), 500);
     } catch (err: any) {
@@ -723,7 +713,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       console.error("Lesson plan generation failed:", err);
       setGenError(err?.message || "Failed to generate lesson plan");
     }
-  }, [courseId, totalWeeks, midtermWeek, finalWeek, sessionsPerWeek, sessionLength]);
+  }, [courseId, totalWeeks, sessionsPerWeek, sessionLength]);
 
   // ─── Regenerate a single week (preserves concept assignments) ───
   const regenerateWeek = useCallback(async (weekId: string) => {
@@ -775,11 +765,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   }, [courseId, weeks, toast]);
 
   // Schedule completeness + change detection
-  const scheduleComplete = !!(totalWeeks && midtermWeek && finalWeek && sessionsPerWeek && sessionLength);
+  const scheduleComplete = !!(totalWeeks && sessionsPerWeek && sessionLength);
   const scheduleChanged = !lastGeneratedSchedule
     || lastGeneratedSchedule.total_weeks !== totalWeeks
-    || lastGeneratedSchedule.midterm_week !== midtermWeek
-    || lastGeneratedSchedule.final_week !== finalWeek
     || lastGeneratedSchedule.sessions_per_week !== sessionsPerWeek
     || lastGeneratedSchedule.session_length_minutes !== sessionLength;
 
@@ -803,6 +791,18 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       });
     }
   };
+
+  // Mark a week as a teaching week or an exam week (midterm / final / other).
+  // Week content is preserved — only the badge and exam flag change.
+  const setWeekExamMode = (id: string, value: "teaching" | "midterm" | "final" | "other") => {
+    setWeeks(prev => prev.map(x => x.id !== id ? x : ({
+      ...x,
+      is_exam_week: value !== "teaching",
+      exam_type: value === "midterm" ? "midterm" : value === "final" ? "final" : null,
+    })));
+    setPublished(false);
+  };
+
 
   const deleteWeek = (id: string) => {
     setWeeks(prev => prev.filter(x => x.id !== id));
@@ -966,6 +966,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             week_name: w.week_name,
             overview: w.overview,
             is_exam_week: w.is_exam_week,
+            exam_type: w.exam_type,
             locked: w.locked,
             concepts: w.concepts,
             resources: w.resources,
@@ -1047,10 +1048,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                     if (totalWeeks == null) return;
                     const clamped = Math.min(24, Math.max(4, totalWeeks));
                     if (clamped !== totalWeeks) setTotalWeeks(clamped);
-                    const patch: any = { total_weeks: clamped };
-                    if (midtermWeek && midtermWeek > clamped) { setMidtermWeek(null); patch.midterm_week = null; }
-                    if (finalWeek && finalWeek > clamped) { setFinalWeek(null); patch.final_week = null; }
-                    persistSchedule(patch);
+                    persistSchedule({ total_weeks: clamped });
                   }}
                   placeholder="e.g. 16"
                   className="mt-1 h-9"
@@ -1104,48 +1102,6 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                 />
                 <p className="text-[11px] text-muted-foreground mt-1">30–180 min</p>
               </div>
-              <div>
-                <Label className="text-xs">Midterm Week <span className="text-destructive">*</span></Label>
-                <Select
-                  value={midtermWeek ? String(midtermWeek) : ""}
-                  onValueChange={(v) => {
-                    const next = parseInt(v, 10);
-                    setMidtermWeek(next);
-                    persistSchedule({ midterm_week: next });
-                  }}
-                  disabled={!totalWeeks}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select week" /></SelectTrigger>
-                  <SelectContent>
-                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
-                      .filter(n => n !== finalWeek)
-                      .map(n => (
-                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Final Week <span className="text-destructive">*</span></Label>
-                <Select
-                  value={finalWeek ? String(finalWeek) : ""}
-                  onValueChange={(v) => {
-                    const next = parseInt(v, 10);
-                    setFinalWeek(next);
-                    persistSchedule({ final_week: next });
-                  }}
-                  disabled={!totalWeeks}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select week" /></SelectTrigger>
-                  <SelectContent>
-                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
-                      .filter(n => n !== midtermWeek)
-                      .map(n => (
-                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
             <Button
               className="w-full"
@@ -1157,7 +1113,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             </Button>
             {!scheduleComplete && (
               <p className="text-[11px] text-muted-foreground text-center">
-                Fill in Total Weeks, Classes per Week, Duration, Midterm Week, and Final Week to enable generation.
+                Fill in Total Weeks, Classes per Week, and Duration to enable generation.
               </p>
             )}
           </Card>
@@ -1317,7 +1273,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           </div>
         </Card>
 
-        {/* Course Schedule — Total Weeks / Midterm / Final */}
+        {/* Course Schedule — Total Weeks / cadence */}
         <Card className="overflow-hidden">
           <button
             type="button"
@@ -1332,8 +1288,6 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   · {totalWeeks} weeks
                   {sessionsPerWeek ? ` · ${sessionsPerWeek}×/wk` : ""}
                   {sessionLength ? ` · ${sessionLength} min` : ""}
-                  {midtermWeek ? ` · Midterm Wk ${midtermWeek}` : ""}
-                  {finalWeek ? ` · Final Wk ${finalWeek}` : ""}
                 </span>
               )}
             </div>
@@ -1357,10 +1311,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                     if (totalWeeks == null) return;
                     const clamped = Math.min(24, Math.max(4, totalWeeks));
                     if (clamped !== totalWeeks) setTotalWeeks(clamped);
-                    const patch: any = { total_weeks: clamped };
-                    if (midtermWeek && midtermWeek > clamped) { setMidtermWeek(null); patch.midterm_week = null; }
-                    if (finalWeek && finalWeek > clamped) { setFinalWeek(null); patch.final_week = null; }
-                    persistSchedule(patch);
+                    persistSchedule({ total_weeks: clamped });
                   }}
                   className="mt-1 h-9"
                 />
@@ -1410,48 +1361,6 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   className="mt-1 h-9"
                 />
                 <p className="text-[11px] text-muted-foreground mt-1">30–180 min</p>
-              </div>
-              <div>
-                <Label className="text-xs">Midterm Week</Label>
-                <Select
-                  value={midtermWeek ? String(midtermWeek) : "none"}
-                  onValueChange={(v) => {
-                    const next = v === "none" ? null : parseInt(v, 10);
-                    setMidtermWeek(next);
-                    persistSchedule({ midterm_week: next });
-                  }}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
-                      .filter(n => n !== finalWeek)
-                      .map(n => (
-                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Final Week</Label>
-                <Select
-                  value={finalWeek ? String(finalWeek) : "none"}
-                  onValueChange={(v) => {
-                    const next = v === "none" ? null : parseInt(v, 10);
-                    setFinalWeek(next);
-                    persistSchedule({ final_week: next });
-                  }}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
-                      .filter(n => n !== midtermWeek)
-                      .map(n => (
-                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
               </div>
               <div className="sm:col-span-2 lg:col-span-3 flex justify-end">
                 <Button
@@ -1569,6 +1478,22 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
+                          <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                            <Select
+                              value={w.is_exam_week ? (w.exam_type ?? "other") : "teaching"}
+                              onValueChange={(v) => setWeekExamMode(w.id, v as "teaching" | "midterm" | "final" | "other")}
+                            >
+                              <SelectTrigger className="h-7 w-[132px] text-xs" aria-label={`Week ${w.week} type`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="teaching">Teaching week</SelectItem>
+                                <SelectItem value="midterm">Midterm exam</SelectItem>
+                                <SelectItem value="final">Final exam</SelectItem>
+                                <SelectItem value="other">Exam week</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                           <Button
                             variant="ghost"
                             size="sm"

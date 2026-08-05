@@ -9,6 +9,7 @@ export type WeekUpsertInput = {
   week_name: string;
   overview: string;
   is_exam_week: boolean;
+  exam_type?: "midterm" | "final" | null;
   locked: boolean;
   concepts: any[];
   resources: any[];
@@ -37,6 +38,7 @@ export async function upsertPublishedWeeks(
       week_name: w.week_name || `Week ${w.week_number}`,
       overview: w.overview || "",
       is_exam_week: !!w.is_exam_week,
+      exam_type: w.is_exam_week ? (w.exam_type ?? null) : null,
       locked: !!w.locked,
       concepts: w.concepts || [],
       resources: w.resources || [],
@@ -78,7 +80,7 @@ export async function setWeekLocked(
 export async function fetchVisibleWeeks(courseId: string) {
   const { data, error } = await supabase
     .from("lesson_plan_weeks")
-    .select("week_number, week_name, overview, is_exam_week, locked, concepts, resources")
+    .select("week_number, week_name, overview, is_exam_week, exam_type, locked, concepts, resources")
     .eq("course_id", courseId)
     .order("week_number");
   if (error) throw error;

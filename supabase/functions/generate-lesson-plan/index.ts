@@ -307,10 +307,10 @@ serve(async (req) => {
 
     emit({ type: "phase", step: "load", message: "Loading course & concepts…" });
 
-    // 1. Fetch course metadata (incl exam weeks)
+    // 1. Fetch course metadata
     const { data: course, error: courseError } = await supabaseAdmin
       .from("courses")
-      .select("name, course_code, term, total_weeks, sessions_per_week, session_length_minutes, objectives, teacher_id, syllabus_json_path, midterm_week, final_week")
+      .select("name, course_code, term, total_weeks, sessions_per_week, session_length_minutes, objectives, teacher_id, syllabus_json_path")
       .eq("id", courseId)
       .single();
 
@@ -320,8 +320,10 @@ serve(async (req) => {
     }
 
     const totalWeeks = course.total_weeks || 16;
-    const midtermWeek = course.midterm_week || null;
-    const finalWeek = course.final_week || null;
+    // Exam weeks are no longer part of the schedule inputs — professors mark a
+    // week as an exam week manually on the plan after generation.
+    const midtermWeek: number | null = null;
+    const finalWeek: number | null = null;
 
     // 2. Load CONFIRMED concepts from Concept Review (source of truth)
     const { data: conceptRows, error: conceptError } = await supabaseAdmin

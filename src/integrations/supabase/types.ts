@@ -1288,6 +1288,7 @@ export type Database = {
           concepts: Json
           course_id: string
           created_at: string
+          exam_type: string | null
           id: string
           is_exam_week: boolean
           locked: boolean
@@ -1301,6 +1302,7 @@ export type Database = {
           concepts?: Json
           course_id: string
           created_at?: string
+          exam_type?: string | null
           id?: string
           is_exam_week?: boolean
           locked?: boolean
@@ -1314,6 +1316,7 @@ export type Database = {
           concepts?: Json
           course_id?: string
           created_at?: string
+          exam_type?: string | null
           id?: string
           is_exam_week?: boolean
           locked?: boolean
