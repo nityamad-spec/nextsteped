@@ -792,6 +792,18 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     }
   };
 
+  // Mark a week as a teaching week or an exam week (midterm / final / other).
+  // Week content is preserved — only the badge and exam flag change.
+  const setWeekExamMode = (id: string, value: "teaching" | "midterm" | "final" | "other") => {
+    setWeeks(prev => prev.map(x => x.id !== id ? x : ({
+      ...x,
+      is_exam_week: value !== "teaching",
+      exam_type: value === "midterm" ? "midterm" : value === "final" ? "final" : null,
+    })));
+    setPublished(false);
+  };
+
+
   const deleteWeek = (id: string) => {
     setWeeks(prev => prev.filter(x => x.id !== id));
   };
