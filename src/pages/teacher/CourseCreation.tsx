@@ -1045,10 +1045,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                     if (totalWeeks == null) return;
                     const clamped = Math.min(24, Math.max(4, totalWeeks));
                     if (clamped !== totalWeeks) setTotalWeeks(clamped);
-                    const patch: any = { total_weeks: clamped };
-                    if (midtermWeek && midtermWeek > clamped) { setMidtermWeek(null); patch.midterm_week = null; }
-                    if (finalWeek && finalWeek > clamped) { setFinalWeek(null); patch.final_week = null; }
-                    persistSchedule(patch);
+                    persistSchedule({ total_weeks: clamped });
                   }}
                   placeholder="e.g. 16"
                   className="mt-1 h-9"
