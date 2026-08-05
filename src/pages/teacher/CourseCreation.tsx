@@ -1330,8 +1330,6 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   · {totalWeeks} weeks
                   {sessionsPerWeek ? ` · ${sessionsPerWeek}×/wk` : ""}
                   {sessionLength ? ` · ${sessionLength} min` : ""}
-                  {midtermWeek ? ` · Midterm Wk ${midtermWeek}` : ""}
-                  {finalWeek ? ` · Final Wk ${finalWeek}` : ""}
                 </span>
               )}
             </div>
