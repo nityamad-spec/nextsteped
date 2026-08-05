@@ -773,11 +773,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   }, [courseId, weeks, toast]);
 
   // Schedule completeness + change detection
-  const scheduleComplete = !!(totalWeeks && midtermWeek && finalWeek && sessionsPerWeek && sessionLength);
+  const scheduleComplete = !!(totalWeeks && sessionsPerWeek && sessionLength);
   const scheduleChanged = !lastGeneratedSchedule
     || lastGeneratedSchedule.total_weeks !== totalWeeks
-    || lastGeneratedSchedule.midterm_week !== midtermWeek
-    || lastGeneratedSchedule.final_week !== finalWeek
     || lastGeneratedSchedule.sessions_per_week !== sessionsPerWeek
     || lastGeneratedSchedule.session_length_minutes !== sessionLength;
 
