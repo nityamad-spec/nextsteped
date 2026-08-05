@@ -468,29 +468,25 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           const [weeksRes, courseRes] = await Promise.all([
             supabase
               .from("lesson_plan_weeks")
-              .select("week_number, week_name, overview, is_exam_week, locked, concepts, resources")
+              .select("week_number, week_name, overview, is_exam_week, exam_type, locked, concepts, resources")
               .eq("course_id", courseId)
               .order("week_number", { ascending: true }),
             supabase
               .from("courses")
-              .select("lesson_plan_published_at, lesson_plan_overall_outcomes, midterm_week, final_week")
+              .select("lesson_plan_published_at, lesson_plan_overall_outcomes")
               .eq("id", courseId)
               .maybeSingle(),
           ]);
 
           const rows = weeksRes.data || [];
           if (!weeksRes.error && rows.length > 0) {
-            const midterm = courseRes.data?.midterm_week ?? null;
-            const final = courseRes.data?.final_week ?? null;
             const dbWeeks: WeekPlan[] = rows.map((r: any) => ({
               id: makeId(),
               week: r.week_number,
               week_name: r.week_name || `Week ${r.week_number}`,
               overview: r.overview || "",
               is_exam_week: !!r.is_exam_week,
-              exam_type: r.is_exam_week
-                ? (midterm === r.week_number ? "midterm" : final === r.week_number ? "final" : null)
-                : null,
+              exam_type: r.is_exam_week ? (r.exam_type ?? null) : null,
               concepts: Array.isArray(r.concepts) ? r.concepts : [],
               resources: Array.isArray(r.resources) ? r.resources : [],
               locked: !!r.locked,
