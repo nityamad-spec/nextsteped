@@ -13,13 +13,14 @@ On `/teacher/setup/enrollment`, in the roster card:
 
 ## The email
 
-Sent from `info@nextsteped.com`, subject like "You're invited to join <Course name> on NextStep".
+Sent from `info@nextsteped.com`, subject like "You're invited to join &nbsp; on NextStep".
 
 Body contains:
+
 1. Greeting with the student's name when the roster has one.
 2. Course name and course code.
 3. The enrollment code, shown large and copyable.
-4. Numbered instructions: go to the site, choose **I'm New Here** as a student, enter your details, enter the enrollment code, verify your email, take the short diagnostic.
+4. Numbered instructions: go to the site, choose **I'm New Here** as a student, enter your details, enter the enrollment code, verify your email, set up your password, take the short diagnostic.
 5. A primary button linking straight to the student signup page (`https://app.nextsteped.com/intro/student`).
 
 ## Prerequisite: sender domain
@@ -31,7 +32,7 @@ The project has no sender domain yet, so no email can go out until that's set up
 - **Migration**: add `invited_at timestamptz` and `invite_count int not null default 0` to `course_roster_allowlist`. No new table.
 - **Email infrastructure**: run the standard email infra setup (queue, send log, suppression list, unsubscribe tokens, queue worker), then scaffold the app-email function set.
 - **Template**: new React Email template `course-invite.tsx` in `supabase/functions/_shared/transactional-email-templates/`, registered in `registry.ts`. Props: `studentName?`, `courseName`, `courseCode?`, `enrollmentCode`, `signupUrl`, `professorName?`. Styled off `src/index.css` tokens, white body background.
-- **Send path**: the button in `EnrollmentSettings.tsx` iterates the pending roster rows and invokes `send-transactional-email` **once per recipient** (small concurrency, e.g. 5 at a time) with `idempotencyKey: \`course-invite-${rosterRowId}\`` — one send per recipient, not a bulk job, so retries and suppression work per student.
+- **Send path**: the button in `EnrollmentSettings.tsx` iterates the pending roster rows and invokes `send-transactional-email` **once per recipient** (small concurrency, e.g. 5 at a time) with `idempotencyKey: \`course-invite-${rosterRowId}` — one send per recipient, not a bulk job, so retries and suppression work per student.
 - After each successful send, stamp `invited_at = now()` and increment `invite_count` on that roster row.
 - Unsubscribe footer is appended automatically; the template must not add its own.
 - Add the unsubscribe confirmation page at the path the scaffold reserves.
