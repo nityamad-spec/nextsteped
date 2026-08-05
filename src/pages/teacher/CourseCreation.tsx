@@ -1409,48 +1409,6 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                 />
                 <p className="text-[11px] text-muted-foreground mt-1">30–180 min</p>
               </div>
-              <div>
-                <Label className="text-xs">Midterm Week</Label>
-                <Select
-                  value={midtermWeek ? String(midtermWeek) : "none"}
-                  onValueChange={(v) => {
-                    const next = v === "none" ? null : parseInt(v, 10);
-                    setMidtermWeek(next);
-                    persistSchedule({ midterm_week: next });
-                  }}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
-                      .filter(n => n !== finalWeek)
-                      .map(n => (
-                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Final Week</Label>
-                <Select
-                  value={finalWeek ? String(finalWeek) : "none"}
-                  onValueChange={(v) => {
-                    const next = v === "none" ? null : parseInt(v, 10);
-                    setFinalWeek(next);
-                    persistSchedule({ final_week: next });
-                  }}
-                >
-                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {totalWeeks && Array.from({ length: totalWeeks }, (_, i) => i + 1)
-                      .filter(n => n !== midtermWeek)
-                      .map(n => (
-                        <SelectItem key={n} value={String(n)}>Week {n}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="sm:col-span-2 lg:col-span-3 flex justify-end">
                 <Button
                   variant="outline"
