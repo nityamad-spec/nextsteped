@@ -9,6 +9,7 @@ export type WeekUpsertInput = {
   week_name: string;
   overview: string;
   is_exam_week: boolean;
+  exam_type?: "midterm" | "final" | null;
   locked: boolean;
   concepts: any[];
   resources: any[];
