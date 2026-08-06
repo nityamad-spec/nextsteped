@@ -437,6 +437,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   // edit states
   const [editingOverviewId, setEditingOverviewId] = useState<string | null>(null);
   const [editOverviewValue, setEditOverviewValue] = useState("");
+  const [editingWeekNameId, setEditingWeekNameId] = useState<string | null>(null);
+  const [editWeekNameValue, setEditWeekNameValue] = useState("");
   const [editingConceptId, setEditingConceptId] = useState<string | null>(null);
   const [activeConceptId, setActiveConceptId] = useState<string | null>(null);
 
