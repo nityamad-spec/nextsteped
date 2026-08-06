@@ -1489,7 +1489,7 @@ const AIChat = () => {
                                 setShowPractice(true);
                               } else if (s.action === "populate") {
                                 const topic = currentWeekTopic ?? "X";
-                                setInput(`Find and explain information from materials uploaded by my professor on topic ${topic}.`);
+                                setInput((s.promptTemplate ?? s.prompt).replace("{topic}", topic));
                                 setTimeout(() => inputRef.current?.focus(), 0);
                               } else {
                                 sendMessage(s.prompt, s.promptMode);
