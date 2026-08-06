@@ -857,8 +857,6 @@ async function run(
       partial,
       by_tier: byTier,
       tier_errors: Object.keys(tierErrors).length ? tierErrors : undefined,
-
-      tier_errors: Object.keys(tierErrors).length ? tierErrors : undefined,
     },
   };
 }
