@@ -807,8 +807,15 @@ const AdminStudents = () => {
                                 <div className="rounded-md border bg-muted/30 divide-y">
                                   {s.courses.map(c => (
                                     <div key={c.courseId} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
-                                      <span className="font-medium text-foreground">{c.name}</span>
+                                      <span className={cn("font-medium text-foreground", c.suspendedAt && "opacity-60 line-through")}>
+                                        {c.name}
+                                      </span>
                                       <div className="flex items-center gap-2 shrink-0">
+                                        {c.suspendedAt && (
+                                          <Badge variant="destructive" className="gap-1 text-[10px]">
+                                            <ShieldOff className="h-3 w-3" /> Suspended
+                                          </Badge>
+                                        )}
                                         {c.mastery ? (
                                           <Badge variant="secondary" className="text-[10px]">{c.mastery}</Badge>
                                         ) : (
@@ -822,9 +829,22 @@ const AdminStudents = () => {
                                           </TooltipTrigger>
                                           <TooltipContent>joined {new Date(c.enrolledAt).toLocaleString()}</TooltipContent>
                                         </Tooltip>
+                                        <Button
+                                          variant={c.suspendedAt ? "outline" : "ghost"}
+                                          size="sm"
+                                          className="h-6 gap-1 px-2 text-[10px]"
+                                          onClick={(e) => { e.stopPropagation(); setCourseTarget({ student: s, course: c }); }}
+                                        >
+                                          {c.suspendedAt ? (
+                                            <><ShieldCheck className="h-3 w-3" /> Reactivate</>
+                                          ) : (
+                                            <><ShieldOff className="h-3 w-3" /> Suspend</>
+                                          )}
+                                        </Button>
                                       </div>
                                     </div>
                                   ))}
+
                                 </div>
                               </CollapsibleContent>
                             </Collapsible>
