@@ -868,13 +868,14 @@ const AdminStudents = () => {
                             <DropdownMenuContent align="end">
                               {s.suspended_at ? (
                                 <DropdownMenuItem onClick={() => setSuspendTarget(s)}>
-                                  <ShieldCheck className="h-4 w-4 mr-2" /> Reactivate access
+                                  <ShieldCheck className="h-4 w-4 mr-2" /> Reactivate all access
                                 </DropdownMenuItem>
                               ) : (
                                 <DropdownMenuItem onClick={() => setSuspendTarget(s)}>
-                                  <ShieldOff className="h-4 w-4 mr-2" /> Suspend access
+                                  <ShieldOff className="h-4 w-4 mr-2" /> Suspend all access
                                 </DropdownMenuItem>
                               )}
+
                               {multiAccount ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
