@@ -35,7 +35,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { retrieveContext } from "../_shared/rag-retrieve.ts";
-import { buildMaterialsGrounding, GENERAL_KNOWLEDGE_SUFFIX, SIM_THRESHOLD, type RagSource } from "../_shared/chat-grounding.ts";
+import {
+  buildMaterialsGrounding,
+  GENERAL_KNOWLEDGE_SUFFIX,
+  SIM_THRESHOLD,
+  type RagSource,
+} from "../_shared/chat-grounding.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -410,8 +415,17 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, mode, promptMode, studySystemPrompt, examSystemPrompt, relevanceContext, courseId, studentId, grounding: groundingRaw } =
-      await req.json();
+    const {
+      messages,
+      mode,
+      promptMode,
+      studySystemPrompt,
+      examSystemPrompt,
+      relevanceContext,
+      courseId,
+      studentId,
+      grounding: groundingRaw,
+    } = await req.json();
     const grounding: "rag" | "general" = groundingRaw === "general" ? "general" : "rag";
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -491,11 +505,6 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
         }
       }
     }
-
-This is the code on how my chatbot should respond to students. The issue here is that when students are responding with things like "make sense" or "what should I do next," it's asking the user if it should resort to a general knowledge answer or not. 
-
-
-
 
     const userRole = mode === "teacher" ? "professor" : "student";
     const courseTitle = courseName || "this course";
@@ -707,9 +716,7 @@ Rules:
     };
     if (ragSources.length > 0) {
       // Base64-encode to keep header ASCII-safe regardless of file names.
-      streamHeaders["x-rag-sources"] = btoa(
-        unescape(encodeURIComponent(JSON.stringify(ragSources))),
-      );
+      streamHeaders["x-rag-sources"] = btoa(unescape(encodeURIComponent(JSON.stringify(ragSources))));
     }
     return new Response(response.body, { headers: streamHeaders });
   } catch (e) {
