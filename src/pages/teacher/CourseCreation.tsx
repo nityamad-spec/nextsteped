@@ -1668,81 +1668,39 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                               </Button>
                             </div>
 
-                            {w.concepts.length === 0 ? (
-                              <p className="text-xs text-muted-foreground italic px-2 py-3 border border-dashed rounded">
-                                No concepts yet. Click "Add concept" or regenerate.
-                              </p>
-                            ) : (
-                              <div className="space-y-2">
-                                {w.concepts.map((c, ci) => (
-                                  <div key={c.id} className="rounded-lg border bg-muted/10 p-3 group/concept">
-                                    {editingConceptId === c.id ? (
-                                      <div className="space-y-2">
-                                        <Input
-                                          value={editConceptName}
-                                          onChange={(e) => setEditConceptName(e.target.value)}
-                                          placeholder="Concept name"
-                                          className="h-8 text-sm font-semibold"
-                                        />
-                                        <Textarea
-                                          value={editConceptDesc}
-                                          onChange={(e) => setEditConceptDesc(e.target.value)}
-                                          placeholder="One short sentence describing this concept"
-                                          rows={2}
-                                          className="text-xs"
-                                        />
-                                        <div className="flex gap-2">
-                                          <Button size="sm" onClick={() => saveConcept(w.id)} className="h-7 text-xs">Save</Button>
-                                          <Button size="sm" variant="ghost" onClick={() => setEditingConceptId(null)} className="h-7 text-xs">Cancel</Button>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-start gap-3">
-                                        <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                                          <span className="text-xs font-bold text-primary">{ci + 1}</span>
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <p className="text-sm font-semibold">{c.name}</p>
-                                            {c.ai_suggested && (
-                                              <Badge variant="outline" className="text-[9px] gap-0.5 bg-primary/10 text-primary border-primary/30 px-1.5 py-0">
-                                                <Sparkles className="h-2.5 w-2.5" /> AI Suggested
-                                              </Badge>
-                                            )}
-                                          </div>
-                                          {c.brief_description && (
-                                            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{c.brief_description}</p>
-                                          )}
-                                        </div>
-                                        <div className="flex gap-0.5 shrink-0 opacity-0 group-hover/concept:opacity-100 transition-opacity">
-                                          {weeks.length > 1 && (
-                                            <DropdownMenu>
-                                              <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="sm" className="h-6 px-1.5" title="Move to another week">
-                                                  <ArrowRight className="h-3 w-3" />
-                                                </Button>
-                                              </DropdownMenuTrigger>
-                                              <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
-                                                {weeks.filter(other => other.id !== w.id).map(other => (
-                                                  <DropdownMenuItem key={other.id} onClick={() => moveConceptToWeek(w.id, c.id, other.id)} className="text-xs">
-                                                    Move to Week {other.week}
-                                                  </DropdownMenuItem>
-                                                ))}
-                                              </DropdownMenuContent>
-                                            </DropdownMenu>
-                                          )}
-                                          <Button variant="ghost" size="sm" onClick={() => startEditConcept(c)} className="h-6 w-6 p-0">
-                                            <Pencil className="h-3 w-3" />
-                                          </Button>
-                                          <Button variant="ghost" size="sm" onClick={() => deleteConcept(w.id, c.id)} className="h-6 w-6 p-0 text-destructive hover:text-destructive">
-                                            <Trash2 className="h-3 w-3" />
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    )}
+                            <ConceptDropZone id={`list:${w.id}`} disabled={w.is_exam_week} dragging={!!activeConceptId}>
+                              {w.concepts.length === 0 ? (
+                                <p className="text-xs text-muted-foreground italic px-2 py-3 border border-dashed rounded">
+                                  No topics yet. Click "Add topic", or drag one here from another week.
+                                </p>
+                              ) : (
+                                <SortableContext items={w.concepts.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                                  <div className="space-y-2">
+                                    {w.concepts.map((c, ci) => (
+                                      <SortableConceptCard
+                                        key={c.id}
+                                        concept={c}
+                                        index={ci}
+                                        isEditing={editingConceptId === c.id}
+                                        editName={editConceptName}
+                                        editDesc={editConceptDesc}
+                                        onEditNameChange={setEditConceptName}
+                                        onEditDescChange={setEditConceptDesc}
+                                        onSave={() => saveConcept(w.id)}
+                                        onCancelEdit={() => setEditingConceptId(null)}
+                                        onStartEdit={() => startEditConcept(c)}
+                                        onDelete={() => deleteConcept(w.id, c.id)}
+                                        moveTargets={weeks.filter(other => other.id !== w.id).map(other => ({
+                                          id: other.id, week: other.week, week_name: other.week_name, is_exam_week: other.is_exam_week,
+                                        }))}
+                                        onMoveTo={(toWeekId) => moveConceptToWeek(w.id, c.id, toWeekId)}
+                                      />
+                                    ))}
                                   </div>
-                                ))}
-                              </div>
+                                </SortableContext>
+                              )}
+                            </ConceptDropZone>
+
                             )}
                           </section>
 
