@@ -31,19 +31,16 @@ async function invokeUpdateMastery(args: {
       difficulty: number;
       bloom: number;
       is_correct: boolean;
-      reasoning_correct?: boolean | null;
     }> = [];
     for (const a of args.answers ?? []) {
       const code = (a?.topic ?? "").toString().trim();
       const meta = a?.question_id ? args.questionMeta.get(a.question_id) : undefined;
       if (!code || !meta) continue;
-      const rc = a?.reasoning_is_correct;
       per_question.push({
         concept_code: code,
         difficulty: meta.difficulty,
         bloom: meta.bloom,
         is_correct: !!a.is_correct,
-        reasoning_correct: rc === true || rc === false ? rc : null,
       });
     }
     if (per_question.length === 0) return;
@@ -72,7 +69,6 @@ const WeeklyQuizDialog = ({
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionMeta, setQuestionMeta] = useState<Map<string, { difficulty: number; bloom: number }>>(new Map());
-  const [followupsByParentId, setFollowupsByParentId] = useState<Map<string, Question>>(new Map());
   const [submitted, setSubmitted] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
 
@@ -84,12 +80,10 @@ const WeeklyQuizDialog = ({
     setSubmitted(false);
     setQuestions([]);
     setQuestionMeta(new Map());
-    setFollowupsByParentId(new Map());
 
     (async () => {
       let qs: Question[] = [];
       const meta = new Map<string, { difficulty: number; bloom: number }>();
-      const followupMap = new Map<string, Question>();
       const { data, error } = await supabase
         .from("assessment_questions")
         .select("*")
@@ -98,7 +92,7 @@ const WeeklyQuizDialog = ({
         .eq("quiz_day", day);
 
       if (!error && data && data.length > 0) {
-        const mapRow = (row: any): Question & { _tier: string; _parentId: string | null; _role: string } => {
+        const mapRow = (row: any): Question & { _tier: string } => {
           meta.set(row.id, {
             difficulty: Number(row.difficulty_estimate ?? 0.5),
             bloom: Number(row.bloom_level ?? 1),
@@ -120,19 +114,9 @@ const WeeklyQuizDialog = ({
             day: row.quiz_day || 0,
             explanation: (row.explanation ?? undefined) as string | undefined,
             _tier: String(row.tier ?? "standard"),
-            _parentId: (row.parent_question_id ?? null) as string | null,
-            _role: String(row.question_role ?? "primary"),
-          } as Question & { _tier: string; _parentId: string | null; _role: string };
+          } as Question & { _tier: string };
         };
-        const allRows = data.map(mapRow);
-
-        // Split rows by role. Legacy rows (null role) are treated as primary.
-        const primariesAll = allRows.filter(r => r._role !== "reasoning");
-        const reasonings = allRows.filter(r => r._role === "reasoning" && r._parentId);
-        for (const r of reasonings) {
-          const { _tier, _parentId, _role, ...rest } = r;
-          if (_parentId) followupMap.set(_parentId, rest as Question);
-        }
+        const primariesAll = data.map(mapRow);
 
         // Determine adaptive tier from learner_level
         let adaptiveTier: "easy" | "medium" | "hard" = "medium";
@@ -150,7 +134,7 @@ const WeeklyQuizDialog = ({
         }
 
         const seed = (studentId || "anon") + courseId;
-        const byTier: Record<string, (Question & { _tier: string; _parentId: string | null; _role: string })[]> = {};
+        const byTier: Record<string, (Question & { _tier: string })[]> = {};
         for (const q of primariesAll) {
           (byTier[q._tier] ||= []).push(q);
         }
@@ -165,7 +149,7 @@ const WeeklyQuizDialog = ({
             : adaptiveTier === "easy"
             ? ["easy", "medium", "hard"]
             : ["hard", "medium", "easy"];
-        const adaptive: (Question & { _tier: string; _parentId: string | null; _role: string })[] = [];
+        const adaptive: (Question & { _tier: string })[] = [];
         for (const t of adaptiveOrder) {
           if (adaptive.length >= 5) break;
           const pool = byTier[t] ?? [];
@@ -176,20 +160,13 @@ const WeeklyQuizDialog = ({
         }
 
         const combined = [...standard, ...adaptive];
-        qs = combined.map(({ _tier, _parentId, _role, ...rest }) => rest as Question);
-
-        // Tidy: keep only follow-ups whose parent is actually being delivered.
-        const deliveredIds = new Set(qs.map(q => q.id));
-        for (const parentId of Array.from(followupMap.keys())) {
-          if (!deliveredIds.has(parentId)) followupMap.delete(parentId);
-        }
+        qs = combined.map(({ _tier, ...rest }) => rest as Question);
       } else {
         qs = [];
       }
       if (cancelled) return;
       setQuestions(qs);
       setQuestionMeta(meta);
-      setFollowupsByParentId(followupMap);
       setLoading(false);
     })();
 
@@ -288,7 +265,6 @@ const WeeklyQuizDialog = ({
                 onEnd={handleEnd}
                 onSubmit={handleSubmit}
                 questionMeta={questionMeta}
-                followupsByParentId={followupsByParentId}
               />
 
             )}
