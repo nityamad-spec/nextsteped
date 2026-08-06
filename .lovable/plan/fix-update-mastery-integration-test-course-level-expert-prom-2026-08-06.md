@@ -24,10 +24,6 @@ In the "e2e exam: enough evidence promotes concept to Expert and course follows"
 
 That is a one-line payload edit; no other assertions need to move.
 
-### Alternative (only if the current course formula is considered wrong)
-
-If you instead believe course mastery should average over *assessed* concepts only, the change is in `index.ts:315-316` (denominator = weight of concepts with rows, not all concepts). That is a product-semantics change: it would raise every student's course score, and it would break the weekly-quiz expectation of `0.3462` at line 229. Not recommended unless you want that behaviour change.
-
 ## Scope
 
 - `supabase/functions/update-mastery/integration_test.ts` — one test's payload (recommended path).
