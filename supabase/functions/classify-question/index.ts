@@ -24,6 +24,7 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { isConversationalFiller } from "../_shared/conversational-intent.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,6 +47,15 @@ serve(async (req) => {
       );
     }
 
+    // Fast path: conversational filler ("ok", "sounds good", "what's next")
+    // never needs a model call, and must never be treated as off-topic.
+    if (isConversationalFiller(message)) {
+      return new Response(
+        JSON.stringify({ relevant: true, intent: "conversational" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
@@ -65,6 +75,11 @@ ${objectivesText}
 ${conceptsText}
 
 Student's question: "${message}"
+
+Classify the intent:
+- "conversational" — small talk, acknowledgements, or filler that continues the conversation ("ok", "thanks", "sounds good", "what's next", "go on", greetings). These are always relevant.
+- "question" — a genuine question or request about the course, its prerequisites, or directly supporting concepts.
+- "off_topic" — a genuine request that is unrelated to the course.
 
 Use the classify_relevance function to respond.`;
 
@@ -93,10 +108,15 @@ Use the classify_relevance function to respond.`;
                   properties: {
                     relevant: {
                       type: "boolean",
-                      description: "true if the question is related to the course content, false otherwise",
+                      description: "true if the message is related to the course content or is conversational filler, false otherwise",
+                    },
+                    intent: {
+                      type: "string",
+                      enum: ["question", "conversational", "off_topic"],
+                      description: "conversational for small talk/filler, question for a real course question, off_topic otherwise",
                     },
                   },
-                  required: ["relevant"],
+                  required: ["relevant", "intent"],
                   additionalProperties: false,
                 },
               },
@@ -123,7 +143,7 @@ Use the classify_relevance function to respond.`;
       console.error("Classification error:", response.status, await response.text());
       // Default to relevant on error so chat still works
       return new Response(
-        JSON.stringify({ relevant: true }),
+        JSON.stringify({ relevant: true, intent: "question" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -135,8 +155,14 @@ Use the classify_relevance function to respond.`;
     if (toolCall?.function?.arguments) {
       try {
         const args = JSON.parse(toolCall.function.arguments);
+        const intent = args.intent === "conversational" || args.intent === "off_topic"
+          ? args.intent
+          : "question";
         return new Response(
-          JSON.stringify({ relevant: args.relevant ?? true }),
+          JSON.stringify({
+            relevant: intent === "conversational" ? true : (args.relevant ?? true),
+            intent,
+          }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       } catch {
@@ -146,14 +172,14 @@ Use the classify_relevance function to respond.`;
 
     // Default to relevant if parsing fails
     return new Response(
-      JSON.stringify({ relevant: true }),
+      JSON.stringify({ relevant: true, intent: "question" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
     console.error("Classify function error:", e);
     // Default to relevant on error
     return new Response(
-      JSON.stringify({ relevant: true }),
+      JSON.stringify({ relevant: true, intent: "question" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
