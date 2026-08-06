@@ -332,6 +332,14 @@ const DiagnosticQuiz = () => {
 
   const handleAnswer = async () => {
     if (!canProceed) return;
+    if (reasoning.isQuestionBlocked({ id: question.id, bloom: question.bloomLevel })) {
+      reasoning.setShowErrors(true);
+      toast.error("Reasoning required", {
+        description: "Explain your reasoning for this question before moving on.",
+      });
+      return;
+    }
+    reasoning.setShowErrors(false);
     const elapsed = Date.now() - questionStartTime;
     const answerValue = isShortAnswer ? -1 : selected!;
     const newAnswers = [...answers, answerValue];
