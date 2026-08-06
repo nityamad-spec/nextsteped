@@ -675,6 +675,16 @@ const DiagnosticQuiz = () => {
                 </div>
               )}
 
+              {requiresReasoning(question.bloomLevel) && (
+                <div className="mt-4">
+                  <ReasoningInput
+                    questionId={question.id}
+                    value={reasoning.rationales[question.id] ?? ""}
+                    onChange={reasoning.setRationale}
+                    showError={reasoning.showErrors}
+                  />
+                </div>
+              )}
             </motion.div>
             <div className="mt-4 flex justify-between">
               <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { setExitConfirmOpen(true); } }}>
