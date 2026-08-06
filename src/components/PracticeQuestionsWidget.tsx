@@ -174,6 +174,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
         correctAnswers: correct,
         answers: answerDetails,
         timeSpent: Math.round((Date.now() - startTime) / 1000),
+        rationales: reasoning.rationales,
       });
     }
   };
