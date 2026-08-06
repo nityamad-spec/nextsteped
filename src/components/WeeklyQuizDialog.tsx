@@ -208,6 +208,18 @@ const WeeklyQuizDialog = ({
         answers: results.answers ?? [],
         questionMeta,
       });
+      void saveReasoningRows(
+        buildReasoningRows({
+          studentId,
+          courseId,
+          sourceFormat: "weekly_quiz",
+          questionSource: "assessment_questions",
+          sourceResultId: inserted?.id ?? null,
+          answers: results.answers ?? [],
+          rationales: results.rationales ?? {},
+          bloomFor: (qid) => Number(questionMeta.get(qid)?.bloom ?? 1),
+        }),
+      );
     } catch (e) {
       console.error("Quiz submit error:", e);
     }
