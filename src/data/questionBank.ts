@@ -12,7 +12,6 @@ export interface Question {
   topic: string;
   difficulty: "Easy" | "Medium" | "Hard";
   day: number;
-  /** Optional explanation for why the correct answer holds.
-   *  Currently populated for reasoning follow-up MCQs (Phase 3+). */
+  /** Optional explanation for why the correct answer holds. */
   explanation?: string;
 }

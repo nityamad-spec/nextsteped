@@ -15,7 +15,6 @@ import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import ReasoningFollowupAnalytics from "@/components/analytics/ReasoningFollowupAnalytics";
 
 interface AssessmentResult {
   id: string;
@@ -297,7 +296,6 @@ const AssessmentAnalytics = () => {
       <Tabs defaultValue="primary" className="space-y-6">
         <TabsList>
           <TabsTrigger value="primary">Primary questions</TabsTrigger>
-          <TabsTrigger value="reasoning">Reasoning follow-ups</TabsTrigger>
         </TabsList>
 
         <TabsContent value="primary" className="space-y-6">
@@ -571,9 +569,6 @@ const AssessmentAnalytics = () => {
       )}
         </TabsContent>
 
-        <TabsContent value="reasoning">
-          <ReasoningFollowupAnalytics courseId={courseId ?? null} />
-        </TabsContent>
       </Tabs>
     </div>
   );

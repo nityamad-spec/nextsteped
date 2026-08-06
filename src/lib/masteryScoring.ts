@@ -19,10 +19,6 @@ export const PACE_SLOW_DECAY = 2.0;
 
 export const WEIGHTS = { accuracy: 0.80, pace: 0.20 } as const;
 
-// Phase 5 reasoning follow-up weights (mirrors supabase/functions/update-mastery/mastery.ts).
-export const REASONING_BOOST_FRACTION = 0.5;
-export const REASONING_PENALTY_FRACTION = 0.25;
-
 export const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 export const clampBloom = (n: number) => Math.min(6, Math.max(1, Math.round(n)));
 
@@ -42,10 +38,8 @@ export interface ScoreItem {
   difficulty: number;
   bloom: number;
   is_correct: boolean;
-  /** ms actually spent on the primary question */
+  /** ms actually spent on the question */
   time_ms: number;
-  /** tri-state; null / undefined = no follow-up considered */
-  reasoning_is_correct?: boolean | null;
 }
 
 export interface ScoreResult {
@@ -57,8 +51,7 @@ export interface ScoreResult {
 
 /**
  * Compute weekly-quiz score using the same 80% accuracy + 20% pace blend as
- * `score-diagnostic`, extended with the Phase 5 reasoning boost/penalty in the
- * accuracy ratio. Pace uses primaries only.
+ * `score-diagnostic`.
  */
 export function computeWeeklyQuizScore(items: ScoreItem[]): ScoreResult {
   let earned = 0;
@@ -71,19 +64,10 @@ export function computeWeeklyQuizScore(items: ScoreItem[]): ScoreResult {
     const bloomWeight = BLOOM_WEIGHT[bloom] ?? 1.0;
     const maxPoints = difficulty * bloomWeight;
 
-    // Primary contribution
     maxSum += maxPoints;
     if (it.is_correct) earned += maxPoints;
 
-    // Reasoning follow-up (only when primary correct and tri-state is boolean)
-    if (it.is_correct && it.reasoning_is_correct === true) {
-      earned += REASONING_BOOST_FRACTION * maxPoints;
-      maxSum += REASONING_BOOST_FRACTION * maxPoints;
-    } else if (it.is_correct && it.reasoning_is_correct === false) {
-      maxSum += REASONING_PENALTY_FRACTION * maxPoints;
-    }
-
-    // Pace (primaries only). Missing/zero time falls back to expected → pace 1.0.
+    // Pace. Missing/zero time falls back to expected → pace 1.0.
     const expectedMs = (EXPECTED_TIME_BASE_MS[bloom] ?? 30_000) * difficultyTimeFactor(difficulty);
     const actualMs = it.time_ms > 0 ? it.time_ms : expectedMs;
     paceScores.push(paceCurve(actualMs / expectedMs));

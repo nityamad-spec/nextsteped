@@ -21,8 +21,6 @@ interface AssessmentViewProps {
   onSubmit: (results: AssessmentResults) => void;
   onStudyTopics?: (topics: string[]) => void;
   questionMeta?: Map<string, { difficulty: number; bloom: number }>;
-  /** Quiz-only: reasoning follow-up MCQs, keyed by primary question id (Phase 3+). */
-  followupsByParentId?: Map<string, Question>;
 }
 
 
@@ -39,15 +37,6 @@ export interface StandardisedAnswer {
   correct: string;
   is_correct: boolean;
   explanation?: string;
-  // Phase 4: reasoning follow-up fields (quiz mode only).
-  // Absent when no follow-up applies (primary Bloom<3, primary incorrect, or no row shipped).
-  // reasoning_is_correct is tri-state: true/false when answered; null when the
-  // follow-up row was present but malformed / failed to load (Phase 5 no-op).
-  reasoning_question_id?: string | null;
-  reasoning_selected?: string | null;
-  reasoning_correct?: string | null;
-  reasoning_is_correct?: boolean | null;
-  reasoning_bloom?: number | null;
 }
 
 export type ConfidenceLevel = "not_confident" | "somewhat_confident" | "very_confident";
@@ -70,7 +59,7 @@ export interface AssessmentResults {
 
 type Phase = "intro" | "active" | "review";
 
-const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta, followupsByParentId }: AssessmentViewProps) => {
+const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta }: AssessmentViewProps) => {
   const [phase, setPhase] = useState<Phase>("intro");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(timeLimitMinutes * 60);
@@ -80,10 +69,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
   const [currentIndex, setCurrentIndex] = useState(0);
   const [lockedIndices, setLockedIndices] = useState<Set<number>>(new Set());
-  // Phase 3: reasoning follow-up answers keyed by PRIMARY question id.
-  // followupCorrectness: true / false = student answered; null = follow-up unavailable/malformed.
-  const [followupAnswers, setFollowupAnswers] = useState<Record<string, string>>({});
-  const [followupCorrectness, setFollowupCorrectness] = useState<Record<string, boolean | null>>({});
   // confidence collection removed for quizzes/exams
   const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
   const questionStartRef = useRef<number>(Date.now());
@@ -170,30 +155,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
         is_correct: isCorrect,
       };
 
-      // Phase 4: attach reasoning follow-up fields (quiz mode only, primary correct only).
-      const rawFu = type === "quiz" ? followupsByParentId?.get(q.id) : undefined;
-      const fuUsable = !!rawFu && rawFu.type === "mcq" && Array.isArray(rawFu.options) && rawFu.options.length >= 2 && !!rawFu.correctAnswer;
-      if (isCorrect && rawFu) {
-        const fuBloom = questionMeta?.get(rawFu.id)?.bloom ?? null;
-        if (!fuUsable || followupCorrectness[q.id] === null) {
-          // Follow-up present but malformed / failed to load — Phase 5 no-op sentinel.
-          base.reasoning_question_id = rawFu.id;
-          base.reasoning_selected = null;
-          base.reasoning_correct = rawFu.correctAnswer ?? null;
-          base.reasoning_is_correct = null;
-          base.reasoning_bloom = fuBloom;
-        } else {
-          const fuAns = followupAnswers[q.id];
-          if (fuAns !== undefined && fuAns !== "") {
-            base.reasoning_question_id = rawFu.id;
-            base.reasoning_selected = fuAns;
-            base.reasoning_correct = rawFu.correctAnswer;
-            base.reasoning_is_correct = followupCorrectness[q.id] ?? (fuAns === rawFu.correctAnswer);
-            base.reasoning_bloom = fuBloom;
-          }
-        }
-      }
-
       return base;
     });
 
@@ -215,8 +176,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       if (den > 0) weightedScore = Math.round((num / den) * 100);
     }
 
-    // Phase 8: quiz mode uses the diagnostic 80% accuracy + 20% pace blend,
-    // extended with the Phase 5 reasoning boost/penalty inside accuracy.
+    // Phase 8: quiz mode uses the diagnostic 80% accuracy + 20% pace blend.
     // Exam / other modes keep the legacy weighted-accuracy display.
     let accuracyScore: number | undefined;
     let paceScore: number | undefined;
@@ -231,10 +191,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
           bloom: meta.bloom,
           is_correct: a.is_correct,
           time_ms: secs * 1000,
-          reasoning_is_correct:
-            a.reasoning_is_correct === true || a.reasoning_is_correct === false
-              ? a.reasoning_is_correct
-              : null,
         };
       });
       const scored = computeWeeklyQuizScore(items);
@@ -264,7 +220,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     setExpandedQuestions(wrongIndices);
 
     fetchExplanations(standardised);
-  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex, questionMeta, type, followupsByParentId, followupAnswers, followupCorrectness]);
+  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex, questionMeta, type]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
@@ -326,21 +282,8 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     return ans === q.correctAnswer;
   };
 
-  // Follow-up validity: needs MCQ shape with ≥2 options and a correctAnswer.
-  const isFollowupUsable = (fu: Question | undefined): fu is Question => {
-    return !!fu && fu.type === "mcq" && Array.isArray(fu.options) && fu.options.length >= 2 && !!fu.correctAnswer;
-  };
-
   // Render a single question card (reused in active phase)
   const renderQuestionCard = (q: Question, index: number) => {
-    const primaryAnswered = answers[q.id] !== undefined && answers[q.id] !== "";
-    const primaryCorrect = primaryAnswered && isPrimaryCorrect(q, answers[q.id]);
-    const rawFollowup = isQuiz ? followupsByParentId?.get(q.id) : undefined;
-    const followup = isFollowupUsable(rawFollowup) ? rawFollowup : undefined;
-    const followupAnswer = followupAnswers[q.id];
-    const followupSubmitted = followupAnswer !== undefined && followupAnswer !== "";
-    const showFollowup = isQuiz && primaryCorrect && !!followup;
-
     return (
     <Card key={q.id} className={`${answers[q.id] ? "border-primary/30" : ""}`}>
 
@@ -418,69 +361,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
 
         {/* Confidence selector removed — not collected for quizzes/exams */}
 
-        {showFollowup && followup && (
-          <div className="mt-2 rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Lightbulb className="h-4 w-4 text-primary" />
-              <span className="text-xs font-semibold uppercase tracking-wide text-primary">
-                Why is that the correct answer?
-              </span>
-            </div>
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">{followup.text}</p>
-            <RadioGroup
-              value={followupAnswer || ""}
-              onValueChange={(v) => {
-                if (followupSubmitted) return; // locked after first answer
-                const correct = v === followup.correctAnswer;
-                setFollowupAnswers(prev => ({ ...prev, [q.id]: v }));
-                setFollowupCorrectness(prev => ({ ...prev, [q.id]: correct }));
-              }}
-              className="space-y-2"
-            >
-              {followup.options!.map((opt, i) => {
-                const isPicked = followupAnswer === opt;
-                const isCorrectOpt = opt === followup.correctAnswer;
-                const revealClass = followupSubmitted
-                  ? isCorrectOpt
-                    ? "border-primary bg-primary/10"
-                    : isPicked
-                    ? "border-destructive bg-destructive/10"
-                    : "opacity-70"
-                  : isPicked
-                  ? "border-primary bg-primary/5"
-                  : "";
-                return (
-                  <Label
-                    key={i}
-                    htmlFor={`q${index}-fu-opt-${i}`}
-                    className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
-                      followupSubmitted ? "cursor-default" : "cursor-pointer hover:bg-muted/50"
-                    } ${revealClass}`}
-                  >
-                    <RadioGroupItem
-                      value={opt}
-                      id={`q${index}-fu-opt-${i}`}
-                      disabled={followupSubmitted}
-                    />
-                    <span className="text-sm flex-1">{opt}</span>
-                    {followupSubmitted && isCorrectOpt && (
-                      <CheckCircle className="h-4 w-4 text-primary" />
-                    )}
-                    {followupSubmitted && !isCorrectOpt && isPicked && (
-                      <XCircle className="h-4 w-4 text-destructive" />
-                    )}
-                  </Label>
-                );
-              })}
-            </RadioGroup>
-            {followupSubmitted && followup.explanation && (
-              <div className="rounded-md bg-background/60 border border-border/60 p-3">
-                <p className="text-xs font-medium text-muted-foreground mb-1">Explanation</p>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{followup.explanation}</p>
-              </div>
-            )}
-          </div>
-        )}
       </CardContent>
     </Card>
     );
@@ -798,33 +678,11 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                 </Button>
 
                 {(() => {
-                  // Follow-up gating: if primary answered correctly AND a usable
-                  // follow-up exists, require follow-up answer before Submit/Next.
-                  const cq = questions[safeIndex];
-                  const cqAns = cq ? answers[cq.id] : undefined;
-                  const cqCorrect = !!cq && cqAns !== undefined && cqAns !== "" && isPrimaryCorrect(cq, cqAns);
-                  const rawFu = cq && isQuiz ? followupsByParentId?.get(cq.id) : undefined;
-                  const fuUsable = isFollowupUsable(rawFu);
-                  const fuNeeded = isQuiz && cqCorrect && fuUsable;
-                  const fuAnswered = cq ? followupAnswers[cq.id] !== undefined && followupAnswers[cq.id] !== "" : false;
-                  const fuBlock = fuNeeded && !fuAnswered;
-
-                  // If a follow-up map entry exists but is unusable, record null
-                  // so Phase 5 treats it as "no boost, no penalty" and never
-                  // traps the student.
-                  if (isQuiz && cq && cqCorrect && rawFu && !fuUsable && followupCorrectness[cq.id] === undefined) {
-                    // Note: this runs during render; safe because state setter
-                    // is idempotent and gated by the undefined check.
-                    queueMicrotask(() => {
-                      setFollowupCorrectness(prev => (prev[cq.id] === undefined ? { ...prev, [cq.id]: null } : prev));
-                    });
-                  }
-
                   return isLast ? (
                     <Button
                       onClick={handleFinish}
                       className="gap-2 px-6"
-                      disabled={answeredCount === 0 || fuBlock}
+                      disabled={answeredCount === 0}
                     >
                       <CheckCircle className="h-5 w-5" />
                       Submit Quiz ({answeredCount}/{questions.length} answered)
@@ -844,7 +702,6 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                         setCurrentIndex((i) => Math.min(questions.length - 1, i + 1));
                       }}
                       className="gap-2"
-                      disabled={fuBlock}
                     >
                       Next
                       <ChevronRight className="h-4 w-4" />
