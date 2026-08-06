@@ -110,8 +110,6 @@ export type Database = {
           item_code: string
           mode: string
           options: Json | null
-          parent_question_id: string | null
-          question_role: string
           question_text: string
           question_type: string
           quiz_day: number | null
@@ -140,8 +138,6 @@ export type Database = {
           item_code?: string
           mode: string
           options?: Json | null
-          parent_question_id?: string | null
-          question_role?: string
           question_text: string
           question_type?: string
           quiz_day?: number | null
@@ -170,8 +166,6 @@ export type Database = {
           item_code?: string
           mode?: string
           options?: Json | null
-          parent_question_id?: string | null
-          question_role?: string
           question_text?: string
           question_type?: string
           quiz_day?: number | null
@@ -193,13 +187,6 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "assessment_questions_parent_question_id_fkey"
-            columns: ["parent_question_id"]
-            isOneToOne: false
-            referencedRelation: "assessment_questions"
             referencedColumns: ["id"]
           },
           {
@@ -2292,10 +2279,6 @@ export type Database = {
           msg_id: number
           read_ct: number
         }[]
-      }
-      reasoning_followup_analytics: {
-        Args: { _course_id: string }
-        Returns: Json
       }
       teacher_can_view_student: {
         Args: { _student_id: string; _teacher_id: string }
