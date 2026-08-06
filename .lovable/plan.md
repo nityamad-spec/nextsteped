@@ -5,7 +5,7 @@ When a student clicks a "Review with TA" card on /student/home, the Study Chat c
 ## Behavior
 
 - Weakest-concept card (mastery based): composer shows
-  `I'm struggling with "<concept>". Explain it from the basics with a simple example, then check my understanding with a question.`
+  `I'm struggling with "<concept>". Explain it from the basics with a simple example.`
 - Unexplored current-week card: composer shows
   `Help me get started with "<concept>" from this unit. Explain it in simple terms with an example.`
 - Generic "Open the Study Chat" card: no prefill, unchanged behavior.
