@@ -369,6 +369,16 @@ const AdminStudents = () => {
     return [...s].sort((a, b) => a.localeCompare(b));
   }, [students]);
 
+  /** Distinct courses (id + name) across all students, for the bulk course picker. */
+  const courseIdOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    students.forEach(st => st.courses.forEach(c => m.set(c.courseId, c.name)));
+    return [...m.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [students]);
+
+
   const masteryOptions = useMemo(() => {
     const s = new Set<string>();
     students.forEach(st => st.courses.forEach(c => c.mastery && s.add(c.mastery)));
