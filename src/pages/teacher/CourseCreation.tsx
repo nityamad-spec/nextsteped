@@ -888,18 +888,97 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     setWeeks(prev => prev.map(w => w.id === weekId ? { ...w, concepts: [...w.concepts, c] } : w));
     startEditConcept(c);
   };
-  const moveConceptToWeek = (fromWeekId: string, conceptId: string, toWeekId: string) => {
+  const moveConceptBetweenWeeks = (
+    fromWeekId: string,
+    conceptId: string,
+    toWeekId: string,
+    toIndex?: number,
+  ) => {
+    const target = weeks.find(w => w.id === toWeekId);
+    if (!target) return;
+    if (target.is_exam_week) {
+      toast({
+        title: "Exam week",
+        description: `Week ${target.week} is an exam week — topics can't be placed there.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    const snapshot = weeks;
     setWeeks(prev => {
-      const concept = prev.find(w => w.id === fromWeekId)?.concepts.find(c => c.id === conceptId);
+      const source = prev.find(w => w.id === fromWeekId);
+      const concept = source?.concepts.find(c => c.id === conceptId);
       if (!concept) return prev;
+
+      if (fromWeekId === toWeekId) {
+        const current = source!.concepts.findIndex(c => c.id === conceptId);
+        const next = toIndex === undefined ? source!.concepts.length - 1 : toIndex;
+        if (current === next) return prev;
+        const reordered = [...source!.concepts];
+        reordered.splice(current, 1);
+        reordered.splice(Math.max(0, Math.min(next, reordered.length)), 0, concept);
+        return prev.map(w => (w.id === fromWeekId ? { ...w, concepts: reordered } : w));
+      }
+
       return prev.map(w => {
         if (w.id === fromWeekId) return { ...w, concepts: w.concepts.filter(c => c.id !== conceptId) };
-        if (w.id === toWeekId) return { ...w, concepts: [...w.concepts, concept] };
+        if (w.id === toWeekId) {
+          const next = [...w.concepts];
+          next.splice(toIndex === undefined ? next.length : Math.max(0, Math.min(toIndex, next.length)), 0, concept);
+          return { ...w, concepts: next };
+        }
         return w;
       });
     });
-    toast({ title: "Concept moved", description: `Moved to Week ${weeks.find(w => w.id === toWeekId)?.week}` });
+    setPublished(false);
+    if (fromWeekId !== toWeekId) {
+      const name = weeks.find(w => w.id === fromWeekId)?.concepts.find(c => c.id === conceptId)?.name ?? "Topic";
+      toast({
+        title: "Topic moved",
+        description: `Moved "${name}" to Week ${target.week}`,
+        action: (
+          <ToastAction altText="Undo move" onClick={() => setWeeks(snapshot)}>Undo</ToastAction>
+        ),
+      });
+    }
   };
+  const moveConceptToWeek = (fromWeekId: string, conceptId: string, toWeekId: string) =>
+    moveConceptBetweenWeeks(fromWeekId, conceptId, toWeekId);
+
+  // ─── Concept drag & drop ───
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const findWeekOfConcept = (conceptId: string) => weeks.find(w => w.concepts.some(c => c.id === conceptId));
+  const activeConcept = activeConceptId
+    ? findWeekOfConcept(activeConceptId)?.concepts.find(c => c.id === activeConceptId) ?? null
+    : null;
+
+  const handleConceptDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveConceptId(null);
+    if (!over) return;
+    const conceptId = String(active.id);
+    const fromWeek = findWeekOfConcept(conceptId);
+    if (!fromWeek) return;
+
+    const overId = String(over.id);
+    let toWeekId: string | undefined;
+    let toIndex: number | undefined;
+
+    if (overId.startsWith("hdr:") || overId.startsWith("list:")) {
+      toWeekId = overId.slice(overId.indexOf(":") + 1);
+    } else {
+      const overWeek = findWeekOfConcept(overId);
+      if (!overWeek) return;
+      toWeekId = overWeek.id;
+      toIndex = overWeek.concepts.findIndex(c => c.id === overId);
+    }
+    if (!toWeekId) return;
+    moveConceptBetweenWeeks(fromWeek.id, conceptId, toWeekId, toIndex);
+  };
+
 
   // ─── Resource handlers ───
   const startEditResource = (r: Resource) => {
