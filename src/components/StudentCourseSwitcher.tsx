@@ -124,7 +124,7 @@ const StudentCourseSwitcher = ({ onAddCourse }: StudentCourseSwitcherProps) => {
                     key={c.id}
                     value={`${c.name} ${c.course_code ?? ""}`}
                     onSelect={() => switchTo(c)}
-                    className="flex items-center gap-2"
+                    className={cn("flex items-center gap-2", c.suspended && "opacity-60")}
                   >
                     <Check
                       className={cn(
@@ -134,10 +134,15 @@ const StudentCourseSwitcher = ({ onAddCourse }: StudentCourseSwitcherProps) => {
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm">{c.name}</p>
-                      {c.course_code && (
+                      {c.suspended ? (
+                        <p className="truncate text-[10px] text-destructive">
+                          Suspended — contact your professor
+                        </p>
+                      ) : c.course_code ? (
                         <p className="truncate text-[10px] text-muted-foreground">{c.course_code}</p>
-                      )}
+                      ) : null}
                     </div>
+
                   </CommandItem>
                 ))}
               </CommandGroup>
