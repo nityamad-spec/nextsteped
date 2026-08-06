@@ -16,6 +16,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User, BarChart3, Dumbbell, ListChecks, GraduationCap, FolderSearch } from "lucide-react";
 import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
+import { saveReasoningRows } from "@/hooks/useReasoningAnswers";
+import { buildReasoningRows } from "@/lib/buildReasoningRows";
 import ExamHistory from "@/components/ExamHistory";
 import ExamPrepPanel, { ExamCustomSettings } from "@/components/ExamPrepPanel";
 import type { Question } from "@/data/questionBank";
