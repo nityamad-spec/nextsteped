@@ -25,6 +25,8 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { loggedGatewayFetch } from "../_shared/ai-log.ts";
+const FUNCTION_NAME = "recommend-additional-concepts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -149,7 +151,9 @@ ${syllabusBlock}
 
 Suggest additional concepts to recommend.`;
 
-    const aiResp = await fetch(
+    const aiResp = await loggedGatewayFetch(
+      FUNCTION_NAME,
+      { model: "google/gemini-2.5-pro", purpose: "recommend-concepts", course_id: courseId ?? null },
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",

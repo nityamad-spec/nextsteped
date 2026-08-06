@@ -26,6 +26,8 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { loggedGatewayFetch } from "../_shared/ai-log.ts";
+const FUNCTION_NAME = "generate-exam-questions";
 import {
   normalizeAnswer,
   validateStructural,
@@ -286,7 +288,7 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 - POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
 
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await loggedGatewayFetch(FUNCTION_NAME, { model: MODEL, purpose: "exam-questions" }, "https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       signal: AbortSignal.timeout(300_000),
       headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },

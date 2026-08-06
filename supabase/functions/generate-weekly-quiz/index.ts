@@ -30,6 +30,8 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { loggedGatewayFetch } from "../_shared/ai-log.ts";
+const FUNCTION_NAME = "generate-weekly-quiz";
 import {
   auditBatchQuotas,
   dedupWithin,
@@ -401,7 +403,7 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
     if (remainingBudget < 4_000) break outer;
     const callTimeoutMs = Math.max(4_000, Math.min(spec.perCallTimeoutMs, remainingBudget));
     try {
-      response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      response = await loggedGatewayFetch(FUNCTION_NAME, { model: MODEL, purpose: `weekly-quiz:${spec.tier}`, attempt: attempt + 1 }, "https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         signal: AbortSignal.timeout(callTimeoutMs),
         headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
