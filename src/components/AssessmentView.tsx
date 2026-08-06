@@ -723,9 +723,11 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                 </Button>
 
                 {(() => {
+                  const currentRef = reasoningRefs[safeIndex];
+                  const blocked = reasoning.isQuestionBlocked(currentRef);
                   return isLast ? (
                     <Button
-                      onClick={handleFinish}
+                      onClick={attemptFinish}
                       className="gap-2 px-6"
                       disabled={answeredCount === 0}
                     >
@@ -735,6 +737,13 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                   ) : (
                     <Button
                       onClick={() => {
+                        if (blocked) {
+                          reasoning.setShowErrors(true);
+                          toast.error("Reasoning required", {
+                            description: "Explain your reasoning for this question before moving on.",
+                          });
+                          return;
+                        }
                         const currentQid = questions[safeIndex]?.id;
                         flushTimeFor(currentQid);
                         if (currentQid && answers[currentQid] !== undefined) {
@@ -762,7 +771,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
 
               <div className="flex justify-center pt-4 pb-8">
                 <Button
-                  onClick={handleFinish}
+                  onClick={attemptFinish}
                   size="lg"
                   className="gap-2 px-8"
                   disabled={answeredCount === 0}
