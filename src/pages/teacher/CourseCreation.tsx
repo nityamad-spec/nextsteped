@@ -1700,8 +1700,6 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                 </SortableContext>
                               )}
                             </ConceptDropZone>
-
-                            )}
                           </section>
 
                           {/* Resources */}
