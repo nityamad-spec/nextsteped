@@ -426,6 +426,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [editingOverviewId, setEditingOverviewId] = useState<string | null>(null);
   const [editOverviewValue, setEditOverviewValue] = useState("");
   const [editingConceptId, setEditingConceptId] = useState<string | null>(null);
+  const [activeConceptId, setActiveConceptId] = useState<string | null>(null);
+
   const [editConceptName, setEditConceptName] = useState("");
   const [editConceptDesc, setEditConceptDesc] = useState("");
   const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
