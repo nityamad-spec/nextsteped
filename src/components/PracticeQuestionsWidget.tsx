@@ -570,6 +570,16 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
           )}
 
 
+          {requiresReasoning(currentQuestion.bloom_level) && (
+            <ReasoningInput
+              questionId={currentQuestion.id}
+              value={reasoning.rationales[currentQuestion.id] ?? ""}
+              onChange={reasoning.setRationale}
+              showError={reasoning.showErrors}
+              disabled={isRevealed}
+            />
+          )}
+
           {isAnswered && !isRevealed && (
             <Button onClick={handleReveal} className="w-full gap-2">
               <CheckCircle className="h-4 w-4" /> Check Answer
