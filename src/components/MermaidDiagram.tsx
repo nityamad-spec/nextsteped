@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import mermaid from "mermaid";
+import { sanitizeMermaid } from "@/lib/mermaidSanitize";
 
 let initialized = false;
 function ensureInit() {
@@ -24,18 +25,6 @@ const EDGE_RE = /-->|---|==>|-\.->|<--|->>|-->>/;
 // Rough node-id matcher: identifiers optionally followed by [..] (..) {..} etc.
 const NODE_ID_RE = /\b([A-Za-z_][\w-]*)\s*(?:\[|\(|\{|>|\/)/g;
 
-function sanitizeMermaid(input: string): string {
-  let src = input.trim();
-  src = src.replace(/%%\{[\s\S]*?\}%%/g, "");
-  src = src.replace(/^\s*%%.*$/gm, "");
-  const lines = src.split("\n").filter((raw) => {
-    const l = raw.trim();
-    if (!l) return true;
-    if (/^(classDef|style|linkStyle)\b/i.test(l)) return false;
-    return true;
-  });
-  return lines.map((l) => l.replace(/:::[A-Za-z_][\w-]*/g, "")).join("\n").trim();
-}
 
 function hasEnoughStructure(source: string): boolean {
   const body = source.split("\n").slice(1).join("\n");
