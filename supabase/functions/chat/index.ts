@@ -425,8 +425,15 @@ serve(async (req) => {
       courseId,
       studentId,
       grounding: groundingRaw,
+      conversational: conversationalRaw,
     } = await req.json();
     const grounding: "rag" | "general" = groundingRaw === "general" ? "general" : "rag";
+    const lastUserMessage: string = messages?.[messages.length - 1]?.content ?? "";
+    // Filler / small-talk turns ("ok", "sounds good", "what's next") must never
+    // trigger RAG grounding or the off-topic refusal — the model just continues
+    // the conversation. Client flag OR server-side heuristic (safety net).
+    const isConversational = conversationalRaw === true || isConversationalFiller(lastUserMessage);
+
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
