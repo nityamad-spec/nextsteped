@@ -405,8 +405,10 @@ const AdminStudents = () => {
           : s.courses;
         if (!pool.some(c => c.mastery && masteryFilter.has(c.mastery))) return false;
       }
-      if (statusFilter === "active" && s.suspended_at) return false;
-      if (statusFilter === "suspended" && !s.suspended_at) return false;
+      const anySuspended = !!s.suspended_at || s.courses.some(c => c.suspendedAt);
+      if (statusFilter === "active" && anySuspended) return false;
+      if (statusFilter === "suspended" && !anySuspended) return false;
+
       return true;
     });
   }, [students, search, courseFilter, masteryFilter, statusFilter]);
