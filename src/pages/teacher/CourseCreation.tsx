@@ -1565,7 +1565,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   {(controls) => (
                   <Card className={`overflow-hidden transition-all ${isExpanded ? "shadow-md" : ""} ${w.is_exam_week ? "border-amber-500/40" : ""}`}>
                     {/* Header */}
-                    <div className="flex items-center gap-1 px-2">
+                    <ConceptDropZone id={`hdr:${w.id}`} disabled={w.is_exam_week} dragging={!!activeConceptId} className="flex items-center gap-1 px-2">
                       <span
                         role="button"
                         aria-label="Drag to reorder week"
