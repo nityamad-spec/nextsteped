@@ -492,37 +492,7 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
       }
     }
 
-    // ---- RAG grounding from uploaded course materials ----
-    // Retrieval-augmented answers cite the course's PDFs. If the top chunk is
-    // below the similarity threshold, we return a fallback prompt so the UI
-    // can ask the user whether to answer from general knowledge instead.
-    let materialsContext = "";
-    let materialsInsufficient = false;
-    let ragSources: RagSource[] = [];
-    if (grounding === "rag" && courseId) {
-      const latestUserMessage = (messages?.[messages.length - 1]?.content || "").toString();
-      if (latestUserMessage.trim()) {
-        try {
-          const chunks = await retrieveContext({ courseId, query: latestUserMessage, topK: 5 });
-          const grounded = buildMaterialsGrounding(chunks, SIM_THRESHOLD);
-          if (grounded.needsFallback) {
-            materialsInsufficient = true;
-          } else {
-            materialsContext = grounded.materialsContext;
-            ragSources = grounded.sources;
-          }
-        } catch (e) {
-          console.warn("RAG retrieval failed:", e);
-        }
-      }
-    }
-
-    // Short-circuit: ask the client to prompt the user for a general-knowledge answer.
-    if (materialsInsufficient) {
-      return new Response(JSON.stringify({ needs_fallback: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+This is the code on how my chatbot should respond to students. The issue here is that when students are responding with things like "make sense" or "what should I do next," it's asking the user if it should resort to a general knowledge answer or not. 
 
 
 
