@@ -61,6 +61,8 @@ interface TierSpec {
   perCallTimeoutMs: number; // per-sub-call abort timeout
   maxAttempts: number; // tier-level retry budget (counts sub-calls + skew/dedup refills)
   reserveExtras: number; // over-generate this many primaries beyond count as a fallback pool
+  /** Accepted difficulty half-width around `difficulty`. Defaults to 0.15. */
+  band?: number;
                           // for the Phase-2 follow-up coverage rule (drop+backfill).
 }
 
