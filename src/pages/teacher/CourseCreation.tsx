@@ -878,6 +878,20 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     setEditingOverviewId(null);
   };
 
+  // ─── Week name ───
+  const startEditWeekName = (w: WeekPlan) => {
+    setEditingWeekNameId(w.id);
+    setEditWeekNameValue(w.week_name || "");
+  };
+  const saveWeekName = () => {
+    if (!editingWeekNameId) return;
+    const value = editWeekNameValue.trim();
+    setWeeks(prev => prev.map(w => w.id === editingWeekNameId ? { ...w, week_name: value } : w));
+    setEditingWeekNameId(null);
+    setPublished(false);
+  };
+
+
   // ─── Concept handlers ───
   const startEditConcept = (c: Concept) => {
     setEditingConceptId(c.id);
