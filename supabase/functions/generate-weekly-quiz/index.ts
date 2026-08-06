@@ -236,7 +236,7 @@ function validateCandidate(
 
   const diffRes = validateDifficulty((raw as any)?.difficulty_estimate, {
     midpoint: spec.difficulty,
-    band: 0.15,
+    band: spec.band ?? 0.15,
   });
   if (!diffRes.ok) return diffRes;
   const difficulty_estimate = diffRes.value;
