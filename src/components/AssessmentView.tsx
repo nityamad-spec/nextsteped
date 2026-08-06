@@ -78,6 +78,13 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   // confidence collection removed for quizzes/exams
   const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
   const questionStartRef = useRef<number>(Date.now());
+  const reasoning = useReasoningAnswers();
+
+  const bloomFor = useCallback(
+    (qid: string) => Number(questionMeta?.get(qid)?.bloom ?? 1),
+    [questionMeta],
+  );
+  const reasoningRefs = questions.map((q) => ({ id: q.id, bloom: bloomFor(q.id) }));
 
 
   // Helper: flush elapsed time onto a question id
