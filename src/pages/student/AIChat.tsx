@@ -712,14 +712,28 @@ const AIChat = () => {
       }).select("id").single();
       if (error) {
         console.error("Failed to save assessment results:", error);
-      } else if (enrolledCourseId) {
-        void invokeUpdateMastery({
-          courseId: enrolledCourseId,
-          source: assessmentType === "quiz" ? "weekly_quiz" : "exam",
-          sourceId: insertedAssessment?.id ?? null,
-          answers: results.answers ?? [],
-          questionMeta: assessmentQuestionMeta,
-        });
+      } else {
+        void saveReasoningRows(
+          buildReasoningRows({
+            studentId: user.id,
+            courseId: enrolledCourseId || null,
+            sourceFormat: assessmentType === "quiz" ? "weekly_quiz" : "exam",
+            questionSource: "assessment_questions",
+            sourceResultId: insertedAssessment?.id ?? null,
+            answers: results.answers ?? [],
+            rationales: results.rationales ?? {},
+            bloomFor: (qid) => Number(assessmentQuestionMeta.get(qid)?.bloom ?? 1),
+          }),
+        );
+        if (enrolledCourseId) {
+          void invokeUpdateMastery({
+            courseId: enrolledCourseId,
+            source: assessmentType === "quiz" ? "weekly_quiz" : "exam",
+            sourceId: insertedAssessment?.id ?? null,
+            answers: results.answers ?? [],
+            questionMeta: assessmentQuestionMeta,
+          });
+        }
       }
     }
 
