@@ -56,11 +56,12 @@ const WELCOME_EXAM = "**Exam Prep Mode Active**\n\nWelcome to exam preparation. 
 
 type PromptMode = "materials";
 type PromptAction = "practice" | "populate";
-const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string; promptMode?: PromptMode; action?: PromptAction }[] = [
-  { icon: BookOpen, label: "Explain a concept", prompt: "Explain this week's key concept in simple terms with an example." },
+const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string; promptTemplate?: string; promptMode?: PromptMode; action?: PromptAction }[] = [
+  { icon: BookOpen, label: "Explain a concept", prompt: "Explain a unit's key concept in simple terms.", promptTemplate: `Explain the key concept "{topic}" from this unit in simple terms with an example.`, action: "populate" },
   { icon: ListChecks, label: "Quiz me", prompt: "Open Practice Questions to generate a quiz on your recent topics.", action: "practice" },
-  { icon: FolderSearch, label: "Search course materials", prompt: "Find and explain information from materials uploaded by my professor on topic X.", promptMode: "materials", action: "populate" },
+  { icon: FolderSearch, label: "Search course materials", prompt: "Find and explain information from materials uploaded by my professor on topic X.", promptTemplate: "Find and explain information from materials uploaded by my professor on topic {topic}.", promptMode: "materials", action: "populate" },
   { icon: GraduationCap, label: "Prep for the exam", prompt: "What topics should I focus on for the upcoming exam, and how should I study them?" },
+
 ];
 
 async function invokeUpdateMastery(args: {
