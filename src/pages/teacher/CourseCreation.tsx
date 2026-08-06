@@ -1655,7 +1655,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                           {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                         </div>
                       </div>
-                    </div>
+                    </ConceptDropZone>
 
 
                     {/* Expanded body */}
