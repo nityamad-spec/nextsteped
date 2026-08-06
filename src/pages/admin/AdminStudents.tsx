@@ -1019,6 +1019,97 @@ const AdminStudents = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Per-course suspension (single student) */}
+      <AlertDialog open={!!courseTarget} onOpenChange={(o) => { if (!o && !courseBusy) setCourseTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {courseTarget?.course.suspendedAt ? "Restore course access?" : "Suspend course access?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {courseTarget?.course.suspendedAt ? (
+                <>
+                  <span className="font-medium text-foreground">{courseTarget?.student.name}</span> will be able to
+                  open <span className="font-medium text-foreground">{courseTarget?.course.name}</span> again.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-foreground">{courseTarget?.student.name}</span> will be blocked
+                  from <span className="font-medium text-foreground">{courseTarget?.course.name}</span> only. They can
+                  still sign in and use their other courses. All data is preserved.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={courseBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleCourseSuspendToggle(); }}
+              disabled={courseBusy}
+              className={courseTarget?.course.suspendedAt ? "" : "bg-destructive text-destructive-foreground hover:bg-destructive/90"}
+            >
+              {courseBusy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {courseTarget?.course.suspendedAt ? "Reactivate" : "Suspend"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Per-course suspension (bulk) */}
+      <AlertDialog open={!!bulkCourseAction} onOpenChange={(o) => { if (!o && !bulkRunning) setBulkCourseAction(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkCourseAction === "suspend" ? "Suspend selected students in a course" : "Reactivate selected students in a course"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Pick the course. Only the selected students enrolled in it are affected — their access to other
+                  courses stays unchanged.
+                </p>
+                <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
+                  {courseIdOptions.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setBulkCourseId(c.id)}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50",
+                        bulkCourseId === c.id && "bg-muted",
+                      )}
+                    >
+                      <span className="truncate text-foreground">{c.name}</span>
+                      {bulkCourseId === c.id && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                    </button>
+                  ))}
+                  {courseIdOptions.length === 0 && (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">No courses found.</p>
+                  )}
+                </div>
+                {bulkCourseId && (
+                  <p className="text-xs text-muted-foreground">
+                    {bulkCourseTargets.length} of {selectedInFiltered.length} selected student
+                    {selectedInFiltered.length === 1 ? "" : "s"} will change.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkRunning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); runBulkCourse(); }}
+              disabled={bulkRunning || !bulkCourseId || bulkCourseTargets.length === 0}
+              className={bulkCourseAction === "suspend" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+            >
+              {bulkRunning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {bulkCourseAction === "suspend" ? "Suspend in course" : "Reactivate in course"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       <StudentProfileDialog
         student={profileTarget}
