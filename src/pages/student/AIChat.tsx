@@ -266,7 +266,7 @@ const AIChat = () => {
     loadPracticeHistory();
   }, [loadPracticeHistory]);
 
-  const handlePracticeResult = async (result: { score: number; totalQuestions: number; correctAnswers: number; answers: any[]; timeSpent: number }) => {
+  const handlePracticeResult = async (result: { score: number; totalQuestions: number; correctAnswers: number; answers: any[]; timeSpent: number; rationales?: Record<string, string> }) => {
     if (!user || !enrolledCourseId) return;
     try {
       const { data: inserted } = await supabase.from("assessment_results").insert({
@@ -290,6 +290,20 @@ const AIChat = () => {
           });
         }
       }
+
+      void saveReasoningRows(
+        buildReasoningRows({
+          studentId: user.id,
+          courseId: enrolledCourseId,
+          sourceFormat: "practice",
+          questionSource: "generated",
+          sourceResultId: inserted?.id ?? null,
+          answers: result.answers ?? [],
+          rationales: result.rationales ?? {},
+          bloomFor: (qid) => Number(questionMeta.get(qid)?.bloom ?? 1),
+        }),
+      );
+
 
       void invokeUpdateMastery({
         courseId: enrolledCourseId,
