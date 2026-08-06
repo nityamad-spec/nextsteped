@@ -92,6 +92,7 @@ function mapRow(row: any): QuizQuestion {
 const DiagnosticQuiz = () => {
   const { studentProfile, setStudentProfile, setDiagnosticComplete } = useApp();
   const { user } = useAuth();
+  const reasoning = useReasoningAnswers();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const courseParam = searchParams.get("course");
