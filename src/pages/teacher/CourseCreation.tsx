@@ -146,11 +146,24 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   // Weekly-quiz generation state
   const [generatingQuizWeek, setGeneratingQuizWeek] = useState<number | null>(null);
   const [quizGenerated, setQuizGenerated] = useState<Record<number, number>>({});
+  const [quizTierCounts, setQuizTierCounts] = useState<Record<number, Record<string, number>>>({});
   const [reviewQuizWeek, setReviewQuizWeek] = useState<WeekPlan | null>(null);
   const [quizElapsed, setQuizElapsed] = useState(0);
 
   const QUIZ_TIERS = ["Standard", "Easy", "Medium", "Hard"] as const;
   const QUIZ_ESTIMATED_SECONDS = 35;
+  const QUIZ_TIER_TARGET = 5;
+  const QUIZ_TIER_KEYS = ["standard", "easy", "medium", "hard"] as const;
+  const QUIZ_TOTAL_EXPECTED = QUIZ_TIER_TARGET * QUIZ_TIER_KEYS.length;
+
+  /** Per-tier shortfall for a week, based on the stored tier counts. */
+  const quizShortfall = (weekNo: number): { tier: string; missing: number }[] => {
+    const counts = quizTierCounts[weekNo];
+    if (!counts) return [];
+    return QUIZ_TIER_KEYS
+      .map((t) => ({ tier: t, missing: QUIZ_TIER_TARGET - (counts[t] ?? 0) }))
+      .filter((x) => x.missing > 0);
+  };
 
   // Tick the elapsed timer while a weekly quiz is generating
   useEffect(() => {
@@ -180,21 +193,25 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     (async () => {
       const { data, error } = await supabase
         .from("assessment_questions")
-        .select("quiz_day")
+        .select("quiz_day, tier")
         .eq("course_id", courseId)
         .eq("mode", "daily_quiz");
       if (cancelled || error || !data) return;
       const counts: Record<number, number> = {};
-      for (const r of data as { quiz_day: number | null }[]) {
+      const tiers: Record<number, Record<string, number>> = {};
+      for (const r of data as { quiz_day: number | null; tier: string | null }[]) {
         if (r.quiz_day == null) continue;
         counts[r.quiz_day] = (counts[r.quiz_day] ?? 0) + 1;
+        const t = r.tier ?? "standard";
+        tiers[r.quiz_day] = { ...(tiers[r.quiz_day] ?? {}), [t]: ((tiers[r.quiz_day]?.[t]) ?? 0) + 1 };
       }
       setQuizGenerated(counts);
+      setQuizTierCounts(tiers);
     })();
     return () => { cancelled = true; };
   }, [courseId]);
 
-  const handleGenerateWeeklyQuiz = useCallback(async (week: WeekPlan) => {
+  const handleGenerateWeeklyQuiz = useCallback(async (week: WeekPlan, opts?: { topUp?: boolean }) => {
     if (!courseId) {
       toast({ title: "Course not ready", description: "Reload and try again.", variant: "destructive" });
       return;
@@ -240,7 +257,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           Authorization: `Bearer ${accessToken}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
         },
-        body: JSON.stringify({ course_id: courseId, week_number: week.week }),
+        body: JSON.stringify({ course_id: courseId, week_number: week.week, top_up: !!opts?.topUp }),
       });
       if (!resp.ok || !resp.body) {
         const text = await resp.text().catch(() => "");
@@ -272,9 +289,19 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       if (finalFrame.type === "error") throw new Error(finalFrame.message || "Quiz generation failed");
       const data = finalFrame.payload ?? {};
       if ((data as any)?.error) throw new Error((data as any).error);
-      const count = Number((data as any)?.generated ?? 0);
-      setQuizGenerated((prev) => ({ ...prev, [week.week]: count }));
-      toast({ title: "Weekly quiz generated", description: `${count} questions ready for Week ${week.week}.` });
+      const byTier = ((data as any)?.by_tier ?? {}) as Record<string, number>;
+      const total = Number((data as any)?.total ?? (data as any)?.generated ?? 0);
+      const requested = Number((data as any)?.requested ?? QUIZ_TOTAL_EXPECTED);
+      setQuizGenerated((prev) => ({ ...prev, [week.week]: total }));
+      setQuizTierCounts((prev) => ({ ...prev, [week.week]: byTier }));
+      if (total < requested) {
+        toast({
+          title: "Quiz partially generated",
+          description: `${total}/${requested} questions ready for Week ${week.week}. Use "Top up" to generate the rest.`,
+        });
+      } else {
+        toast({ title: "Weekly quiz generated", description: `${total} questions ready for Week ${week.week}.` });
+      }
     } catch (err: any) {
       toast({
         title: "Failed to generate quiz",
@@ -1792,11 +1819,39 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                               >
                                 <FileText className="h-3 w-3" /> View Quiz Questions
                               </Button>
-                              {quizGenerated[w.week] > 0 && (
-                                <span className="text-[11px] text-muted-foreground ml-1">
-                                  {quizGenerated[w.week]} questions ready
-                                </span>
-                              )}
+                              {quizGenerated[w.week] > 0 && (() => {
+                                const short = quizShortfall(w.week);
+                                const missingTotal = short.reduce((s2, x) => s2 + x.missing, 0);
+                                if (missingTotal === 0) {
+                                  return (
+                                    <span className="text-[11px] text-muted-foreground ml-1">
+                                      {quizGenerated[w.week]} questions ready
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <>
+                                    <span className="text-[11px] text-amber-600 dark:text-amber-500 ml-1">
+                                      {quizGenerated[w.week]}/{QUIZ_TOTAL_EXPECTED} ready —{" "}
+                                      {short.map((x) => `${x.missing} ${x.tier}`).join(", ")} missing
+                                    </span>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 text-xs gap-1"
+                                      onClick={() => handleGenerateWeeklyQuiz(w, { topUp: true })}
+                                      disabled={generatingQuizWeek === w.week}
+                                    >
+                                      {generatingQuizWeek === w.week ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <Sparkles className="h-3 w-3" />
+                                      )}
+                                      Top up {missingTotal} missing
+                                    </Button>
+                                  </>
+                                );
+                              })()}
                             </div>
 
                             {generatingQuizWeek === w.week && (
