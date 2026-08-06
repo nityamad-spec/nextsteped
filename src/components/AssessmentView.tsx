@@ -11,6 +11,10 @@ import { CheckCircle, XCircle, Clock, Trophy, ClipboardList, GraduationCap, Shie
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { computeWeeklyQuizScore, type ScoreItem } from "@/lib/masteryScoring";
+import ReasoningInput from "@/components/ReasoningInput";
+import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
+import { requiresReasoning } from "@/lib/reasoning";
+import { toast } from "sonner";
 
 interface AssessmentViewProps {
   type: "quiz" | "exam";
@@ -55,6 +59,8 @@ export interface AssessmentResults {
   timeSpent: number;
   confidences?: Record<string, ConfidenceLevel>;
   questionTimes: Record<string, number>;
+  /** Mandatory rationales captured for Bloom 3+ questions, keyed by question id. */
+  rationales?: Record<string, string>;
 }
 
 type Phase = "intro" | "active" | "review";
@@ -72,6 +78,13 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   // confidence collection removed for quizzes/exams
   const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
   const questionStartRef = useRef<number>(Date.now());
+  const reasoning = useReasoningAnswers();
+
+  const bloomFor = useCallback(
+    (qid: string) => Number(questionMeta?.get(qid)?.bloom ?? 1),
+    [questionMeta],
+  );
+  const reasoningRefs = questions.map((q) => ({ id: q.id, bloom: bloomFor(q.id) }));
 
 
   // Helper: flush elapsed time onto a question id
@@ -210,6 +223,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       answers: standardised,
       timeSpent: timeLimitMinutes * 60 - timeLeft,
       questionTimes: finalTimes,
+      rationales: reasoning.rationales,
     };
     setResults(res);
     setPhase("review");
@@ -220,7 +234,29 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     setExpandedQuestions(wrongIndices);
 
     fetchExplanations(standardised);
-  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex, questionMeta, type]);
+  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex, questionMeta, type, reasoning.rationales]);
+
+  /**
+   * Manual submit path — enforces the mandatory rationale on Bloom 3+ questions.
+   * The timer's auto-submit calls handleFinish directly so a timeout can never
+   * trap the student.
+   */
+  const attemptFinish = useCallback(() => {
+    const missing = reasoning.missingReasoning(reasoningRefs);
+    if (missing.length > 0) {
+      reasoning.setShowErrors(true);
+      const numbers = missing
+        .map((id) => questions.findIndex((q) => q.id === id) + 1)
+        .filter((n) => n > 0)
+        .sort((a, b) => a - b);
+      if (type === "quiz" && numbers.length > 0) setCurrentIndex(numbers[0] - 1);
+      toast.error("Reasoning required", {
+        description: `Explain your reasoning for question${numbers.length > 1 ? "s" : ""} ${numbers.join(", ")} before submitting.`,
+      });
+      return;
+    }
+    handleFinish();
+  }, [reasoning, reasoningRefs, questions, handleFinish, type]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
@@ -357,6 +393,15 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
               className="min-h-[140px] font-mono text-sm"
             />
           </div>
+        )}
+
+        {requiresReasoning(bloomFor(q.id)) && (
+          <ReasoningInput
+            questionId={q.id}
+            value={reasoning.rationales[q.id] ?? ""}
+            onChange={reasoning.setRationale}
+            showError={reasoning.showErrors}
+          />
         )}
 
         {/* Confidence selector removed — not collected for quizzes/exams */}
@@ -678,9 +723,11 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                 </Button>
 
                 {(() => {
+                  const currentRef = reasoningRefs[safeIndex];
+                  const blocked = reasoning.isQuestionBlocked(currentRef);
                   return isLast ? (
                     <Button
-                      onClick={handleFinish}
+                      onClick={attemptFinish}
                       className="gap-2 px-6"
                       disabled={answeredCount === 0}
                     >
@@ -690,6 +737,13 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                   ) : (
                     <Button
                       onClick={() => {
+                        if (blocked) {
+                          reasoning.setShowErrors(true);
+                          toast.error("Reasoning required", {
+                            description: "Explain your reasoning for this question before moving on.",
+                          });
+                          return;
+                        }
                         const currentQid = questions[safeIndex]?.id;
                         flushTimeFor(currentQid);
                         if (currentQid && answers[currentQid] !== undefined) {
@@ -717,7 +771,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
 
               <div className="flex justify-center pt-4 pb-8">
                 <Button
-                  onClick={handleFinish}
+                  onClick={attemptFinish}
                   size="lg"
                   className="gap-2 px-8"
                   disabled={answeredCount === 0}

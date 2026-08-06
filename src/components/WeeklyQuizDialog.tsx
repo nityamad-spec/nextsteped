@@ -7,6 +7,8 @@ import { seededShuffle } from "@/lib/seededShuffle";
 import type { Question } from "@/data/questionBank";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import type { Json } from "@/integrations/supabase/types";
+import { saveReasoningRows } from "@/hooks/useReasoningAnswers";
+import { buildReasoningRows } from "@/lib/buildReasoningRows";
 
 interface Props {
   open: boolean;
@@ -206,6 +208,18 @@ const WeeklyQuizDialog = ({
         answers: results.answers ?? [],
         questionMeta,
       });
+      void saveReasoningRows(
+        buildReasoningRows({
+          studentId,
+          courseId,
+          sourceFormat: "weekly_quiz",
+          questionSource: "assessment_questions",
+          sourceResultId: inserted?.id ?? null,
+          answers: results.answers ?? [],
+          rationales: results.rationales ?? {},
+          bloomFor: (qid) => Number(questionMeta.get(qid)?.bloom ?? 1),
+        }),
+      );
     } catch (e) {
       console.error("Quiz submit error:", e);
     }

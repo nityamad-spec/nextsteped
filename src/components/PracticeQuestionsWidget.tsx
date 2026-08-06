@@ -25,6 +25,10 @@ interface PracticeResult {
   answers?: any[];
 }
 
+import ReasoningInput from "@/components/ReasoningInput";
+import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
+import { requiresReasoning } from "@/lib/reasoning";
+
 interface PracticeQuestionsWidgetProps {
   onClose: () => void;
   onSaveResult?: (result: {
@@ -33,6 +37,7 @@ interface PracticeQuestionsWidgetProps {
     correctAnswers: number;
     answers: any[];
     timeSpent: number;
+    rationales?: Record<string, string>;
   }) => void;
   practiceHistory?: PracticeResult[];
   courseContext?: {
@@ -70,6 +75,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   const [showHistory, setShowHistory] = useState(false);
   const [startTime] = useState(Date.now());
   const [reviewingSession, setReviewingSession] = useState<PracticeResult | null>(null);
+  const reasoning = useReasoningAnswers();
 
   useEffect(() => {
     if (!initialReviewSessionId) return;
@@ -113,6 +119,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
       setAnswers({});
       setRevealed(new Set());
       setResults(null);
+      reasoning.reset();
       setPhase("active");
     } catch (e) {
       console.error("Failed to generate practice questions:", e);
@@ -132,6 +139,14 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
 
   const handleReveal = () => {
     if (!currentQuestion || !answers[currentQuestion.id]) return;
+    if (reasoning.isQuestionBlocked({ id: currentQuestion.id, bloom: currentQuestion.bloom_level })) {
+      reasoning.setShowErrors(true);
+      toast.error("Reasoning required", {
+        description: "Explain your reasoning before checking the answer.",
+      });
+      return;
+    }
+    reasoning.setShowErrors(false);
     setRevealed(prev => new Set(prev).add(currentQuestion.id));
   };
 
@@ -168,6 +183,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
         correctAnswers: correct,
         answers: answerDetails,
         timeSpent: Math.round((Date.now() - startTime) / 1000),
+        rationales: reasoning.rationales,
       });
     }
   };
@@ -569,6 +585,16 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
             </div>
           )}
 
+
+          {requiresReasoning(currentQuestion.bloom_level) && (
+            <ReasoningInput
+              questionId={currentQuestion.id}
+              value={reasoning.rationales[currentQuestion.id] ?? ""}
+              onChange={reasoning.setRationale}
+              showError={reasoning.showErrors}
+              disabled={isRevealed}
+            />
+          )}
 
           {isAnswered && !isRevealed && (
             <Button onClick={handleReveal} className="w-full gap-2">

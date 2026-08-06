@@ -1799,6 +1799,72 @@ export type Database = {
         }
         Relationships: []
       }
+      student_answer_rationales: {
+        Row: {
+          bloom_level: number
+          course_id: string | null
+          created_at: string
+          id: string
+          is_correct: boolean | null
+          question_id: string
+          question_source: string
+          rationale_text: string
+          selected_answer: string | null
+          source_format: string
+          source_result_id: string | null
+          student_id: string
+          topic: string | null
+          updated_at: string
+        }
+        Insert: {
+          bloom_level: number
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          is_correct?: boolean | null
+          question_id: string
+          question_source: string
+          rationale_text: string
+          selected_answer?: string | null
+          source_format: string
+          source_result_id?: string | null
+          student_id: string
+          topic?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bloom_level?: number
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          is_correct?: boolean | null
+          question_id?: string
+          question_source?: string
+          rationale_text?: string
+          selected_answer?: string | null
+          source_format?: string
+          source_result_id?: string | null
+          student_id?: string
+          topic?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_answer_rationales_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_answer_rationales_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_concept_mastery: {
         Row: {
           concept_code: string

@@ -34,6 +34,10 @@ import {
   // no longer imported client-side.
   type BranchTier,
 } from "@/lib/diagnosticBranching";
+import ReasoningInput from "@/components/ReasoningInput";
+import { useReasoningAnswers, saveReasoningRows } from "@/hooks/useReasoningAnswers";
+import { buildReasoningRows } from "@/lib/buildReasoningRows";
+import { requiresReasoning } from "@/lib/reasoning";
 
 
 interface QuizQuestion {
@@ -47,6 +51,7 @@ interface QuizQuestion {
   courseId: string;
   format: "mcq" | "true_false" | "short_answer";
   tier: "standard" | "easy" | "medium" | "hard";
+  bloomLevel: number;
 }
 
 const answerLetters = ["A", "B", "C", "D", "E", "F"];
@@ -83,6 +88,7 @@ function mapRow(row: any): QuizQuestion {
     courseId: row.course_id,
     format,
     tier: (row.tier as QuizQuestion["tier"]) || "standard",
+    bloomLevel: Math.min(6, Math.max(1, Math.round(Number(row.bloom_level) || 1))),
   };
 }
 
@@ -90,6 +96,7 @@ function mapRow(row: any): QuizQuestion {
 const DiagnosticQuiz = () => {
   const { studentProfile, setStudentProfile, setDiagnosticComplete } = useApp();
   const { user } = useAuth();
+  const reasoning = useReasoningAnswers();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const courseParam = searchParams.get("course");
@@ -325,6 +332,14 @@ const DiagnosticQuiz = () => {
 
   const handleAnswer = async () => {
     if (!canProceed) return;
+    if (reasoning.isQuestionBlocked({ id: question.id, bloom: question.bloomLevel })) {
+      reasoning.setShowErrors(true);
+      toast.error("Reasoning required", {
+        description: "Explain your reasoning for this question before moving on.",
+      });
+      return;
+    }
+    reasoning.setShowErrors(false);
     const elapsed = Date.now() - questionStartTime;
     const answerValue = isShortAnswer ? -1 : selected!;
     const newAnswers = [...answers, answerValue];
@@ -460,6 +475,20 @@ const DiagnosticQuiz = () => {
     if (studentProfile && level) {
       setStudentProfile({ ...studentProfile, learnerLevel: level });
     }
+
+    const bloomById = new Map(finalQuestions.map((q) => [q.id, q.bloomLevel]));
+    void saveReasoningRows(
+      buildReasoningRows({
+        studentId: user.id,
+        courseId: courseIdForSave,
+        sourceFormat: "diagnostic",
+        questionSource: "diagnostic_questions",
+        sourceResultId: (scored as { result_id?: string } | null)?.result_id ?? null,
+        answers: standardisedAnswers,
+        rationales: reasoning.rationales,
+        bloomFor: (qid) => bloomById.get(qid) ?? 1,
+      }),
+    );
 
     setSaving(false);
 
@@ -646,6 +675,16 @@ const DiagnosticQuiz = () => {
                 </div>
               )}
 
+              {requiresReasoning(question.bloomLevel) && (
+                <div className="mt-4">
+                  <ReasoningInput
+                    questionId={question.id}
+                    value={reasoning.rationales[question.id] ?? ""}
+                    onChange={reasoning.setRationale}
+                    showError={reasoning.showErrors}
+                  />
+                </div>
+              )}
             </motion.div>
             <div className="mt-4 flex justify-between">
               <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { setExitConfirmOpen(true); } }}>

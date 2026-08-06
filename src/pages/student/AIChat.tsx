@@ -16,6 +16,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User, BarChart3, Dumbbell, ListChecks, GraduationCap, FolderSearch } from "lucide-react";
 import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
+import { saveReasoningRows } from "@/hooks/useReasoningAnswers";
+import { buildReasoningRows } from "@/lib/buildReasoningRows";
 import ExamHistory from "@/components/ExamHistory";
 import ExamPrepPanel, { ExamCustomSettings } from "@/components/ExamPrepPanel";
 import type { Question } from "@/data/questionBank";
@@ -264,7 +266,7 @@ const AIChat = () => {
     loadPracticeHistory();
   }, [loadPracticeHistory]);
 
-  const handlePracticeResult = async (result: { score: number; totalQuestions: number; correctAnswers: number; answers: any[]; timeSpent: number }) => {
+  const handlePracticeResult = async (result: { score: number; totalQuestions: number; correctAnswers: number; answers: any[]; timeSpent: number; rationales?: Record<string, string> }) => {
     if (!user || !enrolledCourseId) return;
     try {
       const { data: inserted } = await supabase.from("assessment_results").insert({
@@ -288,6 +290,20 @@ const AIChat = () => {
           });
         }
       }
+
+      void saveReasoningRows(
+        buildReasoningRows({
+          studentId: user.id,
+          courseId: enrolledCourseId,
+          sourceFormat: "practice",
+          questionSource: "generated",
+          sourceResultId: inserted?.id ?? null,
+          answers: result.answers ?? [],
+          rationales: result.rationales ?? {},
+          bloomFor: (qid) => Number(questionMeta.get(qid)?.bloom ?? 1),
+        }),
+      );
+
 
       void invokeUpdateMastery({
         courseId: enrolledCourseId,
@@ -712,14 +728,28 @@ const AIChat = () => {
       }).select("id").single();
       if (error) {
         console.error("Failed to save assessment results:", error);
-      } else if (enrolledCourseId) {
-        void invokeUpdateMastery({
-          courseId: enrolledCourseId,
-          source: assessmentType === "quiz" ? "weekly_quiz" : "exam",
-          sourceId: insertedAssessment?.id ?? null,
-          answers: results.answers ?? [],
-          questionMeta: assessmentQuestionMeta,
-        });
+      } else {
+        void saveReasoningRows(
+          buildReasoningRows({
+            studentId: user.id,
+            courseId: enrolledCourseId || null,
+            sourceFormat: assessmentType === "quiz" ? "weekly_quiz" : "exam",
+            questionSource: "assessment_questions",
+            sourceResultId: insertedAssessment?.id ?? null,
+            answers: results.answers ?? [],
+            rationales: results.rationales ?? {},
+            bloomFor: (qid) => Number(assessmentQuestionMeta.get(qid)?.bloom ?? 1),
+          }),
+        );
+        if (enrolledCourseId) {
+          void invokeUpdateMastery({
+            courseId: enrolledCourseId,
+            source: assessmentType === "quiz" ? "weekly_quiz" : "exam",
+            sourceId: insertedAssessment?.id ?? null,
+            answers: results.answers ?? [],
+            questionMeta: assessmentQuestionMeta,
+          });
+        }
       }
     }
 
