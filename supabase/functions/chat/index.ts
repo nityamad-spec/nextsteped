@@ -664,7 +664,7 @@ PROFESSOR STYLE
     void userRole;
 
     // If the question was classified as off-topic, refuse and redirect
-    if (relevanceContext && relevanceContext.relevant === false && relevanceContext.courseName) {
+    if (!isConversational && relevanceContext && relevanceContext.relevant === false && relevanceContext.courseName) {
       const conceptsList = relevanceContext.concepts?.length
         ? ` Course concepts include: ${relevanceContext.concepts.join(", ")}.`
         : "";
