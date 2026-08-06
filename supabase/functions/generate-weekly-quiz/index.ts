@@ -113,6 +113,27 @@ const TIER_SPEC: TierSpec[] = [
   },
 ];
 
+/**
+ * Weeks with very few concepts cannot support 7 genuinely distinct hard
+ * questions inside a ±0.15 difficulty window — the dedup filter starves the
+ * tier. Widen the accepted bands (and soften the hard midpoint) when the week
+ * has fewer than 3 concepts. Bloom 3-4 for the hard tier is untouched, so hard
+ * stays clearly harder than medium.
+ */
+const CONCEPT_SCARCITY_THRESHOLD = 3;
+
+function buildTierSpec(conceptCount: number): TierSpec[] {
+  const scarce = conceptCount < CONCEPT_SCARCITY_THRESHOLD;
+  if (!scarce) return TIER_SPEC.map((s) => ({ ...s, band: 0.15 }));
+  return TIER_SPEC.map((s) =>
+    s.tier === "hard"
+      ? { ...s, difficulty: 0.78, band: 0.2 }
+      : { ...s, band: 0.2 },
+  );
+}
+
+
+
 
 const MODEL = "google/gemini-2.5-pro";
 // Global wall-clock budget. Targeting a ~300s Supabase edge invoke cap; leave
