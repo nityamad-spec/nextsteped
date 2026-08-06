@@ -421,7 +421,7 @@ const StudentHome = () => {
         icon: BookOpen,
         title: unexploredThisWeek.name,
         description: `Week ${currentWeek} — open a new chat to dig in`,
-        action: () => navigate(`/student/chat?newchat=true&concept=${encodeURIComponent(unexploredThisWeek.name)}`),
+        action: () => navigate(`/student/chat?newchat=true&intent=start&concept=${encodeURIComponent(unexploredThisWeek.name)}`),
         category: "START THIS WEEK",
         visualCategory: "continue",
         badgeLabel: "Continue learning",
