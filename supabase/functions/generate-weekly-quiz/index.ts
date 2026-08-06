@@ -607,6 +607,7 @@ async function run(
   const body = await req.json();
   const courseId = typeof body?.course_id === "string" ? body.course_id : null;
   const weekNumber = Number(body?.week_number);
+  const topUp = body?.top_up === true;
   if (!courseId || !Number.isInteger(weekNumber) || weekNumber < 1) {
     return { status: 400, payload: { error: "course_id and week_number required" } };
   }
