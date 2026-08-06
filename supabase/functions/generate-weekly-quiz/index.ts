@@ -931,8 +931,10 @@ async function run(
     payload: {
       ok: true,
       generated: primaryRows.length,
+      total: totalStored,
       requested: expected,
       partial,
+      top_up: topUp,
       by_tier: byTier,
       tier_errors: Object.keys(tierErrors).length ? tierErrors : undefined,
     },
