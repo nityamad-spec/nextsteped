@@ -47,6 +47,7 @@ interface QuizQuestion {
   courseId: string;
   format: "mcq" | "true_false" | "short_answer";
   tier: "standard" | "easy" | "medium" | "hard";
+  bloomLevel: number;
 }
 
 const answerLetters = ["A", "B", "C", "D", "E", "F"];
