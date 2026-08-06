@@ -84,6 +84,7 @@ function mapRow(row: any): QuizQuestion {
     courseId: row.course_id,
     format,
     tier: (row.tier as QuizQuestion["tier"]) || "standard",
+    bloomLevel: Math.min(6, Math.max(1, Math.round(Number(row.bloom_level) || 1))),
   };
 }
 
