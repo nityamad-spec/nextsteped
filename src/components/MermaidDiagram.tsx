@@ -104,7 +104,15 @@ export default function MermaidDiagram({ code }: Props) {
     };
   }, [code, domId]);
 
-  if (failed) return null;
+  // Render failed: show the source instead of an empty container so the answer
+  // never contains a blank dark strip.
+  if (failed) {
+    return (
+      <pre className="my-3 w-full overflow-x-auto rounded-md border border-border bg-muted p-3 text-xs text-muted-foreground">
+        <code>{code.trim()}</code>
+      </pre>
+    );
+  }
 
   return (
     <div
