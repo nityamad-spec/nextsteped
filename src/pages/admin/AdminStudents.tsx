@@ -85,7 +85,11 @@ interface CourseEnrollment {
   name: string;
   mastery: string | null;
   enrolledAt: string;
+  /** Profile id that owns this enrollment (students may have merged profiles). */
+  studentId: string;
+  suspendedAt: string | null;
 }
+
 
 interface StudentGroup {
   key: string;
@@ -128,6 +132,12 @@ const AdminStudents = () => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<"suspend" | "reactivate" | null>(null);
   const [bulkRunning, setBulkRunning] = useState(false);
+  // Per-course suspension
+  const [courseTarget, setCourseTarget] = useState<{ student: StudentGroup; course: CourseEnrollment } | null>(null);
+  const [courseBusy, setCourseBusy] = useState(false);
+  const [bulkCourseAction, setBulkCourseAction] = useState<"suspend" | "reactivate" | null>(null);
+  const [bulkCourseId, setBulkCourseId] = useState<string | null>(null);
+
 
   const { toast } = useToast();
 
@@ -177,8 +187,8 @@ const AdminStudents = () => {
       };
 
       const [allEnrollments, allMastery] = await Promise.all([
-        fetchAll<{ student_id: string; course_id: string; enrolled_at: string }>(
-          "enrollments", "student_id, course_id, enrolled_at", "student_id",
+        fetchAll<{ student_id: string; course_id: string; enrolled_at: string; suspended_at: string | null }>(
+          "enrollments", "student_id, course_id, enrolled_at, suspended_at", "student_id",
         ),
         fetchAll<{ student_id: string; course_id: string; learner_level: string }>(
           "student_course_mastery", "student_id, course_id, learner_level", "student_id",
@@ -207,8 +217,11 @@ const AdminStudents = () => {
           name: courseMap[e.course_id] || "Unknown",
           mastery: masteryMap.get(`${e.student_id}:${e.course_id}`) || null,
           enrolledAt: e.enrolled_at,
+          studentId: e.student_id,
+          suspendedAt: e.suspended_at ?? null,
         });
         enrollmentsByStudent.set(e.student_id, arr);
+
       });
 
       const groups = new Map<string, StudentGroup>();
@@ -303,11 +316,68 @@ const AdminStudents = () => {
     setSuspendTarget(null);
   };
 
+  /** Apply a course-level suspension to one enrollment and sync local state. */
+  const setEnrollmentSuspension = async (
+    studentKey: string,
+    studentId: string,
+    courseId: string,
+    suspend: boolean,
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const { data, error } = await supabase.functions.invoke("admin-set-enrollment-suspension", {
+      body: { student_id: studentId, course_id: courseId, suspended: suspend },
+    });
+    if (error || (data as any)?.error) {
+      return { ok: false, error: (data as any)?.error || error?.message || "Unknown error" };
+    }
+    const newVal = (data as any)?.suspended_at ?? null;
+    setStudents(prev => prev.map(s => s.key !== studentKey ? s : {
+      ...s,
+      courses: s.courses.map(c => c.courseId === courseId ? { ...c, suspendedAt: newVal } : c),
+    }));
+    return { ok: true };
+  };
+
+  const handleCourseSuspendToggle = async () => {
+    if (!courseTarget) return;
+    const { student, course } = courseTarget;
+    const willSuspend = !course.suspendedAt;
+    setCourseBusy(true);
+    const res = await setEnrollmentSuspension(student.key, course.studentId, course.courseId, willSuspend);
+    setCourseBusy(false);
+    if (!res.ok) {
+      toast({
+        title: willSuspend ? "Suspend failed" : "Reactivate failed",
+        description: res.error,
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({
+      title: willSuspend ? "Course access suspended" : "Course access restored",
+      description: willSuspend
+        ? `${student.name} can no longer access ${course.name}. Other courses are unaffected.`
+        : `${student.name} can access ${course.name} again.`,
+    });
+    setCourseTarget(null);
+  };
+
+
+
   const courseOptions = useMemo(() => {
     const s = new Set<string>();
     students.forEach(st => st.courses.forEach(c => s.add(c.name)));
     return [...s].sort((a, b) => a.localeCompare(b));
   }, [students]);
+
+  /** Distinct courses (id + name) across all students, for the bulk course picker. */
+  const courseIdOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    students.forEach(st => st.courses.forEach(c => m.set(c.courseId, c.name)));
+    return [...m.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [students]);
+
 
   const masteryOptions = useMemo(() => {
     const s = new Set<string>();
@@ -335,8 +405,10 @@ const AdminStudents = () => {
           : s.courses;
         if (!pool.some(c => c.mastery && masteryFilter.has(c.mastery))) return false;
       }
-      if (statusFilter === "active" && s.suspended_at) return false;
-      if (statusFilter === "suspended" && !s.suspended_at) return false;
+      const anySuspended = !!s.suspended_at || s.courses.some(c => c.suspendedAt);
+      if (statusFilter === "active" && anySuspended) return false;
+      if (statusFilter === "suspended" && !anySuspended) return false;
+
       return true;
     });
   }, [students, search, courseFilter, masteryFilter, statusFilter]);
@@ -433,6 +505,54 @@ const AdminStudents = () => {
       });
     }
   };
+
+  /** Selected students that are enrolled in the chosen course and need the change. */
+  const bulkCourseTargets = useMemo(() => {
+    if (!bulkCourseAction || !bulkCourseId) return [];
+    const willSuspend = bulkCourseAction === "suspend";
+    return selectedInFiltered
+      .map(s => ({ s, c: s.courses.find(c => c.courseId === bulkCourseId) }))
+      .filter((x): x is { s: StudentGroup; c: CourseEnrollment } =>
+        !!x.c && (willSuspend ? !x.c.suspendedAt : !!x.c.suspendedAt));
+  }, [selectedInFiltered, bulkCourseAction, bulkCourseId]);
+
+  const runBulkCourse = async () => {
+    if (!bulkCourseAction || !bulkCourseId) return;
+    const willSuspend = bulkCourseAction === "suspend";
+    const targets = bulkCourseTargets;
+    if (targets.length === 0) { setBulkCourseAction(null); return; }
+    setBulkRunning(true);
+    let ok = 0;
+    const failures: { name: string; err: string }[] = [];
+    const CONCURRENCY = 5;
+    for (let i = 0; i < targets.length; i += CONCURRENCY) {
+      const chunk = targets.slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(async ({ s, c }) => {
+        const res = await setEnrollmentSuspension(s.key, c.studentId, c.courseId, willSuspend);
+        if (res.ok) ok++; else failures.push({ name: s.name, err: res.error! });
+      }));
+    }
+    setBulkRunning(false);
+    setBulkCourseAction(null);
+    setSelected(new Set());
+    const courseName = courseIdOptions.find(c => c.id === bulkCourseId)?.name ?? "course";
+    if (failures.length === 0) {
+      toast({
+        title: willSuspend ? `Suspended ${ok} in ${courseName}` : `Reactivated ${ok} in ${courseName}`,
+        description: willSuspend
+          ? "Their access to other courses is unaffected."
+          : "They can access this course again.",
+      });
+    } else {
+      toast({
+        title: `${ok} succeeded, ${failures.length} failed`,
+        description: failures.slice(0, 3).map(f => `${f.name}: ${f.err}`).join("; ") + (failures.length > 3 ? `; …and ${failures.length - 3} more` : ""),
+        variant: "destructive",
+      });
+    }
+  };
+
+
 
 
   if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
@@ -568,6 +688,22 @@ const AdminStudents = () => {
                 Clear
               </Button>
               <div className="ml-auto flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1.5">
+                      <BookOpen className="h-3.5 w-3.5" /> Course access
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => { setBulkCourseId(null); setBulkCourseAction("suspend"); }}>
+                      <ShieldOff className="h-4 w-4 mr-2" /> Suspend in a course…
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { setBulkCourseId(null); setBulkCourseAction("reactivate"); }}>
+                      <ShieldCheck className="h-4 w-4 mr-2" /> Reactivate in a course…
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 {selectedHasActive && (
                   <Button
                     variant="destructive"
@@ -575,7 +711,7 @@ const AdminStudents = () => {
                     className="h-8 gap-1.5"
                     onClick={() => setBulkAction("suspend")}
                   >
-                    <ShieldOff className="h-3.5 w-3.5" /> Suspend access
+                    <ShieldOff className="h-3.5 w-3.5" /> Suspend all access
                   </Button>
                 )}
                 {selectedHasSuspended && (
@@ -585,10 +721,11 @@ const AdminStudents = () => {
                     className="h-8 gap-1.5"
                     onClick={() => setBulkAction("reactivate")}
                   >
-                    <ShieldCheck className="h-3.5 w-3.5" /> Reactivate access
+                    <ShieldCheck className="h-3.5 w-3.5" /> Reactivate all access
                   </Button>
                 )}
               </div>
+
             </div>
           )}
           {filtered.length === 0 ? (
@@ -670,8 +807,15 @@ const AdminStudents = () => {
                                 <div className="rounded-md border bg-muted/30 divide-y">
                                   {s.courses.map(c => (
                                     <div key={c.courseId} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
-                                      <span className="font-medium text-foreground">{c.name}</span>
+                                      <span className={cn("font-medium text-foreground", c.suspendedAt && "opacity-60 line-through")}>
+                                        {c.name}
+                                      </span>
                                       <div className="flex items-center gap-2 shrink-0">
+                                        {c.suspendedAt && (
+                                          <Badge variant="destructive" className="gap-1 text-[10px]">
+                                            <ShieldOff className="h-3 w-3" /> Suspended
+                                          </Badge>
+                                        )}
                                         {c.mastery ? (
                                           <Badge variant="secondary" className="text-[10px]">{c.mastery}</Badge>
                                         ) : (
@@ -685,9 +829,22 @@ const AdminStudents = () => {
                                           </TooltipTrigger>
                                           <TooltipContent>joined {new Date(c.enrolledAt).toLocaleString()}</TooltipContent>
                                         </Tooltip>
+                                        <Button
+                                          variant={c.suspendedAt ? "outline" : "ghost"}
+                                          size="sm"
+                                          className="h-6 gap-1 px-2 text-[10px]"
+                                          onClick={(e) => { e.stopPropagation(); setCourseTarget({ student: s, course: c }); }}
+                                        >
+                                          {c.suspendedAt ? (
+                                            <><ShieldCheck className="h-3 w-3" /> Reactivate</>
+                                          ) : (
+                                            <><ShieldOff className="h-3 w-3" /> Suspend</>
+                                          )}
+                                        </Button>
                                       </div>
                                     </div>
                                   ))}
+
                                 </div>
                               </CollapsibleContent>
                             </Collapsible>
@@ -711,13 +868,14 @@ const AdminStudents = () => {
                             <DropdownMenuContent align="end">
                               {s.suspended_at ? (
                                 <DropdownMenuItem onClick={() => setSuspendTarget(s)}>
-                                  <ShieldCheck className="h-4 w-4 mr-2" /> Reactivate access
+                                  <ShieldCheck className="h-4 w-4 mr-2" /> Reactivate all access
                                 </DropdownMenuItem>
                               ) : (
                                 <DropdownMenuItem onClick={() => setSuspendTarget(s)}>
-                                  <ShieldOff className="h-4 w-4 mr-2" /> Suspend access
+                                  <ShieldOff className="h-4 w-4 mr-2" /> Suspend all access
                                 </DropdownMenuItem>
                               )}
+
                               {multiAccount ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -856,6 +1014,97 @@ const AdminStudents = () => {
             >
               {bulkRunning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               {bulkAction === "suspend" ? "Suspend all" : "Reactivate all"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Per-course suspension (single student) */}
+      <AlertDialog open={!!courseTarget} onOpenChange={(o) => { if (!o && !courseBusy) setCourseTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {courseTarget?.course.suspendedAt ? "Restore course access?" : "Suspend course access?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {courseTarget?.course.suspendedAt ? (
+                <>
+                  <span className="font-medium text-foreground">{courseTarget?.student.name}</span> will be able to
+                  open <span className="font-medium text-foreground">{courseTarget?.course.name}</span> again.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-foreground">{courseTarget?.student.name}</span> will be blocked
+                  from <span className="font-medium text-foreground">{courseTarget?.course.name}</span> only. They can
+                  still sign in and use their other courses. All data is preserved.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={courseBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleCourseSuspendToggle(); }}
+              disabled={courseBusy}
+              className={courseTarget?.course.suspendedAt ? "" : "bg-destructive text-destructive-foreground hover:bg-destructive/90"}
+            >
+              {courseBusy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {courseTarget?.course.suspendedAt ? "Reactivate" : "Suspend"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Per-course suspension (bulk) */}
+      <AlertDialog open={!!bulkCourseAction} onOpenChange={(o) => { if (!o && !bulkRunning) setBulkCourseAction(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkCourseAction === "suspend" ? "Suspend selected students in a course" : "Reactivate selected students in a course"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Pick the course. Only the selected students enrolled in it are affected — their access to other
+                  courses stays unchanged.
+                </p>
+                <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
+                  {courseIdOptions.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setBulkCourseId(c.id)}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50",
+                        bulkCourseId === c.id && "bg-muted",
+                      )}
+                    >
+                      <span className="truncate text-foreground">{c.name}</span>
+                      {bulkCourseId === c.id && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                    </button>
+                  ))}
+                  {courseIdOptions.length === 0 && (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">No courses found.</p>
+                  )}
+                </div>
+                {bulkCourseId && (
+                  <p className="text-xs text-muted-foreground">
+                    {bulkCourseTargets.length} of {selectedInFiltered.length} selected student
+                    {selectedInFiltered.length === 1 ? "" : "s"} will change.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkRunning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); runBulkCourse(); }}
+              disabled={bulkRunning || !bulkCourseId || bulkCourseTargets.length === 0}
+              className={bulkCourseAction === "suspend" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+            >
+              {bulkRunning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {bulkCourseAction === "suspend" ? "Suspend in course" : "Reactivate in course"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Outlet } from "react-router-dom";
 import { Home, Route, MessageSquare, FlaskConical, MessageSquareHeart } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { NavLink } from "@/components/NavLink";
@@ -8,6 +8,9 @@ import StudentCourseSwitcher from "@/components/StudentCourseSwitcher";
 import AddCourseDialog from "@/components/AddCourseDialog";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 import { useCourseProjectLabs } from "@/hooks/useCourseProjectLabs";
+import { useCourseAccess } from "@/hooks/useCourseAccess";
+import CourseSuspendedNotice from "@/components/student/CourseSuspendedNotice";
+import { supabase } from "@/integrations/supabase/client";
 
 const studentNav = [
   { title: "Home", path: "/student/home", icon: Home },
@@ -23,11 +26,32 @@ const StudentLayout = () => {
   const [addCourseOpen, setAddCourseOpen] = useState(false);
   const enrolledCourseId = useEnrolledCourseId();
   const { labs: projectLabs, loading: labsLoading } = useCourseProjectLabs(enrolledCourseId, true);
+  const { suspended: courseSuspended } = useCourseAccess(enrolledCourseId);
+  const [courseName, setCourseName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!enrolledCourseId || !courseSuspended) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("courses")
+        .select("name")
+        .eq("id", enrolledCourseId)
+        .maybeSingle();
+      if (!cancelled) setCourseName(data?.name ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [enrolledCourseId, courseSuspended]);
 
   // Project Lab is professor-authored and optional: hide the tab entirely
   // when the active course has no published labs.
-  const showProjectLab = !labsLoading && projectLabs.length > 0;
+  const showProjectLab = !labsLoading && projectLabs.length > 0 && !courseSuspended;
   const nav = studentNav.filter((i) => i.path !== "/student/project-lab" || showProjectLab);
+
+  const content = courseSuspended
+    ? <CourseSuspendedNotice courseName={courseName} />
+    : <Outlet />;
+
 
   if (isMobile) {
     return (
@@ -41,7 +65,8 @@ const StudentLayout = () => {
           </div>
         </header>
         <main className="flex-1 overflow-auto">
-          <Outlet />
+          {content}
+
         </main>
         <nav className="flex border-t bg-card">
           {nav.map((item) => (
@@ -98,7 +123,8 @@ const StudentLayout = () => {
       </aside>
 
       <main className="flex-1 overflow-auto">
-        <Outlet />
+        {content}
+
       </main>
 
       <AddCourseDialog open={addCourseOpen} onOpenChange={setAddCourseOpen} />
