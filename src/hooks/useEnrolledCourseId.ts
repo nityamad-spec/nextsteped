@@ -78,26 +78,29 @@ export function useEnrolledCourseId(): string | null {
         return;
       }
 
-      // 3. Final fallback: most recent enrollment.
-      const { data: latest } = await supabase
+      // 3. Final fallback: most recent enrollment, preferring one that is not
+      //    suspended so students keep working in their other courses.
+      const { data: enrollments } = await supabase
         .from("enrollments")
-        .select("course_id")
+        .select("course_id, suspended_at")
         .eq("student_id", user.id)
-        .order("enrolled_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order("enrolled_at", { ascending: false });
 
-      if (latest?.course_id) {
+      const rows = (enrollments ?? []) as { course_id: string; suspended_at: string | null }[];
+      const pick = rows.find((r) => !r.suspended_at) ?? rows[0];
+
+      if (pick?.course_id) {
         await supabase
           .from("profiles")
-          .update({ active_course_id: latest.course_id })
+          .update({ active_course_id: pick.course_id })
           .eq("id", user.id);
-        persist(latest.course_id);
+        persist(pick.course_id);
         return;
       }
 
       persist(null);
     };
+
 
     run();
     return () => {
