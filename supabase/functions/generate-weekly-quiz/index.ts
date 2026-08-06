@@ -920,6 +920,11 @@ async function run(
   for (const { spec } of finalItems) byTier[spec.tier] = (byTier[spec.tier] ?? 0) + 1;
   const expected = baseSpec.reduce((s, t) => s + t.count, 0);
   const totalStored = Object.values(byTier).reduce((s, n) => s + n, 0);
+  console.log(
+    `[weekly-quiz] week=${weekNumber} top_up=${topUp} concepts=${Object.keys(conceptByCode).length} ` +
+      `stored=${totalStored}/${expected} by_tier=${JSON.stringify(byTier)} ` +
+      `tier_errors=${JSON.stringify(tierErrors)}`,
+  );
   const partial = totalStored < expected;
 
   if (creditsExhausted && primaryRows.length === 0) {
