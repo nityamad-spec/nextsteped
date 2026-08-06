@@ -132,6 +132,12 @@ const AdminStudents = () => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<"suspend" | "reactivate" | null>(null);
   const [bulkRunning, setBulkRunning] = useState(false);
+  // Per-course suspension
+  const [courseTarget, setCourseTarget] = useState<{ student: StudentGroup; course: CourseEnrollment } | null>(null);
+  const [courseBusy, setCourseBusy] = useState(false);
+  const [bulkCourseAction, setBulkCourseAction] = useState<"suspend" | "reactivate" | null>(null);
+  const [bulkCourseId, setBulkCourseId] = useState<string | null>(null);
+
 
   const { toast } = useToast();
 
