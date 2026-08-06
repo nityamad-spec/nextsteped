@@ -395,6 +395,15 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
           </div>
         )}
 
+        {requiresReasoning(bloomFor(q.id)) && (
+          <ReasoningInput
+            questionId={q.id}
+            value={reasoning.rationales[q.id] ?? ""}
+            onChange={reasoning.setRationale}
+            showError={reasoning.showErrors}
+          />
+        )}
+
         {/* Confidence selector removed — not collected for quizzes/exams */}
 
       </CardContent>
