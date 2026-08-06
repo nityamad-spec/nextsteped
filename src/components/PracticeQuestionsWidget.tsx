@@ -119,6 +119,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
       setAnswers({});
       setRevealed(new Set());
       setResults(null);
+      reasoning.reset();
       setPhase("active");
     } catch (e) {
       console.error("Failed to generate practice questions:", e);
