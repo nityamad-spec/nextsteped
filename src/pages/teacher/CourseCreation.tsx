@@ -1541,6 +1541,13 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         </div>
 
         {/* Week Cards */}
+        <DndContext
+          sensors={dndSensors}
+          collisionDetection={closestCenter}
+          onDragStart={(e: DragStartEvent) => setActiveConceptId(String(e.active.id))}
+          onDragCancel={() => setActiveConceptId(null)}
+          onDragEnd={handleConceptDragEnd}
+        >
         <Reorder.Group
           axis="y"
           values={weeks.map((w) => w.id)}
