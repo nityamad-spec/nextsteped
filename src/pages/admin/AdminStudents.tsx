@@ -316,6 +316,53 @@ const AdminStudents = () => {
     setSuspendTarget(null);
   };
 
+  /** Apply a course-level suspension to one enrollment and sync local state. */
+  const setEnrollmentSuspension = async (
+    studentKey: string,
+    studentId: string,
+    courseId: string,
+    suspend: boolean,
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const { data, error } = await supabase.functions.invoke("admin-set-enrollment-suspension", {
+      body: { student_id: studentId, course_id: courseId, suspended: suspend },
+    });
+    if (error || (data as any)?.error) {
+      return { ok: false, error: (data as any)?.error || error?.message || "Unknown error" };
+    }
+    const newVal = (data as any)?.suspended_at ?? null;
+    setStudents(prev => prev.map(s => s.key !== studentKey ? s : {
+      ...s,
+      courses: s.courses.map(c => c.courseId === courseId ? { ...c, suspendedAt: newVal } : c),
+    }));
+    return { ok: true };
+  };
+
+  const handleCourseSuspendToggle = async () => {
+    if (!courseTarget) return;
+    const { student, course } = courseTarget;
+    const willSuspend = !course.suspendedAt;
+    setCourseBusy(true);
+    const res = await setEnrollmentSuspension(student.key, course.studentId, course.courseId, willSuspend);
+    setCourseBusy(false);
+    if (!res.ok) {
+      toast({
+        title: willSuspend ? "Suspend failed" : "Reactivate failed",
+        description: res.error,
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({
+      title: willSuspend ? "Course access suspended" : "Course access restored",
+      description: willSuspend
+        ? `${student.name} can no longer access ${course.name}. Other courses are unaffected.`
+        : `${student.name} can access ${course.name} again.`,
+    });
+    setCourseTarget(null);
+  };
+
+
+
   const courseOptions = useMemo(() => {
     const s = new Set<string>();
     students.forEach(st => st.courses.forEach(c => s.add(c.name)));
