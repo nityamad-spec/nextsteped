@@ -36,6 +36,15 @@ import CodingTerminalWidget from "@/components/CodingTerminalWidget";
 import MermaidDiagram from "@/components/MermaidDiagram";
 
 const markdownComponents = {
+  // Mermaid blocks render their own container — don't leave an empty <pre> shell.
+  pre({ children, ...props }: any) {
+    const first = Array.isArray(children) ? children[0] : children;
+    const cls = first?.props?.className || "";
+    if (typeof cls === "string" && cls.includes("language-mermaid")) {
+      return <>{children}</>;
+    }
+    return <pre {...props}>{children}</pre>;
+  },
   code({ inline, className, children, ...props }: any) {
     const match = /language-(\w+)/.exec(className || "");
     const lang = match?.[1];
