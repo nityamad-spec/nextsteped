@@ -75,6 +75,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   const [showHistory, setShowHistory] = useState(false);
   const [startTime] = useState(Date.now());
   const [reviewingSession, setReviewingSession] = useState<PracticeResult | null>(null);
+  const reasoning = useReasoningAnswers();
 
   useEffect(() => {
     if (!initialReviewSessionId) return;
