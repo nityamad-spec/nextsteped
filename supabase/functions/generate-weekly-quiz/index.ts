@@ -154,6 +154,12 @@ interface ConceptRow {
   concept_code: string;
 }
 
+interface FinalItem {
+  spec: TierSpec;
+  q: GeneratedQuestion;
+}
+
+
 
 /* -------------------------------------------------------------------------- */
 /* Prompt formatters                                                          */
