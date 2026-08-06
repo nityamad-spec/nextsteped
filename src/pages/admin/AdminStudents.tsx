@@ -181,8 +181,8 @@ const AdminStudents = () => {
       };
 
       const [allEnrollments, allMastery] = await Promise.all([
-        fetchAll<{ student_id: string; course_id: string; enrolled_at: string }>(
-          "enrollments", "student_id, course_id, enrolled_at", "student_id",
+        fetchAll<{ student_id: string; course_id: string; enrolled_at: string; suspended_at: string | null }>(
+          "enrollments", "student_id, course_id, enrolled_at, suspended_at", "student_id",
         ),
         fetchAll<{ student_id: string; course_id: string; learner_level: string }>(
           "student_course_mastery", "student_id, course_id, learner_level", "student_id",
@@ -211,8 +211,11 @@ const AdminStudents = () => {
           name: courseMap[e.course_id] || "Unknown",
           mastery: masteryMap.get(`${e.student_id}:${e.course_id}`) || null,
           enrolledAt: e.enrolled_at,
+          studentId: e.student_id,
+          suspendedAt: e.suspended_at ?? null,
         });
         enrollmentsByStudent.set(e.student_id, arr);
+
       });
 
       const groups = new Map<string, StudentGroup>();
