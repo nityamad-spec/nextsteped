@@ -256,7 +256,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       return;
     }
     handleFinish();
-  }, [reasoning, reasoningRefs, questions, handleFinish, isQuiz]);
+  }, [reasoning, reasoningRefs, questions, handleFinish, type]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
