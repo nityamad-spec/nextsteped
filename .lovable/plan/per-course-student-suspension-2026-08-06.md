@@ -26,5 +26,5 @@ Today suspension is account-wide: it sets a flag on the student's profile and bl
 
 ## Risks
 
-- Server-side enforcement: the locked state is client-side. Row-level policies on quiz/result tables are not currently keyed to enrollment suspension, so a determined user could still hit the API. If you want hard enforcement, that's a follow-up pass over the RLS policies — say the word and I'll include it.
+- Server-side enforcement: the locked state is client-side. Row-level policies on quiz/result tables are not currently keyed to enrollment suspension, so a determined user could still hit the API. If you want hard enforcement, that's a follow-up pass over the RLS policies — say the word and I'll include it. Add server side enforcement so as to block access to all modules of the course fro suspended users.
 - Student data (results, mastery) is untouched by suspension, so reactivating restores everything.
