@@ -235,11 +235,18 @@ itest("e2e weekly_quiz: first perfect quiz writes Developing-capped concept row"
 itest("e2e exam: enough evidence promotes concept to Expert and course follows", async () => {
   const f = await createFixture();
   try {
-    // 4 perfect exams × 10 questions on concept A → n=40, samples=4, score → 1 after shrinkage+EMA.
+    // 4 perfect exams × 10 questions on EACH concept → n=40 per concept,
+    // samples=4, score → ~0.90 after shrinkage+EMA, and the course weighted
+    // average covers the full concept weight so it can reach Expert too.
     for (let i = 0; i < 4; i++) {
-      const per_question = Array.from({ length: 10 }, () => ({
-        concept_code: f.codeA, difficulty: 0.7, bloom: 3, is_correct: true,
-      }));
+      const per_question = [
+        ...Array.from({ length: 10 }, () => ({
+          concept_code: f.codeA, difficulty: 0.7, bloom: 3, is_correct: true,
+        })),
+        ...Array.from({ length: 10 }, () => ({
+          concept_code: f.codeB, difficulty: 0.7, bloom: 3, is_correct: true,
+        })),
+      ];
       const r = await callFn(f.jwt, {
         course_id: f.courseId, source: "exam", source_id: crypto.randomUUID(), per_question,
       });
