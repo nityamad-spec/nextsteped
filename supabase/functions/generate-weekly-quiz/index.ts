@@ -856,8 +856,8 @@ async function run(
       requested: expected,
       partial,
       by_tier: byTier,
-      followups_generated: followupRows.length,
-      followup_telemetry: followupTelemetry,
+      tier_errors: Object.keys(tierErrors).length ? tierErrors : undefined,
+
       tier_errors: Object.keys(tierErrors).length ? tierErrors : undefined,
     },
   };
