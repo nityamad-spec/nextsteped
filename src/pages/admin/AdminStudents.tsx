@@ -688,6 +688,22 @@ const AdminStudents = () => {
                 Clear
               </Button>
               <div className="ml-auto flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1.5">
+                      <BookOpen className="h-3.5 w-3.5" /> Course access
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => { setBulkCourseId(null); setBulkCourseAction("suspend"); }}>
+                      <ShieldOff className="h-4 w-4 mr-2" /> Suspend in a course…
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { setBulkCourseId(null); setBulkCourseAction("reactivate"); }}>
+                      <ShieldCheck className="h-4 w-4 mr-2" /> Reactivate in a course…
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 {selectedHasActive && (
                   <Button
                     variant="destructive"
@@ -695,7 +711,7 @@ const AdminStudents = () => {
                     className="h-8 gap-1.5"
                     onClick={() => setBulkAction("suspend")}
                   >
-                    <ShieldOff className="h-3.5 w-3.5" /> Suspend access
+                    <ShieldOff className="h-3.5 w-3.5" /> Suspend all access
                   </Button>
                 )}
                 {selectedHasSuspended && (
@@ -705,10 +721,11 @@ const AdminStudents = () => {
                     className="h-8 gap-1.5"
                     onClick={() => setBulkAction("reactivate")}
                   >
-                    <ShieldCheck className="h-3.5 w-3.5" /> Reactivate access
+                    <ShieldCheck className="h-3.5 w-3.5" /> Reactivate all access
                   </Button>
                 )}
               </div>
+
             </div>
           )}
           {filtered.length === 0 ? (
