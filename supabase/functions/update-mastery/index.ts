@@ -211,12 +211,9 @@ Deno.serve(async (req) => {
       const maxPoints = difficulty * bloomWeight;
       cur.attempted += 1;
       if (item.is_correct) cur.correct += 1;
-      // Phase 5: reasoning follow-up folded into the earned/max ratio (weekly_quiz only).
-      // Non-quiz sources ignore reasoning_correct even if present.
-      const reasoning = body.source === "weekly_quiz" ? item.reasoning_correct ?? null : null;
-      const { earnedDelta, maxDelta } = reasoningAdjustedContribution(maxPoints, item.is_correct, reasoning);
-      cur.earned += earnedDelta;
-      cur.max += maxDelta;
+      cur.earned += item.is_correct ? maxPoints : 0;
+      cur.max += maxPoints;
+
       cur.weighted = true;
     }
   } else if (body.per_concept) {
