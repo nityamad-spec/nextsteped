@@ -7,6 +7,8 @@ import { seededShuffle } from "@/lib/seededShuffle";
 import type { Question } from "@/data/questionBank";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import type { Json } from "@/integrations/supabase/types";
+import { saveReasoningRows } from "@/hooks/useReasoningAnswers";
+import { buildReasoningRows } from "@/lib/buildReasoningRows";
 
 interface Props {
   open: boolean;
