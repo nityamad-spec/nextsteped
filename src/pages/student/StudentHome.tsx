@@ -407,7 +407,7 @@ const StudentHome = () => {
         icon: Sparkles,
         title: weakest.name,
         description: "Revisit this concept in the Study Chat",
-        action: () => navigate(`/student/chat?newchat=true&concept=${encodeURIComponent(weakest.name)}`),
+        action: () => navigate(`/student/chat?newchat=true&intent=weak&concept=${encodeURIComponent(weakest.name)}`),
         category: "STRENGTHEN",
         visualCategory: "continue",
         badgeLabel: "Continue learning",
