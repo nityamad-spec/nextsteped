@@ -38,6 +38,18 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { WeeklyQuizReviewDialog } from "@/components/WeeklyQuizReviewDialog";
+import { ToastAction } from "@/components/ui/toast";
+import {
+  DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter,
+  useSensor, useSensors, type DragEndEvent, type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import {
+  SortableConceptCard, ConceptCardBody, ConceptDropZone,
+} from "@/components/lesson-plan/SortableConceptCard";
+
 
 // ─── Types ───
 type Concept = {
