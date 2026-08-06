@@ -34,6 +34,10 @@ import {
   // no longer imported client-side.
   type BranchTier,
 } from "@/lib/diagnosticBranching";
+import ReasoningInput from "@/components/ReasoningInput";
+import { useReasoningAnswers, saveReasoningRows } from "@/hooks/useReasoningAnswers";
+import { buildReasoningRows } from "@/lib/buildReasoningRows";
+import { requiresReasoning } from "@/lib/reasoning";
 
 
 interface QuizQuestion {
