@@ -25,6 +25,10 @@ interface PracticeResult {
   answers?: any[];
 }
 
+import ReasoningInput from "@/components/ReasoningInput";
+import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
+import { requiresReasoning } from "@/lib/reasoning";
+
 interface PracticeQuestionsWidgetProps {
   onClose: () => void;
   onSaveResult?: (result: {
@@ -33,6 +37,7 @@ interface PracticeQuestionsWidgetProps {
     correctAnswers: number;
     answers: any[];
     timeSpent: number;
+    rationales?: Record<string, string>;
   }) => void;
   practiceHistory?: PracticeResult[];
   courseContext?: {
