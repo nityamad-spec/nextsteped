@@ -372,7 +372,7 @@ async function generateTier(
     const systemPrompt = `You are an expert assessment designer for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier}-tier WEEKLY QUIZ questions for Week ${weekNumber}${weekName ? ` — ${weekName}` : ""}.
 
 Tier: ${spec.label}
-Target difficulty (0=easy, 1=hard): ${spec.difficulty} (must be within ±0.15)
+Target difficulty (0=easy, 1=hard): ${spec.difficulty} (must be within ±${(spec.band ?? 0.15).toFixed(2)})
 
 CONCEPTS available for this week — the 'topic' field of each question MUST be one of these exact concept codes (case-sensitive):
 ${promptConceptList}
@@ -382,7 +382,7 @@ STRICT RULES:
 - Each question MUST be either multiple-choice (format="mcq") or true/false (format="true_false"). NO short answer, NO problem solving.
 - MCQ: exactly 4 distinct non-empty options (no "A)" prefixes). 'answer' is the FULL TEXT of the correct option.
 - True/False: options MUST be exactly ["True", "False"]. 'answer' must be "True" or "False".
-- difficulty_estimate: number near ${spec.difficulty} (±0.15).
+- difficulty_estimate: number near ${spec.difficulty} (±${(spec.band ?? 0.15).toFixed(2)}).
 - bloom_level: integer 1-4 ONLY (1=Remember, 2=Understand, 3=Apply, 4=Analyze). Do NOT use 5 (Evaluate) or 6 (Create) — these cannot be fairly assessed with MCQ or True/False.
 ${spec.tier === "easy" ? "- Bloom target: mostly 1-2 (Remember/Understand)." : spec.tier === "medium" || spec.tier === "standard" ? "- Bloom target: mostly 2-3 (Understand/Apply); at least 40% at bloom 3." : "- Bloom target: 3-4 (Apply/Analyze); at least 60% at bloom 3-4. Prefer scenario, code-trace, or comparison stems over single-fact recall."}
 - content_text: question stem only, ≤ 600 chars.
