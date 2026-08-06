@@ -49,6 +49,10 @@ export interface AssessmentResults {
   totalQuestions: number;
   correctAnswers: number;
   score: number;
+export interface AssessmentResults {
+  totalQuestions: number;
+  correctAnswers: number;
+  score: number;
   flatScore?: number;
   weightedScore?: number;
   /** Phase 8: 0..1 accuracy component of the 80/20 mastery score (quiz mode). */
@@ -59,6 +63,8 @@ export interface AssessmentResults {
   timeSpent: number;
   confidences?: Record<string, ConfidenceLevel>;
   questionTimes: Record<string, number>;
+  /** Mandatory rationales captured for Bloom 3+ questions, keyed by question id. */
+  rationales?: Record<string, string>;
 }
 
 type Phase = "intro" | "active" | "review";
