@@ -795,7 +795,7 @@ async function run(
   // band. Bounded by pass count AND global deadline so we cannot overshoot.
   const MAX_BACKFILL_PASSES = 3;
   for (let pass = 1; pass <= MAX_BACKFILL_PASSES; pass++) {
-    const shortSpecs = TIER_SPEC
+    const shortSpecs = runSpec
       .map((spec) => ({
         spec,
         shortfall: spec.count - allQuestions.filter((x) => x.spec.tier === spec.tier).length,
@@ -816,7 +816,7 @@ async function run(
       ).perConcept;
       const focus = shortConcepts(tierAudit);
       const backfillSpec: TierSpec = { ...spec, count: shortfall };
-      const avoid = allQuestions.map((x) => x.q);
+      const avoid = [...existingAvoid, ...allQuestions.map((x) => x.q)];
       return generateTier(
         backfillSpec,
         course.name ?? "Course",
@@ -826,7 +826,7 @@ async function run(
         lovableKey,
         deadlineAt,
         avoid,
-        { focusConcepts: focus.length ? focus : undefined, maxAttempts: 2 },
+        { focusConcepts: focus.length ? focus : undefined, maxAttempts: 3 },
       )
         .then((extra) => ({ spec, shortfall, focus, extra }))
         .catch((err) => ({ spec, shortfall, focus, err }));
@@ -859,7 +859,7 @@ async function run(
    * -------------------------------------------------------------------- */
 
   const finalItems: FinalItem[] = [];
-  for (const spec of TIER_SPEC) {
+  for (const spec of runSpec) {
     let taken = 0;
     for (const it of allQuestions) {
       if (it.spec.tier !== spec.tier) continue;
@@ -874,12 +874,16 @@ async function run(
    * Persistence
    * -------------------------------------------------------------------- */
 
-  await admin
-    .from("assessment_questions")
-    .delete()
-    .eq("course_id", courseId)
-    .eq("mode", "daily_quiz")
-    .eq("quiz_day", weekNumber);
+  if (!topUp) {
+    await admin
+      .from("assessment_questions")
+      .delete()
+      .eq("course_id", courseId)
+      .eq("mode", "daily_quiz")
+      .eq("quiz_day", weekNumber);
+  }
+
+  const codeSuffix = topUp ? `-tu${Date.now().toString(36)}` : "";
 
   const primaryRows = finalItems.map(({ spec, q }, i) => {
     const concept = conceptByCode[q.topic];
@@ -902,7 +906,7 @@ async function run(
       difficulty: q.difficulty_estimate < 0.35 ? "Easy" : q.difficulty_estimate > 0.7 ? "Hard" : "Medium",
       difficulty_estimate: q.difficulty_estimate,
       bloom_level: q.bloom_level,
-      item_code: `w${weekNumber}-${spec.tier}-${i}`,
+      item_code: `w${weekNumber}-${spec.tier}-${i}${codeSuffix}`,
     };
   });
 
@@ -912,10 +916,11 @@ async function run(
   if (insErr) throw new Error(`Insert failed: ${insErr.message}`);
 
 
-  const byTier: Record<string, number> = {};
+  const byTier: Record<string, number> = { ...existingByTier };
   for (const { spec } of finalItems) byTier[spec.tier] = (byTier[spec.tier] ?? 0) + 1;
-  const expected = TIER_SPEC.reduce((s, t) => s + t.count, 0);
-  const partial = primaryRows.length < expected;
+  const expected = baseSpec.reduce((s, t) => s + t.count, 0);
+  const totalStored = Object.values(byTier).reduce((s, n) => s + n, 0);
+  const partial = totalStored < expected;
 
   if (creditsExhausted && primaryRows.length === 0) {
     return { status: 402, payload: { error: "AI credits exhausted", code: "CREDITS_EXHAUSTED" } };
