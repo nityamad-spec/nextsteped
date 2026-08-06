@@ -38,6 +38,18 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { WeeklyQuizReviewDialog } from "@/components/WeeklyQuizReviewDialog";
+import { ToastAction } from "@/components/ui/toast";
+import {
+  DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter,
+  useSensor, useSensors, type DragEndEvent, type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import {
+  SortableConceptCard, ConceptCardBody, ConceptDropZone,
+} from "@/components/lesson-plan/SortableConceptCard";
+
 
 // ─── Types ───
 type Concept = {
@@ -426,6 +438,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [editingOverviewId, setEditingOverviewId] = useState<string | null>(null);
   const [editOverviewValue, setEditOverviewValue] = useState("");
   const [editingConceptId, setEditingConceptId] = useState<string | null>(null);
+  const [activeConceptId, setActiveConceptId] = useState<string | null>(null);
+
   const [editConceptName, setEditConceptName] = useState("");
   const [editConceptDesc, setEditConceptDesc] = useState("");
   const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
@@ -888,18 +902,97 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     setWeeks(prev => prev.map(w => w.id === weekId ? { ...w, concepts: [...w.concepts, c] } : w));
     startEditConcept(c);
   };
-  const moveConceptToWeek = (fromWeekId: string, conceptId: string, toWeekId: string) => {
+  const moveConceptBetweenWeeks = (
+    fromWeekId: string,
+    conceptId: string,
+    toWeekId: string,
+    toIndex?: number,
+  ) => {
+    const target = weeks.find(w => w.id === toWeekId);
+    if (!target) return;
+    if (target.is_exam_week) {
+      toast({
+        title: "Exam week",
+        description: `Week ${target.week} is an exam week — topics can't be placed there.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    const snapshot = weeks;
     setWeeks(prev => {
-      const concept = prev.find(w => w.id === fromWeekId)?.concepts.find(c => c.id === conceptId);
+      const source = prev.find(w => w.id === fromWeekId);
+      const concept = source?.concepts.find(c => c.id === conceptId);
       if (!concept) return prev;
+
+      if (fromWeekId === toWeekId) {
+        const current = source!.concepts.findIndex(c => c.id === conceptId);
+        const next = toIndex === undefined ? source!.concepts.length - 1 : toIndex;
+        if (current === next) return prev;
+        const reordered = [...source!.concepts];
+        reordered.splice(current, 1);
+        reordered.splice(Math.max(0, Math.min(next, reordered.length)), 0, concept);
+        return prev.map(w => (w.id === fromWeekId ? { ...w, concepts: reordered } : w));
+      }
+
       return prev.map(w => {
         if (w.id === fromWeekId) return { ...w, concepts: w.concepts.filter(c => c.id !== conceptId) };
-        if (w.id === toWeekId) return { ...w, concepts: [...w.concepts, concept] };
+        if (w.id === toWeekId) {
+          const next = [...w.concepts];
+          next.splice(toIndex === undefined ? next.length : Math.max(0, Math.min(toIndex, next.length)), 0, concept);
+          return { ...w, concepts: next };
+        }
         return w;
       });
     });
-    toast({ title: "Concept moved", description: `Moved to Week ${weeks.find(w => w.id === toWeekId)?.week}` });
+    setPublished(false);
+    if (fromWeekId !== toWeekId) {
+      const name = weeks.find(w => w.id === fromWeekId)?.concepts.find(c => c.id === conceptId)?.name ?? "Topic";
+      toast({
+        title: "Topic moved",
+        description: `Moved "${name}" to Week ${target.week}`,
+        action: (
+          <ToastAction altText="Undo move" onClick={() => setWeeks(snapshot)}>Undo</ToastAction>
+        ),
+      });
+    }
   };
+  const moveConceptToWeek = (fromWeekId: string, conceptId: string, toWeekId: string) =>
+    moveConceptBetweenWeeks(fromWeekId, conceptId, toWeekId);
+
+  // ─── Concept drag & drop ───
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const findWeekOfConcept = (conceptId: string) => weeks.find(w => w.concepts.some(c => c.id === conceptId));
+  const activeConcept = activeConceptId
+    ? findWeekOfConcept(activeConceptId)?.concepts.find(c => c.id === activeConceptId) ?? null
+    : null;
+
+  const handleConceptDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveConceptId(null);
+    if (!over) return;
+    const conceptId = String(active.id);
+    const fromWeek = findWeekOfConcept(conceptId);
+    if (!fromWeek) return;
+
+    const overId = String(over.id);
+    let toWeekId: string | undefined;
+    let toIndex: number | undefined;
+
+    if (overId.startsWith("hdr:") || overId.startsWith("list:")) {
+      toWeekId = overId.slice(overId.indexOf(":") + 1);
+    } else {
+      const overWeek = findWeekOfConcept(overId);
+      if (!overWeek) return;
+      toWeekId = overWeek.id;
+      toIndex = overWeek.concepts.findIndex(c => c.id === overId);
+    }
+    if (!toWeekId) return;
+    moveConceptBetweenWeeks(fromWeek.id, conceptId, toWeekId, toIndex);
+  };
+
 
   // ─── Resource handlers ───
   const startEditResource = (r: Resource) => {
@@ -1448,6 +1541,13 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         </div>
 
         {/* Week Cards */}
+        <DndContext
+          sensors={dndSensors}
+          collisionDetection={closestCenter}
+          onDragStart={(e: DragStartEvent) => setActiveConceptId(String(e.active.id))}
+          onDragCancel={() => setActiveConceptId(null)}
+          onDragEnd={handleConceptDragEnd}
+        >
         <Reorder.Group
           axis="y"
           values={weeks.map((w) => w.id)}
@@ -1465,7 +1565,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   {(controls) => (
                   <Card className={`overflow-hidden transition-all ${isExpanded ? "shadow-md" : ""} ${w.is_exam_week ? "border-amber-500/40" : ""}`}>
                     {/* Header */}
-                    <div className="flex items-center gap-1 px-2">
+                    <ConceptDropZone id={`hdr:${w.id}`} disabled={w.is_exam_week} dragging={!!activeConceptId} className="flex items-center gap-1 px-2">
                       <span
                         role="button"
                         aria-label="Drag to reorder week"
@@ -1555,7 +1655,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                           {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                         </div>
                       </div>
-                    </div>
+                    </ConceptDropZone>
 
 
                     {/* Expanded body */}
@@ -1575,82 +1675,38 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                               </Button>
                             </div>
 
-                            {w.concepts.length === 0 ? (
-                              <p className="text-xs text-muted-foreground italic px-2 py-3 border border-dashed rounded">
-                                No concepts yet. Click "Add concept" or regenerate.
-                              </p>
-                            ) : (
-                              <div className="space-y-2">
-                                {w.concepts.map((c, ci) => (
-                                  <div key={c.id} className="rounded-lg border bg-muted/10 p-3 group/concept">
-                                    {editingConceptId === c.id ? (
-                                      <div className="space-y-2">
-                                        <Input
-                                          value={editConceptName}
-                                          onChange={(e) => setEditConceptName(e.target.value)}
-                                          placeholder="Concept name"
-                                          className="h-8 text-sm font-semibold"
-                                        />
-                                        <Textarea
-                                          value={editConceptDesc}
-                                          onChange={(e) => setEditConceptDesc(e.target.value)}
-                                          placeholder="One short sentence describing this concept"
-                                          rows={2}
-                                          className="text-xs"
-                                        />
-                                        <div className="flex gap-2">
-                                          <Button size="sm" onClick={() => saveConcept(w.id)} className="h-7 text-xs">Save</Button>
-                                          <Button size="sm" variant="ghost" onClick={() => setEditingConceptId(null)} className="h-7 text-xs">Cancel</Button>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-start gap-3">
-                                        <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                                          <span className="text-xs font-bold text-primary">{ci + 1}</span>
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <p className="text-sm font-semibold">{c.name}</p>
-                                            {c.ai_suggested && (
-                                              <Badge variant="outline" className="text-[9px] gap-0.5 bg-primary/10 text-primary border-primary/30 px-1.5 py-0">
-                                                <Sparkles className="h-2.5 w-2.5" /> AI Suggested
-                                              </Badge>
-                                            )}
-                                          </div>
-                                          {c.brief_description && (
-                                            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{c.brief_description}</p>
-                                          )}
-                                        </div>
-                                        <div className="flex gap-0.5 shrink-0 opacity-0 group-hover/concept:opacity-100 transition-opacity">
-                                          {weeks.length > 1 && (
-                                            <DropdownMenu>
-                                              <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="sm" className="h-6 px-1.5" title="Move to another week">
-                                                  <ArrowRight className="h-3 w-3" />
-                                                </Button>
-                                              </DropdownMenuTrigger>
-                                              <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
-                                                {weeks.filter(other => other.id !== w.id).map(other => (
-                                                  <DropdownMenuItem key={other.id} onClick={() => moveConceptToWeek(w.id, c.id, other.id)} className="text-xs">
-                                                    Move to Week {other.week}
-                                                  </DropdownMenuItem>
-                                                ))}
-                                              </DropdownMenuContent>
-                                            </DropdownMenu>
-                                          )}
-                                          <Button variant="ghost" size="sm" onClick={() => startEditConcept(c)} className="h-6 w-6 p-0">
-                                            <Pencil className="h-3 w-3" />
-                                          </Button>
-                                          <Button variant="ghost" size="sm" onClick={() => deleteConcept(w.id, c.id)} className="h-6 w-6 p-0 text-destructive hover:text-destructive">
-                                            <Trash2 className="h-3 w-3" />
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    )}
+                            <ConceptDropZone id={`list:${w.id}`} disabled={w.is_exam_week} dragging={!!activeConceptId}>
+                              {w.concepts.length === 0 ? (
+                                <p className="text-xs text-muted-foreground italic px-2 py-3 border border-dashed rounded">
+                                  No topics yet. Click "Add topic", or drag one here from another week.
+                                </p>
+                              ) : (
+                                <SortableContext items={w.concepts.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                                  <div className="space-y-2">
+                                    {w.concepts.map((c, ci) => (
+                                      <SortableConceptCard
+                                        key={c.id}
+                                        concept={c}
+                                        index={ci}
+                                        isEditing={editingConceptId === c.id}
+                                        editName={editConceptName}
+                                        editDesc={editConceptDesc}
+                                        onEditNameChange={setEditConceptName}
+                                        onEditDescChange={setEditConceptDesc}
+                                        onSave={() => saveConcept(w.id)}
+                                        onCancelEdit={() => setEditingConceptId(null)}
+                                        onStartEdit={() => startEditConcept(c)}
+                                        onDelete={() => deleteConcept(w.id, c.id)}
+                                        moveTargets={weeks.filter(other => other.id !== w.id).map(other => ({
+                                          id: other.id, week: other.week, week_name: other.week_name, is_exam_week: other.is_exam_week,
+                                        }))}
+                                        onMoveTo={(toWeekId) => moveConceptToWeek(w.id, c.id, toWeekId)}
+                                      />
+                                    ))}
                                   </div>
-                                ))}
-                              </div>
-                            )}
+                                </SortableContext>
+                              )}
+                            </ConceptDropZone>
                           </section>
 
                           {/* Resources */}
@@ -1903,6 +1959,22 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               );
           })}
         </Reorder.Group>
+        <DragOverlay>
+          {activeConcept ? (
+            <div className="rounded-lg border bg-background p-3 shadow-lg w-[420px] max-w-[80vw]">
+              <ConceptCardBody
+                concept={activeConcept}
+                index={0}
+                moveTargets={[]}
+                onMoveTo={() => {}}
+                onEdit={() => {}}
+                onDelete={() => {}}
+              />
+            </div>
+          ) : null}
+        </DragOverlay>
+        </DndContext>
+
 
         {/* Add week */}
         <Button variant="outline" onClick={addWeek} className="w-full">
