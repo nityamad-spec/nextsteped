@@ -223,6 +223,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       answers: standardised,
       timeSpent: timeLimitMinutes * 60 - timeLeft,
       questionTimes: finalTimes,
+      rationales: reasoning.rationales,
     };
     setResults(res);
     setPhase("review");
@@ -233,7 +234,29 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     setExpandedQuestions(wrongIndices);
 
     fetchExplanations(standardised);
-  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex, questionMeta, type]);
+  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex, questionMeta, type, reasoning.rationales]);
+
+  /**
+   * Manual submit path — enforces the mandatory rationale on Bloom 3+ questions.
+   * The timer's auto-submit calls handleFinish directly so a timeout can never
+   * trap the student.
+   */
+  const attemptFinish = useCallback(() => {
+    const missing = reasoning.missingReasoning(reasoningRefs);
+    if (missing.length > 0) {
+      reasoning.setShowErrors(true);
+      const numbers = missing
+        .map((id) => questions.findIndex((q) => q.id === id) + 1)
+        .filter((n) => n > 0)
+        .sort((a, b) => a - b);
+      if (isQuiz && numbers.length > 0) setCurrentIndex(numbers[0] - 1);
+      toast.error("Reasoning required", {
+        description: `Explain your reasoning for question${numbers.length > 1 ? "s" : ""} ${numbers.join(", ")} before submitting.`,
+      });
+      return;
+    }
+    handleFinish();
+  }, [reasoning, reasoningRefs, questions, handleFinish, isQuiz]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
