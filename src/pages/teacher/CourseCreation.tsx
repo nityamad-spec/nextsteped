@@ -1607,10 +1607,51 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-sm font-semibold">
-                                Week {w.week}
-                                {w.week_name ? <span className="text-muted-foreground font-normal"> — {w.week_name}</span> : null}
-                              </p>
+                              {editingWeekNameId === w.id ? (
+                                <div
+                                  className="flex items-center gap-1 flex-1 min-w-[220px]"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                >
+                                  <span className="text-sm font-semibold shrink-0">Week {w.week} —</span>
+                                  <Input
+                                    autoFocus
+                                    value={editWeekNameValue}
+                                    placeholder="Week title"
+                                    onChange={(e) => setEditWeekNameValue(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") { e.preventDefault(); saveWeekName(); }
+                                      if (e.key === "Escape") { e.preventDefault(); setEditingWeekNameId(null); }
+                                    }}
+                                    className="h-7 text-sm"
+                                    aria-label={`Week ${w.week} title`}
+                                  />
+                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={saveWeekName} aria-label="Save week title">
+                                    <Check className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingWeekNameId(null)} aria-label="Cancel rename">
+                                    <X className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <>
+                                  <p className="text-sm font-semibold">
+                                    Week {w.week}
+                                    {w.week_name ? <span className="text-muted-foreground font-normal"> — {w.week_name}</span> : null}
+                                  </p>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                    aria-label={`Rename week ${w.week}`}
+                                    title="Rename week"
+                                    onClick={(e) => { e.stopPropagation(); startEditWeekName(w); }}
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                </>
+                              )}
                               {w.is_exam_week && (
                                 <Badge variant="outline" className="text-[10px] gap-1 border-primary/40 text-primary bg-primary/10">
                                   <GraduationCap className="h-2.5 w-2.5" />
@@ -1618,6 +1659,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                 </Badge>
                               )}
                             </div>
+
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
