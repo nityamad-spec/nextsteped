@@ -85,7 +85,11 @@ interface CourseEnrollment {
   name: string;
   mastery: string | null;
   enrolledAt: string;
+  /** Profile id that owns this enrollment (students may have merged profiles). */
+  studentId: string;
+  suspendedAt: string | null;
 }
+
 
 interface StudentGroup {
   key: string;
