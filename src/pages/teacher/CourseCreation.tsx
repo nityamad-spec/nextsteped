@@ -1952,6 +1952,22 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               );
           })}
         </Reorder.Group>
+        <DragOverlay>
+          {activeConcept ? (
+            <div className="rounded-lg border bg-background p-3 shadow-lg w-[420px] max-w-[80vw]">
+              <ConceptCardBody
+                concept={activeConcept}
+                index={0}
+                moveTargets={[]}
+                onMoveTo={() => {}}
+                onEdit={() => {}}
+                onDelete={() => {}}
+              />
+            </div>
+          ) : null}
+        </DragOverlay>
+        </DndContext>
+
 
         {/* Add week */}
         <Button variant="outline" onClick={addWeek} className="w-full">
