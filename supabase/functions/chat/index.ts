@@ -515,6 +515,30 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
       }
     }
 
+    // ---- RAG grounding over uploaded course materials ----
+    // Skipped entirely for conversational/filler turns and when the user has
+    // explicitly opted in to a general-knowledge answer.
+    let materialsContext = "";
+    let ragSources: RagSource[] = [];
+    if (courseId && grounding === "rag" && !isConversational && lastUserMessage.trim()) {
+      try {
+        const chunks = await retrieveContext({ courseId, query: lastUserMessage, topK: 5 });
+        const g = buildMaterialsGrounding(chunks, SIM_THRESHOLD);
+        if (g.needsFallback) {
+          return new Response(JSON.stringify({ needs_fallback: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        materialsContext = g.materialsContext;
+        ragSources = g.sources;
+      } catch (e) {
+        // Retrieval failure must not break chat — fall back to ungrounded answer.
+        console.error("RAG retrieval error:", e);
+      }
+    }
+
+
+
     const userRole = mode === "teacher" ? "professor" : "student";
     const courseTitle = courseName || "this course";
 
