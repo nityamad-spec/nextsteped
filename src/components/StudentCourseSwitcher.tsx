@@ -16,6 +16,7 @@ interface CourseRow {
   name: string;
   course_code: string | null;
   enrolled_at: string;
+  suspended: boolean;
 }
 
 interface StudentCourseSwitcherProps {
@@ -39,7 +40,7 @@ const StudentCourseSwitcher = ({ onAddCourse }: StudentCourseSwitcherProps) => {
     const load = async () => {
       const { data } = await supabase
         .from("enrollments")
-        .select("course_id, enrolled_at, courses!inner(id, name, course_code)")
+        .select("course_id, enrolled_at, suspended_at, courses!inner(id, name, course_code)")
         .eq("student_id", user.id)
         .order("enrolled_at", { ascending: false });
 
@@ -48,6 +49,7 @@ const StudentCourseSwitcher = ({ onAddCourse }: StudentCourseSwitcherProps) => {
         name: e.courses.name,
         course_code: e.courses.course_code,
         enrolled_at: e.enrolled_at,
+        suspended: !!e.suspended_at,
       }));
       if (!cancelled) {
         setCourses(rows);
@@ -65,6 +67,11 @@ const StudentCourseSwitcher = ({ onAddCourse }: StudentCourseSwitcherProps) => {
     setOpen(false);
     await supabase.from("profiles").update({ active_course_id: c.id }).eq("id", user.id);
 
+    if (c.suspended) {
+      window.location.assign("/student/home");
+      return;
+    }
+
     // Check whether this course has a diagnostic; if not, go take it.
     const { data: diag } = await supabase
       .from("diagnostic_results")
@@ -79,6 +86,7 @@ const StudentCourseSwitcher = ({ onAddCourse }: StudentCourseSwitcherProps) => {
       window.location.assign("/student/home");
     }
   };
+
 
   const active = courses.find(c => c.id === activeId) ?? courses[0];
   const label = active?.name ?? (loading ? "Loading…" : "No course");
