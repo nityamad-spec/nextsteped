@@ -11,6 +11,10 @@ import { CheckCircle, XCircle, Clock, Trophy, ClipboardList, GraduationCap, Shie
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { computeWeeklyQuizScore, type ScoreItem } from "@/lib/masteryScoring";
+import ReasoningInput from "@/components/ReasoningInput";
+import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
+import { requiresReasoning } from "@/lib/reasoning";
+import { toast } from "sonner";
 
 interface AssessmentViewProps {
   type: "quiz" | "exam";
