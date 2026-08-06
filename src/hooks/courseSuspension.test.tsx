@@ -25,8 +25,11 @@ let enrollments: EnrollmentRow[] = [];
 let profile: { active_course_id: string | null } = { active_course_id: null };
 const profileUpdates: any[] = [];
 
+// Stable identity: the hooks key effects off `user`, so a fresh object per
+// render would loop forever.
+const AUTH_USER = { id: STUDENT };
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ user: { id: STUDENT } }),
+  useAuth: () => ({ user: AUTH_USER }),
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
