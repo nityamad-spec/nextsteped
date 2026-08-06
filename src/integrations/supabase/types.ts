@@ -1387,6 +1387,8 @@ export type Database = {
           id: string
           section: string | null
           student_id: string
+          suspended_at: string | null
+          suspended_by: string | null
         }
         Insert: {
           course_id: string
@@ -1394,6 +1396,8 @@ export type Database = {
           id?: string
           section?: string | null
           student_id: string
+          suspended_at?: string | null
+          suspended_by?: string | null
         }
         Update: {
           course_id?: string
@@ -1401,6 +1405,8 @@ export type Database = {
           id?: string
           section?: string | null
           student_id?: string
+          suspended_at?: string | null
+          suspended_by?: string | null
         }
         Relationships: [
           {
@@ -2304,6 +2310,10 @@ export type Database = {
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
+      }
+      is_active_enrollment: {
+        Args: { _course_id: string; _student_id: string }
+        Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_course_member: {
