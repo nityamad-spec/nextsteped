@@ -613,7 +613,7 @@ DIAGRAMS — you CAN draw diagrams
     A[Input] --> B[Encoder] --> C[Decoder] --> D[Output]
   \`\`\`
 - Allowed diagram types ONLY: \`flowchart\` (or \`graph\`), \`sequenceDiagram\`, \`classDiagram\`, \`stateDiagram\` / \`stateDiagram-v2\`. Nothing else.
-- STRUCTURE: at least 2 nodes and 1 edge. Never emit an empty \`subgraph ... end\` block. Keep node labels short plain text (no LaTeX, no math, no HTML). Keep diagrams small (roughly under 15 nodes). At most one diagram per answer. Always pair the diagram with a brief text explanation — the diagram may not render on every device, so the text alone must still answer the question.
+- STRUCTURE: at least 2 nodes and 1 edge. Never emit an empty \`subgraph ... end\` block. Keep node labels short plain text (no LaTeX, no math, no HTML). ALWAYS wrap every node label in double quotes, e.g. \`A["Generated Content (text, image)"]\` — labels containing parentheses, commas, colons or \`&\` break rendering when unquoted. Keep diagrams small (roughly under 15 nodes). At most one diagram per answer. Always pair the diagram with a brief text explanation — the diagram may not render on every device, so the text alone must still answer the question.
 - Example — student asks "give me an image of how a neural network works". Correct reply: a short intro sentence, then:
   \`\`\`mermaid
   flowchart LR
