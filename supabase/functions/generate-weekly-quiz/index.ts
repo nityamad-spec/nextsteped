@@ -61,6 +61,8 @@ interface TierSpec {
   perCallTimeoutMs: number; // per-sub-call abort timeout
   maxAttempts: number; // tier-level retry budget (counts sub-calls + skew/dedup refills)
   reserveExtras: number; // over-generate this many primaries beyond count as a fallback pool
+  /** Accepted difficulty half-width around `difficulty`. Defaults to 0.15. */
+  band?: number;
                           // for the Phase-2 follow-up coverage rule (drop+backfill).
 }
 
@@ -110,6 +112,27 @@ const TIER_SPEC: TierSpec[] = [
     reserveExtras: 2,
   },
 ];
+
+/**
+ * Weeks with very few concepts cannot support 7 genuinely distinct hard
+ * questions inside a ±0.15 difficulty window — the dedup filter starves the
+ * tier. Widen the accepted bands (and soften the hard midpoint) when the week
+ * has fewer than 3 concepts. Bloom 3-4 for the hard tier is untouched, so hard
+ * stays clearly harder than medium.
+ */
+const CONCEPT_SCARCITY_THRESHOLD = 3;
+
+function buildTierSpec(conceptCount: number): TierSpec[] {
+  const scarce = conceptCount < CONCEPT_SCARCITY_THRESHOLD;
+  if (!scarce) return TIER_SPEC.map((s) => ({ ...s, band: 0.15 }));
+  return TIER_SPEC.map((s) =>
+    s.tier === "hard"
+      ? { ...s, difficulty: 0.78, band: 0.2 }
+      : { ...s, band: 0.2 },
+  );
+}
+
+
 
 
 const MODEL = "google/gemini-2.5-pro";
@@ -213,7 +236,7 @@ function validateCandidate(
 
   const diffRes = validateDifficulty((raw as any)?.difficulty_estimate, {
     midpoint: spec.difficulty,
-    band: 0.15,
+    band: spec.band ?? 0.15,
   });
   if (!diffRes.ok) return diffRes;
   const difficulty_estimate = diffRes.value;
@@ -349,7 +372,7 @@ async function generateTier(
     const systemPrompt = `You are an expert assessment designer for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier}-tier WEEKLY QUIZ questions for Week ${weekNumber}${weekName ? ` — ${weekName}` : ""}.
 
 Tier: ${spec.label}
-Target difficulty (0=easy, 1=hard): ${spec.difficulty} (must be within ±0.15)
+Target difficulty (0=easy, 1=hard): ${spec.difficulty} (must be within ±${(spec.band ?? 0.15).toFixed(2)})
 
 CONCEPTS available for this week — the 'topic' field of each question MUST be one of these exact concept codes (case-sensitive):
 ${promptConceptList}
@@ -359,7 +382,7 @@ STRICT RULES:
 - Each question MUST be either multiple-choice (format="mcq") or true/false (format="true_false"). NO short answer, NO problem solving.
 - MCQ: exactly 4 distinct non-empty options (no "A)" prefixes). 'answer' is the FULL TEXT of the correct option.
 - True/False: options MUST be exactly ["True", "False"]. 'answer' must be "True" or "False".
-- difficulty_estimate: number near ${spec.difficulty} (±0.15).
+- difficulty_estimate: number near ${spec.difficulty} (±${(spec.band ?? 0.15).toFixed(2)}).
 - bloom_level: integer 1-4 ONLY (1=Remember, 2=Understand, 3=Apply, 4=Analyze). Do NOT use 5 (Evaluate) or 6 (Create) — these cannot be fairly assessed with MCQ or True/False.
 ${spec.tier === "easy" ? "- Bloom target: mostly 1-2 (Remember/Understand)." : spec.tier === "medium" || spec.tier === "standard" ? "- Bloom target: mostly 2-3 (Understand/Apply); at least 40% at bloom 3." : "- Bloom target: 3-4 (Apply/Analyze); at least 60% at bloom 3-4. Prefer scenario, code-trace, or comparison stems over single-fact recall."}
 - content_text: question stem only, ≤ 600 chars.
@@ -584,6 +607,7 @@ async function run(
   const body = await req.json();
   const courseId = typeof body?.course_id === "string" ? body.course_id : null;
   const weekNumber = Number(body?.week_number);
+  const topUp = body?.top_up === true;
   if (!courseId || !Number.isInteger(weekNumber) || weekNumber < 1) {
     return { status: 400, payload: { error: "course_id and week_number required" } };
   }
@@ -651,19 +675,62 @@ async function run(
     };
   }
 
+  // Difficulty bands adapt to how many concepts the week actually has.
+  const baseSpec = buildTierSpec(Object.keys(conceptByCode).length);
+
+  // Top-up mode: keep whatever already exists for this week and only generate
+  // the per-tier shortfall. Existing stems join the avoid list so the model
+  // does not re-author them.
+  const existingAvoid: GeneratedQuestion[] = [];
+  const existingByTier: Record<string, number> = {};
+  if (topUp) {
+    const { data: existingRows } = await admin
+      .from("assessment_questions")
+      .select("tier, question_text, options, answer, difficulty_estimate, bloom_level, topic, format")
+      .eq("course_id", courseId)
+      .eq("mode", "daily_quiz")
+      .eq("quiz_day", weekNumber);
+    for (const r of existingRows ?? []) {
+      const tier = String((r as any).tier ?? "standard");
+      existingByTier[tier] = (existingByTier[tier] ?? 0) + 1;
+      existingAvoid.push({
+        content_text: String((r as any).question_text ?? ""),
+        format: ((r as any).format === "true_false" ? "true_false" : "mcq"),
+        options: Array.isArray((r as any).options) ? ((r as any).options as string[]) : [],
+        answer: String((r as any).answer ?? ""),
+        difficulty_estimate: Number((r as any).difficulty_estimate ?? 0.5),
+        bloom_level: Number((r as any).bloom_level ?? 2),
+        explanation: "",
+        topic: String((r as any).topic ?? ""),
+      });
+    }
+  }
+
+  // Effective specs: full counts on a fresh run, shortfall-only on a top-up.
+  const runSpec: TierSpec[] = baseSpec
+    .map((s) => ({ ...s, count: Math.max(0, s.count - (existingByTier[s.tier] ?? 0)) }))
+    .filter((s) => s.count > 0);
+
+  if (topUp && runSpec.length === 0) {
+    return {
+      status: 200,
+      payload: { ok: true, generated: 0, requested: 0, partial: false, by_tier: existingByTier, top_up: true },
+    };
+  }
+
   // Run every tier in parallel. Post-assembly cross-tier dedup (below)
   // handles any overlap by tier priority — no need to serialise standard
   // first, which previously blew the global deadline when it timed out.
-  // Reserve ~90s of the global deadline for the guaranteed backfill loop.
+  // Reserve ~120s of the global deadline for the guaranteed backfill loop.
   const deadlineAt = Date.now() + GLOBAL_DEADLINE_MS;
-  const mainPassDeadline = Math.min(deadlineAt, Date.now() + (GLOBAL_DEADLINE_MS - 90_000));
+  const mainPassDeadline = Math.min(deadlineAt, Date.now() + (GLOBAL_DEADLINE_MS - 120_000));
 
   const allQuestions: { spec: TierSpec; q: GeneratedQuestion }[] = [];
   let creditsExhausted = false;
   const tierErrors: Record<string, string> = {};
 
   const tierResults = await Promise.allSettled(
-    TIER_SPEC.map((spec) =>
+    runSpec.map((spec) =>
       generateTier(
         spec,
         course.name ?? "Course",
@@ -672,13 +739,13 @@ async function run(
         conceptByCode,
         lovableKey,
         mainPassDeadline,
-        [],
+        existingAvoid,
       ).then((qs) => ({ spec, qs })),
     ),
   );
   for (let i = 0; i < tierResults.length; i++) {
     const r = tierResults[i];
-    const spec = TIER_SPEC[i];
+    const spec = runSpec[i];
     if (r.status === "fulfilled") {
       for (const q of r.value.qs) allQuestions.push({ spec, q });
     } else {
@@ -728,7 +795,7 @@ async function run(
   // band. Bounded by pass count AND global deadline so we cannot overshoot.
   const MAX_BACKFILL_PASSES = 3;
   for (let pass = 1; pass <= MAX_BACKFILL_PASSES; pass++) {
-    const shortSpecs = TIER_SPEC
+    const shortSpecs = runSpec
       .map((spec) => ({
         spec,
         shortfall: spec.count - allQuestions.filter((x) => x.spec.tier === spec.tier).length,
@@ -749,7 +816,7 @@ async function run(
       ).perConcept;
       const focus = shortConcepts(tierAudit);
       const backfillSpec: TierSpec = { ...spec, count: shortfall };
-      const avoid = allQuestions.map((x) => x.q);
+      const avoid = [...existingAvoid, ...allQuestions.map((x) => x.q)];
       return generateTier(
         backfillSpec,
         course.name ?? "Course",
@@ -759,7 +826,7 @@ async function run(
         lovableKey,
         deadlineAt,
         avoid,
-        { focusConcepts: focus.length ? focus : undefined, maxAttempts: 2 },
+        { focusConcepts: focus.length ? focus : undefined, maxAttempts: 3 },
       )
         .then((extra) => ({ spec, shortfall, focus, extra }))
         .catch((err) => ({ spec, shortfall, focus, err }));
@@ -792,7 +859,7 @@ async function run(
    * -------------------------------------------------------------------- */
 
   const finalItems: FinalItem[] = [];
-  for (const spec of TIER_SPEC) {
+  for (const spec of runSpec) {
     let taken = 0;
     for (const it of allQuestions) {
       if (it.spec.tier !== spec.tier) continue;
@@ -807,12 +874,16 @@ async function run(
    * Persistence
    * -------------------------------------------------------------------- */
 
-  await admin
-    .from("assessment_questions")
-    .delete()
-    .eq("course_id", courseId)
-    .eq("mode", "daily_quiz")
-    .eq("quiz_day", weekNumber);
+  if (!topUp) {
+    await admin
+      .from("assessment_questions")
+      .delete()
+      .eq("course_id", courseId)
+      .eq("mode", "daily_quiz")
+      .eq("quiz_day", weekNumber);
+  }
+
+  const codeSuffix = topUp ? `-tu${Date.now().toString(36)}` : "";
 
   const primaryRows = finalItems.map(({ spec, q }, i) => {
     const concept = conceptByCode[q.topic];
@@ -835,7 +906,7 @@ async function run(
       difficulty: q.difficulty_estimate < 0.35 ? "Easy" : q.difficulty_estimate > 0.7 ? "Hard" : "Medium",
       difficulty_estimate: q.difficulty_estimate,
       bloom_level: q.bloom_level,
-      item_code: `w${weekNumber}-${spec.tier}-${i}`,
+      item_code: `w${weekNumber}-${spec.tier}-${i}${codeSuffix}`,
     };
   });
 
@@ -845,10 +916,16 @@ async function run(
   if (insErr) throw new Error(`Insert failed: ${insErr.message}`);
 
 
-  const byTier: Record<string, number> = {};
+  const byTier: Record<string, number> = { ...existingByTier };
   for (const { spec } of finalItems) byTier[spec.tier] = (byTier[spec.tier] ?? 0) + 1;
-  const expected = TIER_SPEC.reduce((s, t) => s + t.count, 0);
-  const partial = primaryRows.length < expected;
+  const expected = baseSpec.reduce((s, t) => s + t.count, 0);
+  const totalStored = Object.values(byTier).reduce((s, n) => s + n, 0);
+  console.log(
+    `[weekly-quiz] week=${weekNumber} top_up=${topUp} concepts=${Object.keys(conceptByCode).length} ` +
+      `stored=${totalStored}/${expected} by_tier=${JSON.stringify(byTier)} ` +
+      `tier_errors=${JSON.stringify(tierErrors)}`,
+  );
+  const partial = totalStored < expected;
 
   if (creditsExhausted && primaryRows.length === 0) {
     return { status: 402, payload: { error: "AI credits exhausted", code: "CREDITS_EXHAUSTED" } };
@@ -859,8 +936,10 @@ async function run(
     payload: {
       ok: true,
       generated: primaryRows.length,
+      total: totalStored,
       requested: expected,
       partial,
+      top_up: topUp,
       by_tier: byTier,
       tier_errors: Object.keys(tierErrors).length ? tierErrors : undefined,
     },
