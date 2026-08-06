@@ -249,7 +249,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
         .map((id) => questions.findIndex((q) => q.id === id) + 1)
         .filter((n) => n > 0)
         .sort((a, b) => a - b);
-      if (isQuiz && numbers.length > 0) setCurrentIndex(numbers[0] - 1);
+      if (type === "quiz" && numbers.length > 0) setCurrentIndex(numbers[0] - 1);
       toast.error("Reasoning required", {
         description: `Explain your reasoning for question${numbers.length > 1 ? "s" : ""} ${numbers.join(", ")} before submitting.`,
       });
