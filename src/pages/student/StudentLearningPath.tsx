@@ -232,7 +232,7 @@ const StudentLearningPath = () => {
             <p className="text-xs text-muted-foreground">
               {publishedQuizCount === 0
                 ? "No quizzes published yet"
-                : `${passedQuizCount} of ${publishedQuizCount} weekly quizzes passed (>50%)`}
+                : `${passedQuizCount} of ${publishedQuizCount} unit quizzes passed (>50%)`}
             </p>
           </CardContent>
         </Card>
