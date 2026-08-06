@@ -476,6 +476,20 @@ const DiagnosticQuiz = () => {
       setStudentProfile({ ...studentProfile, learnerLevel: level });
     }
 
+    const bloomById = new Map(finalQuestions.map((q) => [q.id, q.bloomLevel]));
+    void saveReasoningRows(
+      buildReasoningRows({
+        studentId: user.id,
+        courseId: courseIdForSave,
+        sourceFormat: "diagnostic",
+        questionSource: "diagnostic_questions",
+        sourceResultId: (scored as { result_id?: string } | null)?.result_id ?? null,
+        answers: standardisedAnswers,
+        rationales: reasoning.rationales,
+        bloomFor: (qid) => bloomById.get(qid) ?? 1,
+      }),
+    );
+
     setSaving(false);
 
     if (activeCourseId) {
