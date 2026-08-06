@@ -675,19 +675,62 @@ async function run(
     };
   }
 
+  // Difficulty bands adapt to how many concepts the week actually has.
+  const baseSpec = buildTierSpec(Object.keys(conceptByCode).length);
+
+  // Top-up mode: keep whatever already exists for this week and only generate
+  // the per-tier shortfall. Existing stems join the avoid list so the model
+  // does not re-author them.
+  const existingAvoid: GeneratedQuestion[] = [];
+  const existingByTier: Record<string, number> = {};
+  if (topUp) {
+    const { data: existingRows } = await admin
+      .from("assessment_questions")
+      .select("tier, question_text, options, answer, difficulty_estimate, bloom_level, topic, format")
+      .eq("course_id", courseId)
+      .eq("mode", "daily_quiz")
+      .eq("quiz_day", weekNumber);
+    for (const r of existingRows ?? []) {
+      const tier = String((r as any).tier ?? "standard");
+      existingByTier[tier] = (existingByTier[tier] ?? 0) + 1;
+      existingAvoid.push({
+        content_text: String((r as any).question_text ?? ""),
+        format: ((r as any).format === "true_false" ? "true_false" : "mcq"),
+        options: Array.isArray((r as any).options) ? ((r as any).options as string[]) : [],
+        answer: String((r as any).answer ?? ""),
+        difficulty_estimate: Number((r as any).difficulty_estimate ?? 0.5),
+        bloom_level: Number((r as any).bloom_level ?? 2),
+        explanation: "",
+        topic: String((r as any).topic ?? ""),
+      });
+    }
+  }
+
+  // Effective specs: full counts on a fresh run, shortfall-only on a top-up.
+  const runSpec: TierSpec[] = baseSpec
+    .map((s) => ({ ...s, count: Math.max(0, s.count - (existingByTier[s.tier] ?? 0)) }))
+    .filter((s) => s.count > 0);
+
+  if (topUp && runSpec.length === 0) {
+    return {
+      status: 200,
+      payload: { ok: true, generated: 0, requested: 0, partial: false, by_tier: existingByTier, top_up: true },
+    };
+  }
+
   // Run every tier in parallel. Post-assembly cross-tier dedup (below)
   // handles any overlap by tier priority — no need to serialise standard
   // first, which previously blew the global deadline when it timed out.
-  // Reserve ~90s of the global deadline for the guaranteed backfill loop.
+  // Reserve ~120s of the global deadline for the guaranteed backfill loop.
   const deadlineAt = Date.now() + GLOBAL_DEADLINE_MS;
-  const mainPassDeadline = Math.min(deadlineAt, Date.now() + (GLOBAL_DEADLINE_MS - 90_000));
+  const mainPassDeadline = Math.min(deadlineAt, Date.now() + (GLOBAL_DEADLINE_MS - 120_000));
 
   const allQuestions: { spec: TierSpec; q: GeneratedQuestion }[] = [];
   let creditsExhausted = false;
   const tierErrors: Record<string, string> = {};
 
   const tierResults = await Promise.allSettled(
-    TIER_SPEC.map((spec) =>
+    runSpec.map((spec) =>
       generateTier(
         spec,
         course.name ?? "Course",
@@ -696,13 +739,13 @@ async function run(
         conceptByCode,
         lovableKey,
         mainPassDeadline,
-        [],
+        existingAvoid,
       ).then((qs) => ({ spec, qs })),
     ),
   );
   for (let i = 0; i < tierResults.length; i++) {
     const r = tierResults[i];
-    const spec = TIER_SPEC[i];
+    const spec = runSpec[i];
     if (r.status === "fulfilled") {
       for (const q of r.value.qs) allQuestions.push({ spec, q });
     } else {
