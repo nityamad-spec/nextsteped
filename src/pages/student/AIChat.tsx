@@ -422,7 +422,20 @@ const AIChat = () => {
     setAssessmentActive(false);
     const welcome = targetMode === "learning" ? getWelcomeLearning(courseContext?.courseName) : WELCOME_EXAM;
     const title = targetMode === "learning" ? "New Study Session" : "New Exam Prep";
-    createSession(title, welcome);
+    createSession(title, welcome).then(() => {
+      if (targetMode !== "learning") return;
+      const concept = searchParams.get("concept");
+      if (!concept) return;
+      const intent = searchParams.get("intent");
+      let prefill = "";
+      if (intent === "weak") {
+        prefill = `I'm struggling with "${concept}". Explain it from the basics with a simple example.`;
+      } else if (intent === "start") {
+        prefill = `Help me get started with "${concept}" from this unit. Explain it in simple terms with an example.`;
+      }
+      if (prefill) setInput(prefill);
+      navigate("/student/chat", { replace: true });
+    });
   }, []);
 
   useEffect(() => {
