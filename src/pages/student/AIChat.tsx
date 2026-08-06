@@ -833,6 +833,7 @@ const AIChat = () => {
 
     // Classify relevance for study mode
     let relevanceContext: { relevant: boolean; courseName: string; concepts: string[] } | undefined;
+    let isConversational = false;
     if (mode === "learning" && courseContext) {
       try {
         const classifyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/classify-question`;
@@ -851,7 +852,8 @@ const AIChat = () => {
         }, 2); // Only 2 retries for classification — skip on failure
         if (classifyResp.ok) {
           const classifyData = await classifyResp.json();
-          if (classifyData.relevant === false) {
+          isConversational = classifyData.intent === "conversational";
+          if (!isConversational && classifyData.relevant === false) {
             relevanceContext = {
               relevant: false,
               courseName: courseContext.courseName,
@@ -884,6 +886,7 @@ const AIChat = () => {
           courseId: enrolledCourseId || undefined,
           studentId: user?.id || undefined,
           grounding,
+          ...(isConversational ? { conversational: true } : {}),
         }),
       });
 

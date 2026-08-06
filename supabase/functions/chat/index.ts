@@ -35,12 +35,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { retrieveContext } from "../_shared/rag-retrieve.ts";
+import { isConversationalFiller } from "../_shared/conversational-intent.ts";
 import {
   buildMaterialsGrounding,
   GENERAL_KNOWLEDGE_SUFFIX,
   SIM_THRESHOLD,
   type RagSource,
 } from "../_shared/chat-grounding.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -425,8 +427,15 @@ serve(async (req) => {
       courseId,
       studentId,
       grounding: groundingRaw,
+      conversational: conversationalRaw,
     } = await req.json();
     const grounding: "rag" | "general" = groundingRaw === "general" ? "general" : "rag";
+    const lastUserMessage: string = messages?.[messages.length - 1]?.content ?? "";
+    // Filler / small-talk turns ("ok", "sounds good", "what's next") must never
+    // trigger RAG grounding or the off-topic refusal — the model just continues
+    // the conversation. Client flag OR server-side heuristic (safety net).
+    const isConversational = conversationalRaw === true || isConversationalFiller(lastUserMessage);
+
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -505,6 +514,30 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
         }
       }
     }
+
+    // ---- RAG grounding over uploaded course materials ----
+    // Skipped entirely for conversational/filler turns and when the user has
+    // explicitly opted in to a general-knowledge answer.
+    let materialsContext = "";
+    let ragSources: RagSource[] = [];
+    if (courseId && grounding === "rag" && !isConversational && lastUserMessage.trim()) {
+      try {
+        const chunks = await retrieveContext({ courseId, query: lastUserMessage, topK: 5 });
+        const g = buildMaterialsGrounding(chunks, SIM_THRESHOLD);
+        if (g.needsFallback) {
+          return new Response(JSON.stringify({ needs_fallback: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        materialsContext = g.materialsContext;
+        ragSources = g.sources;
+      } catch (e) {
+        // Retrieval failure must not break chat — fall back to ungrounded answer.
+        console.error("RAG retrieval error:", e);
+      }
+    }
+
+
 
     const userRole = mode === "teacher" ? "professor" : "student";
     const courseTitle = courseName || "this course";
@@ -631,7 +664,7 @@ PROFESSOR STYLE
     void userRole;
 
     // If the question was classified as off-topic, refuse and redirect
-    if (relevanceContext && relevanceContext.relevant === false && relevanceContext.courseName) {
+    if (!isConversational && relevanceContext && relevanceContext.relevant === false && relevanceContext.courseName) {
       const conceptsList = relevanceContext.concepts?.length
         ? ` Course concepts include: ${relevanceContext.concepts.join(", ")}.`
         : "";
