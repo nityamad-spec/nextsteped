@@ -506,6 +506,54 @@ const AdminStudents = () => {
     }
   };
 
+  /** Selected students that are enrolled in the chosen course and need the change. */
+  const bulkCourseTargets = useMemo(() => {
+    if (!bulkCourseAction || !bulkCourseId) return [];
+    const willSuspend = bulkCourseAction === "suspend";
+    return selectedInFiltered
+      .map(s => ({ s, c: s.courses.find(c => c.courseId === bulkCourseId) }))
+      .filter((x): x is { s: StudentGroup; c: CourseEnrollment } =>
+        !!x.c && (willSuspend ? !x.c.suspendedAt : !!x.c.suspendedAt));
+  }, [selectedInFiltered, bulkCourseAction, bulkCourseId]);
+
+  const runBulkCourse = async () => {
+    if (!bulkCourseAction || !bulkCourseId) return;
+    const willSuspend = bulkCourseAction === "suspend";
+    const targets = bulkCourseTargets;
+    if (targets.length === 0) { setBulkCourseAction(null); return; }
+    setBulkRunning(true);
+    let ok = 0;
+    const failures: { name: string; err: string }[] = [];
+    const CONCURRENCY = 5;
+    for (let i = 0; i < targets.length; i += CONCURRENCY) {
+      const chunk = targets.slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(async ({ s, c }) => {
+        const res = await setEnrollmentSuspension(s.key, c.studentId, c.courseId, willSuspend);
+        if (res.ok) ok++; else failures.push({ name: s.name, err: res.error! });
+      }));
+    }
+    setBulkRunning(false);
+    setBulkCourseAction(null);
+    setSelected(new Set());
+    const courseName = courseIdOptions.find(c => c.id === bulkCourseId)?.name ?? "course";
+    if (failures.length === 0) {
+      toast({
+        title: willSuspend ? `Suspended ${ok} in ${courseName}` : `Reactivated ${ok} in ${courseName}`,
+        description: willSuspend
+          ? "Their access to other courses is unaffected."
+          : "They can access this course again.",
+      });
+    } else {
+      toast({
+        title: `${ok} succeeded, ${failures.length} failed`,
+        description: failures.slice(0, 3).map(f => `${f.name}: ${f.err}`).join("; ") + (failures.length > 3 ? `; …and ${failures.length - 3} more` : ""),
+        variant: "destructive",
+      });
+    }
+  };
+
+
+
 
   if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full" /></div>;
 
