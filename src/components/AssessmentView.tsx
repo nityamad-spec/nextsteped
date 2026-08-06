@@ -49,10 +49,6 @@ export interface AssessmentResults {
   totalQuestions: number;
   correctAnswers: number;
   score: number;
-export interface AssessmentResults {
-  totalQuestions: number;
-  correctAnswers: number;
-  score: number;
   flatScore?: number;
   weightedScore?: number;
   /** Phase 8: 0..1 accuracy component of the 80/20 mastery score (quiz mode). */
