@@ -138,6 +138,14 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
 
   const handleReveal = () => {
     if (!currentQuestion || !answers[currentQuestion.id]) return;
+    if (reasoning.isQuestionBlocked({ id: currentQuestion.id, bloom: currentQuestion.bloom_level })) {
+      reasoning.setShowErrors(true);
+      toast.error("Reasoning required", {
+        description: "Explain your reasoning before checking the answer.",
+      });
+      return;
+    }
+    reasoning.setShowErrors(false);
     setRevealed(prev => new Set(prev).add(currentQuestion.id));
   };
 
