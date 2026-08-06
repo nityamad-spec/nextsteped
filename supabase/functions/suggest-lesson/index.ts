@@ -23,6 +23,8 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { loggedGatewayFetch } from "../_shared/ai-log.ts";
+const FUNCTION_NAME = "suggest-lesson";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -138,7 +140,9 @@ CRITICAL INSTRUCTIONS:
 5. The Additional Tips section should include practical, specific teaching strategies — not generic advice.
 6. Be intentional: suggest 2-4 genuinely valuable new concepts/topics per week maximum. Do not overwhelm with too many additions — focus on what will meaningfully improve the curriculum.`;
 
-    const response = await fetch(
+    const response = await loggedGatewayFetch(
+      FUNCTION_NAME,
+      { model: "google/gemini-3-flash-preview", purpose: "suggest-lesson" },
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",

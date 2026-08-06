@@ -29,6 +29,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { loggedGatewayFetch } from "../_shared/ai-log.ts";
+const FUNCTION_NAME = "generate-lesson-plan";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -458,7 +460,7 @@ LESSON PLAN DOCS (secondary signal):
 ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 6000) : "(none)"}`;
 
       const callOrderLLM = async () => {
-        const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const r = await loggedGatewayFetch(FUNCTION_NAME, { model: "google/gemini-2.5-flash", purpose: "lesson-plan:order" }, "https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           signal: AbortSignal.timeout(300_000),
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
@@ -609,7 +611,7 @@ LESSON PLAN DOCS (pacing signals only):
 ${lessonPlanExcerpts.length > 0 ? lessonPlanExcerpts.join("\n\n").slice(0, 8000) : "(none)"}`;
 
     async function callEffortLLM() {
-      const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const r = await loggedGatewayFetch(FUNCTION_NAME, { model: "google/gemini-2.5-flash", purpose: "lesson-plan:effort" }, "https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         signal: AbortSignal.timeout(300_000),
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
@@ -841,7 +843,7 @@ Objectives: ${(course.objectives || []).join("; ") || "Not specified"}
 LOCKED WEEK ASSIGNMENT:
 ${assignmentBlock}`;
 
-    const authorResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const authorResp = await loggedGatewayFetch(FUNCTION_NAME, { model: "google/gemini-2.5-pro", purpose: "lesson-plan:author", course_id: courseId ?? null }, "https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       signal: AbortSignal.timeout(300_000),
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },

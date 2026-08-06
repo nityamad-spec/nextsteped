@@ -24,6 +24,8 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { loggedGatewayFetch } from "../_shared/ai-log.ts";
+const FUNCTION_NAME = "explain-answers";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,7 +72,9 @@ Return a JSON array where each element has:
 Be educational and encouraging. Focus on building understanding, not just stating facts.
 Return ONLY the JSON array, no other text.`;
 
-    const response = await fetch(
+    const response = await loggedGatewayFetch(
+      FUNCTION_NAME,
+      { model: "google/gemini-2.5-flash-lite", purpose: "explain-answers" },
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",

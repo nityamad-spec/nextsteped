@@ -26,6 +26,8 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { loggedGatewayFetch } from "../_shared/ai-log.ts";
+const FUNCTION_NAME = "parse-syllabus";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -149,7 +151,7 @@ ${fileContent}
       });
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await loggedGatewayFetch(FUNCTION_NAME, { model: "google/gemini-2.5-pro", purpose: "parse-syllabus" }, "https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,

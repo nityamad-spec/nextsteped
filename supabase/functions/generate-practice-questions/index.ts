@@ -28,6 +28,8 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { loggedGatewayFetch } from "../_shared/ai-log.ts";
+const FUNCTION_NAME = "generate-practice-questions";
 import {
   normalizeAnswer,
   validateStructural,
@@ -257,7 +259,7 @@ async function callGateway(
   apiKey: string,
   messages: Array<{ role: string; content: string }>,
 ): Promise<{ ok: true; content: string } | { ok: false; status: number; error: string }> {
-  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const resp = await loggedGatewayFetch(FUNCTION_NAME, { model: "google/gemini-2.5-flash-lite", purpose: "practice-questions" }, "https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     signal: AbortSignal.timeout(300_000),
     headers: {

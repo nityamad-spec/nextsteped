@@ -24,6 +24,8 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { loggedGatewayFetch } from "../_shared/ai-log.ts";
+const FUNCTION_NAME = "generate-question-metadata";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -101,7 +103,7 @@ difficultyEstimate = probability a typical student answers correctly (lower = ha
     const systemPrompt =
       "You classify assessment questions on Bloom's taxonomy and difficulty, then write a brief student-facing explanation. Reply with a single JSON object matching the schema exactly. Be concise; respect character limits.";
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await loggedGatewayFetch(FUNCTION_NAME, { model: "google/gemini-2.5-pro", purpose: "question-metadata" }, "https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       signal: AbortSignal.timeout(60_000),
       headers: {

@@ -25,6 +25,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { loggedGatewayFetch } from "../_shared/ai-log.ts";
+const FUNCTION_NAME = "extract-lesson-plan";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -163,7 +165,9 @@ Rules:
   - If a field is not present, return an empty string or empty array.
   - Do not invent weeks beyond what is in the documents.`;
 
-    const aiResp = await fetch(
+    const aiResp = await loggedGatewayFetch(
+      FUNCTION_NAME,
+      { model: "google/gemini-2.5-pro", purpose: "extract-lesson-plan", course_id: courseId ?? null },
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",

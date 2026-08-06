@@ -28,6 +28,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { loggedGatewayFetch } from "../_shared/ai-log.ts";
+const FUNCTION_NAME = "ingest-rag-document";
 import { extractText, getDocumentProxy } from "npm:unpdf@0.12.1";
 
 
@@ -79,7 +81,9 @@ async function ocrPage(
   pageNumber: number,
   apiKey: string,
 ): Promise<string> {
-  const resp = await fetch(
+  const resp = await loggedGatewayFetch(
+    FUNCTION_NAME,
+    { model: OCR_MODEL, purpose: "rag:ocr", context: { page: pageNumber } },
     "https://ai.gateway.lovable.dev/v1/chat/completions",
     {
       method: "POST",
@@ -209,7 +213,7 @@ async function embedBatch(
   texts: string[],
   apiKey: string,
 ): Promise<number[][]> {
-  const resp = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
+  const resp = await loggedGatewayFetch(FUNCTION_NAME, { model: EMBED_MODEL, purpose: "rag:embed", context: { batch_size: texts.length } }, "https://ai.gateway.lovable.dev/v1/embeddings", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,

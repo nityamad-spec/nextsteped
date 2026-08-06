@@ -22,6 +22,8 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { loggedGatewayFetch } from "../_shared/ai-log.ts";
+const FUNCTION_NAME = "quality-check";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -79,7 +81,9 @@ For each issue, provide:
       userPrompt += `\n\n--- ORIGINAL SOURCE TEXT (for cross-reference) ---\n${sourceText}`;
     }
 
-    const response = await fetch(
+    const response = await loggedGatewayFetch(
+      FUNCTION_NAME,
+      { model: "google/gemini-2.5-pro", purpose: "quality-check" },
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",
