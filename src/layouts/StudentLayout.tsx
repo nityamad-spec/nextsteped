@@ -65,7 +65,8 @@ const StudentLayout = () => {
           </div>
         </header>
         <main className="flex-1 overflow-auto">
-          <Outlet />
+          {content}
+
         </main>
         <nav className="flex border-t bg-card">
           {nav.map((item) => (
@@ -122,7 +123,8 @@ const StudentLayout = () => {
       </aside>
 
       <main className="flex-1 overflow-auto">
-        <Outlet />
+        {content}
+
       </main>
 
       <AddCourseDialog open={addCourseOpen} onOpenChange={setAddCourseOpen} />
