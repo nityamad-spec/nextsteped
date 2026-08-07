@@ -173,7 +173,20 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
       setCurrentIndex(prev => prev + 1);
     } else {
       setSubmitting(true);
-      await reasoning.waitForPending(REASONING_EVAL_DEADLINE_MS);
+      // Include the last question: its rationale may never have been revealed.
+      await reasoning.flushAndWait(
+        questions.map((q) => ({
+          questionId: q.id,
+          questionText: q.question,
+          options: q.options,
+          correctAnswer: q.answer,
+          selectedAnswer: answers[q.id] ?? null,
+          topic: q.topic,
+          bloom: q.bloom_level,
+          courseId: enrolledCourseId ?? null,
+        })),
+        REASONING_EVAL_DEADLINE_MS,
+      );
       setSubmitting(false);
       let correct = 0;
       const answerDetails = questions.map(q => {
