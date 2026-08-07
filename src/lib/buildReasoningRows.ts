@@ -33,7 +33,9 @@ export function buildReasoningRows(args: {
   for (const a of args.answers ?? []) {
     const qid = a?.question_id;
     if (!qid) continue;
-    const raw = Number(args.bloomFor(qid));
+    // null/undefined coerce to 0/NaN — both mean "unknown", not "Bloom 1".
+    const rawValue = args.bloomFor(qid);
+    const raw = rawValue === null || rawValue === undefined ? NaN : Number(rawValue);
     const hasBloom = Number.isFinite(raw);
     const text = (args.rationales?.[qid] ?? "").trim();
 
