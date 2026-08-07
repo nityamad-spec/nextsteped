@@ -166,7 +166,7 @@ export function useReasoningAnswers() {
           } catch (e) {
             console.error("Reasoning evaluation failed:", e);
           }
-          if (attempt === 0) await new Promise((r) => setTimeout(r, 600));
+          if (attempt === 0) await interruptibleBackoff();
         }
         writeEvaluation(qid, {
           status: "unevaluated",
@@ -181,21 +181,40 @@ export function useReasoningAnswers() {
 
       pendingRef.current.set(qid, run);
     },
-    [writeEvaluation],
+    [writeEvaluation, interruptibleBackoff],
   );
 
   /**
    * Resolve when all in-flight evaluations settle, or when the deadline passes —
    * whichever comes first. Never rejects: submission must not be blockable.
+   * Signals a flush first so any retry backoff wakes immediately.
    */
-  const waitForPending = useCallback(async (deadlineMs: number) => {
-    const inFlight = Array.from(pendingRef.current.values());
-    if (inFlight.length === 0) return;
-    await Promise.race([
-      Promise.allSettled(inFlight),
-      new Promise((resolve) => setTimeout(resolve, deadlineMs)),
-    ]);
-  }, []);
+  const waitForPending = useCallback(
+    async (deadlineMs: number) => {
+      signalFlush();
+      const inFlight = Array.from(pendingRef.current.values());
+      if (inFlight.length === 0) return;
+      await Promise.race([
+        Promise.allSettled(inFlight),
+        new Promise((resolve) => setTimeout(resolve, deadlineMs)),
+      ]);
+    },
+    [signalFlush],
+  );
+
+  /**
+   * Submission entry point: evaluate anything the student never advanced past
+   * (the last question is typically never "Next"-ed), then wait for the batch.
+   */
+  const flushAndWait = useCallback(
+    async (inputs: ReasoningEvalInput[], deadlineMs: number) => {
+      for (const input of inputs ?? []) {
+        if (requiresReasoning(input.bloom)) evaluate(input);
+      }
+      await waitForPending(deadlineMs);
+    },
+    [evaluate, waitForPending],
+  );
 
   const hasPendingEvaluations = useCallback(() => pendingRef.current.size > 0, []);
 
