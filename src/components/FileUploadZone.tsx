@@ -945,7 +945,10 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
                     <RagStatusBadge
                       status={ingest?.status ?? null}
                       assumeInFlight={isFresh}
+                      pageCursor={ingest?.pageCursor ?? null}
+                      totalPages={ingest?.totalPages ?? null}
                     />
+
                   )}
                   <span className="text-xs text-muted-foreground">{formatSize(f.size)}</span>
                   <button

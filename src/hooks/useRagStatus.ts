@@ -12,6 +12,10 @@ export type RagStatus =
 export interface RagStatusEntry {
   status: RagStatus;
   error: string | null;
+  /** Pages indexed so far (large PDFs index across several passes). */
+  pageCursor: number | null;
+  /** Total pages in the document, once the first pass has counted them. */
+  totalPages: number | null;
 }
 
 const IN_FLIGHT: RagStatus[] = ["pending", "processing", null];
@@ -37,7 +41,9 @@ export function useRagStatus(
     const fetchOnce = async () => {
       const { data, error } = await supabase
         .from("course_material_files")
-        .select("storage_path, rag_status, rag_error")
+        .select(
+          "storage_path, rag_status, rag_error, rag_page_cursor, rag_total_pages",
+        )
         .in("storage_path", storagePaths);
       if (cancelled || error || !data) return;
       const next: Record<string, RagStatusEntry> = {};
@@ -45,11 +51,20 @@ export function useRagStatus(
         next[row.storage_path] = {
           status: (row.rag_status ?? null) as RagStatus,
           error: (row.rag_error ?? null) as string | null,
+          pageCursor: (row.rag_page_cursor ?? null) as number | null,
+          totalPages: (row.rag_total_pages ?? null) as number | null,
         };
       }
       // Preserve any paths not yet in DB as unknown/null.
       for (const p of storagePaths) {
-        if (!next[p]) next[p] = { status: null, error: null };
+        if (!next[p]) {
+          next[p] = {
+            status: null,
+            error: null,
+            pageCursor: null,
+            totalPages: null,
+          };
+        }
       }
       setMap(next);
     };
