@@ -204,17 +204,29 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     const correct = standardised.filter(a => a.is_correct).length;
     const flatScore = Math.round((correct / questions.length) * 100);
 
+    // Reasoning verdicts collected during the attempt — they move points earned
+    // on Bloom 3+ questions, never the max a question is worth.
+    const evaluations = reasoning.getEvaluations();
+
     // Weighted score (difficulty × Bloom) when meta is available. Retained for
     // backward compatibility with existing review UI + analytics consumers.
+    // Exam mode displays this score, so the verdict applies here too.
     let weightedScore: number | undefined;
     if (questionMeta && questionMeta.size > 0) {
       let num = 0;
       let den = 0;
       for (const a of standardised) {
         const meta = questionMeta.get(a.question_id) ?? { difficulty: 0.5, bloom: 1 };
-        const maxPoints = clamp01(meta.difficulty) * (BLOOM_WEIGHT[clampBloom(meta.bloom)] ?? 1.0);
+        const bloom = clampBloom(meta.bloom);
+        const bloomWeight = BLOOM_WEIGHT[bloom] ?? 1.0;
+        const maxPoints = clamp01(meta.difficulty) * bloomWeight;
         den += maxPoints;
-        if (a.is_correct) num += maxPoints;
+        num += maxPoints * reasoningEarnedFactor({
+          bloom,
+          bloomWeight,
+          isCorrect: a.is_correct,
+          verdict: verdictFor(evaluations, a.question_id),
+        });
       }
       if (den > 0) weightedScore = Math.round((num / den) * 100);
     }
@@ -234,6 +246,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
           bloom: meta.bloom,
           is_correct: a.is_correct,
           time_ms: secs * 1000,
+          verdict: verdictFor(evaluations, a.question_id),
         };
       });
       const scored = computeWeeklyQuizScore(items);
@@ -241,6 +254,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       paceScore = scored.paceScore;
       displayScore = scored.displayScore;
     }
+
 
     const res: AssessmentResults = {
       totalQuestions: questions.length,
