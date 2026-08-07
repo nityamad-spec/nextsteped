@@ -137,6 +137,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       if (table === "student_course_mastery") {
         return chain(courseMasteryStore[`${STUDENT_ID}|${enrolledCourseId}`] || null);
       }
+      if (table === "assessment_questions") return chain([{ quiz_day: 1 }]);
       if (table === "diagnostic_results") return chain([{ id: "diag-1" }]);
       if (table === "courses") return chain(courseRow);
       if (table === "lesson_plan_weeks") return chain(lessonPlanWeeks);
@@ -224,7 +225,6 @@ describe("StudentHome — concept mastery heatmap", () => {
     courseMasteryStore[`${STUDENT_ID}|${COURSE_A}`] = { mastery_score: 0.65 };
 
     // Open the quiz from the lesson plan
-    console.log(screen.getAllByRole("button").map((b) => b.textContent).join(" | "));
     const takeQuiz = await screen.findByRole("button", { name: /start quiz/i });
     fireEvent.click(takeQuiz);
     expect(await screen.findByTestId("quiz-dialog")).toBeInTheDocument();
