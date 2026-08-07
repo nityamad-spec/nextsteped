@@ -33,9 +33,23 @@ export function buildReasoningRows(args: {
   for (const a of args.answers ?? []) {
     const qid = a?.question_id;
     if (!qid) continue;
-    const bloom = Math.min(6, Math.max(1, Math.round(args.bloomFor(qid) || 1)));
-    if (!requiresReasoning(bloom)) continue;
+    const raw = Number(args.bloomFor(qid));
+    const hasBloom = Number.isFinite(raw);
     const text = (args.rationales?.[qid] ?? "").trim();
+
+    // When the Bloom level is unknown (NaN/undefined/non-numeric), a completed
+    // rationale is itself evidence the question was Bloom 3+, since the widget
+    // only renders at level 3 and above. Preserve the row with a floor of 3
+    // instead of silently dropping the student's work.
+    let bloom: number;
+    if (hasBloom) {
+      bloom = Math.min(6, Math.max(1, Math.round(raw)));
+      if (!requiresReasoning(bloom)) continue;
+    } else {
+      if (!isReasoningComplete(text)) continue;
+      bloom = 3;
+    }
+
     if (!isReasoningComplete(text)) continue;
 
     // Only attach a verdict produced for the text we're actually storing.
