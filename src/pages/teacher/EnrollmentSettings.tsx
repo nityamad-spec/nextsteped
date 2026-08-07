@@ -512,7 +512,7 @@ const EnrollmentSettings = () => {
               courseName: courseMeta.name || currentCourse?.name || "your course",
               courseCode: courseMeta.code || undefined,
               enrollmentCode: dbEnrollmentCode,
-              signupUrl: `${window.location.origin}/intro/student`,
+              signupUrl: "https://app.nextsteped.com/intro/student",
             },
           },
         });
