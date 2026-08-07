@@ -30,9 +30,13 @@ import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
 import ReasoningVerdict from "@/components/ReasoningVerdict";
 import {
   requiresReasoning,
+  reasoningEarnedFactor,
+  verdictFor,
   REASONING_EVAL_DEADLINE_MS,
   type ReasoningEvaluation,
 } from "@/lib/reasoning";
+import { BLOOM_WEIGHT, clampBloom } from "@/lib/masteryScoring";
+
 
 interface PracticeQuestionsWidgetProps {
   onClose: () => void;
