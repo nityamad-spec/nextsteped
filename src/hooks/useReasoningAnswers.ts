@@ -73,6 +73,36 @@ export function useReasoningAnswers() {
   const rationalesRef = useRef<Record<string, string>>({});
   const evaluationsRef = useRef<Record<string, ReasoningEvaluation>>({});
   const pendingRef = useRef<Map<string, Promise<void>>>(new Map());
+  // "Wake now" broadcast: set when the student submits, so any in-progress
+  // retry backoff aborts its sleep instead of burning the submit deadline.
+  const flushRef = useRef<{ signalled: boolean; wakers: Set<() => void> }>({
+    signalled: false,
+    wakers: new Set(),
+  });
+
+  const signalFlush = useCallback(() => {
+    flushRef.current.signalled = true;
+    for (const wake of Array.from(flushRef.current.wakers)) wake();
+    flushRef.current.wakers.clear();
+  }, []);
+
+  /** Jittered backoff that resolves early once a flush is signalled. */
+  const interruptibleBackoff = useCallback(async () => {
+    if (flushRef.current.signalled) return;
+    const delay = 400 + Math.floor(Math.random() * 400);
+    await new Promise<void>((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        flushRef.current.wakers.delete(finish);
+        resolve();
+      };
+      const timer = setTimeout(finish, delay);
+      flushRef.current.wakers.add(finish);
+    });
+  }, []);
 
   const writeEvaluation = useCallback((qid: string, next: ReasoningEvaluation) => {
     evaluationsRef.current = { ...evaluationsRef.current, [qid]: next };
@@ -88,6 +118,8 @@ export function useReasoningAnswers() {
     rationalesRef.current = {};
     evaluationsRef.current = {};
     pendingRef.current.clear();
+    flushRef.current.signalled = false;
+    flushRef.current.wakers.clear();
     setRationales({});
     setEvaluations({});
     setShowErrors(false);
