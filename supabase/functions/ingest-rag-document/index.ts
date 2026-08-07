@@ -554,7 +554,7 @@ serve(async (req) => {
       .from("course-materials")
       .download(file.storage_path);
     if (dlErr || !blob) throw dlErr ?? new Error("download returned empty");
-    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let bytes = new Uint8Array(await blob.arrayBuffer());
 
     // Content-hash short-circuit: if bytes match what we already indexed,
     // skip extraction/embedding entirely.
