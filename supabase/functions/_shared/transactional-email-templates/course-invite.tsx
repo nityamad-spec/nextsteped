@@ -27,7 +27,7 @@ const Email = ({
   courseName = 'your course',
   courseCode,
   enrollmentCode = '',
-  signupUrl = 'https://app.nextsteped.com/intro/student',
+  signupUrl = 'https://app.nextsteped.com',
   professorName,
 }: Props) => (
   <Html lang="en" dir="ltr">
@@ -86,7 +86,7 @@ export const template = {
     courseName: 'Introduction to Generative AI',
     courseCode: 'GEN-AI-101',
     enrollmentCode: 'A7F3K2',
-    signupUrl: 'https://app.nextsteped.com/intro/student',
+    signupUrl: 'https://app.nextsteped.com',
     professorName: 'Dr. Rivera',
   },
 } satisfies TemplateEntry
