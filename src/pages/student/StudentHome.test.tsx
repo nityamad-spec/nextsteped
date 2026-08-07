@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -149,10 +149,10 @@ const getTile = (label: string) => screen.getByText(label).closest("div")!;
 /** The full per-concept grid now lives behind "View full mastery map". */
 const openMasteryMap = async () => {
   const link = await screen.findByRole("button", { name: /view full mastery map/i });
-  fireEvent.click(link);
-  await new Promise((r) => setTimeout(r, 50));
-  console.log("BTN", link.outerHTML);
-  console.log("HAS", document.body.innerHTML.includes("Concept mastery map"));
+  await act(async () => {
+    fireEvent.click(link);
+  });
+  await screen.findByText("Concept mastery map");
 };
 
 beforeEach(() => {
