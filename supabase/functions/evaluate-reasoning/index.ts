@@ -10,18 +10,26 @@
  *   Bearer token of the student.
  *
  * Input (single or batched):
- *   { items: [{ question_id, question_text, options?, correct_answer,
- *               selected_answer?, topic?, bloom_level?, rationale_text }] }
+ *   { course_id?, items: [{ question_id, question_text, options?,
+ *     correct_answer, selected_answer?, topic?, bloom_level?, rationale_text }] }
  *   A single item may also be posted at the top level.
  *
  * Output:
- *   { results: [{ question_id, verdict: "accepted"|"rejected",
+ *   { results: [{ question_id, verdict: "accepted"|"rejected"|null,
  *                 feedback, model_reasoning }] }
+ *   A null verdict means "unevaluated" — the caller advances the student anyway.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
 import { loggedGatewayFetch } from "../_shared/ai-log.ts";
+import {
+  buildUserPrompt,
+  type EvaluationResult,
+  parseEvaluation,
+  RESPONSE_FORMAT,
+  SYSTEM_PROMPT,
+} from "./parse.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -53,87 +61,12 @@ const BodySchema = z.union([
 
 type Item = z.infer<typeof ItemSchema>;
 
-export interface EvaluationResult {
-  question_id: string;
-  verdict: "accepted" | "rejected" | null;
-  feedback: string;
-  model_reasoning: string;
-}
-
-const SYSTEM_PROMPT = `You are a supportive university teaching assistant grading the QUALITY OF REASONING a student wrote to justify their answer.
-
-Judge ONLY the reasoning, not whether the chosen answer was right:
-- "accepted": the rationale shows genuine understanding of WHY the correct answer holds (even if worded loosely, or if the student picked the wrong option but reasoned partially soundly toward the right idea).
-- "rejected": the rationale is empty of substance, restates the question, guesses, or rests on a misconception.
-
-Always return the correct semantic reasoning for the item so the student learns from it.
-Tone: formative and encouraging. Never say "wrong" — say what stronger reasoning looks like.
-Keep "feedback" under 40 words and "model_reasoning" under 60 words.`;
-
-function buildUserPrompt(item: Item): string {
-  const opts = item.options?.length
-    ? `\nOptions:\n${item.options.map((o, i) => `${i + 1}. ${o}`).join("\n")}`
-    : "";
-  return [
-    item.topic ? `Concept: ${item.topic}` : "",
-    item.bloom_level ? `Bloom level: ${item.bloom_level}` : "",
-    `Question: ${item.question_text}`,
-    opts,
-    `Correct answer: ${item.correct_answer || "(not supplied)"}`,
-    `Student's answer: ${item.selected_answer || "(none)"}`,
-    `Student's reasoning: ${item.rationale_text}`,
-  ].filter(Boolean).join("\n");
-}
-
-const RESPONSE_FORMAT = {
-  type: "json_schema",
-  json_schema: {
-    name: "reasoning_evaluation",
-    strict: true,
-    schema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        verdict: { type: "string", enum: ["accepted", "rejected"] },
-        feedback: { type: "string" },
-        model_reasoning: { type: "string" },
-      },
-      required: ["verdict", "feedback", "model_reasoning"],
-    },
-  },
-} as const;
-
-export function parseEvaluation(
-  raw: unknown,
-  questionId: string,
-): EvaluationResult {
-  let content: unknown = raw;
-  if (typeof raw === "object" && raw !== null && "choices" in raw) {
-    content = (raw as { choices?: Array<{ message?: { content?: string } }> })
-      .choices?.[0]?.message?.content;
-  }
-  let parsed: Record<string, unknown> | null = null;
-  if (typeof content === "string") {
-    const cleaned = content.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "");
-    try {
-      parsed = JSON.parse(cleaned) as Record<string, unknown>;
-    } catch {
-      parsed = null;
-    }
-  } else if (typeof content === "object" && content !== null) {
-    parsed = content as Record<string, unknown>;
-  }
-  const verdictRaw = String(parsed?.verdict ?? "").toLowerCase();
-  const verdict = verdictRaw === "accepted" || verdictRaw === "rejected"
-    ? verdictRaw
-    : null;
-  return {
-    question_id: questionId,
-    verdict,
-    feedback: String(parsed?.feedback ?? "").slice(0, 1000),
-    model_reasoning: String(parsed?.model_reasoning ?? "").slice(0, 2000),
-  };
-}
+const unevaluated = (questionId: string): EvaluationResult => ({
+  question_id: questionId,
+  verdict: null,
+  feedback: "",
+  model_reasoning: "",
+});
 
 async function evaluateOne(
   item: Item,
@@ -145,7 +78,11 @@ async function evaluateOne(
   try {
     const res = await loggedGatewayFetch(
       "evaluate-reasoning",
-      { model: MODEL, purpose: "evaluate_student_rationale", course_id: courseId },
+      {
+        model: MODEL,
+        purpose: "evaluate_student_rationale",
+        course_id: courseId,
+      },
       GATEWAY_URL,
       {
         method: "POST",
@@ -168,33 +105,31 @@ async function evaluateOne(
     );
     if (!res.ok) {
       const body = await res.text();
-      console.error(`evaluate-reasoning gateway ${res.status}: ${body.slice(0, 300)}`);
-      return {
-        question_id: item.question_id,
-        verdict: null,
-        feedback: "",
-        model_reasoning: "",
-      };
+      console.error(
+        `evaluate-reasoning gateway ${res.status}: ${body.slice(0, 300)}`,
+      );
+      return unevaluated(item.question_id);
     }
     return parseEvaluation(await res.json(), item.question_id);
   } catch (e) {
-    console.error("evaluate-reasoning call failed:", e instanceof Error ? e.message : e);
-    return {
-      question_id: item.question_id,
-      verdict: null,
-      feedback: "",
-      model_reasoning: "",
-    };
+    console.error(
+      "evaluate-reasoning call failed:",
+      e instanceof Error ? e.message : e,
+    );
+    return unevaluated(item.question_id);
   } finally {
     clearTimeout(timer);
   }
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
-  const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  const jwt = (req.headers.get("Authorization") ?? "")
+    .replace(/^Bearer\s+/i, "").trim();
   if (!jwt) return json({ error: "missing_auth" }, 401);
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -212,7 +147,10 @@ Deno.serve(async (req) => {
     courseId = typeof raw?.course_id === "string" ? raw.course_id : null;
     const parsed = BodySchema.safeParse(raw);
     if (!parsed.success) {
-      return json({ error: "invalid_body", details: parsed.error.flatten() }, 400);
+      return json(
+        { error: "invalid_body", details: parsed.error.flatten() },
+        400,
+      );
     }
     items = parsed.data.items;
   } catch {
