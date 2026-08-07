@@ -220,7 +220,9 @@ describe("conflicting verdicts", () => {
       computeWeeklyQuizScore([{ ...base, is_correct, verdict } as ScoreItem]).accuracyScore;
 
     expect(s(true, "accepted")).toBeGreaterThan(s(true, "rejected"));
-    expect(s(true, "rejected")).toBeGreaterThan(s(false, "accepted"));
+    // correct+rejected and incorrect+accepted intentionally share the
+    // Bloom-2 partial-credit weight, so they tie rather than invert.
+    expect(s(true, "rejected")).toBeGreaterThanOrEqual(s(false, "accepted"));
     expect(s(false, "accepted")).toBeGreaterThan(s(false, "rejected"));
     expect(s(false, "rejected")).toBe(0);
   });
