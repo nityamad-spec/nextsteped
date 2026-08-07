@@ -1173,7 +1173,18 @@ const AIChat = () => {
             </span>
           </div>
         )}
-        {!isUser && msg.metadata?.variant === "fallback_prompt" && !msg.metadata?.fallbackResolved && (
+        {!isUser && msg.metadata?.variant === "grounded_low_confidence" && (
+          <div className="mt-2">
+            <span className="inline-flex items-center gap-1 rounded-full border border-sky-400/40 bg-sky-500/10 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">
+              <Sparkles className="h-3 w-3" /> Closest match in course materials — may be incomplete
+            </span>
+          </div>
+        )}
+        {!isUser &&
+          (msg.metadata?.variant === "fallback_prompt" ||
+            msg.metadata?.variant === "grounded_low_confidence") &&
+          !!msg.metadata?.pendingQuery &&
+          !msg.metadata?.fallbackResolved && (
           <div className="mt-3 flex flex-wrap gap-2">
             <Button
               size="sm"
