@@ -213,7 +213,9 @@ const WeeklyQuizDialog = ({
         sourceId: inserted?.id ?? null,
         answers: results.answers ?? [],
         questionMeta,
+        evaluations: results.evaluations,
       });
+
       void saveReasoningRows(
         buildReasoningRows({
           studentId,
