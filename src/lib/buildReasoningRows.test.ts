@@ -68,7 +68,8 @@ describe("buildReasoningRows — row selection", () => {
   it("clamps out-of-range bloom levels into 1..6", () => {
     expect(build({ bloomFor: () => 42 })[0].bloom_level).toBe(6);
     expect(build({ bloomFor: () => 3.4 })[0].bloom_level).toBe(3);
-    expect(build({ bloomFor: () => NaN })).toHaveLength(0); // NaN || 1 → bloom 1 → skipped
+    // NaN is no longer collapsed to Bloom 1 — see the unknown-bloom guard suite.
+    expect(build({ bloomFor: () => NaN })[0].bloom_level).toBe(3);
   });
 
   it("trims the stored text and truncates at the column cap", () => {
