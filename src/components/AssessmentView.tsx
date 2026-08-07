@@ -268,7 +268,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       timeSpent: timeLimitMinutes * 60 - timeLeft,
       questionTimes: finalTimes,
       rationales: reasoning.rationales,
-      evaluations: reasoning.getEvaluations(),
+      evaluations,
     };
     setResults(res);
     setPhase("review");
