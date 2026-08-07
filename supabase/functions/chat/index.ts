@@ -521,12 +521,45 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
     // ---- RAG grounding over uploaded course materials ----
     // Skipped entirely for conversational/filler turns and when the user has
     // explicitly opted in to a general-knowledge answer.
+    //
+    // Routing:
+    //   syllabus / lesson-plan / "unit N" questions  -> fetch that document
+    //     directly (similarity is meaningless for document-level questions)
+    //   everything else                              -> hybrid top-K retrieval
     let materialsContext = "";
     let ragSources: RagSource[] = [];
+    let ragConfidence: GroundingConfidence | null = null;
     if (courseId && grounding === "rag" && !isConversational && lastUserMessage.trim()) {
       try {
-        const chunks = await retrieveContext({ courseId, query: lastUserMessage, topK: 5 });
-        const g = buildMaterialsGrounding(chunks, SIM_THRESHOLD);
+        const intent = detectRagIntent(lastUserMessage);
+        let chunks;
+        let forceConfident = false;
+
+        if (intent.kind !== "content") {
+          chunks = await fetchDocumentChunks({
+            courseId,
+            folderTypes: intent.folderTypes,
+            week: intent.kind === "week_scoped" ? intent.week : null,
+          });
+          forceConfident = chunks.length > 0;
+          if (chunks.length === 0) {
+            // Document not uploaded/indexed for this course — fall back to the
+            // normal semantic path rather than refusing outright.
+            chunks = await retrieveContext({ courseId, query: lastUserMessage, topK: 8 });
+          }
+        } else {
+          chunks = await retrieveContext({ courseId, query: lastUserMessage, topK: 8 });
+        }
+
+        const g = buildMaterialsGrounding(
+          chunks,
+          CONFIDENT_THRESHOLD,
+          WEAK_THRESHOLD,
+          forceConfident,
+        );
+        console.log(
+          `RAG route=${intent.kind} chunks=${chunks.length} topSim=${(chunks[0]?.similarity ?? 0).toFixed(3)} confidence=${g.confidence}`,
+        );
         if (g.needsFallback) {
           return new Response(JSON.stringify({ needs_fallback: true }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -534,6 +567,7 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
         }
         materialsContext = g.materialsContext;
         ragSources = g.sources;
+        ragConfidence = g.confidence;
       } catch (e) {
         // Retrieval failure must not break chat — fall back to ungrounded answer.
         console.error("RAG retrieval error:", e);
