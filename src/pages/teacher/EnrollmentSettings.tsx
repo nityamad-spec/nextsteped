@@ -154,10 +154,11 @@ const EnrollmentSettings = () => {
       if (effectiveCourseId) {
         const { data } = await supabase
           .from("courses")
-          .select("enrollment_code, roster_enforcement, roster_sync_sheet_url")
+          .select("enrollment_code, roster_enforcement, roster_sync_sheet_url, name, course_code")
           .eq("id", effectiveCourseId)
           .maybeSingle();
         if (data?.enrollment_code) setDbEnrollmentCode(data.enrollment_code);
+        setCourseMeta({ name: (data as any)?.name ?? null, code: (data as any)?.course_code ?? null });
         setEnforcement(!!(data as any)?.roster_enforcement);
         const savedUrl = (data as any)?.roster_sync_sheet_url ?? null;
         setSavedSheetUrl(savedUrl);
@@ -182,7 +183,7 @@ const EnrollmentSettings = () => {
     if (!effectiveCourseId) return;
     const { data, error } = await supabase
       .from("course_roster_allowlist")
-      .select("id, email, full_name, university")
+      .select("id, email, full_name, university, invited_at, invite_count")
       .eq("course_id", effectiveCourseId)
       .order("created_at", { ascending: false });
     if (!error && data) setRoster(data as RosterEntry[]);
