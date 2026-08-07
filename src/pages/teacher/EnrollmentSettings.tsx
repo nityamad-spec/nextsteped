@@ -486,6 +486,68 @@ const EnrollmentSettings = () => {
     }
   };
 
+  const pendingInvites = roster.filter((r) => !r.invited_at);
+
+  const sendInvites = async (targets: RosterEntry[]) => {
+    if (!effectiveCourseId || targets.length === 0) return;
+    if (!dbEnrollmentCode) {
+      toast.error("Enrollment code not loaded yet. Please try again.");
+      return;
+    }
+    setSendingInvites(true);
+    setInviteProgress(0);
+    let sent = 0;
+    let failed = 0;
+    let done = 0;
+
+    const sendOne = async (row: RosterEntry) => {
+      try {
+        const { error } = await supabase.functions.invoke("send-transactional-email", {
+          body: {
+            templateName: "course-invite",
+            recipientEmail: row.email,
+            idempotencyKey: `course-invite-${row.id}-${row.invite_count ?? 0}`,
+            templateData: {
+              studentName: row.full_name || undefined,
+              courseName: courseMeta.name || currentCourse?.name || "your course",
+              courseCode: courseMeta.code || undefined,
+              enrollmentCode: dbEnrollmentCode,
+              signupUrl: `${window.location.origin}/intro/student`,
+            },
+          },
+        });
+        if (error) throw error;
+        await supabase
+          .from("course_roster_allowlist")
+          .update({ invited_at: new Date().toISOString(), invite_count: (row.invite_count ?? 0) + 1 })
+          .eq("id", row.id);
+        sent++;
+      } catch (e) {
+        console.error("Invite failed", row.email, e);
+        failed++;
+      } finally {
+        done++;
+        setInviteProgress(Math.round((done / targets.length) * 100));
+      }
+    };
+
+    try {
+      const queue = [...targets];
+      const workers = Array.from({ length: Math.min(5, queue.length) }, async () => {
+        while (queue.length) {
+          const next = queue.shift();
+          if (next) await sendOne(next);
+        }
+      });
+      await Promise.all(workers);
+      await loadRoster();
+      if (failed === 0) toast.success(`Sent ${sent} invite${sent === 1 ? "" : "s"}.`);
+      else toast.warning(`Sent ${sent}, ${failed} failed.`);
+    } finally {
+      setSendingInvites(false);
+      setTimeout(() => setInviteProgress(0), 800);
+    }
+  };
 
 
   const deleteEntry = async (id: string) => {
