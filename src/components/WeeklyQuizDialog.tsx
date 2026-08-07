@@ -9,6 +9,8 @@ import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import type { Json } from "@/integrations/supabase/types";
 import { saveReasoningRows } from "@/hooks/useReasoningAnswers";
 import { buildReasoningRows } from "@/lib/buildReasoningRows";
+import { verdictFor, type ReasoningEvaluation } from "@/lib/reasoning";
+
 
 interface Props {
   open: boolean;
