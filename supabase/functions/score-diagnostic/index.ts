@@ -305,7 +305,10 @@ Deno.serve(async (req) => {
     components: {
       accuracy: accuracyScore,
       pace: paceScore,
+      reasoning_adjustment: reasoningAdjustment,
+      unverified_reasoning: unverifiedReasoning,
     },
+
     score: correctCount,
     total_questions: answeredCount,
     dropped_question_ids: droppedQuestionIds,
