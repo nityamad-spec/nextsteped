@@ -217,6 +217,7 @@ const WeeklyQuizDialog = ({
           sourceResultId: inserted?.id ?? null,
           answers: results.answers ?? [],
           rationales: results.rationales ?? {},
+          evaluations: results.evaluations,
           bloomFor: (qid) => Number(questionMeta.get(qid)?.bloom ?? 1),
         }),
       );
@@ -279,6 +280,7 @@ const WeeklyQuizDialog = ({
                 onEnd={handleEnd}
                 onSubmit={handleSubmit}
                 questionMeta={questionMeta}
+                courseId={courseId ?? null}
               />
 
             )}

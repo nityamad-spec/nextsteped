@@ -9,8 +9,24 @@ export const REASONING_BLOOM_THRESHOLD = 3;
 export const REASONING_MIN_CHARS = 15;
 export const REASONING_MAX_CHARS = 4000;
 
+/** Hard cap on how long final submit waits for in-flight AI evaluations. */
+export const REASONING_EVAL_DEADLINE_MS = 8000;
+
 export type ReasoningSourceFormat = "weekly_quiz" | "exam" | "practice" | "diagnostic";
 export type ReasoningQuestionSource = "assessment_questions" | "diagnostic_questions" | "generated";
+
+export type ReasoningVerdict = "accepted" | "rejected";
+export type ReasoningEvalStatus = "idle" | "pending" | "done" | "unevaluated";
+
+export interface ReasoningEvaluation {
+  status: ReasoningEvalStatus;
+  /** null when the model could not be reached or returned an unusable verdict. */
+  verdict: ReasoningVerdict | null;
+  feedback: string;
+  modelReasoning: string;
+  /** The rationale text this evaluation was produced for (dedupe key). */
+  evaluatedText: string;
+}
 
 /** True when a question's Bloom level requires a written rationale. */
 export function requiresReasoning(bloom: number | undefined | null): boolean {
@@ -34,4 +50,8 @@ export interface ReasoningRow {
   selected_answer: string | null;
   is_correct: boolean | null;
   rationale_text: string;
+  ai_verdict?: ReasoningVerdict | null;
+  ai_feedback?: string | null;
+  ai_model_reasoning?: string | null;
+  ai_evaluated_at?: string | null;
 }

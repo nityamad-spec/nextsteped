@@ -1807,6 +1807,10 @@ export type Database = {
       }
       student_answer_rationales: {
         Row: {
+          ai_evaluated_at: string | null
+          ai_feedback: string | null
+          ai_model_reasoning: string | null
+          ai_verdict: string | null
           bloom_level: number
           course_id: string | null
           created_at: string
@@ -1823,6 +1827,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_evaluated_at?: string | null
+          ai_feedback?: string | null
+          ai_model_reasoning?: string | null
+          ai_verdict?: string | null
           bloom_level: number
           course_id?: string | null
           created_at?: string
@@ -1839,6 +1847,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_evaluated_at?: string | null
+          ai_feedback?: string | null
+          ai_model_reasoning?: string | null
+          ai_verdict?: string | null
           bloom_level?: number
           course_id?: string | null
           created_at?: string

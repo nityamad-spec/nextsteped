@@ -276,7 +276,7 @@ const AIChat = () => {
     loadPracticeHistory();
   }, [loadPracticeHistory]);
 
-  const handlePracticeResult = async (result: { score: number; totalQuestions: number; correctAnswers: number; answers: any[]; timeSpent: number; rationales?: Record<string, string> }) => {
+  const handlePracticeResult = async (result: { score: number; totalQuestions: number; correctAnswers: number; answers: any[]; timeSpent: number; rationales?: Record<string, string>; evaluations?: Record<string, import("@/lib/reasoning").ReasoningEvaluation> }) => {
     if (!user || !enrolledCourseId) return;
     try {
       const { data: inserted } = await supabase.from("assessment_results").insert({
@@ -310,6 +310,7 @@ const AIChat = () => {
           sourceResultId: inserted?.id ?? null,
           answers: result.answers ?? [],
           rationales: result.rationales ?? {},
+          evaluations: result.evaluations,
           bloomFor: (qid) => Number(questionMeta.get(qid)?.bloom ?? 1),
         }),
       );
@@ -761,6 +762,7 @@ const AIChat = () => {
             sourceResultId: insertedAssessment?.id ?? null,
             answers: results.answers ?? [],
             rationales: results.rationales ?? {},
+            evaluations: results.evaluations,
             bloomFor: (qid) => Number(assessmentQuestionMeta.get(qid)?.bloom ?? 1),
           }),
         );
@@ -1265,6 +1267,7 @@ const AIChat = () => {
           onSubmit={handleAssessmentSubmit}
           onStudyTopics={handleStudyWeakTopics}
           questionMeta={assessmentQuestionMeta}
+          courseId={enrolledCourseId ?? null}
         />
 
         <Dialog open={showLeaveWarning} onOpenChange={setShowLeaveWarning}>

@@ -1,9 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   isReasoningComplete,
   requiresReasoning,
+  type ReasoningEvaluation,
   type ReasoningRow,
+  type ReasoningVerdict,
 } from "@/lib/reasoning";
 
 export interface ReasoningQuestionRef {
@@ -11,22 +13,162 @@ export interface ReasoningQuestionRef {
   bloom: number;
 }
 
+/** Everything the model needs to judge one rationale. */
+export interface ReasoningEvalInput {
+  questionId: string;
+  questionText: string;
+  options?: string[];
+  correctAnswer?: string;
+  selectedAnswer?: string | null;
+  topic?: string | null;
+  bloom: number;
+  courseId?: string | null;
+}
+
+interface GatewayResult {
+  question_id: string;
+  verdict: ReasoningVerdict | null;
+  feedback?: string;
+  model_reasoning?: string;
+}
+
+async function callEvaluate(
+  input: ReasoningEvalInput,
+  text: string,
+): Promise<GatewayResult | null> {
+  const { data, error } = await supabase.functions.invoke("evaluate-reasoning", {
+    body: {
+      course_id: input.courseId ?? null,
+      items: [
+        {
+          question_id: input.questionId,
+          question_text: input.questionText,
+          options: input.options,
+          correct_answer: input.correctAnswer ?? "",
+          selected_answer: input.selectedAnswer ?? null,
+          topic: input.topic ?? null,
+          bloom_level: Math.min(6, Math.max(1, Math.round(input.bloom || 1))),
+          rationale_text: text,
+        },
+      ],
+    },
+  });
+  if (error) throw error;
+  const results = (data as { results?: GatewayResult[] } | null)?.results;
+  return results?.[0] ?? null;
+}
+
 /**
- * Holds the per-question rationale text for an in-progress assessment and
- * exposes the mandatory-input gating helpers used by every testing surface.
+ * Holds the per-question rationale text for an in-progress assessment, the AI
+ * evaluation of each rationale, and the mandatory-input gating helpers used by
+ * every testing surface.
+ *
+ * Evaluation is fired in the background when the student advances; it never
+ * blocks navigation and never fails an attempt.
  */
 export function useReasoningAnswers() {
   const [rationales, setRationales] = useState<Record<string, string>>({});
   const [showErrors, setShowErrors] = useState(false);
+  const [evaluations, setEvaluations] = useState<Record<string, ReasoningEvaluation>>({});
+  const rationalesRef = useRef<Record<string, string>>({});
+  const evaluationsRef = useRef<Record<string, ReasoningEvaluation>>({});
+  const pendingRef = useRef<Map<string, Promise<void>>>(new Map());
+
+  const writeEvaluation = useCallback((qid: string, next: ReasoningEvaluation) => {
+    evaluationsRef.current = { ...evaluationsRef.current, [qid]: next };
+    setEvaluations(evaluationsRef.current);
+  }, []);
 
   const setRationale = useCallback((questionId: string, text: string) => {
-    setRationales((prev) => ({ ...prev, [questionId]: text }));
+    rationalesRef.current = { ...rationalesRef.current, [questionId]: text };
+    setRationales(rationalesRef.current);
   }, []);
 
   const reset = useCallback(() => {
+    rationalesRef.current = {};
+    evaluationsRef.current = {};
+    pendingRef.current.clear();
     setRationales({});
+    setEvaluations({});
     setShowErrors(false);
   }, []);
+
+  /**
+   * Fire an AI evaluation for one question. De-duplicates on unchanged text and
+   * retries once before giving up as "unevaluated". Returns immediately.
+   */
+  const evaluate = useCallback(
+    (input: ReasoningEvalInput) => {
+      const qid = input.questionId;
+      const text = (rationalesRef.current[qid] ?? "").trim();
+      if (!requiresReasoning(input.bloom) || !isReasoningComplete(text)) return;
+
+      const existing = evaluationsRef.current[qid];
+      if (existing && existing.evaluatedText === text && existing.status !== "unevaluated") {
+        return;
+      }
+      if (pendingRef.current.has(qid) && existing?.evaluatedText === text) return;
+
+      writeEvaluation(qid, {
+        status: "pending",
+        verdict: null,
+        feedback: "",
+        modelReasoning: "",
+        evaluatedText: text,
+      });
+
+      const run = (async () => {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const result = await callEvaluate(input, text);
+            if (result?.verdict) {
+              writeEvaluation(qid, {
+                status: "done",
+                verdict: result.verdict,
+                feedback: result.feedback ?? "",
+                modelReasoning: result.model_reasoning ?? "",
+                evaluatedText: text,
+              });
+              return;
+            }
+          } catch (e) {
+            console.error("Reasoning evaluation failed:", e);
+          }
+          if (attempt === 0) await new Promise((r) => setTimeout(r, 600));
+        }
+        writeEvaluation(qid, {
+          status: "unevaluated",
+          verdict: null,
+          feedback: "",
+          modelReasoning: "",
+          evaluatedText: text,
+        });
+      })().finally(() => {
+        pendingRef.current.delete(qid);
+      });
+
+      pendingRef.current.set(qid, run);
+    },
+    [writeEvaluation],
+  );
+
+  /**
+   * Resolve when all in-flight evaluations settle, or when the deadline passes —
+   * whichever comes first. Never rejects: submission must not be blockable.
+   */
+  const waitForPending = useCallback(async (deadlineMs: number) => {
+    const inFlight = Array.from(pendingRef.current.values());
+    if (inFlight.length === 0) return;
+    await Promise.race([
+      Promise.allSettled(inFlight),
+      new Promise((resolve) => setTimeout(resolve, deadlineMs)),
+    ]);
+  }, []);
+
+  const hasPendingEvaluations = useCallback(() => pendingRef.current.size > 0, []);
+
+  /** Latest evaluations, safe to read from an async callback closure. */
+  const getEvaluations = useCallback(() => evaluationsRef.current, []);
 
   /** Question ids (Bloom 3+) still missing a valid rationale. */
   const missingReasoning = useCallback(
@@ -51,6 +193,11 @@ export function useReasoningAnswers() {
     isQuestionBlocked,
     showErrors,
     setShowErrors,
+    evaluations,
+    evaluate,
+    waitForPending,
+    hasPendingEvaluations,
+    getEvaluations,
   };
 }
 
