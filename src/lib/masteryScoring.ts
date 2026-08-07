@@ -5,6 +5,10 @@
  * diagnostic scoring formula changes there, update it here as well.
  */
 
+import { reasoningEarnedFactor, type ReasoningVerdict } from "@/lib/reasoning";
+
+
+
 export const BLOOM_WEIGHT: Record<number, number> = {
   1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5,
 };
