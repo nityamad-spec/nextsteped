@@ -40,6 +40,8 @@ export interface ScoreItem {
   is_correct: boolean;
   /** ms actually spent on the question */
   time_ms: number;
+  /** LLM verdict on the Bloom 3+ rationale; null/undefined = treated as accepted. */
+  verdict?: ReasoningVerdict | null;
 }
 
 export interface ScoreResult {
@@ -47,7 +49,14 @@ export interface ScoreResult {
   paceScore: number;
   masteryScore: number;
   displayScore: number;
+  /**
+   * displayScore minus the score the same attempt would have received with the
+   * reasoning verdicts ignored. Negative when rejected rationales cost points,
+   * positive when accepted rationales earned partial credit on wrong answers.
+   */
+  reasoningAdjustment: number;
 }
+
 
 /**
  * Compute weekly-quiz score using the same 80% accuracy + 20% pace blend as
