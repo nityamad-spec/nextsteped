@@ -151,7 +151,8 @@ const openMasteryMap = async () => {
   const link = await screen.findByRole("button", { name: /view full mastery map/i });
   fireEvent.click(link);
   await new Promise((r) => setTimeout(r, 50));
-  console.log(document.body.innerHTML.slice(-1500));
+  console.log("BTN", link.outerHTML);
+  console.log("HAS", document.body.innerHTML.includes("Concept mastery map"));
 };
 
 beforeEach(() => {
