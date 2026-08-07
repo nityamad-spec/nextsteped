@@ -18,16 +18,16 @@ interface Props {
   courseName?: string
   courseCode?: string
   enrollmentCode?: string
-  signupUrl?: string
   professorName?: string
 }
+
+const SIGNUP_URL = 'https://app.nextsteped.com'
 
 const Email = ({
   studentName,
   courseName = 'your course',
   courseCode,
   enrollmentCode = '',
-  signupUrl = 'https://app.nextsteped.com',
   professorName,
 }: Props) => (
   <Html lang="en" dir="ltr">
@@ -61,7 +61,7 @@ const Email = ({
         <Text style={step}>6. Take the short diagnostic so your course adapts to you.</Text>
 
         <Section style={{ textAlign: 'center', margin: '28px 0 8px' }}>
-          <Button style={button} href={signupUrl}>
+          <Button style={button} href={SIGNUP_URL}>
             Get started
           </Button>
         </Section>
@@ -86,7 +86,6 @@ export const template = {
     courseName: 'Introduction to Generative AI',
     courseCode: 'GEN-AI-101',
     enrollmentCode: 'A7F3K2',
-    signupUrl: 'https://app.nextsteped.com',
     professorName: 'Dr. Rivera',
   },
 } satisfies TemplateEntry
