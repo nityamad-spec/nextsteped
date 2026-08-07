@@ -12,8 +12,13 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { computeWeeklyQuizScore, type ScoreItem } from "@/lib/masteryScoring";
 import ReasoningInput from "@/components/ReasoningInput";
+import ReasoningVerdict from "@/components/ReasoningVerdict";
 import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
-import { requiresReasoning } from "@/lib/reasoning";
+import {
+  requiresReasoning,
+  REASONING_EVAL_DEADLINE_MS,
+  type ReasoningEvaluation,
+} from "@/lib/reasoning";
 import { toast } from "sonner";
 
 interface AssessmentViewProps {
@@ -25,6 +30,7 @@ interface AssessmentViewProps {
   onSubmit: (results: AssessmentResults) => void;
   onStudyTopics?: (topics: string[]) => void;
   questionMeta?: Map<string, { difficulty: number; bloom: number }>;
+  courseId?: string | null;
 }
 
 
@@ -61,11 +67,13 @@ export interface AssessmentResults {
   questionTimes: Record<string, number>;
   /** Mandatory rationales captured for Bloom 3+ questions, keyed by question id. */
   rationales?: Record<string, string>;
+  /** AI evaluation of each rationale, keyed by question id. */
+  evaluations?: Record<string, ReasoningEvaluation>;
 }
 
 type Phase = "intro" | "active" | "review";
 
-const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta }: AssessmentViewProps) => {
+const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta, courseId }: AssessmentViewProps) => {
   const [phase, setPhase] = useState<Phase>("intro");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(timeLimitMinutes * 60);
@@ -79,12 +87,31 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
   const questionStartRef = useRef<number>(Date.now());
   const reasoning = useReasoningAnswers();
+  const [submitting, setSubmitting] = useState(false);
 
   const bloomFor = useCallback(
     (qid: string) => Number(questionMeta?.get(qid)?.bloom ?? 1),
     [questionMeta],
   );
   const reasoningRefs = questions.map((q) => ({ id: q.id, bloom: bloomFor(q.id) }));
+
+  /** Fire the background AI evaluation of a question's rationale. */
+  const evaluateQuestion = useCallback(
+    (q: Question | undefined) => {
+      if (!q) return;
+      reasoning.evaluate({
+        questionId: q.id,
+        questionText: q.text,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        selectedAnswer: answers[q.id] ?? null,
+        topic: q.topic,
+        bloom: bloomFor(q.id),
+        courseId: courseId ?? null,
+      });
+    },
+    [reasoning, answers, bloomFor, courseId],
+  );
 
 
   // Helper: flush elapsed time onto a question id
@@ -224,6 +251,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       timeSpent: timeLimitMinutes * 60 - timeLeft,
       questionTimes: finalTimes,
       rationales: reasoning.rationales,
+      evaluations: reasoning.getEvaluations(),
     };
     setResults(res);
     setPhase("review");
@@ -234,14 +262,14 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     setExpandedQuestions(wrongIndices);
 
     fetchExplanations(standardised);
-  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex, questionMeta, type, reasoning.rationales]);
+  }, [answers, questions, timeLeft, timeLimitMinutes, onSubmit, questionTimes, currentIndex, questionMeta, type, reasoning]);
 
   /**
    * Manual submit path — enforces the mandatory rationale on Bloom 3+ questions.
    * The timer's auto-submit calls handleFinish directly so a timeout can never
    * trap the student.
    */
-  const attemptFinish = useCallback(() => {
+  const attemptFinish = useCallback(async () => {
     const missing = reasoning.missingReasoning(reasoningRefs);
     if (missing.length > 0) {
       reasoning.setShowErrors(true);
@@ -255,8 +283,16 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       });
       return;
     }
+    // Evaluate anything the student has not advanced past yet (exam mode shows
+    // every question at once; quiz mode's last question was never "Next"-ed).
+    questions.forEach((q) => {
+      if (requiresReasoning(bloomFor(q.id))) evaluateQuestion(q);
+    });
+    setSubmitting(true);
+    await reasoning.waitForPending(REASONING_EVAL_DEADLINE_MS);
+    setSubmitting(false);
     handleFinish();
-  }, [reasoning, reasoningRefs, questions, handleFinish, type]);
+  }, [reasoning, reasoningRefs, questions, handleFinish, type, bloomFor, evaluateQuestion]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
@@ -396,12 +432,15 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
         )}
 
         {requiresReasoning(bloomFor(q.id)) && (
-          <ReasoningInput
-            questionId={q.id}
-            value={reasoning.rationales[q.id] ?? ""}
-            onChange={reasoning.setRationale}
-            showError={reasoning.showErrors}
-          />
+          <>
+            <ReasoningInput
+              questionId={q.id}
+              value={reasoning.rationales[q.id] ?? ""}
+              onChange={reasoning.setRationale}
+              showError={reasoning.showErrors}
+            />
+            <ReasoningVerdict evaluation={reasoning.evaluations[q.id]} />
+          </>
         )}
 
         {/* Confidence selector removed — not collected for quizzes/exams */}
@@ -729,10 +768,19 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                     <Button
                       onClick={attemptFinish}
                       className="gap-2 px-6"
-                      disabled={answeredCount === 0}
+                      disabled={answeredCount === 0 || submitting}
                     >
-                      <CheckCircle className="h-5 w-5" />
-                      Submit Quiz ({answeredCount}/{questions.length} answered)
+                      {submitting ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          Checking your reasoning…
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-5 w-5" />
+                          Submit Quiz ({answeredCount}/{questions.length} answered)
+                        </>
+                      )}
                     </Button>
                   ) : (
                     <Button
@@ -744,6 +792,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                           });
                           return;
                         }
+                        evaluateQuestion(questions[safeIndex]);
                         const currentQid = questions[safeIndex]?.id;
                         flushTimeFor(currentQid);
                         if (currentQid && answers[currentQid] !== undefined) {
@@ -774,10 +823,19 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                   onClick={attemptFinish}
                   size="lg"
                   className="gap-2 px-8"
-                  disabled={answeredCount === 0}
+                  disabled={answeredCount === 0 || submitting}
                 >
-                  <CheckCircle className="h-5 w-5" />
-                  Submit Exam ({answeredCount}/{questions.length} answered)
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Checking your reasoning…
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-5 w-5" />
+                      Submit Exam ({answeredCount}/{questions.length} answered)
+                    </>
+                  )}
                 </Button>
               </div>
             </>
