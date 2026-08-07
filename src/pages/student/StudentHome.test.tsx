@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, act, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import StudentHome from "./StudentHome";
 
@@ -31,6 +32,7 @@ const courseRow = {
 const lessonPlanWeeks = [
   {
     week_number: 1,
+    quiz_day: 1,
     week_name: "Week 1 — Getting Started",
     overview: "Intro",
     is_exam_week: false,
@@ -74,14 +76,32 @@ vi.mock("@/components/WeeklyQuizDialog", () => ({
     ) : null,
 }));
 
-vi.mock("framer-motion", () => ({
-  motion: new Proxy(
-    {},
-    {
-      get: () => (props: any) => <div {...props} />,
-    },
-  ),
-}));
+// Stable stub components — a fresh function per property access would give the
+// subtree a new component type on every render, remounting it constantly.
+vi.mock("framer-motion", () => {
+  const cache: Record<string, any> = {};
+  return {
+    motion: new Proxy(
+      {},
+      {
+        get: (_t, key: string) => {
+          if (!cache[key]) {
+            cache[key] = ({ children, ...rest }: any) => {
+              const {
+                initial, animate, exit, transition, variants, whileHover,
+                whileTap, whileInView, viewport, layout, layoutId,
+                ...domProps
+              } = rest;
+              return <div {...domProps}>{children}</div>;
+            };
+          }
+          return cache[key];
+        },
+      },
+    ),
+    AnimatePresence: ({ children }: any) => <>{children}</>,
+  };
+});
 
 // ---- Supabase mock ---------------------------------------------------------
 
@@ -89,8 +109,15 @@ const chain = (data: any) => {
   const c: any = {
     select: () => c,
     eq: () => c,
+    neq: () => c,
+    not: () => c,
+    is: () => c,
+    gte: () => c,
+    lte: () => c,
     in: () => c,
     order: () => c,
+    limit: () => c,
+    range: () => c,
     maybeSingle: () => Promise.resolve({ data: Array.isArray(data) ? data[0] ?? null : data, error: null }),
     single: () => Promise.resolve({ data: Array.isArray(data) ? data[0] ?? null : data, error: null }),
     then: (resolve: any) => resolve({ data, error: null }),
@@ -110,6 +137,8 @@ vi.mock("@/integrations/supabase/client", () => ({
       if (table === "student_course_mastery") {
         return chain(courseMasteryStore[`${STUDENT_ID}|${enrolledCourseId}`] || null);
       }
+      if (table === "assessment_questions") return chain([{ quiz_day: 1 }]);
+      if (table === "diagnostic_results") return chain([{ id: "diag-1" }]);
       if (table === "courses") return chain(courseRow);
       if (table === "lesson_plan_weeks") return chain(lessonPlanWeeks);
       return chain([]);
@@ -120,16 +149,33 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 // ---- Helpers ---------------------------------------------------------------
 
-const renderHome = () =>
-  render(
-    <MemoryRouter>
-      <TooltipProvider>
-        <StudentHome />
-      </TooltipProvider>
-    </MemoryRouter>,
+const renderHome = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <TooltipProvider>
+          <StudentHome />
+        </TooltipProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
+};
 
-const getTile = (label: string) => screen.getByText(label).closest("div")!;
+
+const masteryMap = () => within(screen.getByRole("dialog"));
+const getTile = (label: string) => masteryMap().getByText(label).closest("div")!;
+
+/** The full per-concept grid now lives behind "View full mastery map". */
+const openMasteryMap = async () => {
+  const link = await screen.findByRole("button", { name: /view full mastery map/i });
+  await act(async () => {
+    fireEvent.click(link);
+  });
+  await screen.findByRole("dialog");
+};
 
 beforeEach(() => {
   enrolledCourseId = COURSE_A;
@@ -142,25 +188,34 @@ beforeEach(() => {
 describe("StudentHome — concept mastery heatmap", () => {
   it("renders 'not explored' tiles when no mastery rows exist for the course", async () => {
     renderHome();
+    await openMasteryMap();
 
     await waitFor(() => {
-      expect(screen.getByText("Basic Data Types")).toBeInTheDocument();
+      expect(masteryMap().getByText("Basic Data Types")).toBeInTheDocument();
     });
-    expect(screen.getByText("Python Fundamentals")).toBeInTheDocument();
-    expect(screen.getByText("File I/O")).toBeInTheDocument();
-    // All three tiles show the placeholder
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(3);
+    expect(masteryMap().getByText("Python Fundamentals")).toBeInTheDocument();
+    expect(masteryMap().getByText("File I/O")).toBeInTheDocument();
+    // All three tiles show the unexplored state and no percentage
+    expect(masteryMap().getAllByText("Not explored").length).toBeGreaterThanOrEqual(3);
+    expect(getTile("Basic Data Types").textContent).not.toMatch(/\d+%/);
   });
 
   it("re-renders the heatmap with updated mastery percentages after the weekly quiz dialog closes", async () => {
     renderHome();
+    await openMasteryMap();
 
     await waitFor(() => {
-      expect(screen.getByText("Basic Data Types")).toBeInTheDocument();
+      expect(masteryMap().getByText("Basic Data Types")).toBeInTheDocument();
     });
-    // Initial heatmap state — placeholder
-    expect(getTile("Basic Data Types").textContent).toContain("—");
-    expect(getTile("Python Fundamentals").textContent).toContain("—");
+    // Initial state — no mastery recorded yet
+    expect(getTile("Basic Data Types").textContent).toContain("Not explored");
+    expect(getTile("Python Fundamentals").textContent).toContain("Not explored");
+
+    // Close the map so the lesson-plan quiz button is reachable again
+    fireEvent.keyDown(document.activeElement || document.body, { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByText("Concept mastery map")).not.toBeInTheDocument(),
+    );
 
     // Simulate the quiz writing rows to the DB (only for COURSE_A)
     masteryStore[`${STUDENT_ID}|${COURSE_A}`] = [
@@ -170,7 +225,7 @@ describe("StudentHome — concept mastery heatmap", () => {
     courseMasteryStore[`${STUDENT_ID}|${COURSE_A}`] = { mastery_score: 0.65 };
 
     // Open the quiz from the lesson plan
-    const takeQuiz = await screen.findByRole("button", { name: /take quiz/i });
+    const takeQuiz = await screen.findByRole("button", { name: /start quiz/i });
     fireEvent.click(takeQuiz);
     expect(await screen.findByTestId("quiz-dialog")).toBeInTheDocument();
 
@@ -178,12 +233,13 @@ describe("StudentHome — concept mastery heatmap", () => {
     fireEvent.click(screen.getByRole("button", { name: /close quiz/i }));
 
     // Heatmap re-fetches and reflects new mastery for COURSE_A's concepts
+    await openMasteryMap();
     await waitFor(() => {
       expect(getTile("Basic Data Types").textContent).toContain("80%");
     });
     expect(getTile("Python Fundamentals").textContent).toContain("50%");
-    // Untouched concept still shows placeholder
-    expect(getTile("File I/O").textContent).toContain("—");
+    // Untouched concept still shows the unexplored state
+    expect(getTile("File I/O").textContent).toContain("Not explored");
   });
 
   it("scopes mastery lookup to the enrolled course — does not leak data from another course", async () => {
@@ -194,12 +250,13 @@ describe("StudentHome — concept mastery heatmap", () => {
     enrolledCourseId = COURSE_A;
 
     renderHome();
+    await openMasteryMap();
 
     await waitFor(() => {
-      expect(screen.getByText("Basic Data Types")).toBeInTheDocument();
+      expect(masteryMap().getByText("Basic Data Types")).toBeInTheDocument();
     });
     // The COURSE_B mastery should NOT appear on the COURSE_A heatmap
     expect(getTile("Basic Data Types").textContent).not.toContain("90%");
-    expect(getTile("Basic Data Types").textContent).toContain("—");
+    expect(getTile("Basic Data Types").textContent).toContain("Not explored");
   });
 });

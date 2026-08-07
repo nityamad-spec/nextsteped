@@ -391,3 +391,126 @@ describe("saveReasoningRows", () => {
     await expect(saveReasoningRows([row])).resolves.toBe(false);
   });
 });
+
+describe("useReasoningAnswers — interruptible retry backoff", () => {
+  it("wakes the retry backoff immediately when submission signals a flush", async () => {
+    // First call fails, second succeeds. Without an interruptible backoff the
+    // retry would idle behind a fixed sleep while the student waits.
+    invokeMock
+      .mockRejectedValueOnce(new Error("gateway 503"))
+      .mockResolvedValueOnce(ok());
+
+    const { result } = renderHook(() => useReasoningAnswers());
+    act(() => result.current.setRationale("q1", VALID));
+    act(() => result.current.evaluate(baseInput()));
+
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledTimes(1));
+
+    const started = Date.now();
+    await act(async () => {
+      await result.current.waitForPending(8000);
+    });
+    const elapsed = Date.now() - started;
+
+    expect(invokeMock).toHaveBeenCalledTimes(2);
+    expect(result.current.getEvaluations().q1.status).toBe("done");
+    // The 400-800ms backoff must have been aborted, not waited out.
+    expect(elapsed).toBeLessThan(300);
+  });
+
+  it("still resolves as unevaluated when both attempts fail", async () => {
+    invokeMock.mockRejectedValue(new Error("down"));
+    const { result } = renderHook(() => useReasoningAnswers());
+    act(() => result.current.setRationale("q1", VALID));
+    act(() => result.current.evaluate(baseInput()));
+
+    await act(async () => {
+      await result.current.waitForPending(8000);
+    });
+
+    expect(invokeMock).toHaveBeenCalledTimes(2);
+    expect(result.current.getEvaluations().q1.status).toBe("unevaluated");
+  });
+
+  it("restores normal backoff after reset", async () => {
+    invokeMock.mockResolvedValue(ok());
+    const { result } = renderHook(() => useReasoningAnswers());
+    act(() => result.current.setRationale("q1", VALID));
+    await act(async () => {
+      await result.current.waitForPending(8000);
+    });
+    act(() => result.current.reset());
+    expect(result.current.hasPendingEvaluations()).toBe(false);
+    expect(result.current.getEvaluations()).toEqual({});
+  });
+});
+
+describe("useReasoningAnswers — flushAndWait", () => {
+  it("evaluates a rationale that was typed but never advanced past", async () => {
+    invokeMock.mockResolvedValue(ok("accepted", "qLast"));
+    const { result } = renderHook(() => useReasoningAnswers());
+    act(() => result.current.setRationale("qLast", VALID));
+
+    // No evaluate() call — mimics the last question at submit time.
+    expect(result.current.hasPendingEvaluations()).toBe(false);
+
+    await act(async () => {
+      await result.current.flushAndWait(
+        [baseInput({ questionId: "qLast" })],
+        8000,
+      );
+    });
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(result.current.getEvaluations().qLast.verdict).toBe("accepted");
+  });
+
+  it("skips Bloom 1-2 questions and incomplete rationales", async () => {
+    invokeMock.mockResolvedValue(ok());
+    const { result } = renderHook(() => useReasoningAnswers());
+    act(() => {
+      result.current.setRationale("qLow", VALID);
+      result.current.setRationale("qShort", SHORT);
+    });
+
+    await act(async () => {
+      await result.current.flushAndWait(
+        [
+          baseInput({ questionId: "qLow", bloom: 2 }),
+          baseInput({ questionId: "qShort", bloom: 5 }),
+        ],
+        8000,
+      );
+    });
+
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it("does not re-evaluate a question already evaluated for the same text", async () => {
+    invokeMock.mockResolvedValue(ok());
+    const { result } = renderHook(() => useReasoningAnswers());
+    act(() => result.current.setRationale("q1", VALID));
+    act(() => result.current.evaluate(baseInput()));
+    await waitFor(() =>
+      expect(result.current.getEvaluations().q1?.status).toBe("done"),
+    );
+
+    await act(async () => {
+      await result.current.flushAndWait([baseInput()], 8000);
+    });
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("tolerates an empty or missing input list", async () => {
+    const { result } = renderHook(() => useReasoningAnswers());
+    await act(async () => {
+      await result.current.flushAndWait([], 8000);
+      await result.current.flushAndWait(
+        undefined as unknown as Parameters<typeof result.current.flushAndWait>[0],
+        8000,
+      );
+    });
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+});

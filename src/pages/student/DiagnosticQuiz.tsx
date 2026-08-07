@@ -489,7 +489,23 @@ const DiagnosticQuiz = () => {
     }
 
     const bloomById = new Map(finalQuestions.map((q) => [q.id, q.bloomLevel]));
-    await reasoning.waitForPending(REASONING_EVAL_DEADLINE_MS);
+    // Include the last question: its rationale was typed but never "Next"-ed.
+    await reasoning.flushAndWait(
+      finalQuestions.map((q, i) => ({
+        questionId: q.id,
+        questionText: q.question,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        selectedAnswer:
+          q.format === "short_answer"
+            ? newTextAnswers[i]
+            : (q.options?.[newAnswers[i]] ?? null),
+        topic: q.topic,
+        bloom: q.bloomLevel,
+        courseId: courseIdForSave ?? null,
+      })),
+      REASONING_EVAL_DEADLINE_MS,
+    );
     void saveReasoningRows(
       buildReasoningRows({
         studentId: user.id,
