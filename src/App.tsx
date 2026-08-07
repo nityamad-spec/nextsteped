@@ -347,6 +347,8 @@ const App = () => (
               <Route path="/intro/teacher/pending" element={<TeacherPendingApproval />} />
               <Route path="/intro/student" element={<StudentIntro />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/unsubscribe" element={<Unsubscribe />} />
+
 
               {/* Teacher onboarding (single-page, no layout) */}
               <Route path="/teacher" element={<ProtectedRoute><RoleGuard allow={["teacher"]}><TeacherRedirect /></RoleGuard></ProtectedRoute>} />
