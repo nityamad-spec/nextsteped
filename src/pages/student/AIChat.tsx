@@ -331,6 +331,8 @@ const AIChat = () => {
         sourceId: inserted?.id ?? null,
         answers: result.answers,
         questionMeta,
+        evaluations: result.evaluations,
+
       });
 
       if (activeChat) {
