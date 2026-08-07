@@ -54,6 +54,13 @@ const MAX_PDF_PAGES = 1500;
 // Beyond that we accept degraded coverage rather than blowing the function
 // timeout or AI Gateway request-size budget.
 const OCR_MAX_PAGES = 50;
+// Above this raw file size we skip OCR entirely: base64-encoding the whole
+// PDF for every OCR call is what pushes the worker past its memory ceiling.
+// Text-layer content still indexes normally.
+const OCR_MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+// Pages are chunked in windows so we never hold the whole document's text
+// as one concatenated string.
+const PAGE_WINDOW = 40;
 
 type PageText = { page: number; text: string; source: "pdf_text" | "ocr" };
 type Chunk = {
@@ -63,17 +70,77 @@ type Chunk = {
   source_type: "pdf_text" | "ocr";
 };
 
-async function extractPdfPages(bytes: Uint8Array): Promise<PageText[]> {
+/**
+ * Extract per-page text using a single pdfjs document proxy, releasing each
+ * page as we go and destroying the proxy afterwards. Also returns the page
+ * count so callers don't need to open the document a second time.
+ */
+async function extractPdfPages(
+  bytes: Uint8Array,
+): Promise<{ pages: PageText[]; numPages: number }> {
   // unpdf wraps pdfjs for serverless/Deno — no worker setup required.
   const pdf = await getDocumentProxy(bytes);
-  const { text } = await extractText(pdf, { mergePages: false });
-  const perPage = Array.isArray(text) ? text : [text];
-  return perPage.map((raw, idx) => ({
-    page: idx + 1,
-    text: (raw ?? "").replace(/\s+/g, " ").trim(),
-    source: "pdf_text" as const,
-  }));
+  const numPages = pdf.numPages as number;
+  if (numPages > MAX_PDF_PAGES) {
+    try { await pdf.destroy?.(); } catch { /* ignore */ }
+    throw new Error(
+      `PDF has ${numPages} pages, exceeds ${MAX_PDF_PAGES}-page limit`,
+    );
+  }
+  const pages: PageText[] = [];
+  try {
+    for (let i = 1; i <= numPages; i++) {
+      let raw = "";
+      try {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        // deno-lint-ignore no-explicit-any
+        raw = (content.items as any[])
+          .map((it) => (typeof it?.str === "string" ? it.str : ""))
+          .join(" ");
+        page.cleanup?.();
+      } catch (e) {
+        console.warn(`[ingest-rag] page ${i} text extraction failed:`, e);
+      }
+      pages.push({
+        page: i,
+        text: raw.replace(/\s+/g, " ").trim(),
+        source: "pdf_text" as const,
+      });
+    }
+  } finally {
+    try { await pdf.destroy?.(); } catch { /* ignore */ }
+  }
+  return { pages, numPages };
 }
+
+/** Base64-encode bytes in slices — avoids millions of intermediate strings. */
+function toBase64(bytes: Uint8Array): string {
+  const SLICE = 32 * 1024;
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += SLICE) {
+    parts.push(
+      String.fromCharCode(...bytes.subarray(i, Math.min(i + SLICE, bytes.length))),
+    );
+  }
+  return btoa(parts.join(""));
+}
+
+/**
+ * Chunk pages in bounded windows so peak memory is one window of text rather
+ * than the whole document. Chunks never span a window boundary.
+ */
+function chunkPagesWindowed(pages: PageText[]): Chunk[] {
+  const out: Chunk[] = [];
+  for (let i = 0; i < pages.length; i += PAGE_WINDOW) {
+    const window = pages.slice(i, i + PAGE_WINDOW);
+    for (const c of chunkPages(window)) out.push(c);
+    // Release the text we just consumed.
+    for (const p of window) p.text = "";
+  }
+  return out;
+}
+
 
 
 async function ocrPage(
