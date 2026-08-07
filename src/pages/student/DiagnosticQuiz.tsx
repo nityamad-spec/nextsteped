@@ -37,7 +37,8 @@ import {
 import ReasoningInput from "@/components/ReasoningInput";
 import { useReasoningAnswers, saveReasoningRows } from "@/hooks/useReasoningAnswers";
 import { buildReasoningRows } from "@/lib/buildReasoningRows";
-import { requiresReasoning } from "@/lib/reasoning";
+import ReasoningVerdict from "@/components/ReasoningVerdict";
+import { requiresReasoning, REASONING_EVAL_DEADLINE_MS } from "@/lib/reasoning";
 
 
 interface QuizQuestion {
@@ -340,6 +341,17 @@ const DiagnosticQuiz = () => {
       return;
     }
     reasoning.setShowErrors(false);
+    // Background AI review of the rationale — never blocks the student.
+    reasoning.evaluate({
+      questionId: question.id,
+      questionText: question.question,
+      options: question.options,
+      correctAnswer: question.correctAnswer,
+      selectedAnswer: isShortAnswer ? textAnswer.trim() : (question.options?.[selected!] ?? null),
+      topic: question.topic,
+      bloom: question.bloomLevel,
+      courseId: activeCourseId ?? null,
+    });
     const elapsed = Date.now() - questionStartTime;
     const answerValue = isShortAnswer ? -1 : selected!;
     const newAnswers = [...answers, answerValue];
@@ -477,6 +489,7 @@ const DiagnosticQuiz = () => {
     }
 
     const bloomById = new Map(finalQuestions.map((q) => [q.id, q.bloomLevel]));
+    await reasoning.waitForPending(REASONING_EVAL_DEADLINE_MS);
     void saveReasoningRows(
       buildReasoningRows({
         studentId: user.id,
@@ -486,6 +499,7 @@ const DiagnosticQuiz = () => {
         sourceResultId: (scored as { result_id?: string } | null)?.result_id ?? null,
         answers: standardisedAnswers,
         rationales: reasoning.rationales,
+        evaluations: reasoning.getEvaluations(),
         bloomFor: (qid) => bloomById.get(qid) ?? 1,
       }),
     );
