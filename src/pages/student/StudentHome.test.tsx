@@ -136,6 +136,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       if (table === "student_course_mastery") {
         return chain(courseMasteryStore[`${STUDENT_ID}|${enrolledCourseId}`] || null);
       }
+      if (table === "diagnostic_results") return chain([{ id: "diag-1" }]);
       if (table === "courses") return chain(courseRow);
       if (table === "lesson_plan_weeks") return chain(lessonPlanWeeks);
       return chain([]);
