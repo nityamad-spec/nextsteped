@@ -8,6 +8,8 @@ import { useDiagnosticStatus } from "@/hooks/useDiagnosticStatus";
 import { useLearningPlan } from "@/hooks/useLearningPlan";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 import { ChatMessage, RagSource, StudentExamInfo } from "@/types";
+import { verdictFor, type ReasoningEvaluation } from "@/lib/reasoning";
+
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
