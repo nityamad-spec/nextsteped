@@ -26,7 +26,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Calendar, UserPlus, Upload, Copy, ArrowLeft, Trash2, Download, AlertTriangle, FileSpreadsheet, ChevronDown } from "lucide-react";
+import { Calendar, UserPlus, Upload, Copy, ArrowLeft, Trash2, Download, AlertTriangle, FileSpreadsheet, ChevronDown, Send } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { markStepCompleted } from "@/lib/setupProgress";
 
