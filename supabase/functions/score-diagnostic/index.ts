@@ -204,10 +204,12 @@ Deno.serve(async (req) => {
 
   // ---------- Score ----------
   let earnedSum = 0;
+  let earnedNoVerdictSum = 0;
   let maxSum = 0;
   const paceScores: number[] = [];
   let correctCount = 0;
   let answeredCount = 0;
+  let unverifiedReasoning = 0;
   const droppedQuestionIds: string[] = [];
 
   for (const a of body.answers) {
@@ -231,9 +233,13 @@ Deno.serve(async (req) => {
 
     const maxPoints = difficulty * bloomWeight;
     const isCorrect = !!a.is_correct;
-    const earned = isCorrect ? maxPoints : 0;
+    const verdict = a.reasoning_verdict ?? null;
+    if (requiresReasoning(bloom) && !verdict) unverifiedReasoning += 1;
+    // The verdict scales points earned only; maxPoints is unchanged.
+    const earned = maxPoints * reasoningEarnedFactor({ bloom, bloomWeight, isCorrect, verdict });
 
     earnedSum += earned;
+    earnedNoVerdictSum += isCorrect ? maxPoints : 0;
     maxSum += maxPoints;
     answeredCount += 1;
     if (isCorrect) correctCount += 1;
@@ -247,13 +253,23 @@ Deno.serve(async (req) => {
   }
 
   const accuracyScore = maxSum > 0 ? clamp01(earnedSum / maxSum) : 0;
+  const baseAccuracy = maxSum > 0 ? clamp01(earnedNoVerdictSum / maxSum) : 0;
   const paceScore = paceScores.length
     ? paceScores.reduce((s, x) => s + x, 0) / paceScores.length
     : 0;
 
   const W = CONFIG.WEIGHTS;
   const masteryScore = clamp01(W.accuracy * accuracyScore + W.pace * paceScore);
+  const baseMastery = clamp01(W.accuracy * baseAccuracy + W.pace * paceScore);
+  const reasoningAdjustment = masteryScore - baseMastery;
+  if (unverifiedReasoning > 0) {
+    console.warn("score-diagnostic: rationales without a verdict", {
+      course_id: body.course_id,
+      unverified: unverifiedReasoning,
+    });
+  }
   const learnerLevel = levelFromBranch(body.branch_tier ?? null, correctCount, answeredCount);
+
 
   // ---------- Persist ----------
   const { data: inserted, error: insertErr } = await admin
