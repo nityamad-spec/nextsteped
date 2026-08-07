@@ -103,7 +103,6 @@ const StudentHome = () => {
   const [conceptMastery, setConceptMastery] = useState<Record<string, { score: number; attempted: number }>>({});
   const [courseMastery, setCourseMastery] = useState<number | null>(null);
   const [masteryDialogOpen, setMasteryDialogOpen] = useState(false);
-  console.log("RENDER open=", masteryDialogOpen);
   const achievementsData = useAchievements(enrolledCourseId, user?.id ?? null, concepts, conceptMastery);
   const [takenQuizzes, setTakenQuizzes] = useState<
     Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }>
@@ -693,7 +692,7 @@ const StudentHome = () => {
               <Button
                 variant="link"
                 className="px-0 h-auto text-primary"
-                onClick={() => { console.log("CLICKED"); setMasteryDialogOpen(true); }}
+                onClick={() => setMasteryDialogOpen(true)}
               >
                 View full mastery map →
               </Button>

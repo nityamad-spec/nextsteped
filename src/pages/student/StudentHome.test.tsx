@@ -75,14 +75,32 @@ vi.mock("@/components/WeeklyQuizDialog", () => ({
     ) : null,
 }));
 
-vi.mock("framer-motion", () => ({
-  motion: new Proxy(
-    {},
-    {
-      get: () => (props: any) => <div {...props} />,
-    },
-  ),
-}));
+// Stable stub components — a fresh function per property access would give the
+// subtree a new component type on every render, remounting it constantly.
+vi.mock("framer-motion", () => {
+  const cache: Record<string, any> = {};
+  return {
+    motion: new Proxy(
+      {},
+      {
+        get: (_t, key: string) => {
+          if (!cache[key]) {
+            cache[key] = ({ children, ...rest }: any) => {
+              const {
+                initial, animate, exit, transition, variants, whileHover,
+                whileTap, whileInView, viewport, layout, layoutId,
+                ...domProps
+              } = rest;
+              return <div {...domProps}>{children}</div>;
+            };
+          }
+          return cache[key];
+        },
+      },
+    ),
+    AnimatePresence: ({ children }: any) => <>{children}</>,
+  };
+});
 
 // ---- Supabase mock ---------------------------------------------------------
 
