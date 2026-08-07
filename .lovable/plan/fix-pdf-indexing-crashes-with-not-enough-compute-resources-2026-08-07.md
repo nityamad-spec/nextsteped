@@ -65,4 +65,4 @@ Any one of these is survivable; together they exceed the worker limit.
 
 ## Question
 
-Do you want OCR kept for large scanned PDFs (slower, still risky) or auto-skipped above a size threshold in favour of reliable text-layer indexing?
+Do you want OCR kept for large scanned PDFs (slower, still risky) or auto-skipped above a size threshold in favour of reliable text-layer indexing? Auto skip with a threshold of 10MB max

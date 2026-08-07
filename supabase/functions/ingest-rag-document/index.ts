@@ -30,7 +30,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { loggedGatewayFetch } from "../_shared/ai-log.ts";
 const FUNCTION_NAME = "ingest-rag-document";
-import { extractText, getDocumentProxy } from "npm:unpdf@0.12.1";
+import { getDocumentProxy } from "npm:unpdf@0.12.1";
 
 
 const corsHeaders = {
@@ -54,6 +54,13 @@ const MAX_PDF_PAGES = 1500;
 // Beyond that we accept degraded coverage rather than blowing the function
 // timeout or AI Gateway request-size budget.
 const OCR_MAX_PAGES = 50;
+// Above this raw file size we skip OCR entirely: base64-encoding the whole
+// PDF for every OCR call is what pushes the worker past its memory ceiling.
+// Text-layer content still indexes normally.
+const OCR_MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+// Pages are chunked in windows so we never hold the whole document's text
+// as one concatenated string.
+const PAGE_WINDOW = 40;
 
 type PageText = { page: number; text: string; source: "pdf_text" | "ocr" };
 type Chunk = {
@@ -63,17 +70,77 @@ type Chunk = {
   source_type: "pdf_text" | "ocr";
 };
 
-async function extractPdfPages(bytes: Uint8Array): Promise<PageText[]> {
+/**
+ * Extract per-page text using a single pdfjs document proxy, releasing each
+ * page as we go and destroying the proxy afterwards. Also returns the page
+ * count so callers don't need to open the document a second time.
+ */
+async function extractPdfPages(
+  bytes: Uint8Array,
+): Promise<{ pages: PageText[]; numPages: number }> {
   // unpdf wraps pdfjs for serverless/Deno — no worker setup required.
   const pdf = await getDocumentProxy(bytes);
-  const { text } = await extractText(pdf, { mergePages: false });
-  const perPage = Array.isArray(text) ? text : [text];
-  return perPage.map((raw, idx) => ({
-    page: idx + 1,
-    text: (raw ?? "").replace(/\s+/g, " ").trim(),
-    source: "pdf_text" as const,
-  }));
+  const numPages = pdf.numPages as number;
+  if (numPages > MAX_PDF_PAGES) {
+    try { await pdf.destroy?.(); } catch { /* ignore */ }
+    throw new Error(
+      `PDF has ${numPages} pages, exceeds ${MAX_PDF_PAGES}-page limit`,
+    );
+  }
+  const pages: PageText[] = [];
+  try {
+    for (let i = 1; i <= numPages; i++) {
+      let raw = "";
+      try {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        // deno-lint-ignore no-explicit-any
+        raw = (content.items as any[])
+          .map((it) => (typeof it?.str === "string" ? it.str : ""))
+          .join(" ");
+        page.cleanup?.();
+      } catch (e) {
+        console.warn(`[ingest-rag] page ${i} text extraction failed:`, e);
+      }
+      pages.push({
+        page: i,
+        text: raw.replace(/\s+/g, " ").trim(),
+        source: "pdf_text" as const,
+      });
+    }
+  } finally {
+    try { await pdf.destroy?.(); } catch { /* ignore */ }
+  }
+  return { pages, numPages };
 }
+
+/** Base64-encode bytes in slices — avoids millions of intermediate strings. */
+function toBase64(bytes: Uint8Array): string {
+  const SLICE = 32 * 1024;
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += SLICE) {
+    parts.push(
+      String.fromCharCode(...bytes.subarray(i, Math.min(i + SLICE, bytes.length))),
+    );
+  }
+  return btoa(parts.join(""));
+}
+
+/**
+ * Chunk pages in bounded windows so peak memory is one window of text rather
+ * than the whole document. Chunks never span a window boundary.
+ */
+function chunkPagesWindowed(pages: PageText[]): Chunk[] {
+  const out: Chunk[] = [];
+  for (let i = 0; i < pages.length; i += PAGE_WINDOW) {
+    const window = pages.slice(i, i + PAGE_WINDOW);
+    for (const c of chunkPages(window)) out.push(c);
+    // Release the text we just consumed.
+    for (const p of window) p.text = "";
+  }
+  return out;
+}
+
 
 
 async function ocrPage(
@@ -487,7 +554,7 @@ serve(async (req) => {
       .from("course-materials")
       .download(file.storage_path);
     if (dlErr || !blob) throw dlErr ?? new Error("download returned empty");
-    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let bytes = new Uint8Array(await blob.arrayBuffer());
 
     // Content-hash short-circuit: if bytes match what we already indexed,
     // skip extraction/embedding entirely.
@@ -510,50 +577,58 @@ serve(async (req) => {
     }
 
     // Build chunks. JSON lesson plan → one chunk per week (plus header);
-    // PDF → extract pages, OCR empty ones, then chunkPages().
+    // PDF → extract pages, OCR empty ones, then chunk in bounded windows.
     let chunks: Chunk[];
+    let ocrNote: string | null = null;
     if (isJsonPlan) {
       chunks = await buildLessonPlanChunks(admin, file.course_id, bytes);
     } else {
-      // Guard: reject PDFs above MAX_PDF_PAGES before doing any expensive work.
-      const pdfProxy = await getDocumentProxy(bytes);
-      if (pdfProxy.numPages > MAX_PDF_PAGES) {
-        throw new Error(
-          `PDF has ${pdfProxy.numPages} pages, exceeds ${MAX_PDF_PAGES}-page limit`,
-        );
-      }
-      const pages = await extractPdfPages(bytes);
+      // Single pdfjs document open; page-count guard lives inside.
+      const { pages } = await extractPdfPages(bytes);
 
-      // OCR fallback for empty pages — capped at OCR_MAX_PAGES so a scanned
-      // 1500-page book doesn't try to OCR every page.
+      // OCR fallback for empty pages — capped at OCR_MAX_PAGES, and skipped
+      // entirely for large files (base64-encoding the whole PDF per call is
+      // the dominant memory cost).
       const emptyPageNums = pages
         .filter((p) => p.text.replace(/\s+/g, "").length < OCR_MIN_CHARS)
         .map((p) => p.page);
-      const ocrTargets = emptyPageNums.slice(0, OCR_MAX_PAGES);
-      const ocrSkipped = emptyPageNums.length - ocrTargets.length;
-      if (ocrSkipped > 0) {
-        console.warn(
-          `[ingest-rag] OCR cap hit: OCRing ${ocrTargets.length} of ${emptyPageNums.length} low-text pages (skipped ${ocrSkipped})`,
-        );
-      }
-      if (ocrTargets.length > 0) {
-        let bin = "";
-        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-        const b64 = btoa(bin);
-        for (const pageNum of ocrTargets) {
-          try {
-            const text = await ocrPage(b64, pageNum, lovableKey);
-            const idx = pages.findIndex((p) => p.page === pageNum);
-            if (idx >= 0 && text) {
-              pages[idx] = { page: pageNum, text, source: "ocr" };
+      if (emptyPageNums.length > 0 && bytes.length > OCR_MAX_FILE_BYTES) {
+        ocrNote =
+          `OCR skipped: file is ${(bytes.length / 1048576).toFixed(1)} MB (limit ${
+            OCR_MAX_FILE_BYTES / 1048576
+          } MB). Text-layer content was indexed; scanned pages are not searchable.`;
+        console.warn(`[ingest-rag] ${ocrNote}`);
+      } else if (emptyPageNums.length > 0) {
+        const ocrTargets = emptyPageNums.slice(0, OCR_MAX_PAGES);
+        const ocrSkipped = emptyPageNums.length - ocrTargets.length;
+        if (ocrSkipped > 0) {
+          console.warn(
+            `[ingest-rag] OCR cap hit: OCRing ${ocrTargets.length} of ${emptyPageNums.length} low-text pages (skipped ${ocrSkipped})`,
+          );
+        }
+        let b64: string | null = toBase64(bytes);
+        try {
+          for (const pageNum of ocrTargets) {
+            try {
+              const text = await ocrPage(b64, pageNum, lovableKey);
+              const idx = pages.findIndex((p) => p.page === pageNum);
+              if (idx >= 0 && text) {
+                pages[idx] = { page: pageNum, text, source: "ocr" };
+              }
+            } catch (e) {
+              console.warn(`[ingest-rag] OCR page ${pageNum} failed:`, e);
             }
-          } catch (e) {
-            console.warn(`[ingest-rag] OCR page ${pageNum} failed:`, e);
           }
+        } finally {
+          b64 = null;
         }
       }
-      chunks = chunkPages(pages);
+      chunks = chunkPagesWindowed(pages);
+      pages.length = 0;
     }
+
+    // The raw file is no longer needed — release it before embedding.
+    bytes = new Uint8Array(0);
 
     if (chunks.length === 0) {
       await admin
@@ -561,7 +636,7 @@ serve(async (req) => {
         .update({
           rag_status: "indexed",
           rag_indexed_at: new Date().toISOString(),
-          rag_error: null,
+          rag_error: ocrNote,
           content_hash: contentHash,
         })
         .eq("id", fileId);
@@ -571,48 +646,46 @@ serve(async (req) => {
       );
     }
 
-    // Embed in batches.
-    const embeddings: number[][] = [];
-    for (let i = 0; i < chunks.length; i += EMBED_BATCH) {
-      const slice = chunks.slice(i, i + EMBED_BATCH).map((c) => c.content);
-      const vecs = await embedBatch(slice, lovableKey);
-      embeddings.push(...vecs);
-    }
-
-    // Replace existing chunks for this file.
+    // Replace existing chunks for this file, then embed + insert batch by
+    // batch so peak memory is one batch of vectors, not the whole document.
     await admin.from("rag_chunks").delete().eq("file_id", file.id);
 
-    const rows = chunks.map((c, i) => ({
-      course_id: file.course_id,
-      file_id: file.id,
-      storage_path: file.storage_path,
-      file_name: file.file_name,
-      folder_type: file.folder_type,
-      chunk_index: i,
-      page_start: c.page_start,
-      page_end: c.page_end,
-      content: c.content,
-      token_count: Math.round(c.content.length / 4),
-      source_type: c.source_type,
-      embedding: embeddings[i] as unknown as string,
-      model_version: EMBED_MODEL_VERSION,
-    }));
-
-    // Insert in modest batches to keep payloads sane.
-    const INSERT_BATCH = 50;
-    for (let i = 0; i < rows.length; i += INSERT_BATCH) {
-      const { error } = await admin
-        .from("rag_chunks")
-        .insert(rows.slice(i, i + INSERT_BATCH));
-      if (error) throw error;
+    for (let i = 0; i < chunks.length; i += EMBED_BATCH) {
+      const slice = chunks.slice(i, i + EMBED_BATCH);
+      const vecs = await embedBatch(slice.map((c) => c.content), lovableKey);
+      const rows = slice.map((c, j) => ({
+        course_id: file.course_id,
+        file_id: file.id,
+        storage_path: file.storage_path,
+        file_name: file.file_name,
+        folder_type: file.folder_type,
+        chunk_index: i + j,
+        page_start: c.page_start,
+        page_end: c.page_end,
+        content: c.content,
+        token_count: Math.round(c.content.length / 4),
+        source_type: c.source_type,
+        embedding: vecs[j] as unknown as string,
+        model_version: EMBED_MODEL_VERSION,
+      }));
+      const INSERT_BATCH = 50;
+      for (let k = 0; k < rows.length; k += INSERT_BATCH) {
+        const { error } = await admin
+          .from("rag_chunks")
+          .insert(rows.slice(k, k + INSERT_BATCH));
+        if (error) throw error;
+      }
+      // Drop the content we've already persisted.
+      for (const c of slice) c.content = "";
     }
+
 
     await admin
       .from("course_material_files")
       .update({
         rag_status: "indexed",
         rag_indexed_at: new Date().toISOString(),
-        rag_error: null,
+        rag_error: ocrNote,
         content_hash: contentHash,
       })
       .eq("id", fileId);
