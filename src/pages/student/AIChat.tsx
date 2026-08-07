@@ -953,6 +953,9 @@ const AIChat = () => {
           console.warn("Failed to parse x-rag-sources header:", e);
         }
       }
+      // "weak" = answered from the closest materials found, but the match was
+      // uncertain; we badge it and still offer the general-knowledge opt-in.
+      const isLowConfidence = resp.headers.get("x-rag-confidence") === "weak";
 
 
       const reader = resp.body.getReader();
