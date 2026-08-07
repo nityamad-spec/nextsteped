@@ -1196,7 +1196,9 @@ const AIChat = () => {
               }}
               disabled={isStreaming || isCooldown}
             >
-              Yes, use general knowledge
+              {msg.metadata?.variant === "grounded_low_confidence"
+                ? "Answer from general knowledge instead"
+                : "Yes, use general knowledge"}
             </Button>
             <Button
               size="sm"
@@ -1207,7 +1209,9 @@ const AIChat = () => {
               }}
               disabled={isStreaming || isCooldown}
             >
-              No, stay in course materials
+              {msg.metadata?.variant === "grounded_low_confidence"
+                ? "This is fine"
+                : "No, stay in course materials"}
             </Button>
           </div>
         )}
