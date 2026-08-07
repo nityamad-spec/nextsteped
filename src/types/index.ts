@@ -47,7 +47,12 @@ export interface QuizQuestion {
   explanation: string;
 }
 
-export type ChatMessageVariant = "grounded" | "general_knowledge" | "fallback_prompt";
+export type ChatMessageVariant =
+  | "grounded"
+  /** Answered from course materials, but retrieval confidence was weak. */
+  | "grounded_low_confidence"
+  | "general_knowledge"
+  | "fallback_prompt";
 
 export interface RagSource {
   n: number;
