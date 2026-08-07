@@ -71,6 +71,8 @@ import {
   shrink,
   applyPracticeOnlyGate,
 } from "./mastery.ts";
+import { reasoningEarnedFactor, requiresReasoning } from "../_shared/reasoning-scoring.ts";
+
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
