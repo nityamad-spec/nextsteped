@@ -26,11 +26,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Calendar, UserPlus, Upload, Copy, ArrowLeft, Trash2, Download, AlertTriangle, FileSpreadsheet, ChevronDown } from "lucide-react";
+import { Calendar, UserPlus, Upload, Copy, ArrowLeft, Trash2, Download, AlertTriangle, FileSpreadsheet, ChevronDown, Send } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { markStepCompleted } from "@/lib/setupProgress";
 
-type RosterEntry = { id: string; email: string; full_name: string | null; university: string | null };
+type RosterEntry = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  university: string | null;
+  invited_at: string | null;
+  invite_count: number;
+};
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -140,6 +147,10 @@ const EnrollmentSettings = () => {
   const fileRef = useRef<HTMLInputElement>(null);
 
 
+  const [courseMeta, setCourseMeta] = useState<{ name: string | null; code: string | null }>({ name: null, code: null });
+  const [sendingInvites, setSendingInvites] = useState(false);
+  const [inviteProgress, setInviteProgress] = useState(0);
+
   const effectiveCourseId = currentCourse?.id || courseId;
 
   useEffect(() => {
@@ -147,10 +158,11 @@ const EnrollmentSettings = () => {
       if (effectiveCourseId) {
         const { data } = await supabase
           .from("courses")
-          .select("enrollment_code, roster_enforcement, roster_sync_sheet_url")
+          .select("enrollment_code, roster_enforcement, roster_sync_sheet_url, name, course_code")
           .eq("id", effectiveCourseId)
           .maybeSingle();
         if (data?.enrollment_code) setDbEnrollmentCode(data.enrollment_code);
+        setCourseMeta({ name: (data as any)?.name ?? null, code: (data as any)?.course_code ?? null });
         setEnforcement(!!(data as any)?.roster_enforcement);
         const savedUrl = (data as any)?.roster_sync_sheet_url ?? null;
         setSavedSheetUrl(savedUrl);
@@ -175,7 +187,7 @@ const EnrollmentSettings = () => {
     if (!effectiveCourseId) return;
     const { data, error } = await supabase
       .from("course_roster_allowlist")
-      .select("id, email, full_name, university")
+      .select("id, email, full_name, university, invited_at, invite_count")
       .eq("course_id", effectiveCourseId)
       .order("created_at", { ascending: false });
     if (!error && data) setRoster(data as RosterEntry[]);
@@ -474,6 +486,68 @@ const EnrollmentSettings = () => {
     }
   };
 
+  const pendingInvites = roster.filter((r) => !r.invited_at);
+
+  const sendInvites = async (targets: RosterEntry[]) => {
+    if (!effectiveCourseId || targets.length === 0) return;
+    if (!dbEnrollmentCode) {
+      toast.error("Enrollment code not loaded yet. Please try again.");
+      return;
+    }
+    setSendingInvites(true);
+    setInviteProgress(0);
+    let sent = 0;
+    let failed = 0;
+    let done = 0;
+
+    const sendOne = async (row: RosterEntry) => {
+      try {
+        const { error } = await supabase.functions.invoke("send-transactional-email", {
+          body: {
+            templateName: "course-invite",
+            recipientEmail: row.email,
+            idempotencyKey: `course-invite-${row.id}-${row.invite_count ?? 0}`,
+            templateData: {
+              studentName: row.full_name || undefined,
+              courseName: courseMeta.name || currentCourse?.name || "your course",
+              courseCode: courseMeta.code || undefined,
+              enrollmentCode: dbEnrollmentCode,
+              signupUrl: `${window.location.origin}/intro/student`,
+            },
+          },
+        });
+        if (error) throw error;
+        await supabase
+          .from("course_roster_allowlist")
+          .update({ invited_at: new Date().toISOString(), invite_count: (row.invite_count ?? 0) + 1 })
+          .eq("id", row.id);
+        sent++;
+      } catch (e) {
+        console.error("Invite failed", row.email, e);
+        failed++;
+      } finally {
+        done++;
+        setInviteProgress(Math.round((done / targets.length) * 100));
+      }
+    };
+
+    try {
+      const queue = [...targets];
+      const workers = Array.from({ length: Math.min(5, queue.length) }, async () => {
+        while (queue.length) {
+          const next = queue.shift();
+          if (next) await sendOne(next);
+        }
+      });
+      await Promise.all(workers);
+      await loadRoster();
+      if (failed === 0) toast.success(`Sent ${sent} invite${sent === 1 ? "" : "s"}.`);
+      else toast.warning(`Sent ${sent}, ${failed} failed.`);
+    } finally {
+      setSendingInvites(false);
+      setTimeout(() => setInviteProgress(0), 800);
+    }
+  };
 
 
   const deleteEntry = async (id: string) => {
@@ -663,6 +737,45 @@ const EnrollmentSettings = () => {
               )}
 
               {roster.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 p-3">
+                  <div className="pr-4">
+                    <p className="text-sm font-medium">Invite emails</p>
+                    <p className="text-xs text-muted-foreground">
+                      Sends each student the enrollment code and step-by-step signup instructions.
+                    </p>
+                  </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" className="gap-1" disabled={pendingInvites.length === 0 || sendingInvites}>
+                        <Send className="h-3.5 w-3.5" />
+                        {sendingInvites
+                          ? "Sending…"
+                          : pendingInvites.length === 0
+                            ? "All invited"
+                            : `Send invites (${pendingInvites.length} pending)`}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Send invites to {pendingInvites.length} student{pendingInvites.length === 1 ? "" : "s"}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Each student who hasn&apos;t been invited yet will receive an email with the course
+                          enrollment code and instructions for creating their account. Students already invited
+                          are skipped.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => sendInvites(pendingInvites)}>Send invites</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
+
+              {sendingInvites && <Progress value={inviteProgress} className="h-2" />}
+
+              {roster.length > 0 && (
                 <div className="space-y-1 max-h-64 overflow-y-auto">
                   {visibleRoster.map((r) => (
                     <div key={r.id} className="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-muted/50">
@@ -670,8 +783,21 @@ const EnrollmentSettings = () => {
                         <span className="font-mono text-xs">{r.email}</span>
                         {r.full_name && <span className="ml-2 text-xs text-muted-foreground">— {r.full_name}</span>}
                         {r.university && <span className="ml-2 text-xs text-muted-foreground">· {r.university}</span>}
+                        <span className={`ml-2 text-xs ${r.invited_at ? "text-muted-foreground" : "text-amber-600 dark:text-amber-500"}`}>
+                          {r.invited_at
+                            ? `· Invited ${new Date(r.invited_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`
+                            : "· Not invited"}
+                        </span>
                       </div>
-                      <button onClick={() => deleteEntry(r.id)} className="ml-2 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                      <button
+                        onClick={() => sendInvites([r])}
+                        disabled={sendingInvites}
+                        className="ml-2 rounded p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary disabled:opacity-50"
+                        title={r.invited_at ? "Resend invite" : "Send invite"}
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => deleteEntry(r.id)} className="ml-1 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
