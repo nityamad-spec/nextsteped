@@ -40,6 +40,9 @@ function normalizedStem(fileName: string): string {
   return s;
 }
 
+const TOO_LARGE_MESSAGE =
+  "This PDF was too large to index — try splitting it into smaller files.";
+
 async function fireIngest(
   fileId: string,
   fileName: string,
@@ -51,8 +54,24 @@ async function fireIngest(
   if (!isPdf && !isPublishedPlan) return;
   void supabase.functions
     .invoke("ingest-rag-document", { body: { file_id: fileId } })
+    .then(async ({ error }) => {
+      if (!error) return;
+      const raw = `${error.message ?? ""} ${JSON.stringify(
+        (error as unknown as { context?: unknown }).context ?? "",
+      )}`;
+      const outOfMemory =
+        raw.includes("WORKER_RESOURCE_LIMIT") || raw.includes("546");
+      if (!outOfMemory) return;
+      // The worker was killed mid-run, so the function never marked the row
+      // failed. Do it from the client so the badge stops spinning.
+      await supabase
+        .from("course_material_files")
+        .update({ rag_status: "failed", rag_error: TOO_LARGE_MESSAGE })
+        .eq("id", fileId);
+    })
     .catch((e) => console.warn("ingest-rag-document invoke failed:", e));
 }
+
 
 async function autoSupersedeSimilar(args: {
   course_id: string;
