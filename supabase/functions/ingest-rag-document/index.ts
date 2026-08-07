@@ -685,7 +685,7 @@ serve(async (req) => {
       .update({
         rag_status: "indexed",
         rag_indexed_at: new Date().toISOString(),
-        rag_error: null,
+        rag_error: ocrNote,
         content_hash: contentHash,
       })
       .eq("id", fileId);
