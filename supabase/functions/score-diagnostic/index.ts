@@ -41,6 +41,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
+import { reasoningEarnedFactor, requiresReasoning } from "../_shared/reasoning-scoring.ts";
+
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
