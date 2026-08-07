@@ -697,6 +697,9 @@ const DiagnosticQuiz = () => {
                     onChange={reasoning.setRationale}
                     showError={reasoning.showErrors}
                   />
+                  <div className="mt-2">
+                    <ReasoningVerdict evaluation={reasoning.evaluations[question.id]} />
+                  </div>
                 </div>
               )}
             </motion.div>
