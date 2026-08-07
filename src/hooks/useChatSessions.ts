@@ -15,6 +15,12 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher", courseId?
   // Load sessions + messages from DB
   const loadSessions = useCallback(async () => {
     if (!user) return;
+    if (!courseId) {
+      setSessions([]);
+      setActiveSessionId(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const { data: sessionsData, error: sessErr } = await supabase
@@ -22,6 +28,7 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher", courseId?
         .select("*")
         .eq("user_id", user.id)
         .eq("mode", mode)
+        .eq("course_id", courseId)
         .order("updated_at", { ascending: false });
 
       if (sessErr) throw sessErr;
@@ -31,6 +38,7 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher", courseId?
         setLoading(false);
         return;
       }
+
 
       const sessionIds = sessionsData.map((s) => s.id);
       const { data: messagesData, error: msgErr } = await supabase
@@ -70,11 +78,13 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher", courseId?
     } finally {
       setLoading(false);
     }
-  }, [user, mode, activeSessionId]);
+  }, [user, mode, courseId, activeSessionId]);
 
   useEffect(() => {
     loadSessions();
-  }, [user, mode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, mode, courseId]);
+
 
   // Create a new session in DB
   const createSession = useCallback(
