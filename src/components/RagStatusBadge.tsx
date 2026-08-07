@@ -7,23 +7,41 @@ interface Props {
   /** If true, treats an unknown status as "Indexing…" for freshly uploaded
    *  PDFs where the ingest row hasn't landed yet. */
   assumeInFlight?: boolean;
+  /** Pages indexed so far (large PDFs index across several passes). */
+  pageCursor?: number | null;
+  /** Total pages in the document, once known. */
+  totalPages?: number | null;
 }
 
 /**
  * Small badge summarizing RAG ingestion state for a course material file.
  * Shared by ContentLibrary and the setup-page FileUploadZone.
  */
-export default function RagStatusBadge({ status, assumeInFlight }: Props) {
+export default function RagStatusBadge({
+  status,
+  assumeInFlight,
+  pageCursor,
+  totalPages,
+}: Props) {
   const effective: RagStatus =
     status ?? (assumeInFlight ? "processing" : null);
 
   if (effective === "processing" || effective === "pending") {
+    const showProgress =
+      typeof totalPages === "number" &&
+      totalPages > 0 &&
+      typeof pageCursor === "number" &&
+      pageCursor > 0;
     return (
       <Badge variant="secondary" className="gap-1">
-        <Loader2 className="h-3 w-3 animate-spin" /> Indexing…
+        <Loader2 className="h-3 w-3 animate-spin" />
+        {showProgress
+          ? `Indexing… ${pageCursor}/${totalPages} pages`
+          : "Indexing…"}
       </Badge>
     );
   }
+
   if (effective === "indexed") {
     return (
       <Badge

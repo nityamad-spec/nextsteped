@@ -535,9 +535,13 @@ export type Database = {
           file_size: number
           folder_type: string
           id: string
+          rag_chunk_cursor: number
           rag_error: string | null
           rag_indexed_at: string | null
+          rag_page_cursor: number
+          rag_pass_started_at: string | null
           rag_status: string
+          rag_total_pages: number | null
           storage_path: string
           superseded_at: string | null
           superseded_by: string | null
@@ -551,9 +555,13 @@ export type Database = {
           file_size: number
           folder_type: string
           id?: string
+          rag_chunk_cursor?: number
           rag_error?: string | null
           rag_indexed_at?: string | null
+          rag_page_cursor?: number
+          rag_pass_started_at?: string | null
           rag_status?: string
+          rag_total_pages?: number | null
           storage_path: string
           superseded_at?: string | null
           superseded_by?: string | null
@@ -567,9 +575,13 @@ export type Database = {
           file_size?: number
           folder_type?: string
           id?: string
+          rag_chunk_cursor?: number
           rag_error?: string | null
           rag_indexed_at?: string | null
+          rag_page_cursor?: number
+          rag_pass_started_at?: string | null
           rag_status?: string
+          rag_total_pages?: number | null
           storage_path?: string
           superseded_at?: string | null
           superseded_by?: string | null

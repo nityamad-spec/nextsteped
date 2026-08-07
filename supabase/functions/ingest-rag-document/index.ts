@@ -61,6 +61,16 @@ const OCR_MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 // Pages are chunked in windows so we never hold the whole document's text
 // as one concatenated string.
 const PAGE_WINDOW = 40;
+// --- Resumable pass budgets -----------------------------------------------
+// A single invocation indexes at most this many pages, or this many extracted
+// characters (whichever comes first), then chains a follow-up invocation.
+const PASS_MAX_PAGES = 60;
+const PASS_MAX_CHARS = 400_000;
+// Safety valve against runaway self-invocation.
+const MAX_PASSES = 30;
+// A pass that started longer ago than this is presumed dead (worker killed),
+// so a new invocation is allowed to resume from the saved cursor.
+const PASS_STALE_MS = 3 * 60 * 1000;
 
 type PageText = { page: number; text: string; source: "pdf_text" | "ocr" };
 type Chunk = {
@@ -71,13 +81,17 @@ type Chunk = {
 };
 
 /**
- * Extract per-page text using a single pdfjs document proxy, releasing each
- * page as we go and destroying the proxy afterwards. Also returns the page
- * count so callers don't need to open the document a second time.
+ * Extract text for a bounded slice of the document, starting at `fromPage`
+ * (1-based) and stopping once the page budget or the character budget is hit.
+ * Pages are released as we go and the proxy is destroyed afterwards, so peak
+ * memory is one slice regardless of document size.
  */
 async function extractPdfPages(
   bytes: Uint8Array,
-): Promise<{ pages: PageText[]; numPages: number }> {
+  fromPage = 1,
+  maxPages = Number.MAX_SAFE_INTEGER,
+  maxChars = Number.MAX_SAFE_INTEGER,
+): Promise<{ pages: PageText[]; numPages: number; lastPage: number }> {
   // unpdf wraps pdfjs for serverless/Deno — no worker setup required.
   const pdf = await getDocumentProxy(bytes);
   const numPages = pdf.numPages as number;
@@ -88,8 +102,11 @@ async function extractPdfPages(
     );
   }
   const pages: PageText[] = [];
+  const end = Math.min(numPages, fromPage + maxPages - 1);
+  let lastPage = fromPage - 1;
+  let chars = 0;
   try {
-    for (let i = 1; i <= numPages; i++) {
+    for (let i = fromPage; i <= end; i++) {
       let raw = "";
       try {
         const page = await pdf.getPage(i);
@@ -102,17 +119,18 @@ async function extractPdfPages(
       } catch (e) {
         console.warn(`[ingest-rag] page ${i} text extraction failed:`, e);
       }
-      pages.push({
-        page: i,
-        text: raw.replace(/\s+/g, " ").trim(),
-        source: "pdf_text" as const,
-      });
+      const text = raw.replace(/\s+/g, " ").trim();
+      pages.push({ page: i, text, source: "pdf_text" as const });
+      lastPage = i;
+      chars += text.length;
+      if (chars >= maxChars) break;
     }
   } finally {
     try { await pdf.destroy?.(); } catch { /* ignore */ }
   }
-  return { pages, numPages };
+  return { pages, numPages, lastPage };
 }
+
 
 /** Base64-encode bytes in slices — avoids millions of intermediate strings. */
 function toBase64(bytes: Uint8Array): string {
@@ -491,6 +509,7 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     fileId = body.file_id ?? null;
+    const passNo = Number(body.pass ?? 1) || 1;
     if (!fileId) {
       return new Response(
         JSON.stringify({ error: "file_id is required" }),
@@ -507,7 +526,7 @@ serve(async (req) => {
     const { data: file, error: fileErr } = await admin
       .from("course_material_files")
       .select(
-        "id, course_id, teacher_id, storage_path, file_name, folder_type, content_hash, rag_status, rag_indexed_at",
+        "id, course_id, teacher_id, storage_path, file_name, folder_type, content_hash, rag_status, rag_indexed_at, rag_page_cursor, rag_total_pages, rag_chunk_cursor, rag_pass_started_at",
       )
       .eq("id", fileId)
       .maybeSingle();
@@ -530,12 +549,12 @@ serve(async (req) => {
       );
     }
 
-    // Concurrency guard: if a previous run marked this row 'processing' and
-    // successfully indexed within the last 60s, skip. If rag_indexed_at is
-    // null (e.g. a stuck/failed prior run), allow retry.
-    if (file.rag_status === "processing" && file.rag_indexed_at) {
-      const ts = new Date(file.rag_indexed_at).getTime();
-      if (Date.now() - ts < 60_000) {
+    // Re-entrancy guard: a pass that started recently is still running, so a
+    // duplicate invocation must not double-insert chunks. A pass older than
+    // PASS_STALE_MS is presumed dead (worker killed) and may be resumed.
+    if (file.rag_pass_started_at) {
+      const started = new Date(file.rag_pass_started_at).getTime();
+      if (Date.now() - started < PASS_STALE_MS) {
         return new Response(
           JSON.stringify({ ok: true, skipped: true, reason: "in_progress" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -543,10 +562,25 @@ serve(async (req) => {
       }
     }
 
+    if (passNo > MAX_PASSES) {
+      throw new Error(
+        `Indexing exceeded ${MAX_PASSES} passes — this PDF is too large to index. Try splitting it into smaller files.`,
+      );
+    }
+
+    // Where this pass starts. Resume only makes sense for PDFs.
+    const startCursor = isJsonPlan ? 0 : (file.rag_page_cursor ?? 0);
+    const isFirstPass = startCursor === 0;
+    let chunkCursor = isFirstPass ? 0 : (file.rag_chunk_cursor ?? 0);
 
     await admin
       .from("course_material_files")
-      .update({ rag_status: "processing", rag_error: null })
+      .update({
+        rag_status: "processing",
+        rag_error: null,
+        rag_pass_started_at: new Date().toISOString(),
+        ...(isFirstPass ? { rag_page_cursor: 0, rag_chunk_cursor: 0 } : {}),
+      })
       .eq("id", fileId);
 
     // Download the PDF.
@@ -555,6 +589,7 @@ serve(async (req) => {
       .download(file.storage_path);
     if (dlErr || !blob) throw dlErr ?? new Error("download returned empty");
     let bytes = new Uint8Array(await blob.arrayBuffer());
+    const fileBytes = bytes.length;
 
     // Content-hash short-circuit: if bytes match what we already indexed,
     // skip extraction/embedding entirely.
@@ -563,12 +598,17 @@ serve(async (req) => {
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
     if (
+      isFirstPass &&
       file.content_hash === contentHash &&
       file.rag_status === "indexed"
     ) {
       await admin
         .from("course_material_files")
-        .update({ rag_indexed_at: new Date().toISOString(), rag_error: null })
+        .update({
+          rag_indexed_at: new Date().toISOString(),
+          rag_error: null,
+          rag_pass_started_at: null,
+        })
         .eq("id", fileId);
       return new Response(
         JSON.stringify({ ok: true, skipped: true, reason: "unchanged" }),
@@ -576,25 +616,37 @@ serve(async (req) => {
       );
     }
 
-    // Build chunks. JSON lesson plan → one chunk per week (plus header);
-    // PDF → extract pages, OCR empty ones, then chunk in bounded windows.
+    // Build chunks for THIS pass only. JSON lesson plan → one chunk per week
+    // (always a single pass); PDF → one bounded page slice per pass.
     let chunks: Chunk[];
     let ocrNote: string | null = null;
+    let numPages = file.rag_total_pages ?? 0;
+    let lastPage = 0;
+    let done = true;
+
     if (isJsonPlan) {
       chunks = await buildLessonPlanChunks(admin, file.course_id, bytes);
     } else {
-      // Single pdfjs document open; page-count guard lives inside.
-      const { pages } = await extractPdfPages(bytes);
+      const slice = await extractPdfPages(
+        bytes,
+        startCursor + 1,
+        PASS_MAX_PAGES,
+        PASS_MAX_CHARS,
+      );
+      const pages = slice.pages;
+      numPages = slice.numPages;
+      lastPage = slice.lastPage;
+      done = lastPage >= numPages;
 
-      // OCR fallback for empty pages — capped at OCR_MAX_PAGES, and skipped
-      // entirely for large files (base64-encoding the whole PDF per call is
-      // the dominant memory cost).
+      // OCR fallback for empty pages in this slice — capped per pass, and
+      // skipped entirely for large files (base64-encoding the whole PDF per
+      // call is the dominant memory cost).
       const emptyPageNums = pages
         .filter((p) => p.text.replace(/\s+/g, "").length < OCR_MIN_CHARS)
         .map((p) => p.page);
-      if (emptyPageNums.length > 0 && bytes.length > OCR_MAX_FILE_BYTES) {
+      if (emptyPageNums.length > 0 && fileBytes > OCR_MAX_FILE_BYTES) {
         ocrNote =
-          `OCR skipped: file is ${(bytes.length / 1048576).toFixed(1)} MB (limit ${
+          `OCR skipped: file is ${(fileBytes / 1048576).toFixed(1)} MB (limit ${
             OCR_MAX_FILE_BYTES / 1048576
           } MB). Text-layer content was indexed; scanned pages are not searchable.`;
         console.warn(`[ingest-rag] ${ocrNote}`);
@@ -630,7 +682,44 @@ serve(async (req) => {
     // The raw file is no longer needed — release it before embedding.
     bytes = new Uint8Array(0);
 
-    if (chunks.length === 0) {
+    if (chunks.length > 0) {
+      // First pass replaces any previously indexed chunks; later passes append.
+      if (isFirstPass) {
+        await admin.from("rag_chunks").delete().eq("file_id", file.id);
+      }
+
+      for (let i = 0; i < chunks.length; i += EMBED_BATCH) {
+        const slice = chunks.slice(i, i + EMBED_BATCH);
+        const vecs = await embedBatch(slice.map((c) => c.content), lovableKey);
+        const rows = slice.map((c, j) => ({
+          course_id: file.course_id,
+          file_id: file.id,
+          storage_path: file.storage_path,
+          file_name: file.file_name,
+          folder_type: file.folder_type,
+          chunk_index: chunkCursor + i + j,
+          page_start: c.page_start,
+          page_end: c.page_end,
+          content: c.content,
+          token_count: Math.round(c.content.length / 4),
+          source_type: c.source_type,
+          embedding: vecs[j] as unknown as string,
+          model_version: EMBED_MODEL_VERSION,
+        }));
+        const INSERT_BATCH = 50;
+        for (let k = 0; k < rows.length; k += INSERT_BATCH) {
+          const { error } = await admin
+            .from("rag_chunks")
+            .insert(rows.slice(k, k + INSERT_BATCH));
+          if (error) throw error;
+        }
+        // Drop the content we've already persisted.
+        for (const c of slice) c.content = "";
+      }
+      chunkCursor += chunks.length;
+    }
+
+    if (done) {
       await admin
         .from("course_material_files")
         .update({
@@ -638,62 +727,63 @@ serve(async (req) => {
           rag_indexed_at: new Date().toISOString(),
           rag_error: ocrNote,
           content_hash: contentHash,
+          rag_page_cursor: isJsonPlan ? 0 : lastPage,
+          rag_total_pages: isJsonPlan ? null : numPages,
+          rag_chunk_cursor: chunkCursor,
+          rag_pass_started_at: null,
         })
         .eq("id", fileId);
+
       return new Response(
-        JSON.stringify({ ok: true, chunks: 0 }),
+        JSON.stringify({ ok: true, chunks: chunks.length, done: true, pass: passNo }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // Replace existing chunks for this file, then embed + insert batch by
-    // batch so peak memory is one batch of vectors, not the whole document.
-    await admin.from("rag_chunks").delete().eq("file_id", file.id);
-
-    for (let i = 0; i < chunks.length; i += EMBED_BATCH) {
-      const slice = chunks.slice(i, i + EMBED_BATCH);
-      const vecs = await embedBatch(slice.map((c) => c.content), lovableKey);
-      const rows = slice.map((c, j) => ({
-        course_id: file.course_id,
-        file_id: file.id,
-        storage_path: file.storage_path,
-        file_name: file.file_name,
-        folder_type: file.folder_type,
-        chunk_index: i + j,
-        page_start: c.page_start,
-        page_end: c.page_end,
-        content: c.content,
-        token_count: Math.round(c.content.length / 4),
-        source_type: c.source_type,
-        embedding: vecs[j] as unknown as string,
-        model_version: EMBED_MODEL_VERSION,
-      }));
-      const INSERT_BATCH = 50;
-      for (let k = 0; k < rows.length; k += INSERT_BATCH) {
-        const { error } = await admin
-          .from("rag_chunks")
-          .insert(rows.slice(k, k + INSERT_BATCH));
-        if (error) throw error;
-      }
-      // Drop the content we've already persisted.
-      for (const c of slice) c.content = "";
-    }
-
-
+    // More pages remain — save progress, release the pass lock, and chain the
+    // next invocation so each worker only ever holds one slice.
     await admin
       .from("course_material_files")
       .update({
-        rag_status: "indexed",
-        rag_indexed_at: new Date().toISOString(),
+        rag_status: "processing",
         rag_error: ocrNote,
         content_hash: contentHash,
+        rag_page_cursor: lastPage,
+        rag_total_pages: numPages,
+        rag_chunk_cursor: chunkCursor,
+        rag_pass_started_at: null,
       })
       .eq("id", fileId);
 
+    // Dispatch-and-forget: a short abort keeps us from waiting on the whole
+    // next pass while still guaranteeing the request left this worker.
+    try {
+      await fetch(`${supabaseUrl}/functions/v1/ingest-rag-document`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${serviceKey}`,
+          apikey: serviceKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ file_id: fileId, resume: true, pass: passNo + 1 }),
+        signal: AbortSignal.timeout(3000),
+      });
+    } catch (_e) {
+      // Expected: we abort before the next pass finishes.
+    }
+
     return new Response(
-      JSON.stringify({ ok: true, chunks: chunks.length }),
+      JSON.stringify({
+        ok: true,
+        chunks: chunks.length,
+        done: false,
+        pass: passNo,
+        page_cursor: lastPage,
+        total_pages: numPages,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
+
   } catch (e) {
     // Handle Error, Supabase PostgrestError (plain object), or unknown.
     const anyE = e as { message?: string; error_description?: string; hint?: string; details?: string; code?: string };
@@ -709,7 +799,11 @@ serve(async (req) => {
     if (fileId) {
       await admin
         .from("course_material_files")
-        .update({ rag_status: "failed", rag_error: msg.slice(0, 500) })
+        .update({
+          rag_status: "failed",
+          rag_error: msg.slice(0, 500),
+          rag_pass_started_at: null,
+        })
         .eq("id", fileId);
     }
     return new Response(
