@@ -737,6 +737,45 @@ const EnrollmentSettings = () => {
               )}
 
               {roster.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 p-3">
+                  <div className="pr-4">
+                    <p className="text-sm font-medium">Invite emails</p>
+                    <p className="text-xs text-muted-foreground">
+                      Sends each student the enrollment code and step-by-step signup instructions.
+                    </p>
+                  </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" className="gap-1" disabled={pendingInvites.length === 0 || sendingInvites}>
+                        <Send className="h-3.5 w-3.5" />
+                        {sendingInvites
+                          ? "Sending…"
+                          : pendingInvites.length === 0
+                            ? "All invited"
+                            : `Send invites (${pendingInvites.length} pending)`}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Send invites to {pendingInvites.length} student{pendingInvites.length === 1 ? "" : "s"}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Each student who hasn&apos;t been invited yet will receive an email with the course
+                          enrollment code and instructions for creating their account. Students already invited
+                          are skipped.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => sendInvites(pendingInvites)}>Send invites</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
+
+              {sendingInvites && <Progress value={inviteProgress} className="h-2" />}
+
+              {roster.length > 0 && (
                 <div className="space-y-1 max-h-64 overflow-y-auto">
                   {visibleRoster.map((r) => (
                     <div key={r.id} className="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-muted/50">
@@ -744,8 +783,21 @@ const EnrollmentSettings = () => {
                         <span className="font-mono text-xs">{r.email}</span>
                         {r.full_name && <span className="ml-2 text-xs text-muted-foreground">— {r.full_name}</span>}
                         {r.university && <span className="ml-2 text-xs text-muted-foreground">· {r.university}</span>}
+                        <span className={`ml-2 text-xs ${r.invited_at ? "text-muted-foreground" : "text-amber-600 dark:text-amber-500"}`}>
+                          {r.invited_at
+                            ? `· Invited ${new Date(r.invited_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`
+                            : "· Not invited"}
+                        </span>
                       </div>
-                      <button onClick={() => deleteEntry(r.id)} className="ml-2 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                      <button
+                        onClick={() => sendInvites([r])}
+                        disabled={sendingInvites}
+                        className="ml-2 rounded p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary disabled:opacity-50"
+                        title={r.invited_at ? "Resend invite" : "Send invite"}
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => deleteEntry(r.id)} className="ml-1 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
