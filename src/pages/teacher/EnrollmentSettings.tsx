@@ -147,6 +147,10 @@ const EnrollmentSettings = () => {
   const fileRef = useRef<HTMLInputElement>(null);
 
 
+  const [courseMeta, setCourseMeta] = useState<{ name: string | null; code: string | null }>({ name: null, code: null });
+  const [sendingInvites, setSendingInvites] = useState(false);
+  const [inviteProgress, setInviteProgress] = useState(0);
+
   const effectiveCourseId = currentCourse?.id || courseId;
 
   useEffect(() => {
