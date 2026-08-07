@@ -283,16 +283,25 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       });
       return;
     }
+    setSubmitting(true);
     // Evaluate anything the student has not advanced past yet (exam mode shows
     // every question at once; quiz mode's last question was never "Next"-ed).
-    questions.forEach((q) => {
-      if (requiresReasoning(bloomFor(q.id))) evaluateQuestion(q);
-    });
-    setSubmitting(true);
-    await reasoning.waitForPending(REASONING_EVAL_DEADLINE_MS);
+    await reasoning.flushAndWait(
+      questions.map((q) => ({
+        questionId: q.id,
+        questionText: q.text,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        selectedAnswer: answers[q.id] ?? null,
+        topic: q.topic,
+        bloom: bloomFor(q.id),
+        courseId: courseId ?? null,
+      })),
+      REASONING_EVAL_DEADLINE_MS,
+    );
     setSubmitting(false);
     handleFinish();
-  }, [reasoning, reasoningRefs, questions, handleFinish, type, bloomFor, evaluateQuestion]);
+  }, [reasoning, reasoningRefs, questions, handleFinish, type, bloomFor, answers, courseId]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
