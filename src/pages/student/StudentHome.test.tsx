@@ -150,7 +150,7 @@ const getTile = (label: string) => screen.getByText(label).closest("div")!;
 const openMasteryMap = async () => {
   const link = await screen.findByRole("button", { name: /view full mastery map/i });
   fireEvent.click(link);
-  await screen.findByText("Concept mastery map");
+  await screen.findByRole("dialog");
 };
 
 beforeEach(() => {
