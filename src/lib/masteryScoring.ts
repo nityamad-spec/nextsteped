@@ -73,7 +73,14 @@ export function computeWeeklyQuizScore(items: ScoreItem[]): ScoreResult {
   const paceScores: number[] = [];
 
   for (const it of items) {
-    const bloom = clampBloom(it.bloom);
+    // Unknown/NaN Bloom with a verdict present is evidence the question was
+    // Bloom 3+ (the rationale widget only renders at level 3 and above), so the
+    // verdict is never silently ignored. Mirrors buildReasoningRows' fallback.
+    const bloom = Number.isFinite(it.bloom)
+      ? clampBloom(it.bloom)
+      : it.verdict
+        ? 3
+        : 1;
     const difficulty = clamp01(it.difficulty);
     const bloomWeight = BLOOM_WEIGHT[bloom] ?? 1.0;
     const maxPoints = difficulty * bloomWeight;
