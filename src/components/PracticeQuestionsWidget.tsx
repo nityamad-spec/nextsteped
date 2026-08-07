@@ -27,7 +27,12 @@ interface PracticeResult {
 
 import ReasoningInput from "@/components/ReasoningInput";
 import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
-import { requiresReasoning } from "@/lib/reasoning";
+import ReasoningVerdict from "@/components/ReasoningVerdict";
+import {
+  requiresReasoning,
+  REASONING_EVAL_DEADLINE_MS,
+  type ReasoningEvaluation,
+} from "@/lib/reasoning";
 
 interface PracticeQuestionsWidgetProps {
   onClose: () => void;
@@ -38,6 +43,7 @@ interface PracticeQuestionsWidgetProps {
     answers: any[];
     timeSpent: number;
     rationales?: Record<string, string>;
+    evaluations?: Record<string, ReasoningEvaluation>;
   }) => void;
   practiceHistory?: PracticeResult[];
   courseContext?: {
@@ -76,6 +82,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   const [startTime] = useState(Date.now());
   const [reviewingSession, setReviewingSession] = useState<PracticeResult | null>(null);
   const reasoning = useReasoningAnswers();
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!initialReviewSessionId) return;
@@ -147,13 +154,27 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
       return;
     }
     reasoning.setShowErrors(false);
+    // Fire the background AI review of the rationale as the student advances.
+    reasoning.evaluate({
+      questionId: currentQuestion.id,
+      questionText: currentQuestion.question,
+      options: currentQuestion.options,
+      correctAnswer: currentQuestion.answer,
+      selectedAnswer: answers[currentQuestion.id] ?? null,
+      topic: currentQuestion.topic,
+      bloom: currentQuestion.bloom_level,
+      courseId: enrolledCourseId ?? null,
+    });
     setRevealed(prev => new Set(prev).add(currentQuestion.id));
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
     } else {
+      setSubmitting(true);
+      await reasoning.waitForPending(REASONING_EVAL_DEADLINE_MS);
+      setSubmitting(false);
       let correct = 0;
       const answerDetails = questions.map(q => {
         const userAnswer = answers[q.id] || "";
@@ -184,6 +205,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
         answers: answerDetails,
         timeSpent: Math.round((Date.now() - startTime) / 1000),
         rationales: reasoning.rationales,
+        evaluations: reasoning.getEvaluations(),
       });
     }
   };
@@ -626,8 +648,10 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
           )}
 
           {isRevealed && (
-            <Button onClick={handleNext} className="w-full gap-2">
-              {currentIndex < questions.length - 1 ? "Next Question" : "View Results"}
+            <Button onClick={handleNext} className="w-full gap-2" disabled={submitting}>
+              {submitting
+                ? "Checking your reasoning…"
+                : currentIndex < questions.length - 1 ? "Next Question" : "View Results"}
             </Button>
           )}
         </div>
