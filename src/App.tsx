@@ -51,6 +51,7 @@ import StudentProgress from "./pages/student/Progress";
 import Feedback from "./pages/student/Feedback";
 import ComingSoon from "./components/ComingSoon";
 import NotFound from "./pages/NotFound";
+import Unsubscribe from "./pages/Unsubscribe";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminCourses from "./pages/admin/AdminCourses";
