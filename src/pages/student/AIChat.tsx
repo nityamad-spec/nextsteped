@@ -784,6 +784,8 @@ const AIChat = () => {
             sourceId: insertedAssessment?.id ?? null,
             answers: results.answers ?? [],
             questionMeta: assessmentQuestionMeta,
+            evaluations: results.evaluations,
+
           });
         }
       }
