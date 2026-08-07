@@ -609,14 +609,18 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
 
 
           {requiresReasoning(currentQuestion.bloom_level) && (
-            <ReasoningInput
-              questionId={currentQuestion.id}
-              value={reasoning.rationales[currentQuestion.id] ?? ""}
-              onChange={reasoning.setRationale}
-              showError={reasoning.showErrors}
-              disabled={isRevealed}
-            />
+            <>
+              <ReasoningInput
+                questionId={currentQuestion.id}
+                value={reasoning.rationales[currentQuestion.id] ?? ""}
+                onChange={reasoning.setRationale}
+                showError={reasoning.showErrors}
+                disabled={isRevealed}
+              />
+              <ReasoningVerdict evaluation={reasoning.evaluations[currentQuestion.id]} />
+            </>
           )}
+
 
           {isAnswered && !isRevealed && (
             <Button onClick={handleReveal} className="w-full gap-2">
