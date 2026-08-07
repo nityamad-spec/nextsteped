@@ -1031,6 +1031,7 @@ const AIChat = () => {
             .trim();
           await addMessage(
             activeChat.id,
+            "assistant",
             cleaned,
             {
               variant: isGeneral
