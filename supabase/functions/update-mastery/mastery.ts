@@ -5,7 +5,7 @@ export const MASTERY_CONFIG = {
   EMA_ALPHA_BY_SOURCE: {
     weekly_quiz: 0.4,
     exam: 0.6,
-    practice: 0.3,
+    practice: 0.15,
     diagnostic: 0.4,
   } as Record<string, number>,
   EMA_ALPHA_DEFAULT: 0.4,
