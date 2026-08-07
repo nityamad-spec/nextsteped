@@ -99,7 +99,10 @@ const PerQuestionSchema = z
     difficulty: z.number().min(0).max(1),
     bloom: z.number().int().min(1).max(6),
     is_correct: z.boolean(),
+    /** LLM verdict on the Bloom 3+ rationale; omitted/null = treated as accepted. */
+    reasoning_verdict: z.enum(["accepted", "rejected"]).nullable().optional(),
   })
+
   .refine((v) => v.concept_id || v.concept_code, {
     message: "concept_id or concept_code required",
   });
