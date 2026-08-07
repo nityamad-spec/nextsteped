@@ -32,6 +32,7 @@ const courseRow = {
 const lessonPlanWeeks = [
   {
     week_number: 1,
+    quiz_day: 1,
     week_name: "Week 1 — Getting Started",
     overview: "Intro",
     is_exam_week: false,
