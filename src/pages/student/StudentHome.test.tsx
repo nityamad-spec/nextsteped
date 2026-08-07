@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, act, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -162,7 +162,8 @@ const renderHome = () => {
 };
 
 
-const getTile = (label: string) => screen.getByText(label).closest("div")!;
+const masteryMap = () => within(screen.getByRole("dialog"));
+const getTile = (label: string) => masteryMap().getByText(label).closest("div")!;
 
 /** The full per-concept grid now lives behind "View full mastery map". */
 const openMasteryMap = async () => {
@@ -170,7 +171,7 @@ const openMasteryMap = async () => {
   await act(async () => {
     fireEvent.click(link);
   });
-  await screen.findByText("Concept mastery map");
+  await screen.findByRole("dialog");
 };
 
 beforeEach(() => {
@@ -187,12 +188,12 @@ describe("StudentHome — concept mastery heatmap", () => {
     await openMasteryMap();
 
     await waitFor(() => {
-      expect(screen.getByText("Basic Data Types")).toBeInTheDocument();
+      expect(masteryMap().getByText("Basic Data Types")).toBeInTheDocument();
     });
-    expect(screen.getByText("Python Fundamentals")).toBeInTheDocument();
-    expect(screen.getByText("File I/O")).toBeInTheDocument();
+    expect(masteryMap().getByText("Python Fundamentals")).toBeInTheDocument();
+    expect(masteryMap().getByText("File I/O")).toBeInTheDocument();
     // All three tiles show the unexplored state and no percentage
-    expect(screen.getAllByText("Not explored").length).toBeGreaterThanOrEqual(3);
+    expect(masteryMap().getAllByText("Not explored").length).toBeGreaterThanOrEqual(3);
     expect(getTile("Basic Data Types").textContent).not.toMatch(/\d+%/);
   });
 
@@ -201,7 +202,7 @@ describe("StudentHome — concept mastery heatmap", () => {
     await openMasteryMap();
 
     await waitFor(() => {
-      expect(screen.getByText("Basic Data Types")).toBeInTheDocument();
+      expect(masteryMap().getByText("Basic Data Types")).toBeInTheDocument();
     });
     // Initial state — no mastery recorded yet
     expect(getTile("Basic Data Types").textContent).toContain("Not explored");
@@ -249,7 +250,7 @@ describe("StudentHome — concept mastery heatmap", () => {
     await openMasteryMap();
 
     await waitFor(() => {
-      expect(screen.getByText("Basic Data Types")).toBeInTheDocument();
+      expect(masteryMap().getByText("Basic Data Types")).toBeInTheDocument();
     });
     // The COURSE_B mastery should NOT appear on the COURSE_A heatmap
     expect(getTile("Basic Data Types").textContent).not.toContain("90%");
