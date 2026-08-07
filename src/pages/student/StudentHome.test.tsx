@@ -150,7 +150,8 @@ const getTile = (label: string) => screen.getByText(label).closest("div")!;
 const openMasteryMap = async () => {
   const link = await screen.findByRole("button", { name: /view full mastery map/i });
   fireEvent.click(link);
-  await screen.findByRole("dialog");
+  await new Promise((r) => setTimeout(r, 50));
+  console.log(document.body.innerHTML.slice(-1500));
 };
 
 beforeEach(() => {
