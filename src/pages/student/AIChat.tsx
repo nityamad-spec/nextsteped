@@ -1031,10 +1031,14 @@ const AIChat = () => {
             .trim();
           await addMessage(
             activeChat.id,
-            "assistant",
             cleaned,
             {
-              variant: isGeneral ? "general_knowledge" : "grounded",
+              variant: isGeneral
+                ? "general_knowledge"
+                : isLowConfidence
+                  ? "grounded_low_confidence"
+                  : "grounded",
+              ...(isLowConfidence && !isGeneral ? { pendingQuery: userContent } : {}),
               ...(ragSources && ragSources.length ? { sources: ragSources } : {}),
             },
           );
