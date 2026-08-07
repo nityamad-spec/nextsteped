@@ -167,6 +167,9 @@ export function useReasoningAnswers() {
 
   const hasPendingEvaluations = useCallback(() => pendingRef.current.size > 0, []);
 
+  /** Latest evaluations, safe to read from an async callback closure. */
+  const getEvaluations = useCallback(() => evaluationsRef.current, []);
+
   /** Question ids (Bloom 3+) still missing a valid rationale. */
   const missingReasoning = useCallback(
     (questions: ReasoningQuestionRef[]): string[] =>
@@ -194,6 +197,7 @@ export function useReasoningAnswers() {
     evaluate,
     waitForPending,
     hasPendingEvaluations,
+    getEvaluations,
   };
 }
 
