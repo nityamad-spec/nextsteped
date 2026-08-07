@@ -72,6 +72,8 @@ const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: strin
   { icon: GraduationCap, label: "Prep for the exam", prompt: "What topics should I focus on for the upcoming exam, and how should I study them?" },
 
 ];
+import { verdictFor, type ReasoningEvaluation } from "@/lib/reasoning";
+
 
 async function invokeUpdateMastery(args: {
   courseId: string;
