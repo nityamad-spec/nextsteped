@@ -30,7 +30,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { loggedGatewayFetch } from "../_shared/ai-log.ts";
 const FUNCTION_NAME = "ingest-rag-document";
-import { extractText, getDocumentProxy } from "npm:unpdf@0.12.1";
+import { getDocumentProxy } from "npm:unpdf@0.12.1";
 
 
 const corsHeaders = {
