@@ -16,9 +16,12 @@ import ReasoningVerdict from "@/components/ReasoningVerdict";
 import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
 import {
   requiresReasoning,
+  reasoningEarnedFactor,
+  verdictFor,
   REASONING_EVAL_DEADLINE_MS,
   type ReasoningEvaluation,
 } from "@/lib/reasoning";
+
 import { toast } from "sonner";
 
 interface AssessmentViewProps {
