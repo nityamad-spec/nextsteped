@@ -68,7 +68,8 @@ describe("buildReasoningRows — row selection", () => {
   it("clamps out-of-range bloom levels into 1..6", () => {
     expect(build({ bloomFor: () => 42 })[0].bloom_level).toBe(6);
     expect(build({ bloomFor: () => 3.4 })[0].bloom_level).toBe(3);
-    expect(build({ bloomFor: () => NaN })).toHaveLength(0); // NaN || 1 → bloom 1 → skipped
+    // NaN is no longer collapsed to Bloom 1 — see the unknown-bloom guard suite.
+    expect(build({ bloomFor: () => NaN })[0].bloom_level).toBe(3);
   });
 
   it("trims the stored text and truncates at the column cap", () => {
@@ -162,5 +163,42 @@ describe("buildReasoningRows — AI verdict attachment", () => {
       },
     });
     expect(rows.map((r) => r.ai_verdict)).toEqual(["accepted", "rejected"]);
+  });
+});
+
+describe("buildReasoningRows — unknown Bloom level guard", () => {
+  it("keeps the row with bloom_level 3 when bloomFor returns NaN", () => {
+    const rows = build({ bloomFor: () => NaN });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].bloom_level).toBe(3);
+    expect(rows[0].rationale_text).toBe(VALID);
+  });
+
+  it("keeps the row when bloomFor returns undefined", () => {
+    const rows = build({ bloomFor: (() => undefined) as unknown as (q: string) => number });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].bloom_level).toBe(3);
+  });
+
+  it("keeps the row when bloomFor returns a non-numeric value", () => {
+    const rows = build({ bloomFor: (() => "n/a") as unknown as (q: string) => number });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].bloom_level).toBe(3);
+  });
+
+  it("still skips an unknown-bloom question with no usable rationale", () => {
+    expect(build({ bloomFor: () => NaN, rationales: { q1: SHORT } })).toHaveLength(0);
+    expect(build({ bloomFor: () => NaN, rationales: {} })).toHaveLength(0);
+  });
+
+  it("still skips finite Bloom 1-2 questions even when a rationale exists", () => {
+    expect(build({ bloomFor: () => 1 })).toHaveLength(0);
+    expect(build({ bloomFor: () => 2 })).toHaveLength(0);
+  });
+
+  it("attaches a matching AI verdict on a preserved unknown-bloom row", () => {
+    const rows = build({ bloomFor: () => NaN, evaluations: { q1: evaluation() } });
+    expect(rows[0].ai_verdict).toBe("accepted");
+    expect(rows[0].ai_evaluated_at).not.toBeNull();
   });
 });
