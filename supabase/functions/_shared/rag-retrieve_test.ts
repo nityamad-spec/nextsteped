@@ -1,5 +1,5 @@
 import { assertStringIncludes, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { formatPrompt, type RagChunk } from "./rag-retrieve.ts";
+import { diversifyByFolder, formatPrompt, type RagChunk } from "./rag-retrieve.ts";
 
 const chunk = (over: Partial<RagChunk> = {}): RagChunk => ({
   id: "id",
@@ -34,4 +34,27 @@ Deno.test("formatPrompt collapses single-page range", () => {
   );
   assertStringIncludes(user, "p.5]");
   assertEquals(user.includes("p.5-5"), false);
+});
+
+Deno.test("diversifyByFolder reserves slots for each folder type", () => {
+  const chunks = [
+    chunk({ id: "1", folder_type: "textbook" }),
+    chunk({ id: "2", folder_type: "textbook" }),
+    chunk({ id: "3", folder_type: "textbook" }),
+    chunk({ id: "4", folder_type: "textbook" }),
+    chunk({ id: "5", folder_type: "syllabus" }),
+    chunk({ id: "6", folder_type: "lesson-plan-published" }),
+  ];
+  const out = diversifyByFolder(chunks, 4);
+  assertEquals(out.length, 4);
+  const folders = new Set(out.map((c) => c.folder_type));
+  assertEquals(folders.has("syllabus"), true);
+  assertEquals(folders.has("lesson-plan-published"), true);
+  // Rank order is preserved within the picked set.
+  assertEquals(out.map((c) => c.id), ["1", "2", "5", "6"]);
+});
+
+Deno.test("diversifyByFolder is a no-op when under the limit", () => {
+  const chunks = [chunk({ id: "1" }), chunk({ id: "2" })];
+  assertEquals(diversifyByFolder(chunks, 5).length, 2);
 });

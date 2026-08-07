@@ -9,9 +9,11 @@ import { assert, assertEquals, assertStringIncludes } from "https://deno.land/st
 import {
   buildMaterialsGrounding,
   buildSources,
+  CONFIDENT_THRESHOLD,
   friendlyLabel,
   GENERAL_KNOWLEDGE_SUFFIX,
   SIM_THRESHOLD,
+  WEAK_THRESHOLD,
 } from "./chat-grounding.ts";
 import type { RagChunk } from "./rag-retrieve.ts";
 
@@ -37,10 +39,39 @@ Deno.test("fallback: empty retrieval flags needsFallback", () => {
   assertEquals(g.sources, []);
 });
 
-Deno.test("fallback: top similarity below threshold flags needsFallback", () => {
+Deno.test("fallback: top similarity below the weak floor flags needsFallback", () => {
   const g = buildMaterialsGrounding([
-    chunk({ similarity: SIM_THRESHOLD - 0.01 }),
+    chunk({ similarity: WEAK_THRESHOLD - 0.01 }),
   ]);
+  assertEquals(g.needsFallback, true);
+  assertEquals(g.confidence, "none");
+});
+
+Deno.test("weak tier: between weak and confident thresholds still answers, flagged", () => {
+  const g = buildMaterialsGrounding([
+    chunk({ similarity: (WEAK_THRESHOLD + CONFIDENT_THRESHOLD) / 2 }),
+  ]);
+  assertEquals(g.needsFallback, false);
+  assertEquals(g.confidence, "weak");
+  assertStringIncludes(g.materialsContext, "do NOT refuse");
+  assertEquals(g.materialsContext.includes("[[NEEDS_FALLBACK]]"), false);
+  assertEquals(g.sources.length, 1);
+});
+
+Deno.test("forceConfident: document-level route answers confidently at any similarity", () => {
+  const g = buildMaterialsGrounding(
+    [chunk({ similarity: 0 })],
+    CONFIDENT_THRESHOLD,
+    WEAK_THRESHOLD,
+    true,
+  );
+  assertEquals(g.needsFallback, false);
+  assertEquals(g.confidence, "confident");
+  assertStringIncludes(g.materialsContext, "[[NEEDS_FALLBACK]]");
+});
+
+Deno.test("forceConfident with zero chunks still falls back", () => {
+  const g = buildMaterialsGrounding([], CONFIDENT_THRESHOLD, WEAK_THRESHOLD, true);
   assertEquals(g.needsFallback, true);
 });
 

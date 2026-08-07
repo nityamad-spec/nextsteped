@@ -953,6 +953,9 @@ const AIChat = () => {
           console.warn("Failed to parse x-rag-sources header:", e);
         }
       }
+      // "weak" = answered from the closest materials found, but the match was
+      // uncertain; we badge it and still offer the general-knowledge opt-in.
+      const isLowConfidence = resp.headers.get("x-rag-confidence") === "weak";
 
 
       const reader = resp.body.getReader();
@@ -1031,7 +1034,12 @@ const AIChat = () => {
             "assistant",
             cleaned,
             {
-              variant: isGeneral ? "general_knowledge" : "grounded",
+              variant: isGeneral
+                ? "general_knowledge"
+                : isLowConfidence
+                  ? "grounded_low_confidence"
+                  : "grounded",
+              ...(isLowConfidence && !isGeneral ? { pendingQuery: userContent } : {}),
               ...(ragSources && ragSources.length ? { sources: ragSources } : {}),
             },
           );
@@ -1165,7 +1173,18 @@ const AIChat = () => {
             </span>
           </div>
         )}
-        {!isUser && msg.metadata?.variant === "fallback_prompt" && !msg.metadata?.fallbackResolved && (
+        {!isUser && msg.metadata?.variant === "grounded_low_confidence" && (
+          <div className="mt-2">
+            <span className="inline-flex items-center gap-1 rounded-full border border-sky-400/40 bg-sky-500/10 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">
+              <Sparkles className="h-3 w-3" /> Closest match in course materials — may be incomplete
+            </span>
+          </div>
+        )}
+        {!isUser &&
+          (msg.metadata?.variant === "fallback_prompt" ||
+            msg.metadata?.variant === "grounded_low_confidence") &&
+          !!msg.metadata?.pendingQuery &&
+          !msg.metadata?.fallbackResolved && (
           <div className="mt-3 flex flex-wrap gap-2">
             <Button
               size="sm"
@@ -1177,7 +1196,9 @@ const AIChat = () => {
               }}
               disabled={isStreaming || isCooldown}
             >
-              Yes, use general knowledge
+              {msg.metadata?.variant === "grounded_low_confidence"
+                ? "Answer from general knowledge instead"
+                : "Yes, use general knowledge"}
             </Button>
             <Button
               size="sm"
@@ -1188,7 +1209,9 @@ const AIChat = () => {
               }}
               disabled={isStreaming || isCooldown}
             >
-              No, stay in course materials
+              {msg.metadata?.variant === "grounded_low_confidence"
+                ? "This is fine"
+                : "No, stay in course materials"}
             </Button>
           </div>
         )}

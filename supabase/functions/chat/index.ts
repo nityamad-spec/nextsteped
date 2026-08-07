@@ -34,12 +34,15 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { retrieveContext } from "../_shared/rag-retrieve.ts";
+import { retrieveContext, fetchDocumentChunks } from "../_shared/rag-retrieve.ts";
 import { isConversationalFiller } from "../_shared/conversational-intent.ts";
+import { detectRagIntent } from "../_shared/rag-intent.ts";
 import {
   buildMaterialsGrounding,
   GENERAL_KNOWLEDGE_SUFFIX,
-  SIM_THRESHOLD,
+  CONFIDENT_THRESHOLD,
+  WEAK_THRESHOLD,
+  type GroundingConfidence,
   type RagSource,
 } from "../_shared/chat-grounding.ts";
 
@@ -48,7 +51,7 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-  "Access-Control-Expose-Headers": "x-rag-sources",
+  "Access-Control-Expose-Headers": "x-rag-sources, x-rag-confidence",
 };
 
 // ---------- In-memory TTL cache (per warm instance) ----------
@@ -518,12 +521,45 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
     // ---- RAG grounding over uploaded course materials ----
     // Skipped entirely for conversational/filler turns and when the user has
     // explicitly opted in to a general-knowledge answer.
+    //
+    // Routing:
+    //   syllabus / lesson-plan / "unit N" questions  -> fetch that document
+    //     directly (similarity is meaningless for document-level questions)
+    //   everything else                              -> hybrid top-K retrieval
     let materialsContext = "";
     let ragSources: RagSource[] = [];
+    let ragConfidence: GroundingConfidence | null = null;
     if (courseId && grounding === "rag" && !isConversational && lastUserMessage.trim()) {
       try {
-        const chunks = await retrieveContext({ courseId, query: lastUserMessage, topK: 5 });
-        const g = buildMaterialsGrounding(chunks, SIM_THRESHOLD);
+        const intent = detectRagIntent(lastUserMessage);
+        let chunks;
+        let forceConfident = false;
+
+        if (intent.kind !== "content") {
+          chunks = await fetchDocumentChunks({
+            courseId,
+            folderTypes: intent.folderTypes,
+            week: intent.kind === "week_scoped" ? intent.week : null,
+          });
+          forceConfident = chunks.length > 0;
+          if (chunks.length === 0) {
+            // Document not uploaded/indexed for this course — fall back to the
+            // normal semantic path rather than refusing outright.
+            chunks = await retrieveContext({ courseId, query: lastUserMessage, topK: 8 });
+          }
+        } else {
+          chunks = await retrieveContext({ courseId, query: lastUserMessage, topK: 8 });
+        }
+
+        const g = buildMaterialsGrounding(
+          chunks,
+          CONFIDENT_THRESHOLD,
+          WEAK_THRESHOLD,
+          forceConfident,
+        );
+        console.log(
+          `RAG route=${intent.kind} chunks=${chunks.length} topSim=${(chunks[0]?.similarity ?? 0).toFixed(3)} confidence=${g.confidence}`,
+        );
         if (g.needsFallback) {
           return new Response(JSON.stringify({ needs_fallback: true }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -531,6 +567,7 @@ Keep responses focused and exam-relevant. Use markdown formatting.`;
         }
         materialsContext = g.materialsContext;
         ragSources = g.sources;
+        ragConfidence = g.confidence;
       } catch (e) {
         // Retrieval failure must not break chat — fall back to ungrounded answer.
         console.error("RAG retrieval error:", e);
@@ -750,6 +787,9 @@ Rules:
     if (ragSources.length > 0) {
       // Base64-encode to keep header ASCII-safe regardless of file names.
       streamHeaders["x-rag-sources"] = btoa(unescape(encodeURIComponent(JSON.stringify(ragSources))));
+    }
+    if (ragConfidence) {
+      streamHeaders["x-rag-confidence"] = ragConfidence;
     }
     return new Response(response.body, { headers: streamHeaders });
   } catch (e) {

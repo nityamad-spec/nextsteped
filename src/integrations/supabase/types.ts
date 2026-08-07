@@ -1651,6 +1651,7 @@ export type Database = {
         Row: {
           chunk_index: number
           content: string
+          content_tsv: unknown
           course_id: string
           created_at: string
           embedding: string
@@ -1668,6 +1669,7 @@ export type Database = {
         Insert: {
           chunk_index: number
           content: string
+          content_tsv?: unknown
           course_id: string
           created_at?: string
           embedding: string
@@ -1685,6 +1687,7 @@ export type Database = {
         Update: {
           chunk_index?: number
           content?: string
+          content_tsv?: unknown
           course_id?: string
           created_at?: string
           embedding?: string
@@ -2323,6 +2326,24 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      fetch_rag_document_chunks: {
+        Args: {
+          _course_id: string
+          _folder_types: string[]
+          _max_chunks?: number
+          _week?: number
+        }
+        Returns: {
+          chunk_index: number
+          content: string
+          file_id: string
+          file_name: string
+          folder_type: string
+          id: string
+          page_end: number
+          page_start: number
+        }[]
+      }
       is_active_enrollment: {
         Args: { _course_id: string; _student_id: string }
         Returns: boolean
@@ -2346,6 +2367,28 @@ export type Database = {
           file_name: string
           folder_type: string
           id: string
+          page_end: number
+          page_start: number
+          similarity: number
+        }[]
+      }
+      match_rag_chunks_hybrid: {
+        Args: {
+          _course_id: string
+          _folder_types?: string[]
+          _match_count?: number
+          _query_embedding: string
+          _query_text: string
+        }
+        Returns: {
+          chunk_index: number
+          content: string
+          file_id: string
+          file_name: string
+          folder_type: string
+          fused_score: number
+          id: string
+          keyword_rank: number
           page_end: number
           page_start: number
           similarity: number

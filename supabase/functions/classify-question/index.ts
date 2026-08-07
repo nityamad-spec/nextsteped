@@ -78,8 +78,10 @@ Student's question: "${message}"
 
 Classify the intent:
 - "conversational" — small talk, acknowledgements, or filler that continues the conversation ("ok", "thanks", "sounds good", "what's next", "go on", greetings). These are always relevant.
-- "question" — a genuine question or request about the course, its prerequisites, or directly supporting concepts.
+- "question" — a genuine question or request about the course, its prerequisites, or directly supporting concepts. This ALSO includes course-administration questions answered by the syllabus or lesson plan: grading and marks breakdown, assessment scheme, attendance, late-submission and academic-integrity policies, prerequisites, textbooks and reading lists, office hours, credit hours, learning outcomes, the course outline/schedule, and "what is covered in week/unit N".
 - "off_topic" — a genuine request that is unrelated to the course.
+
+When in doubt between "question" and "off_topic", choose "question".
 
 Use the classify_relevance function to respond.`;
 
