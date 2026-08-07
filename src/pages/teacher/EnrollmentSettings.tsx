@@ -30,7 +30,14 @@ import { Calendar, UserPlus, Upload, Copy, ArrowLeft, Trash2, Download, AlertTri
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { markStepCompleted } from "@/lib/setupProgress";
 
-type RosterEntry = { id: string; email: string; full_name: string | null; university: string | null };
+type RosterEntry = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  university: string | null;
+  invited_at: string | null;
+  invite_count: number;
+};
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
