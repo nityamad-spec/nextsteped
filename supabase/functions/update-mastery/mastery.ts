@@ -5,7 +5,7 @@ export const MASTERY_CONFIG = {
   EMA_ALPHA_BY_SOURCE: {
     weekly_quiz: 0.4,
     exam: 0.6,
-    practice: 0.1,
+    practice: 0.3,
     diagnostic: 0.4,
   } as Record<string, number>,
   EMA_ALPHA_DEFAULT: 0.4,
@@ -17,7 +17,7 @@ export const MASTERY_CONFIG = {
   BLOOM_WEIGHT: { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 } as Record<number, number>,
   LEVEL_BANDS: [
     { max: 0.25, level: "beginner" },
-    { max: 0.50, level: "developing" },
+    { max: 0.5, level: "developing" },
     { max: 0.75, level: "proficient" },
     { max: 1.0001, level: "expert" },
   ],
@@ -26,7 +26,10 @@ export const MASTERY_CONFIG = {
 export type LearnerLevel = "beginner" | "developing" | "proficient" | "expert";
 
 export const LEVEL_ORDER: Record<LearnerLevel, number> = {
-  beginner: 0, developing: 1, proficient: 2, expert: 3,
+  beginner: 0,
+  developing: 1,
+  proficient: 2,
+  expert: 3,
 };
 
 export const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
@@ -47,11 +50,7 @@ export function shrink(signal: number, attemptedSoFar: number): number {
 }
 
 /** Evidence-gated cap on displayed level. Numeric score is unchanged. */
-export function cappedLevel(
-  rawLevel: LearnerLevel,
-  attempted: number,
-  samples: number,
-): LearnerLevel {
+export function cappedLevel(rawLevel: LearnerLevel, attempted: number, samples: number): LearnerLevel {
   let cap: LearnerLevel = "expert";
   if (attempted < MASTERY_CONFIG.CAP_DEVELOPING_BELOW_ATTEMPTED) {
     cap = "developing";
@@ -72,8 +71,7 @@ export function blendConceptScore(
   priorSamples: number,
   source: string,
 ): number {
-  const alpha = MASTERY_CONFIG.EMA_ALPHA_BY_SOURCE[source]
-    ?? MASTERY_CONFIG.EMA_ALPHA_DEFAULT;
+  const alpha = MASTERY_CONFIG.EMA_ALPHA_BY_SOURCE[source] ?? MASTERY_CONFIG.EMA_ALPHA_DEFAULT;
   const shrunk = shrink(rawSignal, attemptedAfter);
   if (priorScore == null || priorSamples === 0) return shrunk;
   return clamp01(alpha * shrunk + (1 - alpha) * priorScore);
