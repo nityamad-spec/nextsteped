@@ -115,7 +115,10 @@ const AnswerSchema = z.object({
   is_correct: z.boolean().optional(),
   time_ms: z.number().optional(),
   confidence: z.number().int().min(0).max(2).optional(),
+  /** LLM verdict on the Bloom 3+ rationale; omitted/null = treated as accepted. */
+  reasoning_verdict: z.enum(["accepted", "rejected"]).nullable().optional(),
 });
+
 
 const BodySchema = z.object({
   course_id: z.string().uuid(),
