@@ -16,7 +16,7 @@ Bloom 3+:
   correct + accepted            -> earned = maxPoints
   correct + no verdict          -> earned = maxPoints        (never punish an AI failure)
   correct + rejected            -> earned = difficulty x 1.2 (Bloom-2 weight, capped at maxPoints)
-  incorrect + accepted          -> earned = maxPoints x 0.25 (partial credit)
+  incorrect + accepted          -> earned = maxPoints x 1.2 (Bloom-2 weight, capped at maxPoints)
   incorrect + rejected/none     -> earned = 0
 ```
 
@@ -34,26 +34,32 @@ Guaranteed ordering, which the tests will lock in: correct+accepted > correct+re
 ## Phases
 
 ### Phase 1 — Shared config and pure function
+
 - Extend `src/lib/reasoning.ts` with `REASONING_REJECTED_WEIGHT`, `REASONING_PARTIAL_CREDIT`, and `reasoningEarnedFactor({ bloom, isCorrect, verdict })` returning the multiplier applied to `maxPoints`.
 - Mirror the same constants and helper in a Deno-side copy for edge functions (they cannot import from `src/`), with a comment marking the two as a synced pair, matching the existing `masteryScoring.ts` / `score-diagnostic` convention.
 - Unit tests for every branch plus the ordering invariant.
 
 ### Phase 2 — Weekly quiz and exam display score
+
 - `src/lib/masteryScoring.ts`: `ScoreItem` gains optional `verdict` and `bloom` is already present; `computeWeeklyQuizScore` applies the factor to `earned` only.
 - `src/components/AssessmentView.tsx`: when building `ScoreItem[]`, read the verdict from the reasoning hook's evaluations (after `flushAndWait`, so late verdicts are included) and pass it through. Apply to exam mode as well as quiz mode.
 
 ### Phase 3 — Practice tests
+
 - `PracticeQuestionsWidget.tsx`: same factor applied wherever the practice score is computed, using the same helper.
 
 ### Phase 4 — Diagnostic
+
 - `DiagnosticQuiz.tsx` sends each answer's verdict in the `score-diagnostic` payload (the rationale rows are written after the result row, so the edge function cannot read them from the table).
 - `score-diagnostic/index.ts`: accept optional `reasoning_verdict` per answer, apply the factor to `earned`, keep `maxSum` and pace untouched, and return the new `reasoning_adjustment` component.
 
 ### Phase 5 — Mastery
+
 - `update-mastery`: `PerQuestionSchema` gains optional `reasoning_verdict`; the per-concept `earned` accumulation applies the same factor. `attempted` / `correct` counters stay based on primary correctness only, so evidence gates and level caps are unaffected.
 - All four callers pass the verdict through.
 
 ### Phase 6 — Tests
+
 - Deno tests for `score-diagnostic` and `update-mastery` covering the four verdict/correctness combinations and confirming `max` is unchanged.
 - Vitest coverage in `masteryScoring.test.ts` and an `AssessmentView` submission test asserting the verdict reaches the score and the persisted payload.
 

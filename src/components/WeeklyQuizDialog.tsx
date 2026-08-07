@@ -9,6 +9,8 @@ import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
 import type { Json } from "@/integrations/supabase/types";
 import { saveReasoningRows } from "@/hooks/useReasoningAnswers";
 import { buildReasoningRows } from "@/lib/buildReasoningRows";
+import { verdictFor, type ReasoningEvaluation } from "@/lib/reasoning";
+
 
 interface Props {
   open: boolean;
@@ -26,6 +28,7 @@ async function invokeUpdateMastery(args: {
   sourceId: string | null;
   answers: any[];
   questionMeta: Map<string, { difficulty: number; bloom: number }>;
+  evaluations?: Record<string, ReasoningEvaluation>;
 }) {
   try {
     const per_question: Array<{
@@ -33,6 +36,7 @@ async function invokeUpdateMastery(args: {
       difficulty: number;
       bloom: number;
       is_correct: boolean;
+      reasoning_verdict: ReturnType<typeof verdictFor>;
     }> = [];
     for (const a of args.answers ?? []) {
       const code = (a?.topic ?? "").toString().trim();
@@ -43,9 +47,11 @@ async function invokeUpdateMastery(args: {
         difficulty: meta.difficulty,
         bloom: meta.bloom,
         is_correct: !!a.is_correct,
+        reasoning_verdict: verdictFor(args.evaluations, a.question_id),
       });
     }
     if (per_question.length === 0) return;
+
     await supabase.functions.invoke("update-mastery", {
       body: {
         course_id: args.courseId,
@@ -207,7 +213,9 @@ const WeeklyQuizDialog = ({
         sourceId: inserted?.id ?? null,
         answers: results.answers ?? [],
         questionMeta,
+        evaluations: results.evaluations,
       });
+
       void saveReasoningRows(
         buildReasoningRows({
           studentId,

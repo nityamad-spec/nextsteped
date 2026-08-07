@@ -30,9 +30,13 @@ import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
 import ReasoningVerdict from "@/components/ReasoningVerdict";
 import {
   requiresReasoning,
+  reasoningEarnedFactor,
+  verdictFor,
   REASONING_EVAL_DEADLINE_MS,
   type ReasoningEvaluation,
 } from "@/lib/reasoning";
+import { BLOOM_WEIGHT, clampBloom } from "@/lib/masteryScoring";
+
 
 interface PracticeQuestionsWidgetProps {
   onClose: () => void;
@@ -188,11 +192,22 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
         REASONING_EVAL_DEADLINE_MS,
       );
       setSubmitting(false);
+      const evaluations = reasoning.getEvaluations();
       let correct = 0;
+      // Practice keeps its flat per-question model: each question is worth 1
+      // credit, and the reasoning verdict scales the credit earned.
+      let creditEarned = 0;
       const answerDetails = questions.map(q => {
         const userAnswer = answers[q.id] || "";
         const isCorrect = userAnswer === q.answer;
         if (isCorrect) correct++;
+        const bloom = clampBloom(q.bloom_level ?? 1);
+        creditEarned += reasoningEarnedFactor({
+          bloom,
+          bloomWeight: BLOOM_WEIGHT[bloom] ?? 1.0,
+          isCorrect,
+          verdict: verdictFor(evaluations, q.id),
+        });
         return {
           question_id: q.id,
           question_text: q.question,
@@ -207,7 +222,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
         };
       });
 
-      const score = Math.round((correct / questions.length) * 100);
+      const score = Math.round((creditEarned / questions.length) * 100);
       setResults({ score, correct, total: questions.length });
       setPhase("review");
 
@@ -218,8 +233,9 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
         answers: answerDetails,
         timeSpent: Math.round((Date.now() - startTime) / 1000),
         rationales: reasoning.rationales,
-        evaluations: reasoning.getEvaluations(),
+        evaluations,
       });
+
     }
   };
 

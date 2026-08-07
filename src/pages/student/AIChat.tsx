@@ -8,6 +8,8 @@ import { useDiagnosticStatus } from "@/hooks/useDiagnosticStatus";
 import { useLearningPlan } from "@/hooks/useLearningPlan";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 import { ChatMessage, RagSource, StudentExamInfo } from "@/types";
+import { verdictFor, type ReasoningEvaluation } from "@/lib/reasoning";
+
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,12 +75,16 @@ const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: strin
 
 ];
 
+
+
+
 async function invokeUpdateMastery(args: {
   courseId: string;
   source: "weekly_quiz" | "exam" | "practice";
   sourceId: string | null;
   answers: any[];
   questionMeta?: Map<string, { difficulty: number; bloom: number }>;
+  evaluations?: Record<string, ReasoningEvaluation>;
 }) {
   try {
     // Weighted per-question payload when meta is available — matches WeeklyQuizDialog.
@@ -88,6 +94,7 @@ async function invokeUpdateMastery(args: {
         difficulty: number;
         bloom: number;
         is_correct: boolean;
+        reasoning_verdict: ReturnType<typeof verdictFor>;
       }[] = [];
       for (const a of args.answers ?? []) {
         const code = (a?.topic ?? "").toString().trim();
@@ -98,8 +105,10 @@ async function invokeUpdateMastery(args: {
           difficulty: Math.min(1, Math.max(0, meta.difficulty)),
           bloom: Math.min(6, Math.max(1, Math.round(meta.bloom))),
           is_correct: !!a?.is_correct,
+          reasoning_verdict: verdictFor(args.evaluations, a?.question_id),
         });
       }
+
       if (perQuestion.length === 0) return;
       await supabase.functions.invoke("update-mastery", {
         body: {
@@ -322,6 +331,8 @@ const AIChat = () => {
         sourceId: inserted?.id ?? null,
         answers: result.answers,
         questionMeta,
+        evaluations: result.evaluations,
+
       });
 
       if (activeChat) {
@@ -773,6 +784,8 @@ const AIChat = () => {
             sourceId: insertedAssessment?.id ?? null,
             answers: results.answers ?? [],
             questionMeta: assessmentQuestionMeta,
+            evaluations: results.evaluations,
+
           });
         }
       }

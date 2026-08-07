@@ -71,6 +71,8 @@ import {
   shrink,
   applyPracticeOnlyGate,
 } from "./mastery.ts";
+import { reasoningEarnedFactor, requiresReasoning } from "../_shared/reasoning-scoring.ts";
+
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -97,7 +99,10 @@ const PerQuestionSchema = z
     difficulty: z.number().min(0).max(1),
     bloom: z.number().int().min(1).max(6),
     is_correct: z.boolean(),
+    /** LLM verdict on the Bloom 3+ rationale; omitted/null = treated as accepted. */
+    reasoning_verdict: z.enum(["accepted", "rejected"]).nullable().optional(),
   })
+
   .refine((v) => v.concept_id || v.concept_code, {
     message: "concept_id or concept_code required",
   });
@@ -193,6 +198,7 @@ Deno.serve(async (req) => {
     return cur;
   };
 
+  let unverifiedReasoning = 0;
   if (body.per_question && body.per_question.length > 0) {
     for (const item of body.per_question) {
       const resolved = resolve(item.concept_id, item.concept_code);
@@ -205,14 +211,30 @@ Deno.serve(async (req) => {
       const bloomWeight = MASTERY_CONFIG.BLOOM_WEIGHT[bloom] ?? 1.0;
       const difficulty = clamp01(item.difficulty);
       const maxPoints = difficulty * bloomWeight;
+      const verdict = item.reasoning_verdict ?? null;
+      if (requiresReasoning(bloom) && !verdict) unverifiedReasoning += 1;
       cur.attempted += 1;
+      // attempted / correct stay primary-only so evidence gates are unaffected.
       if (item.is_correct) cur.correct += 1;
-      cur.earned += item.is_correct ? maxPoints : 0;
+      cur.earned += maxPoints * reasoningEarnedFactor({
+        bloom,
+        bloomWeight,
+        isCorrect: item.is_correct,
+        verdict,
+      });
       cur.max += maxPoints;
 
       cur.weighted = true;
     }
+    if (unverifiedReasoning > 0) {
+      console.warn("update-mastery: rationales without a verdict", {
+        course_id: body.course_id,
+        source: body.source,
+        unverified: unverifiedReasoning,
+      });
+    }
   } else if (body.per_concept) {
+
     for (const item of body.per_concept) {
       const resolved = resolve(item.concept_id, item.concept_code);
       if (!resolved) {

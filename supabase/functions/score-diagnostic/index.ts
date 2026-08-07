@@ -41,6 +41,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
+import { reasoningEarnedFactor, requiresReasoning } from "../_shared/reasoning-scoring.ts";
+
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -115,7 +117,10 @@ const AnswerSchema = z.object({
   is_correct: z.boolean().optional(),
   time_ms: z.number().optional(),
   confidence: z.number().int().min(0).max(2).optional(),
+  /** LLM verdict on the Bloom 3+ rationale; omitted/null = treated as accepted. */
+  reasoning_verdict: z.enum(["accepted", "rejected"]).nullable().optional(),
 });
+
 
 const BodySchema = z.object({
   course_id: z.string().uuid(),
@@ -201,10 +206,12 @@ Deno.serve(async (req) => {
 
   // ---------- Score ----------
   let earnedSum = 0;
+  let earnedNoVerdictSum = 0;
   let maxSum = 0;
   const paceScores: number[] = [];
   let correctCount = 0;
   let answeredCount = 0;
+  let unverifiedReasoning = 0;
   const droppedQuestionIds: string[] = [];
 
   for (const a of body.answers) {
@@ -228,9 +235,13 @@ Deno.serve(async (req) => {
 
     const maxPoints = difficulty * bloomWeight;
     const isCorrect = !!a.is_correct;
-    const earned = isCorrect ? maxPoints : 0;
+    const verdict = a.reasoning_verdict ?? null;
+    if (requiresReasoning(bloom) && !verdict) unverifiedReasoning += 1;
+    // The verdict scales points earned only; maxPoints is unchanged.
+    const earned = maxPoints * reasoningEarnedFactor({ bloom, bloomWeight, isCorrect, verdict });
 
     earnedSum += earned;
+    earnedNoVerdictSum += isCorrect ? maxPoints : 0;
     maxSum += maxPoints;
     answeredCount += 1;
     if (isCorrect) correctCount += 1;
@@ -244,13 +255,23 @@ Deno.serve(async (req) => {
   }
 
   const accuracyScore = maxSum > 0 ? clamp01(earnedSum / maxSum) : 0;
+  const baseAccuracy = maxSum > 0 ? clamp01(earnedNoVerdictSum / maxSum) : 0;
   const paceScore = paceScores.length
     ? paceScores.reduce((s, x) => s + x, 0) / paceScores.length
     : 0;
 
   const W = CONFIG.WEIGHTS;
   const masteryScore = clamp01(W.accuracy * accuracyScore + W.pace * paceScore);
+  const baseMastery = clamp01(W.accuracy * baseAccuracy + W.pace * paceScore);
+  const reasoningAdjustment = masteryScore - baseMastery;
+  if (unverifiedReasoning > 0) {
+    console.warn("score-diagnostic: rationales without a verdict", {
+      course_id: body.course_id,
+      unverified: unverifiedReasoning,
+    });
+  }
   const learnerLevel = levelFromBranch(body.branch_tier ?? null, correctCount, answeredCount);
+
 
   // ---------- Persist ----------
   const { data: inserted, error: insertErr } = await admin
@@ -286,7 +307,10 @@ Deno.serve(async (req) => {
     components: {
       accuracy: accuracyScore,
       pace: paceScore,
+      reasoning_adjustment: reasoningAdjustment,
+      unverified_reasoning: unverifiedReasoning,
     },
+
     score: correctCount,
     total_questions: answeredCount,
     dropped_question_ids: droppedQuestionIds,

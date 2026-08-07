@@ -38,7 +38,7 @@ import ReasoningInput from "@/components/ReasoningInput";
 import { useReasoningAnswers, saveReasoningRows } from "@/hooks/useReasoningAnswers";
 import { buildReasoningRows } from "@/lib/buildReasoningRows";
 import ReasoningVerdict from "@/components/ReasoningVerdict";
-import { requiresReasoning, REASONING_EVAL_DEADLINE_MS } from "@/lib/reasoning";
+import { requiresReasoning, verdictFor, REASONING_EVAL_DEADLINE_MS } from "@/lib/reasoning";
 
 
 interface QuizQuestion {
@@ -455,11 +455,36 @@ const DiagnosticQuiz = () => {
       return;
     }
 
+    const bloomById = new Map(finalQuestions.map((q) => [q.id, q.bloomLevel]));
+    // Evaluate every rationale BEFORE scoring — the verdicts feed the score.
+    // Includes the last question, whose rationale was typed but never "Next"-ed.
+    await reasoning.flushAndWait(
+      finalQuestions.map((q, i) => ({
+        questionId: q.id,
+        questionText: q.question,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        selectedAnswer:
+          q.format === "short_answer"
+            ? newTextAnswers[i]
+            : (q.options?.[newAnswers[i]] ?? null),
+        topic: q.topic,
+        bloom: q.bloomLevel,
+        courseId: courseIdForSave ?? null,
+      })),
+      REASONING_EVAL_DEADLINE_MS,
+    );
+    const evaluations = reasoning.getEvaluations();
+    const answersForScoring = standardisedAnswers.map((a) => ({
+      ...a,
+      reasoning_verdict: verdictFor(evaluations, a.question_id),
+    }));
+
     const { data: scored, error: fnErr } = await supabase.functions.invoke("score-diagnostic", {
       body: {
         course_id: courseIdForSave,
         branch_tier: branch,
-        answers: standardisedAnswers,
+        answers: answersForScoring,
         confidences: newConfidences,
         question_times: newQuestionTimes,
         question_ids: newQuestionIds,
@@ -488,24 +513,6 @@ const DiagnosticQuiz = () => {
       setStudentProfile({ ...studentProfile, learnerLevel: level });
     }
 
-    const bloomById = new Map(finalQuestions.map((q) => [q.id, q.bloomLevel]));
-    // Include the last question: its rationale was typed but never "Next"-ed.
-    await reasoning.flushAndWait(
-      finalQuestions.map((q, i) => ({
-        questionId: q.id,
-        questionText: q.question,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-        selectedAnswer:
-          q.format === "short_answer"
-            ? newTextAnswers[i]
-            : (q.options?.[newAnswers[i]] ?? null),
-        topic: q.topic,
-        bloom: q.bloomLevel,
-        courseId: courseIdForSave ?? null,
-      })),
-      REASONING_EVAL_DEADLINE_MS,
-    );
     void saveReasoningRows(
       buildReasoningRows({
         studentId: user.id,
@@ -515,10 +522,11 @@ const DiagnosticQuiz = () => {
         sourceResultId: (scored as { result_id?: string } | null)?.result_id ?? null,
         answers: standardisedAnswers,
         rationales: reasoning.rationales,
-        evaluations: reasoning.getEvaluations(),
+        evaluations,
         bloomFor: (qid) => bloomById.get(qid) ?? 1,
       }),
     );
+
 
     setSaving(false);
 

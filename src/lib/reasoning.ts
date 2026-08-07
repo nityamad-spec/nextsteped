@@ -38,6 +38,73 @@ export function isReasoningComplete(text: string | undefined | null): boolean {
   return (text ?? "").trim().length >= REASONING_MIN_CHARS;
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * Reasoning-weighted scoring
+ *
+ * The LLM verdict on a Bloom 3+ rationale moves the POINTS EARNED for that
+ * question. The maximum a question is worth (difficulty × Bloom weight) never
+ * changes, so a 100% ceiling stays a 100% ceiling and pre-change scores remain
+ * comparable.
+ *
+ * A rejected rationale (or a correct-reason-but-wrong-answer) is scored with
+ * the Bloom-2 weight of 1.2 instead of the question's own Bloom weight, capped
+ * so it can never exceed the real weight.
+ *
+ * NOTE: `supabase/functions/_shared/reasoning-scoring.ts` is a byte-for-byte
+ * mirror of the block below — edge functions cannot import from `src/`. Change
+ * both together.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Master switch — set false to score exactly as before the verdict landed. */
+export const REASONING_SCORING_ENABLED = true;
+
+/** Bloom-2 weight used when the verdict is `rejected`, or the answer is wrong. */
+export const REASONING_REJECTED_WEIGHT = 1.2;
+
+export interface ReasoningFactorArgs {
+  bloom: number;
+  /** Bloom weight already applied to this question's max points. */
+  bloomWeight: number;
+  isCorrect: boolean;
+  /** null / undefined = evaluation missing or failed → treated as accepted. */
+  verdict?: ReasoningVerdict | null;
+}
+
+/**
+ * Multiplier applied to a question's max points to obtain the points earned.
+ *
+ *   correct + accepted / no verdict → 1
+ *   correct + rejected             → min(1, 1.2 / bloomWeight)
+ *   incorrect + accepted           → min(1, 1.2 / bloomWeight)
+ *   incorrect + rejected / none    → 0
+ */
+export function reasoningEarnedFactor({
+  bloom,
+  bloomWeight,
+  isCorrect,
+  verdict,
+}: ReasoningFactorArgs): number {
+  const base = isCorrect ? 1 : 0;
+  if (!REASONING_SCORING_ENABLED) return base;
+  if (!requiresReasoning(bloom)) return base;
+
+  const w = Number(bloomWeight);
+  const reduced = !isFinite(w) || w <= 0 ? 1 : Math.min(1, REASONING_REJECTED_WEIGHT / w);
+
+  if (isCorrect) return verdict === "rejected" ? reduced : 1;
+  return verdict === "accepted" ? reduced : 0;
+}
+
+/** Pull the usable verdict for a question out of the evaluation map. */
+export function verdictFor(
+  evaluations: Record<string, ReasoningEvaluation> | undefined,
+  questionId: string,
+): ReasoningVerdict | null {
+  const e = evaluations?.[questionId];
+  return e?.status === "done" && e.verdict ? e.verdict : null;
+}
+
+
 export interface ReasoningRow {
   student_id: string;
   course_id: string | null;
