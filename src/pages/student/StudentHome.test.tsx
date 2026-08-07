@@ -143,7 +143,15 @@ const renderHome = () => {
   );
 };
 
+
 const getTile = (label: string) => screen.getByText(label).closest("div")!;
+
+/** The full per-concept grid now lives behind "View full mastery map". */
+const openMasteryMap = async () => {
+  const link = await screen.findByRole("button", { name: /view full mastery map/i });
+  fireEvent.click(link);
+  await screen.findByText("Concept mastery map");
+};
 
 beforeEach(() => {
   enrolledCourseId = COURSE_A;
@@ -156,25 +164,34 @@ beforeEach(() => {
 describe("StudentHome — concept mastery heatmap", () => {
   it("renders 'not explored' tiles when no mastery rows exist for the course", async () => {
     renderHome();
+    await openMasteryMap();
 
     await waitFor(() => {
       expect(screen.getByText("Basic Data Types")).toBeInTheDocument();
     });
     expect(screen.getByText("Python Fundamentals")).toBeInTheDocument();
     expect(screen.getByText("File I/O")).toBeInTheDocument();
-    // All three tiles show the placeholder
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(3);
+    // All three tiles show the unexplored state and no percentage
+    expect(screen.getAllByText("Not explored").length).toBeGreaterThanOrEqual(3);
+    expect(getTile("Basic Data Types").textContent).not.toMatch(/\d+%/);
   });
 
   it("re-renders the heatmap with updated mastery percentages after the weekly quiz dialog closes", async () => {
     renderHome();
+    await openMasteryMap();
 
     await waitFor(() => {
       expect(screen.getByText("Basic Data Types")).toBeInTheDocument();
     });
-    // Initial heatmap state — placeholder
-    expect(getTile("Basic Data Types").textContent).toContain("—");
-    expect(getTile("Python Fundamentals").textContent).toContain("—");
+    // Initial state — no mastery recorded yet
+    expect(getTile("Basic Data Types").textContent).toContain("Not explored");
+    expect(getTile("Python Fundamentals").textContent).toContain("Not explored");
+
+    // Close the map so the lesson-plan quiz button is reachable again
+    fireEvent.keyDown(document.activeElement || document.body, { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByText("Concept mastery map")).not.toBeInTheDocument(),
+    );
 
     // Simulate the quiz writing rows to the DB (only for COURSE_A)
     masteryStore[`${STUDENT_ID}|${COURSE_A}`] = [
@@ -192,12 +209,13 @@ describe("StudentHome — concept mastery heatmap", () => {
     fireEvent.click(screen.getByRole("button", { name: /close quiz/i }));
 
     // Heatmap re-fetches and reflects new mastery for COURSE_A's concepts
+    await openMasteryMap();
     await waitFor(() => {
       expect(getTile("Basic Data Types").textContent).toContain("80%");
     });
     expect(getTile("Python Fundamentals").textContent).toContain("50%");
-    // Untouched concept still shows placeholder
-    expect(getTile("File I/O").textContent).toContain("—");
+    // Untouched concept still shows the unexplored state
+    expect(getTile("File I/O").textContent).toContain("Not explored");
   });
 
   it("scopes mastery lookup to the enrolled course — does not leak data from another course", async () => {
@@ -208,12 +226,13 @@ describe("StudentHome — concept mastery heatmap", () => {
     enrolledCourseId = COURSE_A;
 
     renderHome();
+    await openMasteryMap();
 
     await waitFor(() => {
       expect(screen.getByText("Basic Data Types")).toBeInTheDocument();
     });
     // The COURSE_B mastery should NOT appear on the COURSE_A heatmap
     expect(getTile("Basic Data Types").textContent).not.toContain("90%");
-    expect(getTile("Basic Data Types").textContent).toContain("—");
+    expect(getTile("Basic Data Types").textContent).toContain("Not explored");
   });
 });
