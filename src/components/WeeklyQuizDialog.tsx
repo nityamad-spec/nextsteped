@@ -280,6 +280,7 @@ const WeeklyQuizDialog = ({
                 onEnd={handleEnd}
                 onSubmit={handleSubmit}
                 questionMeta={questionMeta}
+                courseId={courseId ?? null}
               />
 
             )}
