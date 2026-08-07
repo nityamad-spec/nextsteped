@@ -120,14 +120,20 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 // ---- Helpers ---------------------------------------------------------------
 
-const renderHome = () =>
-  render(
-    <MemoryRouter>
-      <TooltipProvider>
-        <StudentHome />
-      </TooltipProvider>
-    </MemoryRouter>,
+const renderHome = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <TooltipProvider>
+          <StudentHome />
+        </TooltipProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
+};
 
 const getTile = (label: string) => screen.getByText(label).closest("div")!;
 
