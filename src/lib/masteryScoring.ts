@@ -64,6 +64,7 @@ export interface ScoreResult {
  */
 export function computeWeeklyQuizScore(items: ScoreItem[]): ScoreResult {
   let earned = 0;
+  let earnedNoVerdict = 0;
   let maxSum = 0;
   const paceScores: number[] = [];
 
@@ -74,7 +75,14 @@ export function computeWeeklyQuizScore(items: ScoreItem[]): ScoreResult {
     const maxPoints = difficulty * bloomWeight;
 
     maxSum += maxPoints;
-    if (it.is_correct) earned += maxPoints;
+    // Reasoning verdict only moves points earned; maxPoints is untouched.
+    earned += maxPoints * reasoningEarnedFactor({
+      bloom,
+      bloomWeight,
+      isCorrect: it.is_correct,
+      verdict: it.verdict ?? null,
+    });
+    if (it.is_correct) earnedNoVerdict += maxPoints;
 
     // Pace. Missing/zero time falls back to expected → pace 1.0.
     const expectedMs = (EXPECTED_TIME_BASE_MS[bloom] ?? 30_000) * difficultyTimeFactor(difficulty);
@@ -83,11 +91,22 @@ export function computeWeeklyQuizScore(items: ScoreItem[]): ScoreResult {
   }
 
   const accuracyScore = maxSum > 0 ? clamp01(earned / maxSum) : 0;
+  const baseAccuracy = maxSum > 0 ? clamp01(earnedNoVerdict / maxSum) : 0;
   const paceScore = paceScores.length
     ? paceScores.reduce((s, x) => s + x, 0) / paceScores.length
     : 0;
   const masteryScore = clamp01(WEIGHTS.accuracy * accuracyScore + WEIGHTS.pace * paceScore);
   const displayScore = Math.round(masteryScore * 100);
+  const baseDisplay = Math.round(
+    clamp01(WEIGHTS.accuracy * baseAccuracy + WEIGHTS.pace * paceScore) * 100,
+  );
 
-  return { accuracyScore, paceScore, masteryScore, displayScore };
+  return {
+    accuracyScore,
+    paceScore,
+    masteryScore,
+    displayScore,
+    reasoningAdjustment: displayScore - baseDisplay,
+  };
+
 }
