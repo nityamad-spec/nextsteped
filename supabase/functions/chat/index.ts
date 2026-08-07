@@ -34,12 +34,15 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { retrieveContext } from "../_shared/rag-retrieve.ts";
+import { retrieveContext, fetchDocumentChunks } from "../_shared/rag-retrieve.ts";
 import { isConversationalFiller } from "../_shared/conversational-intent.ts";
+import { detectRagIntent } from "../_shared/rag-intent.ts";
 import {
   buildMaterialsGrounding,
   GENERAL_KNOWLEDGE_SUFFIX,
-  SIM_THRESHOLD,
+  CONFIDENT_THRESHOLD,
+  WEAK_THRESHOLD,
+  type GroundingConfidence,
   type RagSource,
 } from "../_shared/chat-grounding.ts";
 
