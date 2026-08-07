@@ -247,6 +247,7 @@ export function useReasoningAnswers() {
     evaluations,
     evaluate,
     waitForPending,
+    flushAndWait,
     hasPendingEvaluations,
     getEvaluations,
   };
