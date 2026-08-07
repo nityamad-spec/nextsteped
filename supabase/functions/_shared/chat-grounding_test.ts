@@ -9,9 +9,11 @@ import { assert, assertEquals, assertStringIncludes } from "https://deno.land/st
 import {
   buildMaterialsGrounding,
   buildSources,
+  CONFIDENT_THRESHOLD,
   friendlyLabel,
   GENERAL_KNOWLEDGE_SUFFIX,
   SIM_THRESHOLD,
+  WEAK_THRESHOLD,
 } from "./chat-grounding.ts";
 import type { RagChunk } from "./rag-retrieve.ts";
 
