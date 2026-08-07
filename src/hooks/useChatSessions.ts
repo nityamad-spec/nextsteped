@@ -78,11 +78,13 @@ export function useChatSessions(mode: "learning" | "exam" | "teacher", courseId?
     } finally {
       setLoading(false);
     }
-  }, [user, mode, activeSessionId]);
+  }, [user, mode, courseId, activeSessionId]);
 
   useEffect(() => {
     loadSessions();
-  }, [user, mode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, mode, courseId]);
+
 
   // Create a new session in DB
   const createSession = useCallback(
