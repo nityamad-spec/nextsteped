@@ -108,11 +108,44 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
+type VoidRow = { id: string; course_id: string; assessment_type: string; ref_key: string | null };
+
+const VOID_TYPE_LABELS: Record<string, string> = {
+  diagnostic: "Diagnostic quiz",
+  weekly_quiz: "Weekly quiz",
+  exam: "Exam",
+};
+
 const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<CourseDetail[]>([]);
   const [expandedCourse, setExpandedCourse] = useState<string | undefined>(undefined);
   const [insightsCache, setInsightsCache] = useState<Record<string, CourseInsights | "loading">>({});
+  const [voidRows, setVoidRows] = useState<VoidRow[]>([]);
+  const [clearingVoids, setClearingVoids] = useState<string | null>(null);
+
+  const loadVoids = useCallback(async (studentIds: string[], courseIds: string[]) => {
+    const { data } = await supabase
+      .from("assessment_attempt_voids")
+      .select("id, course_id, assessment_type, ref_key")
+      .in("student_id", studentIds)
+      .in("course_id", courseIds);
+    setVoidRows((data as VoidRow[]) || []);
+  }, []);
+
+  const clearVoids = useCallback(async (courseId: string, ids: string[]) => {
+    setClearingVoids(courseId);
+    const { error } = await supabase.from("assessment_attempt_voids").delete().in("id", ids);
+    setClearingVoids(null);
+    if (error) {
+      toast.error("Could not reset the proctoring lock");
+      return;
+    }
+    setVoidRows(prev => prev.filter(r => !ids.includes(r.id)));
+    toast.success("Proctoring lock reset");
+  }, []);
+
+
 
   const loadDetails = useCallback(async (s: StudentLite, ids: string[], showSkeleton: boolean) => {
     const studentIds = s.profileIds;
