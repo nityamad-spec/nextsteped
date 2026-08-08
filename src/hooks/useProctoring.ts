@@ -160,17 +160,28 @@ export function useProctoring({
   // Copy / paste / selection / context menu suppression
   useEffect(() => {
     if (!enabled) return;
+    const isField = (t: EventTarget | null) => {
+      const el = t as HTMLElement | null;
+      const tag = el?.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || el?.isContentEditable === true;
+    };
     const block = (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
     };
-    const events = ["copy", "cut", "paste", "contextmenu", "selectstart", "dragstart"];
-    events.forEach((n) => document.addEventListener(n, block, true));
-    const prev = document.body.style.userSelect;
-    document.body.style.userSelect = "none";
+    // Always blocked, even inside the reasoning textarea.
+    const hardEvents = ["copy", "cut", "paste", "contextmenu"];
+    // Blocked outside form fields only, so typing still works.
+    const softEvents = ["selectstart", "dragstart"];
+    const softBlock = (e: Event) => {
+      if (isField(e.target)) return;
+      block(e);
+    };
+    hardEvents.forEach((n) => document.addEventListener(n, block, true));
+    softEvents.forEach((n) => document.addEventListener(n, softBlock, true));
     return () => {
-      events.forEach((n) => document.removeEventListener(n, block, true));
-      document.body.style.userSelect = prev;
+      hardEvents.forEach((n) => document.removeEventListener(n, block, true));
+      softEvents.forEach((n) => document.removeEventListener(n, softBlock, true));
     };
   }, [enabled]);
 
