@@ -81,10 +81,14 @@ export interface AssessmentResults {
   evaluations?: Record<string, ReasoningEvaluation>;
 }
 
-type Phase = "intro" | "active" | "review";
+type Phase = "intro" | "active" | "review" | "voided";
 
-const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta, courseId }: AssessmentViewProps) => {
+const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta, courseId, proctored = false, fullscreenTargetRef, onVoided }: AssessmentViewProps) => {
   const [phase, setPhase] = useState<Phase>("intro");
+  const [warningOpen, setWarningOpen] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(timeLimitMinutes * 60);
   const [results, setResults] = useState<AssessmentResults | null>(null);
