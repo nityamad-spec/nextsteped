@@ -34,7 +34,14 @@ interface AssessmentViewProps {
   onStudyTopics?: (topics: string[]) => void;
   questionMeta?: Map<string, { difficulty: number; bloom: number }>;
   courseId?: string | null;
+  /** Enable browser lock: fullscreen, copy/paste block, warn-then-void. */
+  proctored?: boolean;
+  /** Element to put into fullscreen when proctored. */
+  fullscreenTargetRef?: React.RefObject<HTMLElement>;
+  /** Called when the attempt is voided for leaving the quiz. */
+  onVoided?: (reason: string) => void;
 }
+
 
 
 const BLOOM_WEIGHT: Record<number, number> = { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 };
