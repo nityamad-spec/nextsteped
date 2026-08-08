@@ -23,6 +23,13 @@ import {
 } from "@/lib/reasoning";
 
 import { toast } from "sonner";
+import {
+  useProctoring,
+  exitFullscreen,
+  fullscreenSupported,
+  type ProctorViolation,
+} from "@/hooks/useProctoring";
+
 
 interface AssessmentViewProps {
   type: "quiz" | "exam";
