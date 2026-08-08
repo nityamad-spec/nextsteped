@@ -89,6 +89,51 @@ export type Database = {
         }
         Relationships: []
       }
+      assessment_attempt_voids: {
+        Row: {
+          assessment_type: string
+          course_id: string
+          created_at: string
+          id: string
+          reason: string
+          ref_key: string | null
+          student_id: string
+        }
+        Insert: {
+          assessment_type: string
+          course_id: string
+          created_at?: string
+          id?: string
+          reason?: string
+          ref_key?: string | null
+          student_id: string
+        }
+        Update: {
+          assessment_type?: string
+          course_id?: string
+          created_at?: string
+          id?: string
+          reason?: string
+          ref_key?: string | null
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_attempt_voids_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_attempt_voids_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assessment_questions: {
         Row: {
           answer: string
@@ -2270,48 +2315,6 @@ export type Database = {
           name?: string
         }
         Relationships: []
-      }
-      weekly_quiz_attempt_voids: {
-        Row: {
-          course_id: string
-          created_at: string
-          id: string
-          quiz_day: number
-          reason: string
-          student_id: string
-        }
-        Insert: {
-          course_id: string
-          created_at?: string
-          id?: string
-          quiz_day: number
-          reason?: string
-          student_id: string
-        }
-        Update: {
-          course_id?: string
-          created_at?: string
-          id?: string
-          quiz_day?: number
-          reason?: string
-          student_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "weekly_quiz_attempt_voids_course_id_fkey"
-            columns: ["course_id"]
-            isOneToOne: false
-            referencedRelation: "courses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "weekly_quiz_attempt_voids_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       wipe_audit_log: {
         Row: {
