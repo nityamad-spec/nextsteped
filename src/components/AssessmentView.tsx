@@ -596,6 +596,35 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     );
   }
 
+  // Voided screen (proctored attempts only)
+  if (phase === "voided") {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <Card className="w-full max-w-md border-destructive/30">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+              <ShieldCheck className="h-7 w-7 text-destructive" />
+            </div>
+            <CardTitle className="text-xl">Attempt voided</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              You left the quiz after being warned, so this attempt was voided and
+              nothing was scored.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              If you have an attempt left, you can start the quiz again from your
+              Learning Path. Otherwise contact your professor.
+            </p>
+            <Button className="w-full" onClick={onEnd}>Back to Learning Path</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+
+
   // Review screen
   if (phase === "review" && results) {
     const passed = results.score >= 60;
