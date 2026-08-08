@@ -377,7 +377,9 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
   useEffect(() => {
     if (!open || !student) return;
     const ids = student.courses.map(c => c.courseId);
-    if (ids.length === 0) { setDetails([]); return; }
+    if (ids.length === 0) { setDetails([]); setVoidRows([]); return; }
+    void loadVoids(student.profileIds, ids);
+
 
     const studentIdSet = new Set(student.profileIds);
     const courseIdSet = new Set(ids);
