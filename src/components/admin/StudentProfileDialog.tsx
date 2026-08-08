@@ -12,6 +12,9 @@ import {
   MessageSquare, Activity, ChevronDown, TrendingUp, TrendingDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+
 
 interface CourseEnrollmentLite {
   courseId: string;
