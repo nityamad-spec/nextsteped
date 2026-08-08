@@ -186,6 +186,35 @@ const StudentLearningPath = () => {
     };
   }, [enrolledCourseId]);
 
+  // Voided (browser-lock) attempts per week. One void is forgiven; a second
+  // locks the week until the professor resets it.
+  const [voidCounts, setVoidCounts] = useState<Record<number, number>>({});
+
+  const loadVoids = useCallback(async () => {
+    if (!enrolledCourseId || !user?.id) {
+      setVoidCounts({});
+      return;
+    }
+    const { data, error } = await supabase
+      .from("weekly_quiz_attempt_voids")
+      .select("quiz_day")
+      .eq("student_id", user.id)
+      .eq("course_id", enrolledCourseId);
+    if (error) {
+      console.error("Void attempts load error:", error);
+      return;
+    }
+    const map: Record<number, number> = {};
+    (data || []).forEach((r: { quiz_day: number | null }) => {
+      if (r.quiz_day != null) map[Number(r.quiz_day)] = (map[Number(r.quiz_day)] ?? 0) + 1;
+    });
+    setVoidCounts(map);
+  }, [enrolledCourseId, user?.id]);
+
+  useEffect(() => {
+    void loadVoids();
+  }, [loadVoids]);
+
   const [quizDialog, setQuizDialog] = useState<{ open: boolean; day: number | null }>({ open: false, day: null });
   const [diagGate, setDiagGate] = useState<{ open: boolean; context: string }>({ open: false, context: "" });
 
@@ -481,6 +510,10 @@ const StudentLearningPath = () => {
                                     <p className="text-xs text-muted-foreground">
                                       {taken
                                         ? `Completed — ${taken.score}%`
+                                        : (voidCounts[dp.day] ?? 0) >= 2
+                                        ? "Locked — attempts voided for leaving the quiz"
+                                        : (voidCounts[dp.day] ?? 0) === 1
+                                        ? "Previous attempt voided — this is your final attempt"
                                         : "Optional — one attempt only"}
                                     </p>
                                     {taken && (
@@ -499,6 +532,10 @@ const StudentLearningPath = () => {
                                 <Button size="sm" variant="outline" disabled>
                                   Quiz completed
                                 </Button>
+                              ) : (voidCounts[dp.day] ?? 0) >= 2 ? (
+                                <Button size="sm" variant="outline" disabled>
+                                  Locked — contact your professor
+                                </Button>
                               ) : (
                                 <Button
                                   size="sm"
@@ -508,7 +545,7 @@ const StudentLearningPath = () => {
                                     attemptOpenQuiz(dp.day);
                                   }}
                                 >
-                                  Take Quiz
+                                  {(voidCounts[dp.day] ?? 0) === 1 ? "Retake Quiz (final attempt)" : "Take Quiz"}
                                 </Button>
                               )}
                             </div>
@@ -530,6 +567,7 @@ const StudentLearningPath = () => {
         courseId={enrolledCourseId}
         studentId={user?.id ?? null}
         day={quizDialog.day}
+        onVoided={() => void loadVoids()}
         numQuestions={taSettings.quizNumQuestions || 5}
         timeLimitMinutes={taSettings.quizTimeLimit || 10}
       />
