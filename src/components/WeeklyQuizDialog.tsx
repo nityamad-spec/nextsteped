@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertTriangle } from "lucide-react";
@@ -20,6 +20,8 @@ interface Props {
   day: number | null;
   numQuestions?: number;
   timeLimitMinutes?: number;
+  /** Called after a proctored attempt is voided (so callers can refresh state). */
+  onVoided?: () => void;
 }
 
 async function invokeUpdateMastery(args: {
@@ -73,12 +75,27 @@ const WeeklyQuizDialog = ({
   day,
   numQuestions = 5,
   timeLimitMinutes = 10,
+  onVoided,
 }: Props) => {
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionMeta, setQuestionMeta] = useState<Map<string, { difficulty: number; bloom: number }>>(new Map());
   const [submitted, setSubmitted] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const handleVoided = async (reason: string) => {
+    setSubmitted(true);
+    if (!studentId || !courseId || !day) return;
+    const { error } = await supabase.from("weekly_quiz_attempt_voids").insert({
+      student_id: studentId,
+      course_id: courseId,
+      quiz_day: day,
+      reason,
+    });
+    if (error) console.error("Failed to record voided attempt:", error);
+    onVoided?.();
+  };
 
   // Reset + fetch on open
   useEffect(() => {
@@ -256,6 +273,7 @@ const WeeklyQuizDialog = ({
     <>
       <Dialog open={open} onOpenChange={requestClose}>
         <DialogContent
+          ref={contentRef}
           className="max-w-4xl w-[95vw] h-[90vh] p-0 overflow-hidden flex flex-col"
           onInteractOutside={(e) => {
             if (!submitted && questions.length > 0) e.preventDefault();
@@ -289,6 +307,9 @@ const WeeklyQuizDialog = ({
                 onSubmit={handleSubmit}
                 questionMeta={questionMeta}
                 courseId={courseId ?? null}
+                proctored
+                fullscreenTargetRef={contentRef}
+                onVoided={(reason) => void handleVoided(reason)}
               />
 
             )}
