@@ -560,6 +560,48 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
                         <Progress value={d.progressPct} className="h-2" />
                       </div>
 
+                      {(() => {
+                        const rows = voidRows.filter(r => r.course_id === d.courseId);
+                        if (rows.length === 0) return null;
+                        const groups = new Map<string, VoidRow[]>();
+                        rows.forEach(r => {
+                          const key = `${r.assessment_type}|${r.ref_key ?? ""}`;
+                          groups.set(key, [...(groups.get(key) || []), r]);
+                        });
+                        return (
+                          <div className="rounded-md border border-destructive/25 bg-destructive/5 p-2.5 space-y-2">
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                              <ShieldAlert className="h-3.5 w-3.5" /> Proctoring voids
+                            </div>
+                            {[...groups.entries()].map(([key, group]) => {
+                              const [type, ref] = key.split("|");
+                              const locked = group.length >= 2;
+                              return (
+                                <div key={key} className="flex items-center justify-between gap-2 text-xs">
+                                  <span className="text-muted-foreground">
+                                    {VOID_TYPE_LABELS[type] || type}
+                                    {ref ? ` · ${type === "weekly_quiz" ? `Week ${ref}` : ref}` : ""}
+                                    {" · "}
+                                    <span className={cn("tabular-nums", locked ? "text-destructive font-medium" : "text-foreground")}>
+                                      {group.length} void{group.length === 1 ? "" : "s"}{locked ? " · locked" : ""}
+                                    </span>
+                                  </span>
+                                  <Button
+                                    size="sm" variant="outline" className="h-6 px-2 text-[11px]"
+                                    disabled={clearingVoids === d.courseId}
+                                    onClick={() => clearVoids(d.courseId, group.map(g => g.id))}
+                                  >
+                                    Reset
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+
+
+
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs pt-1">
                         <div className="flex items-center gap-1.5">
                           <span className="text-muted-foreground">Weekly quizzes</span>
