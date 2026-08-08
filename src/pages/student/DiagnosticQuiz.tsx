@@ -704,9 +704,42 @@ const DiagnosticQuiz = () => {
                     </p>
                   </div>
                   <p className="text-sm text-muted-foreground">{TOTAL_COUNT} questions</p>
-                  <Button onClick={() => { setPhase("quiz"); setQuestionStartTime(Date.now()); }} className="w-full">
-                    Start Quiz <ArrowRight className="ml-2 h-4 w-4" />
+                  <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-left space-y-1.5">
+                    <p className="text-xs font-semibold text-destructive">Proctored quiz</p>
+                    <ul className="list-disc pl-4 text-[11px] text-muted-foreground space-y-1">
+                      <li>The quiz opens in fullscreen and must stay there.</li>
+                      <li>Switching tabs, windows or apps counts as leaving. You get <strong className="text-foreground">one warning</strong> — the next time, your attempt is voided.</li>
+                      <li>Copy, paste and right-click are disabled.</li>
+                    </ul>
+                  </div>
+                  {voidCount > 0 && (
+                    <p className="text-xs text-destructive">
+                      You have 1 voided attempt. If this attempt is voided too, the diagnostic will be locked until your professor resets it.
+                    </p>
+                  )}
+                  {fullscreenError && <p className="text-xs text-destructive">{fullscreenError}</p>}
+                  <Button
+                    className="w-full"
+                    disabled={starting}
+                    onClick={async () => {
+                      setStarting(true);
+                      setFullscreenError(null);
+                      setPhase("quiz");
+                      setQuestionStartTime(Date.now());
+                      // Fullscreen must be requested from the click gesture; the
+                      // container mounts with the quiz phase, so retry on the frame after.
+                      requestAnimationFrame(async () => {
+                        const ok = await proctor.enterFullscreen();
+                        setStarting(false);
+                        if (!ok && fullscreenSupported()) {
+                          setFullscreenError("Fullscreen was blocked. Allow fullscreen for this site and try again.");
+                        }
+                      });
+                    }}
+                  >
+                    {starting ? "Starting…" : "Start Quiz"} <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
+
                 </>
               )}
             </CardContent>
