@@ -639,6 +639,20 @@ const AIChat = () => {
       toast.info("This practice exam is no longer available.");
       return;
     }
+    // Proctored graded exams: a second voided attempt locks the exam.
+    if (user?.id && enrolledCourseId) {
+      const voids = await countAttemptVoids({
+        studentId: user.id,
+        courseId: enrolledCourseId,
+        assessmentType: "exam",
+        refKey: examId,
+      });
+      if (voids >= VOID_LOCK_THRESHOLD) {
+        toast.error("This exam is locked after repeated proctoring violations. Please contact your professor.");
+        return;
+      }
+    }
+
     const fetched = await fetchDBQuestions("exam", undefined, examId);
     let questions = fetched.questions;
     const meta = fetched.meta;
