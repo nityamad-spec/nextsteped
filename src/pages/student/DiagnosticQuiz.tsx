@@ -110,7 +110,7 @@ const DiagnosticQuiz = () => {
   const [textAnswer, setTextAnswer] = useState("");
   const [answers, setAnswers] = useState<number[]>([]);
   const [textAnswers, setTextAnswers] = useState<string[]>([]);
-  const [phase, setPhase] = useState<"loading" | "intro" | "quiz" | "result" | "already-completed">("loading");
+  const [phase, setPhase] = useState<"loading" | "intro" | "quiz" | "result" | "already-completed" | "voided" | "locked">("loading");
   const [existingResult, setExistingResult] = useState<{
     score: number;
     total: number;
@@ -127,6 +127,75 @@ const DiagnosticQuiz = () => {
   const [branchTier, setBranchTier] = useState<BranchTier | null>(null);
   const [loadingBranch, setLoadingBranch] = useState(false);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+
+  // ---- Proctoring (browser lock) -------------------------------------------
+  const quizContainerRef = useRef<HTMLDivElement>(null);
+  const [warningOpen, setWarningOpen] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState<string | null>(null);
+  const [voidCount, setVoidCount] = useState(0);
+
+  const clearStoredProgress = useCallback(() => {
+    if (!user || !activeCourseId) return;
+    try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {}
+  }, [user, activeCourseId]);
+
+  const handleVoid = useCallback(
+    (kind: ProctorViolation) => {
+      setWarningOpen(false);
+      setPhase("voided");
+      void exitFullscreen();
+      clearStoredProgress();
+      if (!user?.id || !activeCourseId) return;
+      void recordAttemptVoid({
+        studentId: user.id,
+        courseId: activeCourseId,
+        assessmentType: "diagnostic",
+        refKey: null,
+        reason: kind,
+      }).then((count) => {
+        if (count != null) setVoidCount(count);
+      });
+    },
+    [user?.id, activeCourseId, clearStoredProgress],
+  );
+
+  const proctor = useProctoring({
+    enabled: phase === "quiz",
+    paused: warningOpen,
+    targetRef: quizContainerRef,
+    allowedViolations: 1,
+    onWarn: () => setWarningOpen(true),
+    onVoid: handleVoid,
+  });
+
+  // Leave fullscreen once the attempt is over.
+  useEffect(() => {
+    if (phase === "result" || phase === "voided" || phase === "locked") void exitFullscreen();
+  }, [phase]);
+
+  // Lock the diagnostic after a second voided attempt.
+  useEffect(() => {
+    if (!user?.id || !activeCourseId) return;
+    if (phase !== "intro" && phase !== "quiz") return;
+    let cancelled = false;
+    void countAttemptVoids({
+      studentId: user.id,
+      courseId: activeCourseId,
+      assessmentType: "diagnostic",
+      refKey: null,
+    }).then((count) => {
+      if (cancelled) return;
+      setVoidCount(count);
+      if (count >= VOID_LOCK_THRESHOLD) {
+        clearStoredProgress();
+        setPhase("locked");
+      }
+    });
+    return () => { cancelled = true; };
+    // Runs when the attempt surface is (re)entered.
+  }, [user?.id, activeCourseId, phase === "intro", clearStoredProgress]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   useEffect(() => {
     const init = async () => {
