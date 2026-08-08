@@ -9,9 +9,12 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   BookOpen, CheckCircle2, Clock, GraduationCap, Mail, Hash, Calendar,
-  MessageSquare, Activity, ChevronDown, TrendingUp, TrendingDown,
+  MessageSquare, Activity, ChevronDown, TrendingUp, TrendingDown, ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+
 
 interface CourseEnrollmentLite {
   courseId: string;
@@ -108,11 +111,44 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
+type VoidRow = { id: string; course_id: string; assessment_type: string; ref_key: string | null };
+
+const VOID_TYPE_LABELS: Record<string, string> = {
+  diagnostic: "Diagnostic quiz",
+  weekly_quiz: "Weekly quiz",
+  exam: "Exam",
+};
+
 const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<CourseDetail[]>([]);
   const [expandedCourse, setExpandedCourse] = useState<string | undefined>(undefined);
   const [insightsCache, setInsightsCache] = useState<Record<string, CourseInsights | "loading">>({});
+  const [voidRows, setVoidRows] = useState<VoidRow[]>([]);
+  const [clearingVoids, setClearingVoids] = useState<string | null>(null);
+
+  const loadVoids = useCallback(async (studentIds: string[], courseIds: string[]) => {
+    const { data } = await supabase
+      .from("assessment_attempt_voids")
+      .select("id, course_id, assessment_type, ref_key")
+      .in("student_id", studentIds)
+      .in("course_id", courseIds);
+    setVoidRows((data as VoidRow[]) || []);
+  }, []);
+
+  const clearVoids = useCallback(async (courseId: string, ids: string[]) => {
+    setClearingVoids(courseId);
+    const { error } = await supabase.from("assessment_attempt_voids").delete().in("id", ids);
+    setClearingVoids(null);
+    if (error) {
+      toast.error("Could not reset the proctoring lock");
+      return;
+    }
+    setVoidRows(prev => prev.filter(r => !ids.includes(r.id)));
+    toast.success("Proctoring lock reset");
+  }, []);
+
+
 
   const loadDetails = useCallback(async (s: StudentLite, ids: string[], showSkeleton: boolean) => {
     const studentIds = s.profileIds;
@@ -341,7 +377,9 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
   useEffect(() => {
     if (!open || !student) return;
     const ids = student.courses.map(c => c.courseId);
-    if (ids.length === 0) { setDetails([]); return; }
+    if (ids.length === 0) { setDetails([]); setVoidRows([]); return; }
+    void loadVoids(student.profileIds, ids);
+
 
     const studentIdSet = new Set(student.profileIds);
     const courseIdSet = new Set(ids);
@@ -380,7 +418,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       supabase.removeChannel(channel);
     };
-  }, [open, student, loadDetails, loadInsights, expandedCourse]);
+  }, [open, student, loadDetails, loadInsights, loadVoids, expandedCourse]);
 
   // Reset expanded state when dialog closes or student changes
   useEffect(() => {
@@ -521,6 +559,48 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
                         </div>
                         <Progress value={d.progressPct} className="h-2" />
                       </div>
+
+                      {(() => {
+                        const rows = voidRows.filter(r => r.course_id === d.courseId);
+                        if (rows.length === 0) return null;
+                        const groups = new Map<string, VoidRow[]>();
+                        rows.forEach(r => {
+                          const key = `${r.assessment_type}|${r.ref_key ?? ""}`;
+                          groups.set(key, [...(groups.get(key) || []), r]);
+                        });
+                        return (
+                          <div className="rounded-md border border-destructive/25 bg-destructive/5 p-2.5 space-y-2">
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                              <ShieldAlert className="h-3.5 w-3.5" /> Proctoring voids
+                            </div>
+                            {[...groups.entries()].map(([key, group]) => {
+                              const [type, ref] = key.split("|");
+                              const locked = group.length >= 2;
+                              return (
+                                <div key={key} className="flex items-center justify-between gap-2 text-xs">
+                                  <span className="text-muted-foreground">
+                                    {VOID_TYPE_LABELS[type] || type}
+                                    {ref ? ` · ${type === "weekly_quiz" ? `Week ${ref}` : ref}` : ""}
+                                    {" · "}
+                                    <span className={cn("tabular-nums", locked ? "text-destructive font-medium" : "text-foreground")}>
+                                      {group.length} void{group.length === 1 ? "" : "s"}{locked ? " · locked" : ""}
+                                    </span>
+                                  </span>
+                                  <Button
+                                    size="sm" variant="outline" className="h-6 px-2 text-[11px]"
+                                    disabled={clearingVoids === d.courseId}
+                                    onClick={() => clearVoids(d.courseId, group.map(g => g.id))}
+                                  >
+                                    Reset
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+
+
 
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs pt-1">
                         <div className="flex items-center gap-1.5">

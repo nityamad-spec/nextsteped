@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useApp } from "@/contexts/AppContext";
@@ -39,6 +39,10 @@ import { useReasoningAnswers, saveReasoningRows } from "@/hooks/useReasoningAnsw
 import { buildReasoningRows } from "@/lib/buildReasoningRows";
 import ReasoningVerdict from "@/components/ReasoningVerdict";
 import { requiresReasoning, verdictFor, REASONING_EVAL_DEADLINE_MS } from "@/lib/reasoning";
+import { useProctoring, exitFullscreen, fullscreenSupported, type ProctorViolation } from "@/hooks/useProctoring";
+import { countAttemptVoids, recordAttemptVoid, VOID_LOCK_THRESHOLD } from "@/lib/attemptVoids";
+import { ShieldCheck, AlertTriangle } from "lucide-react";
+
 
 
 interface QuizQuestion {
@@ -106,7 +110,7 @@ const DiagnosticQuiz = () => {
   const [textAnswer, setTextAnswer] = useState("");
   const [answers, setAnswers] = useState<number[]>([]);
   const [textAnswers, setTextAnswers] = useState<string[]>([]);
-  const [phase, setPhase] = useState<"loading" | "intro" | "quiz" | "result" | "already-completed">("loading");
+  const [phase, setPhase] = useState<"loading" | "intro" | "quiz" | "result" | "already-completed" | "voided" | "locked">("loading");
   const [existingResult, setExistingResult] = useState<{
     score: number;
     total: number;
@@ -123,6 +127,75 @@ const DiagnosticQuiz = () => {
   const [branchTier, setBranchTier] = useState<BranchTier | null>(null);
   const [loadingBranch, setLoadingBranch] = useState(false);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+
+  // ---- Proctoring (browser lock) -------------------------------------------
+  const quizContainerRef = useRef<HTMLDivElement>(null);
+  const [warningOpen, setWarningOpen] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState<string | null>(null);
+  const [voidCount, setVoidCount] = useState(0);
+
+  const clearStoredProgress = useCallback(() => {
+    if (!user || !activeCourseId) return;
+    try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {}
+  }, [user, activeCourseId]);
+
+  const handleVoid = useCallback(
+    (kind: ProctorViolation) => {
+      setWarningOpen(false);
+      setPhase("voided");
+      void exitFullscreen();
+      clearStoredProgress();
+      if (!user?.id || !activeCourseId) return;
+      void recordAttemptVoid({
+        studentId: user.id,
+        courseId: activeCourseId,
+        assessmentType: "diagnostic",
+        refKey: null,
+        reason: kind,
+      }).then((count) => {
+        if (count != null) setVoidCount(count);
+      });
+    },
+    [user?.id, activeCourseId, clearStoredProgress],
+  );
+
+  const proctor = useProctoring({
+    enabled: phase === "quiz",
+    paused: warningOpen,
+    targetRef: quizContainerRef,
+    allowedViolations: 1,
+    onWarn: () => setWarningOpen(true),
+    onVoid: handleVoid,
+  });
+
+  // Leave fullscreen once the attempt is over.
+  useEffect(() => {
+    if (phase === "result" || phase === "voided" || phase === "locked") void exitFullscreen();
+  }, [phase]);
+
+  // Lock the diagnostic after a second voided attempt.
+  useEffect(() => {
+    if (!user?.id || !activeCourseId) return;
+    if (phase !== "intro" && phase !== "quiz") return;
+    let cancelled = false;
+    void countAttemptVoids({
+      studentId: user.id,
+      courseId: activeCourseId,
+      assessmentType: "diagnostic",
+      refKey: null,
+    }).then((count) => {
+      if (cancelled) return;
+      setVoidCount(count);
+      if (count >= VOID_LOCK_THRESHOLD) {
+        clearStoredProgress();
+        setPhase("locked");
+      }
+    });
+    return () => { cancelled = true; };
+    // Runs when the attempt surface is (re)entered.
+  }, [user?.id, activeCourseId, phase === "intro", clearStoredProgress]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   useEffect(() => {
     const init = async () => {
@@ -631,9 +704,42 @@ const DiagnosticQuiz = () => {
                     </p>
                   </div>
                   <p className="text-sm text-muted-foreground">{TOTAL_COUNT} questions</p>
-                  <Button onClick={() => { setPhase("quiz"); setQuestionStartTime(Date.now()); }} className="w-full">
-                    Start Quiz <ArrowRight className="ml-2 h-4 w-4" />
+                  <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-left space-y-1.5">
+                    <p className="text-xs font-semibold text-destructive">Proctored quiz</p>
+                    <ul className="list-disc pl-4 text-[11px] text-muted-foreground space-y-1">
+                      <li>The quiz opens in fullscreen and must stay there.</li>
+                      <li>Switching tabs, windows or apps counts as leaving. You get <strong className="text-foreground">one warning</strong> — the next time, your attempt is voided.</li>
+                      <li>Copy, paste and right-click are disabled.</li>
+                    </ul>
+                  </div>
+                  {voidCount > 0 && (
+                    <p className="text-xs text-destructive">
+                      You have 1 voided attempt. If this attempt is voided too, the diagnostic will be locked until your professor resets it.
+                    </p>
+                  )}
+                  {fullscreenError && <p className="text-xs text-destructive">{fullscreenError}</p>}
+                  <Button
+                    className="w-full"
+                    disabled={starting}
+                    onClick={async () => {
+                      setStarting(true);
+                      setFullscreenError(null);
+                      setPhase("quiz");
+                      setQuestionStartTime(Date.now());
+                      // Fullscreen must be requested from the click gesture; the
+                      // container mounts with the quiz phase, so retry on the frame after.
+                      requestAnimationFrame(async () => {
+                        const ok = await proctor.enterFullscreen();
+                        setStarting(false);
+                        if (!ok && fullscreenSupported()) {
+                          setFullscreenError("Fullscreen was blocked. Allow fullscreen for this site and try again.");
+                        }
+                      });
+                    }}
+                  >
+                    {starting ? "Starting…" : "Start Quiz"} <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
+
                 </>
               )}
             </CardContent>
@@ -666,13 +772,49 @@ const DiagnosticQuiz = () => {
     );
   }
 
+  if (phase === "voided" || phase === "locked") {
+    const locked = phase === "locked" || voidCount >= VOID_LOCK_THRESHOLD;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg">
+          <Card className="border-destructive/30">
+            <CardContent className="p-8 text-center space-y-4">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+                <ShieldCheck className="h-7 w-7 text-destructive" />
+              </div>
+              <h2 className="font-heading text-xl font-bold">
+                {locked ? "Diagnostic locked" : "Attempt voided"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {locked
+                  ? "This diagnostic has been voided twice for leaving the quiz. Please contact your professor to have it reset."
+                  : "You left the quiz after being warned, so this attempt was voided and nothing was scored. You can start over — if the next attempt is voided, the diagnostic will be locked."}
+              </p>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={() => navigate("/student/home")}>
+                  Go to Home
+                </Button>
+                {!locked && (
+                  <Button className="flex-1" onClick={() => window.location.reload()}>
+                    Restart quiz
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (!question) return null;
 
   const formatLabel = question.format === "short_answer" ? "Short Answer" : question.format === "true_false" ? "True / False" : "Multiple Choice";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div ref={quizContainerRef} className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-lg">
+
         <div className="mb-6 text-center">
           <h1 className="font-heading text-2xl font-bold">Diagnostic Quiz</h1>
           <p className="text-sm text-muted-foreground">Adaptive testing — difficulty adjusts to your responses</p>
@@ -762,7 +904,34 @@ const DiagnosticQuiz = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={warningOpen} onOpenChange={() => { /* must be dismissed via the button */ }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Stay on the quiz
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Switching tabs, windows or apps isn't allowed during a proctored quiz.
+              This is your only warning — the next time, your attempt will be voided.
+              The timer kept running.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={async () => {
+                setWarningOpen(false);
+                await proctor.enterFullscreen();
+              }}
+            >
+              Resume quiz
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+
   );
 };
 

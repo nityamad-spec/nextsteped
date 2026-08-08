@@ -18,6 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Send, Plus, History, BookOpen, MessageSquare, Clock, ChevronLeft, ChevronDown, Terminal, AlertTriangle, ShieldCheck, Loader2, Sparkles, User, BarChart3, Dumbbell, ListChecks, GraduationCap, FolderSearch } from "lucide-react";
 import { toast } from "sonner";
 import AssessmentView, { AssessmentResults } from "@/components/AssessmentView";
+import { countAttemptVoids, recordAttemptVoid, VOID_LOCK_THRESHOLD } from "@/lib/attemptVoids";
+
 import { saveReasoningRows } from "@/hooks/useReasoningAnswers";
 import { buildReasoningRows } from "@/lib/buildReasoningRows";
 import ExamHistory from "@/components/ExamHistory";
@@ -639,6 +641,20 @@ const AIChat = () => {
       toast.info("This practice exam is no longer available.");
       return;
     }
+    // Proctored graded exams: a second voided attempt locks the exam.
+    if (user?.id && enrolledCourseId) {
+      const voids = await countAttemptVoids({
+        studentId: user.id,
+        courseId: enrolledCourseId,
+        assessmentType: "exam",
+        refKey: examId,
+      });
+      if (voids >= VOID_LOCK_THRESHOLD) {
+        toast.error("This exam is locked after repeated proctoring violations. Please contact your professor.");
+        return;
+      }
+    }
+
     const fetched = await fetchDBQuestions("exam", undefined, examId);
     let questions = fetched.questions;
     const meta = fetched.meta;
@@ -1304,7 +1320,20 @@ const AIChat = () => {
           onStudyTopics={handleStudyWeakTopics}
           questionMeta={assessmentQuestionMeta}
           courseId={enrolledCourseId ?? null}
+          proctored={assessmentType === "exam" && !!currentExamId}
+          onVoided={async (reason) => {
+            if (!user?.id || !enrolledCourseId || !currentExamId) return;
+            await recordAttemptVoid({
+              studentId: user.id,
+              courseId: enrolledCourseId,
+              assessmentType: "exam",
+              refKey: currentExamId,
+              reason,
+            });
+            void loadAvailableExams();
+          }}
         />
+
 
         <Dialog open={showLeaveWarning} onOpenChange={setShowLeaveWarning}>
           <DialogContent className="sm:max-w-md">

@@ -10,6 +10,8 @@ import type { Json } from "@/integrations/supabase/types";
 import { saveReasoningRows } from "@/hooks/useReasoningAnswers";
 import { buildReasoningRows } from "@/lib/buildReasoningRows";
 import { verdictFor, type ReasoningEvaluation } from "@/lib/reasoning";
+import { recordAttemptVoid } from "@/lib/attemptVoids";
+
 
 
 interface Props {
@@ -87,15 +89,16 @@ const WeeklyQuizDialog = ({
   const handleVoided = async (reason: string) => {
     setSubmitted(true);
     if (!studentId || !courseId || !day) return;
-    const { error } = await supabase.from("weekly_quiz_attempt_voids").insert({
-      student_id: studentId,
-      course_id: courseId,
-      quiz_day: day,
+    await recordAttemptVoid({
+      studentId,
+      courseId,
+      assessmentType: "weekly_quiz",
+      refKey: day,
       reason,
     });
-    if (error) console.error("Failed to record voided attempt:", error);
     onVoided?.();
   };
+
 
   // Reset + fetch on open
   useEffect(() => {

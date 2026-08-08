@@ -14,6 +14,8 @@ import { Progress } from "@/components/ui/progress";
 import { BookOpen, ClipboardCheck, ChevronDown, ChevronUp, Lock, Check } from "lucide-react";
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
+import { fetchVoidCounts } from "@/lib/attemptVoids";
+
 
 const accuracyPct = (correct: number, total: number) =>
   total > 0 ? Math.round((correct / total) * 100) : 0;
@@ -195,21 +197,18 @@ const StudentLearningPath = () => {
       setVoidCounts({});
       return;
     }
-    const { data, error } = await supabase
-      .from("weekly_quiz_attempt_voids")
-      .select("quiz_day")
-      .eq("student_id", user.id)
-      .eq("course_id", enrolledCourseId);
-    if (error) {
-      console.error("Void attempts load error:", error);
-      return;
-    }
+    const byKey = await fetchVoidCounts({
+      studentId: user.id,
+      courseId: enrolledCourseId,
+      assessmentType: "weekly_quiz",
+    });
     const map: Record<number, number> = {};
-    (data || []).forEach((r: { quiz_day: number | null }) => {
-      if (r.quiz_day != null) map[Number(r.quiz_day)] = (map[Number(r.quiz_day)] ?? 0) + 1;
+    Object.entries(byKey).forEach(([key, count]) => {
+      if (key !== "") map[Number(key)] = count;
     });
     setVoidCounts(map);
   }, [enrolledCourseId, user?.id]);
+
 
   useEffect(() => {
     void loadVoids();
