@@ -1320,7 +1320,20 @@ const AIChat = () => {
           onStudyTopics={handleStudyWeakTopics}
           questionMeta={assessmentQuestionMeta}
           courseId={enrolledCourseId ?? null}
+          proctored={assessmentType === "exam" && !!currentExamId}
+          onVoided={async (reason) => {
+            if (!user?.id || !enrolledCourseId || !currentExamId) return;
+            await recordAttemptVoid({
+              studentId: user.id,
+              courseId: enrolledCourseId,
+              assessmentType: "exam",
+              refKey: currentExamId,
+              reason,
+            });
+            void loadAvailableExams();
+          }}
         />
+
 
         <Dialog open={showLeaveWarning} onOpenChange={setShowLeaveWarning}>
           <DialogContent className="sm:max-w-md">
