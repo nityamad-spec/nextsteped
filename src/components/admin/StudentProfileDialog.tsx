@@ -9,7 +9,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   BookOpen, CheckCircle2, Clock, GraduationCap, Mail, Hash, Calendar,
-  MessageSquare, Activity, ChevronDown, TrendingUp, TrendingDown,
+  MessageSquare, Activity, ChevronDown, TrendingUp, TrendingDown, ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
