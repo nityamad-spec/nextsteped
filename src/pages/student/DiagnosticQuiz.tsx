@@ -39,6 +39,10 @@ import { useReasoningAnswers, saveReasoningRows } from "@/hooks/useReasoningAnsw
 import { buildReasoningRows } from "@/lib/buildReasoningRows";
 import ReasoningVerdict from "@/components/ReasoningVerdict";
 import { requiresReasoning, verdictFor, REASONING_EVAL_DEADLINE_MS } from "@/lib/reasoning";
+import { useProctoring, exitFullscreen, fullscreenSupported, type ProctorViolation } from "@/hooks/useProctoring";
+import { countAttemptVoids, recordAttemptVoid, VOID_LOCK_THRESHOLD } from "@/lib/attemptVoids";
+import { ShieldCheck, AlertTriangle } from "lucide-react";
+
 
 
 interface QuizQuestion {
