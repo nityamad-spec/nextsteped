@@ -185,6 +185,12 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     onVoid: handleVoid,
   });
 
+  // Leave fullscreen once the attempt is over.
+  useEffect(() => {
+    if (!proctored) return;
+    if (phase === "review" || phase === "voided") void exitFullscreen();
+  }, [proctored, phase]);
+
   // Legacy behaviour for non-proctored assessments: discard on leaving.
   useEffect(() => {
     if (proctored) return;
@@ -844,7 +850,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     : (answeredCount / questions.length) * 100;
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="relative flex flex-1 flex-col">
       {warningOpen && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/95 p-6">
           <Card className="w-full max-w-md border-destructive/40">
