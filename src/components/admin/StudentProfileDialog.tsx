@@ -418,7 +418,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       supabase.removeChannel(channel);
     };
-  }, [open, student, loadDetails, loadInsights, expandedCourse]);
+  }, [open, student, loadDetails, loadInsights, loadVoids, expandedCourse]);
 
   // Reset expanded state when dialog closes or student changes
   useEffect(() => {
