@@ -904,7 +904,34 @@ const DiagnosticQuiz = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={warningOpen} onOpenChange={() => { /* must be dismissed via the button */ }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Stay on the quiz
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Switching tabs, windows or apps isn't allowed during a proctored quiz.
+              This is your only warning — the next time, your attempt will be voided.
+              The timer kept running.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={async () => {
+                setWarningOpen(false);
+                await proctor.enterFullscreen();
+              }}
+            >
+              Resume quiz
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+
   );
 };
 
