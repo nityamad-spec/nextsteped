@@ -157,10 +157,30 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     return () => clearInterval(t);
   }, [phase, timeLeft]);
 
-  // Anti-cheat: discard the in-progress attempt if the student switches
-  // browser tabs/windows, minimizes, or closes the page while the exam is
-  // active. No answers are submitted; returning shows the Exam Prep start panel.
+  // Browser lock: leaving the assessment (tab switch, window/app switch,
+  // minimise, fullscreen exit) warns once, then voids the attempt.
+  const handleVoid = useCallback(
+    (kind: ProctorViolation) => {
+      setWarningOpen(false);
+      setPhase("voided");
+      void exitFullscreen();
+      onVoided?.(kind);
+    },
+    [onVoided],
+  );
+
+  const proctor = useProctoring({
+    enabled: proctored && phase === "active",
+    paused: warningOpen,
+    targetRef: fullscreenTargetRef,
+    allowedViolations: 1,
+    onWarn: () => setWarningOpen(true),
+    onVoid: handleVoid,
+  });
+
+  // Legacy behaviour for non-proctored assessments: discard on leaving.
   useEffect(() => {
+    if (proctored) return;
     if (phase !== "active") return;
     const onVisibility = () => {
       if (document.visibilityState === "hidden") onEnd();
@@ -172,7 +192,8 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onPageHide);
     };
-  }, [phase, onEnd]);
+  }, [phase, onEnd, proctored]);
+
 
   const handleAnswer = (questionId: string, answer: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
