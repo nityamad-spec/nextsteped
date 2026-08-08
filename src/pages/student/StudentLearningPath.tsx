@@ -14,6 +14,8 @@ import { Progress } from "@/components/ui/progress";
 import { BookOpen, ClipboardCheck, ChevronDown, ChevronUp, Lock, Check } from "lucide-react";
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
+import { fetchVoidCounts } from "@/lib/attemptVoids";
+
 
 const accuracyPct = (correct: number, total: number) =>
   total > 0 ? Math.round((correct / total) * 100) : 0;
