@@ -845,7 +845,36 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
 
   return (
     <div className="flex flex-1 flex-col">
+      {warningOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/95 p-6">
+          <Card className="w-full max-w-md border-destructive/40">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+                <ShieldCheck className="h-7 w-7 text-destructive" />
+              </div>
+              <CardTitle className="text-lg">You left the quiz</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-center">
+              <p className="text-sm text-muted-foreground">
+                Switching tabs, windows or apps isn't allowed during a proctored quiz.
+                <strong className="text-foreground"> One more time and this attempt is voided.</strong>
+              </p>
+              <p className="text-xs text-muted-foreground">The timer kept running.</p>
+              <Button
+                className="w-full"
+                onClick={async () => {
+                  await proctor.enterFullscreen();
+                  setWarningOpen(false);
+                }}
+              >
+                Continue quiz
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
       {/* Sticky header with timer + progress */}
+
       <div className="sticky top-0 z-10 bg-background border-b">
         <div className="flex items-center justify-between px-5 py-3">
           <div className="flex items-center gap-3">
