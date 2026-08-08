@@ -537,11 +537,26 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
               {isQuiz && <p>Covers Week {day} topics</p>}
               {!isQuiz && <p>Covers all course topics</p>}
             </div>
-            <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
-              <p className="text-xs text-muted-foreground">
-                ⚠️ Once started, navigating away — including <strong className="text-destructive">switching browser tabs or windows</strong> — will <strong className="text-destructive">discard</strong> your progress.
-              </p>
-            </div>
+            {proctored ? (
+              <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-left space-y-1.5">
+                <p className="text-xs font-semibold text-destructive">Proctored quiz</p>
+                <ul className="list-disc pl-4 text-[11px] text-muted-foreground space-y-1">
+                  <li>The quiz opens in fullscreen and must stay there.</li>
+                  <li>Switching tabs, windows or apps counts as leaving. You get <strong className="text-foreground">one warning</strong> — the next time, your attempt is voided.</li>
+                  <li>Copy, paste and right-click are disabled.</li>
+                  <li>The timer keeps running the whole time.</li>
+                </ul>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+                <p className="text-xs text-muted-foreground">
+                  ⚠️ Once started, navigating away — including <strong className="text-destructive">switching browser tabs or windows</strong> — will <strong className="text-destructive">discard</strong> your progress.
+                </p>
+              </div>
+            )}
+            {fullscreenError && (
+              <p className="text-xs text-destructive">{fullscreenError}</p>
+            )}
             <div className="flex items-center justify-center gap-1.5 pt-1">
               <ShieldCheck className="h-3 w-3 text-primary" />
               <p className="text-[11px] text-muted-foreground">
@@ -550,10 +565,31 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             </div>
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={onEnd}>Cancel</Button>
-              <Button className="flex-1" onClick={() => setPhase("active")}>
-                Start {isQuiz ? "Quiz" : "Exam"}
+              <Button
+                className="flex-1"
+                disabled={starting}
+                onClick={async () => {
+                  if (!proctored) {
+                    setPhase("active");
+                    return;
+                  }
+                  setStarting(true);
+                  setFullscreenError(null);
+                  const ok = await proctor.enterFullscreen();
+                  setStarting(false);
+                  if (!ok && fullscreenSupported()) {
+                    setFullscreenError(
+                      "Fullscreen was blocked. Allow fullscreen for this site and try again.",
+                    );
+                    return;
+                  }
+                  setPhase("active");
+                }}
+              >
+                {starting ? "Starting…" : `Start ${isQuiz ? "Quiz" : "Exam"}`}
               </Button>
             </div>
+
           </CardContent>
         </Card>
       </div>
