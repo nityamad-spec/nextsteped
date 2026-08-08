@@ -772,13 +772,49 @@ const DiagnosticQuiz = () => {
     );
   }
 
+  if (phase === "voided" || phase === "locked") {
+    const locked = phase === "locked" || voidCount >= VOID_LOCK_THRESHOLD;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg">
+          <Card className="border-destructive/30">
+            <CardContent className="p-8 text-center space-y-4">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+                <ShieldCheck className="h-7 w-7 text-destructive" />
+              </div>
+              <h2 className="font-heading text-xl font-bold">
+                {locked ? "Diagnostic locked" : "Attempt voided"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {locked
+                  ? "This diagnostic has been voided twice for leaving the quiz. Please contact your professor to have it reset."
+                  : "You left the quiz after being warned, so this attempt was voided and nothing was scored. You can start over — if the next attempt is voided, the diagnostic will be locked."}
+              </p>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={() => navigate("/student/home")}>
+                  Go to Home
+                </Button>
+                {!locked && (
+                  <Button className="flex-1" onClick={() => window.location.reload()}>
+                    Restart quiz
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (!question) return null;
 
   const formatLabel = question.format === "short_answer" ? "Short Answer" : question.format === "true_false" ? "True / False" : "Multiple Choice";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div ref={quizContainerRef} className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-lg">
+
         <div className="mb-6 text-center">
           <h1 className="font-heading text-2xl font-bold">Diagnostic Quiz</h1>
           <p className="text-sm text-muted-foreground">Adaptive testing — difficulty adjusts to your responses</p>
