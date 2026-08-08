@@ -23,6 +23,13 @@ import {
 } from "@/lib/reasoning";
 
 import { toast } from "sonner";
+import {
+  useProctoring,
+  exitFullscreen,
+  fullscreenSupported,
+  type ProctorViolation,
+} from "@/hooks/useProctoring";
+
 
 interface AssessmentViewProps {
   type: "quiz" | "exam";
@@ -34,7 +41,14 @@ interface AssessmentViewProps {
   onStudyTopics?: (topics: string[]) => void;
   questionMeta?: Map<string, { difficulty: number; bloom: number }>;
   courseId?: string | null;
+  /** Enable browser lock: fullscreen, copy/paste block, warn-then-void. */
+  proctored?: boolean;
+  /** Element to put into fullscreen when proctored. */
+  fullscreenTargetRef?: React.RefObject<HTMLElement>;
+  /** Called when the attempt is voided for leaving the quiz. */
+  onVoided?: (reason: string) => void;
 }
+
 
 
 const BLOOM_WEIGHT: Record<number, number> = { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 };
@@ -74,10 +88,14 @@ export interface AssessmentResults {
   evaluations?: Record<string, ReasoningEvaluation>;
 }
 
-type Phase = "intro" | "active" | "review";
+type Phase = "intro" | "active" | "review" | "voided";
 
-const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta, courseId }: AssessmentViewProps) => {
+const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta, courseId, proctored = false, fullscreenTargetRef, onVoided }: AssessmentViewProps) => {
   const [phase, setPhase] = useState<Phase>("intro");
+  const [warningOpen, setWarningOpen] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(timeLimitMinutes * 60);
   const [results, setResults] = useState<AssessmentResults | null>(null);
@@ -146,10 +164,36 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     return () => clearInterval(t);
   }, [phase, timeLeft]);
 
-  // Anti-cheat: discard the in-progress attempt if the student switches
-  // browser tabs/windows, minimizes, or closes the page while the exam is
-  // active. No answers are submitted; returning shows the Exam Prep start panel.
+  // Browser lock: leaving the assessment (tab switch, window/app switch,
+  // minimise, fullscreen exit) warns once, then voids the attempt.
+  const handleVoid = useCallback(
+    (kind: ProctorViolation) => {
+      setWarningOpen(false);
+      setPhase("voided");
+      void exitFullscreen();
+      onVoided?.(kind);
+    },
+    [onVoided],
+  );
+
+  const proctor = useProctoring({
+    enabled: proctored && phase === "active",
+    paused: warningOpen,
+    targetRef: fullscreenTargetRef,
+    allowedViolations: 1,
+    onWarn: () => setWarningOpen(true),
+    onVoid: handleVoid,
+  });
+
+  // Leave fullscreen once the attempt is over.
   useEffect(() => {
+    if (!proctored) return;
+    if (phase === "review" || phase === "voided") void exitFullscreen();
+  }, [proctored, phase]);
+
+  // Legacy behaviour for non-proctored assessments: discard on leaving.
+  useEffect(() => {
+    if (proctored) return;
     if (phase !== "active") return;
     const onVisibility = () => {
       if (document.visibilityState === "hidden") onEnd();
@@ -161,7 +205,8 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onPageHide);
     };
-  }, [phase, onEnd]);
+  }, [phase, onEnd, proctored]);
+
 
   const handleAnswer = (questionId: string, answer: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
@@ -498,11 +543,26 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
               {isQuiz && <p>Covers Week {day} topics</p>}
               {!isQuiz && <p>Covers all course topics</p>}
             </div>
-            <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
-              <p className="text-xs text-muted-foreground">
-                ⚠️ Once started, navigating away — including <strong className="text-destructive">switching browser tabs or windows</strong> — will <strong className="text-destructive">discard</strong> your progress.
-              </p>
-            </div>
+            {proctored ? (
+              <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-left space-y-1.5">
+                <p className="text-xs font-semibold text-destructive">Proctored quiz</p>
+                <ul className="list-disc pl-4 text-[11px] text-muted-foreground space-y-1">
+                  <li>The quiz opens in fullscreen and must stay there.</li>
+                  <li>Switching tabs, windows or apps counts as leaving. You get <strong className="text-foreground">one warning</strong> — the next time, your attempt is voided.</li>
+                  <li>Copy, paste and right-click are disabled.</li>
+                  <li>The timer keeps running the whole time.</li>
+                </ul>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+                <p className="text-xs text-muted-foreground">
+                  ⚠️ Once started, navigating away — including <strong className="text-destructive">switching browser tabs or windows</strong> — will <strong className="text-destructive">discard</strong> your progress.
+                </p>
+              </div>
+            )}
+            {fullscreenError && (
+              <p className="text-xs text-destructive">{fullscreenError}</p>
+            )}
             <div className="flex items-center justify-center gap-1.5 pt-1">
               <ShieldCheck className="h-3 w-3 text-primary" />
               <p className="text-[11px] text-muted-foreground">
@@ -511,15 +571,65 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             </div>
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={onEnd}>Cancel</Button>
-              <Button className="flex-1" onClick={() => setPhase("active")}>
-                Start {isQuiz ? "Quiz" : "Exam"}
+              <Button
+                className="flex-1"
+                disabled={starting}
+                onClick={async () => {
+                  if (!proctored) {
+                    setPhase("active");
+                    return;
+                  }
+                  setStarting(true);
+                  setFullscreenError(null);
+                  const ok = await proctor.enterFullscreen();
+                  setStarting(false);
+                  if (!ok && fullscreenSupported()) {
+                    setFullscreenError(
+                      "Fullscreen was blocked. Allow fullscreen for this site and try again.",
+                    );
+                    return;
+                  }
+                  setPhase("active");
+                }}
+              >
+                {starting ? "Starting…" : `Start ${isQuiz ? "Quiz" : "Exam"}`}
               </Button>
             </div>
+
           </CardContent>
         </Card>
       </div>
     );
   }
+
+  // Voided screen (proctored attempts only)
+  if (phase === "voided") {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <Card className="w-full max-w-md border-destructive/30">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+              <ShieldCheck className="h-7 w-7 text-destructive" />
+            </div>
+            <CardTitle className="text-xl">Attempt voided</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              You left the quiz after being warned, so this attempt was voided and
+              nothing was scored.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              If you have an attempt left, you can start the quiz again from your
+              Learning Path. Otherwise contact your professor.
+            </p>
+            <Button className="w-full" onClick={onEnd}>Back to Learning Path</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+
 
   // Review screen
   if (phase === "review" && results) {
@@ -740,8 +850,37 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     : (answeredCount / questions.length) * 100;
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="relative flex flex-1 flex-col">
+      {warningOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/95 p-6">
+          <Card className="w-full max-w-md border-destructive/40">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+                <ShieldCheck className="h-7 w-7 text-destructive" />
+              </div>
+              <CardTitle className="text-lg">You left the quiz</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-center">
+              <p className="text-sm text-muted-foreground">
+                Switching tabs, windows or apps isn't allowed during a proctored quiz.
+                <strong className="text-foreground"> One more time and this attempt is voided.</strong>
+              </p>
+              <p className="text-xs text-muted-foreground">The timer kept running.</p>
+              <Button
+                className="w-full"
+                onClick={async () => {
+                  await proctor.enterFullscreen();
+                  setWarningOpen(false);
+                }}
+              >
+                Continue quiz
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
       {/* Sticky header with timer + progress */}
+
       <div className="sticky top-0 z-10 bg-background border-b">
         <div className="flex items-center justify-between px-5 py-3">
           <div className="flex items-center gap-3">
