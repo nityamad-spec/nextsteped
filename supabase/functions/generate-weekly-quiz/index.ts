@@ -421,11 +421,16 @@ async function generateTier(
       short_answer: Math.max(0, formatQuota.short_answer - have.short_answer),
       true_false: Math.max(0, formatQuota.true_false - have.true_false),
     };
-    const formatQuotaLine = `\n\nFORMAT QUOTA for the remainder of this tier — produce approximately: ${
+    const formatQuotaLine = `\n\nFORMAT QUOTA for the remainder of this tier — this is a HARD requirement, not a suggestion. Produce EXACTLY: ${
       (["mcq", "short_answer", "true_false"] as QuestionFormatKey[])
         .map((k) => `${owedFormats[k]} ${k}`)
         .join(", ")
-    }. Do not exceed a format whose owed count is 0.`;
+    }. Any item whose format exceeds its owed count will be discarded.${
+      owedFormats.short_answer > 0
+        ? ` You still owe ${owedFormats.short_answer} short_answer item(s): each needs format="short_answer", NO options, a concise "answer" (≤30 words), a "model_answer" of 2-4 sentences, and "answer_max_words" between 40 and 80.`
+        : ""
+    }`;
+
 
 
     const systemPrompt = `You are an expert assessment designer for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier}-tier WEEKLY QUIZ questions for Week ${weekNumber}${weekName ? ` — ${weekName}` : ""}.
@@ -564,23 +569,32 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
     const arr: any[] = Array.isArray(parsed?.questions) ? parsed.questions : [];
 
     const subRejects: string[] = [];
-    // Enforce the format quota while there is still attempt budget left; on the
-    // final attempt accept anything valid so the tier isn't left short.
+    // Enforce the format quota while there is still attempt budget left. On the
+    // final attempt we relax it, EXCEPT where accepting an over-quota item would
+    // consume a slot still owed to another format (so short answers keep room).
     const strictFormat = attempt < maxAttempts - 1;
     for (const q of arr) {
       if (accepted.length >= targetCount) break;
 
       const v = validateCandidate(q, spec, conceptByCode);
       if (!v.ok) {
-        subRejects.push(v.reason);
+        subRejects.push(`${String((q as any)?.format ?? (q as any)?.type ?? "?")}: ${v.reason}`);
         continue;
       }
 
       const fmt = v.q.format as QuestionFormatKey;
-      if (strictFormat && countByFormat()[fmt] >= (formatQuota[fmt] || 0)) {
-        subRejects.push(`format quota met for ${fmt}`);
-        continue;
+      const counts = countByFormat();
+      if (counts[fmt] >= (formatQuota[fmt] || 0)) {
+        const remainingSlots = targetCount - accepted.length;
+        const owedOther = (["mcq", "short_answer", "true_false"] as QuestionFormatKey[])
+          .filter((k) => k !== fmt)
+          .reduce((s, k) => s + Math.max(0, (formatQuota[k] || 0) - counts[k]), 0);
+        if (strictFormat || owedOther >= remainingSlots) {
+          subRejects.push(`format quota met for ${fmt}`);
+          continue;
+        }
       }
+
 
 
 
@@ -641,8 +655,16 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
       finalDedup.rejected.map((r) => r.duplicateOf).slice(0, 3),
     );
   }
+  const finalFormats: Record<QuestionFormatKey, number> = { mcq: 0, short_answer: 0, true_false: 0 };
+  for (const q of finalDedup.kept) finalFormats[q.format as QuestionFormatKey] += 1;
+  console.info(
+    `[weekly-quiz] ${spec.tier} format quota=${JSON.stringify(formatQuota)} ` +
+      `accepted=${JSON.stringify(finalFormats)}` +
+      (attemptRejections.length ? ` rejects=${summarizeRejections(attemptRejections)}` : ""),
+  );
   return finalDedup.kept;
 }
+
 
 
 /* -------------------------------------------------------------------------- */
@@ -1004,11 +1026,15 @@ async function run(
   for (const { spec } of finalItems) byTier[spec.tier] = (byTier[spec.tier] ?? 0) + 1;
   const expected = baseSpec.reduce((s, t) => s + t.count, 0);
   const totalStored = Object.values(byTier).reduce((s, n) => s + n, 0);
+  const byFormat: Record<string, number> = { mcq: 0, short_answer: 0, true_false: 0 };
+  for (const { q } of finalItems) byFormat[q.format] = (byFormat[q.format] ?? 0) + 1;
   console.log(
     `[weekly-quiz] week=${weekNumber} top_up=${topUp} concepts=${Object.keys(conceptByCode).length} ` +
       `stored=${totalStored}/${expected} by_tier=${JSON.stringify(byTier)} ` +
+      `mix=${JSON.stringify(weekMix)} by_format=${JSON.stringify(byFormat)} ` +
       `tier_errors=${JSON.stringify(tierErrors)}`,
   );
+
   const partial = totalStored < expected;
 
   if (creditsExhausted && primaryRows.length === 0) {
