@@ -28,7 +28,10 @@ interface QRow {
   difficulty: string | null;
   bloom_level: number | null;
   item_code: string | null;
+  model_answer?: string | null;
+  answer_max_words?: number | null;
 }
+
 
 const TIER_ORDER = ["standard", "easy", "medium", "hard"] as const;
 const TIER_LABELS: Record<string, { title: string; sub: string }> = {
