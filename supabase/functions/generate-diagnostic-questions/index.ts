@@ -1466,17 +1466,20 @@ Deno.serve(async (req) => {
     if (isPartialRun) {
       const { data: existing } = await admin
         .from("diagnostic_questions")
-        .select("content_text, format, options, answer, difficulty_estimate, bloom_level, explanation, topic, bloom_justification, difficulty_justification, tier")
+        .select("content_text, format, options, answer, model_answer, answer_max_words, difficulty_estimate, bloom_level, explanation, topic, bloom_justification, difficulty_justification, tier")
         .eq("course_id", courseId)
         .in("tier", activeSpecs.map((s) => s.tier));
       for (const r of (existing || []) as Array<Record<string, unknown>>) {
         const tier = r.tier as string | null;
         if (!tier) continue;
+        const fmt = String(r.format ?? "mcq");
         (preSeedByTier[tier] ||= []).push({
           content_text: String(r.content_text ?? ""),
-          format: "mcq",
+          format: (fmt === "true_false" || fmt === "short_answer" ? fmt : "mcq"),
           options: (r.options as string[]) || [],
           answer: String(r.answer ?? ""),
+          model_answer: r.model_answer == null ? null : String(r.model_answer),
+          answer_max_words: r.answer_max_words == null ? null : Number(r.answer_max_words),
           difficulty_estimate: Number(r.difficulty_estimate ?? 0),
           bloom_level: Number(r.bloom_level ?? 1),
           explanation: String(r.explanation ?? ""),
@@ -1485,6 +1488,7 @@ Deno.serve(async (req) => {
           difficulty_justification: String(r.difficulty_justification ?? ""),
         });
       }
+
       logEvent(ctx, "preseed_loaded", {
         message: `preseed counts: ${Object.entries(preSeedByTier).map(([t, a]) => `${t}:${a.length}`).join(", ") || "none"}`,
         data: Object.fromEntries(activeSpecs.map((s) => [s.tier, (preSeedByTier[s.tier] || []).length])),
