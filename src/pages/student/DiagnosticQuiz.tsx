@@ -36,6 +36,8 @@ import {
 } from "@/lib/diagnosticBranching";
 import ReasoningInput from "@/components/ReasoningInput";
 import { useReasoningAnswers, saveReasoningRows } from "@/hooks/useReasoningAnswers";
+import { useShortAnswerGrading, localExactMatch } from "@/hooks/useShortAnswerGrading";
+
 import { buildReasoningRows } from "@/lib/buildReasoningRows";
 import ReasoningVerdict from "@/components/ReasoningVerdict";
 import { requiresReasoning, verdictFor, REASONING_EVAL_DEADLINE_MS } from "@/lib/reasoning";
