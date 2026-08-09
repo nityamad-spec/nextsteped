@@ -917,6 +917,18 @@ async function run(
       const focus = shortConcepts(tierAudit);
       const backfillSpec: TierSpec = { ...spec, count: shortfall };
       const avoid = [...existingAvoid, ...allQuestions.map((x) => x.q)];
+      // Ask for the formats this tier is still missing relative to its FULL
+      // quota — allocating the raw mix over a 1-2 item shortfall would always
+      // round back to MCQ and starve true/false and short answer.
+      const fullTierQuota = allocateFormats(spec.count, weekMix);
+      const haveFormats: Record<QuestionFormatKey, number> = { mcq: 0, short_answer: 0, true_false: 0 };
+      for (const x of tierItems) haveFormats[x.q.format as QuestionFormatKey] += 1;
+      const deficit: Record<QuestionFormatKey, number> = {
+        mcq: Math.max(0, fullTierQuota.mcq - haveFormats.mcq),
+        short_answer: Math.max(0, fullTierQuota.short_answer - haveFormats.short_answer),
+        true_false: Math.max(0, fullTierQuota.true_false - haveFormats.true_false),
+      };
+      const deficitTotal = deficit.mcq + deficit.short_answer + deficit.true_false;
       return generateTier(
         backfillSpec,
         course.name ?? "Course",
@@ -929,9 +941,10 @@ async function run(
         {
           focusConcepts: focus.length ? focus : undefined,
           maxAttempts: 3,
-          formatQuota: allocateFormats(shortfall, weekMix),
+          formatQuota: deficitTotal > 0 ? deficit : allocateFormats(shortfall, weekMix),
         },
       )
+
         .then((extra) => ({ spec, shortfall, focus, extra }))
         .catch((err) => ({ spec, shortfall, focus, err }));
     });
