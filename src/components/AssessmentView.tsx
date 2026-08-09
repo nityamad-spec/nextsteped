@@ -404,25 +404,64 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       });
       return;
     }
+
+    // Short answers are mandatory too.
+    const missingShort = questions.filter(
+      (q) => q.type === "short_answer" && !isShortAnswerComplete(answers[q.id]),
+    );
+    if (missingShort.length > 0) {
+      shortAnswer.setShowErrors(true);
+      const numbers = missingShort
+        .map((q) => questions.findIndex((x) => x.id === q.id) + 1)
+        .filter((n) => n > 0)
+        .sort((a, b) => a - b);
+      if (type === "quiz" && numbers.length > 0) setCurrentIndex(numbers[0] - 1);
+      toast.error("Answer required", {
+        description: `Write your answer for question${numbers.length > 1 ? "s" : ""} ${numbers.join(", ")} before submitting.`,
+      });
+      return;
+    }
+
     setSubmitting(true);
     // Evaluate anything the student has not advanced past yet (exam mode shows
     // every question at once; quiz mode's last question was never "Next"-ed).
-    await reasoning.flushAndWait(
-      questions.map((q) => ({
-        questionId: q.id,
-        questionText: q.text,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-        selectedAnswer: answers[q.id] ?? null,
-        topic: q.topic,
-        bloom: bloomFor(q.id),
-        courseId: courseId ?? null,
-      })),
-      REASONING_EVAL_DEADLINE_MS,
-    );
+    await Promise.all([
+      reasoning.flushAndWait(
+        questions.map((q) => ({
+          questionId: q.id,
+          questionText: q.text,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          selectedAnswer: answers[q.id] ?? null,
+          topic: q.topic,
+          bloom: bloomFor(q.id),
+          courseId: courseId ?? null,
+        })),
+        REASONING_EVAL_DEADLINE_MS,
+      ),
+      shortAnswerEnabled && studentId && shortAnswerSource
+        ? shortAnswer.flushAndWait(
+            questions
+              .filter((q) => q.type === "short_answer")
+              .map((q) => ({
+                questionId: q.id,
+                questionText: q.text,
+                answer: q.correctAnswer,
+                modelAnswer: shortAnswerMeta?.get(q.id)?.model_answer ?? null,
+                topic: q.topic,
+                bloom: Number(questionMeta?.get(q.id)?.bloom ?? 1),
+                courseId: courseId ?? null,
+                studentId,
+                sourceFormat: shortAnswerSource.sourceFormat,
+                questionSource: shortAnswerSource.questionSource,
+              })),
+            REASONING_EVAL_DEADLINE_MS,
+          )
+        : Promise.resolve(),
+    ]);
     setSubmitting(false);
     handleFinish();
-  }, [reasoning, reasoningRefs, questions, handleFinish, type, bloomFor, answers, courseId]);
+  }, [reasoning, reasoningRefs, questions, handleFinish, type, bloomFor, answers, courseId, shortAnswer, shortAnswerEnabled, shortAnswerMeta, shortAnswerSource, studentId, questionMeta]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
