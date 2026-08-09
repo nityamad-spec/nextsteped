@@ -17,10 +17,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   BookOpen, Calculator, Check, Pencil, Info, AlertTriangle, ArrowLeft,
-  Plus, Trash2, Filter, ClipboardCheck, Loader2, Shield, Sparkles,
+  Plus, Minus, Trash2, Filter, ClipboardCheck, Loader2, Shield, Sparkles, ListChecks,
 } from "lucide-react";
 import SetupModuleNav from "@/components/SetupModuleNav";
-import QuestionTypeSelector from "@/components/QuestionTypeSelector";
 import ExamQuestionsViewDialog from "@/components/ExamQuestionsViewDialog";
 import { bumpCacheVersion } from "@/lib/cacheVersion";
 import type { ExamScheduleItem } from "@/types";
@@ -28,6 +27,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useCourseExams, nextAvailableLabel } from "@/hooks/useCourseExams";
 import { Archive, RotateCcw } from "lucide-react";
 import { parseQuestionBlock } from "@/lib/parseQuestionPaste";
+import {
+  DEFAULT_DIAGNOSTIC_MIX, FORMAT_LABEL, FORMAT_ORDER, MIX_STEP,
+  adjustMix, allocateFormats, normalizeMix,
+  type QuestionFormatKey, type QuestionMix,
+} from "@/lib/questionMix";
 
 
 const newExamId = () =>
@@ -54,48 +58,42 @@ interface EditableQuestion {
   difficulty_justification?: string | null;
 }
 
-// Map internal type keys to display labels
-const TYPE_LABELS: Record<string, string> = {
+// Map internal format keys to the labels used in an exam's breakdown object.
+const TYPE_LABELS: Record<QuestionFormatKey, string> = {
   mcq: "MCQ",
-  true_false: "True/False",
   short_answer: "Short Answer",
-  problem_solving: "Coding",
+  true_false: "True/False",
 };
 
-// Allowed question types on this page
-const ALLOWED_EXAM_TYPES = ["mcq", "true_false"];
-
-// Parse the mix value (supports legacy presets + new comma-separated keys)
-const parseMix = (mix: string): string[] => {
-  if (!mix || mix === "mixed") return [...ALLOWED_EXAM_TYPES];
-  const legacy: Record<string, string[]> = {
-    mcq_only: ["mcq"],
-    true_false_only: ["true_false"],
-    short_answer: [],
-    problem_solving: [],
-    mcq_short: ["mcq"],
-    mcq_problem: ["mcq"],
-  };
-  if (legacy[mix]) return legacy[mix];
-  return mix.split(",").map(k => k.trim()).filter(k => ALLOWED_EXAM_TYPES.includes(k));
+const LABEL_TO_KEY: Record<string, QuestionFormatKey> = {
+  MCQ: "mcq",
+  "Short Answer": "short_answer",
+  "True/False": "true_false",
+  "True / False": "true_false",
 };
 
-const questionEstimate = (length: number, mix: string) => {
+/** Format keys carrying a non-zero share of the mix. */
+const activeFormats = (mix: QuestionMix): QuestionFormatKey[] =>
+  FORMAT_ORDER.filter((k) => mix[k] > 0);
+
+const questionEstimate = (length: number, mix: QuestionMix) => {
   const total = Math.max(5, Math.round(length / 3));
-  const types = parseMix(mix);
+  const counts = allocateFormats(total, mix);
   const breakdown: Record<string, number> = {};
-
-  if (types.length === 0) return { total, breakdown };
-
-  // Distribute evenly across selected types, remainder goes to first type
-  const base = Math.floor(total / types.length);
-  const remainder = total - base * types.length;
-  types.forEach((key, idx) => {
-    const label = TYPE_LABELS[key] ?? key;
-    breakdown[label] = base + (idx < remainder ? 1 : 0);
-  });
-
+  for (const key of FORMAT_ORDER) {
+    if (counts[key] > 0) breakdown[TYPE_LABELS[key]] = counts[key];
+  }
   return { total, breakdown };
+};
+
+/** Turn a (possibly teacher-edited) breakdown back into per-format counts. */
+const breakdownToFormatCounts = (breakdown: Record<string, number>) => {
+  const counts: Record<QuestionFormatKey, number> = { mcq: 0, short_answer: 0, true_false: 0 };
+  for (const [label, n] of Object.entries(breakdown ?? {})) {
+    const key = LABEL_TO_KEY[label];
+    if (key) counts[key] += Math.max(0, Number(n) || 0);
+  }
+  return counts;
 };
 
 const ExamMode = () => {
@@ -118,19 +116,27 @@ const ExamMode = () => {
 
   // ── Exam config state ──
   const [settings, setSettings] = useState(taSettings);
-  const [examQuestionTypes, setExamQuestionTypes] = useState(taSettings.examQuestionMix || "mixed");
   const [examEnabled, setExamEnabled] = useState(taSettings.examEnabled ?? false);
+  // Percentage split across MCQ / Short Answer / True-False (steps of 10, total 100).
+  const [examMix, setExamMix] = useState<QuestionMix>(DEFAULT_DIAGNOSTIC_MIX);
+  const [savingMix, setSavingMix] = useState(false);
+  const [mixLoaded, setMixLoaded] = useState(false);
+  const examMixRef = useRef(examMix);
+  examMixRef.current = examMix;
+  // Derived list of formats the generator may use.
+  const examQuestionTypes = activeFormats(examMix).join(",");
 
   // Multi-exam schedule. Source of truth is the course_exams table (active rows
   // only). We hydrate local state from there; the JSON examSchedule on
   // course_ta_settings is kept in sync on save for backward compat with older
   // student code paths.
   const buildInitialSchedule = (): ExamScheduleItem[] => {
+    const mix = examMixRef.current;
     if (activeCourseExams.length > 0) {
       return activeCourseExams.map(e => {
         // Treat the DB breakdown as "dirty" if it doesn't match the time-based
         // estimate for this length+mix — preserves teacher overrides through reloads.
-        const expected = questionEstimate(e.length_min, taSettings.examQuestionMix || "mixed").breakdown;
+        const expected = questionEstimate(e.length_min, mix).breakdown;
         const sameKeys = Object.keys(expected).length === Object.keys(e.breakdown ?? {}).length
           && Object.entries(expected).every(([k, v]) => (e.breakdown as Record<string, number>)?.[k] === v);
         return {
@@ -150,12 +156,11 @@ const ExamMode = () => {
       return taSettings.examSchedule.map(e => ({ ...e, source: e.source ?? "generated" }));
     }
     const legacyLength = taSettings.examTimeLimit ?? 60;
-    const legacyMix = taSettings.examQuestionMix || "mixed";
     return [{
       id: newExamId(),
       kind: "final",
       lengthMin: legacyLength,
-      breakdown: questionEstimate(legacyLength, legacyMix).breakdown,
+      breakdown: questionEstimate(legacyLength, mix).breakdown,
       approved: taSettings.examApproved ?? false,
       source: "generated",
     }];
@@ -213,10 +218,26 @@ const ExamMode = () => {
 
 
 
+  // Load the saved exam format mix (percentages) for this course.
+  useEffect(() => {
+    if (!courseId) { setMixLoaded(true); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("course_ta_settings")
+        .select("exam_type_counts")
+        .eq("course_id", courseId)
+        .maybeSingle();
+      if (cancelled) return;
+      setExamMix(normalizeMix((data as { exam_type_counts?: unknown } | null)?.exam_type_counts));
+      setMixLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
+
   useEffect(() => {
     if (!loading && !examsLoading) {
       setSettings(taSettings);
-      setExamQuestionTypes(taSettings.examQuestionMix || "mixed");
       setExamEnabled(taSettings.examEnabled ?? false);
       setExamSchedule(buildInitialSchedule());
       // Prune editing flags for exams that no longer exist; preserve flags for live ids
@@ -230,6 +251,8 @@ const ExamMode = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, examsLoading, taSettings, activeCourseExams]);
+
+
 
 
   const refetchConcepts = async () => {
@@ -390,16 +413,26 @@ const ExamMode = () => {
 
 
 
-  // When the global question types change, refresh each card's breakdown
+  // When the format mix changes, refresh each card's breakdown
   // (preserve approved state only if the type set is unchanged for that card)
+  const lastMixKeyRef = useRef<string | null>(null);
   useEffect(() => {
+    if (!mixLoaded) return;
+    const key = FORMAT_ORDER.map(k => `${k}:${examMix[k]}`).join("|");
+    if (lastMixKeyRef.current === null) {
+      lastMixKeyRef.current = key;
+      return;
+    }
+    if (lastMixKeyRef.current === key) return;
+    lastMixKeyRef.current = key;
+
     setExamSchedule(prev => {
       const next = prev.map(e => {
         // Preserve manual cards and any card whose breakdown the teacher has overridden.
         if (e.source === "manual" || e.breakdownDirty) return e;
         return {
           ...e,
-          breakdown: questionEstimate(e.lengthMin, examQuestionTypes).breakdown,
+          breakdown: questionEstimate(e.lengthMin, examMix).breakdown,
           approved: false,
           publishedAt: null,
         };
@@ -422,9 +455,24 @@ const ExamMode = () => {
     setEditingCardIds({});
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [examQuestionTypes]);
+  }, [examMix, mixLoaded]);
 
-  const handleExamTypeChange = (v: string) => setExamQuestionTypes(v);
+  const persistMix = async (next: QuestionMix) => {
+    if (!courseId) return;
+    setSavingMix(true);
+    const { error } = await supabase
+      .from("course_ta_settings")
+      .upsert({ course_id: courseId, exam_type_counts: next } as never, { onConflict: "course_id" });
+    setSavingMix(false);
+    if (error) toast.error("Couldn't save the question mix");
+  };
+
+  const handleMixChange = (key: QuestionFormatKey, delta: number) => {
+    const next = adjustMix(examMix, key, delta);
+    if (next === examMix) return;
+    setExamMix(next);
+    void persistMix(next);
+  };
 
   const [addingExam, setAddingExam] = useState(false);
   const handleAddExam = async () => {
@@ -433,7 +481,7 @@ const ExamMode = () => {
     if (!courseId) return;
     setAddingExam(true);
     const lengthMin = 60;
-    const breakdown = questionEstimate(lengthMin, examQuestionTypes).breakdown as Record<string, number>;
+    const breakdown = questionEstimate(lengthMin, examMix).breakdown as Record<string, number>;
 
     const attemptInsert = async (activeLabels: string[], activePositions: number[]) => {
       const id = newExamId();
@@ -642,7 +690,7 @@ const ExamMode = () => {
     // Only recompute the breakdown if the teacher hasn't manually overridden it.
     const patch: Partial<ExamScheduleItem> = exam.breakdownDirty
       ? { lengthMin: v, approved: false }
-      : { lengthMin: v, breakdown: questionEstimate(v, examQuestionTypes).breakdown, approved: false };
+      : { lengthMin: v, breakdown: questionEstimate(v, examMix).breakdown, approved: false };
     updateExam(id, patch);
   };
 
@@ -663,7 +711,7 @@ const ExamMode = () => {
   const handleResetBreakdown = (id: string) => {
     const exam = examSchedule.find(e => e.id === id);
     if (!exam) return;
-    const fresh = questionEstimate(exam.lengthMin, examQuestionTypes).breakdown;
+    const fresh = questionEstimate(exam.lengthMin, examMix).breakdown;
     setExamSchedule(prev => prev.map(e =>
       e.id === id ? { ...e, breakdown: fresh, breakdownDirty: false, approved: false, publishedAt: null } : e
     ));
@@ -737,7 +785,7 @@ const ExamMode = () => {
 
   const manualExams = labeledSchedule.filter(e => e.source === "manual");
 
-  const typesSelected = parseMix(examQuestionTypes).length > 0;
+  const typesSelected = activeFormats(examMix).length > 0;
   const allExamsApproved = examSchedule.length > 0 && examSchedule.every(e => e.approved);
   const canContinue = allExamsApproved && typesSelected;
 
@@ -748,7 +796,10 @@ const ExamMode = () => {
     if (!exam) return;
     const totalQuestions = Object.values(exam.breakdown).reduce<number>((s, n) => s + (n as number), 0);
     if (totalQuestions <= 0) { toast.error("Approve an estimate with at least 1 question first."); return; }
-    const types = parseMix(examQuestionTypes);
+    // Per-format counts come from the (possibly teacher-edited) breakdown so the
+    // generated bank matches exactly what the card shows.
+    const formatCounts = breakdownToFormatCounts(exam.breakdown as Record<string, number>);
+    const types = FORMAT_ORDER.filter(k => formatCounts[k] > 0);
     if (types.length === 0) { toast.error("Select at least one question type."); return; }
 
     setGeneratingExamId(examId);
@@ -770,6 +821,7 @@ const ExamMode = () => {
           length_min: exam.lengthMin,
           total_questions: totalQuestions,
           question_types: types,
+          format_counts: formatCounts,
         }),
       });
       if (res.status === 409) {
@@ -1118,10 +1170,59 @@ const ExamMode = () => {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-3">
-                <Label className="text-sm font-medium">Question Types</Label>
-                <p className="text-xs text-muted-foreground">Select which question types to include in exams</p>
-                <QuestionTypeSelector value={examQuestionTypes} onChange={handleExamTypeChange} allowedTypes={ALLOWED_EXAM_TYPES} />
+                <Label className="flex items-center gap-2 text-sm font-medium">
+                  <ListChecks className="h-4 w-4 text-primary" /> Question Format Mix
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Choose what share of each exam is multiple choice, short answer and true/false.
+                  Percentages move in steps of {MIX_STEP}% and always total 100%. Applied the next time you generate.
+                </p>
+                <div className="space-y-2">
+                  {FORMAT_ORDER.map((key) => {
+                    const perExam = allocateFormats(
+                      Object.values(examSchedule[0]?.breakdown ?? {}).reduce<number>((s, n) => s + (n as number), 0) || 20,
+                      examMix,
+                    )[key];
+                    return (
+                      <div key={key} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                        <div>
+                          <p className="text-sm font-medium">{FORMAT_LABEL[key]}</p>
+                          <p className="text-xs text-muted-foreground">
+                            ~{perExam} question{perExam === 1 ? "" : "s"} per exam
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-8 w-8"
+                            disabled={savingMix || examMix[key] === 0}
+                            onClick={() => handleMixChange(key, -MIX_STEP)}
+                            aria-label={`Decrease ${FORMAT_LABEL[key]}`}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="w-12 text-center font-mono text-sm font-semibold">{examMix[key]}%</span>
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-8 w-8"
+                            disabled={savingMix || examMix[key] === 100}
+                            onClick={() => handleMixChange(key, MIX_STEP)}
+                            aria-label={`Increase ${FORMAT_LABEL[key]}`}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Increasing one format automatically takes the difference from the largest of the others.
+                </p>
               </div>
+
 
               {/* ── Exam Schedule ── */}
               <div className="space-y-4">
@@ -1265,7 +1366,7 @@ const ExamMode = () => {
                               <span className="text-xs text-muted-foreground">
                                 Total <span className="font-bold text-foreground">{total} questions</span>
                                 {(() => {
-                                  const estimate = questionEstimate(exam.lengthMin, examQuestionTypes).total;
+                                  const estimate = questionEstimate(exam.lengthMin, examMix).total;
                                   return (
                                     <span className="ml-1 text-[10px] text-muted-foreground">
                                       (time-based estimate: {estimate})
@@ -1292,7 +1393,7 @@ const ExamMode = () => {
                               </div>
                             )}
                             {(() => {
-                              const estimate = questionEstimate(exam.lengthMin, examQuestionTypes).total;
+                              const estimate = questionEstimate(exam.lengthMin, examMix).total;
                               if (total > estimate) {
                                 return (
                                   <p className="text-xs text-amber-600">

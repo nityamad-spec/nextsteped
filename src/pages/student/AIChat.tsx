@@ -201,6 +201,9 @@ const AIChat = () => {
   const [assessmentType, setAssessmentType] = useState<"quiz" | "exam">("quiz");
   const [assessmentQuestions, setAssessmentQuestions] = useState<Question[]>([]);
   const [assessmentQuestionMeta, setAssessmentQuestionMeta] = useState<Map<string, { difficulty: number; bloom: number }>>(new Map());
+  const [assessmentShortAnswerMeta, setAssessmentShortAnswerMeta] = useState<
+    Map<string, { model_answer?: string | null; answer_max_words?: number | null }>
+  >(new Map());
   const [assessmentDay, setAssessmentDay] = useState(1);
   const [customExamTimeLimit, setCustomExamTimeLimit] = useState<number | null>(null);
   const [currentAssessmentSessionId, setCurrentAssessmentSessionId] = useState<string | null>(null);
@@ -602,8 +605,13 @@ const AIChat = () => {
     mode: string,
     quizDay?: number,
     examId?: string,
-  ): Promise<{ questions: Question[]; meta: Map<string, { difficulty: number; bloom: number }> }> => {
-    if (!enrolledCourseId) return { questions: [], meta: new Map() };
+  ): Promise<{
+    questions: Question[];
+    meta: Map<string, { difficulty: number; bloom: number }>;
+    shortAnswerMeta: Map<string, { model_answer?: string | null; answer_max_words?: number | null }>;
+  }> => {
+    const empty = { questions: [], meta: new Map(), shortAnswerMeta: new Map() };
+    if (!enrolledCourseId) return empty;
     let query = supabase
       .from("assessment_questions")
       .select("*")
@@ -612,13 +620,20 @@ const AIChat = () => {
     if (quizDay) query = query.eq("quiz_day", quizDay);
     if (examId) query = query.eq("exam_id", examId);
     const { data, error } = await query;
-    if (error || !data || data.length === 0) return { questions: [], meta: new Map() };
+    if (error || !data || data.length === 0) return empty;
     const meta = new Map<string, { difficulty: number; bloom: number }>();
+    const shortAnswerMeta = new Map<string, { model_answer?: string | null; answer_max_words?: number | null }>();
     const questions = data.map((row: any) => {
       meta.set(row.id, {
         difficulty: Number(row.difficulty_estimate ?? 0.5),
         bloom: Number(row.bloom_level ?? 1),
       });
+      if (row.model_answer != null || row.answer_max_words != null) {
+        shortAnswerMeta.set(row.id, {
+          model_answer: row.model_answer ?? null,
+          answer_max_words: row.answer_max_words ?? null,
+        });
+      }
       return {
         id: row.id,
         text: row.question_text,
@@ -630,7 +645,7 @@ const AIChat = () => {
         day: row.quiz_day || 0,
       };
     });
-    return { questions, meta };
+    return { questions, meta, shortAnswerMeta };
   };
 
   const handleStartExamWithSettings = async (custom: ExamCustomSettings, examId: string) => {
@@ -693,6 +708,7 @@ const AIChat = () => {
     setCustomExamTimeLimit(custom.timeLimit);
     setAssessmentQuestions(questions);
     setAssessmentQuestionMeta(meta);
+    setAssessmentShortAnswerMeta(fetched.shortAnswerMeta);
     setAssessmentType("exam");
     setAssessmentDay(3);
     setCurrentExamId(examId ?? null);
@@ -715,6 +731,7 @@ const AIChat = () => {
     questions = shuffled.slice(0, Math.min(count, shuffled.length));
     setAssessmentQuestions(questions);
     setAssessmentQuestionMeta(meta);
+    setAssessmentShortAnswerMeta(fetched.shortAnswerMeta);
     setAssessmentType("quiz");
     setAssessmentDay(quizDay);
     setAssessmentActive(true);
@@ -1319,6 +1336,12 @@ const AIChat = () => {
           onSubmit={handleAssessmentSubmit}
           onStudyTopics={handleStudyWeakTopics}
           questionMeta={assessmentQuestionMeta}
+          studentId={user?.id || null}
+          shortAnswerMeta={assessmentShortAnswerMeta}
+          shortAnswerSource={{
+            sourceFormat: assessmentType === "exam" ? "exam" : "weekly_quiz",
+            questionSource: "assessment_questions",
+          }}
           courseId={enrolledCourseId ?? null}
           proctored={assessmentType === "exam" && !!currentExamId}
           onVoided={async (reason) => {

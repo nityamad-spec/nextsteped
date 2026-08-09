@@ -49,7 +49,9 @@ const MODEL = "google/gemini-2.5-flash";
 const MAX_ATTEMPTS = 4;
 const BATCH_SIZE = 5;
 
-type Format = "mcq" | "true_false";
+type Format = "mcq" | "true_false" | "short_answer";
+
+const FORMATS: Format[] = ["mcq", "short_answer", "true_false"];
 
 interface ConceptRow {
   id: string;
@@ -62,6 +64,8 @@ interface GeneratedQuestion {
   format: Format;
   options: string[];
   answer: string;
+  model_answer?: string | null;
+  answer_max_words?: number | null;
   difficulty_estimate: number;
   bloom_level: number;
   explanation: string;
@@ -77,6 +81,8 @@ interface BatchSpec {
   difficulty: { easy: number; medium: number; hard: number };
   // allowed formats
   formats: Format[];
+  // per-format target counts for this batch (hard quota)
+  formatQuota: Record<Format, number>;
 }
 
 // Hamilton/largest-remainder allocation
@@ -122,6 +128,7 @@ function buildBatches(
   perConcept: Record<string, number>,
   difficulty: { easy: number; medium: number; hard: number },
   formats: Format[],
+  formatCounts?: Record<Format, number>,
 ): BatchSpec[] {
   const total = Object.values(perConcept).reduce((s, n) => s + n, 0);
   if (total === 0) return [];
@@ -134,6 +141,7 @@ function buildBatches(
     perConcept: {},
     difficulty: { easy: 0, medium: 0, hard: 0 },
     formats,
+    formatQuota: { mcq: 0, short_answer: 0, true_false: 0 },
   }));
 
   // Spread concept counts: walk through batches round-robin
@@ -172,6 +180,38 @@ function buildBatches(
     if (bSum < b.count) b.difficulty.medium += (b.count - bSum);
   }
 
+  // Distribute per-format targets across batches, never exceeding a batch's count.
+  const quota: Record<Format, number> = formatCounts
+    ? { mcq: formatCounts.mcq ?? 0, short_answer: formatCounts.short_answer ?? 0, true_false: formatCounts.true_false ?? 0 }
+    : (() => {
+        const active = formats.length > 0 ? formats : (["mcq"] as Format[]);
+        const base = Math.floor(total / active.length);
+        let rem = total - base * active.length;
+        const out: Record<Format, number> = { mcq: 0, short_answer: 0, true_false: 0 };
+        for (const f of active) { out[f] = base + (rem > 0 ? 1 : 0); if (rem > 0) rem -= 1; }
+        return out;
+      })();
+
+  let fCursor = 0;
+  for (const fmt of FORMATS) {
+    let remaining = quota[fmt] ?? 0;
+    let guard = 0;
+    while (remaining > 0 && guard++ < numBatches * 100) {
+      const b = batches[fCursor % numBatches];
+      const assigned = b.formatQuota.mcq + b.formatQuota.short_answer + b.formatQuota.true_false;
+      if (assigned < b.count) {
+        b.formatQuota[fmt] += 1;
+        remaining -= 1;
+      }
+      fCursor += 1;
+    }
+  }
+  // Any unassigned slot (rounding) falls back to MCQ so quotas sum to batch count.
+  for (const b of batches) {
+    const assigned = b.formatQuota.mcq + b.formatQuota.short_answer + b.formatQuota.true_false;
+    if (assigned < b.count) b.formatQuota.mcq += b.count - assigned;
+  }
+
   return batches;
 }
 
@@ -187,7 +227,6 @@ function validateQuestion(
   });
   if (!structural.ok) return { ok: false, reason: structural.reason };
   const { format, content_text, options } = structural.value;
-  if (format === "short_answer") return { ok: false, reason: "short_answer not supported here" };
 
   // Concept mapping.
   const concept = validateConcept(q.topic, conceptByCode);
@@ -196,7 +235,23 @@ function validateQuestion(
 
   // Answer normalisation.
   let answer: string;
-  if (format === "true_false") {
+  let model_answer: string | null = null;
+  let answer_max_words: number | null = null;
+  if (format === "short_answer") {
+    answer = typeof q.answer === "string" ? q.answer.trim() : "";
+    if (!answer) return { ok: false, reason: "short_answer requires an answer" };
+    const answerWords = answer.split(/\s+/).filter(Boolean).length;
+    if (answerWords > 30) return { ok: false, reason: `short_answer reference answer too long (${answerWords} words)` };
+    if (Array.isArray(q.options) && q.options.length > 0) {
+      return { ok: false, reason: "short_answer must not carry options" };
+    }
+    model_answer = typeof q.model_answer === "string" ? q.model_answer.trim() : "";
+    if (!model_answer) return { ok: false, reason: "short_answer requires model_answer" };
+    if (model_answer.length < 20) return { ok: false, reason: "model_answer too short (<20 chars)" };
+    if (model_answer.length > 1200) return { ok: false, reason: "model_answer > 1200 chars" };
+    const rawMax = Number(q.answer_max_words);
+    answer_max_words = Number.isFinite(rawMax) ? Math.min(120, Math.max(20, Math.round(rawMax))) : 60;
+  } else if (format === "true_false") {
     const raw = typeof q.answer === "string" ? q.answer.trim() : "";
     if (!/^(True|False)$/i.test(raw)) return { ok: false, reason: "t/f answer must be True or False" };
     answer = /^t/i.test(raw) ? "True" : "False";
@@ -213,7 +268,7 @@ function validateQuestion(
   const diff = validateDifficulty(q.difficulty_estimate, { fallback: 0.5 });
   if (!diff.ok) return { ok: false, reason: diff.reason };
 
-  // Bloom 1..4 for exam MCQ/TF — do NOT silently coerce (old behaviour hid model errors).
+  // Bloom 1..4 for exam items — do NOT silently coerce (old behaviour hid model errors).
   const bloom = validateBloom(q.bloom_level, {
     min: 1, max: 4,
     enforceDifficultyConsistency: true,
@@ -224,7 +279,7 @@ function validateQuestion(
   // Explanation ↔ answer semantic check.
   const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
   const explCheck = validateExplanation({
-    format: format as "mcq" | "true_false",
+    format: format as any,
     options: format === "true_false" ? ["True", "False"] : options,
     answer,
     explanation,
@@ -234,8 +289,11 @@ function validateQuestion(
   return {
     ok: true,
     q: {
-      content_text, format: format as Format, options: format === "true_false" ? ["True", "False"] : options,
-      answer, difficulty_estimate: diff.value, bloom_level: bloom.value,
+      content_text,
+      format: format as Format,
+      options: format === "true_false" ? ["True", "False"] : format === "short_answer" ? [] : options,
+      answer, model_answer, answer_max_words,
+      difficulty_estimate: diff.value, bloom_level: bloom.value,
       explanation: explCheck.value, topic,
     },
   };
@@ -257,11 +315,31 @@ async function generateBatch(
     .filter(([, c]) => c > 0)
     .map(([code, c]) => `  - ${code}: ${c}`).join("\n");
 
+  const countByFormat = (): Record<Format, number> => {
+    const c: Record<Format, number> = { mcq: 0, short_answer: 0, true_false: 0 };
+    for (const a of accepted) c[a.format] += 1;
+    return c;
+  };
+
   for (let attempt = 0; attempt < MAX_ATTEMPTS && accepted.length < batch.count; attempt++) {
     const isLastAttempt = attempt === MAX_ATTEMPTS - 1;
     const need = batch.count - accepted.length;
     // Over-generate by 1 to absorb a rejection/dup without forcing another round-trip.
     const askFor = need + 1;
+
+    const have = countByFormat();
+    const owed: Record<Format, number> = {
+      mcq: Math.max(0, batch.formatQuota.mcq - have.mcq),
+      short_answer: Math.max(0, batch.formatQuota.short_answer - have.short_answer),
+      true_false: Math.max(0, batch.formatQuota.true_false - have.true_false),
+    };
+    const formatQuotaLine = `\n\nFORMAT QUOTA for the remainder of this batch — this is a HARD requirement, not a suggestion. Produce EXACTLY: ${
+      FORMATS.map((f) => `${owed[f]} ${f}`).join(", ")
+    }.${
+      owed.short_answer > 0
+        ? ` You still owe ${owed.short_answer} short_answer item(s): each needs format="short_answer", NO options, a concise "answer" (≤30 words), a "model_answer" of 2-4 sentences, and "answer_max_words" between 40 and 80.`
+        : ""
+    }`;
 
     const systemPrompt = `You are an expert assessment designer for the course "${courseName}".
 Generate exactly ${askFor} exam questions for a final exam (recommended duration: ${lengthMin} minutes).
@@ -276,6 +354,7 @@ ${conceptTargets}
 STRICT RULES:
 - MCQ (format="mcq"): exactly 4 distinct non-empty options (no "A)" prefixes). 'answer' is the FULL TEXT of the correct option.
 - True/False (format="true_false"): options MUST be exactly ["True","False"]. 'answer' must be "True" or "False".
+- SHORT ANSWER (format="short_answer"): omit the options array entirely. Provide: answer = a concise reference answer (≤ 30 words, the key point being tested); model_answer = a fuller ideal answer (2-4 sentences) an examiner would accept; answer_max_words = the word budget expected of the student (typically 40-80). Must be answerable in a few sentences — never open-ended essay prompts.
 - difficulty_estimate: number in [0,1]. Easy ≈ 0.2, Medium ≈ 0.5, Hard ≈ 0.85.
 - bloom_level: integer 1–4 only (Remember/Understand/Apply/Analyze). Do NOT use 5 or 6. Medium items should target bloom 2-3; hard items should target bloom 3-4.
 - content_text: question stem only, ≤ 600 chars, exam-appropriate complexity for a ${lengthMin}-minute exam. Prefer scenario, code-trace, and comparison stems over single-fact recall, especially for medium/hard.
@@ -285,7 +364,7 @@ STRICT RULES:
 ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
 - LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
 - ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible student misconception (a wrong rule, a swapped operator, an off-by-one, a confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer. No obviously absurd choices.
-- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
+- POSITION ROTATION: across this batch of ${askFor} MCQs, spread the correct option's index roughly evenly across positions 0, 1, 2, 3. Do not put the correct answer at the same index more than twice in a row, and do not put more than ~40% of correct answers at any single index.${formatQuotaLine}${retryHint ? `\n\nRETRY CONTEXT: ${retryHint}` : ""}`;
 
 
     const response = await loggedGatewayFetch(FUNCTION_NAME, { model: MODEL, purpose: "exam-questions" }, "https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -313,15 +392,17 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
                     type: "object",
                     properties: {
                       content_text: { type: "string" },
-                      format: { type: "string", enum: ["mcq", "true_false"] },
-                      options: { type: "array", items: { type: "string" } },
+                      format: { type: "string", enum: ["mcq", "true_false", "short_answer"] },
+                      options: { type: "array", items: { type: "string" }, description: "Exactly 4 options for mcq. Omit entirely for true_false and short_answer." },
                       answer: { type: "string" },
+                      model_answer: { type: "string", description: "short_answer only: fuller ideal answer (2-4 sentences) used to grade the student." },
+                      answer_max_words: { type: "integer", description: "short_answer only: word budget expected of the student (40-80 typical)." },
                       difficulty_estimate: { type: "number" },
                       bloom_level: { type: "integer", minimum: 1, maximum: 4 },
                       explanation: { type: "string" },
                       topic: { type: "string" },
                     },
-                    required: ["content_text", "format", "options", "answer", "difficulty_estimate", "bloom_level", "explanation", "topic"],
+                    required: ["content_text", "format", "answer", "difficulty_estimate", "bloom_level", "explanation", "topic"],
                   },
                 },
               },
@@ -354,6 +435,21 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
       if (accepted.length >= acceptCap) break;
       const v = validateQuestion(q, conceptByCode, batch.formats);
       if (!v.ok) { rejects.push(v.reason); continue; }
+
+      // Reserve slots for formats we still owe: never let one format overrun its quota
+      // while another is short.
+      const fmt = v.q.format;
+      const have = countByFormat();
+      if (have[fmt] >= (batch.formatQuota[fmt] || 0)) {
+        const remainingSlots = batch.count - accepted.length;
+        const owedOther = FORMATS.filter((k) => k !== fmt)
+          .reduce((s, k) => s + Math.max(0, (batch.formatQuota[k] || 0) - have[k]), 0);
+        if (!isLastAttempt || owedOther >= remainingSlots) {
+          rejects.push(`format quota met for ${fmt}`);
+          continue;
+        }
+      }
+
       // Semantic dedup (catches paraphrases and same-fact duplicates, not just exact stems).
       const dedup = dedupWithin([v.q], accepted);
       if (dedup.kept.length === 0) {
@@ -403,12 +499,25 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
     }
   }
 
-  // Trim any over-generated surplus down to the batch target.
-  if (accepted.length > batch.count) accepted.length = batch.count;
+  // Trim any over-generated surplus down to the batch target, dropping items
+  // from formats that exceed their quota first so the mix survives.
+  while (accepted.length > batch.count) {
+    const have = countByFormat();
+    const overIdx = accepted.findIndex((a) => have[a.format] > (batch.formatQuota[a.format] || 0));
+    accepted.splice(overIdx >= 0 ? overIdx : accepted.length - 1, 1);
+  }
 
   if (accepted.length === 0) {
     throw new Error(`Batch ${batch.index}: generated 0 valid questions after ${MAX_ATTEMPTS} attempts`);
   }
+
+  {
+    const final = countByFormat();
+    console.log(
+      `[exam-questions] batch ${batch.index} format quota=${JSON.stringify(batch.formatQuota)} got=${JSON.stringify(final)} (${accepted.length}/${batch.count})`,
+    );
+  }
+
 
   // Audit final batch against the requested quotas (visible in logs; used by
   // the top-level residual-batch pass to fill any per-concept or difficulty
@@ -467,8 +576,21 @@ Deno.serve(async (req) => {
         const replace = body?.replace === true;
         const rawTypes: unknown = body?.question_types;
         const types: Format[] = Array.isArray(rawTypes)
-          ? (rawTypes.filter((t: any) => t === "mcq" || t === "true_false") as Format[])
+          ? (rawTypes.filter((t: any) => FORMATS.includes(t)) as Format[])
           : [];
+
+        // Optional explicit per-format counts (from the teacher's format mix).
+        let formatCounts: Record<Format, number> | undefined;
+        const rawCounts = body?.format_counts;
+        if (rawCounts && typeof rawCounts === "object") {
+          const c: Record<Format, number> = { mcq: 0, short_answer: 0, true_false: 0 };
+          let sum = 0;
+          for (const f of FORMATS) {
+            const n = Number((rawCounts as any)[f]);
+            if (Number.isFinite(n) && n > 0) { c[f] = Math.round(n); sum += c[f]; }
+          }
+          if (sum === Math.round(Number(body?.total_questions))) formatCounts = c;
+        }
 
         if (!courseId || !examId || !Number.isFinite(lengthMin) || lengthMin <= 0 || !Number.isInteger(totalQuestions) || totalQuestions <= 0 || types.length === 0) {
           throw new Error("course_id, exam_id, length_min, total_questions, question_types are required");
@@ -544,7 +666,7 @@ Deno.serve(async (req) => {
         }
         const perConcept = hamilton(totalQuestions, weights);
         const difficulty = difficultyMixFromLength(lengthMin, totalQuestions);
-        const batches = buildBatches(perConcept, difficulty, types);
+        const batches = buildBatches(perConcept, difficulty, types, formatCounts);
 
         send(controller, { event: "start", total: totalQuestions, batches: batches.length });
 
@@ -584,7 +706,37 @@ Deno.serve(async (req) => {
           }
           // Residual difficulty mix: re-derive against the shortfall size.
           const residualDifficulty = difficultyMixFromLength(lengthMin, shortfall);
-          const topUpBatches = buildBatches(topUpPerConcept, residualDifficulty, types);
+          // Residual format mix: what's still missing against the requested counts.
+          let residualFormats: Record<Format, number> | undefined;
+          if (formatCounts) {
+            const producedByFormat: Record<Format, number> = { mcq: 0, short_answer: 0, true_false: 0 };
+            for (const r of results) producedByFormat[r.format] += 1;
+            const missing: Record<Format, number> = {
+              mcq: Math.max(0, formatCounts.mcq - producedByFormat.mcq),
+              short_answer: Math.max(0, formatCounts.short_answer - producedByFormat.short_answer),
+              true_false: Math.max(0, formatCounts.true_false - producedByFormat.true_false),
+            };
+            const missSum = missing.mcq + missing.short_answer + missing.true_false;
+            if (missSum > 0) {
+              // Scale down proportionally if the deficit exceeds the shortfall.
+              if (missSum > shortfall) {
+                let left = shortfall;
+                const scaled: Record<Format, number> = { mcq: 0, short_answer: 0, true_false: 0 };
+                for (const f of FORMATS) {
+                  const take = Math.min(left, Math.round((missing[f] / missSum) * shortfall));
+                  scaled[f] = take;
+                  left -= take;
+                }
+                if (left > 0) scaled.mcq += left;
+                residualFormats = scaled;
+              } else {
+                const padded = { ...missing };
+                padded.mcq += shortfall - missSum;
+                residualFormats = padded;
+              }
+            }
+          }
+          const topUpBatches = buildBatches(topUpPerConcept, residualDifficulty, types, residualFormats);
           try {
             const topUpSettled = await Promise.allSettled(topUpBatches.map(async (b) => {
               const qs = await generateBatch(b, course.name ?? "Course", lengthMin, conceptByCode, lovableKey);
@@ -613,18 +765,21 @@ Deno.serve(async (req) => {
 
         const rows = results.map((q, i) => {
           const concept = conceptByCode[q.topic];
-          const correctIndex = q.options.indexOf(q.answer);
+          const isShort = q.format === "short_answer";
+          const correctIndex = isShort ? null : q.options.indexOf(q.answer);
           return {
             course_id: courseId,
             teacher_id: course.teacher_id,
             mode: "exam",
             exam_id: examId,
             tier: "standard",
-            question_type: q.format === "mcq" ? "MCQ" : "True/False",
+            question_type: q.format === "mcq" ? "MCQ" : isShort ? "Short Answer" : "True/False",
             format: q.format,
             question_text: q.content_text,
-            options: q.options,
+            options: isShort ? null : q.options,
             answer: q.answer,
+            model_answer: isShort ? (q.model_answer ?? null) : null,
+            answer_max_words: isShort ? (q.answer_max_words ?? null) : null,
             correct_index: correctIndex,
             explanation: q.explanation,
             topic: q.topic,
