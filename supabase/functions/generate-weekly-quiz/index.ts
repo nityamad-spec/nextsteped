@@ -46,6 +46,13 @@ import {
   validateStructural,
   type QuestionFormat,
 } from "../_shared/question-validation.ts";
+import {
+  DEFAULT_DIAGNOSTIC_MIX,
+  allocateFormats,
+  normalizeMix,
+  type QuestionFormatKey,
+  type QuestionMix,
+} from "../_shared/question-mix.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
