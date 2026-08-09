@@ -53,7 +53,7 @@ export function WeeklyQuizReviewDialog({ open, onOpenChange, courseId, weekNumbe
     try {
       const { data, error: qErr } = await supabase
         .from("assessment_questions")
-        .select("id, tier, question_text, format, question_type, options, answer, correct_index, explanation, topic, difficulty, bloom_level, item_code")
+        .select("id, tier, question_text, format, question_type, options, answer, correct_index, explanation, topic, difficulty, bloom_level, item_code, model_answer, answer_max_words")
         .eq("course_id", courseId)
         .eq("mode", "daily_quiz")
         .eq("quiz_day", weekNumber)
