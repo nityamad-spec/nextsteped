@@ -29,7 +29,6 @@ import {
   ADAPTIVE_COUNT,
   TOTAL_COUNT,
   pickBranchTier,
-  computeStandardCorrect,
   // computeLearnerLevel is server-authoritative (score-diagnostic edge fn);
   // no longer imported client-side.
   type BranchTier,
