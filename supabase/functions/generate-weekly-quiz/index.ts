@@ -564,6 +564,9 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
     const arr: any[] = Array.isArray(parsed?.questions) ? parsed.questions : [];
 
     const subRejects: string[] = [];
+    // Enforce the format quota while there is still attempt budget left; on the
+    // final attempt accept anything valid so the tier isn't left short.
+    const strictFormat = attempt < maxAttempts - 1;
     for (const q of arr) {
       if (accepted.length >= targetCount) break;
 
@@ -572,6 +575,14 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
         subRejects.push(v.reason);
         continue;
       }
+
+      const fmt = v.q.format as QuestionFormatKey;
+      if (strictFormat && countByFormat()[fmt] >= (formatQuota[fmt] || 0)) {
+        subRejects.push(`format quota met for ${fmt}`);
+        continue;
+      }
+
+
 
       // Dedup: check against everything already accepted (same tier) AND
       // against cross-tier avoid list. dedupWithin does both in one pass.
