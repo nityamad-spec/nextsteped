@@ -105,7 +105,7 @@ export interface AssessmentResults {
 
 type Phase = "intro" | "active" | "review" | "voided";
 
-const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta, courseId, proctored = false, fullscreenTargetRef, onVoided }: AssessmentViewProps) => {
+const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta, courseId, studentId, shortAnswerSource, shortAnswerMeta, proctored = false, fullscreenTargetRef, onVoided }: AssessmentViewProps) => {
   const [phase, setPhase] = useState<Phase>("intro");
   const [warningOpen, setWarningOpen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState<string | null>(null);
@@ -123,18 +123,48 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
   const questionStartRef = useRef<number>(Date.now());
   const reasoning = useReasoningAnswers();
+  const shortAnswer = useShortAnswerGrading();
   const [submitting, setSubmitting] = useState(false);
 
+  /** Short answers carry their own reasoning — no separate rationale widget. */
   const bloomFor = useCallback(
-    (qid: string) => Number(questionMeta?.get(qid)?.bloom ?? 1),
-    [questionMeta],
+    (qid: string) => {
+      const q = questions.find((x) => x.id === qid);
+      if (q?.type === "short_answer") return 1;
+      return Number(questionMeta?.get(qid)?.bloom ?? 1);
+    },
+    [questionMeta, questions],
   );
   const reasoningRefs = questions.map((q) => ({ id: q.id, bloom: bloomFor(q.id) }));
+
+  /** Short-answer grading can only run when the caller wired it up. */
+  const shortAnswerEnabled = Boolean(studentId && shortAnswerSource);
+
+  /** Persist + AI-grade a short answer in the background. */
+  const gradeShortAnswer = useCallback(
+    (q: Question | undefined) => {
+      if (!q || q.type !== "short_answer" || !shortAnswerEnabled || !studentId || !shortAnswerSource) return;
+      const meta = shortAnswerMeta?.get(q.id);
+      shortAnswer.grade({
+        questionId: q.id,
+        questionText: q.text,
+        answer: q.correctAnswer,
+        modelAnswer: meta?.model_answer ?? null,
+        topic: q.topic,
+        bloom: Number(questionMeta?.get(q.id)?.bloom ?? 1),
+        courseId: courseId ?? null,
+        studentId,
+        sourceFormat: shortAnswerSource.sourceFormat,
+        questionSource: shortAnswerSource.questionSource,
+      });
+    },
+    [shortAnswer, shortAnswerEnabled, shortAnswerMeta, shortAnswerSource, studentId, questionMeta, courseId],
+  );
 
   /** Fire the background AI evaluation of a question's rationale. */
   const evaluateQuestion = useCallback(
     (q: Question | undefined) => {
-      if (!q) return;
+      if (!q || q.type === "short_answer") return;
       reasoning.evaluate({
         questionId: q.id,
         questionText: q.text,
