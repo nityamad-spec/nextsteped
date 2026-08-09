@@ -159,6 +159,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [generatingQuizWeek, setGeneratingQuizWeek] = useState<number | null>(null);
   const [quizGenerated, setQuizGenerated] = useState<Record<number, number>>({});
   const [quizTierCounts, setQuizTierCounts] = useState<Record<number, Record<string, number>>>({});
+  const [quizMix, setQuizMix] = useState<Record<number, QuestionMix>>({});
+  const [savingMixWeek, setSavingMixWeek] = useState<number | null>(null);
   const [reviewQuizWeek, setReviewQuizWeek] = useState<WeekPlan | null>(null);
   const [quizElapsed, setQuizElapsed] = useState(0);
 
