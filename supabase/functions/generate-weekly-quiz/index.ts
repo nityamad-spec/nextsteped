@@ -487,9 +487,15 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
                         type: "object",
                         properties: {
                           content_text: { type: "string" },
-                          format: { type: "string", enum: ["mcq", "true_false"] },
-                          options: { type: "array", items: { type: "string" } },
-                          answer: { type: "string" },
+                          format: { type: "string", enum: ["mcq", "true_false", "short_answer"] },
+                          options: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Exactly 4 options for mcq. Omit entirely for true_false and short_answer.",
+                          },
+                          answer: { type: "string", description: "mcq: full text of the correct option. true_false: 'True' or 'False'. short_answer: concise reference answer (≤30 words)." },
+                          model_answer: { type: "string", description: "short_answer only: fuller ideal answer (2-4 sentences) used to grade the student." },
+                          answer_max_words: { type: "integer", description: "short_answer only: word budget expected of the student (40-80 typical)." },
                           difficulty_estimate: { type: "number" },
                           bloom_level: { type: "integer", minimum: 1, maximum: 4 },
                           explanation: { type: "string" },
@@ -498,7 +504,6 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
                         required: [
                           "content_text",
                           "format",
-                          "options",
                           "answer",
                           "difficulty_estimate",
                           "bloom_level",
