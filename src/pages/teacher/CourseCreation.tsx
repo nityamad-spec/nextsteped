@@ -1977,6 +1977,60 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                               Auto-generated 10-question quiz on this week's concepts: 5 standard questions for all students, plus 5 adaptive questions based on their performance on the first 5.
                             </p>
 
+                            {/* Question Format Mix */}
+                            <div className="rounded-lg border bg-background p-3 space-y-2">
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <Label className="text-xs font-semibold">Question Format Mix</Label>
+                                <span className="text-[10px] text-muted-foreground">
+                                  Steps of {MIX_STEP}% · always totals 100%
+                                </span>
+                              </div>
+                              {FORMAT_ORDER.map((key) => {
+                                const mix = weekMix(w.week);
+                                const count = allocateFormats(QUIZ_TOTAL_EXPECTED, mix)[key];
+                                return (
+                                  <div key={key} className="flex items-center justify-between gap-2">
+                                    <div>
+                                      <p className="text-xs font-medium">{FORMAT_LABEL[key]}</p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        ~{count} question{count === 1 ? "" : "s"}
+                                      </p>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <Button
+                                        size="icon"
+                                        variant="outline"
+                                        className="h-7 w-7"
+                                        disabled={savingMixWeek === w.week || mix[key] === 0}
+                                        onClick={() => handleMixChange(w, key, -MIX_STEP)}
+                                        aria-label={`Decrease ${FORMAT_LABEL[key]}`}
+                                      >
+                                        <Minus className="h-3 w-3" />
+                                      </Button>
+                                      <span className="w-10 text-center font-mono text-xs font-semibold">{mix[key]}%</span>
+                                      <Button
+                                        size="icon"
+                                        variant="outline"
+                                        className="h-7 w-7"
+                                        disabled={savingMixWeek === w.week || mix[key] === 100}
+                                        onClick={() => handleMixChange(w, key, MIX_STEP)}
+                                        aria-label={`Increase ${FORMAT_LABEL[key]}`}
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              {quizGenerated[w.week] > 0 && (
+                                <p className="text-[10px] text-muted-foreground">
+                                  This week's quiz already exists — the new mix applies the next time you regenerate it.
+                                </p>
+                              )}
+                            </div>
+
+
+
 
                             <div className="rounded-lg border bg-background p-3 flex flex-wrap items-center gap-2">
                               <Button
