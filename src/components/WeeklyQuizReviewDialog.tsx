@@ -79,6 +79,15 @@ export function WeeklyQuizReviewDialog({ open, onOpenChange, courseId, weekNumbe
     (grouped[t] ||= []).push(r);
   }
 
+  const fmtCounts = { mcq: 0, short_answer: 0, true_false: 0 };
+  for (const r of rows) {
+    const f = (r.format ?? "mcq").toLowerCase();
+    if (f === "short_answer") fmtCounts.short_answer += 1;
+    else if (f === "true_false") fmtCounts.true_false += 1;
+    else fmtCounts.mcq += 1;
+  }
+  const fmtSummary = `${fmtCounts.mcq} multiple choice, ${fmtCounts.short_answer} short answer, ${fmtCounts.true_false} true/false`;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl">
@@ -88,8 +97,10 @@ export function WeeklyQuizReviewDialog({ open, onOpenChange, courseId, weekNumbe
           </DialogTitle>
           <DialogDescription>
             Each student sees 10 questions: the 5 standard items, then 5 adaptive items routed by their performance on the standard set.
+            {rows.length > 0 && <> This week's bank: {fmtSummary}.</>}
           </DialogDescription>
         </DialogHeader>
+
 
 
         {loading ? (
