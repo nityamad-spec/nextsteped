@@ -47,6 +47,15 @@ interface AssessmentViewProps {
   onStudyTopics?: (topics: string[]) => void;
   questionMeta?: Map<string, { difficulty: number; bloom: number }>;
   courseId?: string | null;
+  /** Student taking the attempt — required for short-answer AI grading. */
+  studentId?: string | null;
+  /** Where short-answer responses are persisted from. */
+  shortAnswerSource?: {
+    sourceFormat: ReasoningSourceFormat;
+    questionSource: ReasoningQuestionSource;
+  };
+  /** Per-question grading references for short-answer questions. */
+  shortAnswerMeta?: Map<string, { model_answer?: string | null; answer_max_words?: number | null }>;
   /** Enable browser lock: fullscreen, copy/paste block, warn-then-void. */
   proctored?: boolean;
   /** Element to put into fullscreen when proctored. */
