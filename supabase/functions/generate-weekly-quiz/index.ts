@@ -171,9 +171,11 @@ class DeadlineExceededError extends Error {
 
 interface GeneratedQuestion {
   content_text: string;
-  format: "mcq" | "true_false";
+  format: "mcq" | "true_false" | "short_answer";
   options: string[];
   answer: string;
+  model_answer?: string | null;
+  answer_max_words?: number | null;
   difficulty_estimate: number;
   bloom_level: number;
   explanation: string;
