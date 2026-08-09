@@ -90,6 +90,8 @@ function mapRow(row: any): QuizQuestion {
     options: format === "short_answer" ? [] : options,
     correctIndex: correctIndex >= 0 ? correctIndex : 0,
     correctAnswer: row.answer,
+    modelAnswer: (row.model_answer as string | null) ?? null,
+
     topic: row.topic || "",
     explanation: row.explanation || "",
     courseId: row.course_id,
