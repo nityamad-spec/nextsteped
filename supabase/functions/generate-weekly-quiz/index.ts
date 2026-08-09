@@ -772,7 +772,7 @@ async function run(
       existingByTier[tier] = (existingByTier[tier] ?? 0) + 1;
       existingAvoid.push({
         content_text: String((r as any).question_text ?? ""),
-        format: ((r as any).format === "true_false" ? "true_false" : "mcq"),
+        format: (((r as any).format === "true_false" || (r as any).format === "short_answer") ? (r as any).format : "mcq"),
         options: Array.isArray((r as any).options) ? ((r as any).options as string[]) : [],
         answer: String((r as any).answer ?? ""),
         difficulty_estimate: Number((r as any).difficulty_estimate ?? 0.5),
