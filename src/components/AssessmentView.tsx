@@ -279,7 +279,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
         // against the reference / model answer.
         const grade = saGrades[q.id];
         if (grade?.status === "done" && grade.verdict) {
-          isCorrect = grade.verdict === "accept";
+          isCorrect = grade.verdict === "accepted";
         } else {
           isCorrect = localExactMatch(userAnswer, [
             q.correctAnswer,
