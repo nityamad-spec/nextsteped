@@ -33,6 +33,10 @@ import {
   LESSON_PLAN_BUCKET,
 } from "@/lib/lessonPlanPath";
 import { upsertPublishedWeeks, setWeekLocked } from "@/lib/lessonPlanWeeks";
+import {
+  DEFAULT_DIAGNOSTIC_MIX, FORMAT_LABEL, FORMAT_ORDER, MIX_STEP,
+  adjustMix, allocateFormats, normalizeMix, type QuestionMix, type QuestionFormatKey,
+} from "@/lib/questionMix";
 import { upsertCourseMaterialFile } from "@/lib/courseMaterialFiles";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
