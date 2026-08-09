@@ -15,6 +15,12 @@ import ReasoningInput from "@/components/ReasoningInput";
 import ReasoningVerdict from "@/components/ReasoningVerdict";
 import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
 import {
+  useShortAnswerGrading,
+  isShortAnswerComplete,
+  localExactMatch,
+} from "@/hooks/useShortAnswerGrading";
+import type { ReasoningSourceFormat, ReasoningQuestionSource } from "@/lib/reasoning";
+import {
   requiresReasoning,
   reasoningEarnedFactor,
   verdictFor,
