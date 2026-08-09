@@ -205,6 +205,7 @@ const WeeklyQuizDialog = ({
       if (cancelled) return;
       setQuestions(qs);
       setQuestionMeta(meta);
+      setShortAnswerMeta(saMeta);
       setLoading(false);
     })();
 
