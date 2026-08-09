@@ -926,7 +926,7 @@ const DiagnosticQuiz = () => {
                 </div>
               )}
 
-              {requiresReasoning(question.bloomLevel) && (
+              {!isShortAnswer && requiresReasoning(question.bloomLevel) && (
                 <div className="mt-4">
                   <ReasoningInput
                     questionId={question.id}
