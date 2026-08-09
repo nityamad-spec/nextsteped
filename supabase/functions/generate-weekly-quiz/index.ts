@@ -817,6 +817,7 @@ async function run(
         lovableKey,
         mainPassDeadline,
         existingAvoid,
+        { formatQuota: allocateFormats(spec.count, weekMix) },
       ).then((qs) => ({ spec, qs })),
     ),
   );
