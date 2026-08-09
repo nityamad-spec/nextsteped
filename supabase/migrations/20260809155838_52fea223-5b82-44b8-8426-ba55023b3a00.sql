@@ -1,0 +1,1 @@
+ALTER TABLE public.lesson_plan_weeks ADD COLUMN IF NOT EXISTS quiz_type_counts jsonb;

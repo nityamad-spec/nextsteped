@@ -1516,6 +1516,7 @@ export type Database = {
           is_exam_week: boolean
           locked: boolean
           overview: string
+          quiz_type_counts: Json | null
           resources: Json
           updated_at: string
           week_name: string
@@ -1530,6 +1531,7 @@ export type Database = {
           is_exam_week?: boolean
           locked?: boolean
           overview?: string
+          quiz_type_counts?: Json | null
           resources?: Json
           updated_at?: string
           week_name?: string
@@ -1544,6 +1546,7 @@ export type Database = {
           is_exam_week?: boolean
           locked?: boolean
           overview?: string
+          quiz_type_counts?: Json | null
           resources?: Json
           updated_at?: string
           week_name?: string
