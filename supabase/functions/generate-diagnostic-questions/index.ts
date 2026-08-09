@@ -1209,6 +1209,14 @@ async function runTier(
         recordReject(r, q);
         continue;
       }
+      const fmt = v.normalized.format;
+      if (strictFormat && acceptedByFormat[fmt] >= (formatQuota[fmt] || 0)) {
+        const r = `over format quota for ${fmt}`;
+        reasons.push(r);
+        lastInvalidCount++;
+        recordReject(r, q);
+        continue;
+      }
       if (isDuplicate(v.normalized, accepted)) {
         reasons.push("duplicate content");
         lastInvalidCount++;
@@ -1217,7 +1225,9 @@ async function runTier(
       }
       accepted.push(v.normalized);
       acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
+      acceptedByFormat[fmt] = (acceptedByFormat[fmt] || 0) + 1;
       acceptedThisAttempt.push(code);
+
       if (accepted.length >= spec.count) break;
     }
     updateRunRow(ctx, spec.tier, { accepted: accepted.length, attempts });
