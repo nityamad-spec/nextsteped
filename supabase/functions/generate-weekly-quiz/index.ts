@@ -225,20 +225,41 @@ function validateCandidate(
   conceptByCode: Record<string, ConceptRow>,
 ): { ok: true; q: GeneratedQuestion } | { ok: false; reason: string } {
   const structural = validateStructural(raw as Record<string, unknown>, {
-    allowedFormats: ["mcq", "true_false"],
+    allowedFormats: ["mcq", "true_false", "short_answer"],
     requireFourOptions: true,
     maxContentChars: 600,
   });
   if (!structural.ok) return structural;
   const { format, content_text, options } = structural.value;
 
-  const answerRes = normalizeAnswer((raw as any)?.answer, options);
-  if (!answerRes.ok) return answerRes;
-  const answer = answerRes.value;
+  let answer: string;
+  let model_answer: string | null = null;
+  let answer_max_words: number | null = null;
 
-  if (format === "mcq") {
-    const parity = validateOptionParity(options, answer);
-    if (!parity.ok) return parity;
+  if (format === "short_answer") {
+    answer = String((raw as any)?.answer ?? "").trim();
+    if (!answer) return { ok: false, reason: "short_answer requires an answer" };
+    const answerWords = answer.split(/\s+/).filter(Boolean).length;
+    if (answerWords > 30) {
+      return { ok: false, reason: `short_answer reference answer too long (${answerWords} words)` };
+    }
+    if (Array.isArray((raw as any)?.options) && (raw as any).options.length > 0) {
+      return { ok: false, reason: "short_answer must not carry options" };
+    }
+    model_answer = String((raw as any)?.model_answer ?? "").trim();
+    if (!model_answer) return { ok: false, reason: "short_answer requires model_answer" };
+    if (model_answer.length < 20) return { ok: false, reason: "model_answer too short (<20 chars)" };
+    if (model_answer.length > 1200) return { ok: false, reason: "model_answer > 1200 chars" };
+    const rawMax = Number((raw as any)?.answer_max_words);
+    answer_max_words = Number.isFinite(rawMax) ? Math.min(120, Math.max(20, Math.round(rawMax))) : 60;
+  } else {
+    const answerRes = normalizeAnswer((raw as any)?.answer, options);
+    if (!answerRes.ok) return answerRes;
+    answer = answerRes.value;
+    if (format === "mcq") {
+      const parity = validateOptionParity(options, answer);
+      if (!parity.ok) return parity;
+    }
   }
 
   const conceptRes = validateConcept((raw as any)?.topic, conceptByCode);
@@ -274,9 +295,11 @@ function validateCandidate(
     ok: true,
     q: {
       content_text,
-      format: format as "mcq" | "true_false",
+      format,
       options,
       answer,
+      model_answer,
+      answer_max_words,
       difficulty_estimate,
       bloom_level,
       explanation: explRes.value,
