@@ -412,9 +412,39 @@ const DiagnosticQuiz = () => {
     } catch {}
   }, [user, activeCourseId, phase, currentQ, answers, textAnswers, questionTimes, questionIds, selected, textAnswer, questionStartTime, questions, branchTier]);
 
+  const gradeShortAnswer = (q: QuizQuestion, text: string) => {
+    if (q.format !== "short_answer" || !user) return;
+    shortAnswers.setAnswer(q.id, text);
+    shortAnswers.grade({
+      questionId: q.id,
+      questionText: q.question,
+      answer: q.correctAnswer,
+      modelAnswer: q.modelAnswer,
+      topic: q.topic,
+      bloom: q.bloomLevel,
+      courseId: activeCourseId ?? q.courseId ?? null,
+      studentId: user.id,
+      sourceFormat: "diagnostic",
+      questionSource: "diagnostic_questions",
+    });
+  };
+
+  /**
+   * Correctness for one answered question. Short answers prefer the AI verdict
+   * and fall back to a normalised exact match when grading was unavailable.
+   */
+  const isCorrectFor = (q: QuizQuestion, answerIndex: number, text: string) => {
+    if (q.format !== "short_answer") return answerIndex === q.correctIndex;
+    const grade = shortAnswers.getGrades()[q.id];
+    if (grade?.status === "done" && grade.verdict) return grade.verdict === "accepted";
+    return localExactMatch(text ?? "", [q.modelAnswer, q.correctAnswer]);
+  };
+
   const handleAnswer = async () => {
     if (!canProceed) return;
-    if (reasoning.isQuestionBlocked({ id: question.id, bloom: question.bloomLevel })) {
+    // Short-answer questions carry their own written response, so the separate
+    // reasoning box is neither shown nor required for them.
+    if (!isShortAnswer && reasoning.isQuestionBlocked({ id: question.id, bloom: question.bloomLevel })) {
       reasoning.setShowErrors(true);
       toast.error("Reasoning required", {
         description: "Explain your reasoning for this question before moving on.",
@@ -422,17 +452,22 @@ const DiagnosticQuiz = () => {
       return;
     }
     reasoning.setShowErrors(false);
-    // Background AI review of the rationale — never blocks the student.
-    reasoning.evaluate({
-      questionId: question.id,
-      questionText: question.question,
-      options: question.options,
-      correctAnswer: question.correctAnswer,
-      selectedAnswer: isShortAnswer ? textAnswer.trim() : (question.options?.[selected!] ?? null),
-      topic: question.topic,
-      bloom: question.bloomLevel,
-      courseId: activeCourseId ?? null,
-    });
+    if (isShortAnswer) {
+      // Background AI grading of the written answer — never blocks the student.
+      gradeShortAnswer(question, textAnswer.trim());
+    } else {
+      // Background AI review of the rationale — never blocks the student.
+      reasoning.evaluate({
+        questionId: question.id,
+        questionText: question.question,
+        options: question.options,
+        correctAnswer: question.correctAnswer,
+        selectedAnswer: question.options?.[selected!] ?? null,
+        topic: question.topic,
+        bloom: question.bloomLevel,
+        courseId: activeCourseId ?? null,
+      });
+    }
     const elapsed = Date.now() - questionStartTime;
     const answerValue = isShortAnswer ? -1 : selected!;
     const newAnswers = [...answers, answerValue];
@@ -451,13 +486,19 @@ const DiagnosticQuiz = () => {
       currentQ === STANDARD_COUNT - 1 && !branchTier && activeCourseId;
 
     if (justFinishedStandard) {
-      // Compute branch tier from standard answers
-      const standardCorrect = computeStandardCorrect(
-        questions.slice(0, STANDARD_COUNT),
-        newAnswers,
-        newTextAnswers,
+      // Let short-answer verdicts land before branching — they change the
+      // Phase A score that picks the adaptive tier.
+      const standardQuestions = questions.slice(0, STANDARD_COUNT);
+      if (standardQuestions.some((q) => q.format === "short_answer")) {
+        setLoadingBranch(true);
+        await shortAnswers.waitForPending(REASONING_EVAL_DEADLINE_MS);
+      }
+      const standardCorrect = standardQuestions.reduce(
+        (n, q, i) => n + (isCorrectFor(q, newAnswers[i], newTextAnswers[i] ?? "") ? 1 : 0),
+        0,
       );
       const branch = pickBranchTier(standardCorrect);
+
 
       setLoadingBranch(true);
       const { data: branchRows } = await supabase
