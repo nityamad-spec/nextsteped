@@ -82,6 +82,9 @@ const WeeklyQuizDialog = ({
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionMeta, setQuestionMeta] = useState<Map<string, { difficulty: number; bloom: number }>>(new Map());
+  const [shortAnswerMeta, setShortAnswerMeta] = useState<
+    Map<string, { model_answer?: string | null; answer_max_words?: number | null }>
+  >(new Map());
   const [submitted, setSubmitted] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
