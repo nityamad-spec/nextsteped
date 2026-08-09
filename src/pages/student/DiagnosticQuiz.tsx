@@ -51,6 +51,7 @@ interface QuizQuestion {
   options: string[];
   correctIndex: number;
   correctAnswer: string;
+  modelAnswer: string | null;
   topic: string;
   explanation: string;
   courseId: string;
@@ -58,6 +59,7 @@ interface QuizQuestion {
   tier: "standard" | "easy" | "medium" | "hard";
   bloomLevel: number;
 }
+
 
 const answerLetters = ["A", "B", "C", "D", "E", "F"];
 
