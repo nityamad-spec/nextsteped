@@ -255,6 +255,9 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
 
   const handleAnswer = (questionId: string, answer: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
+    if (questions.find((q) => q.id === questionId)?.type === "short_answer") {
+      shortAnswer.setAnswer(questionId, answer);
+    }
   };
 
   const handleFinish = useCallback(() => {
