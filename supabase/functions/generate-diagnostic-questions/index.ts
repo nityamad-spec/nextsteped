@@ -1608,7 +1608,7 @@ Deno.serve(async (req) => {
           item_code: `${course.course_code || "Q"}-${t.tier.toUpperCase()}-${String(counter).padStart(3, "0")}`,
           content_text: recheck.normalized.content_text,
           format: recheck.normalized.format,
-          options: recheck.normalized.format === "mcq" ? recheck.normalized.options : null,
+          options: recheck.normalized.format === "short_answer" ? null : recheck.normalized.options,
           answer: recheck.normalized.answer,
           model_answer: recheck.normalized.model_answer,
           answer_max_words: recheck.normalized.answer_max_words,
