@@ -1067,7 +1067,16 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                           });
                           return;
                         }
-                        evaluateQuestion(questions[safeIndex]);
+                        const currentQ = questions[safeIndex];
+                        if (currentQ?.type === "short_answer" && !isShortAnswerComplete(answers[currentQ.id])) {
+                          shortAnswer.setShowErrors(true);
+                          toast.error("Answer required", {
+                            description: "Write your answer before moving on.",
+                          });
+                          return;
+                        }
+                        evaluateQuestion(currentQ);
+                        gradeShortAnswer(currentQ);
                         const currentQid = questions[safeIndex]?.id;
                         flushTimeFor(currentQid);
                         if (currentQid && answers[currentQid] !== undefined) {
