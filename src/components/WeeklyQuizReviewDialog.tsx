@@ -122,7 +122,12 @@ export function WeeklyQuizReviewDialog({ open, onOpenChange, courseId, weekNumbe
                       {items.map((q, idx) => {
                         const opts: string[] = Array.isArray(q.options) ? q.options.map((o: any) => String(o ?? "")) : [];
                         const correct = q.answer ?? (q.correct_index != null ? opts[q.correct_index] : null);
-                        const fmtLabel = q.format === "true_false" ? "True / False" : "MCQ";
+                        const isShort = (q.format ?? "").toLowerCase() === "short_answer";
+                        const fmtLabel = isShort
+                          ? "Short Answer"
+                          : q.format === "true_false"
+                          ? "True / False"
+                          : "MCQ";
                         return (
                           <div key={q.id} className="rounded-lg border bg-card p-3 space-y-2">
                             <div className="flex flex-wrap items-center gap-1.5">
@@ -135,27 +140,50 @@ export function WeeklyQuizReviewDialog({ open, onOpenChange, courseId, weekNumbe
                               )}
                             </div>
                             <p className="text-sm whitespace-pre-wrap">{q.question_text}</p>
-                            <ul className="space-y-1">
-                              {opts.map((opt, i) => {
-                                const isCorrect = opt === correct;
-                                return (
-                                  <li
-                                    key={i}
-                                    className={
-                                      "flex items-start gap-2 rounded-md border px-2 py-1.5 text-xs " +
-                                      (isCorrect
-                                        ? "border-primary/40 bg-primary/5 text-foreground"
-                                        : "border-border bg-background text-muted-foreground")
-                                    }
-                                  >
-                                    <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold">
-                                      {isCorrect ? <Check className="h-3 w-3 text-primary" /> : String.fromCharCode(65 + i)}
-                                    </span>
-                                    <span className="whitespace-pre-wrap">{opt}</span>
-                                  </li>
-                                );
-                              })}
-                            </ul>
+                            {isShort ? (
+                              <div className="space-y-1.5">
+                                {q.answer && (
+                                  <div className="rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5 text-xs">
+                                    <span className="font-medium">Reference answer: </span>
+                                    <span className="whitespace-pre-wrap">{q.answer}</span>
+                                  </div>
+                                )}
+                                {q.model_answer && (
+                                  <div className="rounded-md border bg-background px-2 py-1.5 text-xs text-muted-foreground">
+                                    <span className="font-medium text-foreground">Model answer: </span>
+                                    <span className="whitespace-pre-wrap">{q.model_answer}</span>
+                                  </div>
+                                )}
+                                {q.answer_max_words != null && (
+                                  <p className="text-[11px] text-muted-foreground">
+                                    Suggested length: up to {q.answer_max_words} words
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <ul className="space-y-1">
+                                {opts.map((opt, i) => {
+                                  const isCorrect = opt === correct;
+                                  return (
+                                    <li
+                                      key={i}
+                                      className={
+                                        "flex items-start gap-2 rounded-md border px-2 py-1.5 text-xs " +
+                                        (isCorrect
+                                          ? "border-primary/40 bg-primary/5 text-foreground"
+                                          : "border-border bg-background text-muted-foreground")
+                                      }
+                                    >
+                                      <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold">
+                                        {isCorrect ? <Check className="h-3 w-3 text-primary" /> : String.fromCharCode(65 + i)}
+                                      </span>
+                                      <span className="whitespace-pre-wrap">{opt}</span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+
                             {q.explanation && (
                               <div className="rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
                                 <span className="font-medium text-foreground">Explanation: </span>
