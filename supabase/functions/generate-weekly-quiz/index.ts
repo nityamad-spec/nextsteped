@@ -904,7 +904,11 @@ async function run(
         lovableKey,
         deadlineAt,
         avoid,
-        { focusConcepts: focus.length ? focus : undefined, maxAttempts: 3 },
+        {
+          focusConcepts: focus.length ? focus : undefined,
+          maxAttempts: 3,
+          formatQuota: allocateFormats(shortfall, weekMix),
+        },
       )
         .then((extra) => ({ spec, shortfall, focus, extra }))
         .catch((err) => ({ spec, shortfall, focus, err }));
