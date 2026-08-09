@@ -720,13 +720,14 @@ async function run(
   // Load week + concept names for the week
   const { data: weekRow } = await admin
     .from("lesson_plan_weeks")
-    .select("week_name, concepts")
+    .select("week_name, concepts, quiz_type_counts")
     .eq("course_id", courseId)
     .eq("week_number", weekNumber)
     .maybeSingle();
   if (!weekRow) {
     return { status: 400, payload: { error: `No lesson-plan week ${weekNumber} for this course` } };
   }
+  const weekMix: QuestionMix = normalizeMix((weekRow as any).quiz_type_counts);
   const weekConceptNames: string[] = Array.isArray(weekRow.concepts)
     ? (weekRow.concepts as any[]).map((c) => String(c?.name ?? "").trim()).filter(Boolean)
     : [];
