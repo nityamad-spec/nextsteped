@@ -1495,15 +1495,29 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Professor-configured format mix for the diagnostic bank.
+    const { data: mixRow } = await admin
+      .from("course_ta_settings")
+      .select("diagnostic_type_counts")
+      .eq("course_id", courseId)
+      .maybeSingle();
+    const mix = normalizeMix(
+      (mixRow?.diagnostic_type_counts as Partial<QuestionMix> | null) ?? DEFAULT_DIAGNOSTIC_MIX,
+    );
+
     logEvent(ctx, "specs_built", {
       message: `running ${activeSpecs.length} tier${activeSpecs.length === 1 ? "" : "s"}`,
-      data: { specs: activeSpecs.map((s) => ({ tier: s.tier, count: s.count, max_attempts: s.maxAttempts })) },
+      data: {
+        specs: activeSpecs.map((s) => ({ tier: s.tier, count: s.count, max_attempts: s.maxAttempts })),
+        format_mix: mix,
+      },
     });
 
     // Run only the active tiers in parallel with retries
     const settled = await Promise.allSettled(
-      activeSpecs.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, ctx, preSeedByTier[spec.tier] || [])),
+      activeSpecs.map((spec) => runTier(spec, course.name, units, conceptByCode, mix, lovableKey, ctx, preSeedByTier[spec.tier] || [])),
     );
+
 
 
     // If any tier failed with CreditsExhaustedError, short-circuit with a
