@@ -580,12 +580,24 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
         )}
 
         {q.type === "short_answer" && (
-          <Textarea
-            placeholder="Type your answer here…"
-            value={answers[q.id] || ""}
-            onChange={(e) => handleAnswer(q.id, e.target.value)}
-            className="min-h-[100px]"
-          />
+          <div className="space-y-1.5">
+            <Textarea
+              placeholder="Type your answer here…"
+              value={answers[q.id] || ""}
+              onChange={(e) => handleAnswer(q.id, e.target.value)}
+              className="min-h-[100px]"
+            />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {shortAnswerMeta?.get(q.id)?.answer_max_words
+                  ? `Aim for about ${shortAnswerMeta.get(q.id)?.answer_max_words} words.`
+                  : "Answer in a few sentences."}
+              </span>
+              {shortAnswer.showErrors && !isShortAnswerComplete(answers[q.id]) && (
+                <span className="text-destructive">An answer is required.</span>
+              )}
+            </div>
+          </div>
         )}
 
         {q.type === "problem_solving" && (
