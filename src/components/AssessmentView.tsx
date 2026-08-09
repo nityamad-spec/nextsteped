@@ -270,11 +270,22 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       finalTimes[currentQid] = (finalTimes[currentQid] ?? 0) + elapsed;
     }
 
+    const saGrades = shortAnswer.getGrades();
     const standardised: StandardisedAnswer[] = questions.map(q => {
       const userAnswer = answers[q.id] || "";
       let isCorrect = false;
       if (q.type === "short_answer") {
-        isCorrect = userAnswer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+        // AI verdict when it landed; otherwise fall back to a normalised match
+        // against the reference / model answer.
+        const grade = saGrades[q.id];
+        if (grade?.status === "done" && grade.verdict) {
+          isCorrect = grade.verdict === "accept";
+        } else {
+          isCorrect = localExactMatch(userAnswer, [
+            q.correctAnswer,
+            shortAnswerMeta?.get(q.id)?.model_answer ?? null,
+          ]);
+        }
       } else if (q.type === "problem_solving") {
         const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
         isCorrect = normalize(userAnswer) === normalize(q.correctAnswer);
