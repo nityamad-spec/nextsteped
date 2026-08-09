@@ -377,11 +377,21 @@ async function generateTier(
   const targetCount = spec.count + overGenerate;
   const perConceptQuota = buildConceptQuota(focusCodes, targetCount);
 
+  const formatQuota: Record<QuestionFormatKey, number> =
+    opts.formatQuota ?? allocateFormats(spec.count, DEFAULT_DIAGNOSTIC_MIX);
+
   const accepted: GeneratedQuestion[] = [];
   const attemptRejections: string[] = [];
   let retryHint: string | null = null;
   let skewNote: string | null = null;
   const maxAttempts = opts.maxAttempts ?? spec.maxAttempts;
+
+  const countByFormat = (): Record<QuestionFormatKey, number> => {
+    const c: Record<QuestionFormatKey, number> = { mcq: 0, short_answer: 0, true_false: 0 };
+    for (const a of accepted) c[a.format as QuestionFormatKey] += 1;
+    return c;
+  };
+
 
   outer: for (let attempt = 0; attempt < maxAttempts && accepted.length < targetCount; attempt++) {
     // Concepts still short for the next sub-call, so the prompt asks the model
