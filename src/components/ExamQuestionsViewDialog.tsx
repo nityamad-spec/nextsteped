@@ -20,6 +20,8 @@ export interface ExamQuestionRow {
   bloom_justification: string | null;
   difficulty_justification: string | null;
   exam_id: string | null;
+  model_answer: string | null;
+  answer_max_words: number | null;
 }
 
 interface Props {
@@ -43,7 +45,7 @@ export default function ExamQuestionsViewDialog({
     setLoading(true);
     supabase
       .from("assessment_questions")
-      .select("id, question_text, question_type, options, correct_index, answer, topic, difficulty, bloom_level, explanation, difficulty_estimate, bloom_justification, difficulty_justification, exam_id")
+      .select("id, question_text, question_type, options, correct_index, answer, topic, difficulty, bloom_level, explanation, difficulty_estimate, bloom_justification, difficulty_justification, exam_id, model_answer, answer_max_words")
       .eq("course_id", courseId)
       .eq("mode", "exam")
       .eq("exam_id", examId)
@@ -67,6 +69,12 @@ export default function ExamQuestionsViewDialog({
           <DialogTitle>{examLabel} — Generated Questions</DialogTitle>
           <DialogDescription>
             {rows.length} question{rows.length === 1 ? "" : "s"} generated for this exam.
+            {rows.length > 0 && (() => {
+              const mcq = rows.filter(r => r.question_type === "MCQ").length;
+              const sa = rows.filter(r => r.question_type === "Short Answer").length;
+              const tf = rows.filter(r => r.question_type === "True/False").length;
+              return ` ${mcq} MCQ, ${sa} short answer, ${tf} true/false.`;
+            })()}
           </DialogDescription>
         </DialogHeader>
 
@@ -117,6 +125,23 @@ export default function ExamQuestionsViewDialog({
                     <span className="font-medium text-foreground">Answer:</span>{" "}
                     <span className="text-mastery-expert font-medium">{q.answer}</span>
                   </p>
+                )}
+                {q.question_type === "Short Answer" && (
+                  <div className="space-y-1 pt-1">
+                    <p className="text-xs">
+                      <span className="font-medium text-foreground">Reference answer:</span>{" "}
+                      <span className="text-muted-foreground">{q.answer}</span>
+                    </p>
+                    {q.model_answer && (
+                      <p className="text-xs whitespace-pre-wrap">
+                        <span className="font-medium text-foreground">Model answer:</span>{" "}
+                        <span className="text-muted-foreground">{q.model_answer}</span>
+                      </p>
+                    )}
+                    {q.answer_max_words != null && (
+                      <p className="text-xs text-muted-foreground">Suggested length: ~{q.answer_max_words} words</p>
+                    )}
+                  </div>
                 )}
                 {q.explanation && (
                   <p className="text-xs text-muted-foreground border-t pt-2 mt-2">
