@@ -355,6 +355,8 @@ interface TierGenOptions {
    * are trying to reach exactly `count`.
    */
   overGenerate?: number;
+  /** Per-format target counts for this tier (mcq / short_answer / true_false). */
+  formatQuota?: Record<QuestionFormatKey, number>;
 }
 
 async function generateTier(
