@@ -24,6 +24,16 @@ export async function upsertPublishedWeeks(
   weeks: WeekUpsertInput[],
   overallOutcomes?: string,
 ): Promise<void> {
+  // Preserve the per-week question format mix across the clean-slate republish.
+  const { data: existing } = await supabase
+    .from("lesson_plan_weeks")
+    .select("week_number, quiz_type_counts")
+    .eq("course_id", courseId);
+  const mixByWeek = new Map<number, unknown>();
+  for (const row of (existing ?? []) as { week_number: number; quiz_type_counts: unknown }[]) {
+    if (row.quiz_type_counts) mixByWeek.set(row.week_number, row.quiz_type_counts);
+  }
+
   // Delete existing rows for this course
   const { error: delError } = await supabase
     .from("lesson_plan_weeks")
@@ -42,12 +52,14 @@ export async function upsertPublishedWeeks(
       locked: !!w.locked,
       concepts: w.concepts || [],
       resources: w.resources || [],
+      quiz_type_counts: (mixByWeek.get(w.week_number) ?? null) as any,
     }));
     const { error: insError } = await supabase
       .from("lesson_plan_weeks")
       .insert(rows);
     if (insError) throw insError;
   }
+
 
   if (overallOutcomes !== undefined) {
     await supabase

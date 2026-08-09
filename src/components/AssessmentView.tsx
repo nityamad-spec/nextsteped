@@ -15,6 +15,12 @@ import ReasoningInput from "@/components/ReasoningInput";
 import ReasoningVerdict from "@/components/ReasoningVerdict";
 import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
 import {
+  useShortAnswerGrading,
+  isShortAnswerComplete,
+  localExactMatch,
+} from "@/hooks/useShortAnswerGrading";
+import type { ReasoningSourceFormat, ReasoningQuestionSource } from "@/lib/reasoning";
+import {
   requiresReasoning,
   reasoningEarnedFactor,
   verdictFor,
@@ -41,6 +47,15 @@ interface AssessmentViewProps {
   onStudyTopics?: (topics: string[]) => void;
   questionMeta?: Map<string, { difficulty: number; bloom: number }>;
   courseId?: string | null;
+  /** Student taking the attempt — required for short-answer AI grading. */
+  studentId?: string | null;
+  /** Where short-answer responses are persisted from. */
+  shortAnswerSource?: {
+    sourceFormat: ReasoningSourceFormat;
+    questionSource: ReasoningQuestionSource;
+  };
+  /** Per-question grading references for short-answer questions. */
+  shortAnswerMeta?: Map<string, { model_answer?: string | null; answer_max_words?: number | null }>;
   /** Enable browser lock: fullscreen, copy/paste block, warn-then-void. */
   proctored?: boolean;
   /** Element to put into fullscreen when proctored. */
@@ -90,7 +105,7 @@ export interface AssessmentResults {
 
 type Phase = "intro" | "active" | "review" | "voided";
 
-const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta, courseId, proctored = false, fullscreenTargetRef, onVoided }: AssessmentViewProps) => {
+const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta, courseId, studentId, shortAnswerSource, shortAnswerMeta, proctored = false, fullscreenTargetRef, onVoided }: AssessmentViewProps) => {
   const [phase, setPhase] = useState<Phase>("intro");
   const [warningOpen, setWarningOpen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState<string | null>(null);
@@ -108,18 +123,48 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
   const questionStartRef = useRef<number>(Date.now());
   const reasoning = useReasoningAnswers();
+  const shortAnswer = useShortAnswerGrading();
   const [submitting, setSubmitting] = useState(false);
 
+  /** Short answers carry their own reasoning — no separate rationale widget. */
   const bloomFor = useCallback(
-    (qid: string) => Number(questionMeta?.get(qid)?.bloom ?? 1),
-    [questionMeta],
+    (qid: string) => {
+      const q = questions.find((x) => x.id === qid);
+      if (q?.type === "short_answer") return 1;
+      return Number(questionMeta?.get(qid)?.bloom ?? 1);
+    },
+    [questionMeta, questions],
   );
   const reasoningRefs = questions.map((q) => ({ id: q.id, bloom: bloomFor(q.id) }));
+
+  /** Short-answer grading can only run when the caller wired it up. */
+  const shortAnswerEnabled = Boolean(studentId && shortAnswerSource);
+
+  /** Persist + AI-grade a short answer in the background. */
+  const gradeShortAnswer = useCallback(
+    (q: Question | undefined) => {
+      if (!q || q.type !== "short_answer" || !shortAnswerEnabled || !studentId || !shortAnswerSource) return;
+      const meta = shortAnswerMeta?.get(q.id);
+      shortAnswer.grade({
+        questionId: q.id,
+        questionText: q.text,
+        answer: q.correctAnswer,
+        modelAnswer: meta?.model_answer ?? null,
+        topic: q.topic,
+        bloom: Number(questionMeta?.get(q.id)?.bloom ?? 1),
+        courseId: courseId ?? null,
+        studentId,
+        sourceFormat: shortAnswerSource.sourceFormat,
+        questionSource: shortAnswerSource.questionSource,
+      });
+    },
+    [shortAnswer, shortAnswerEnabled, shortAnswerMeta, shortAnswerSource, studentId, questionMeta, courseId],
+  );
 
   /** Fire the background AI evaluation of a question's rationale. */
   const evaluateQuestion = useCallback(
     (q: Question | undefined) => {
-      if (!q) return;
+      if (!q || q.type === "short_answer") return;
       reasoning.evaluate({
         questionId: q.id,
         questionText: q.text,
@@ -210,6 +255,9 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
 
   const handleAnswer = (questionId: string, answer: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
+    if (questions.find((q) => q.id === questionId)?.type === "short_answer") {
+      shortAnswer.setAnswer(questionId, answer);
+    }
   };
 
   const handleFinish = useCallback(() => {
@@ -222,11 +270,22 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       finalTimes[currentQid] = (finalTimes[currentQid] ?? 0) + elapsed;
     }
 
+    const saGrades = shortAnswer.getGrades();
     const standardised: StandardisedAnswer[] = questions.map(q => {
       const userAnswer = answers[q.id] || "";
       let isCorrect = false;
       if (q.type === "short_answer") {
-        isCorrect = userAnswer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
+        // AI verdict when it landed; otherwise fall back to a normalised match
+        // against the reference / model answer.
+        const grade = saGrades[q.id];
+        if (grade?.status === "done" && grade.verdict) {
+          isCorrect = grade.verdict === "accepted";
+        } else {
+          isCorrect = localExactMatch(userAnswer, [
+            q.correctAnswer,
+            shortAnswerMeta?.get(q.id)?.model_answer ?? null,
+          ]);
+        }
       } else if (q.type === "problem_solving") {
         const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
         isCorrect = normalize(userAnswer) === normalize(q.correctAnswer);
@@ -345,25 +404,64 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
       });
       return;
     }
+
+    // Short answers are mandatory too.
+    const missingShort = questions.filter(
+      (q) => q.type === "short_answer" && !isShortAnswerComplete(answers[q.id]),
+    );
+    if (missingShort.length > 0) {
+      shortAnswer.setShowErrors(true);
+      const numbers = missingShort
+        .map((q) => questions.findIndex((x) => x.id === q.id) + 1)
+        .filter((n) => n > 0)
+        .sort((a, b) => a - b);
+      if (type === "quiz" && numbers.length > 0) setCurrentIndex(numbers[0] - 1);
+      toast.error("Answer required", {
+        description: `Write your answer for question${numbers.length > 1 ? "s" : ""} ${numbers.join(", ")} before submitting.`,
+      });
+      return;
+    }
+
     setSubmitting(true);
     // Evaluate anything the student has not advanced past yet (exam mode shows
     // every question at once; quiz mode's last question was never "Next"-ed).
-    await reasoning.flushAndWait(
-      questions.map((q) => ({
-        questionId: q.id,
-        questionText: q.text,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-        selectedAnswer: answers[q.id] ?? null,
-        topic: q.topic,
-        bloom: bloomFor(q.id),
-        courseId: courseId ?? null,
-      })),
-      REASONING_EVAL_DEADLINE_MS,
-    );
+    await Promise.all([
+      reasoning.flushAndWait(
+        questions.map((q) => ({
+          questionId: q.id,
+          questionText: q.text,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          selectedAnswer: answers[q.id] ?? null,
+          topic: q.topic,
+          bloom: bloomFor(q.id),
+          courseId: courseId ?? null,
+        })),
+        REASONING_EVAL_DEADLINE_MS,
+      ),
+      shortAnswerEnabled && studentId && shortAnswerSource
+        ? shortAnswer.flushAndWait(
+            questions
+              .filter((q) => q.type === "short_answer")
+              .map((q) => ({
+                questionId: q.id,
+                questionText: q.text,
+                answer: q.correctAnswer,
+                modelAnswer: shortAnswerMeta?.get(q.id)?.model_answer ?? null,
+                topic: q.topic,
+                bloom: Number(questionMeta?.get(q.id)?.bloom ?? 1),
+                courseId: courseId ?? null,
+                studentId,
+                sourceFormat: shortAnswerSource.sourceFormat,
+                questionSource: shortAnswerSource.questionSource,
+              })),
+            REASONING_EVAL_DEADLINE_MS,
+          )
+        : Promise.resolve(),
+    ]);
     setSubmitting(false);
     handleFinish();
-  }, [reasoning, reasoningRefs, questions, handleFinish, type, bloomFor, answers, courseId]);
+  }, [reasoning, reasoningRefs, questions, handleFinish, type, bloomFor, answers, courseId, shortAnswer, shortAnswerEnabled, shortAnswerMeta, shortAnswerSource, studentId, questionMeta]);
 
   const fetchExplanations = async (answersData: StandardisedAnswer[]) => {
     setLoadingExplanations(true);
@@ -482,12 +580,24 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
         )}
 
         {q.type === "short_answer" && (
-          <Textarea
-            placeholder="Type your answer here…"
-            value={answers[q.id] || ""}
-            onChange={(e) => handleAnswer(q.id, e.target.value)}
-            className="min-h-[100px]"
-          />
+          <div className="space-y-1.5">
+            <Textarea
+              placeholder="Type your answer here…"
+              value={answers[q.id] || ""}
+              onChange={(e) => handleAnswer(q.id, e.target.value)}
+              className="min-h-[100px]"
+            />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {shortAnswerMeta?.get(q.id)?.answer_max_words
+                  ? `Aim for about ${shortAnswerMeta.get(q.id)?.answer_max_words} words.`
+                  : "Answer in a few sentences."}
+              </span>
+              {shortAnswer.showErrors && !isShortAnswerComplete(answers[q.id]) && (
+                <span className="text-destructive">An answer is required.</span>
+              )}
+            </div>
+          </div>
         )}
 
         {q.type === "problem_solving" && (
@@ -957,7 +1067,16 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                           });
                           return;
                         }
-                        evaluateQuestion(questions[safeIndex]);
+                        const currentQ = questions[safeIndex];
+                        if (currentQ?.type === "short_answer" && !isShortAnswerComplete(answers[currentQ.id])) {
+                          shortAnswer.setShowErrors(true);
+                          toast.error("Answer required", {
+                            description: "Write your answer before moving on.",
+                          });
+                          return;
+                        }
+                        evaluateQuestion(currentQ);
+                        gradeShortAnswer(currentQ);
                         const currentQid = questions[safeIndex]?.id;
                         flushTimeFor(currentQid);
                         if (currentQid && answers[currentQid] !== undefined) {

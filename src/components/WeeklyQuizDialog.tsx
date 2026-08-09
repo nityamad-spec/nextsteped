@@ -82,6 +82,9 @@ const WeeklyQuizDialog = ({
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionMeta, setQuestionMeta] = useState<Map<string, { difficulty: number; bloom: number }>>(new Map());
+  const [shortAnswerMeta, setShortAnswerMeta] = useState<
+    Map<string, { model_answer?: string | null; answer_max_words?: number | null }>
+  >(new Map());
   const [submitted, setSubmitted] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -112,6 +115,7 @@ const WeeklyQuizDialog = ({
     (async () => {
       let qs: Question[] = [];
       const meta = new Map<string, { difficulty: number; bloom: number }>();
+      const saMeta = new Map<string, { model_answer?: string | null; answer_max_words?: number | null }>();
       const { data, error } = await supabase
         .from("assessment_questions")
         .select("*")
@@ -125,17 +129,26 @@ const WeeklyQuizDialog = ({
             difficulty: Number(row.difficulty_estimate ?? 0.5),
             bloom: Number(row.bloom_level ?? 1),
           });
-          return {
-            id: row.id,
-            text: row.question_text,
-            type: (row.question_type === "MCQ"
+          const format = String(row.format ?? "").toLowerCase();
+          const type: Question["type"] =
+            format === "short_answer" || row.question_type === "Short Answer"
+              ? "short_answer"
+              : row.question_type === "MCQ" || format === "mcq"
               ? "mcq"
               : row.question_type === "Problem Solving"
               ? "problem_solving"
-              : row.question_type === "True/False" || row.question_type === "TF"
-              ? "true_false"
-              : "short_answer") as Question["type"],
-            options: row.options as string[] | undefined,
+              : "true_false";
+          if (type === "short_answer") {
+            saMeta.set(row.id, {
+              model_answer: row.model_answer ?? null,
+              answer_max_words: row.answer_max_words ?? null,
+            });
+          }
+          return {
+            id: row.id,
+            text: row.question_text,
+            type,
+            options: (row.options ?? undefined) as string[] | undefined,
             correctAnswer: row.answer,
             topic: row.topic,
             difficulty: row.difficulty as "Easy" | "Medium" | "Hard",
@@ -195,6 +208,7 @@ const WeeklyQuizDialog = ({
       if (cancelled) return;
       setQuestions(qs);
       setQuestionMeta(meta);
+      setShortAnswerMeta(saMeta);
       setLoading(false);
     })();
 
@@ -306,6 +320,9 @@ const WeeklyQuizDialog = ({
                 questions={questions}
                 timeLimitMinutes={timeLimitMinutes}
                 day={day ?? 1}
+                studentId={studentId}
+                shortAnswerSource={{ sourceFormat: "weekly_quiz", questionSource: "assessment_questions" }}
+                shortAnswerMeta={shortAnswerMeta}
                 onEnd={handleEnd}
                 onSubmit={handleSubmit}
                 questionMeta={questionMeta}

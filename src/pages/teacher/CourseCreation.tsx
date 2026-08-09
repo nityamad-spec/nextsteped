@@ -19,7 +19,7 @@ import {
 import {
   Check, X, ArrowRight, ArrowLeft, Sparkles, Loader2,
   ChevronDown, ChevronUp, Pencil, GripVertical,
-  Plus, Trash2, FileText, BookOpen, Code2, ExternalLink,
+  Plus, Minus, Trash2, FileText, BookOpen, Code2, ExternalLink,
   GraduationCap, Eye, EyeOff, Info, Library, RefreshCw, Clock,
 } from "lucide-react";
 // SetupProgressBar removed — using top-left "Back to Course Setup" button instead.
@@ -33,6 +33,10 @@ import {
   LESSON_PLAN_BUCKET,
 } from "@/lib/lessonPlanPath";
 import { upsertPublishedWeeks, setWeekLocked } from "@/lib/lessonPlanWeeks";
+import {
+  DEFAULT_DIAGNOSTIC_MIX, FORMAT_LABEL, FORMAT_ORDER, MIX_STEP,
+  adjustMix, allocateFormats, normalizeMix, type QuestionMix, type QuestionFormatKey,
+} from "@/lib/questionMix";
 import { upsertCourseMaterialFile } from "@/lib/courseMaterialFiles";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -159,6 +163,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [generatingQuizWeek, setGeneratingQuizWeek] = useState<number | null>(null);
   const [quizGenerated, setQuizGenerated] = useState<Record<number, number>>({});
   const [quizTierCounts, setQuizTierCounts] = useState<Record<number, Record<string, number>>>({});
+  const [quizMix, setQuizMix] = useState<Record<number, QuestionMix>>({});
+  const [savingMixWeek, setSavingMixWeek] = useState<number | null>(null);
   const [reviewQuizWeek, setReviewQuizWeek] = useState<WeekPlan | null>(null);
   const [quizElapsed, setQuizElapsed] = useState(0);
 
@@ -222,6 +228,70 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     })();
     return () => { cancelled = true; };
   }, [courseId]);
+
+  // Load the saved per-week question format mix
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("lesson_plan_weeks")
+        .select("week_number, quiz_type_counts")
+        .eq("course_id", courseId);
+      if (cancelled || error || !data) return;
+      const next: Record<number, QuestionMix> = {};
+      for (const r of data as { week_number: number; quiz_type_counts: unknown }[]) {
+        next[r.week_number] = normalizeMix(r.quiz_type_counts);
+      }
+      setQuizMix(next);
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
+
+  const weekMix = useCallback(
+    (weekNo: number): QuestionMix => quizMix[weekNo] ?? { ...DEFAULT_DIAGNOSTIC_MIX },
+    [quizMix],
+  );
+
+  const handleMixChange = useCallback(async (week: WeekPlan, key: QuestionFormatKey, delta: number) => {
+    const current = quizMix[week.week] ?? { ...DEFAULT_DIAGNOSTIC_MIX };
+    const next = adjustMix(current, key, delta);
+    if (next === current) return;
+    setQuizMix((prev) => ({ ...prev, [week.week]: next }));
+    if (!courseId) return;
+    setSavingMixWeek(week.week);
+    try {
+      const { error } = await supabase
+        .from("lesson_plan_weeks")
+        .upsert(
+          {
+            course_id: courseId,
+            week_number: week.week,
+            week_name: week.week_name || `Week ${week.week}`,
+            overview: week.overview || "",
+            is_exam_week: !!week.is_exam_week,
+            exam_type: week.is_exam_week ? (week.exam_type ?? null) : null,
+            locked: !!week.locked,
+            concepts: week.concepts || [],
+            resources: week.resources || [],
+            quiz_type_counts: next,
+          },
+          { onConflict: "course_id,week_number" },
+        );
+      if (error) throw error;
+    } catch (err: any) {
+      setQuizMix((prev) => ({ ...prev, [week.week]: current }));
+      toast({
+        title: "Couldn't save the format mix",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingMixWeek(null);
+    }
+  }, [courseId, quizMix, toast]);
+
+
 
   const handleGenerateWeeklyQuiz = useCallback(async (week: WeekPlan, opts?: { topUp?: boolean }) => {
     if (!courseId) {
@@ -1906,6 +1976,60 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                             <p className="text-[11px] text-muted-foreground -mt-1">
                               Auto-generated 10-question quiz on this week's concepts: 5 standard questions for all students, plus 5 adaptive questions based on their performance on the first 5.
                             </p>
+
+                            {/* Question Format Mix */}
+                            <div className="rounded-lg border bg-background p-3 space-y-2">
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <Label className="text-xs font-semibold">Question Format Mix</Label>
+                                <span className="text-[10px] text-muted-foreground">
+                                  Steps of {MIX_STEP}% · always totals 100%
+                                </span>
+                              </div>
+                              {FORMAT_ORDER.map((key) => {
+                                const mix = weekMix(w.week);
+                                const count = allocateFormats(QUIZ_TOTAL_EXPECTED, mix)[key];
+                                return (
+                                  <div key={key} className="flex items-center justify-between gap-2">
+                                    <div>
+                                      <p className="text-xs font-medium">{FORMAT_LABEL[key]}</p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        ~{count} question{count === 1 ? "" : "s"}
+                                      </p>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <Button
+                                        size="icon"
+                                        variant="outline"
+                                        className="h-7 w-7"
+                                        disabled={savingMixWeek === w.week || mix[key] === 0}
+                                        onClick={() => handleMixChange(w, key, -MIX_STEP)}
+                                        aria-label={`Decrease ${FORMAT_LABEL[key]}`}
+                                      >
+                                        <Minus className="h-3 w-3" />
+                                      </Button>
+                                      <span className="w-10 text-center font-mono text-xs font-semibold">{mix[key]}%</span>
+                                      <Button
+                                        size="icon"
+                                        variant="outline"
+                                        className="h-7 w-7"
+                                        disabled={savingMixWeek === w.week || mix[key] === 100}
+                                        onClick={() => handleMixChange(w, key, MIX_STEP)}
+                                        aria-label={`Increase ${FORMAT_LABEL[key]}`}
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              {quizGenerated[w.week] > 0 && (
+                                <p className="text-[10px] text-muted-foreground">
+                                  This week's quiz already exists — the new mix applies the next time you regenerate it.
+                                </p>
+                              )}
+                            </div>
+
+
 
 
                             <div className="rounded-lg border bg-background p-3 flex flex-wrap items-center gap-2">

@@ -46,6 +46,13 @@ import {
   validateStructural,
   type QuestionFormat,
 } from "../_shared/question-validation.ts";
+import {
+  DEFAULT_DIAGNOSTIC_MIX,
+  allocateFormats,
+  normalizeMix,
+  type QuestionFormatKey,
+  type QuestionMix,
+} from "../_shared/question-mix.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -164,9 +171,11 @@ class DeadlineExceededError extends Error {
 
 interface GeneratedQuestion {
   content_text: string;
-  format: "mcq" | "true_false";
+  format: "mcq" | "true_false" | "short_answer";
   options: string[];
   answer: string;
+  model_answer?: string | null;
+  answer_max_words?: number | null;
   difficulty_estimate: number;
   bloom_level: number;
   explanation: string;
@@ -216,20 +225,41 @@ function validateCandidate(
   conceptByCode: Record<string, ConceptRow>,
 ): { ok: true; q: GeneratedQuestion } | { ok: false; reason: string } {
   const structural = validateStructural(raw as Record<string, unknown>, {
-    allowedFormats: ["mcq", "true_false"],
+    allowedFormats: ["mcq", "true_false", "short_answer"],
     requireFourOptions: true,
     maxContentChars: 600,
   });
   if (!structural.ok) return structural;
   const { format, content_text, options } = structural.value;
 
-  const answerRes = normalizeAnswer((raw as any)?.answer, options);
-  if (!answerRes.ok) return answerRes;
-  const answer = answerRes.value;
+  let answer: string;
+  let model_answer: string | null = null;
+  let answer_max_words: number | null = null;
 
-  if (format === "mcq") {
-    const parity = validateOptionParity(options, answer);
-    if (!parity.ok) return parity;
+  if (format === "short_answer") {
+    answer = String((raw as any)?.answer ?? "").trim();
+    if (!answer) return { ok: false, reason: "short_answer requires an answer" };
+    const answerWords = answer.split(/\s+/).filter(Boolean).length;
+    if (answerWords > 30) {
+      return { ok: false, reason: `short_answer reference answer too long (${answerWords} words)` };
+    }
+    if (Array.isArray((raw as any)?.options) && (raw as any).options.length > 0) {
+      return { ok: false, reason: "short_answer must not carry options" };
+    }
+    model_answer = String((raw as any)?.model_answer ?? "").trim();
+    if (!model_answer) return { ok: false, reason: "short_answer requires model_answer" };
+    if (model_answer.length < 20) return { ok: false, reason: "model_answer too short (<20 chars)" };
+    if (model_answer.length > 1200) return { ok: false, reason: "model_answer > 1200 chars" };
+    const rawMax = Number((raw as any)?.answer_max_words);
+    answer_max_words = Number.isFinite(rawMax) ? Math.min(120, Math.max(20, Math.round(rawMax))) : 60;
+  } else {
+    const answerRes = normalizeAnswer((raw as any)?.answer, options);
+    if (!answerRes.ok) return answerRes;
+    answer = answerRes.value;
+    if (format === "mcq") {
+      const parity = validateOptionParity(options, answer);
+      if (!parity.ok) return parity;
+    }
   }
 
   const conceptRes = validateConcept((raw as any)?.topic, conceptByCode);
@@ -265,9 +295,11 @@ function validateCandidate(
     ok: true,
     q: {
       content_text,
-      format: format as "mcq" | "true_false",
+      format,
       options,
       answer,
+      model_answer,
+      answer_max_words,
       difficulty_estimate,
       bloom_level,
       explanation: explRes.value,
@@ -323,6 +355,8 @@ interface TierGenOptions {
    * are trying to reach exactly `count`.
    */
   overGenerate?: number;
+  /** Per-format target counts for this tier (mcq / short_answer / true_false). */
+  formatQuota?: Record<QuestionFormatKey, number>;
 }
 
 async function generateTier(
@@ -343,11 +377,21 @@ async function generateTier(
   const targetCount = spec.count + overGenerate;
   const perConceptQuota = buildConceptQuota(focusCodes, targetCount);
 
+  const formatQuota: Record<QuestionFormatKey, number> =
+    opts.formatQuota ?? allocateFormats(spec.count, DEFAULT_DIAGNOSTIC_MIX);
+
   const accepted: GeneratedQuestion[] = [];
   const attemptRejections: string[] = [];
   let retryHint: string | null = null;
   let skewNote: string | null = null;
   const maxAttempts = opts.maxAttempts ?? spec.maxAttempts;
+
+  const countByFormat = (): Record<QuestionFormatKey, number> => {
+    const c: Record<QuestionFormatKey, number> = { mcq: 0, short_answer: 0, true_false: 0 };
+    for (const a of accepted) c[a.format as QuestionFormatKey] += 1;
+    return c;
+  };
+
 
   outer: for (let attempt = 0; attempt < maxAttempts && accepted.length < targetCount; attempt++) {
     // Concepts still short for the next sub-call, so the prompt asks the model
@@ -371,6 +415,19 @@ async function generateTier(
             .join(", ")}. Prioritise them.`
         : "";
 
+    const have = countByFormat();
+    const owedFormats: Record<QuestionFormatKey, number> = {
+      mcq: Math.max(0, formatQuota.mcq - have.mcq),
+      short_answer: Math.max(0, formatQuota.short_answer - have.short_answer),
+      true_false: Math.max(0, formatQuota.true_false - have.true_false),
+    };
+    const formatQuotaLine = `\n\nFORMAT QUOTA for the remainder of this tier — produce approximately: ${
+      (["mcq", "short_answer", "true_false"] as QuestionFormatKey[])
+        .map((k) => `${owedFormats[k]} ${k}`)
+        .join(", ")
+    }. Do not exceed a format whose owed count is 0.`;
+
+
     const systemPrompt = `You are an expert assessment designer for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier}-tier WEEKLY QUIZ questions for Week ${weekNumber}${weekName ? ` — ${weekName}` : ""}.
 
 Tier: ${spec.label}
@@ -381,16 +438,17 @@ ${promptConceptList}
 (Full week concept list: ${conceptList.trim() ? "\n" + conceptList : "(same as above)"})
 
 STRICT RULES:
-- Each question MUST be either multiple-choice (format="mcq") or true/false (format="true_false"). NO short answer, NO problem solving.
+- Allowed formats: multiple-choice (format="mcq"), true/false (format="true_false") and short answer (format="short_answer"). Respect the FORMAT QUOTA below.
 - MCQ: exactly 4 distinct non-empty options (no "A)" prefixes). 'answer' is the FULL TEXT of the correct option.
 - True/False: options MUST be exactly ["True", "False"]. 'answer' must be "True" or "False".
+- SHORT ANSWER: omit the options array entirely. Provide: answer = a concise reference answer (≤ 30 words, the key point being tested); model_answer = a fuller ideal answer (2-4 sentences) an examiner would accept; answer_max_words = the word budget expected of the student (typically 40-80). The question must be answerable in a few sentences from course knowledge — never open-ended essay prompts.
 - difficulty_estimate: number near ${spec.difficulty} (±${(spec.band ?? 0.15).toFixed(2)}).
-- bloom_level: integer 1-4 ONLY (1=Remember, 2=Understand, 3=Apply, 4=Analyze). Do NOT use 5 (Evaluate) or 6 (Create) — these cannot be fairly assessed with MCQ or True/False.
+- bloom_level: integer 1-4 ONLY (1=Remember, 2=Understand, 3=Apply, 4=Analyze). Do NOT use 5 (Evaluate) or 6 (Create).
 ${spec.tier === "easy" ? "- Bloom target: mostly 1-2 (Remember/Understand)." : spec.tier === "medium" || spec.tier === "standard" ? "- Bloom target: mostly 2-3 (Understand/Apply); at least 40% at bloom 3." : "- Bloom target: 3-4 (Apply/Analyze); at least 60% at bloom 3-4. Prefer scenario, code-trace, or comparison stems over single-fact recall."}
 - content_text: question stem only, ≤ 600 chars.
 - explanation: 1-2 sentences that explicitly support the exact correct answer (using its key terms) and do not support any distractor. Do NOT name-drop a wrong option letter.
 - topic: MUST exactly match one of the concept codes above.
-- Distribute questions across the listed concepts (don't pile all on one).${owedLine}
+- Distribute questions across the listed concepts (don't pile all on one).${owedLine}${formatQuotaLine}
 - Do NOT duplicate or closely paraphrase any question already generated in this same tier. If existing same-tier questions are provided below, create new stems, new examples, and distinct answer rationales.
 
 ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
@@ -429,9 +487,15 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
                         type: "object",
                         properties: {
                           content_text: { type: "string" },
-                          format: { type: "string", enum: ["mcq", "true_false"] },
-                          options: { type: "array", items: { type: "string" } },
-                          answer: { type: "string" },
+                          format: { type: "string", enum: ["mcq", "true_false", "short_answer"] },
+                          options: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Exactly 4 options for mcq. Omit entirely for true_false and short_answer.",
+                          },
+                          answer: { type: "string", description: "mcq: full text of the correct option. true_false: 'True' or 'False'. short_answer: concise reference answer (≤30 words)." },
+                          model_answer: { type: "string", description: "short_answer only: fuller ideal answer (2-4 sentences) used to grade the student." },
+                          answer_max_words: { type: "integer", description: "short_answer only: word budget expected of the student (40-80 typical)." },
                           difficulty_estimate: { type: "number" },
                           bloom_level: { type: "integer", minimum: 1, maximum: 4 },
                           explanation: { type: "string" },
@@ -440,7 +504,6 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
                         required: [
                           "content_text",
                           "format",
-                          "options",
                           "answer",
                           "difficulty_estimate",
                           "bloom_level",
@@ -501,6 +564,9 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
     const arr: any[] = Array.isArray(parsed?.questions) ? parsed.questions : [];
 
     const subRejects: string[] = [];
+    // Enforce the format quota while there is still attempt budget left; on the
+    // final attempt accept anything valid so the tier isn't left short.
+    const strictFormat = attempt < maxAttempts - 1;
     for (const q of arr) {
       if (accepted.length >= targetCount) break;
 
@@ -509,6 +575,14 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
         subRejects.push(v.reason);
         continue;
       }
+
+      const fmt = v.q.format as QuestionFormatKey;
+      if (strictFormat && countByFormat()[fmt] >= (formatQuota[fmt] || 0)) {
+        subRejects.push(`format quota met for ${fmt}`);
+        continue;
+      }
+
+
 
       // Dedup: check against everything already accepted (same tier) AND
       // against cross-tier avoid list. dedupWithin does both in one pass.
@@ -646,13 +720,14 @@ async function run(
   // Load week + concept names for the week
   const { data: weekRow } = await admin
     .from("lesson_plan_weeks")
-    .select("week_name, concepts")
+    .select("week_name, concepts, quiz_type_counts")
     .eq("course_id", courseId)
     .eq("week_number", weekNumber)
     .maybeSingle();
   if (!weekRow) {
     return { status: 400, payload: { error: `No lesson-plan week ${weekNumber} for this course` } };
   }
+  const weekMix: QuestionMix = normalizeMix((weekRow as any).quiz_type_counts);
   const weekConceptNames: string[] = Array.isArray(weekRow.concepts)
     ? (weekRow.concepts as any[]).map((c) => String(c?.name ?? "").trim()).filter(Boolean)
     : [];
@@ -697,7 +772,7 @@ async function run(
       existingByTier[tier] = (existingByTier[tier] ?? 0) + 1;
       existingAvoid.push({
         content_text: String((r as any).question_text ?? ""),
-        format: ((r as any).format === "true_false" ? "true_false" : "mcq"),
+        format: (((r as any).format === "true_false" || (r as any).format === "short_answer") ? (r as any).format : "mcq"),
         options: Array.isArray((r as any).options) ? ((r as any).options as string[]) : [],
         answer: String((r as any).answer ?? ""),
         difficulty_estimate: Number((r as any).difficulty_estimate ?? 0.5),
@@ -742,6 +817,7 @@ async function run(
         lovableKey,
         mainPassDeadline,
         existingAvoid,
+        { formatQuota: allocateFormats(spec.count, weekMix) },
       ).then((qs) => ({ spec, qs })),
     ),
   );
@@ -828,7 +904,11 @@ async function run(
         lovableKey,
         deadlineAt,
         avoid,
-        { focusConcepts: focus.length ? focus : undefined, maxAttempts: 3 },
+        {
+          focusConcepts: focus.length ? focus : undefined,
+          maxAttempts: 3,
+          formatQuota: allocateFormats(shortfall, weekMix),
+        },
       )
         .then((extra) => ({ spec, shortfall, focus, extra }))
         .catch((err) => ({ spec, shortfall, focus, err }));
@@ -896,12 +976,14 @@ async function run(
       mode: "daily_quiz",
       quiz_day: weekNumber,
       tier: spec.tier,
-      question_type: q.format === "mcq" ? "MCQ" : "True/False",
+      question_type: q.format === "mcq" ? "MCQ" : q.format === "true_false" ? "True/False" : "Short Answer",
       format: q.format,
       question_text: q.content_text,
-      options: q.options,
+      options: q.format === "short_answer" ? null : q.options,
       answer: q.answer,
-      correct_index: correctIndex,
+      model_answer: q.format === "short_answer" ? (q.model_answer ?? null) : null,
+      answer_max_words: q.format === "short_answer" ? (q.answer_max_words ?? null) : null,
+      correct_index: q.format === "short_answer" ? null : correctIndex,
       explanation: q.explanation,
       topic: q.topic,
       concept_id: concept.id,
