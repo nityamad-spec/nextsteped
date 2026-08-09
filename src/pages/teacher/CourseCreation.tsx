@@ -229,6 +229,70 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     return () => { cancelled = true; };
   }, [courseId]);
 
+  // Load the saved per-week question format mix
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("lesson_plan_weeks")
+        .select("week_number, quiz_type_counts")
+        .eq("course_id", courseId);
+      if (cancelled || error || !data) return;
+      const next: Record<number, QuestionMix> = {};
+      for (const r of data as { week_number: number; quiz_type_counts: unknown }[]) {
+        next[r.week_number] = normalizeMix(r.quiz_type_counts);
+      }
+      setQuizMix(next);
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
+
+  const weekMix = useCallback(
+    (weekNo: number): QuestionMix => quizMix[weekNo] ?? { ...DEFAULT_DIAGNOSTIC_MIX },
+    [quizMix],
+  );
+
+  const handleMixChange = useCallback(async (week: WeekPlan, key: QuestionFormatKey, delta: number) => {
+    const current = quizMix[week.week] ?? { ...DEFAULT_DIAGNOSTIC_MIX };
+    const next = adjustMix(current, key, delta);
+    if (next === current) return;
+    setQuizMix((prev) => ({ ...prev, [week.week]: next }));
+    if (!courseId) return;
+    setSavingMixWeek(week.week);
+    try {
+      const { error } = await supabase
+        .from("lesson_plan_weeks")
+        .upsert(
+          {
+            course_id: courseId,
+            week_number: week.week,
+            week_name: week.week_name || `Week ${week.week}`,
+            overview: week.overview || "",
+            is_exam_week: !!week.is_exam_week,
+            exam_type: week.is_exam_week ? (week.exam_type ?? null) : null,
+            locked: !!week.locked,
+            concepts: week.concepts || [],
+            resources: week.resources || [],
+            quiz_type_counts: next,
+          },
+          { onConflict: "course_id,week_number" },
+        );
+      if (error) throw error;
+    } catch (err: any) {
+      setQuizMix((prev) => ({ ...prev, [week.week]: current }));
+      toast({
+        title: "Couldn't save the format mix",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingMixWeek(null);
+    }
+  }, [courseId, quizMix, toast]);
+
+
+
   const handleGenerateWeeklyQuiz = useCallback(async (week: WeekPlan, opts?: { topUp?: boolean }) => {
     if (!courseId) {
       toast({ title: "Course not ready", description: "Reload and try again.", variant: "destructive" });
