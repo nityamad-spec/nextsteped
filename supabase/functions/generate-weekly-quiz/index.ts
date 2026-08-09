@@ -415,6 +415,19 @@ async function generateTier(
             .join(", ")}. Prioritise them.`
         : "";
 
+    const have = countByFormat();
+    const owedFormats: Record<QuestionFormatKey, number> = {
+      mcq: Math.max(0, formatQuota.mcq - have.mcq),
+      short_answer: Math.max(0, formatQuota.short_answer - have.short_answer),
+      true_false: Math.max(0, formatQuota.true_false - have.true_false),
+    };
+    const formatQuotaLine = `\n\nFORMAT QUOTA for the remainder of this tier — produce approximately: ${
+      (["mcq", "short_answer", "true_false"] as QuestionFormatKey[])
+        .map((k) => `${owedFormats[k]} ${k}`)
+        .join(", ")
+    }. Do not exceed a format whose owed count is 0.`;
+
+
     const systemPrompt = `You are an expert assessment designer for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier}-tier WEEKLY QUIZ questions for Week ${weekNumber}${weekName ? ` — ${weekName}` : ""}.
 
 Tier: ${spec.label}
