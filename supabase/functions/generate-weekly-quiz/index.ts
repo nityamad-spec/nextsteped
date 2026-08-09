@@ -438,16 +438,17 @@ ${promptConceptList}
 (Full week concept list: ${conceptList.trim() ? "\n" + conceptList : "(same as above)"})
 
 STRICT RULES:
-- Each question MUST be either multiple-choice (format="mcq") or true/false (format="true_false"). NO short answer, NO problem solving.
+- Allowed formats: multiple-choice (format="mcq"), true/false (format="true_false") and short answer (format="short_answer"). Respect the FORMAT QUOTA below.
 - MCQ: exactly 4 distinct non-empty options (no "A)" prefixes). 'answer' is the FULL TEXT of the correct option.
 - True/False: options MUST be exactly ["True", "False"]. 'answer' must be "True" or "False".
+- SHORT ANSWER: omit the options array entirely. Provide: answer = a concise reference answer (≤ 30 words, the key point being tested); model_answer = a fuller ideal answer (2-4 sentences) an examiner would accept; answer_max_words = the word budget expected of the student (typically 40-80). The question must be answerable in a few sentences from course knowledge — never open-ended essay prompts.
 - difficulty_estimate: number near ${spec.difficulty} (±${(spec.band ?? 0.15).toFixed(2)}).
-- bloom_level: integer 1-4 ONLY (1=Remember, 2=Understand, 3=Apply, 4=Analyze). Do NOT use 5 (Evaluate) or 6 (Create) — these cannot be fairly assessed with MCQ or True/False.
+- bloom_level: integer 1-4 ONLY (1=Remember, 2=Understand, 3=Apply, 4=Analyze). Do NOT use 5 (Evaluate) or 6 (Create).
 ${spec.tier === "easy" ? "- Bloom target: mostly 1-2 (Remember/Understand)." : spec.tier === "medium" || spec.tier === "standard" ? "- Bloom target: mostly 2-3 (Understand/Apply); at least 40% at bloom 3." : "- Bloom target: 3-4 (Apply/Analyze); at least 60% at bloom 3-4. Prefer scenario, code-trace, or comparison stems over single-fact recall."}
 - content_text: question stem only, ≤ 600 chars.
 - explanation: 1-2 sentences that explicitly support the exact correct answer (using its key terms) and do not support any distractor. Do NOT name-drop a wrong option letter.
 - topic: MUST exactly match one of the concept codes above.
-- Distribute questions across the listed concepts (don't pile all on one).${owedLine}
+- Distribute questions across the listed concepts (don't pile all on one).${owedLine}${formatQuotaLine}
 - Do NOT duplicate or closely paraphrase any question already generated in this same tier. If existing same-tier questions are provided below, create new stems, new examples, and distinct answer rationales.
 
 ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
