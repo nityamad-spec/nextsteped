@@ -29,13 +29,14 @@ import {
   ADAPTIVE_COUNT,
   TOTAL_COUNT,
   pickBranchTier,
-  computeStandardCorrect,
   // computeLearnerLevel is server-authoritative (score-diagnostic edge fn);
   // no longer imported client-side.
   type BranchTier,
 } from "@/lib/diagnosticBranching";
 import ReasoningInput from "@/components/ReasoningInput";
 import { useReasoningAnswers, saveReasoningRows } from "@/hooks/useReasoningAnswers";
+import { useShortAnswerGrading, localExactMatch } from "@/hooks/useShortAnswerGrading";
+
 import { buildReasoningRows } from "@/lib/buildReasoningRows";
 import ReasoningVerdict from "@/components/ReasoningVerdict";
 import { requiresReasoning, verdictFor, REASONING_EVAL_DEADLINE_MS } from "@/lib/reasoning";
@@ -51,6 +52,7 @@ interface QuizQuestion {
   options: string[];
   correctIndex: number;
   correctAnswer: string;
+  modelAnswer: string | null;
   topic: string;
   explanation: string;
   courseId: string;
@@ -58,6 +60,7 @@ interface QuizQuestion {
   tier: "standard" | "easy" | "medium" | "hard";
   bloomLevel: number;
 }
+
 
 const answerLetters = ["A", "B", "C", "D", "E", "F"];
 
@@ -88,6 +91,8 @@ function mapRow(row: any): QuizQuestion {
     options: format === "short_answer" ? [] : options,
     correctIndex: correctIndex >= 0 ? correctIndex : 0,
     correctAnswer: row.answer,
+    modelAnswer: (row.model_answer as string | null) ?? null,
+
     topic: row.topic || "",
     explanation: row.explanation || "",
     courseId: row.course_id,
@@ -102,6 +107,8 @@ const DiagnosticQuiz = () => {
   const { studentProfile, setStudentProfile, setDiagnosticComplete } = useApp();
   const { user } = useAuth();
   const reasoning = useReasoningAnswers();
+  const shortAnswers = useShortAnswerGrading();
+
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const courseParam = searchParams.get("course");
@@ -404,9 +411,39 @@ const DiagnosticQuiz = () => {
     } catch {}
   }, [user, activeCourseId, phase, currentQ, answers, textAnswers, questionTimes, questionIds, selected, textAnswer, questionStartTime, questions, branchTier]);
 
+  const gradeShortAnswer = (q: QuizQuestion, text: string) => {
+    if (q.format !== "short_answer" || !user) return;
+    shortAnswers.setAnswer(q.id, text);
+    shortAnswers.grade({
+      questionId: q.id,
+      questionText: q.question,
+      answer: q.correctAnswer,
+      modelAnswer: q.modelAnswer,
+      topic: q.topic,
+      bloom: q.bloomLevel,
+      courseId: activeCourseId ?? q.courseId ?? null,
+      studentId: user.id,
+      sourceFormat: "diagnostic",
+      questionSource: "diagnostic_questions",
+    });
+  };
+
+  /**
+   * Correctness for one answered question. Short answers prefer the AI verdict
+   * and fall back to a normalised exact match when grading was unavailable.
+   */
+  const isCorrectFor = (q: QuizQuestion, answerIndex: number, text: string) => {
+    if (q.format !== "short_answer") return answerIndex === q.correctIndex;
+    const grade = shortAnswers.getGrades()[q.id];
+    if (grade?.status === "done" && grade.verdict) return grade.verdict === "accepted";
+    return localExactMatch(text ?? "", [q.modelAnswer, q.correctAnswer]);
+  };
+
   const handleAnswer = async () => {
     if (!canProceed) return;
-    if (reasoning.isQuestionBlocked({ id: question.id, bloom: question.bloomLevel })) {
+    // Short-answer questions carry their own written response, so the separate
+    // reasoning box is neither shown nor required for them.
+    if (!isShortAnswer && reasoning.isQuestionBlocked({ id: question.id, bloom: question.bloomLevel })) {
       reasoning.setShowErrors(true);
       toast.error("Reasoning required", {
         description: "Explain your reasoning for this question before moving on.",
@@ -414,17 +451,22 @@ const DiagnosticQuiz = () => {
       return;
     }
     reasoning.setShowErrors(false);
-    // Background AI review of the rationale — never blocks the student.
-    reasoning.evaluate({
-      questionId: question.id,
-      questionText: question.question,
-      options: question.options,
-      correctAnswer: question.correctAnswer,
-      selectedAnswer: isShortAnswer ? textAnswer.trim() : (question.options?.[selected!] ?? null),
-      topic: question.topic,
-      bloom: question.bloomLevel,
-      courseId: activeCourseId ?? null,
-    });
+    if (isShortAnswer) {
+      // Background AI grading of the written answer — never blocks the student.
+      gradeShortAnswer(question, textAnswer.trim());
+    } else {
+      // Background AI review of the rationale — never blocks the student.
+      reasoning.evaluate({
+        questionId: question.id,
+        questionText: question.question,
+        options: question.options,
+        correctAnswer: question.correctAnswer,
+        selectedAnswer: question.options?.[selected!] ?? null,
+        topic: question.topic,
+        bloom: question.bloomLevel,
+        courseId: activeCourseId ?? null,
+      });
+    }
     const elapsed = Date.now() - questionStartTime;
     const answerValue = isShortAnswer ? -1 : selected!;
     const newAnswers = [...answers, answerValue];
@@ -443,13 +485,19 @@ const DiagnosticQuiz = () => {
       currentQ === STANDARD_COUNT - 1 && !branchTier && activeCourseId;
 
     if (justFinishedStandard) {
-      // Compute branch tier from standard answers
-      const standardCorrect = computeStandardCorrect(
-        questions.slice(0, STANDARD_COUNT),
-        newAnswers,
-        newTextAnswers,
+      // Let short-answer verdicts land before branching — they change the
+      // Phase A score that picks the adaptive tier.
+      const standardQuestions = questions.slice(0, STANDARD_COUNT);
+      if (standardQuestions.some((q) => q.format === "short_answer")) {
+        setLoadingBranch(true);
+        await shortAnswers.waitForPending(REASONING_EVAL_DEADLINE_MS);
+      }
+      const standardCorrect = standardQuestions.reduce(
+        (n, q, i) => n + (isCorrectFor(q, newAnswers[i], newTextAnswers[i] ?? "") ? 1 : 0),
+        0,
       );
       const branch = pickBranchTier(standardCorrect);
+
 
       setLoadingBranch(true);
       const { data: branchRows } = await supabase
@@ -494,27 +542,6 @@ const DiagnosticQuiz = () => {
     finalQuestions: QuizQuestion[],
     branch: BranchTier | null,
   ) => {
-    const standardisedAnswers = finalQuestions.map((q, i) => {
-      const isShort = q.format === "short_answer";
-      const selectedValue = isShort ? newTextAnswers[i] : answerLetters[newAnswers[i]] || String(newAnswers[i]);
-      const correctValue = q.correctAnswer;
-      const isCorrect = isShort
-        ? newTextAnswers[i].toLowerCase() === correctValue.trim().toLowerCase()
-        : newAnswers[i] === q.correctIndex;
-      return {
-        question_id: q.id,
-        question_text: q.question,
-        type: q.format,
-        topic: q.topic,
-        tier: q.tier,
-        selected: selectedValue,
-        correct: correctValue,
-        is_correct: isCorrect,
-        time_ms: newQuestionTimes[i],
-        confidence: newConfidences[i],
-      };
-    });
-
     if (!user) {
       setPhase("result");
       return;
@@ -532,22 +559,65 @@ const DiagnosticQuiz = () => {
     // Evaluate every rationale BEFORE scoring — the verdicts feed the score.
     // Includes the last question, whose rationale was typed but never "Next"-ed.
     await reasoning.flushAndWait(
-      finalQuestions.map((q, i) => ({
+      finalQuestions
+        .filter((q) => q.format !== "short_answer")
+        .map((q) => {
+          const i = finalQuestions.indexOf(q);
+          return {
+            questionId: q.id,
+            questionText: q.question,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+            selectedAnswer: q.options?.[newAnswers[i]] ?? null,
+            topic: q.topic,
+            bloom: q.bloomLevel,
+            courseId: courseIdForSave ?? null,
+          };
+        }),
+      REASONING_EVAL_DEADLINE_MS,
+    );
+
+    // Grade any short answer not yet fired (the last question is never
+    // "Next"-ed) and let in-flight verdicts land before scoring.
+    const pendingShort = finalQuestions
+      .map((q, i) => ({ q, text: newTextAnswers[i] ?? "" }))
+      .filter(({ q }) => q.format === "short_answer");
+    for (const { q, text } of pendingShort) shortAnswers.setAnswer(q.id, text);
+    await shortAnswers.flushAndWait(
+      pendingShort.map(({ q }) => ({
         questionId: q.id,
         questionText: q.question,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-        selectedAnswer:
-          q.format === "short_answer"
-            ? newTextAnswers[i]
-            : (q.options?.[newAnswers[i]] ?? null),
+        answer: q.correctAnswer,
+        modelAnswer: q.modelAnswer,
         topic: q.topic,
         bloom: q.bloomLevel,
-        courseId: courseIdForSave ?? null,
+        courseId: courseIdForSave,
+        studentId: user.id,
+        sourceFormat: "diagnostic" as const,
+        questionSource: "diagnostic_questions" as const,
       })),
       REASONING_EVAL_DEADLINE_MS,
     );
+
+    const standardisedAnswers = finalQuestions.map((q, i) => {
+      const isShort = q.format === "short_answer";
+      const selectedValue = isShort ? newTextAnswers[i] : answerLetters[newAnswers[i]] || String(newAnswers[i]);
+      return {
+        question_id: q.id,
+        question_text: q.question,
+        type: q.format,
+        topic: q.topic,
+        tier: q.tier,
+        selected: selectedValue,
+        correct: q.correctAnswer,
+        is_correct: isCorrectFor(q, newAnswers[i], newTextAnswers[i] ?? ""),
+        time_ms: newQuestionTimes[i],
+        confidence: newConfidences[i],
+      };
+    });
+
     const evaluations = reasoning.getEvaluations();
+
     const answersForScoring = standardisedAnswers.map((a) => ({
       ...a,
       reasoning_verdict: verdictFor(evaluations, a.question_id),
@@ -855,7 +925,7 @@ const DiagnosticQuiz = () => {
                 </div>
               )}
 
-              {requiresReasoning(question.bloomLevel) && (
+              {!isShortAnswer && requiresReasoning(question.bloomLevel) && (
                 <div className="mt-4">
                   <ReasoningInput
                     questionId={question.id}

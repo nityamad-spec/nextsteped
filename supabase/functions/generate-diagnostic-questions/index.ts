@@ -38,6 +38,14 @@ import {
   logGatewayCall as sharedLogGatewayCall,
   type LogRow,
 } from "../_shared/ai-log.ts";
+import {
+  allocateFormats,
+  DEFAULT_DIAGNOSTIC_MIX,
+  normalizeMix,
+  type QuestionFormatKey,
+  type QuestionMix,
+} from "../_shared/question-mix.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,6 +63,8 @@ interface GeneratedQuestion {
   format: string;
   options: string[] | null;
   answer: string;
+  model_answer?: string | null;
+  answer_max_words?: number | null;
   difficulty_estimate: number;
   bloom_level: number;
   explanation: string;
@@ -62,6 +72,7 @@ interface GeneratedQuestion {
   bloom_justification: string;
   difficulty_justification: string;
 }
+
 
 interface TierSpec {
   tier: "standard" | "easy" | "medium" | "hard";
@@ -237,9 +248,12 @@ const DIFFICULTY_CATEGORY_BANDS: Record<string, [number, number]> = {
 const JUSTIFICATION_RE = /^([A-Z_]+):\s*(.+)$/;
 
 interface ValidatedQuestion extends GeneratedQuestion {
-  format: "mcq";
+  format: "mcq" | "true_false" | "short_answer";
   options: string[];
+  model_answer: string | null;
+  answer_max_words: number | null;
 }
+
 
 
 interface ConceptInfo {
@@ -267,38 +281,70 @@ function validateMcq(
   conceptByCode: Record<string, ConceptInfo>,
 ): ValidationResult {
   if (!q || typeof q !== "object") return { ok: false, reason: "not an object" };
-  if (q.format !== "mcq") return { ok: false, reason: `format != mcq (${q.format})` };
+  const fmt = String(q.format ?? "").trim().toLowerCase();
+  if (fmt !== "mcq" && fmt !== "true_false" && fmt !== "short_answer") {
+    return { ok: false, reason: `unsupported format (${q.format})` };
+  }
+  const format = fmt as ValidatedQuestion["format"];
 
   const content = typeof q.content_text === "string" ? q.content_text.trim() : "";
   if (!content) return { ok: false, reason: "empty content_text" };
   if (content.length > 600) return { ok: false, reason: "content_text > 600 chars" };
 
-  if (!Array.isArray(q.options) || q.options.length !== 4) {
-    return { ok: false, reason: "options must be array of exactly 4" };
-  }
-  const opts = q.options.map((o) => (typeof o === "string" ? o.trim() : ""));
-  if (opts.some((o) => !o)) return { ok: false, reason: "empty option" };
-  if (new Set(opts).size !== 4) return { ok: false, reason: "duplicate options" };
+  let opts: string[] = [];
+  let answer = typeof q.answer === "string" ? q.answer.trim() : "";
+  let modelAnswer = typeof q.model_answer === "string" ? q.model_answer.trim() : "";
+  let answerMaxWords: number | null = null;
 
-  // Length parity: prevent "longest = correct" giveaway.
-  const lens = opts.map((o) => o.length);
-  const maxLen = Math.max(...lens);
-  const minLen = Math.min(...lens);
-  if (minLen > 0 && maxLen / minLen > 1.6) {
-    return { ok: false, reason: `option length imbalance ${minLen}->${maxLen} (>1.6x)` };
+  if (format === "mcq") {
+    if (!Array.isArray(q.options) || q.options.length !== 4) {
+      return { ok: false, reason: "options must be array of exactly 4" };
+    }
+    opts = q.options.map((o) => (typeof o === "string" ? o.trim() : ""));
+    if (opts.some((o) => !o)) return { ok: false, reason: "empty option" };
+    if (new Set(opts).size !== 4) return { ok: false, reason: "duplicate options" };
+
+    // Length parity: prevent "longest = correct" giveaway.
+    const lens = opts.map((o) => o.length);
+    const maxLen = Math.max(...lens);
+    const minLen = Math.min(...lens);
+    if (minLen > 0 && maxLen / minLen > 1.6) {
+      return { ok: false, reason: `option length imbalance ${minLen}->${maxLen} (>1.6x)` };
+    }
+
+    if (!answer) return { ok: false, reason: "empty answer" };
+    const matches = opts.filter((o) => o === answer);
+    if (matches.length !== 1) return { ok: false, reason: "answer not in options" };
+
+    const answerLen = answer.length;
+    const avgLen = lens.reduce((s, n) => s + n, 0) / 4;
+    const strictlyLongest = lens.filter((l) => l === maxLen).length === 1 && answerLen === maxLen;
+    if (strictlyLongest && answerLen > avgLen * 1.25) {
+      return { ok: false, reason: "correct option is strictly longest and >25% above avg length" };
+    }
+  } else if (format === "true_false") {
+    const a = answer.toLowerCase();
+    if (a !== "true" && a !== "false") {
+      return { ok: false, reason: `true_false answer must be True or False (${answer})` };
+    }
+    answer = a === "true" ? "True" : "False";
+    opts = ["True", "False"];
+  } else {
+    // short_answer — no options, a concise reference answer plus a fuller
+    // model answer used by the grader.
+    if (Array.isArray(q.options) && q.options.length > 0) {
+      return { ok: false, reason: "short_answer must not carry options" };
+    }
+    if (!answer) return { ok: false, reason: "empty answer" };
+    const answerWords = answer.split(/\s+/).filter(Boolean).length;
+    if (answerWords > 30) return { ok: false, reason: `short_answer reference answer too long (${answerWords} words)` };
+    if (!modelAnswer) return { ok: false, reason: "short_answer requires model_answer" };
+    if (modelAnswer.length < 20) return { ok: false, reason: "model_answer too short (<20 chars)" };
+    if (modelAnswer.length > 1200) return { ok: false, reason: "model_answer > 1200 chars" };
+    const rawMax = Number(q.answer_max_words);
+    answerMaxWords = Number.isFinite(rawMax) ? Math.min(200, Math.max(10, Math.round(rawMax))) : 60;
   }
 
-  const answer = typeof q.answer === "string" ? q.answer.trim() : "";
-  if (!answer) return { ok: false, reason: "empty answer" };
-  const matches = opts.filter((o) => o === answer);
-  if (matches.length !== 1) return { ok: false, reason: "answer not in options" };
-
-  const answerLen = answer.length;
-  const avgLen = lens.reduce((s, n) => s + n, 0) / 4;
-  const strictlyLongest = lens.filter((l) => l === maxLen).length === 1 && answerLen === maxLen;
-  if (strictlyLongest && answerLen > avgLen * 1.25) {
-    return { ok: false, reason: "correct option is strictly longest and >25% above avg length" };
-  }
 
   const rawTopic = typeof q.topic === "string" ? q.topic.trim() : "";
   if (!rawTopic) return { ok: false, reason: "empty topic" };
@@ -333,13 +379,17 @@ function validateMcq(
   if (!explanation) return { ok: false, reason: "empty explanation" };
 
   // Semantic explanation ↔ answer alignment (letter-name-drop + token overlap).
-  const explCheck = sharedValidateExplanation({
-    format: "mcq",
-    options: opts,
-    answer,
-    explanation,
-  });
-  if (!explCheck.ok) return { ok: false, reason: explCheck.reason };
+  // Option-based check only applies where options exist.
+  if (format === "mcq") {
+    const explCheck = sharedValidateExplanation({
+      format: "mcq",
+      options: opts,
+      answer,
+      explanation,
+    });
+    if (!explCheck.ok) return { ok: false, reason: explCheck.reason };
+  }
+
 
 
   // bloom_justification: CATEGORY: rationale, non-empty, <=300 chars, category matches bloom_level
@@ -371,9 +421,11 @@ function validateMcq(
     ok: true,
     normalized: {
       content_text: content,
-      format: "mcq",
+      format,
       options: opts,
       answer,
+      model_answer: format === "short_answer" ? modelAnswer : null,
+      answer_max_words: answerMaxWords,
       difficulty_estimate: diff,
       bloom_level: bloom,
       explanation,
@@ -383,6 +435,7 @@ function validateMcq(
     },
   };
 }
+
 
 
 function isDuplicate(q: ValidatedQuestion, accepted: ValidatedQuestion[]): boolean {
@@ -531,13 +584,14 @@ async function callGateway(
   courseName: string,
   quotaBlock: string,
   remainingQuota: Record<string, number>,
+  formatNeed: Record<QuestionFormatKey, number>,
   lovableKey: string,
   retryHint: string | null,
   ctx: RunCtx,
 ): Promise<GeneratedQuestion[]> {
   const batchSize = spec.batchSize ?? needed;
   if (batchSize >= needed) {
-    return callGatewaySingle(spec, needed, courseName, quotaBlock, remainingQuota, lovableKey, retryHint, ctx);
+    return callGatewaySingle(spec, needed, courseName, quotaBlock, remainingQuota, formatNeed, lovableKey, retryHint, ctx);
   }
   const all: GeneratedQuestion[] = [];
   let remaining = needed;
@@ -549,7 +603,8 @@ async function callGateway(
     const ask = Math.min(batchSize, remaining);
     chunkIdx++;
     try {
-      const sub = await callGatewaySingle(spec, ask, courseName, quotaBlock, remainingQuota, lovableKey, retryHint, ctx);
+      const sub = await callGatewaySingle(spec, ask, courseName, quotaBlock, remainingQuota, formatNeed, lovableKey, retryHint, ctx);
+
       all.push(...sub);
       remaining -= ask;
     } catch (e) {
@@ -579,10 +634,12 @@ async function callGatewaySingle(
   courseName: string,
   quotaBlock: string,
   remainingQuota: Record<string, number>,
+  formatNeed: Record<QuestionFormatKey, number>,
   lovableKey: string,
   retryHint: string | null,
   ctx: RunCtx,
 ): Promise<GeneratedQuestion[]> {
+
   const logCtx = { requestId: ctx.requestId, teacherId: ctx.teacherId, courseId: ctx.courseId };
   // Over-generation:
   // - Hard tier: validators drop a higher share, ask for 1.5× baseline.
@@ -598,6 +655,15 @@ async function callGatewaySingle(
     .filter(([, v]) => v > 0)
     .map(([k, v]) => `  - ${k}: ${v} more`)
     .join("\n");
+  const FORMAT_LABELS: Record<QuestionFormatKey, string> = {
+    mcq: "multiple choice (format = \"mcq\")",
+    short_answer: "short answer (format = \"short_answer\")",
+    true_false: "true/false (format = \"true_false\")",
+  };
+  const formatList = (Object.entries(formatNeed) as [QuestionFormatKey, number][])
+    .filter(([, v]) => v > 0)
+    .map(([k, v]) => `  - ${FORMAT_LABELS[k]}: ${v}`)
+    .join("\n");
 
   const systemPrompt = `You are an expert assessment designer creating diagnostic quiz questions for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier} tier diagnostic questions.
 
@@ -611,18 +677,23 @@ ${quotaBlock}
 REMAINING NEED for this batch (you must produce exactly these counts):
 ${remainingList || "  (none — quota satisfied)"}
 
+FORMAT QUOTA — still needed for this tier (do NOT exceed any of these counts):
+${formatList || "  (none — format quota satisfied)"}
+
 STRICT RULES:
-- ALL questions MUST be multiple-choice (format = "mcq"). Do NOT generate true_false or short_answer.
-- Each question MUST have exactly 4 distinct, non-empty options in the options array (no letter prefixes like "A)").
-- The answer field MUST be the FULL TEXT of one of the 4 options, character-for-character identical.
+- Only these formats are allowed: "mcq", "true_false", "short_answer". Respect the FORMAT QUOTA above.
+- MCQ: exactly 4 distinct, non-empty options (no letter prefixes like "A)"); the answer field MUST be the FULL TEXT of one option, character-for-character identical.
+- TRUE/FALSE: omit the options array entirely; answer MUST be exactly "True" or "False"; the stem must be a single unambiguous claim (no "which of the following").
+- SHORT ANSWER: omit the options array entirely. Provide: answer = a concise reference answer (≤ 30 words, the key point being tested); model_answer = a fuller ideal answer (2-4 sentences) an examiner would accept; answer_max_words = the word budget expected of the student (typically 40-80). The question must be answerable in a few sentences from course knowledge — never open-ended essay prompts.
 - The topic field MUST be one of the concept codes shown in the QUOTA above (exact match).
 - Respect the per-concept quota above: do NOT over-generate for any concept.
 - difficulty_estimate must be a number close to ${spec.difficulty} (within ±${spec.band}).
 - bloom_level: integer 1-6 (1=Remember, 2=Understand, 3=Apply, 4=Analyze, 5=Evaluate, 6=Create).
 - content_text: the question stem only, ≤ 600 characters, no embedded options.
-- explanation: 1-2 sentences explaining why the correct option is correct.
-- LENGTH PARITY: all 4 options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
-- ELABORATE DISTRACTORS: each wrong option must encode a specific, plausible misconception (a wrong rule, swapped operator, off-by-one, confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer.
+- explanation: 1-2 sentences explaining why the correct answer is correct.
+- LENGTH PARITY (MCQ only): all 4 options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match the syntactic shape, specificity, and hedging level across all 4 options.
+- ELABORATE DISTRACTORS (MCQ only): each wrong option must encode a specific, plausible misconception (a wrong rule, swapped operator, off-by-one, confused term) — written with the same level of detail as the correct answer. No throwaway one-word distractors against a long correct answer.
+
 
 CATEGORIZED JUSTIFICATIONS (required, ≤ 300 chars each, format "CATEGORY: 1-sentence rationale"):
 
@@ -654,14 +725,14 @@ Examples:
       temperature: 0.3,
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Generate ${askFor} ${spec.tier} tier MCQ diagnostic questions now, respecting the concept quota.` },
+        { role: "user", content: `Generate ${askFor} ${spec.tier} tier diagnostic questions now, respecting the concept quota and the format quota.` },
       ],
       tools: [
         {
           type: "function",
           function: {
             name: "submit_questions",
-            description: "Submit the generated diagnostic MCQ questions",
+            description: "Submit the generated diagnostic questions",
             parameters: {
               type: "object",
               properties: {
@@ -671,14 +742,15 @@ Examples:
                     type: "object",
                     properties: {
                       content_text: { type: "string" },
-                      format: { type: "string", enum: ["mcq"] },
+                      format: { type: "string", enum: ["mcq", "true_false", "short_answer"] },
                       options: {
                         type: "array",
                         items: { type: "string" },
-                        minItems: 4,
-                        maxItems: 4,
+                        description: "Exactly 4 options for mcq. Omit entirely for true_false and short_answer.",
                       },
-                      answer: { type: "string" },
+                      answer: { type: "string", description: "mcq: full text of the correct option. true_false: 'True' or 'False'. short_answer: concise reference answer (≤30 words)." },
+                      model_answer: { type: "string", description: "short_answer only: fuller ideal answer (2-4 sentences) used to grade the student." },
+                      answer_max_words: { type: "integer", description: "short_answer only: word budget expected of the student (40-80 typical)." },
                       difficulty_estimate: { type: "number" },
                       bloom_level: { type: "integer", minimum: 1, maximum: 6 },
                       explanation: { type: "string" },
@@ -689,7 +761,6 @@ Examples:
                     required: [
                       "content_text",
                       "format",
-                      "options",
                       "answer",
                       "difficulty_estimate",
                       "bloom_level",
@@ -697,6 +768,7 @@ Examples:
                       "topic",
                       "bloom_justification",
                       "difficulty_justification",
+
                     ],
 
                   },
@@ -878,10 +950,18 @@ async function runTier(
   courseName: string,
   units: UnitInfo[],
   conceptByCode: Record<string, ConceptInfo>,
+  mix: QuestionMix,
   lovableKey: string,
   ctx: RunCtx,
   preSeed: ValidatedQuestion[] = [],
 ): Promise<TierResult> {
+  const formatQuota = allocateFormats(spec.count, mix);
+  const acceptedByFormat: Record<QuestionFormatKey, number> = {
+    mcq: 0,
+    short_answer: 0,
+    true_false: 0,
+  };
+
   const isPartialRegen = preSeed.length > 0;
   // For tier-only regens, seed the RNG deterministically on (courseId, tier)
   // so quota doesn't reshuffle between successive regens and erode preseed.
@@ -937,6 +1017,7 @@ async function runTier(
       if (isDuplicate(nq, accepted)) continue;
       accepted.push(nq);
       acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
+      acceptedByFormat[nq.format] = (acceptedByFormat[nq.format] || 0) + 1;
       if (accepted.length >= spec.count) break;
     }
   } else {
@@ -950,6 +1031,8 @@ async function runTier(
       if (isDuplicate(v.normalized, accepted)) continue;
       accepted.push(v.normalized);
       acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
+      acceptedByFormat[v.normalized.format] = (acceptedByFormat[v.normalized.format] || 0) + 1;
+
       if (accepted.length >= spec.count) break;
     }
   }
@@ -1000,12 +1083,21 @@ async function runTier(
     const needed = Object.values(remaining).reduce((a, b) => a + b, 0);
     if (needed === 0) break;
 
+    // Format quota is enforced on every attempt except the last, where filling
+    // the tier matters more than hitting the exact mix.
+    const strictFormat = attempts < spec.maxAttempts;
+    const formatNeed: Record<QuestionFormatKey, number> = {
+      mcq: Math.max(0, formatQuota.mcq - acceptedByFormat.mcq),
+      short_answer: Math.max(0, formatQuota.short_answer - acceptedByFormat.short_answer),
+      true_false: Math.max(0, formatQuota.true_false - acceptedByFormat.true_false),
+    };
+
     const budgetLeft = ctx.deadlineAt - Date.now();
     logEvent(ctx, "attempt_started", {
       tier: spec.tier,
       attempt: attempts,
       message: `attempt ${attempts}/${spec.maxAttempts}: need ${needed}, budget ${budgetLeft}ms`,
-      data: { needed, remaining, budget_ms: budgetLeft, accepted_so_far: accepted.length },
+      data: { needed, remaining, format_need: formatNeed, budget_ms: budgetLeft, accepted_so_far: accepted.length },
     });
 
     const lengthImbalanceCount = reasons.filter((r) => r.includes("option length imbalance")).length;
@@ -1013,13 +1105,14 @@ async function runTier(
       ? `CRITICAL: previous attempt had ${lengthImbalanceCount} option-length-imbalance rejections. Every option MUST be within ±20% character length of the correct one (max/min ≤ 1.6). Rewrite distractors to match the correct option's length, specificity, and hedging. `
       : "";
     const retryHint = attempts > 1
-      ? `${lengthHint}Previous batch had ${lastInvalidCount} invalid or over-quota questions. Common issues: ${[...new Set(reasons)].slice(0, 3).join("; ")}. Generate exactly the REMAINING NEED counts shown above.`
+      ? `${lengthHint}Previous batch had ${lastInvalidCount} invalid or over-quota questions. Common issues: ${[...new Set(reasons)].slice(0, 3).join("; ")}. Generate exactly the REMAINING NEED counts shown above, matching the FORMAT QUOTA.`
       : null;
 
     let batch: GeneratedQuestion[] = [];
     const gwStart = Date.now();
     try {
-      batch = await callGateway(spec, needed, courseName, quotaBlock, remaining, lovableKey, retryHint, ctx);
+      batch = await callGateway(spec, needed, courseName, quotaBlock, remaining, formatNeed, lovableKey, retryHint, ctx);
+
       logEvent(ctx, "gateway_response", {
         tier: spec.tier,
         attempt: attempts,
@@ -1116,6 +1209,14 @@ async function runTier(
         recordReject(r, q);
         continue;
       }
+      const fmt = v.normalized.format;
+      if (strictFormat && acceptedByFormat[fmt] >= (formatQuota[fmt] || 0)) {
+        const r = `over format quota for ${fmt}`;
+        reasons.push(r);
+        lastInvalidCount++;
+        recordReject(r, q);
+        continue;
+      }
       if (isDuplicate(v.normalized, accepted)) {
         reasons.push("duplicate content");
         lastInvalidCount++;
@@ -1124,7 +1225,9 @@ async function runTier(
       }
       accepted.push(v.normalized);
       acceptedByCode[code] = (acceptedByCode[code] || 0) + 1;
+      acceptedByFormat[fmt] = (acceptedByFormat[fmt] || 0) + 1;
       acceptedThisAttempt.push(code);
+
       if (accepted.length >= spec.count) break;
     }
     updateRunRow(ctx, spec.tier, { accepted: accepted.length, attempts });
@@ -1363,17 +1466,20 @@ Deno.serve(async (req) => {
     if (isPartialRun) {
       const { data: existing } = await admin
         .from("diagnostic_questions")
-        .select("content_text, format, options, answer, difficulty_estimate, bloom_level, explanation, topic, bloom_justification, difficulty_justification, tier")
+        .select("content_text, format, options, answer, model_answer, answer_max_words, difficulty_estimate, bloom_level, explanation, topic, bloom_justification, difficulty_justification, tier")
         .eq("course_id", courseId)
         .in("tier", activeSpecs.map((s) => s.tier));
       for (const r of (existing || []) as Array<Record<string, unknown>>) {
         const tier = r.tier as string | null;
         if (!tier) continue;
+        const fmt = String(r.format ?? "mcq");
         (preSeedByTier[tier] ||= []).push({
           content_text: String(r.content_text ?? ""),
-          format: "mcq",
+          format: (fmt === "true_false" || fmt === "short_answer" ? fmt : "mcq"),
           options: (r.options as string[]) || [],
           answer: String(r.answer ?? ""),
+          model_answer: r.model_answer == null ? null : String(r.model_answer),
+          answer_max_words: r.answer_max_words == null ? null : Number(r.answer_max_words),
           difficulty_estimate: Number(r.difficulty_estimate ?? 0),
           bloom_level: Number(r.bloom_level ?? 1),
           explanation: String(r.explanation ?? ""),
@@ -1382,21 +1488,36 @@ Deno.serve(async (req) => {
           difficulty_justification: String(r.difficulty_justification ?? ""),
         });
       }
+
       logEvent(ctx, "preseed_loaded", {
         message: `preseed counts: ${Object.entries(preSeedByTier).map(([t, a]) => `${t}:${a.length}`).join(", ") || "none"}`,
         data: Object.fromEntries(activeSpecs.map((s) => [s.tier, (preSeedByTier[s.tier] || []).length])),
       });
     }
 
+    // Professor-configured format mix for the diagnostic bank.
+    const { data: mixRow } = await admin
+      .from("course_ta_settings")
+      .select("diagnostic_type_counts")
+      .eq("course_id", courseId)
+      .maybeSingle();
+    const mix = normalizeMix(
+      (mixRow?.diagnostic_type_counts as Partial<QuestionMix> | null) ?? DEFAULT_DIAGNOSTIC_MIX,
+    );
+
     logEvent(ctx, "specs_built", {
       message: `running ${activeSpecs.length} tier${activeSpecs.length === 1 ? "" : "s"}`,
-      data: { specs: activeSpecs.map((s) => ({ tier: s.tier, count: s.count, max_attempts: s.maxAttempts })) },
+      data: {
+        specs: activeSpecs.map((s) => ({ tier: s.tier, count: s.count, max_attempts: s.maxAttempts })),
+        format_mix: mix,
+      },
     });
 
     // Run only the active tiers in parallel with retries
     const settled = await Promise.allSettled(
-      activeSpecs.map((spec) => runTier(spec, course.name, units, conceptByCode, lovableKey, ctx, preSeedByTier[spec.tier] || [])),
+      activeSpecs.map((spec) => runTier(spec, course.name, units, conceptByCode, mix, lovableKey, ctx, preSeedByTier[spec.tier] || [])),
     );
+
 
 
     // If any tier failed with CreditsExhaustedError, short-circuit with a
@@ -1487,8 +1608,11 @@ Deno.serve(async (req) => {
           item_code: `${course.course_code || "Q"}-${t.tier.toUpperCase()}-${String(counter).padStart(3, "0")}`,
           content_text: recheck.normalized.content_text,
           format: recheck.normalized.format,
-          options: recheck.normalized.options,
+          options: recheck.normalized.format === "short_answer" ? null : recheck.normalized.options,
           answer: recheck.normalized.answer,
+          model_answer: recheck.normalized.model_answer,
+          answer_max_words: recheck.normalized.answer_max_words,
+
           difficulty_estimate: recheck.normalized.difficulty_estimate,
           bloom_level: recheck.normalized.bloom_level,
           explanation: recheck.normalized.explanation,
