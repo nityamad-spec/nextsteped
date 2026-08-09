@@ -137,6 +137,7 @@ export type Database = {
       assessment_questions: {
         Row: {
           answer: string
+          answer_max_words: number | null
           bloom_justification: string | null
           bloom_level: number
           concept_id: string
@@ -154,6 +155,7 @@ export type Database = {
           is_distractor: boolean
           item_code: string
           mode: string
+          model_answer: string | null
           options: Json | null
           question_text: string
           question_type: string
@@ -165,6 +167,7 @@ export type Database = {
         }
         Insert: {
           answer: string
+          answer_max_words?: number | null
           bloom_justification?: string | null
           bloom_level?: number
           concept_id: string
@@ -182,6 +185,7 @@ export type Database = {
           is_distractor?: boolean
           item_code?: string
           mode: string
+          model_answer?: string | null
           options?: Json | null
           question_text: string
           question_type?: string
@@ -193,6 +197,7 @@ export type Database = {
         }
         Update: {
           answer?: string
+          answer_max_words?: number | null
           bloom_justification?: string | null
           bloom_level?: number
           concept_id?: string
@@ -210,6 +215,7 @@ export type Database = {
           is_distractor?: boolean
           item_code?: string
           mode?: string
+          model_answer?: string | null
           options?: Json | null
           question_text?: string
           question_type?: string
@@ -768,6 +774,7 @@ export type Database = {
           created_at: string
           custom_exam_prompt: string | null
           custom_study_prompt: string | null
+          diagnostic_type_counts: Json
           exam_approved: boolean
           exam_difficulty: string
           exam_enabled: boolean
@@ -777,10 +784,12 @@ export type Database = {
           exam_question_mix: string
           exam_schedule: Json | null
           exam_time_limit: number
+          exam_type_counts: Json
           hint_ladder: boolean
           id: string
           knowledge_sources: string
           plagiarism_warnings: boolean
+          practice_type_counts: Json
           quiz_approved: boolean
           quiz_day1_enabled: boolean
           quiz_day2_enabled: boolean
@@ -790,6 +799,7 @@ export type Database = {
           quiz_num_questions: number | null
           quiz_question_mix: string | null
           quiz_time_limit: number | null
+          quiz_type_counts: Json
           updated_at: string
         }
         Insert: {
@@ -797,6 +807,7 @@ export type Database = {
           created_at?: string
           custom_exam_prompt?: string | null
           custom_study_prompt?: string | null
+          diagnostic_type_counts?: Json
           exam_approved?: boolean
           exam_difficulty?: string
           exam_enabled?: boolean
@@ -806,10 +817,12 @@ export type Database = {
           exam_question_mix?: string
           exam_schedule?: Json | null
           exam_time_limit?: number
+          exam_type_counts?: Json
           hint_ladder?: boolean
           id?: string
           knowledge_sources?: string
           plagiarism_warnings?: boolean
+          practice_type_counts?: Json
           quiz_approved?: boolean
           quiz_day1_enabled?: boolean
           quiz_day2_enabled?: boolean
@@ -819,6 +832,7 @@ export type Database = {
           quiz_num_questions?: number | null
           quiz_question_mix?: string | null
           quiz_time_limit?: number | null
+          quiz_type_counts?: Json
           updated_at?: string
         }
         Update: {
@@ -826,6 +840,7 @@ export type Database = {
           created_at?: string
           custom_exam_prompt?: string | null
           custom_study_prompt?: string | null
+          diagnostic_type_counts?: Json
           exam_approved?: boolean
           exam_difficulty?: string
           exam_enabled?: boolean
@@ -835,10 +850,12 @@ export type Database = {
           exam_question_mix?: string
           exam_schedule?: Json | null
           exam_time_limit?: number
+          exam_type_counts?: Json
           hint_ladder?: boolean
           id?: string
           knowledge_sources?: string
           plagiarism_warnings?: boolean
+          practice_type_counts?: Json
           quiz_approved?: boolean
           quiz_day1_enabled?: boolean
           quiz_day2_enabled?: boolean
@@ -848,6 +865,7 @@ export type Database = {
           quiz_num_questions?: number | null
           quiz_question_mix?: string | null
           quiz_time_limit?: number | null
+          quiz_type_counts?: Json
           updated_at?: string
         }
         Relationships: [
@@ -1199,6 +1217,7 @@ export type Database = {
       diagnostic_questions: {
         Row: {
           answer: string
+          answer_max_words: number | null
           bloom_justification: string | null
           bloom_level: number
           concept_id: string
@@ -1213,6 +1232,7 @@ export type Database = {
           in_test: boolean
           is_distractor: boolean
           item_code: string
+          model_answer: string | null
           options: Json | null
           teacher_id: string
           tier: string
@@ -1221,6 +1241,7 @@ export type Database = {
         }
         Insert: {
           answer: string
+          answer_max_words?: number | null
           bloom_justification?: string | null
           bloom_level?: number
           concept_id: string
@@ -1235,6 +1256,7 @@ export type Database = {
           in_test?: boolean
           is_distractor?: boolean
           item_code: string
+          model_answer?: string | null
           options?: Json | null
           teacher_id: string
           tier?: string
@@ -1243,6 +1265,7 @@ export type Database = {
         }
         Update: {
           answer?: string
+          answer_max_words?: number | null
           bloom_justification?: string | null
           bloom_level?: number
           concept_id?: string
@@ -1257,6 +1280,7 @@ export type Database = {
           in_test?: boolean
           is_distractor?: boolean
           item_code?: string
+          model_answer?: string | null
           options?: Json | null
           teacher_id?: string
           tier?: string
@@ -1876,9 +1900,11 @@ export type Database = {
           created_at: string
           id: string
           is_correct: boolean | null
+          model_answer_snapshot: string | null
           question_id: string
           question_source: string
           rationale_text: string
+          response_kind: string
           selected_answer: string | null
           source_format: string
           source_result_id: string | null
@@ -1896,9 +1922,11 @@ export type Database = {
           created_at?: string
           id?: string
           is_correct?: boolean | null
+          model_answer_snapshot?: string | null
           question_id: string
           question_source: string
           rationale_text: string
+          response_kind?: string
           selected_answer?: string | null
           source_format: string
           source_result_id?: string | null
@@ -1916,9 +1944,11 @@ export type Database = {
           created_at?: string
           id?: string
           is_correct?: boolean | null
+          model_answer_snapshot?: string | null
           question_id?: string
           question_source?: string
           rationale_text?: string
+          response_kind?: string
           selected_answer?: string | null
           source_format?: string
           source_result_id?: string | null
