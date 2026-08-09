@@ -543,27 +543,6 @@ const DiagnosticQuiz = () => {
     finalQuestions: QuizQuestion[],
     branch: BranchTier | null,
   ) => {
-    const standardisedAnswers = finalQuestions.map((q, i) => {
-      const isShort = q.format === "short_answer";
-      const selectedValue = isShort ? newTextAnswers[i] : answerLetters[newAnswers[i]] || String(newAnswers[i]);
-      const correctValue = q.correctAnswer;
-      const isCorrect = isShort
-        ? newTextAnswers[i].toLowerCase() === correctValue.trim().toLowerCase()
-        : newAnswers[i] === q.correctIndex;
-      return {
-        question_id: q.id,
-        question_text: q.question,
-        type: q.format,
-        topic: q.topic,
-        tier: q.tier,
-        selected: selectedValue,
-        correct: correctValue,
-        is_correct: isCorrect,
-        time_ms: newQuestionTimes[i],
-        confidence: newConfidences[i],
-      };
-    });
-
     if (!user) {
       setPhase("result");
       return;
@@ -581,22 +560,65 @@ const DiagnosticQuiz = () => {
     // Evaluate every rationale BEFORE scoring — the verdicts feed the score.
     // Includes the last question, whose rationale was typed but never "Next"-ed.
     await reasoning.flushAndWait(
-      finalQuestions.map((q, i) => ({
+      finalQuestions
+        .filter((q) => q.format !== "short_answer")
+        .map((q) => {
+          const i = finalQuestions.indexOf(q);
+          return {
+            questionId: q.id,
+            questionText: q.question,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+            selectedAnswer: q.options?.[newAnswers[i]] ?? null,
+            topic: q.topic,
+            bloom: q.bloomLevel,
+            courseId: courseIdForSave ?? null,
+          };
+        }),
+      REASONING_EVAL_DEADLINE_MS,
+    );
+
+    // Grade any short answer not yet fired (the last question is never
+    // "Next"-ed) and let in-flight verdicts land before scoring.
+    const pendingShort = finalQuestions
+      .map((q, i) => ({ q, text: newTextAnswers[i] ?? "" }))
+      .filter(({ q }) => q.format === "short_answer");
+    for (const { q, text } of pendingShort) shortAnswers.setAnswer(q.id, text);
+    await shortAnswers.flushAndWait(
+      pendingShort.map(({ q }) => ({
         questionId: q.id,
         questionText: q.question,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-        selectedAnswer:
-          q.format === "short_answer"
-            ? newTextAnswers[i]
-            : (q.options?.[newAnswers[i]] ?? null),
+        answer: q.correctAnswer,
+        modelAnswer: q.modelAnswer,
         topic: q.topic,
         bloom: q.bloomLevel,
-        courseId: courseIdForSave ?? null,
+        courseId: courseIdForSave,
+        studentId: user.id,
+        sourceFormat: "diagnostic" as const,
+        questionSource: "diagnostic_questions" as const,
       })),
       REASONING_EVAL_DEADLINE_MS,
     );
+
+    const standardisedAnswers = finalQuestions.map((q, i) => {
+      const isShort = q.format === "short_answer";
+      const selectedValue = isShort ? newTextAnswers[i] : answerLetters[newAnswers[i]] || String(newAnswers[i]);
+      return {
+        question_id: q.id,
+        question_text: q.question,
+        type: q.format,
+        topic: q.topic,
+        tier: q.tier,
+        selected: selectedValue,
+        correct: q.correctAnswer,
+        is_correct: isCorrectFor(q, newAnswers[i], newTextAnswers[i] ?? ""),
+        time_ms: newQuestionTimes[i],
+        confidence: newConfidences[i],
+      };
+    });
+
     const evaluations = reasoning.getEvaluations();
+
     const answersForScoring = standardisedAnswers.map((a) => ({
       ...a,
       reasoning_verdict: verdictFor(evaluations, a.question_id),
