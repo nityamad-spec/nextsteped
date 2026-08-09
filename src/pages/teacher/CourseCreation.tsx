@@ -19,7 +19,7 @@ import {
 import {
   Check, X, ArrowRight, ArrowLeft, Sparkles, Loader2,
   ChevronDown, ChevronUp, Pencil, GripVertical,
-  Plus, Trash2, FileText, BookOpen, Code2, ExternalLink,
+  Plus, Minus, Trash2, FileText, BookOpen, Code2, ExternalLink,
   GraduationCap, Eye, EyeOff, Info, Library, RefreshCw, Clock,
 } from "lucide-react";
 // SetupProgressBar removed — using top-left "Back to Course Setup" button instead.
