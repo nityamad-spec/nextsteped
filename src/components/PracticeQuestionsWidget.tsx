@@ -71,14 +71,17 @@ type Phase = "prompt" | "loading" | "active" | "review" | "review-history";
 interface GeneratedQuestion {
   id: string;
   question: string;
-  type: "mcq" | "true_false";
+  type: "mcq" | "true_false" | "short_answer";
   options?: string[];
   answer: string;
+  model_answer?: string | null;
+  answer_max_words?: number | null;
   explanation: string;
   topic: string;
   difficulty_estimate: number; // 0..1
   bloom_level: number; // 1..6
 }
+
 
 const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], courseContext, enrolledCourseId, studentId, initialReviewSessionId = null }: PracticeQuestionsWidgetProps) => {
   const [phase, setPhase] = useState<Phase>("prompt");
