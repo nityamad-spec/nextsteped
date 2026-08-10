@@ -298,9 +298,16 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   };
 
   const getAnswerCorrectness = (q: GeneratedQuestion) => {
+    if (q.type === "short_answer") {
+      const text = shortAnswer.answers[q.id] ?? "";
+      const grade = shortAnswer.grades[q.id];
+      if (grade?.verdict) return grade.verdict === "accepted";
+      return localExactMatch(text, [q.answer, q.model_answer]);
+    }
     const userAnswer = answers[q.id] || "";
     return userAnswer === q.answer;
   };
+
 
   // Review a past session from history
   if (phase === "review-history" && reviewingSession) {
