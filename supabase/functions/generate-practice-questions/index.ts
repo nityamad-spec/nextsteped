@@ -454,8 +454,13 @@ Deno.serve(async (req) => {
     if (enrollErr || !enrollment) return json({ error: "Not enrolled in course" }, 403);
 
     // Parallel fetches
-    const [courseRes, conceptsRes, conceptMasteryRes, courseMasteryRes, recentRes, recentStemsRes] = await Promise.all([
+    const [courseRes, taSettingsRes, conceptsRes, conceptMasteryRes, courseMasteryRes, recentRes, recentStemsRes] = await Promise.all([
       admin.from("courses").select("name, code").eq("id", courseId).maybeSingle(),
+      admin
+        .from("course_ta_settings")
+        .select("practice_type_counts")
+        .eq("course_id", courseId)
+        .maybeSingle(),
       admin
         .from("concepts")
         .select("concept_code, weight")
@@ -493,6 +498,12 @@ Deno.serve(async (req) => {
     const course = (courseRes.data ?? null) as { name: string | null; code: string | null } | null;
     const courseName = course?.name?.trim() || "this course";
     const courseCode = course?.code?.trim() || "n/a";
+
+    // Course-level practice format mix -> per-format quota for this set.
+    const practiceMix = normalizeMix(
+      (taSettingsRes.data as { practice_type_counts?: unknown } | null)?.practice_type_counts,
+      DEFAULT_DIAGNOSTIC_MIX,
+    );
 
     const concepts: ConceptRow[] = (conceptsRes.data ?? []) as any;
     const masteryByCode = new Map<string, MasteryRow>();
@@ -730,6 +741,7 @@ Deno.serve(async (req) => {
         ...avoidStems.map((a) => a.question),
       ].slice(0, 60));
       const base = renderTemplate(SYSTEM_PROMPT_GENERATE_TEMPLATE, {
+        format_quota_line: formatQuotaLine,
         course_name: courseName,
         course_code: courseCode,
         target_language: intent.language,
