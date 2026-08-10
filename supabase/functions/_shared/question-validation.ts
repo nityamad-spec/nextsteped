@@ -500,7 +500,22 @@ export function validateExplanation(q: ExplanationCheckInput): ValidationResult<
     }
   }
 
+  // Short answer: the explanation must share key terms with the reference
+  // answer (there are no options to cross-check against).
+  if (q.format === "short_answer") {
+    const answerTokens = topAnswerTokens(q.answer);
+    if (answerTokens.length > 0) {
+      const explTokens = new Set(tokenize(explanation, ANSWER_STOP_WORDS));
+      const matched = answerTokens.filter((t) => explTokens.has(t)).length;
+      const required = answerTokens.length <= 2 ? 1 : Math.max(2, Math.ceil(answerTokens.length * 0.3));
+      if (matched < required) {
+        return { ok: false, reason: "explanation does not support the short-answer reference answer" };
+      }
+    }
+  }
+
   return { ok: true, value: explanation };
+
 }
 
 /* --------------------------------------------------------------------------
