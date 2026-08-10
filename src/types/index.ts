@@ -132,7 +132,6 @@ export interface TASettings {
   examPresentation?: "all_at_once" | "one_by_one";
   studySystemPrompt?: string;
   examSystemPrompt?: string;
-  customStudyPrompt?: string;
   customExamPrompt?: string;
   quizNumQuestions?: number;
   quizQuestionMix?: string;

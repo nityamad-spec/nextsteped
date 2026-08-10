@@ -24,9 +24,7 @@ import TeacherOnboarding from "./pages/teacher/TeacherOnboarding";
 import CourseCreation from "./pages/teacher/CourseCreation";
 import CourseSetup from "./pages/teacher/CourseSetup";
 import ProjectLabSetup from "./pages/teacher/ProjectLabSetup";
-import AIAssistantAndSettings from "./pages/teacher/AIAssistantAndSettings";
 import CourseMaterials from "./pages/teacher/CourseMaterials";
-import AITASettings from "./pages/teacher/AITASettings";
 import ExamMode from "./pages/teacher/ExamMode";
 import EnrollmentSettings from "./pages/teacher/EnrollmentSettings";
 import ConceptManagement from "./pages/teacher/ConceptManagement";
@@ -363,7 +361,6 @@ const App = () => (
                 <Route path="/teacher/setup/concept-review" element={<RequireTeacherPath><ConceptReview /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/lesson-plan" element={<RequireTeacherPath><CourseCreation /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/diagnostic" element={<RequireTeacherPath><DiagnosticQuestionsSetup /></RequireTeacherPath>} />
-                <Route path="/teacher/setup/ai-settings" element={<RequireTeacherPath><AIAssistantAndSettings /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/exam-mode" element={<RequireTeacherPath><ExamMode /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/project-lab" element={<RequireTeacherPath><ProjectLabSetup /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/enrollment" element={<RequireTeacherPath><EnrollmentSettings /></RequireTeacherPath>} />
@@ -372,7 +369,6 @@ const App = () => (
                 <Route path="/teacher/chat" element={<RequireTeacherPath><TeacherChat /></RequireTeacherPath>} />
                 <Route path="/teacher/content-library" element={<RequireTeacherPath><ContentLibrary /></RequireTeacherPath>} />
                 <Route path="/teacher/analytics" element={<RequireTeacherPath><CourseAnalytics /></RequireTeacherPath>} />
-                <Route path="/teacher/settings" element={<Navigate to="/teacher/setup/ai-settings" replace />} />
                 <Route path="/teacher/support" element={<Support />} />
               </Route>
 

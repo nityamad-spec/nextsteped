@@ -773,7 +773,6 @@ export type Database = {
           course_id: string
           created_at: string
           custom_exam_prompt: string | null
-          custom_study_prompt: string | null
           diagnostic_type_counts: Json
           exam_approved: boolean
           exam_difficulty: string
@@ -806,7 +805,6 @@ export type Database = {
           course_id: string
           created_at?: string
           custom_exam_prompt?: string | null
-          custom_study_prompt?: string | null
           diagnostic_type_counts?: Json
           exam_approved?: boolean
           exam_difficulty?: string
@@ -839,7 +837,6 @@ export type Database = {
           course_id?: string
           created_at?: string
           custom_exam_prompt?: string | null
-          custom_study_prompt?: string | null
           diagnostic_type_counts?: Json
           exam_approved?: boolean
           exam_difficulty?: string

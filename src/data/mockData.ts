@@ -31,7 +31,6 @@ export const defaultTASettings: TASettings = {
   examPresentation: "all_at_once",
   studySystemPrompt: defaultStudyPrompt,
   examSystemPrompt: defaultExamPrompt,
-  customStudyPrompt: "",
   customExamPrompt: "",
   quizNumQuestions: 5,
   quizQuestionMix: "mixed",

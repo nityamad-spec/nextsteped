@@ -1,15 +1,17 @@
 ---
 name: teacher-setup-flow
-description: 7-step professor setup pipeline. Concept Review is now step 2 (between Materials and Lesson Plan). After onboarding, professors land on /teacher/setup. Setup progress is per-course so adding/switching courses gives a clean slate.
+description: 7-step professor setup pipeline (AI Assistant Settings step removed). Concept Review is now step 2 (between Materials and Lesson Plan). After onboarding, professors land on /teacher/setup. Setup progress is per-course so adding/switching courses gives a clean slate.
 type: feature
 ---
 
-7-step pipeline: Materials → Concept Review → Lesson Plan → Diagnostic → AI Assistant → Exam Mode → Enrollment & Course Settings.
+7-step pipeline: Materials → Concept Review → Lesson Plan → Project Lab (optional) → Diagnostic → Exam Mode → Enrollment & Course Settings.
+
+Removed: the "AI Assistant Settings" step (`/teacher/setup/ai-settings`), its pages, the `/teacher/settings` redirect, and the `course_ta_settings.custom_study_prompt` column. Do not re-add.
 
 Per-course progress (CRITICAL):
 - `teacher_setup_progress` is keyed on `(teacher_id, course_id, step_id)` — a `course_id` column was added so badges (especially steps 5 "AI Assistant" and 7 "Enrollment") don't carry over from a previous course when the professor adds or switches courses.
 - `src/lib/setupProgress.ts` helpers (`fetchStepProgress`, `markStepOpened`, `markStepCompleted`) all take `courseId` as a required argument; passing `null` is a no-op.
-- Call sites: `CourseSetup.tsx`, `AIAssistantAndSettings.tsx`, `EnrollmentSettings.tsx`.
+- Call sites: `CourseSetup.tsx`, `EnrollmentSettings.tsx`.
 
 Landing (HARD GATE):
 - After teacher onboarding, navigate to `/teacher/setup`. `TeacherRedirect` (App.tsx) calls `useTeacherSetupStatus()` on every login; incomplete → `/teacher/setup`, complete → `/teacher/courses/dashboard`.
