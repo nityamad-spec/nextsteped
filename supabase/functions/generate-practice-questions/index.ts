@@ -569,6 +569,23 @@ Deno.serve(async (req) => {
     }
     console.log("practice intent:", JSON.stringify({ ...intent, notes: undefined }));
 
+    // Per-format quota: course mix restricted to the formats the intent allows.
+    const allowedFormatKeys = (intent.types as string[]).filter((t): t is QuestionFormatKey =>
+      t === "mcq" || t === "short_answer" || t === "true_false"
+    );
+    const restrictedMixTotal = allowedFormatKeys.reduce((s, k) => s + practiceMix[k], 0);
+    const restrictedMix = { mcq: 0, short_answer: 0, true_false: 0 } as Record<QuestionFormatKey, number>;
+    for (const k of allowedFormatKeys) {
+      restrictedMix[k] = restrictedMixTotal > 0
+        ? (practiceMix[k] / restrictedMixTotal) * 100
+        : 100 / allowedFormatKeys.length;
+    }
+    const formatQuota = allocateFormats(intent.count, restrictedMix);
+    const formatQuotaLine = allowedFormatKeys
+      .map((k) => `${formatQuota[k]} × ${k}`)
+      .join(", ") || "no formats available";
+
+
     // ---- Build mastery snapshot ----
     const snapshotConcepts = selectConcepts(intent, concepts, masteryByCode);
     const allowedCodes =
