@@ -32,6 +32,7 @@ import {
   normalizeAnswer,
   validateStructural,
   validateOptionParity,
+  validateShortAnswer,
   validateConcept,
   validateBloom,
   validateDifficulty,

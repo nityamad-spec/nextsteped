@@ -43,6 +43,7 @@ import {
   validateDifficulty,
   validateExplanation,
   validateOptionParity,
+  validateShortAnswer,
   validateStructural,
   type QuestionFormat,
 } from "../_shared/question-validation.ts";
