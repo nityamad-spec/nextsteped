@@ -571,7 +571,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
                             <p>
                               <span className="text-muted-foreground">Your answer: </span>
                               <span className={correct ? "text-primary font-medium" : "text-destructive font-medium"}>
-                                {answers[q.id] || "Not answered"}
+                                {(q.type === "short_answer" ? shortAnswer.answers[q.id] : answers[q.id]) || "Not answered"}
                               </span>
                             </p>
                             {!correct && (
