@@ -36,6 +36,12 @@ import {
   type ReasoningEvaluation,
 } from "@/lib/reasoning";
 import { BLOOM_WEIGHT, clampBloom } from "@/lib/masteryScoring";
+import {
+  useShortAnswerGrading,
+  isShortAnswerComplete,
+  localExactMatch,
+} from "@/hooks/useShortAnswerGrading";
+
 
 
 interface PracticeQuestionsWidgetProps {
