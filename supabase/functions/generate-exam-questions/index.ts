@@ -32,6 +32,7 @@ import {
   normalizeAnswer,
   validateStructural,
   validateOptionParity,
+  validateShortAnswer,
   validateConcept,
   validateBloom,
   validateDifficulty,
@@ -238,19 +239,12 @@ function validateQuestion(
   let model_answer: string | null = null;
   let answer_max_words: number | null = null;
   if (format === "short_answer") {
-    answer = typeof q.answer === "string" ? q.answer.trim() : "";
-    if (!answer) return { ok: false, reason: "short_answer requires an answer" };
-    const answerWords = answer.split(/\s+/).filter(Boolean).length;
-    if (answerWords > 30) return { ok: false, reason: `short_answer reference answer too long (${answerWords} words)` };
-    if (Array.isArray(q.options) && q.options.length > 0) {
-      return { ok: false, reason: "short_answer must not carry options" };
-    }
-    model_answer = typeof q.model_answer === "string" ? q.model_answer.trim() : "";
-    if (!model_answer) return { ok: false, reason: "short_answer requires model_answer" };
-    if (model_answer.length < 20) return { ok: false, reason: "model_answer too short (<20 chars)" };
-    if (model_answer.length > 1200) return { ok: false, reason: "model_answer > 1200 chars" };
-    const rawMax = Number(q.answer_max_words);
-    answer_max_words = Number.isFinite(rawMax) ? Math.min(120, Math.max(20, Math.round(rawMax))) : 60;
+    const sa = validateShortAnswer(q as Record<string, unknown>, { stem: content_text });
+    if (!sa.ok) return { ok: false, reason: sa.reason };
+    answer = sa.value.answer;
+    model_answer = sa.value.model_answer;
+    answer_max_words = sa.value.answer_max_words;
+
   } else if (format === "true_false") {
     const raw = typeof q.answer === "string" ? q.answer.trim() : "";
     if (!/^(True|False)$/i.test(raw)) return { ok: false, reason: "t/f answer must be True or False" };

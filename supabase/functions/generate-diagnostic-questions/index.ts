@@ -32,7 +32,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   isLikelyDuplicate,
   validateExplanation as sharedValidateExplanation,
+  validateShortAnswer as sharedValidateShortAnswer,
 } from "../_shared/question-validation.ts";
+
 import {
   classifyOutcome,
   logGatewayCall as sharedLogGatewayCall,
@@ -330,20 +332,14 @@ function validateMcq(
     answer = a === "true" ? "True" : "False";
     opts = ["True", "False"];
   } else {
-    // short_answer — no options, a concise reference answer plus a fuller
-    // model answer used by the grader.
-    if (Array.isArray(q.options) && q.options.length > 0) {
-      return { ok: false, reason: "short_answer must not carry options" };
-    }
-    if (!answer) return { ok: false, reason: "empty answer" };
-    const answerWords = answer.split(/\s+/).filter(Boolean).length;
-    if (answerWords > 30) return { ok: false, reason: `short_answer reference answer too long (${answerWords} words)` };
-    if (!modelAnswer) return { ok: false, reason: "short_answer requires model_answer" };
-    if (modelAnswer.length < 20) return { ok: false, reason: "model_answer too short (<20 chars)" };
-    if (modelAnswer.length > 1200) return { ok: false, reason: "model_answer > 1200 chars" };
-    const rawMax = Number(q.answer_max_words);
-    answerMaxWords = Number.isFinite(rawMax) ? Math.min(200, Math.max(10, Math.round(rawMax))) : 60;
+    // short_answer — shared validator (same rules as weekly quiz / exam).
+    const sa = sharedValidateShortAnswer(q as Record<string, unknown>, { stem: content });
+    if (!sa.ok) return { ok: false, reason: sa.reason };
+    answer = sa.value.answer;
+    modelAnswer = sa.value.model_answer;
+    answerMaxWords = sa.value.answer_max_words;
   }
+
 
 
   const rawTopic = typeof q.topic === "string" ? q.topic.trim() : "";

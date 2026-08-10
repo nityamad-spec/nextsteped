@@ -41,7 +41,14 @@ import {
   dedupWithin,
   auditBatchQuotas,
   summarizeRejections,
+  validateShortAnswer,
 } from "../_shared/question-validation.ts";
+import {
+  DEFAULT_DIAGNOSTIC_MIX,
+  allocateFormats,
+  normalizeMix,
+  type QuestionFormatKey,
+} from "../_shared/question-mix.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -73,7 +80,7 @@ const clampCount = (n: unknown): number => {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const ALLOWED_TYPES = ["mcq", "true_false"] as const;
+const ALLOWED_TYPES = ["mcq", "true_false", "short_answer"] as const;
 type QType = (typeof ALLOWED_TYPES)[number];
 const ALLOWED_DIFFICULTY = ["easy", "medium", "hard", "mixed"] as const;
 type Difficulty = (typeof ALLOWED_DIFFICULTY)[number];
@@ -96,7 +103,7 @@ interface Intent {
 
 const DEFAULT_INTENT: Intent = {
   count: 5,
-  types: ["mcq", "true_false"],
+  types: ["mcq", "true_false", "short_answer"],
   difficulty: "mixed",
   bloom_focus: [],
   concepts: [],
@@ -168,7 +175,7 @@ Bloom focus — leave "bloom_focus" empty in almost all cases. Only populate it 
 
 Fallback defaults when the student is silent or vague:
 - count: 5
-- types: ["mcq","true_false"]
+- types: ["mcq","true_false","short_answer"]
 - difficulty: "mixed"
 - bloom_focus: []
 - concepts: []
@@ -240,20 +247,24 @@ Bloom level (1..6) — derive from each question's difficulty_estimate UNLESS IN
 - 0.35..0.54 -> Bloom 2..3 (understand, apply)
 - 0.55..0.74 -> Bloom 3..4 (apply, analyse)
 - 0.75..0.90 -> Bloom 4..5 (analyse, evaluate)
-Format caps: MCQ <= Bloom 5; true_false <= Bloom 4. Bloom 6 (create) is never used. For INTENT.goal == "challenge", lean to the upper bound of each band.
+Format caps: MCQ <= Bloom 5; true_false <= Bloom 4; short_answer <= Bloom 5. Bloom 6 (create) is never used. For INTENT.goal == "challenge", lean to the upper bound of each band.
 
 Type selection (stem must match type):
 - Use "mcq" for any stem that asks the student to choose among candidates or identify the best option — including any stem starting with "Which", "What", "Select", "Choose", "Identify", "Pick", "Name", or containing "of the following". MCQ requires exactly 4 options.
+- Use "short_answer" when the stem asks the student to explain, justify, define, or state something in their own words in a few sentences. Never attach options to a short_answer item.
 - Use "true_false" ONLY when the stem is a single declarative statement that is unambiguously True or False as written. Never use "true_false" for interrogative or "choose one" stems. If unsure, use "mcq".
 
 Item quality:
 - MCQ: exactly 4 distinct, plausible, non-empty options; exactly one correct; "answer" MUST be the full option string verbatim (never a letter like "A" or "B", never "Option B"). Distractors must represent realistic misconceptions, not throwaways. Vary the position of the correct option across the set.
 - LENGTH PARITY: all 4 MCQ options must be within ±20% character length of each other (max/min ≤ 1.6). The correct option must NOT be the longest or the most hedged/qualified — match syntactic shape, specificity, and hedging level across all 4 options.
 - True/False: options are exactly ["True","False"]; "answer" is "True" or "False"; stem is a declarative statement, never a question that asks the student to pick among candidates.
+- SHORT ANSWER: omit the options array entirely. Provide: answer = a concise reference answer (≤ 30 words, the key point being tested); model_answer = a fuller ideal answer (2-4 sentences) an examiner would accept; answer_max_words = the word budget expected of the student (typically 40-80). The stem must NOT restate the reference answer. Must be answerable in a few sentences — never open-ended essay prompts.
 - No question may duplicate or trivially reword another in this set, and none may restate or closely paraphrase any entry in RECENT STEMS.
 - Explanations are 1-3 sentences and reference the concept by its concept_name (fall back to concept_code if name unavailable).
 
-Output: return ONLY valid JSON, no markdown or code fences, of the form {"questions":[...]} where each item has: question, type, options (omit for true_false or set to ["True","False"]), answer, explanation, topic, difficulty_estimate, bloom_level. Generate exactly INTENT.count questions unless ALLOWED CONCEPT CODES is empty.`;
+Output: return ONLY valid JSON, no markdown or code fences, of the form {"questions":[...]} where each item has: question, type, options (omit for true_false and short_answer, or set to ["True","False"] for true_false), answer, model_answer (short_answer only), answer_max_words (short_answer only), explanation, topic, difficulty_estimate, bloom_level.
+
+FORMAT QUOTA (hard requirement across the whole set): {format_quota_line} Generate exactly INTENT.count questions unless ALLOWED CONCEPT CODES is empty.`;
 
 async function callGateway(
   apiKey: string,
@@ -305,13 +316,13 @@ function sanitizeIntent(raw: any, knownConcepts: Set<string>): Intent {
   const difficulty: Difficulty = ALLOWED_DIFFICULTY.includes(raw.difficulty) ? raw.difficulty : "mixed";
   const goal: Goal = ALLOWED_GOALS.includes(raw.goal) ? raw.goal : "general_practice";
   const bloomFocus = Array.isArray(raw.bloom_focus)
-    ? Array.from(new Set(raw.bloom_focus.map((b: any) => clampBloom(b)).filter((b: number) => Number.isInteger(b))))
+    ? Array.from<number>(new Set(raw.bloom_focus.map((b: any) => clampBloom(b)).filter((b: number) => Number.isInteger(b))))
     : [];
   const concepts = Array.isArray(raw.concepts)
-    ? Array.from(new Set(raw.concepts.map((c: any) => String(c)).filter((c: string) => knownConcepts.has(c))))
+    ? Array.from<string>(new Set(raw.concepts.map((c: any) => String(c)).filter((c: string) => knownConcepts.has(c))))
     : [];
   const offSyllabus = Array.isArray(raw.off_syllabus_terms)
-    ? Array.from(
+    ? Array.from<string>(
         new Set(
           raw.off_syllabus_terms
             .map((s: any) => String(s).trim())
@@ -324,7 +335,7 @@ function sanitizeIntent(raw: any, knownConcepts: Set<string>): Intent {
     : "en";
   return {
     count: clampCount(raw.count),
-    types: types.length > 0 ? types : ["mcq", "true_false"],
+    types: types.length > 0 ? types : ["mcq", "true_false", "short_answer"],
     difficulty,
     bloom_focus: bloomFocus,
     concepts,
@@ -443,8 +454,13 @@ Deno.serve(async (req) => {
     if (enrollErr || !enrollment) return json({ error: "Not enrolled in course" }, 403);
 
     // Parallel fetches
-    const [courseRes, conceptsRes, conceptMasteryRes, courseMasteryRes, recentRes, recentStemsRes] = await Promise.all([
+    const [courseRes, taSettingsRes, conceptsRes, conceptMasteryRes, courseMasteryRes, recentRes, recentStemsRes] = await Promise.all([
       admin.from("courses").select("name, code").eq("id", courseId).maybeSingle(),
+      admin
+        .from("course_ta_settings")
+        .select("practice_type_counts")
+        .eq("course_id", courseId)
+        .maybeSingle(),
       admin
         .from("concepts")
         .select("concept_code, weight")
@@ -482,6 +498,12 @@ Deno.serve(async (req) => {
     const course = (courseRes.data ?? null) as { name: string | null; code: string | null } | null;
     const courseName = course?.name?.trim() || "this course";
     const courseCode = course?.code?.trim() || "n/a";
+
+    // Course-level practice format mix -> per-format quota for this set.
+    const practiceMix = normalizeMix(
+      (taSettingsRes.data as { practice_type_counts?: unknown } | null)?.practice_type_counts,
+      DEFAULT_DIAGNOSTIC_MIX,
+    );
 
     const concepts: ConceptRow[] = (conceptsRes.data ?? []) as any;
     const masteryByCode = new Map<string, MasteryRow>();
@@ -547,6 +569,23 @@ Deno.serve(async (req) => {
     }
     console.log("practice intent:", JSON.stringify({ ...intent, notes: undefined }));
 
+    // Per-format quota: course mix restricted to the formats the intent allows.
+    const allowedFormatKeys = (intent.types as string[]).filter((t): t is QuestionFormatKey =>
+      t === "mcq" || t === "short_answer" || t === "true_false"
+    );
+    const restrictedMixTotal = allowedFormatKeys.reduce((s, k) => s + practiceMix[k], 0);
+    const restrictedMix = { mcq: 0, short_answer: 0, true_false: 0 } as Record<QuestionFormatKey, number>;
+    for (const k of allowedFormatKeys) {
+      restrictedMix[k] = restrictedMixTotal > 0
+        ? (practiceMix[k] / restrictedMixTotal) * 100
+        : 100 / allowedFormatKeys.length;
+    }
+    const formatQuota = allocateFormats(intent.count, restrictedMix);
+    const formatQuotaLine = allowedFormatKeys
+      .map((k) => `${formatQuota[k]} × ${k}`)
+      .join(", ") || "no formats available";
+
+
     // ---- Build mastery snapshot ----
     const snapshotConcepts = selectConcepts(intent, concepts, masteryByCode);
     const allowedCodes =
@@ -591,6 +630,8 @@ Deno.serve(async (req) => {
       type: QType;
       options?: string[];
       answer: string;
+      model_answer?: string | null;
+      answer_max_words?: number | null;
       explanation: string;
       topic: string;
       difficulty_estimate: number;
@@ -608,12 +649,13 @@ Deno.serve(async (req) => {
       // 1) Structural
       const raw = {
         ...q,
+        format: q?.format ?? q?.type,
         options: q?.type === "mcq" || q?.format === "mcq"
           ? normalizeOptions(q?.options).map((s) => s.trim()).filter(Boolean)
           : undefined,
       };
       const structural = validateStructural(raw, {
-        allowedFormats: ["mcq", "true_false"],
+        allowedFormats: ["mcq", "true_false", "short_answer"],
         requireFourOptions: false,
       });
       if (!structural.ok) { recordRejection(structural.reason); return null; }
@@ -632,7 +674,15 @@ Deno.serve(async (req) => {
 
       // 3) Answer
       let answer: string;
-      if (format === "true_false") {
+      let model_answer: string | null = null;
+      let answer_max_words: number | null = null;
+      if (format === "short_answer") {
+        const sa = validateShortAnswer(q as Record<string, unknown>, { stem: content_text });
+        if (!sa.ok) { recordRejection(sa.reason); return null; }
+        answer = sa.value.answer;
+        model_answer = sa.value.model_answer;
+        answer_max_words = sa.value.answer_max_words;
+      } else if (format === "true_false") {
         const ans = normalizeAnswer(q.answer, ["True", "False"]);
         if (!ans.ok) { recordRejection(`t/f: ${ans.reason}`); return null; }
         answer = ans.value;
@@ -661,6 +711,10 @@ Deno.serve(async (req) => {
         recordRejection("bloom > 5 for MCQ");
         return null;
       }
+      if (format === "short_answer" && bloom.value > 5) {
+        recordRejection("bloom > 5 for short answer");
+        return null;
+      }
       if (format === "true_false" && bloom.value > 4) {
         recordRejection("bloom > 4 for T/F");
         return null;
@@ -676,7 +730,7 @@ Deno.serve(async (req) => {
       const explanation = String(q.explanation ?? "").trim();
       const explCheck = validateExplanation({
         format,
-        options: format === "true_false" ? ["True", "False"] : options,
+        options: format === "short_answer" ? [] : format === "true_false" ? ["True", "False"] : options,
         answer,
         explanation,
       });
@@ -688,6 +742,8 @@ Deno.serve(async (req) => {
         type: format as QType,
         options: format === "mcq" ? options : undefined,
         answer,
+        model_answer,
+        answer_max_words,
         explanation: explCheck.value,
         topic,
         difficulty_estimate: diff.value,
@@ -702,6 +758,7 @@ Deno.serve(async (req) => {
         ...avoidStems.map((a) => a.question),
       ].slice(0, 60));
       const base = renderTemplate(SYSTEM_PROMPT_GENERATE_TEMPLATE, {
+        format_quota_line: formatQuotaLine,
         course_name: courseName,
         course_code: courseCode,
         target_language: intent.language,
@@ -847,8 +904,9 @@ Deno.serve(async (req) => {
     }
 
     // Strip synthetic fields before response.
-    const questions = accepted.map(({ id, question, type, options, answer, explanation, topic, difficulty_estimate, bloom_level }) => ({
-      id, question, type, options, answer, explanation, topic, difficulty_estimate, bloom_level,
+    const questions = accepted.map(({ id, question, type, options, answer, model_answer, answer_max_words, explanation, topic, difficulty_estimate, bloom_level }) => ({
+      id, question, type, options, answer, model_answer: model_answer ?? null,
+      answer_max_words: answer_max_words ?? null, explanation, topic, difficulty_estimate, bloom_level,
     }));
 
     return json(hasWarnings ? { questions, warnings } : { questions });

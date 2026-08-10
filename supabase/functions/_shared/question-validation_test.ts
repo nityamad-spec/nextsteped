@@ -10,6 +10,7 @@ import {
   dedupWithin,
   auditBatchQuotas,
   summarizeRejections,
+  validateShortAnswer,
 } from "./question-validation.ts";
 
 Deno.test("normalizeAnswer: verbatim match", () => {
@@ -199,3 +200,70 @@ Deno.test("Phase 7: length-parity guard rejects a follow-up whose correct option
   assert(!r.ok, "over-long correct option should trip length parity");
 });
 
+
+// ---------- Short answer ---------------------------------------------------
+
+Deno.test("validateShortAnswer: happy path returns normalised value", () => {
+  const r = validateShortAnswer({
+    answer: "It stores the length as an attribute",
+    model_answer:
+      "Python lists keep their size on the list object, so len() reads a stored attribute instead of counting elements.",
+    answer_max_words: 40,
+  }, { stem: "Why does len(list) run in constant time?" });
+  assert(r.ok, r.ok ? "" : r.reason);
+  assertEquals(r.value.answer_max_words, 40);
+});
+
+Deno.test("validateShortAnswer: missing answer rejected", () => {
+  const r = validateShortAnswer({ answer: "  ", model_answer: "A sufficiently long model answer here." });
+  assert(!r.ok && /requires an answer/.test(r.reason));
+});
+
+Deno.test("validateShortAnswer: options present rejected", () => {
+  const r = validateShortAnswer({
+    answer: "Stored length attribute",
+    model_answer: "Python stores the length attribute on the list object itself.",
+    options: ["a", "b"],
+  });
+  assert(!r.ok && /must not carry options/.test(r.reason));
+});
+
+Deno.test("validateShortAnswer: over-long reference answer rejected", () => {
+  const r = validateShortAnswer({
+    answer: Array.from({ length: 40 }, (_, i) => `word${i}`).join(" "),
+    model_answer: "A model answer that is long enough to pass the minimum length rule.",
+  });
+  assert(!r.ok && /too long/.test(r.reason));
+});
+
+Deno.test("validateShortAnswer: missing model answer rejected", () => {
+  const r = validateShortAnswer({ answer: "Stored length attribute" });
+  assert(!r.ok && /requires model_answer/.test(r.reason));
+});
+
+Deno.test("validateShortAnswer: model answer that ignores the reference answer rejected", () => {
+  const r = validateShortAnswer({
+    answer: "Constant time stored attribute",
+    model_answer: "Sorting compares elements pairwise and swaps them until the sequence is ordered.",
+  });
+  assert(!r.ok && /does not support/.test(r.reason));
+});
+
+Deno.test("validateShortAnswer: stem restating the answer is rejected (leakage)", () => {
+  const r = validateShortAnswer({
+    answer: "stored length attribute",
+    model_answer: "The list object carries a stored length attribute, so len() is constant time.",
+  }, { stem: "Explain why the stored length attribute makes len() constant time." });
+  assert(!r.ok && /leakage/.test(r.reason));
+});
+
+Deno.test("validateShortAnswer: answer_max_words clamped into the 20-120 budget", () => {
+  const base = {
+    answer: "stored length attribute",
+    model_answer: "The list object carries a stored length attribute, so len() is constant time.",
+  };
+  const low = validateShortAnswer({ ...base, answer_max_words: 5 });
+  const high = validateShortAnswer({ ...base, answer_max_words: 500 });
+  assert(low.ok && low.value.answer_max_words === 20);
+  assert(high.ok && high.value.answer_max_words === 120);
+});

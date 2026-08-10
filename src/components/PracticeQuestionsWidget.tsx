@@ -36,6 +36,12 @@ import {
   type ReasoningEvaluation,
 } from "@/lib/reasoning";
 import { BLOOM_WEIGHT, clampBloom } from "@/lib/masteryScoring";
+import {
+  useShortAnswerGrading,
+  isShortAnswerComplete,
+  localExactMatch,
+} from "@/hooks/useShortAnswerGrading";
+
 
 
 interface PracticeQuestionsWidgetProps {
@@ -65,14 +71,17 @@ type Phase = "prompt" | "loading" | "active" | "review" | "review-history";
 interface GeneratedQuestion {
   id: string;
   question: string;
-  type: "mcq" | "true_false";
+  type: "mcq" | "true_false" | "short_answer";
   options?: string[];
   answer: string;
+  model_answer?: string | null;
+  answer_max_words?: number | null;
   explanation: string;
   topic: string;
   difficulty_estimate: number; // 0..1
   bloom_level: number; // 1..6
 }
+
 
 const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], courseContext, enrolledCourseId, studentId, initialReviewSessionId = null }: PracticeQuestionsWidgetProps) => {
   const [phase, setPhase] = useState<Phase>("prompt");
@@ -86,6 +95,8 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   const [startTime] = useState(Date.now());
   const [reviewingSession, setReviewingSession] = useState<PracticeResult | null>(null);
   const reasoning = useReasoningAnswers();
+  const shortAnswer = useShortAnswerGrading();
+
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -131,6 +142,8 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
       setRevealed(new Set());
       setResults(null);
       reasoning.reset();
+      shortAnswer.reset();
+
       setPhase("active");
     } catch (e) {
       console.error("Failed to generate practice questions:", e);
@@ -140,7 +153,12 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   }, [prompt, enrolledCourseId]);
 
   const currentQuestion = questions[currentIndex];
-  const isAnswered = currentQuestion ? !!answers[currentQuestion.id] : false;
+  const isShort = currentQuestion?.type === "short_answer";
+  const isAnswered = currentQuestion
+    ? isShort
+      ? isShortAnswerComplete(shortAnswer.answers[currentQuestion.id])
+      : !!answers[currentQuestion.id]
+    : false;
   const isRevealed = currentQuestion ? revealed.has(currentQuestion.id) : false;
 
   const handleAnswer = (questionId: string, answer: string) => {
@@ -148,8 +166,31 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
   };
 
+  /** Short answers are their own rationale — no separate reasoning box. */
+  const needsReasoning = (q: GeneratedQuestion) =>
+    q.type !== "short_answer" && requiresReasoning(q.bloom_level);
+
+  const shortAnswerInput = (q: GeneratedQuestion) => ({
+    questionId: q.id,
+    questionText: q.question,
+    answer: q.answer,
+    modelAnswer: q.model_answer ?? null,
+    topic: q.topic,
+    bloom: q.bloom_level,
+    courseId: enrolledCourseId ?? null,
+    studentId: studentId ?? "",
+    sourceFormat: "practice" as const,
+    questionSource: "generated" as const,
+  });
+
   const handleReveal = () => {
-    if (!currentQuestion || !answers[currentQuestion.id]) return;
+    if (!currentQuestion || !isAnswered) return;
+    if (isShort) {
+      shortAnswer.setShowErrors(false);
+      if (studentId) shortAnswer.grade(shortAnswerInput(currentQuestion));
+      setRevealed(prev => new Set(prev).add(currentQuestion.id));
+      return;
+    }
     if (reasoning.isQuestionBlocked({ id: currentQuestion.id, bloom: currentQuestion.bloom_level })) {
       reasoning.setShowErrors(true);
       toast.error("Reasoning required", {
@@ -179,7 +220,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
       setSubmitting(true);
       // Include the last question: its rationale may never have been revealed.
       await reasoning.flushAndWait(
-        questions.map((q) => ({
+        questions.filter((q) => needsReasoning(q)).map((q) => ({
           questionId: q.id,
           questionText: q.question,
           options: q.options,
@@ -191,23 +232,39 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
         })),
         REASONING_EVAL_DEADLINE_MS,
       );
+      if (studentId) {
+        await shortAnswer.flushAndWait(
+          questions.filter((q) => q.type === "short_answer").map(shortAnswerInput),
+          REASONING_EVAL_DEADLINE_MS,
+        );
+      }
       setSubmitting(false);
       const evaluations = reasoning.getEvaluations();
+      const grades = shortAnswer.getGrades();
+      const shortAnswers = shortAnswer.getAnswers();
       let correct = 0;
       // Practice keeps its flat per-question model: each question is worth 1
       // credit, and the reasoning verdict scales the credit earned.
       let creditEarned = 0;
       const answerDetails = questions.map(q => {
-        const userAnswer = answers[q.id] || "";
-        const isCorrect = userAnswer === q.answer;
+        const short = q.type === "short_answer";
+        const userAnswer = short ? (shortAnswers[q.id] ?? "") : (answers[q.id] || "");
+        const grade = short ? grades[q.id] : undefined;
+        const isCorrect = short
+          ? grade?.verdict
+            ? grade.verdict === "accepted"
+            : localExactMatch(userAnswer, [q.answer, q.model_answer])
+          : userAnswer === q.answer;
         if (isCorrect) correct++;
         const bloom = clampBloom(q.bloom_level ?? 1);
-        creditEarned += reasoningEarnedFactor({
-          bloom,
-          bloomWeight: BLOOM_WEIGHT[bloom] ?? 1.0,
-          isCorrect,
-          verdict: verdictFor(evaluations, q.id),
-        });
+        creditEarned += short
+          ? (isCorrect ? 1 : 0)
+          : reasoningEarnedFactor({
+              bloom,
+              bloomWeight: BLOOM_WEIGHT[bloom] ?? 1.0,
+              isCorrect,
+              verdict: verdictFor(evaluations, q.id),
+            });
         return {
           question_id: q.id,
           question_text: q.question,
@@ -221,6 +278,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
           bloom_level: q.bloom_level,
         };
       });
+
 
       const score = Math.round((creditEarned / questions.length) * 100);
       setResults({ score, correct, total: questions.length });
@@ -240,9 +298,16 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   };
 
   const getAnswerCorrectness = (q: GeneratedQuestion) => {
+    if (q.type === "short_answer") {
+      const text = shortAnswer.answers[q.id] ?? "";
+      const grade = shortAnswer.grades[q.id];
+      if (grade?.verdict) return grade.verdict === "accepted";
+      return localExactMatch(text, [q.answer, q.model_answer]);
+    }
     const userAnswer = answers[q.id] || "";
     return userAnswer === q.answer;
   };
+
 
   // Review a past session from history
   if (phase === "review-history" && reviewingSession) {
@@ -506,7 +571,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
                             <p>
                               <span className="text-muted-foreground">Your answer: </span>
                               <span className={correct ? "text-primary font-medium" : "text-destructive font-medium"}>
-                                {answers[q.id] || "Not answered"}
+                                {(q.type === "short_answer" ? shortAnswer.answers[q.id] : answers[q.id]) || "Not answered"}
                               </span>
                             </p>
                             {!correct && (
@@ -636,8 +701,25 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
             </div>
           )}
 
+          {currentQuestion.type === "short_answer" && (
+            <div className="space-y-1">
+              <Textarea
+                value={shortAnswer.answers[currentQuestion.id] ?? ""}
+                onChange={(e) => shortAnswer.setAnswer(currentQuestion.id, e.target.value)}
+                placeholder="Type your answer…"
+                className="min-h-[100px] text-sm"
+                disabled={isRevealed}
+              />
+              {currentQuestion.answer_max_words ? (
+                <p className="text-xs text-muted-foreground">
+                  Aim for about {currentQuestion.answer_max_words} words or fewer.
+                </p>
+              ) : null}
+            </div>
+          )}
 
-          {requiresReasoning(currentQuestion.bloom_level) && (
+          {needsReasoning(currentQuestion) && (
+
             <>
               <ReasoningInput
                 questionId={currentQuestion.id}
