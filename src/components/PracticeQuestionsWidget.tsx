@@ -694,8 +694,25 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
             </div>
           )}
 
+          {currentQuestion.type === "short_answer" && (
+            <div className="space-y-1">
+              <Textarea
+                value={shortAnswer.answers[currentQuestion.id] ?? ""}
+                onChange={(e) => shortAnswer.setAnswer(currentQuestion.id, e.target.value)}
+                placeholder="Type your answer…"
+                className="min-h-[100px] text-sm"
+                disabled={isRevealed}
+              />
+              {currentQuestion.answer_max_words ? (
+                <p className="text-xs text-muted-foreground">
+                  Aim for about {currentQuestion.answer_max_words} words or fewer.
+                </p>
+              ) : null}
+            </div>
+          )}
 
-          {requiresReasoning(currentQuestion.bloom_level) && (
+          {needsReasoning(currentQuestion) && (
+
             <>
               <ReasoningInput
                 questionId={currentQuestion.id}
