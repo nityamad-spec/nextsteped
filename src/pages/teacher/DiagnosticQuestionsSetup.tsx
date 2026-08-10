@@ -759,7 +759,7 @@ const DiagnosticQuestionsSetup = () => {
           </CardContent>
         </Card>
 
-        <SetupModuleNav nextPath="/teacher/setup/ai-settings" nextLabel="Next: AI Assistant Settings" />
+        <SetupModuleNav nextPath="/teacher/setup/exam-mode" nextLabel="Next: Exam Mode Settings" />
       </div>
     </div>
   );

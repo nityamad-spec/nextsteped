@@ -6,7 +6,6 @@ import {
   Upload,
   ClipboardList,
   Brain,
-  Bot,
   GraduationCap,
   UserPlus,
   Lock,
@@ -41,7 +40,6 @@ const CARDS: CardDef[] = [
   { id: "lesson-plan", title: "Generate Lesson Plan", description: "Generate a structured weekly lesson plan based on your confirmed concepts.", icon: ClipboardList, path: "/teacher/setup/lesson-plan" },
   { id: "project-lab", title: "Project Lab", description: "Optional. Author hands-on labs that appear in your students' Project Lab tab.", icon: FlaskConical, path: "/teacher/setup/project-lab", optional: true },
   { id: "diagnostic", title: "Approve Diagnostic Quiz", description: "Review and approve the AI-generated diagnostic quiz for your students.", icon: Brain, path: "/teacher/setup/diagnostic" },
-  { id: "ai-settings", title: "AI Assistant Settings", description: "Configure the AI TA for your students and access your own professor AI assistant.", icon: Bot, path: "/teacher/setup/ai-settings" },
   { id: "exam-mode", title: "Exam Mode Settings", description: "Set up and customise the exam mode experience for your students.", icon: GraduationCap, path: "/teacher/setup/exam-mode" },
   { id: "enrollment", title: "Enrollment & Course Settings", description: "Configure your course schedule, sections, enrollment code, and student roster.", icon: UserPlus, path: "/teacher/setup/enrollment" },
 ];
@@ -82,7 +80,6 @@ const CourseSetup = () => {
     "lesson-plan": "Not Started",
     "project-lab": "Not Started",
     diagnostic: "Not Started",
-    "ai-settings": "Not Started",
     "exam-mode": "Not Started",
     enrollment: "Not Started",
   });
@@ -98,8 +95,7 @@ const CourseSetup = () => {
       "lesson-plan": "Not Started",
       "project-lab": "Not Started",
       diagnostic: "Not Started",
-      "ai-settings": "Not Started",
-      "exam-mode": "Not Started",
+        "exam-mode": "Not Started",
       enrollment: "Not Started",
     });
     const fetchStatuses = async () => {
@@ -111,8 +107,7 @@ const CourseSetup = () => {
         "lesson-plan": "Not Started",
         "project-lab": "Not Started",
         diagnostic: "Not Started",
-        "ai-settings": "Not Started",
-        "exam-mode": "Not Started",
+            "exam-mode": "Not Started",
         enrollment: "Not Started",
       };
 
@@ -188,21 +183,17 @@ const CourseSetup = () => {
         if ((labCount ?? 0) > 0) next["project-lab"] = "Complete";
         else if (opened["project-lab"]) next["project-lab"] = "In Progress";
 
-        // Cards 5 & 6 (TA settings)
+        // Exam Mode (TA settings)
         const { data: ta } = await supabase
           .from("course_ta_settings")
-          .select("custom_study_prompt, exam_enabled, exam_approved")
+          .select("exam_enabled, exam_approved")
           .eq("course_id", courseId)
           .maybeSingle();
-        const aiDone = completed["ai-settings"] || !!(ta?.custom_study_prompt && ta.custom_study_prompt.trim().length > 0);
         const examDone = !!(ta?.exam_enabled || ta?.exam_approved);
-        next["ai-settings"] = aiDone ? "Complete" : opened["ai-settings"] ? "In Progress" : "Not Started";
         next["exam-mode"] = examDone ? "Complete" : opened["exam-mode"] ? "In Progress" : "Not Started";
       } else {
         if (opened["concept-review"]) next["concept-review"] = "In Progress";
         if (opened.diagnostic) next.diagnostic = "In Progress";
-        if (completed["ai-settings"]) next["ai-settings"] = "Complete";
-        else if (opened["ai-settings"]) next["ai-settings"] = "In Progress";
         if (opened["exam-mode"]) next["exam-mode"] = "In Progress";
       }
 

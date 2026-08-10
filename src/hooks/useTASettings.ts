@@ -13,7 +13,6 @@ interface DBTASettings {
   exam_difficulty: string;
   exam_question_mix: string;
   exam_presentation: string | null;
-  custom_study_prompt: string | null;
   custom_exam_prompt: string | null;
   quiz_num_questions: number | null;
   quiz_question_mix: string | null;
@@ -40,7 +39,6 @@ function dbToAppSettings(row: DBTASettings): TASettings {
     examDifficulty: row.exam_difficulty as TASettings["examDifficulty"],
     examQuestionMix: row.exam_question_mix,
     examPresentation: (row.exam_presentation as TASettings["examPresentation"]) || "all_at_once",
-    customStudyPrompt: row.custom_study_prompt || "",
     customExamPrompt: row.custom_exam_prompt || "",
     quizNumQuestions: row.quiz_num_questions || 5,
     quizQuestionMix: row.quiz_question_mix || "mixed",
@@ -115,7 +113,6 @@ export function useTASettings(courseId: string | null) {
         exam_difficulty: settings.examDifficulty,
         exam_question_mix: settings.examQuestionMix,
         exam_presentation: settings.examPresentation || "all_at_once",
-        custom_study_prompt: settings.customStudyPrompt || "",
         custom_exam_prompt: settings.customExamPrompt || "",
         quiz_num_questions: settings.quizNumQuestions || 5,
         quiz_question_mix: settings.quizQuestionMix || "mixed",
