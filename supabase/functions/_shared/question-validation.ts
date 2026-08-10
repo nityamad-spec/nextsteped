@@ -189,6 +189,105 @@ export function validateStructural(
   return { ok: true, value: { format, content_text: content, options } };
 }
 
+/* --------------------------------------------------------------------------
+ * Short answer
+ * ------------------------------------------------------------------------ */
+
+export interface ShortAnswerCandidate {
+  answer?: unknown;
+  model_answer?: unknown;
+  answer_max_words?: unknown;
+  options?: unknown;
+}
+
+export interface ShortAnswerValue {
+  answer: string;
+  model_answer: string;
+  answer_max_words: number;
+}
+
+export interface ShortAnswerOptions {
+  /** Question stem — used for the answer-leakage guard. */
+  stem?: string;
+  maxAnswerWords?: number; // default 30
+  minModelAnswerChars?: number; // default 20
+  maxModelAnswerChars?: number; // default 1200
+  defaultAnswerMaxWords?: number; // default 60
+}
+
+/**
+ * Single source of truth for short-answer item quality. Every generator
+ * (weekly quiz, exam, diagnostic, practice) must call this so the rules
+ * cannot drift per-function.
+ *
+ * Checks:
+ *   - concise reference answer present and short enough
+ *   - no options attached
+ *   - fuller model answer present and within length bounds
+ *   - suggested word budget clamped
+ *   - model answer agrees with the reference answer (key-term overlap)
+ *   - the stem does not restate the answer (leakage guard)
+ */
+export function validateShortAnswer(
+  q: ShortAnswerCandidate,
+  opts: ShortAnswerOptions = {},
+): ValidationResult<ShortAnswerValue> {
+  const maxAnswerWords = opts.maxAnswerWords ?? 30;
+  const minModelChars = opts.minModelAnswerChars ?? 20;
+  const maxModelChars = opts.maxModelAnswerChars ?? 1200;
+
+  const answer = String(q.answer ?? "").trim();
+  if (!answer) return { ok: false, reason: "short_answer requires an answer" };
+  const answerWords = answer.split(/\s+/).filter(Boolean).length;
+  if (answerWords > maxAnswerWords) {
+    return { ok: false, reason: `short_answer reference answer too long (${answerWords} words)` };
+  }
+  if (Array.isArray(q.options) && (q.options as unknown[]).length > 0) {
+    return { ok: false, reason: "short_answer must not carry options" };
+  }
+
+  const model_answer = String(q.model_answer ?? "").trim();
+  if (!model_answer) return { ok: false, reason: "short_answer requires model_answer" };
+  if (model_answer.length < minModelChars) {
+    return { ok: false, reason: `model_answer too short (<${minModelChars} chars)` };
+  }
+  if (model_answer.length > maxModelChars) {
+    return { ok: false, reason: `model_answer > ${maxModelChars} chars` };
+  }
+
+  const rawMax = Number(q.answer_max_words);
+  const answer_max_words = Number.isFinite(rawMax)
+    ? Math.min(120, Math.max(20, Math.round(rawMax)))
+    : (opts.defaultAnswerMaxWords ?? 60);
+
+  // Model answer must actually support the concise reference answer.
+  const refTokens = topAnswerTokens(answer);
+  if (refTokens.length > 0) {
+    const modelTokens = new Set(tokenize(model_answer, ANSWER_STOP_WORDS));
+    const matched = refTokens.filter((t) => modelTokens.has(t)).length;
+    const required = refTokens.length <= 2 ? 1 : Math.max(2, Math.ceil(refTokens.length * 0.3));
+    if (matched < required) {
+      return { ok: false, reason: "model_answer does not support the reference answer" };
+    }
+  }
+
+  // Leakage: the stem must not restate the answer.
+  const stem = String(opts.stem ?? "").trim();
+  if (stem && refTokens.length >= 2) {
+    const stemTokens = tokenize(stem, ANSWER_STOP_WORDS);
+    const contained = containmentSimilarity(refTokens, stemTokens);
+    const stemKey = ` ${stemTokens.join(" ")} `;
+    const answerKey = ` ${tokenize(answer, ANSWER_STOP_WORDS).join(" ")} `;
+    if (contained >= 0.99 || (answerKey.trim() && stemKey.includes(answerKey))) {
+      return { ok: false, reason: "question stem restates the reference answer (answer leakage)" };
+    }
+  }
+
+  return { ok: true, value: { answer, model_answer, answer_max_words } };
+}
+
+
+
 /** Correct-option length-parity anti-cue (call after normalizeAnswer for MCQ). */
 export function validateOptionParity(options: string[], answer: string): ValidationResult<true> {
   if (options.length < 2) return { ok: true, value: true };
