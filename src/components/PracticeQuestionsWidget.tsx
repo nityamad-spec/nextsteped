@@ -95,6 +95,8 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   const [startTime] = useState(Date.now());
   const [reviewingSession, setReviewingSession] = useState<PracticeResult | null>(null);
   const reasoning = useReasoningAnswers();
+  const shortAnswer = useShortAnswerGrading();
+
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
