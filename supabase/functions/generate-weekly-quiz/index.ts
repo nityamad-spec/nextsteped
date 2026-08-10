@@ -237,21 +237,12 @@ function validateCandidate(
   let answer_max_words: number | null = null;
 
   if (format === "short_answer") {
-    answer = String((raw as any)?.answer ?? "").trim();
-    if (!answer) return { ok: false, reason: "short_answer requires an answer" };
-    const answerWords = answer.split(/\s+/).filter(Boolean).length;
-    if (answerWords > 30) {
-      return { ok: false, reason: `short_answer reference answer too long (${answerWords} words)` };
-    }
-    if (Array.isArray((raw as any)?.options) && (raw as any).options.length > 0) {
-      return { ok: false, reason: "short_answer must not carry options" };
-    }
-    model_answer = String((raw as any)?.model_answer ?? "").trim();
-    if (!model_answer) return { ok: false, reason: "short_answer requires model_answer" };
-    if (model_answer.length < 20) return { ok: false, reason: "model_answer too short (<20 chars)" };
-    if (model_answer.length > 1200) return { ok: false, reason: "model_answer > 1200 chars" };
-    const rawMax = Number((raw as any)?.answer_max_words);
-    answer_max_words = Number.isFinite(rawMax) ? Math.min(120, Math.max(20, Math.round(rawMax))) : 60;
+    const sa = validateShortAnswer(raw as Record<string, unknown>, { stem: content_text });
+    if (!sa.ok) return sa;
+    answer = sa.value.answer;
+    model_answer = sa.value.model_answer;
+    answer_max_words = sa.value.answer_max_words;
+
   } else {
     const answerRes = normalizeAnswer((raw as any)?.answer, options);
     if (!answerRes.ok) return answerRes;
