@@ -316,13 +316,13 @@ function sanitizeIntent(raw: any, knownConcepts: Set<string>): Intent {
   const difficulty: Difficulty = ALLOWED_DIFFICULTY.includes(raw.difficulty) ? raw.difficulty : "mixed";
   const goal: Goal = ALLOWED_GOALS.includes(raw.goal) ? raw.goal : "general_practice";
   const bloomFocus = Array.isArray(raw.bloom_focus)
-    ? Array.from(new Set(raw.bloom_focus.map((b: any) => clampBloom(b)).filter((b: number) => Number.isInteger(b))))
+    ? Array.from<number>(new Set(raw.bloom_focus.map((b: any) => clampBloom(b)).filter((b: number) => Number.isInteger(b))))
     : [];
   const concepts = Array.isArray(raw.concepts)
-    ? Array.from(new Set(raw.concepts.map((c: any) => String(c)).filter((c: string) => knownConcepts.has(c))))
+    ? Array.from<string>(new Set(raw.concepts.map((c: any) => String(c)).filter((c: string) => knownConcepts.has(c))))
     : [];
   const offSyllabus = Array.isArray(raw.off_syllabus_terms)
-    ? Array.from(
+    ? Array.from<string>(
         new Set(
           raw.off_syllabus_terms
             .map((s: any) => String(s).trim())
