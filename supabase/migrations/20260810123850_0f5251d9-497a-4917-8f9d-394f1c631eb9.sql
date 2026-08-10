@@ -1,0 +1,1 @@
+ALTER TABLE public.course_ta_settings DROP COLUMN IF EXISTS custom_study_prompt;
