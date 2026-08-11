@@ -1323,6 +1323,8 @@ const AIChat = () => {
           enrolledCourseId={enrolledCourseId}
           studentId={user?.id || null}
           initialReviewSessionId={selectedPracticeHistoryId}
+          initialPrompt={practiceInitialPrompt}
+
         />
       </div>
     );
