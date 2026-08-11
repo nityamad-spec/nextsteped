@@ -20,6 +20,9 @@ import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 import ConceptMasteryDialog from "@/components/student/ConceptMasteryDialog";
 import AchievementsCard from "@/components/student/AchievementsCard";
 import { useAchievements } from "@/hooks/useAchievements";
+import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
+import { useUnitProgress } from "@/hooks/useUnitProgress";
+import { computeUnitStage } from "@/lib/unitStage";
 
 
 /* Concepts are loaded from the DB for the student's enrolled course.
@@ -292,6 +295,7 @@ const StudentHome = () => {
     buttonVariant: ButtonVariant;
   };
   const nextActions: NextAction[] = [];
+  let focusFooter: { position: string; status: string } | null = null;
 
   // Build a lookup of concept_code -> concept id for the current course
   const conceptIdByName = new Map<string, string>();
@@ -355,144 +359,169 @@ const StudentHome = () => {
       });
     }
 
-    // Rule 3 — Weekly Quiz slot: this week's untaken quiz, else earliest missed earlier quiz
-    const currentWeekQuizAvailable = availableQuizDays.has(currentWeek) && !takenQuizzes[currentWeek];
-    const earlierWeekNumbers = lessonPlan
+    // Rules 3-6 — mirror the Learning Path journey: Study -> Practice -> Quiz -> Next unit.
+    const unitNumbers = lessonPlan
       .map((wk: any) => Number(wk.day))
-      .filter((d: number) => Number.isFinite(d) && d < currentWeek)
+      .filter((d: number) => Number.isFinite(d))
       .sort((a: number, b: number) => a - b);
-    const missedEarlier = earlierWeekNumbers.find(
-      (w: number) => availableQuizDays.has(w) && !takenQuizzes[w],
-    );
-    if (currentWeekQuizAvailable) {
-      nextActions.push({
-        icon: ClipboardCheck,
-        title: `${currentWeekRow?.topic || `Week ${currentWeek}`}`,
-        description: "Quick check-in on this week's concepts",
-        action: () => attemptOpenQuiz(currentWeek),
-        category: "THIS WEEK'S QUIZ",
-        visualCategory: "quiz",
-        badgeLabel: "Quiz",
-        badgeTone: "neutral",
-        metadata: quizMetadata,
-        buttonLabel: "Start quiz",
-        buttonVariant: "default",
-      });
-    } else if (missedEarlier != null) {
-      nextActions.push({
-        icon: ClipboardCheck,
-        title: `Week ${missedEarlier} quiz`,
-        description: "You haven't taken this one yet",
-        action: () => attemptOpenQuiz(missedEarlier),
-        category: "REVIEW",
-        visualCategory: "quiz",
-        badgeLabel: "Quiz",
-        badgeTone: "neutral",
-        metadata: quizMetadata,
-        buttonLabel: "Start quiz",
-        buttonVariant: "default",
-      });
-    }
 
-    // Rule 4 — Chatbot slot (smart fallback: weakest touched → first unexplored current-week → generic)
-    const touchedVisible = Object.entries(conceptMastery)
-      .filter(([id, m]) => visibleConceptIds.has(id) && m.attempted > 0)
-      .sort(([, a], [, b]) => a.score - b.score);
-    const weakest = touchedVisible.length > 0
-      ? concepts.find((c) => c.id === touchedVisible[0][0])
-      : undefined;
-    const unexploredThisWeek = currentWeekConcepts.find(
-      (c) => !c.id || !conceptMastery[c.id] || conceptMastery[c.id].attempted === 0,
-    );
-    if (weakest) {
-      nextActions.push({
-        icon: Sparkles,
-        title: weakest.name,
-        description: "Revisit this concept in the Study Chat",
-        action: () => navigate(`/student/chat?newchat=true&intent=weak&concept=${encodeURIComponent(weakest.name)}`),
-        category: "STRENGTHEN",
-        visualCategory: "continue",
-        badgeLabel: "Continue learning",
-        badgeTone: "green",
-        metadata: "Based on your mastery",
-        buttonLabel: "Review with TA",
-        buttonVariant: "outline",
+    const stageFor = (unit: number) =>
+      computeUnitStage({
+        studied: !!studiedByUnit[unit],
+        practised: !!practisedByUnit[unit],
+        quizTaken: !!takenQuizzes[unit],
+        readiness: readinessByUnit[unit] ?? 0,
       });
-    } else if (unexploredThisWeek) {
-      nextActions.push({
-        icon: BookOpen,
-        title: unexploredThisWeek.name,
-        description: `Week ${currentWeek} — open a new chat to dig in`,
-        action: () => navigate(`/student/chat?newchat=true&intent=start&concept=${encodeURIComponent(unexploredThisWeek.name)}`),
-        category: "START THIS WEEK",
-        visualCategory: "continue",
-        badgeLabel: "Continue learning",
-        badgeTone: "green",
-        metadata: `Unit ${currentWeek}`,
-        buttonLabel: "Review with TA",
-        buttonVariant: "outline",
-      });
-    } else {
-      nextActions.push({
-        icon: MessageSquare,
-        title: "Open the Study Chat",
-        description: "Ask a question or explore a concept",
-        action: () => navigate("/student/chat?newchat=true"),
-        category: "EXPLORE",
-        visualCategory: "continue",
-        badgeLabel: "Continue learning",
-        badgeTone: "green",
-        metadata: "Based on your last session",
-        buttonLabel: "Review with TA",
-        buttonVariant: "outline",
-      });
-    }
 
-    // Rule 5 — Reading slot (only if unread + student hasn't opened learning path this week)
-    const currentWeekResources = Array.isArray(currentWeekRow?.resources) ? currentWeekRow.resources : [];
-    const readingResource = currentWeekResources.find(
-      (r: any) => typeof r?.type === "string" && /reading|material|article|text/i.test(r.type),
-    ) || currentWeekResources[0];
-    if (readingResource && !hasOpenedLearningPathThisWeek(enrolledCourseId)) {
-      nextActions.push({
-        icon: BookOpen,
-        title: `Read: ${readingResource.title || "Course reading"}`,
-        description: readingResource.description || "Prepare for the next part of the unit with a short guided course reading.",
-        action: () => {
-          markLearningPathOpened(enrolledCourseId);
-          navigate("/student/learning-path");
-        },
-        category: "START THIS WEEK",
-        visualCategory: "reading",
-        badgeLabel: "Reading",
-        badgeTone: "neutral",
-        metadata: deriveReadTime(readingResource),
-        buttonLabel: "Open reading",
-        buttonVariant: "outline",
-      });
-    }
+    // Focus on the first unit that isn't ready yet.
+    const focusUnit =
+      unitNumbers.find((u: number) => stageFor(u) !== "ready") ??
+      unitNumbers[unitNumbers.length - 1];
 
-    // Rule 6 — Practice Exam (only once all visible weeks reached AND all published quizzes taken)
-    const allVisibleWeeksReached =
-      lessonPlan.length > 0 &&
-      lessonPlan.every((wk: any) => Number(wk.day) <= currentWeek);
-    const allQuizzesTaken =
-      availableQuizDays.size > 0 &&
-      Array.from(availableQuizDays).every((w) => !!takenQuizzes[w]);
-    if (allVisibleWeeksReached && allQuizzesTaken && taSettings?.examEnabled !== false) {
-      nextActions.push({
-        icon: ClipboardCheck,
-        title: "Practice exam",
-        description: "You've reached the end of the course — try a timed simulation",
-        action: () => attemptExamMode(),
-        category: "PRACTICE",
-        visualCategory: "practice",
-        badgeLabel: "Practice exam",
-        badgeTone: "neutral",
-        metadata: "Timed simulation",
-        buttonLabel: "Start exam",
-        buttonVariant: "outline",
-      });
+    if (focusUnit != null) {
+      const focusRow = lessonPlan.find((wk: any) => Number(wk.day) === focusUnit);
+      const focusTopic = focusRow?.topic || `Unit ${focusUnit}`;
+      const stage = stageFor(focusUnit);
+      const readiness = readinessByUnit[focusUnit] ?? 0;
+      const quizOpen = availableQuizDays.has(focusUnit) && !takenQuizzes[focusUnit];
+      const weakList = (weakConceptsByUnit[focusUnit] || []).slice(0, 2).join(", ");
+      const studyHref = `/student/chat?newchat=true&intent=start&concept=${encodeURIComponent(focusTopic)}`;
+      const practiceHref = `/student/chat?newchat=true&intent=practice&concept=${encodeURIComponent(focusTopic)}`;
+
+      focusFooter = {
+        position: `Unit ${focusUnit} of ${unitNumbers.length || totalWeeks || 1}`,
+        status: takenQuizzes[focusUnit]
+          ? `${readiness}% readiness`
+          : quizOpen
+            ? "Quiz not taken"
+            : "Quiz not open yet",
+      };
+
+      if (stage === "not_started") {
+        nextActions.push({
+          icon: MessageSquare,
+          title: `Start studying Unit ${focusUnit}`,
+          description: `Work through ${focusTopic} with your teaching assistant.`,
+          action: () => navigate(studyHref),
+          category: "STUDY",
+          visualCategory: "continue",
+          badgeLabel: "Step 1 of 3",
+          badgeTone: "green",
+          metadata: focusTopic,
+          buttonLabel: "Start studying",
+          buttonVariant: "default",
+        });
+        if (quizOpen) {
+          nextActions.push({
+            icon: ClipboardCheck,
+            title: "Take Unit quiz instead",
+            description: `Skip ahead and check yourself on ${focusTopic}.`,
+            action: () => attemptOpenQuiz(focusUnit),
+            category: "WEEKLY QUIZ",
+            visualCategory: "quiz",
+            badgeLabel: "Quiz",
+            badgeTone: "neutral",
+            metadata: quizMetadata,
+            buttonLabel: "Take quiz",
+            buttonVariant: "outline",
+          });
+        }
+      } else if (stage === "studied") {
+        nextActions.push({
+          icon: Sparkles,
+          title: `Do practice questions for Unit ${focusUnit}`,
+          description: `You've studied ${focusTopic} — see what stuck with scored practice.`,
+          action: () => navigate(practiceHref),
+          category: "PRACTICE",
+          visualCategory: "practice",
+          badgeLabel: "Step 2 of 3",
+          badgeTone: "green",
+          metadata: focusTopic,
+          buttonLabel: "Start practice",
+          buttonVariant: "default",
+        });
+      } else if (stage === "practised") {
+        nextActions.push({
+          icon: ClipboardCheck,
+          title: `Take the Unit ${focusUnit} quiz`,
+          description: quizOpen
+            ? `One scored attempt sets your readiness for ${focusTopic}.`
+            : `This quiz isn't open yet — keep practising ${focusTopic}.`,
+          action: () => (quizOpen ? attemptOpenQuiz(focusUnit) : navigate(practiceHref)),
+          category: "WEEKLY QUIZ",
+          visualCategory: "quiz",
+          badgeLabel: "Step 3 of 3",
+          badgeTone: "neutral",
+          metadata: quizOpen ? quizMetadata : "Opens later",
+          buttonLabel: quizOpen ? "Take quiz" : "Keep practising",
+          buttonVariant: "default",
+        });
+      } else if (stage === "needs_work") {
+        nextActions.push({
+          icon: MessageSquare,
+          title: `Study weak concepts in Unit ${focusUnit}`,
+          description: weakList
+            ? `Readiness is ${readiness}% — start with ${weakList}.`
+            : `Readiness is ${readiness}%, below the ${READINESS_THRESHOLD}% mark.`,
+          action: () => navigate(studyHref),
+          category: "STUDY",
+          visualCategory: "continue",
+          badgeLabel: "Study",
+          badgeTone: "green",
+          metadata: focusTopic,
+          buttonLabel: "Start studying",
+          buttonVariant: "default",
+        });
+        nextActions.push({
+          icon: Sparkles,
+          title: "Complete scored practice",
+          description: "Practice questions keep raising your readiness for this unit.",
+          action: () => navigate(practiceHref),
+          category: "PRACTICE",
+          visualCategory: "practice",
+          badgeLabel: "Practice",
+          badgeTone: "green",
+          metadata: focusTopic,
+          buttonLabel: "Do practice",
+          buttonVariant: "outline",
+        });
+      } else {
+        // Every unit is ready — offer the practice exam / open-ended study.
+        if (taSettings?.examEnabled !== false) {
+          nextActions.push({
+            icon: ClipboardCheck,
+            title: "Practice exam",
+            description: "You're ready across every unit — try a timed simulation.",
+            action: () => attemptExamMode(),
+            category: "PRACTICE",
+            visualCategory: "practice",
+            badgeLabel: "Practice exam",
+            badgeTone: "neutral",
+            metadata: "Timed simulation",
+            buttonLabel: "Start exam",
+            buttonVariant: "default",
+          });
+        }
+      }
+
+      // Secondary nudge: move on to the next unit once this one is ready.
+      const nextUnit = unitNumbers.find((u: number) => u > focusUnit);
+      if (stage === "ready" && nextUnit != null) {
+        const nextRow = lessonPlan.find((wk: any) => Number(wk.day) === nextUnit);
+        nextActions.push({
+          icon: ArrowRight,
+          title: `Proceed to Unit ${nextUnit}`,
+          description: nextRow?.topic || "Start the next unit on your learning path.",
+          action: () => navigate("/student/learning-path"),
+          category: "NEXT UNIT",
+          visualCategory: "continue",
+          badgeLabel: "Next unit",
+          badgeTone: "green",
+          metadata: `Unit ${nextUnit}`,
+          buttonLabel: "Go to unit",
+          buttonVariant: "outline",
+        });
+      }
     }
 
     // Safe default — never show an empty list
