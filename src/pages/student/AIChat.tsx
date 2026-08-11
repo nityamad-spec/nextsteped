@@ -441,8 +441,19 @@ const AIChat = () => {
     createSession(title, welcome);
   }, [chatsLoading, chats.length, user, mode, courseContext]);
 
+  // Handle ?practice=1&topic=... deep link from the learning path
+  useEffect(() => {
+    if (searchParams.get("practice") !== "1") return;
+    const topic = searchParams.get("topic");
+    if (topic) setPracticeInitialPrompt(`Give me practice questions on ${topic}.`);
+    setMode("learning");
+    setShowPractice(true);
+    navigate("/student/chat", { replace: true });
+  }, []);
+
   // Handle ?newchat=true param
   useEffect(() => {
+
     const shouldNewChat = searchParams.get("newchat") === "true";
     if (!shouldNewChat || !user) return;
     const targetMode = (searchParams.get("mode") === "exam" || searchParams.get("mode") === "quiz") ? "exam" : "learning";
