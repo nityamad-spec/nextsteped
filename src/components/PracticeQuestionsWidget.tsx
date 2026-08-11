@@ -86,9 +86,10 @@ interface GeneratedQuestion {
 }
 
 
-const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], courseContext, enrolledCourseId, studentId, initialReviewSessionId = null }: PracticeQuestionsWidgetProps) => {
+const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], courseContext, enrolledCourseId, studentId, initialReviewSessionId = null, initialPrompt = "" }: PracticeQuestionsWidgetProps) => {
   const [phase, setPhase] = useState<Phase>("prompt");
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(initialPrompt);
+
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
