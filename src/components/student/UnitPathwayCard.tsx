@@ -14,6 +14,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
+import { computeUnitStage } from "@/lib/unitStage";
+
 import type { LearningPlanWeek } from "@/hooks/useLearningPlan";
 
 export type UnitResource = LearningPlanWeek["resources"][number];
@@ -24,7 +26,10 @@ export interface UnitPathwayCardProps {
   totalUnits: number;
   expanded: boolean;
   onToggle: () => void;
+  studied: boolean;
+  practised: boolean;
   quizTaken: boolean;
+
   quizScore?: number;
   quizAvailable: boolean;
   quizLocked: boolean;
@@ -90,7 +95,10 @@ const UnitPathwayCard = ({
   totalUnits,
   expanded,
   onToggle,
+  studied,
+  practised,
   quizTaken,
+
   quizScore,
   quizAvailable,
   quizLocked,
@@ -106,11 +114,13 @@ const UnitPathwayCard = ({
   onGoToNextUnit,
 }: UnitPathwayCardProps) => {
   const [showResources, setShowResources] = useState(false);
-  const ready = quizTaken && readiness >= READINESS_THRESHOLD;
+  const stage = computeUnitStage({ studied, practised, quizTaken, readiness });
+  const ready = stage === "ready";
   const weakList = weakConcepts.slice(0, 2).join(", ");
   const isLastUnit = unitNumber >= totalUnits;
   const readingCount = resources.length;
   const readingsDone = resources.filter((r) => activityDone[r.id]).length;
+
 
   return (
     <Card className={expanded ? "overflow-hidden border-primary/20" : "overflow-hidden"}>
@@ -148,7 +158,7 @@ const UnitPathwayCard = ({
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Your next move
             </p>
-            {!quizTaken && (
+            {stage === "not_started" && (
               <>
                 <p className="mt-1 font-heading text-base font-bold">Start studying</p>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -170,7 +180,39 @@ const UnitPathwayCard = ({
                 </div>
               </>
             )}
-            {quizTaken && !ready && (
+            {stage === "studied" && (
+              <>
+                <p className="mt-1 font-heading text-base font-bold">Do practice questions</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  You've studied this unit — now check what stuck with scored practice questions.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={onPractice}>
+                    Start practice
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={onStudy}>
+                    Keep studying
+                  </Button>
+                </div>
+              </>
+            )}
+            {stage === "practised" && (
+              <>
+                <p className="mt-1 font-heading text-base font-bold">Take the Unit {unitNumber} quiz</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  You've studied and practised. One scored attempt sets your readiness for this unit.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={onTakeQuiz} disabled={!quizAvailable || quizLocked}>
+                    Take quiz
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={onPractice}>
+                    More practice
+                  </Button>
+                </div>
+              </>
+            )}
+            {stage === "needs_work" && (
               <>
                 <p className="mt-1 font-heading text-base font-bold">Study and practice</p>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -188,6 +230,7 @@ const UnitPathwayCard = ({
                 </div>
               </>
             )}
+
             {ready && (
               <>
                 <p className="mt-1 font-heading text-base font-bold">

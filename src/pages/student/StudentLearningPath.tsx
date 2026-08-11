@@ -15,6 +15,7 @@ import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 import { fetchVoidCounts } from "@/lib/attemptVoids";
 import UnitPathwayCard from "@/components/student/UnitPathwayCard";
 import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
+import { useUnitProgress } from "@/hooks/useUnitProgress";
 
 interface QuizResultRow {
   quiz_day: number | string;
@@ -44,6 +45,7 @@ const StudentLearningPath = () => {
   } = useLearningPlan();
 
   const { readinessByUnit, weakConceptsByUnit } = useUnitReadiness(enrolledCourseId, lessonPlan);
+  const { studiedByUnit, practisedByUnit } = useUnitProgress(enrolledCourseId, lessonPlan);
 
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
 
@@ -310,6 +312,8 @@ const StudentLearningPath = () => {
                 totalUnits={lessonPlan.length}
                 expanded={expandedWeeks.includes(unit.day)}
                 onToggle={() => toggleWeek(unit.day)}
+                studied={!!studiedByUnit[unit.day]}
+                practised={!!practisedByUnit[unit.day]}
                 quizTaken={!!taken}
                 quizScore={taken?.score}
                 quizAvailable={availableQuizDays.has(unit.day)}
