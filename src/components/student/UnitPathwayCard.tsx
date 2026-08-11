@@ -106,11 +106,13 @@ const UnitPathwayCard = ({
   onGoToNextUnit,
 }: UnitPathwayCardProps) => {
   const [showResources, setShowResources] = useState(false);
-  const ready = quizTaken && readiness >= READINESS_THRESHOLD;
+  const stage = computeUnitStage({ studied, practised, quizTaken, readiness });
+  const ready = stage === "ready";
   const weakList = weakConcepts.slice(0, 2).join(", ");
   const isLastUnit = unitNumber >= totalUnits;
   const readingCount = resources.length;
   const readingsDone = resources.filter((r) => activityDone[r.id]).length;
+
 
   return (
     <Card className={expanded ? "overflow-hidden border-primary/20" : "overflow-hidden"}>
