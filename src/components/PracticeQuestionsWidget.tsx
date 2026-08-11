@@ -64,7 +64,10 @@ interface PracticeQuestionsWidgetProps {
   enrolledCourseId?: string | null;
   studentId?: string | null;
   initialReviewSessionId?: string | null;
+  /** Pre-fills the practice prompt box (e.g. deep link from the learning path). */
+  initialPrompt?: string;
 }
+
 
 type Phase = "prompt" | "loading" | "active" | "review" | "review-history";
 
