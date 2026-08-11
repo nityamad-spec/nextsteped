@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { LearningPlanWeek } from "@/hooks/useLearningPlan";
 
-export const READINESS_THRESHOLD = 70;
+export const READINESS_THRESHOLD = 75;
 
 interface ConceptRow {
   id: string;
