@@ -313,7 +313,9 @@ const StudentLearningPath = () => {
                 const totalCount = activities.length + quizCounts;
                 const doneCount = activitiesDoneCount + (quizPublished && quizTakenAny ? 1 : 0);
                 const allActivitiesDone = activities.length === 0 || activitiesDoneCount === activities.length;
-                const isComplete = totalCount > 0 && allActivitiesDone && !!quizDone;
+                const isComplete = (readinessByUnit[dp.day] ?? 0) >= READINESS_THRESHOLD
+                  || (totalCount > 0 && allActivitiesDone && !!quizDone);
+
                 const status: "complete" | "in_progress" | "upcoming" = isComplete
                   ? "complete"
                   : dp.day > currentWeek
