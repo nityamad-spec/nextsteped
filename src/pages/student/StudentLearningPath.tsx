@@ -23,6 +23,7 @@ interface QuizResultRow {
   correct_answers: number | string;
   total_questions: number | string;
   time_spent: number | string;
+  created_at?: string | null;
 }
 
 interface QuestionDayRow {
