@@ -16,10 +16,12 @@ interface ChatMessageRow {
   session_id: string;
   role: string | null;
   content: string | null;
+  created_at: string | null;
 }
 
 interface PracticeResultRow {
   answers: unknown;
+  created_at: string | null;
 }
 
 interface MasteryRow {
@@ -43,11 +45,16 @@ export interface UnitProgressResult {
  *    Any concept in the unit with attempted mastery also counts.
  *  - practised: an `assessment_results` row with mode = "practice" whose answer
  *    topics intersect the unit's topic/concepts.
+ *
+ * When a unit's weekly quiz has been taken, only activity recorded *after* that
+ * attempt counts, so a student sent back to study/practise starts from a clean
+ * pair of steps.
  */
 export function useUnitProgress(
   courseId: string | null,
   lessonPlan: LearningPlanWeek[],
   fallbackUnit?: number | null,
+  quizTakenAtByUnit?: Record<number, string | undefined>,
 ): UnitProgressResult {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<ChatSessionRow[]>([]);
@@ -79,7 +86,7 @@ export function useUnitProgress(
           .limit(40),
         supabase
           .from("assessment_results")
-          .select("answers")
+          .select("answers, created_at")
           .eq("student_id", user.id)
           .eq("course_id", courseId)
           .eq("mode", "practice")
@@ -101,7 +108,7 @@ export function useUnitProgress(
       if (sessionRows.length > 0) {
         const { data, error } = await supabase
           .from("chat_messages")
-          .select("session_id, role, content")
+          .select("session_id, role, content, created_at")
           .eq("user_id", user.id)
           .in(
             "session_id",
@@ -133,26 +140,45 @@ export function useUnitProgress(
         .map((m) => String(m.concept_code)),
     );
 
-    const practiceTopics: string[] = [];
+    const toTime = (value: string | null | undefined) => {
+      if (!value) return 0;
+      const t = new Date(value).getTime();
+      return Number.isFinite(t) ? t : 0;
+    };
+
+    /** Quiz attempt time for a unit, or 0 when the quiz has not been taken. */
+    const quizTimeFor = (unit: number) => toTime(quizTakenAtByUnit?.[unit]);
+
+    const practiceTopics: { topic: string; at: number }[] = [];
     practice.forEach((row) => {
+      const at = toTime(row.created_at);
       const answers = Array.isArray(row.answers) ? (row.answers as Record<string, unknown>[]) : [];
       answers.forEach((a) => {
         const topic = typeof a?.topic === "string" ? a.topic : "";
-        if (topic) practiceTopics.push(topic);
+        if (topic) practiceTopics.push({ topic, at });
       });
     });
 
     // Group user messages per session and keep only sessions with real back-and-forth.
     const userTextBySession = new Map<string, string[]>();
+    const lastMessageAtBySession = new Map<string, number>();
     messages.forEach((m) => {
       if (m.role !== "user" || !m.content) return;
       const list = userTextBySession.get(m.session_id) || [];
       list.push(m.content);
       userTextBySession.set(m.session_id, list);
+      const at = toTime(m.created_at);
+      if (at > (lastMessageAtBySession.get(m.session_id) || 0)) {
+        lastMessageAtBySession.set(m.session_id, at);
+      }
     });
 
     const qualifyingSessions = sessions
-      .map((s) => ({ session: s, texts: userTextBySession.get(s.id) || [] }))
+      .map((s) => ({
+        session: s,
+        texts: userTextBySession.get(s.id) || [],
+        lastAt: lastMessageAtBySession.get(s.id) || 0,
+      }))
       .filter((s) => s.texts.length >= MIN_USER_MESSAGES);
 
     const termsByUnit = new Map<number, string[]>();
@@ -164,27 +190,32 @@ export function useUnitProgress(
     lessonPlan.forEach((week) => {
       const terms = termsByUnit.get(week.day) || [];
       const conceptNames = (week.concepts || []).map((c) => c?.name).filter(Boolean) as string[];
+      const quizAt = quizTimeFor(week.day);
 
-      studiedByUnit[week.day] = conceptNames.some((name) => attemptedConcepts.has(name));
-      practisedByUnit[week.day] = practiceTopics.some((t) => textMatchesUnit(t, terms));
+      // Mastery has no timestamp and is written by the quiz itself, so it can only
+      // stand in for studying before the quiz was taken.
+      studiedByUnit[week.day] = quizAt === 0 && conceptNames.some((name) => attemptedConcepts.has(name));
+      practisedByUnit[week.day] = practiceTopics.some(
+        (p) => p.at > quizAt && textMatchesUnit(p.topic, terms),
+      );
     });
 
     // Attribute each qualifying session: deep-link title first, then message text.
-    qualifyingSessions.forEach(({ session, texts }) => {
+    qualifyingSessions.forEach(({ session, texts, lastAt }) => {
       let matched = false;
       for (const week of lessonPlan) {
         const terms = termsByUnit.get(week.day) || [];
         if (terms.length === 0) continue;
         if (textMatchesUnit(session.title, terms) || texts.some((t) => textMatchesUnit(t, terms))) {
-          studiedByUnit[week.day] = true;
           matched = true;
+          if (lastAt > quizTimeFor(week.day)) studiedByUnit[week.day] = true;
         }
       }
-      if (!matched && fallbackUnit != null) {
+      if (!matched && fallbackUnit != null && lastAt > quizTimeFor(fallbackUnit)) {
         studiedByUnit[fallbackUnit] = true;
       }
     });
 
     return { studiedByUnit, practisedByUnit, loading };
-  }, [sessions, messages, practice, mastery, lessonPlan, fallbackUnit, loading]);
+  }, [sessions, messages, practice, mastery, lessonPlan, fallbackUnit, quizTakenAtByUnit, loading]);
 }

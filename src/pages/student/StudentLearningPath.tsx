@@ -23,6 +23,7 @@ interface QuizResultRow {
   correct_answers: number | string;
   total_questions: number | string;
   time_spent: number | string;
+  created_at?: string | null;
 }
 
 interface QuestionDayRow {
@@ -45,10 +46,17 @@ const StudentLearningPath = () => {
   } = useLearningPlan();
 
   const { readinessByUnit, weakConceptsByUnit } = useUnitReadiness(enrolledCourseId, lessonPlan);
+  // Latest weekly-quiz attempt per unit — study/practice only count after this.
+  const [quizTakenAtByUnit, setQuizTakenAtByUnit] = useState<Record<number, string | undefined>>({});
   // First unit not yet at the readiness threshold — unattributed chats credit this unit.
   const fallbackStudyUnit =
     lessonPlan.find((w) => (readinessByUnit[w.day] ?? 0) < READINESS_THRESHOLD)?.day ?? null;
-  const { studiedByUnit, practisedByUnit } = useUnitProgress(enrolledCourseId, lessonPlan, fallbackStudyUnit);
+  const { studiedByUnit, practisedByUnit } = useUnitProgress(
+    enrolledCourseId,
+    lessonPlan,
+    fallbackStudyUnit,
+    quizTakenAtByUnit,
+  );
 
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
 
@@ -110,13 +118,14 @@ const StudentLearningPath = () => {
   useEffect(() => {
     if (!enrolledCourseId || !user?.id) {
       setTakenQuizzes({});
+      setQuizTakenAtByUnit({});
       return;
     }
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
         .from("assessment_results")
-        .select("quiz_day, score, correct_answers, total_questions, time_spent")
+        .select("quiz_day, score, correct_answers, total_questions, time_spent, created_at")
         .eq("student_id", user.id)
         .eq("course_id", enrolledCourseId)
         .eq("mode", "daily_quiz");
@@ -124,13 +133,18 @@ const StudentLearningPath = () => {
       if (error) {
         console.error("Taken quizzes load error:", error);
         setTakenQuizzes({});
+        setQuizTakenAtByUnit({});
         return;
       }
       const map: Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }> = {};
+      const takenAt: Record<number, string | undefined> = {};
       (data || []).forEach((r: QuizResultRow) => {
         if (r.quiz_day != null) {
           const day = Number(r.quiz_day);
           const score = Number(r.score) || 0;
+          if (r.created_at && (!takenAt[day] || new Date(r.created_at) > new Date(takenAt[day] as string))) {
+            takenAt[day] = r.created_at;
+          }
           if (!map[day] || score > map[day].score) {
             map[day] = {
               score,
@@ -142,6 +156,7 @@ const StudentLearningPath = () => {
         }
       });
       setTakenQuizzes(map);
+      setQuizTakenAtByUnit(takenAt);
     })();
     return () => {
       cancelled = true;
