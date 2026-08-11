@@ -118,13 +118,14 @@ const StudentLearningPath = () => {
   useEffect(() => {
     if (!enrolledCourseId || !user?.id) {
       setTakenQuizzes({});
+      setQuizTakenAtByUnit({});
       return;
     }
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
         .from("assessment_results")
-        .select("quiz_day, score, correct_answers, total_questions, time_spent")
+        .select("quiz_day, score, correct_answers, total_questions, time_spent, created_at")
         .eq("student_id", user.id)
         .eq("course_id", enrolledCourseId)
         .eq("mode", "daily_quiz");
@@ -132,13 +133,18 @@ const StudentLearningPath = () => {
       if (error) {
         console.error("Taken quizzes load error:", error);
         setTakenQuizzes({});
+        setQuizTakenAtByUnit({});
         return;
       }
       const map: Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }> = {};
+      const takenAt: Record<number, string | undefined> = {};
       (data || []).forEach((r: QuizResultRow) => {
         if (r.quiz_day != null) {
           const day = Number(r.quiz_day);
           const score = Number(r.score) || 0;
+          if (r.created_at && (!takenAt[day] || new Date(r.created_at) > new Date(takenAt[day] as string))) {
+            takenAt[day] = r.created_at;
+          }
           if (!map[day] || score > map[day].score) {
             map[day] = {
               score,
@@ -150,6 +156,7 @@ const StudentLearningPath = () => {
         }
       });
       setTakenQuizzes(map);
+      setQuizTakenAtByUnit(takenAt);
     })();
     return () => {
       cancelled = true;
