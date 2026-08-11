@@ -218,6 +218,8 @@ const AIChat = () => {
 
   // Practice questions widget state
   const [showPractice, setShowPractice] = useState(false);
+  const [practiceInitialPrompt, setPracticeInitialPrompt] = useState<string>("");
+
   const [practiceHistory, setPracticeHistory] = useState<any[]>([]);
   const [selectedPracticeHistoryId, setSelectedPracticeHistoryId] = useState<string | null>(null);
   const [showTerminal, setShowTerminal] = useState(false);
@@ -439,8 +441,19 @@ const AIChat = () => {
     createSession(title, welcome);
   }, [chatsLoading, chats.length, user, mode, courseContext]);
 
+  // Handle ?practice=1&topic=... deep link from the learning path
+  useEffect(() => {
+    if (searchParams.get("practice") !== "1") return;
+    const topic = searchParams.get("topic");
+    if (topic) setPracticeInitialPrompt(`Give me practice questions on ${topic}.`);
+    setMode("learning");
+    setShowPractice(true);
+    navigate("/student/chat", { replace: true });
+  }, []);
+
   // Handle ?newchat=true param
   useEffect(() => {
+
     const shouldNewChat = searchParams.get("newchat") === "true";
     if (!shouldNewChat || !user) return;
     const targetMode = (searchParams.get("mode") === "exam" || searchParams.get("mode") === "quiz") ? "exam" : "learning";
@@ -1310,6 +1323,8 @@ const AIChat = () => {
           enrolledCourseId={enrolledCourseId}
           studentId={user?.id || null}
           initialReviewSessionId={selectedPracticeHistoryId}
+          initialPrompt={practiceInitialPrompt}
+
         />
       </div>
     );

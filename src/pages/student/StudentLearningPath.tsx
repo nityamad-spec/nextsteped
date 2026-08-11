@@ -15,6 +15,9 @@ import { BookOpen, ClipboardCheck, ChevronDown, ChevronUp, Lock, Check } from "l
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 import { fetchVoidCounts } from "@/lib/attemptVoids";
+import UnitFocusCard from "@/components/student/UnitFocusCard";
+import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
+
 
 
 const accuracyPct = (correct: number, total: number) =>
@@ -57,7 +60,10 @@ const StudentLearningPath = () => {
     lessonPlanError,
   } = useLearningPlan();
 
+  const { readinessByUnit, weakConceptsByUnit } = useUnitReadiness(enrolledCourseId, lessonPlan);
+
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
+
   useEffect(() => {
     setExpandedWeeks((prev) => (prev.includes(currentWeek) ? prev : [...prev, currentWeek]));
   }, [currentWeek]);
@@ -229,15 +235,25 @@ const StudentLearningPath = () => {
     setExpandedWeeks((prev) => (prev.includes(week) ? prev.filter((w) => w !== week) : [...prev, week]));
   };
 
-  const passedQuizCount = Object.values(takenQuizzes).filter((q) => q.score > 50).length;
-  const publishedQuizCount = availableQuizDays.size;
-  const progressPct = publishedQuizCount > 0
-    ? Math.max(0, Math.min(100, Math.round((passedQuizCount / publishedQuizCount) * 100)))
+  const readyUnitCount = lessonPlan.filter((w) => (readinessByUnit[w.day] ?? 0) >= READINESS_THRESHOLD).length;
+  const progressPct = lessonPlan.length > 0
+    ? Math.max(0, Math.min(100, Math.round((readyUnitCount / lessonPlan.length) * 100)))
     : 0;
-  const lastPassedUnit = Object.entries(takenQuizzes)
-    .filter(([, q]) => q.score > 50)
-    .reduce((max, [day]) => Math.max(max, Number(day) || 0), 0);
-  const displayedUnit = Math.max(1, Math.min(totalWeeks, lastPassedUnit + 1));
+
+  // Current unit = first unit whose quiz hasn't been taken, else the date-derived week.
+  const firstUnfinished = lessonPlan.find((w) => !takenQuizzes[w.day]);
+  const focusUnit = firstUnfinished
+    ?? lessonPlan.find((w) => w.day === currentWeek)
+    ?? lessonPlan[lessonPlan.length - 1]
+    ?? null;
+  const displayedUnit = focusUnit?.day ?? Math.max(1, Math.min(totalWeeks, currentWeek));
+
+  const goToStudy = (concept: string, intent: "start" | "weak") => {
+    navigate(`/student/chat?newchat=true&mode=learning&concept=${encodeURIComponent(concept)}&intent=${intent}`);
+  };
+  const goToPractice = (topic: string) => {
+    navigate(`/student/chat?practice=1&topic=${encodeURIComponent(topic)}`);
+  };
 
   return (
     <div className="p-6">
@@ -245,6 +261,41 @@ const StudentLearningPath = () => {
         <h1 className="font-heading text-3xl font-bold">Learning Path</h1>
         {courseName && <p className="mt-1 text-sm text-muted-foreground">{courseName}</p>}
       </motion.div>
+
+      {focusUnit && (
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+          <UnitFocusCard
+            unitNumber={focusUnit.day}
+            topic={focusUnit.topic}
+            totalUnits={lessonPlan.length}
+            quizTaken={!!takenQuizzes[focusUnit.day]}
+            quizAvailable={availableQuizDays.has(focusUnit.day)}
+            quizLocked={(voidCounts[focusUnit.day] ?? 0) >= 2}
+            readiness={readinessByUnit[focusUnit.day] ?? 0}
+            weakConcepts={weakConceptsByUnit[focusUnit.day] ?? []}
+            onStudy={() =>
+              goToStudy(
+                (takenQuizzes[focusUnit.day]
+                  ? weakConceptsByUnit[focusUnit.day]?.[0]
+                  : focusUnit.concepts?.[0]?.name) || focusUnit.topic,
+                takenQuizzes[focusUnit.day] ? "weak" : "start",
+              )
+            }
+            onPractice={() =>
+              goToPractice(
+                takenQuizzes[focusUnit.day] && (weakConceptsByUnit[focusUnit.day]?.length ?? 0) > 0
+                  ? weakConceptsByUnit[focusUnit.day].join(", ")
+                  : focusUnit.topic,
+              )
+            }
+            onTakeQuiz={() => attemptOpenQuiz(focusUnit.day)}
+            onGoToNextUnit={() => {
+              const next = focusUnit.day + 1;
+              setExpandedWeeks((prev) => (prev.includes(next) ? prev : [...prev, next]));
+            }}
+          />
+        </motion.div>
+      )}
 
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 }} className="mb-6">
         <Card>
@@ -258,13 +309,14 @@ const StudentLearningPath = () => {
             </div>
             <Progress value={progressPct} className="h-2 mb-1" />
             <p className="text-xs text-muted-foreground">
-              {publishedQuizCount === 0
-                ? "No quizzes published yet"
-                : `${passedQuizCount} of ${publishedQuizCount} unit quizzes passed (>50%)`}
+              {lessonPlan.length === 0
+                ? "No units published yet"
+                : `${readyUnitCount} of ${lessonPlan.length} units at ${READINESS_THRESHOLD}%+ readiness`}
             </p>
           </CardContent>
         </Card>
       </motion.div>
+
 
 
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
@@ -313,7 +365,9 @@ const StudentLearningPath = () => {
                 const totalCount = activities.length + quizCounts;
                 const doneCount = activitiesDoneCount + (quizPublished && quizTakenAny ? 1 : 0);
                 const allActivitiesDone = activities.length === 0 || activitiesDoneCount === activities.length;
-                const isComplete = totalCount > 0 && allActivitiesDone && !!quizDone;
+                const isComplete = (readinessByUnit[dp.day] ?? 0) >= READINESS_THRESHOLD
+                  || (totalCount > 0 && allActivitiesDone && !!quizDone);
+
                 const status: "complete" | "in_progress" | "upcoming" = isComplete
                   ? "complete"
                   : dp.day > currentWeek
