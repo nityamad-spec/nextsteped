@@ -445,7 +445,7 @@ const AIChat = () => {
   useEffect(() => {
     if (searchParams.get("practice") !== "1") return;
     const topic = searchParams.get("topic");
-    if (topic) setPracticeInitialPrompt(`Give me practice questions on ${topic}.`);
+    if (topic) setPracticeInitialPrompt(`Generate 10 practice questions on ${topic}.`);
     setMode("learning");
     setShowPractice(true);
     navigate("/student/chat", { replace: true });
