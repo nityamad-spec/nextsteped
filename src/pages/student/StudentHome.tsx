@@ -393,13 +393,10 @@ const StudentHome = () => {
       const practiceHref = `/student/chat?newchat=true&intent=practice&concept=${encodeURIComponent(focusTopic)}`;
 
       focusFooter = {
-        position: `Unit ${focusUnit} of ${unitNumbers.length || totalWeeks || 1}`,
-        status: takenQuizzes[focusUnit]
-          ? `${readiness}% readiness`
-          : quizOpen
-            ? "Quiz not taken"
-            : "Quiz not open yet",
+        current: `${readiness}% mastery`,
+        goal: `${READINESS_THRESHOLD}% mastery`,
       };
+
 
       if (stage === "not_started") {
         nextActions.push({
