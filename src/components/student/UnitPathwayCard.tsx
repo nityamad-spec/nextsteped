@@ -14,6 +14,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
+import { computeUnitStage } from "@/lib/unitStage";
+
 import type { LearningPlanWeek } from "@/hooks/useLearningPlan";
 
 export type UnitResource = LearningPlanWeek["resources"][number];
