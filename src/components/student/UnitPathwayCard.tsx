@@ -95,7 +95,10 @@ const UnitPathwayCard = ({
   totalUnits,
   expanded,
   onToggle,
+  studied,
+  practised,
   quizTaken,
+
   quizScore,
   quizAvailable,
   quizLocked,
