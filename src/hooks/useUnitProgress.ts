@@ -16,10 +16,12 @@ interface ChatMessageRow {
   session_id: string;
   role: string | null;
   content: string | null;
+  created_at: string | null;
 }
 
 interface PracticeResultRow {
   answers: unknown;
+  created_at: string | null;
 }
 
 interface MasteryRow {
@@ -43,11 +45,16 @@ export interface UnitProgressResult {
  *    Any concept in the unit with attempted mastery also counts.
  *  - practised: an `assessment_results` row with mode = "practice" whose answer
  *    topics intersect the unit's topic/concepts.
+ *
+ * When a unit's weekly quiz has been taken, only activity recorded *after* that
+ * attempt counts, so a student sent back to study/practise starts from a clean
+ * pair of steps.
  */
 export function useUnitProgress(
   courseId: string | null,
   lessonPlan: LearningPlanWeek[],
   fallbackUnit?: number | null,
+  quizTakenAtByUnit?: Record<number, string | undefined>,
 ): UnitProgressResult {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<ChatSessionRow[]>([]);
