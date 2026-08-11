@@ -5,31 +5,16 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTASettings } from "@/hooks/useTASettings";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
-import { useLearningPlan, type LearningPlanWeek } from "@/hooks/useLearningPlan";
+import { useLearningPlan } from "@/hooks/useLearningPlan";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, ClipboardCheck, ChevronDown, ChevronUp, Lock, Check } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 import { fetchVoidCounts } from "@/lib/attemptVoids";
-import UnitFocusCard from "@/components/student/UnitFocusCard";
+import UnitPathwayCard from "@/components/student/UnitPathwayCard";
 import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
-
-
-
-const accuracyPct = (correct: number, total: number) =>
-  total > 0 ? Math.round((correct / total) * 100) : 0;
-
-const formatAvgTime = (seconds: number, totalQuestions: number) => {
-  if (totalQuestions <= 0 || seconds <= 0) return "—";
-  return `${Math.round(seconds / totalQuestions)}s/question`;
-};
-
-const parseList = (text: string) =>
-  text.split("\n").map((l) => l.replace(/^[-•]\s*/, "").trim()).filter(Boolean);
 
 interface QuizResultRow {
   quiz_day: number | string;
@@ -42,8 +27,6 @@ interface QuizResultRow {
 interface QuestionDayRow {
   quiz_day: number | string;
 }
-
-type ResourceItem = LearningPlanWeek["resources"][number];
 
 const StudentLearningPath = () => {
   const { user } = useAuth();
@@ -63,10 +46,6 @@ const StudentLearningPath = () => {
   const { readinessByUnit, weakConceptsByUnit } = useUnitReadiness(enrolledCourseId, lessonPlan);
 
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
-
-  useEffect(() => {
-    setExpandedWeeks((prev) => (prev.includes(currentWeek) ? prev : [...prev, currentWeek]));
-  }, [currentWeek]);
 
   const activityDoneStorageKey = user?.id ? `student:activity-done:${user.id}` : null;
   const [activityDone, setActivityDone] = useState<Record<string, boolean>>(() => {
@@ -215,7 +194,6 @@ const StudentLearningPath = () => {
     setVoidCounts(map);
   }, [enrolledCourseId, user?.id]);
 
-
   useEffect(() => {
     void loadVoids();
   }, [loadVoids]);
@@ -248,6 +226,12 @@ const StudentLearningPath = () => {
     ?? null;
   const displayedUnit = focusUnit?.day ?? Math.max(1, Math.min(totalWeeks, currentWeek));
 
+  // Expand the focus unit once it is known.
+  useEffect(() => {
+    if (!focusUnit) return;
+    setExpandedWeeks((prev) => (prev.includes(focusUnit.day) ? prev : [...prev, focusUnit.day]));
+  }, [focusUnit?.day]);
+
   const goToStudy = (concept: string, intent: "start" | "weak") => {
     navigate(`/student/chat?newchat=true&mode=learning&concept=${encodeURIComponent(concept)}&intent=${intent}`);
   };
@@ -262,52 +246,17 @@ const StudentLearningPath = () => {
         {courseName && <p className="mt-1 text-sm text-muted-foreground">{courseName}</p>}
       </motion.div>
 
-      {focusUnit && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-          <UnitFocusCard
-            unitNumber={focusUnit.day}
-            topic={focusUnit.topic}
-            totalUnits={lessonPlan.length}
-            quizTaken={!!takenQuizzes[focusUnit.day]}
-            quizAvailable={availableQuizDays.has(focusUnit.day)}
-            quizLocked={(voidCounts[focusUnit.day] ?? 0) >= 2}
-            readiness={readinessByUnit[focusUnit.day] ?? 0}
-            weakConcepts={weakConceptsByUnit[focusUnit.day] ?? []}
-            onStudy={() =>
-              goToStudy(
-                (takenQuizzes[focusUnit.day]
-                  ? weakConceptsByUnit[focusUnit.day]?.[0]
-                  : focusUnit.concepts?.[0]?.name) || focusUnit.topic,
-                takenQuizzes[focusUnit.day] ? "weak" : "start",
-              )
-            }
-            onPractice={() =>
-              goToPractice(
-                takenQuizzes[focusUnit.day] && (weakConceptsByUnit[focusUnit.day]?.length ?? 0) > 0
-                  ? weakConceptsByUnit[focusUnit.day].join(", ")
-                  : focusUnit.topic,
-              )
-            }
-            onTakeQuiz={() => attemptOpenQuiz(focusUnit.day)}
-            onGoToNextUnit={() => {
-              const next = focusUnit.day + 1;
-              setExpandedWeeks((prev) => (prev.includes(next) ? prev : [...prev, next]));
-            }}
-          />
-        </motion.div>
-      )}
-
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 }} className="mb-6">
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
         <Card>
           <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-primary" />
                 <p className="text-sm font-medium">Course Progress</p>
               </div>
               <span className="text-sm text-muted-foreground">Unit {displayedUnit} of {totalWeeks}</span>
             </div>
-            <Progress value={progressPct} className="h-2 mb-1" />
+            <Progress value={progressPct} className="mb-1 h-2" />
             <p className="text-xs text-muted-foreground">
               {lessonPlan.length === 0
                 ? "No units published yet"
@@ -317,301 +266,78 @@ const StudentLearningPath = () => {
         </Card>
       </motion.div>
 
-
-
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <BookOpen className="h-4 w-4 text-primary" /> Your Learning Path
-            </CardTitle>
-            <CardDescription>Your personalized learning path with units, outcomes, and activities</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {planLoading ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Loading learning path...</p>
-            ) : !lessonPlanPublished ? (
-              <div className="text-center py-6 space-y-1">
-                <BookOpen className="h-8 w-8 mx-auto text-muted-foreground/40" />
-                {lessonPlanError ? (
-                  <>
-                    <p className="text-sm font-medium text-muted-foreground">Learning path is being updated</p>
-                    <p className="text-xs text-muted-foreground">Please refresh in a moment. If this keeps showing, let your professor know.</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm font-medium text-muted-foreground">Learning path not yet available</p>
-                    <p className="text-xs text-muted-foreground">Your professor hasn't published the learning path yet. You're currently on Unit {currentWeek}.</p>
-                  </>
-                )}
-              </div>
-            ) : lessonPlan.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No units are visible yet — check back soon</p>
-            ) : (
-              lessonPlan.map((dp) => {
-                const isExpanded = expandedWeeks.includes(dp.day);
-                const desc = dp.description || "";
-                const outcomesMatch = desc.match(/Learning Outcomes:\s*([\s\S]*?)(?=Concepts:|Teaching Strategies:|$)/i);
-                const outcomes = outcomesMatch?.[1]?.trim().replace(/\*\*/g, "") || "";
-
-                const activities = Array.isArray(dp.resources) ? dp.resources : [];
-                const quizTaken = takenQuizzes[dp.day];
-                const quizPublished = availableQuizDays.has(dp.day);
-                const quizPassed = !!(quizTaken && quizTaken.score > 50);
-                const quizTakenAny = !!quizTaken;
-                const quizDone = !quizPublished || quizPassed;
-                const activitiesDoneCount = activities.filter((r: ResourceItem) => activityDone[r.id]).length;
-                const quizCounts = quizPublished ? 1 : 0;
-                const totalCount = activities.length + quizCounts;
-                const doneCount = activitiesDoneCount + (quizPublished && quizTakenAny ? 1 : 0);
-                const allActivitiesDone = activities.length === 0 || activitiesDoneCount === activities.length;
-                const isComplete = (readinessByUnit[dp.day] ?? 0) >= READINESS_THRESHOLD
-                  || (totalCount > 0 && allActivitiesDone && !!quizDone);
-
-                const status: "complete" | "in_progress" | "upcoming" = isComplete
-                  ? "complete"
-                  : dp.day > currentWeek
-                  ? "upcoming"
-                  : "in_progress";
-
-                const statusStyles = {
-                  complete: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-                  in_progress: "bg-primary/15 text-primary",
-                  upcoming: "bg-muted text-muted-foreground",
-                }[status];
-                const statusLabel = { complete: "COMPLETE", in_progress: "IN PROGRESS", upcoming: "UPCOMING" }[status];
-
-                const avatarStyles = {
-                  complete: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
-                  in_progress: "bg-primary/10 text-primary border-primary/30",
-                  upcoming: "bg-muted text-muted-foreground border-border",
-                }[status];
-
-                return (
-                  <div key={dp.id || dp.day} className={`rounded-lg border ${isExpanded ? "border-primary/20" : ""}`}>
-                    <button
-                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/30 transition-colors"
-                      onClick={() => toggleWeek(dp.day)}
-                    >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${avatarStyles}`}>
-                          {status === "complete" ? (
-                            <Check className="h-5 w-5" strokeWidth={3} />
-                          ) : status === "upcoming" ? (
-                            <Lock className="h-4 w-4" />
-                          ) : (
-                            <span className="text-xs font-semibold">{dp.day}</span>
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Unit {dp.day}</span>
-                            <span className="text-sm font-semibold truncate">{dp.topic}</span>
-                            {status === "complete" && (
-                              <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${statusStyles}`}>
-                                {statusLabel}
-                              </span>
-                            )}
-                          </div>
-                          {totalCount > 0 && (
-                            <div className="mt-1.5 flex items-center gap-2">
-                              <div className="flex items-center gap-1">
-                                {Array.from({ length: totalCount }).map((_, i) => {
-                                  const filled = i < doneCount;
-                                  const cls = filled
-                                    ? isComplete
-                                      ? "bg-emerald-500"
-                                      : "bg-primary"
-                                    : "bg-muted-foreground/25";
-                                  return <span key={i} className={`h-2 w-2 rounded-full ${cls}`} />;
-                                })}
-                              </div>
-                              <span className="text-xs text-muted-foreground">
-                                {doneCount} / {totalCount} done
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      {isExpanded ? (
-                        <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                      )}
-                    </button>
-
-                    {isExpanded && (
-                      <div className="px-4 pb-4 space-y-3">
-                        {outcomes && (
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Learning Outcomes</p>
-                            <ul className="space-y-1">
-                              {parseList(outcomes).map((item, i) => (
-                                <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                                  <Check className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
-                                  <span>{item}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {dp.resources && dp.resources.length > 0 && (() => {
-                          const conceptGroups = new Map<string, ResourceItem[]>();
-                          for (const r of dp.resources) {
-                            const key = r.concept || "General";
-                            if (!conceptGroups.has(key)) conceptGroups.set(key, []);
-                            conceptGroups.get(key)!.push(r);
-                          }
-                          return (
-                            <div className="space-y-3">
-                              {Array.from(conceptGroups.entries()).map(([concept, activities]) => (
-                                <div key={concept}>
-                                  <div className="flex items-center gap-2 mb-1.5">
-                                    <div className="h-4 w-1 rounded-full bg-primary/60" />
-                                    <p className="text-sm font-semibold text-foreground">{concept}</p>
-                                  </div>
-                                  <div className="space-y-1.5 pl-3 border-l-2 border-muted ml-0.5">
-                                    {activities.map((r: ResourceItem, i: number) => {
-                                      const hasUrl = typeof r.url === "string" && r.url.length > 0;
-                                      const done = !!activityDone[r.id];
-                                      const toggleBtn = (
-                                        <button
-                                          type="button"
-                                          aria-label={done ? "Mark as not done" : "Mark as done"}
-                                          onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            toggleActivityDone(r.id);
-                                          }}
-                                          className={`flex h-6 w-6 items-center justify-center rounded-full border shrink-0 transition-colors ${
-                                            done
-                                              ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
-                                              : "bg-background border-muted-foreground/30 text-transparent hover:text-muted-foreground hover:border-muted-foreground/60"
-                                          }`}
-                                        >
-                                          <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                                        </button>
-                                      );
-                                      const inner = (
-                                        <>
-                                          {toggleBtn}
-                                          <div className="min-w-0 flex-1">
-                                            <p
-                                              className={`text-sm font-medium ${
-                                                done
-                                                  ? "line-through text-muted-foreground"
-                                                  : hasUrl
-                                                  ? "text-primary group-hover:underline"
-                                                  : ""
-                                              }`}
-                                            >
-                                              {r.title}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">{r.action}</p>
-                                          </div>
-                                          <Badge variant="outline" className="text-[10px] shrink-0">
-                                            {r.type}
-                                          </Badge>
-                                          {r.type === "coding-exercise" && (
-                                            <Badge variant="secondary" className="text-[10px] shrink-0">
-                                              Optional
-                                            </Badge>
-                                          )}
-                                        </>
-                                      );
-                                      return hasUrl ? (
-                                        <a
-                                          key={r.id || i}
-                                          href={r.url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="group flex items-center gap-3 rounded-lg bg-muted/20 p-2.5 hover:bg-muted/40 transition-colors"
-                                        >
-                                          {inner}
-                                        </a>
-                                      ) : (
-                                        <div key={r.id || i} className="flex items-center gap-3 rounded-lg bg-muted/20 p-2.5">
-                                          {inner}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        })()}
-
-                        {(() => {
-                          if (!availableQuizDays.has(dp.day)) {
-                            return (
-                              <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/30 p-3 flex items-center gap-2">
-                                <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-                                <p className="text-xs text-muted-foreground">Quiz not yet available for this unit.</p>
-                              </div>
-                            );
-                          }
-                          const taken = takenQuizzes[dp.day];
-                          return (
-                            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <ClipboardCheck className="h-4 w-4 text-primary" />
-                                <div>
-                                  <p className="text-sm font-medium">Unit {dp.day} Quiz</p>
-                                  <div className="group">
-                                    <p className="text-xs text-muted-foreground">
-                                      {taken
-                                        ? `Completed — ${taken.score}%`
-                                        : (voidCounts[dp.day] ?? 0) >= 2
-                                        ? "Locked — attempts voided for leaving the quiz"
-                                        : (voidCounts[dp.day] ?? 0) === 1
-                                        ? "Previous attempt voided — this is your final attempt"
-                                        : "Optional — one attempt only"}
-                                    </p>
-                                    {taken && (
-                                      <div className="mt-1 space-y-0.5 block sm:hidden sm:group-hover:block sm:group-hover:animate-fade-in">
-                                        <p className="text-[10px] text-muted-foreground">Score accounts for question difficulty, accuracy, and time.</p>
-                                        <p className="text-[10px] text-muted-foreground">
-                                          {taken.correctAnswers}/{taken.totalQuestions} correct ({accuracyPct(taken.correctAnswers, taken.totalQuestions)}%)
-                                        </p>
-                                        <p className="text-[10px] text-muted-foreground">{formatAvgTime(taken.timeSpent, taken.totalQuestions)}</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                              {taken ? (
-                                <Button size="sm" variant="outline" disabled>
-                                  Quiz completed
-                                </Button>
-                              ) : (voidCounts[dp.day] ?? 0) >= 2 ? (
-                                <Button size="sm" variant="outline" disabled>
-                                  Locked — contact your professor
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    if (takenQuizzes[dp.day]) return;
-                                    attemptOpenQuiz(dp.day);
-                                  }}
-                                >
-                                  {(voidCounts[dp.day] ?? 0) === 1 ? "Retake Quiz (final attempt)" : "Take Quiz"}
-                                </Button>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="space-y-3"
+      >
+        {planLoading ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">Loading learning path...</p>
+        ) : !lessonPlanPublished ? (
+          <Card>
+            <CardContent className="space-y-1 py-8 text-center">
+              <BookOpen className="mx-auto h-8 w-8 text-muted-foreground/40" />
+              {lessonPlanError ? (
+                <>
+                  <p className="text-sm font-medium text-muted-foreground">Learning path is being updated</p>
+                  <p className="text-xs text-muted-foreground">Please refresh in a moment. If this keeps showing, let your professor know.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-muted-foreground">Learning path not yet available</p>
+                  <p className="text-xs text-muted-foreground">Your professor hasn't published the learning path yet. You're currently on Unit {currentWeek}.</p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        ) : lessonPlan.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              No units are visible yet — check back soon
+            </CardContent>
+          </Card>
+        ) : (
+          lessonPlan.map((unit) => {
+            const taken = takenQuizzes[unit.day];
+            const voids = voidCounts[unit.day] ?? 0;
+            const weak = weakConceptsByUnit[unit.day] ?? [];
+            return (
+              <UnitPathwayCard
+                key={unit.id || unit.day}
+                unitNumber={unit.day}
+                topic={unit.topic}
+                totalUnits={lessonPlan.length}
+                expanded={expandedWeeks.includes(unit.day)}
+                onToggle={() => toggleWeek(unit.day)}
+                quizTaken={!!taken}
+                quizScore={taken?.score}
+                quizAvailable={availableQuizDays.has(unit.day)}
+                quizLocked={voids >= 2}
+                quizFinalAttempt={voids === 1}
+                readiness={readinessByUnit[unit.day] ?? 0}
+                weakConcepts={weak}
+                resources={Array.isArray(unit.resources) ? unit.resources : []}
+                activityDone={activityDone}
+                onToggleActivity={toggleActivityDone}
+                onStudy={() =>
+                  goToStudy(
+                    (taken ? weak[0] : unit.concepts?.[0]?.name) || unit.topic,
+                    taken ? "weak" : "start",
+                  )
+                }
+                onPractice={() =>
+                  goToPractice(taken && weak.length > 0 ? weak.join(", ") : unit.topic)
+                }
+                onTakeQuiz={() => attemptOpenQuiz(unit.day)}
+                onGoToNextUnit={() => {
+                  const next = unit.day + 1;
+                  setExpandedWeeks((prev) => (prev.includes(next) ? prev : [...prev, next]));
+                }}
+              />
+            );
+          })
+        )}
       </motion.div>
 
       <WeeklyQuizDialog
