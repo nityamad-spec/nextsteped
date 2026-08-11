@@ -218,6 +218,8 @@ const AIChat = () => {
 
   // Practice questions widget state
   const [showPractice, setShowPractice] = useState(false);
+  const [practiceInitialPrompt, setPracticeInitialPrompt] = useState<string>("");
+
   const [practiceHistory, setPracticeHistory] = useState<any[]>([]);
   const [selectedPracticeHistoryId, setSelectedPracticeHistoryId] = useState<string | null>(null);
   const [showTerminal, setShowTerminal] = useState(false);
