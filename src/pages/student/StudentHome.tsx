@@ -94,6 +94,8 @@ const StudentHome = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { courseName: courseNameFromPlan, currentWeek, totalWeeks, lessonPlan, planLoading, lessonPlanPublished } = useLearningPlan();
+  const { readinessByUnit, weakConceptsByUnit } = useUnitReadiness(enrolledCourseId, lessonPlan);
+  const { studiedByUnit, practisedByUnit } = useUnitProgress(enrolledCourseId, lessonPlan);
   const courseName = courseNameFromPlan || currentCourse?.name || "";
   const displayName = profileData?.name || studentProfile?.name || "Student";
 
