@@ -98,10 +98,17 @@ const StudentHome = () => {
   const navigate = useNavigate();
   const { courseName: courseNameFromPlan, currentWeek, totalWeeks, lessonPlan, planLoading, lessonPlanPublished } = useLearningPlan();
   const { readinessByUnit, weakConceptsByUnit } = useUnitReadiness(enrolledCourseId, lessonPlan);
+  // Latest weekly-quiz attempt per unit — study/practice only count after this.
+  const [quizTakenAtByUnit, setQuizTakenAtByUnit] = useState<Record<number, string | undefined>>({});
   // First unit not yet at the readiness threshold — unattributed chats credit this unit.
   const fallbackStudyUnit =
     lessonPlan.find((wk: any) => (readinessByUnit[Number(wk.day)] ?? 0) < READINESS_THRESHOLD)?.day ?? null;
-  const { studiedByUnit, practisedByUnit } = useUnitProgress(enrolledCourseId, lessonPlan, fallbackStudyUnit);
+  const { studiedByUnit, practisedByUnit } = useUnitProgress(
+    enrolledCourseId,
+    lessonPlan,
+    fallbackStudyUnit,
+    quizTakenAtByUnit,
+  );
   const courseName = courseNameFromPlan || currentCourse?.name || "";
   const displayName = profileData?.name || studentProfile?.name || "Student";
 
