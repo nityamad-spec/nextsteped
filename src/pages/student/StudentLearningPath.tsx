@@ -15,6 +15,9 @@ import { BookOpen, ClipboardCheck, ChevronDown, ChevronUp, Lock, Check } from "l
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 import { fetchVoidCounts } from "@/lib/attemptVoids";
+import UnitFocusCard from "@/components/student/UnitFocusCard";
+import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
+
 
 
 const accuracyPct = (correct: number, total: number) =>
