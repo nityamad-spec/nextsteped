@@ -86,7 +86,7 @@ export function useUnitProgress(
           .limit(40),
         supabase
           .from("assessment_results")
-          .select("answers")
+          .select("answers, created_at")
           .eq("student_id", user.id)
           .eq("course_id", courseId)
           .eq("mode", "practice")
