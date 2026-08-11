@@ -299,7 +299,7 @@ const StudentHome = () => {
     buttonVariant: ButtonVariant;
   };
   const nextActions: NextAction[] = [];
-  let focusFooter: { position: string; status: string } | null = null;
+  let focusFooter: { current: string; goal: string } | null = null;
 
   // Build a lookup of concept_code -> concept id for the current course
   const conceptIdByName = new Map<string, string>();
@@ -393,13 +393,10 @@ const StudentHome = () => {
       const practiceHref = `/student/chat?newchat=true&intent=practice&concept=${encodeURIComponent(focusTopic)}`;
 
       focusFooter = {
-        position: `Unit ${focusUnit} of ${unitNumbers.length || totalWeeks || 1}`,
-        status: takenQuizzes[focusUnit]
-          ? `${readiness}% readiness`
-          : quizOpen
-            ? "Quiz not taken"
-            : "Quiz not open yet",
+        current: `${readiness}% mastery`,
+        goal: `${READINESS_THRESHOLD}% mastery`,
       };
+
 
       if (stage === "not_started") {
         nextActions.push({
@@ -653,16 +650,17 @@ const StudentHome = () => {
             {!nextActionsLoading && focusFooter && (
               <div className="mt-4 grid grid-cols-2 gap-3 border-t pt-4">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{focusFooter.position}</p>
+                  <p className="text-sm font-semibold text-foreground">{focusFooter.current}</p>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
                     Current position
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{focusFooter.status}</p>
+                  <p className="text-sm font-semibold text-foreground">{focusFooter.goal}</p>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
-                    Status
+                    Goal
                   </p>
+
                 </div>
               </div>
             )}
