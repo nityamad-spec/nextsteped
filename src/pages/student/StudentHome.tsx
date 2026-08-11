@@ -299,7 +299,7 @@ const StudentHome = () => {
     buttonVariant: ButtonVariant;
   };
   const nextActions: NextAction[] = [];
-  let focusFooter: { position: string; status: string } | null = null;
+  let focusFooter: { current: string; goal: string } | null = null;
 
   // Build a lookup of concept_code -> concept id for the current course
   const conceptIdByName = new Map<string, string>();
