@@ -108,7 +108,7 @@ export function useUnitProgress(
       if (sessionRows.length > 0) {
         const { data, error } = await supabase
           .from("chat_messages")
-          .select("session_id, role, content")
+          .select("session_id, role, content, created_at")
           .eq("user_id", user.id)
           .in(
             "session_id",
