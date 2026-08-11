@@ -60,7 +60,10 @@ const StudentLearningPath = () => {
     lessonPlanError,
   } = useLearningPlan();
 
+  const { readinessByUnit, weakConceptsByUnit } = useUnitReadiness(enrolledCourseId, lessonPlan);
+
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
+
   useEffect(() => {
     setExpandedWeeks((prev) => (prev.includes(currentWeek) ? prev : [...prev, currentWeek]));
   }, [currentWeek]);
