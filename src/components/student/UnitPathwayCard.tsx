@@ -148,7 +148,7 @@ const UnitPathwayCard = ({
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Your next move
             </p>
-            {!quizTaken && (
+            {stage === "not_started" && (
               <>
                 <p className="mt-1 font-heading text-base font-bold">Start studying</p>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -170,7 +170,39 @@ const UnitPathwayCard = ({
                 </div>
               </>
             )}
-            {quizTaken && !ready && (
+            {stage === "studied" && (
+              <>
+                <p className="mt-1 font-heading text-base font-bold">Do practice questions</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  You've studied this unit — now check what stuck with scored practice questions.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={onPractice}>
+                    Start practice
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={onStudy}>
+                    Keep studying
+                  </Button>
+                </div>
+              </>
+            )}
+            {stage === "practised" && (
+              <>
+                <p className="mt-1 font-heading text-base font-bold">Take the Unit {unitNumber} quiz</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  You've studied and practised. One scored attempt sets your readiness for this unit.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={onTakeQuiz} disabled={!quizAvailable || quizLocked}>
+                    Take quiz
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={onPractice}>
+                    More practice
+                  </Button>
+                </div>
+              </>
+            )}
+            {stage === "needs_work" && (
               <>
                 <p className="mt-1 font-heading text-base font-bold">Study and practice</p>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -188,6 +220,7 @@ const UnitPathwayCard = ({
                 </div>
               </>
             )}
+
             {ready && (
               <>
                 <p className="mt-1 font-heading text-base font-bold">
