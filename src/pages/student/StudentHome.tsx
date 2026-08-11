@@ -277,7 +277,11 @@ const StudentHome = () => {
     | "START THIS WEEK"
     | "REVIEW"
     | "PRACTICE"
+    | "STUDY"
+    | "WEEKLY QUIZ"
+    | "NEXT UNIT"
     | "EXPLORE";
+
   type VisualCategory = "quiz" | "reading" | "continue" | "practice" | "heads-up";
   type BadgeTone = "neutral" | "green";
   type ButtonVariant = "default" | "outline";
