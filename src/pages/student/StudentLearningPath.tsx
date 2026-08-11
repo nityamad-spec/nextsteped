@@ -46,10 +46,17 @@ const StudentLearningPath = () => {
   } = useLearningPlan();
 
   const { readinessByUnit, weakConceptsByUnit } = useUnitReadiness(enrolledCourseId, lessonPlan);
+  // Latest weekly-quiz attempt per unit — study/practice only count after this.
+  const [quizTakenAtByUnit, setQuizTakenAtByUnit] = useState<Record<number, string | undefined>>({});
   // First unit not yet at the readiness threshold — unattributed chats credit this unit.
   const fallbackStudyUnit =
     lessonPlan.find((w) => (readinessByUnit[w.day] ?? 0) < READINESS_THRESHOLD)?.day ?? null;
-  const { studiedByUnit, practisedByUnit } = useUnitProgress(enrolledCourseId, lessonPlan, fallbackStudyUnit);
+  const { studiedByUnit, practisedByUnit } = useUnitProgress(
+    enrolledCourseId,
+    lessonPlan,
+    fallbackStudyUnit,
+    quizTakenAtByUnit,
+  );
 
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
 
