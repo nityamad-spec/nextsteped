@@ -125,17 +125,15 @@ const UnitPathwayCard = ({
           </p>
           <h2 className="truncate font-heading text-base font-bold md:text-lg">{topic}</h2>
         </div>
-        <span
-          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
-            ready
-              ? "bg-primary/10 text-primary"
-              : quizTaken
-                ? "bg-muted text-muted-foreground"
-                : "bg-accent text-accent-foreground"
-          }`}
-        >
-          {quizTaken ? `${readiness}% readiness${ready ? " · Ready" : ""}` : "Quiz due"}
-        </span>
+        {quizTaken && (
+          <span
+            className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+              ready ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {readiness}% readiness{ready ? " · Ready" : ""}
+          </span>
+        )}
         {expanded ? (
           <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
         ) : (
@@ -146,7 +144,7 @@ const UnitPathwayCard = ({
       {expanded && (
         <CardContent className="space-y-5 px-5 pb-5 pt-0 md:px-6">
           {/* Your next move */}
-          <div className="rounded-xl border bg-muted/40 p-4">
+          <div className="rounded-xl border border-primary/20 bg-primary/10 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Your next move
             </p>
