@@ -265,21 +265,23 @@ const UnitPathwayCard = ({
                 index={1}
                 icon={BookOpen}
                 title={quizTaken ? "Study weak concepts" : "Study"}
-                description={`${
+                description={`${studied ? "Completed. " : ""}${
                   quizTaken && weakList
                     ? `Go deeper on ${weakList} with your teaching assistant.`
                     : "Learn this unit's concepts with your teaching assistant."
                 }${readingCount > 0 ? ` ${readingCount} reading${readingCount === 1 ? "" : "s"} below.` : ""}`}
-                action="Start studying"
+                action={studied ? "Keep studying" : "Start studying"}
                 onAction={onStudy}
+                done={studied}
               />
               <StepCard
                 index={2}
                 icon={PenLine}
                 title="Practice"
-                description="Answer AI-generated practice questions. These count towards your readiness."
-                action="Start practice"
+                description={`${practised ? "Completed. " : ""}Answer AI-generated practice questions. These count towards your readiness.`}
+                action={practised ? "More practice" : "Start practice"}
                 onAction={onPractice}
+                done={practised}
               />
               <StepCard
                 index={3}
