@@ -650,16 +650,17 @@ const StudentHome = () => {
             {!nextActionsLoading && focusFooter && (
               <div className="mt-4 grid grid-cols-2 gap-3 border-t pt-4">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{focusFooter.position}</p>
+                  <p className="text-sm font-semibold text-foreground">{focusFooter.current}</p>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
                     Current position
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{focusFooter.status}</p>
+                  <p className="text-sm font-semibold text-foreground">{focusFooter.goal}</p>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
-                    Status
+                    Goal
                   </p>
+
                 </div>
               </div>
             )}
