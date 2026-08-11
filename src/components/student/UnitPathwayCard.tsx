@@ -26,7 +26,10 @@ export interface UnitPathwayCardProps {
   totalUnits: number;
   expanded: boolean;
   onToggle: () => void;
+  studied: boolean;
+  practised: boolean;
   quizTaken: boolean;
+
   quizScore?: number;
   quizAvailable: boolean;
   quizLocked: boolean;
