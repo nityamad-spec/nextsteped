@@ -416,7 +416,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
       }
       const { data, error } = await supabase.functions.invoke("suggest-lesson", {
         body: {
-          dayNumber: day.day, dayConcept: day.topic,
+          dayNumber: day.day, dayTopic: day.topic,
           existingDescription: day.description || "",
           courseObjectives: objectives, totalDays: days.length,
           existingResources: day.resources.map(r => ({ title: r.title, action: r.action })),
