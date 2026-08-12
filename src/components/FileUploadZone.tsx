@@ -121,7 +121,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const PARSE_SUBSTEPS: Array<{ id: string; label: string; weightMs: number }> = [
     { id: "objectives",    label: "Extracting learning objectives",       weightMs: 4000 },
     { id: "modules",       label: "Identifying modules & units",          weightMs: 6000 },
-    { id: "concepts",      label: "Mapping concepts & topics",            weightMs: 6000 },
+    { id: "concepts",      label: "Mapping concepts",            weightMs: 6000 },
     { id: "prerequisites", label: "Detecting prerequisites & references", weightMs: 5000 },
     { id: "questions",     label: "Drafting diagnostic question seeds",   weightMs: 4000 },
   ];

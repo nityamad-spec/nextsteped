@@ -149,7 +149,7 @@ export const useAchievements = (
     };
     const comebackHint = bestJump
       ? `Best jump so far: ${bestJump.name} (${LEVEL_LABEL[bestJump.from]} → ${LEVEL_LABEL[bestJump.to]})`
-      : "No concept promoted yet — keep practicing your weakest topics";
+      : "No concept promoted yet — keep practicing your weakest concepts";
     const comeback: Achievement = {
       id: "comeback",
       label: "Comeback",

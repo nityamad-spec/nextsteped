@@ -42,7 +42,7 @@ const features = [
     title: "Concept Exploration Map",
     subtitle: "See your progress clearly",
     description:
-      "Your concept exploration map gives you a visual breakdown of how much you have engaged across every topic, and the mastery level per concept where applicable. You can see at a glance what you've explored deeply, what needs more work, and how your understanding has changed over time.",
+      "Your concept exploration map gives you a visual breakdown of how much you have engaged across every concept, and the mastery level per concept where applicable. You can see at a glance what you've explored deeply, what needs more work, and how your understanding has changed over time.",
     callout: "Know exactly where you stand, so you can study smarter.",
   },
 ];

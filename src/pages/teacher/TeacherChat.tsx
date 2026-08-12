@@ -31,7 +31,7 @@ const SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; la
   {
     icon: Search,
     label: "Research an article",
-    prompt: "Find and summarize a recent article I can assign as pre-reading for this week's topic.",
+    prompt: "Find and summarize a recent article I can assign as pre-reading for this week's concept.",
   },
   {
     icon: ClipboardList,
@@ -46,7 +46,7 @@ const SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; la
   {
     icon: MessageCircle,
     label: "Plan a class discussion",
-    prompt: "Outline a 20-minute discussion prompt with follow-up questions for this week's topic.",
+    prompt: "Outline a 20-minute discussion prompt with follow-up questions for this week's concept.",
   },
 ];
 
