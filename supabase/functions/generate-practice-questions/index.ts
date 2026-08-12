@@ -161,8 +161,8 @@ Output JSON only (no prose, no markdown, no code fences):
 }
 
 Concept matching:
-- Map a topic the student names to a concept_code only when it clearly corresponds to one in CONCEPT LIST (paraphrase and synonyms OK, never guesses).
-- If a named topic does not correspond to any concept, do NOT put it in "concepts" — record the student's wording in "off_syllabus_terms".
+- Map a concept the student names to a concept_code only when it clearly corresponds to one in CONCEPT LIST (paraphrase and synonyms OK, never guesses).
+- If a named concept does not correspond to any concept, do NOT put it in "concepts" — record the student's wording in "off_syllabus_terms".
 - Never invent, abbreviate, or alter concept_codes.
 
 Weak-area detection — set "weak_areas_requested": true when the message implies focusing on weak, struggling, low, unclear, shaky, or not-yet-mastered material (e.g. "weakest", "struggling with", "where I'm weak", "needs work", "focus on my gaps").
@@ -222,7 +222,7 @@ ALLOWED CONCEPTS:
 - If ALLOWED CONCEPT CODES is empty, return {"questions":[],"skipped_reason":"no in-scope concepts available"} and nothing else.
 
 Out-of-scope handling:
-- Ignore INTENT.off_syllabus_terms and any subject in INTENT.notes that is not in the allowed set. Never generate a question on a topic outside the allowed set, even if the student explicitly asked for it. The course syllabus always wins over the request.
+- Ignore INTENT.off_syllabus_terms and any subject in INTENT.notes that is not in the allowed set. Never generate a question on a concept outside the allowed set, even if the student explicitly asked for it. The course syllabus always wins over the request.
 
 Interpreting mastery:
 - weak = mastery_score < 0.50 (null mastery also counts as a gap, high priority alongside the weakest scored concepts).

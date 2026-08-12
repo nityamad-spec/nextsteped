@@ -127,7 +127,7 @@ Your job is to suggest ADDITIONAL concepts that are NOT in the syllabus and NOT 
 
 1. "industry" — concepts widely expected by employers / industry practitioners in this subject area that the syllabus appears to skip.
 2. "foundational" — prerequisite or foundational concepts the syllabus seems to assume but does not explicitly teach.
-3. "gap" — general gaps in coverage where a key topic is missing or under-treated relative to the course's stated objectives.
+3. "gap" — general gaps in coverage where a key concept is missing or under-treated relative to the course's stated objectives.
 
 STRICT RULES:
 - Output 5–10 concepts total, with a healthy mix across the three categories where possible.
