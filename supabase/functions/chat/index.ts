@@ -237,7 +237,7 @@ async function fetchQuestionBankContext(supabaseAdmin: any, courseId: string, _l
         .limit(5);
       if (error || !data || data.length === 0) return "";
 
-      const lines = data.map((q: any) => `[${q.difficulty}/${q.question_type}] ${q.question_text} (Topic: ${q.topic})`);
+      const lines = data.map((q: any) => `[${q.difficulty}/${q.question_type}] ${q.question_text} (Concept: ${q.topic})`);
       return `Reference questions the professor uses:\n${lines.join("\n")}`.slice(0, 1000);
     } catch (e) {
       console.error("Question bank RAG error:", e);

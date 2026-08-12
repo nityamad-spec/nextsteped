@@ -128,7 +128,7 @@ Valid provenance values: instructor, web`;
 
 Generate a detailed lesson description AND resource suggestions for:
 - Week ${dayNumber} of ${totalDays}
-- Topic: ${dayTopic}
+- Concept: ${dayTopic}
 ${existingDescription ? `\nExisting description (improve and SIGNIFICANTLY EXPAND upon this — don't just rephrase the same content, add genuinely new pedagogical insights, activities, and depth):\n${existingDescription}` : ""}
 ${existingResourcesSummary}
 
