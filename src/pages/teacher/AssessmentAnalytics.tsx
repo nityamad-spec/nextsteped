@@ -440,18 +440,18 @@ const AssessmentAnalytics = () => {
             </CardContent>
           </Card>
 
-          {/* Topic Performance */}
+          {/* Concept Performance */}
           {topicPerformance.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Topic Performance</CardTitle>
+                <CardTitle className="text-base">Concept Performance</CardTitle>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
                       {[
-                        { key: "topic", label: "Topic", align: "" },
+                        { key: "topic", label: "Concept", align: "" },
                         { key: "correct", label: "Correct", align: "text-right" },
                         { key: "incorrect", label: "Incorrect", align: "text-right" },
                         { key: "total", label: "Total", align: "text-right" },

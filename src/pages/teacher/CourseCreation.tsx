@@ -999,7 +999,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     if (target.is_exam_week) {
       toast({
         title: "Exam week",
-        description: `Week ${target.week} is an exam week — topics can't be placed there.`,
+        description: `Week ${target.week} is an exam week — concepts can't be placed there.`,
         variant: "destructive",
       });
       return;
@@ -1034,7 +1034,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     if (fromWeekId !== toWeekId) {
       const name = weeks.find(w => w.id === fromWeekId)?.concepts.find(c => c.id === conceptId)?.name ?? "Topic";
       toast({
-        title: "Topic moved",
+        title: "Concept moved",
         description: `Moved "${name}" to Week ${target.week}`,
         action: (
           <ToastAction altText="Undo move" onClick={() => setWeeks(snapshot)}>Undo</ToastAction>
@@ -1469,7 +1469,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                   <span className="font-medium text-foreground">Keep editing future weeks anytime.</span> After publishing, you can return to <span className="font-medium">Course Setup → AI Lesson Plan</span> (or the <span className="font-medium">Content Library → Lesson Plan</span> tab) to refine upcoming weeks, swap resources, or add concepts as the term unfolds. Re-publish to push your changes live.
                 </li>
                 <li>
-                  <span className="font-medium text-foreground">Show or hide weeks as you teach.</span> Use the <Eye className="inline h-3.5 w-3.5 align-text-bottom" /> / <EyeOff className="inline h-3.5 w-3.5 align-text-bottom" /> toggle on each week to control visibility — students only see weeks you've made visible, and the AI Teaching Assistant + exam questions stay constrained to those visible topics.
+                  <span className="font-medium text-foreground">Show or hide weeks as you teach.</span> Use the <Eye className="inline h-3.5 w-3.5 align-text-bottom" /> / <EyeOff className="inline h-3.5 w-3.5 align-text-bottom" /> toggle on each week to control visibility — students only see weeks you've made visible, and the AI Teaching Assistant + exam questions stay constrained to those visible concepts.
                 </li>
                 <li>
                   <span className="font-medium text-foreground">Reorder freely.</span> Drag weeks to reorder; numbering updates automatically.
@@ -1795,18 +1795,18 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <div className="h-5 w-1 rounded-full bg-primary" />
-                                <Label className="text-sm font-semibold">Topics Covered</Label>
+                                <Label className="text-sm font-semibold">Concepts Covered</Label>
                                 <Badge variant="secondary" className="text-[10px]">{w.concepts.length}</Badge>
                               </div>
                               <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => addConcept(w.id)}>
-                                <Plus className="h-3 w-3" /> Add topic
+                                <Plus className="h-3 w-3" /> Add concept
                               </Button>
                             </div>
 
                             <ConceptDropZone id={`list:${w.id}`} disabled={w.is_exam_week} dragging={!!activeConceptId}>
                               {w.concepts.length === 0 ? (
                                 <p className="text-xs text-muted-foreground italic px-2 py-3 border border-dashed rounded">
-                                  No topics yet. Click "Add topic", or drag one here from another week.
+                                  No concepts yet. Click "Add concept", or drag one here from another week.
                                 </p>
                               ) : (
                                 <SortableContext items={w.concepts.map(c => c.id)} strategy={verticalListSortingStrategy}>
