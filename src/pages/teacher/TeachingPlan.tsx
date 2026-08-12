@@ -336,7 +336,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
   const addDay = () => {
     const newDay: DayPlan = {
       id: `d_new_${Date.now()}`, day: days.length + 1, dates: `Week ${days.length + 1}`,
-      topic: "New Topic", description: "", resources: [], weightage: 0, locked: true,
+      topic: "New Concept", description: "", resources: [], weightage: 0, locked: true,
     };
     setDays((prev) => [...prev, newDay]);
     setExpandedDays((prev) => [...prev, newDay.id]);
@@ -488,7 +488,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
     const conceptOrder: string[] = [];
     const conceptTextActivities = new Map<string, string[]>();
     for (const section of sections) {
-      const hm = section.match(/^(Concepts & Topics|Concepts and Topics):\s*/i);
+      const hm = section.match(/^(Concepts & Topics|Concepts and Topics|Concepts):\s*/i);
       if (!hm) continue;
       const body = section.replace(/^[A-Z][^:\n]+:\s*/, "").trim();
       const lines = body.split("\n");
@@ -551,14 +551,14 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
         {sections
           .filter((section) => {
             const heading = section.match(/^([A-Z][^:\n]+):\s*/)?.[1];
-            if (!heading || heading === "Concepts & Topics" || heading === "Concepts and Topics") return false;
+            if (!heading || heading === "Concepts & Topics" || heading === "Concepts and Topics" || heading === "Concepts") return false;
             return topTextHeadings.test(heading);
           })
           .map(renderTextSection)}
 
         {conceptOrder.length > 0 && (
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Concepts & Topics</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Concepts</p>
             {conceptOrder.map((conceptName, ci) => {
               const resources = conceptResources.get(conceptName) || [];
               const textActivities = conceptTextActivities.get(conceptName) || [];
@@ -662,7 +662,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
         {sections
           .filter((section) => {
             const heading = section.match(/^([A-Z][^:\n]+):\s*/)?.[1];
-            if (!heading || heading === "Concepts & Topics" || heading === "Concepts and Topics") return false;
+            if (!heading || heading === "Concepts & Topics" || heading === "Concepts and Topics" || heading === "Concepts") return false;
             return bottomTextHeadings.test(heading);
           })
           .map(renderTextSection)}
@@ -762,7 +762,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
         {!embedded && (
           <div>
             <h1 className="font-heading text-3xl font-bold">Lesson Plan</h1>
-            <p className="text-muted-foreground text-sm">Edit weekly topics, learning outcomes, resources, and control student visibility</p>
+            <p className="text-muted-foreground text-sm">Edit weekly concepts, learning outcomes, resources, and control student visibility</p>
           </div>
         )}
         <div className={`flex items-center gap-2 ${embedded ? "w-full justify-end" : ""}`}>
@@ -907,7 +907,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
                             {isEditing ? (
                               <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-dashed">
                                 <div className="space-y-1.5">
-                                  <Label className="text-sm font-medium">Topic</Label>
+                                  <Label className="text-sm font-medium">Concept</Label>
                                   <Input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} className="h-9 text-sm" />
                                 </div>
                                 <div className="space-y-1.5">
@@ -1038,7 +1038,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
           <div className="space-y-3 py-2">
             <label className="flex items-center gap-3 cursor-pointer">
               <Checkbox checked={publishChecklist.days} onCheckedChange={(v) => setPublishChecklist((p) => ({ ...p, days: !!v }))} />
-              <span className="text-sm">Days and topics look correct</span>
+              <span className="text-sm">Days and concepts look correct</span>
             </label>
             <label className="flex items-center gap-3 cursor-pointer">
               <Checkbox checked={publishChecklist.resources} onCheckedChange={(v) => setPublishChecklist((p) => ({ ...p, resources: !!v }))} />

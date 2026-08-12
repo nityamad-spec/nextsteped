@@ -484,10 +484,10 @@ const ConceptReview = () => {
                                   title={
                                     unitCoverage[g.unit_number].missing.length
                                       ? `Missing: ${unitCoverage[g.unit_number].missing.join("; ")}`
-                                      : "All topics covered"
+                                      : "All concepts covered"
                                   }
                                 >
-                                  Covers {unitCoverage[g.unit_number].covered}/{unitCoverage[g.unit_number].total} topics
+                                  Covers {unitCoverage[g.unit_number].covered}/{unitCoverage[g.unit_number].total} concepts
                                 </Badge>
                               )}
                             </>

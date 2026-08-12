@@ -71,9 +71,9 @@ type PromptMode = "materials";
 type PromptAction = "practice" | "populate";
 const STUDENT_SUGGESTED_PROMPTS: { icon: React.ComponentType<{ className?: string }>; label: string; prompt: string; promptTemplate?: string; promptMode?: PromptMode; action?: PromptAction }[] = [
   { icon: BookOpen, label: "Explain a concept", prompt: "Explain a unit's key concept in simple terms.", promptTemplate: `Explain the key concept "{topic}" from this unit in simple terms with an example.`, action: "populate" },
-  { icon: ListChecks, label: "Quiz me", prompt: "Open Practice Questions to generate a quiz on your recent topics.", action: "practice" },
-  { icon: FolderSearch, label: "Search course materials", prompt: "Find and explain information from materials uploaded by my professor on topic X.", promptTemplate: "Find and explain information from materials uploaded by my professor on topic {topic}.", promptMode: "materials", action: "populate" },
-  { icon: GraduationCap, label: "Prep for the exam", prompt: "What topics should I focus on for the upcoming exam, and how should I study them?" },
+  { icon: ListChecks, label: "Quiz me", prompt: "Open Practice Questions to generate a quiz on your recent concepts.", action: "practice" },
+  { icon: FolderSearch, label: "Search course materials", prompt: "Find and explain information from materials uploaded by my professor on concept X.", promptTemplate: "Find and explain information from materials uploaded by my professor on concept {topic}.", promptMode: "materials", action: "populate" },
+  { icon: GraduationCap, label: "Prep for the exam", prompt: "What concepts should I focus on for the upcoming exam, and how should I study them?" },
 
 ];
 
@@ -784,7 +784,7 @@ const AIChat = () => {
         assessmentType === "quiz" ? "✅ **Weekly Quiz Complete!**" : "✅ **Exam Practice Complete!**",
         "",
         `Score: **${results.score}%** (${results.correctAnswers}/${results.totalQuestions}) · Time: **${Math.floor(results.timeSpent / 60)}m ${results.timeSpent % 60}s**`,
-        weakTopics.length > 0 ? `Topics to strengthen in Study mode: **${weakTopics.join(", ")}**` : "Strong work across this attempt.",
+        weakTopics.length > 0 ? `Concepts to strengthen in Study mode: **${weakTopics.join(", ")}**` : "Strong work across this attempt.",
         "",
         "### Question Review",
         ...reviewLines,

@@ -650,8 +650,8 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             <div className="space-y-2 text-sm text-muted-foreground">
               <p><strong className="text-foreground">{questions.length}</strong> questions</p>
               <p><strong className="text-foreground">{timeLimitMinutes} minutes</strong> time limit</p>
-              {isQuiz && <p>Covers Week {day} topics</p>}
-              {!isQuiz && <p>Covers all course topics</p>}
+              {isQuiz && <p>Covers Week {day} concepts</p>}
+              {!isQuiz && <p>Covers all course concepts</p>}
             </div>
             {proctored ? (
               <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-left space-y-1.5">
@@ -814,7 +814,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                 <div className="flex items-start gap-3">
                   <Lightbulb className="h-5 w-5 text-primary mt-0.5 shrink-0" />
                   <div className="space-y-2">
-                    <p className="text-sm font-medium">Topics to strengthen</p>
+                    <p className="text-sm font-medium">Concepts to strengthen</p>
                     <p className="text-xs text-muted-foreground">
                       Based on your results, we recommend reviewing these topics in Study mode for a deeper understanding:
                     </p>

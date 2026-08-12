@@ -121,7 +121,7 @@ const ContentReview = () => {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Topic</Label>
+                <Label>Concept</Label>
                 <Input placeholder="e.g. Memory Management" value={customTopic} onChange={(e) => setCustomTopic(e.target.value)} />
               </div>
               <div className="space-y-2">

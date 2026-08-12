@@ -19,7 +19,7 @@ const features = [
     title: "Lesson Plan Generation",
     subtitle: "Built from your syllabus",
     description:
-      "Upload your syllabus and NextStep instantly generates a structured, week-by-week lesson plan. Each week includes topics, one industry-relevant exercise, curated articles, and key concepts to cover. If you've already got a lesson plan, NextStep identifies gaps and adds only what's missing.",
+      "Upload your syllabus and NextStep instantly generates a structured, week-by-week lesson plan. Each week includes concepts, one industry-relevant exercise, curated articles, and key concepts to cover. If you've already got a lesson plan, NextStep identifies gaps and adds only what's missing.",
     callout: "Cut hours of prep work down to minutes.",
   },
   {
@@ -35,7 +35,7 @@ const features = [
     title: "Professor AI TA",
     subtitle: "Your personal teaching assistant",
     description:
-      "You get your own AI assistant separate from the student-facing one. Use it to get help with course planning, drafting explanations, anticipating student questions, or thinking through how to structure a difficult topic.",
+      "You get your own AI assistant separate from the student-facing one. Use it to get help with course planning, drafting explanations, anticipating student questions, or thinking through how to structure a difficult concept.",
     callout: "Like having a well-prepared co-instructor available at all times.",
   },
   {

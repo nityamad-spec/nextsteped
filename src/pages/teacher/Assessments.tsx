@@ -157,7 +157,7 @@ const Assessments = () => {
       .from("concepts").select("id").eq("course_id", courseId).eq("concept_code", formTopic).maybeSingle();
     if (!conceptRow?.id) {
       setSaving(false);
-      toast.error(`Topic "${formTopic}" must match an existing course concept code.`);
+      toast.error(`Concept "${formTopic}" must match an existing course concept code.`);
       return;
     }
     const row = {

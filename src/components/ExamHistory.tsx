@@ -234,7 +234,7 @@ const ExamHistory = ({ courseId }: ExamHistoryProps) => {
         <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
           <div className="flex items-center gap-2">
             <Brain className="h-4 w-4 text-primary" />
-            <p className="text-xs font-semibold">Topics to Focus On</p>
+            <p className="text-xs font-semibold">Concepts to Focus On</p>
           </div>
           <div className="space-y-1.5">
             {weakTopics.slice(0, 4).map(t => (

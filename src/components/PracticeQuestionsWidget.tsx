@@ -547,7 +547,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
                   <div className="flex items-start gap-2">
                     <Lightbulb className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                     <div>
-                      <p className="text-sm font-medium">Topics to review</p>
+                      <p className="text-sm font-medium">Concepts to review</p>
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {wrongTopics.map(t => <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>)}
                       </div>
