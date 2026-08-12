@@ -31,7 +31,7 @@ interface AssessmentResult {
   learner_level?: string;
 }
 
-interface TopicPerformance {
+interface ConceptPerformance {
   topic: string;
   correct: number;
   incorrect: number;
@@ -74,7 +74,7 @@ const AssessmentAnalytics = () => {
   const [branchFilter, setBranchFilter] = useState<string>("all");
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
   const [studentBranches, setStudentBranches] = useState<Map<string, string>>(new Map());
-  const [topicSort, setTopicSort] = useState<SortState | null>(null);
+  const [conceptSort, setConceptSort] = useState<SortState | null>(null);
   const [recentSort, setRecentSort] = useState<SortState | null>(null);
 
   // Fetch assessment_results
@@ -209,21 +209,21 @@ const AssessmentAnalytics = () => {
   });
 
   // Topic performance
-  const topicMap = new Map<string, { correct: number; total: number }>();
+  const conceptMap = new Map<string, { correct: number; total: number }>();
   filtered.forEach((r) => {
     if (Array.isArray(r.answers)) {
       (r.answers as any[]).forEach((a: any) => {
         const topic = a?.topic || "Unknown";
-        const entry = topicMap.get(topic) || { correct: 0, total: 0 };
+        const entry = conceptMap.get(topic) || { correct: 0, total: 0 };
         entry.total++;
         if (a?.is_correct || a?.isCorrect) entry.correct++;
-        topicMap.set(topic, entry);
+        conceptMap.set(topic, entry);
       });
     }
   });
 
-  const topicPerformance: TopicPerformance[] = useMemo(() => {
-    const items = Array.from(topicMap.entries())
+  const conceptPerformance: ConceptPerformance[] = useMemo(() => {
+    const items = Array.from(conceptMap.entries())
       .map(([topic, { correct, total }]) => ({
         topic,
         correct,
@@ -232,11 +232,11 @@ const AssessmentAnalytics = () => {
         rate: total > 0 ? Math.round((correct / total) * 100) : 0,
       }));
 
-    if (topicSort) {
-      const dir = topicSort.direction === "asc" ? 1 : -1;
+    if (conceptSort) {
+      const dir = conceptSort.direction === "asc" ? 1 : -1;
       items.sort((a, b) => {
-        const aVal = a[topicSort.column as keyof TopicPerformance];
-        const bVal = b[topicSort.column as keyof TopicPerformance];
+        const aVal = a[conceptSort.column as keyof ConceptPerformance];
+        const bVal = b[conceptSort.column as keyof ConceptPerformance];
         if (typeof aVal === "string") return aVal.localeCompare(bVal as string) * dir;
         return ((aVal as number) - (bVal as number)) * dir;
       });
@@ -244,7 +244,7 @@ const AssessmentAnalytics = () => {
       items.sort((a, b) => b.total - a.total);
     }
     return items;
-  }, [topicMap, topicSort]);
+  }, [conceptMap, conceptSort]);
 
   // Recent submissions sorted
   const recentSubmissions = useMemo(() => {
@@ -441,7 +441,7 @@ const AssessmentAnalytics = () => {
           </Card>
 
           {/* Concept Performance */}
-          {topicPerformance.length > 0 && (
+          {conceptPerformance.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Concept Performance</CardTitle>
@@ -460,19 +460,19 @@ const AssessmentAnalytics = () => {
                         <TableHead
                           key={col.key}
                           className={`${col.align} cursor-pointer select-none`}
-                          onClick={() => setTopicSort((prev) => toggleSort(prev, col.key))}
+                          onClick={() => setConceptSort((prev) => toggleSort(prev, col.key))}
                         >
                           {col.label}
                           <SortIcon
-                            active={topicSort?.column === col.key}
-                            direction={topicSort?.direction}
+                            active={conceptSort?.column === col.key}
+                            direction={conceptSort?.direction}
                           />
                         </TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {topicPerformance.map((t) => (
+                    {conceptPerformance.map((t) => (
                       <TableRow key={t.topic}>
                         <TableCell className="font-medium">{t.topic}</TableCell>
                         <TableCell className="text-right">{t.correct}</TableCell>

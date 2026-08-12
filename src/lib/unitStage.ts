@@ -23,7 +23,7 @@ export function computeUnitStage({ studied, practised, quizTaken, readiness }: U
 }
 
 /** Normalised text used for loose topic/concept matching. */
-export const normaliseTopic = (value: string) =>
+export const normaliseConcept = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
 
 /** Terms that identify a unit: its topic plus its concept names. */
@@ -31,14 +31,14 @@ export function unitTerms(week: Pick<LearningPlanWeek, "topic" | "concepts">): s
   const terms = [week.topic, ...((week.concepts || []).map((c) => c?.name) as (string | undefined)[])];
   return terms
     .filter((t): t is string => typeof t === "string" && t.trim().length > 2)
-    .map(normaliseTopic)
+    .map(normaliseConcept)
     .filter(Boolean);
 }
 
 /** True when free text references any of the unit's terms. */
 export function textMatchesUnit(text: string | null | undefined, terms: string[]): boolean {
   if (!text) return false;
-  const haystack = normaliseTopic(text);
+  const haystack = normaliseConcept(text);
   if (!haystack) return false;
   return terms.some((term) => haystack.includes(term) || term.includes(haystack));
 }

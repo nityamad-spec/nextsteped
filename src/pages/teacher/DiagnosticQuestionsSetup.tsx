@@ -360,7 +360,7 @@ const DiagnosticQuestionsSetup = () => {
   };
 
   // Concept coverage from questions
-  const allTopics = [...new Set(questions.map(q => q.topic).filter(Boolean))] as string[];
+  const allConcepts = [...new Set(questions.map(q => q.topic).filter(Boolean))] as string[];
 
   if (loading) {
     return (
@@ -748,7 +748,7 @@ const DiagnosticQuestionsSetup = () => {
             <div className="space-y-3">
               <p className="text-sm font-medium">Concept Coverage</p>
               <div className="flex flex-wrap gap-2">
-                {allTopics.length > 0 ? allTopics.map(topic => (
+                {allConcepts.length > 0 ? allConcepts.map(topic => (
                   <Badge key={topic} variant="outline" className="text-xs">{topic}</Badge>
                 )) : (
                   <p className="text-xs text-muted-foreground">No concepts detected yet</p>

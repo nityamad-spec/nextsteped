@@ -18,7 +18,7 @@ const ContentReview = () => {
   const [customTitle, setCustomTitle] = useState("");
   const [customContent, setCustomContent] = useState("");
   const [customDifficulty, setCustomDifficulty] = useState("Medium");
-  const [customTopic, setCustomTopic] = useState("");
+  const [customConcept, setCustomConcept] = useState("");
 
   const removeItem = (id: string) => {
     setItems((prev) => prev.filter((i) => i.id !== id));
@@ -32,7 +32,7 @@ const ContentReview = () => {
       title: customTitle,
       content: customContent,
       difficulty: customDifficulty as "Easy" | "Medium" | "Hard",
-      topic: customTopic || "General",
+      topic: customConcept || "General",
       approved: true,
       flagged: false,
     };
@@ -40,7 +40,7 @@ const ContentReview = () => {
     setCustomTitle("");
     setCustomContent("");
     setCustomDifficulty("Medium");
-    setCustomTopic("");
+    setCustomConcept("");
     setAddCustomOpen(false);
   };
 
@@ -122,7 +122,7 @@ const ContentReview = () => {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Concept</Label>
-                <Input placeholder="e.g. Memory Management" value={customTopic} onChange={(e) => setCustomTopic(e.target.value)} />
+                <Input placeholder="e.g. Memory Management" value={customConcept} onChange={(e) => setCustomConcept(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Difficulty</Label>

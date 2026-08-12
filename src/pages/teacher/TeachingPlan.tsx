@@ -95,7 +95,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
   const [loading, setLoading] = useState(true);
   const [expandedDays, setExpandedDays] = useState<string[]>([]);
   const [editingDayId, setEditingDayId] = useState<string | null>(null);
-  const [editTopic, setEditTopic] = useState("");
+  const [editConcept, setEditConcept] = useState("");
   const [editDates, setEditDates] = useState("");
   const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
   const [editResourceTitle, setEditResourceTitle] = useState("");
@@ -291,12 +291,12 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
   };
 
   const startEditDay = (dp: DayPlan) => {
-    setEditingDayId(dp.id); setEditTopic(dp.topic); setEditDates(dp.dates);
+    setEditingDayId(dp.id); setEditConcept(dp.topic); setEditDates(dp.dates);
   };
 
   const saveEditDay = () => {
     if (!editingDayId) return;
-    setDays((prev) => prev.map((d) => d.id === editingDayId ? { ...d, topic: editTopic, dates: editDates } : d));
+    setDays((prev) => prev.map((d) => d.id === editingDayId ? { ...d, topic: editConcept, dates: editDates } : d));
     setEditingDayId(null); markChanged();
   };
 
@@ -416,7 +416,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
       }
       const { data, error } = await supabase.functions.invoke("suggest-lesson", {
         body: {
-          dayNumber: day.day, dayTopic: day.topic,
+          dayNumber: day.day, dayConcept: day.topic,
           existingDescription: day.description || "",
           courseObjectives: objectives, totalDays: days.length,
           existingResources: day.resources.map(r => ({ title: r.title, action: r.action })),
@@ -908,7 +908,7 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
                               <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-dashed">
                                 <div className="space-y-1.5">
                                   <Label className="text-sm font-medium">Concept</Label>
-                                  <Input value={editTopic} onChange={(e) => setEditTopic(e.target.value)} className="h-9 text-sm" />
+                                  <Input value={editConcept} onChange={(e) => setEditConcept(e.target.value)} className="h-9 text-sm" />
                                 </div>
                                 <div className="space-y-1.5">
                                   <Label className="text-sm font-medium">Date / Label</Label>

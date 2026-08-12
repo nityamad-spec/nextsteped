@@ -51,7 +51,7 @@ const Assessments = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formQuestion, setFormQuestion] = useState("");
   const [formAnswer, setFormAnswer] = useState("");
-  const [formTopic, setFormTopic] = useState("");
+  const [formConcept, setFormConcept] = useState("");
   const [formDifficulty, setFormDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
   const [formType, setFormType] = useState<QuestionType>("MCQ");
   const [formMode, setFormMode] = useState<QuestionMode>("exam");
@@ -130,7 +130,7 @@ const Assessments = () => {
 
   const openAddDialog = (mode: QuestionMode) => {
     setEditingId(null);
-    setFormQuestion(""); setFormAnswer(""); setFormTopic(""); setFormDifficulty("Medium");
+    setFormQuestion(""); setFormAnswer(""); setFormConcept(""); setFormDifficulty("Medium");
     setFormType("MCQ"); setFormMode(mode);
     setFormOptions(["", "", "", ""]); setFormCorrectIndex(0);
     setDialogOpen(true);
@@ -138,7 +138,7 @@ const Assessments = () => {
 
   const openEditDialog = (q: EditableQuestion) => {
     setEditingId(q.id);
-    setFormQuestion(q.question); setFormAnswer(q.answer || ""); setFormTopic(q.topic);
+    setFormQuestion(q.question); setFormAnswer(q.answer || ""); setFormConcept(q.topic);
     setFormDifficulty(q.difficulty); setFormType(q.type); setFormMode(q.mode);
     setFormOptions(q.options?.length ? [...q.options] : ["", "", "", ""]);
     setFormCorrectIndex(q.correctIndex ?? 0);
@@ -146,7 +146,7 @@ const Assessments = () => {
   };
 
   const handleSave = async () => {
-    if (!formQuestion.trim() || !formTopic || !courseId || !user) return;
+    if (!formQuestion.trim() || !formConcept || !courseId || !user) return;
     setSaving(true);
     const isMCQ = formType === "MCQ";
     const isTF = formType === "True/False";
@@ -154,16 +154,16 @@ const Assessments = () => {
     const answer = isMCQ ? (filteredOptions?.[formCorrectIndex] || "") : formAnswer;
     // Resolve concept_id from topic (concept_code). Required by DB schema + trigger.
     const { data: conceptRow } = await supabase
-      .from("concepts").select("id").eq("course_id", courseId).eq("concept_code", formTopic).maybeSingle();
+      .from("concepts").select("id").eq("course_id", courseId).eq("concept_code", formConcept).maybeSingle();
     if (!conceptRow?.id) {
       setSaving(false);
-      toast.error(`Concept "${formTopic}" must match an existing course concept code.`);
+      toast.error(`Concept "${formConcept}" must match an existing course concept code.`);
       return;
     }
     const row = {
       course_id: courseId, teacher_id: user.id, concept_id: conceptRow.id,
       mode: formMode, question_type: formType,
-      question_text: formQuestion, answer, topic: formTopic, difficulty: "Medium" as const,
+      question_text: formQuestion, answer, topic: formConcept, difficulty: "Medium" as const,
       options: isMCQ ? filteredOptions : isTF ? ["True", "False"] : null,
       correct_index: isMCQ ? formCorrectIndex : isTF ? (formAnswer === "True" ? 0 : 1) : null,
       explanation: null as string | null, quiz_day: null as number | null,
@@ -174,7 +174,7 @@ const Assessments = () => {
         const { error } = await supabase.from("assessment_questions").update(row).eq("id", editingId);
         if (error) throw error;
         setQuestions(prev => prev.map(q => q.id === editingId ? {
-          id: editingId, question: formQuestion, answer, topic: formTopic,
+          id: editingId, question: formQuestion, answer, topic: formConcept,
           difficulty: formDifficulty, type: formType, mode: formMode,
           ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
         } : q));
@@ -183,7 +183,7 @@ const Assessments = () => {
         const { data, error } = await supabase.from("assessment_questions").insert(row).select("id").single();
         if (error) throw error;
         setQuestions(prev => [...prev, {
-          id: data.id, question: formQuestion, answer, topic: formTopic,
+          id: data.id, question: formQuestion, answer, topic: formConcept,
           difficulty: formDifficulty, type: formType, mode: formMode,
           ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
         }]);
@@ -479,7 +479,7 @@ const Assessments = () => {
               {concepts.length === 0 ? (
                 <p className="text-xs text-muted-foreground">No concepts yet — add some in Concept Management first.</p>
               ) : (
-                <Select value={formTopic} onValueChange={setFormTopic}>
+                <Select value={formConcept} onValueChange={setFormConcept}>
                   <SelectTrigger><SelectValue placeholder="Select a concept" /></SelectTrigger>
                   <SelectContent>
                     {concepts.map(c => (
@@ -536,7 +536,7 @@ const Assessments = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving || !formQuestion.trim() || !formTopic}>
+            <Button onClick={handleSave} disabled={saving || !formQuestion.trim() || !formConcept}>
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {editingId ? "Update" : "Add"} Question
             </Button>

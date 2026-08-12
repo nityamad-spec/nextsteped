@@ -510,7 +510,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   // Review phase
   if (phase === "review" && results) {
     const passed = results.score >= 60;
-    const wrongTopics = [...new Set(questions.filter(q => !getAnswerCorrectness(q)).map(q => q.topic))];
+    const wrongConcepts = [...new Set(questions.filter(q => !getAnswerCorrectness(q)).map(q => q.topic))];
 
     return (
       <div className="flex flex-col h-full">
@@ -541,7 +541,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
               </CardContent>
             </Card>
 
-            {wrongTopics.length > 0 && (
+            {wrongConcepts.length > 0 && (
               <Card className="border-primary/20 bg-primary/5">
                 <CardContent className="p-4">
                   <div className="flex items-start gap-2">
@@ -549,7 +549,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
                     <div>
                       <p className="text-sm font-medium">Concepts to review</p>
                       <div className="flex flex-wrap gap-1 mt-1.5">
-                        {wrongTopics.map(t => <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>)}
+                        {wrongConcepts.map(t => <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>)}
                       </div>
                     </div>
                   </div>
