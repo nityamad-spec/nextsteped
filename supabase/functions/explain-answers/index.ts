@@ -57,7 +57,7 @@ serve(async (req) => {
     const questionsText = answers
       .map(
         (a: any, i: number) =>
-          `Q${i + 1} [Topic: ${a.topic}]: ${a.question_text}\nStudent answered: "${a.selected || "No answer"}"\nCorrect answer: "${a.correct}"\nResult: ${a.is_correct ? "CORRECT" : "INCORRECT"}`
+          `Q${i + 1} [Concept: ${a.topic}]: ${a.question_text}\nStudent answered: "${a.selected || "No answer"}"\nCorrect answer: "${a.correct}"\nResult: ${a.is_correct ? "CORRECT" : "INCORRECT"}`
       )
       .join("\n\n");
 

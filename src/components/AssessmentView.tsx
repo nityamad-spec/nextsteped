@@ -44,7 +44,7 @@ interface AssessmentViewProps {
   day?: number;
   onEnd: () => void;
   onSubmit: (results: AssessmentResults) => void;
-  onStudyTopics?: (topics: string[]) => void;
+  onStudyConcepts?: (topics: string[]) => void;
   questionMeta?: Map<string, { difficulty: number; bloom: number }>;
   courseId?: string | null;
   /** Student taking the attempt — required for short-answer AI grading. */
@@ -105,7 +105,7 @@ export interface AssessmentResults {
 
 type Phase = "intro" | "active" | "review" | "voided";
 
-const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyTopics, questionMeta, courseId, studentId, shortAnswerSource, shortAnswerMeta, proctored = false, fullscreenTargetRef, onVoided }: AssessmentViewProps) => {
+const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmit, onStudyConcepts, questionMeta, courseId, studentId, shortAnswerSource, shortAnswerMeta, proctored = false, fullscreenTargetRef, onVoided }: AssessmentViewProps) => {
   const [phase, setPhase] = useState<Phase>("intro");
   const [warningOpen, setWarningOpen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState<string | null>(null);
@@ -745,7 +745,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   if (phase === "review" && results) {
     const passed = results.score >= 60;
     const wrongAnswers = results.answers.filter(a => !a.is_correct);
-    const weakTopics = [...new Set(wrongAnswers.map(a => a.topic))];
+    const weakConcepts = [...new Set(wrongAnswers.map(a => a.topic))];
 
     return (
       <div className="flex-1 overflow-auto p-6">
@@ -808,7 +808,7 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
             </CardContent>
           </Card>
 
-          {weakTopics.length > 0 && (
+          {weakConcepts.length > 0 && (
             <Card className="border-primary/30 bg-primary/5">
               <CardContent className="p-5 space-y-3">
                 <div className="flex items-start gap-3">
@@ -819,17 +819,17 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
                       Based on your results, we recommend reviewing these topics in Study mode for a deeper understanding:
                     </p>
                     <div className="flex flex-wrap gap-1.5">
-                      {weakTopics.map(topic => (
+                      {weakConcepts.map(topic => (
                         <Badge key={topic} variant="secondary" className="text-xs">
                           {topic}
                         </Badge>
                       ))}
                     </div>
-                    {onStudyTopics && (
+                    {onStudyConcepts && (
                       <Button
                         size="sm"
                         className="mt-2 gap-2"
-                        onClick={() => onStudyTopics(weakTopics)}
+                        onClick={() => onStudyConcepts(weakConcepts)}
                       >
                         <BookOpen className="h-4 w-4" />
                         Practice These Topics in Study Mode
@@ -940,8 +940,8 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
 
           <div className="flex items-center justify-center gap-3 pt-2 flex-wrap">
             <Button variant="outline" onClick={onEnd}>Back to Home</Button>
-            {weakTopics.length > 0 && onStudyTopics && (
-              <Button onClick={() => onStudyTopics(weakTopics)} className="gap-2">
+            {weakConcepts.length > 0 && onStudyConcepts && (
+              <Button onClick={() => onStudyConcepts(weakConcepts)} className="gap-2">
                 <BookOpen className="h-4 w-4" />
                 Study Weak Topics
               </Button>

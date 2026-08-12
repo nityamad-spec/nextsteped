@@ -10,7 +10,7 @@ export interface StudentProfile {
   name: string;
   courseCode: string;
   learnerLevel: "beginner" | "developing" | "proficient" | "expert";
-  topicBaseline: Record<string, number>;
+  conceptBaseline: Record<string, number>;
 }
 
 export interface Course {

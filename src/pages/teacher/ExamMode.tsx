@@ -183,7 +183,7 @@ const ExamMode = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formQuestion, setFormQuestion] = useState("");
   const [formAnswer, setFormAnswer] = useState("");
-  const [formTopic, setFormTopic] = useState("");
+  const [formConcept, setFormConcept] = useState("");
   const [formType, setFormType] = useState<QuestionType>("MCQ");
   const [formOptions, setFormOptions] = useState<string[]>(["", "", "", ""]);
   const [formCorrectIndex, setFormCorrectIndex] = useState<number>(0);
@@ -912,7 +912,7 @@ const ExamMode = () => {
   // ── Custom question handlers ──
   const openAddDialog = (preselectExamId?: string) => {
     setEditingId(null);
-    setFormQuestion(""); setFormAnswer(""); setFormTopic("");
+    setFormQuestion(""); setFormAnswer(""); setFormConcept("");
     setFormType("MCQ"); setFormOptions(["", "", "", ""]); setFormCorrectIndex(0);
     setFormDifficulty("Medium");
     setPasteText(""); setPasteError(null);
@@ -939,7 +939,7 @@ const ExamMode = () => {
   const openEditDialog = (q: EditableQuestion) => {
     setEditingId(q.id);
     setPasteText(""); setPasteError(null);
-    setFormQuestion(q.question); setFormAnswer(q.answer || ""); setFormTopic(q.topic);
+    setFormQuestion(q.question); setFormAnswer(q.answer || ""); setFormConcept(q.topic);
     setFormType(q.type);
     setFormOptions(q.options?.length ? [...q.options] : ["", "", "", ""]);
     setFormCorrectIndex(q.correctIndex ?? 0);
@@ -1036,7 +1036,7 @@ const ExamMode = () => {
   };
 
   const handleSaveQuestion = async () => {
-    if (!formQuestion.trim() || !formTopic || !courseId || !user) return;
+    if (!formQuestion.trim() || !formConcept || !courseId || !user) return;
     // Parse & validate difficulty_estimate (0.00–1.00)
     const parsedEst = Number.parseFloat(formDifficultyEstimate);
     if (!Number.isFinite(parsedEst) || parsedEst < 0 || parsedEst > 1) {
@@ -1051,10 +1051,10 @@ const ExamMode = () => {
     const answer = isMCQ ? (filteredOptions?.[formCorrectIndex] || "") : formAnswer;
     // Resolve concept_id from topic (concept_code). Required by DB schema + trigger.
     const { data: conceptRow } = await supabase
-      .from("concepts").select("id").eq("course_id", courseId).eq("concept_code", formTopic).maybeSingle();
+      .from("concepts").select("id").eq("course_id", courseId).eq("concept_code", formConcept).maybeSingle();
     if (!conceptRow?.id) {
       setSaving(false);
-      toast.error(`Topic "${formTopic}" must match an existing course concept code.`);
+      toast.error(`Topic "${formConcept}" must match an existing course concept code.`);
       return;
     }
     const trimmedExplanation = formExplanation.trim();
@@ -1063,7 +1063,7 @@ const ExamMode = () => {
     const row = {
       course_id: courseId, teacher_id: user.id, concept_id: conceptRow.id,
       mode: "exam" as const, question_type: formType,
-      question_text: formQuestion, answer, topic: formTopic, difficulty: formDifficulty,
+      question_text: formQuestion, answer, topic: formConcept, difficulty: formDifficulty,
       options: isMCQ ? filteredOptions : isTF ? ["True", "False"] : null,
       correct_index: isMCQ ? formCorrectIndex : isTF ? (formAnswer === "True" ? 0 : 1) : null,
       explanation: trimmedExplanation || null,
@@ -1088,7 +1088,7 @@ const ExamMode = () => {
         const { error } = await supabase.from("assessment_questions").update(row).eq("id", editingId);
         if (error) throw error;
         setQuestions(prev => prev.map(q => q.id === editingId ? {
-          id: editingId, question: formQuestion, answer, topic: formTopic,
+          id: editingId, question: formQuestion, answer, topic: formConcept,
           difficulty: formDifficulty, type: formType, exam_id: formExamId,
           ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
           ...extraMeta,
@@ -1098,7 +1098,7 @@ const ExamMode = () => {
         const { data, error } = await supabase.from("assessment_questions").insert(row).select("id").single();
         if (error) throw error;
         setQuestions(prev => [...prev, {
-          id: data.id, question: formQuestion, answer, topic: formTopic,
+          id: data.id, question: formQuestion, answer, topic: formConcept,
           difficulty: formDifficulty, type: formType, exam_id: formExamId,
           ...(isMCQ ? { options: filteredOptions!, correctIndex: formCorrectIndex } : {}),
           ...extraMeta,
@@ -1855,7 +1855,7 @@ const ExamMode = () => {
               <Label>
                 Concept <span className="text-destructive">*</span>
               </Label>
-              <Select value={formTopic} onValueChange={setFormTopic} disabled={concepts.length === 0}>
+              <Select value={formConcept} onValueChange={setFormConcept} disabled={concepts.length === 0}>
                 <SelectTrigger>
                   <SelectValue placeholder={concepts.length === 0 ? "No concepts yet" : "Select a concept"} />
                 </SelectTrigger>
@@ -1935,7 +1935,7 @@ const ExamMode = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveQuestion} disabled={saving || !formQuestion.trim() || !formTopic}>
+            <Button onClick={handleSaveQuestion} disabled={saving || !formQuestion.trim() || !formConcept}>
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {editingId ? "Update" : "Add"} Question
             </Button>

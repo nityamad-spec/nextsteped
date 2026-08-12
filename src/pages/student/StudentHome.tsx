@@ -399,13 +399,13 @@ const StudentHome = () => {
 
     if (focusUnit != null) {
       const focusRow = lessonPlan.find((wk: any) => Number(wk.day) === focusUnit);
-      const focusTopic = focusRow?.topic || `Unit ${focusUnit}`;
+      const focusConcept = focusRow?.topic || `Unit ${focusUnit}`;
       const stage = stageFor(focusUnit);
       const readiness = readinessByUnit[focusUnit] ?? 0;
       const quizOpen = availableQuizDays.has(focusUnit) && !takenQuizzes[focusUnit];
       const weakList = (weakConceptsByUnit[focusUnit] || []).slice(0, 2).join(", ");
-      const studyHref = `/student/chat?newchat=true&intent=start&concept=${encodeURIComponent(focusTopic)}`;
-      const practiceHref = `/student/chat?newchat=true&intent=practice&concept=${encodeURIComponent(focusTopic)}`;
+      const studyHref = `/student/chat?newchat=true&intent=start&concept=${encodeURIComponent(focusConcept)}`;
+      const practiceHref = `/student/chat?newchat=true&intent=practice&concept=${encodeURIComponent(focusConcept)}`;
 
       focusFooter = {
         current: `${readiness}% mastery`,
@@ -417,13 +417,13 @@ const StudentHome = () => {
         nextActions.push({
           icon: MessageSquare,
           title: `Start studying Unit ${focusUnit}`,
-          description: `Work through ${focusTopic} with your teaching assistant.`,
+          description: `Work through ${focusConcept} with your teaching assistant.`,
           action: () => navigate(studyHref),
           category: "STUDY",
           visualCategory: "continue",
           badgeLabel: "Study",
           badgeTone: "green",
-          metadata: focusTopic,
+          metadata: focusConcept,
           buttonLabel: "Start studying",
           buttonVariant: "default",
         });
@@ -431,7 +431,7 @@ const StudentHome = () => {
           nextActions.push({
             icon: ClipboardCheck,
             title: "Take Unit quiz instead",
-            description: `Skip ahead and check yourself on ${focusTopic}.`,
+            description: `Skip ahead and check yourself on ${focusConcept}.`,
             action: () => attemptOpenQuiz(focusUnit),
             category: "WEEKLY QUIZ",
             visualCategory: "quiz",
@@ -446,13 +446,13 @@ const StudentHome = () => {
         nextActions.push({
           icon: Sparkles,
           title: `Do practice questions for Unit ${focusUnit}`,
-          description: `You've studied ${focusTopic} — see what stuck with scored practice.`,
+          description: `You've studied ${focusConcept} — see what stuck with scored practice.`,
           action: () => navigate(practiceHref),
           category: "PRACTICE",
           visualCategory: "practice",
           badgeLabel: "Practice",
           badgeTone: "green",
-          metadata: focusTopic,
+          metadata: focusConcept,
           buttonLabel: "Start practice",
           buttonVariant: "default",
         });
@@ -461,8 +461,8 @@ const StudentHome = () => {
           icon: ClipboardCheck,
           title: `Take the Unit ${focusUnit} quiz`,
           description: quizOpen
-            ? `One scored attempt sets your readiness for ${focusTopic}.`
-            : `This quiz isn't open yet — keep practising ${focusTopic}.`,
+            ? `One scored attempt sets your readiness for ${focusConcept}.`
+            : `This quiz isn't open yet — keep practising ${focusConcept}.`,
           action: () => (quizOpen ? attemptOpenQuiz(focusUnit) : navigate(practiceHref)),
           category: "WEEKLY QUIZ",
           visualCategory: "quiz",
@@ -484,7 +484,7 @@ const StudentHome = () => {
           visualCategory: "continue",
           badgeLabel: "Study",
           badgeTone: "green",
-          metadata: focusTopic,
+          metadata: focusConcept,
           buttonLabel: "Start studying",
           buttonVariant: "default",
         });
@@ -497,7 +497,7 @@ const StudentHome = () => {
           visualCategory: "practice",
           badgeLabel: "Practice",
           badgeTone: "green",
-          metadata: focusTopic,
+          metadata: focusConcept,
           buttonLabel: "Do practice",
           buttonVariant: "outline",
         });

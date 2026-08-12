@@ -191,7 +191,7 @@ const AIChat = () => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const lastSendTime = useRef<number>(0);
   const { lessonPlan, currentWeek } = useLearningPlan();
-  const currentWeekTopic = lessonPlan.find((w) => w.day === currentWeek)?.topic ?? null;
+  const currentWeekConcept = lessonPlan.find((w) => w.day === currentWeek)?.topic ?? null;
 
   // Course context for relevance classification
   const [courseContext, setCourseContext] = useState<{ courseName: string; objectives: string[]; concepts: string[] } | null>(null);
@@ -343,7 +343,7 @@ const AIChat = () => {
       });
 
       if (activeChat) {
-        const weakTopics = [...new Set(result.answers.filter((answer: any) => !answer.is_correct).map((answer: any) => answer.topic).filter(Boolean))];
+        const weakConcepts = [...new Set(result.answers.filter((answer: any) => !answer.is_correct).map((answer: any) => answer.topic).filter(Boolean))];
         const reviewLines = result.answers.flatMap((answer: any, index: number) => {
           const lines = [
             `${index + 1}. **${answer.question_text}**`,
@@ -362,7 +362,7 @@ const AIChat = () => {
           "✅ **Practice Questions Complete!**",
           "",
           `Score: **${result.score}%** (${result.correctAnswers}/${result.totalQuestions}) · Time: **${Math.floor(result.timeSpent / 60)}m ${result.timeSpent % 60}s**`,
-          weakTopics.length > 0 ? `Focus next on: **${weakTopics.join(", ")}**` : "Great work — you answered all of these correctly.",
+          weakConcepts.length > 0 ? `Focus next on: **${weakConcepts.join(", ")}**` : "Great work — you answered all of these correctly.",
           "",
           "### Question Review",
           ...reviewLines,
@@ -504,7 +504,7 @@ const AIChat = () => {
 
   /** Fetch visible lesson plan topics from DB. RLS already filters out
    *  locked + future weeks for students, so anything we receive is fair game. */
-  const fetchVisibleTopics = async (): Promise<string[]> => {
+  const fetchVisibleConcepts = async (): Promise<string[]> => {
     if (!enrolledCourseId) return [];
     try {
       const { data: rows, error } = await supabase
@@ -533,10 +533,10 @@ const AIChat = () => {
   };
 
   /** Filter questions to only visible lesson plan topics */
-  const filterByVisibleTopics = (questions: Question[], visibleTopics: string[]): Question[] => {
-    if (visibleTopics.length === 0) return questions; // No topic data → don't filter
-    const topicSet = new Set(visibleTopics.map(t => t.toLowerCase()));
-    const filtered = questions.filter(q => topicSet.has((q.topic || "").toLowerCase()));
+  const filterByVisibleConcepts = (questions: Question[], visibleConcepts: string[]): Question[] => {
+    if (visibleConcepts.length === 0) return questions; // No topic data → don't filter
+    const conceptSet = new Set(visibleConcepts.map(t => t.toLowerCase()));
+    const filtered = questions.filter(q => conceptSet.has((q.topic || "").toLowerCase()));
     return filtered.length > 0 ? filtered : questions; // Fallback to all if no matches
   };
 
@@ -662,7 +662,7 @@ const AIChat = () => {
   };
 
   const handleStartExamWithSettings = async (custom: ExamCustomSettings, examId: string) => {
-    const visibleTopics = await fetchVisibleTopics();
+    const visibleConcepts = await fetchVisibleConcepts();
     const count = custom.questionCount;
     const exam = availableExams.find((e) => e.id === examId);
     if (!exam) {
@@ -757,15 +757,15 @@ const AIChat = () => {
     navigate("/student/home");
   };
 
-  const handleStudyWeakTopics = async (topics: string[]) => {
+  const handleStudyWeakConcepts = async (topics: string[]) => {
     setAssessmentActive(false);
     setMode("learning");
-    const topicsList = topics.join(", ");
-    const welcome = `I noticed you need more practice with **${topicsList}**. Let's work through these concepts together! Which topic would you like to start with?`;
-    const title = `Study: ${topicsList.slice(0, 40)}`;
+    const conceptsList = topics.join(", ");
+    const welcome = `I noticed you need more practice with **${conceptsList}**. Let's work through these concepts together! Which topic would you like to start with?`;
+    const title = `Study: ${conceptsList.slice(0, 40)}`;
     await createSession(title, welcome, "learning");
     // Pre-send a study prompt
-    setInput(`Help me understand these topics better: ${topicsList}. Start with the one I'm weakest on and explain it with examples.`);
+    setInput(`Help me understand these topics better: ${conceptsList}. Start with the one I'm weakest on and explain it with examples.`);
   };
 
   const handleAssessmentSubmit = async (results: AssessmentResults) => {
@@ -773,7 +773,7 @@ const AIChat = () => {
 
     // Log results to chat session for record
     if (targetSessionId) {
-      const weakTopics = [...new Set(results.answers.filter((answer) => !answer.is_correct).map((answer) => answer.topic).filter(Boolean))];
+      const weakConcepts = [...new Set(results.answers.filter((answer) => !answer.is_correct).map((answer) => answer.topic).filter(Boolean))];
       const reviewLines = results.answers.flatMap((answer, index) => [
         `${index + 1}. **${answer.question_text}**`,
         `   - Your answer: ${answer.selected || "Not answered"}`,
@@ -784,7 +784,7 @@ const AIChat = () => {
         assessmentType === "quiz" ? "✅ **Weekly Quiz Complete!**" : "✅ **Exam Practice Complete!**",
         "",
         `Score: **${results.score}%** (${results.correctAnswers}/${results.totalQuestions}) · Time: **${Math.floor(results.timeSpent / 60)}m ${results.timeSpent % 60}s**`,
-        weakTopics.length > 0 ? `Concepts to strengthen in Study mode: **${weakTopics.join(", ")}**` : "Strong work across this attempt.",
+        weakConcepts.length > 0 ? `Concepts to strengthen in Study mode: **${weakConcepts.join(", ")}**` : "Strong work across this attempt.",
         "",
         "### Question Review",
         ...reviewLines,
@@ -1349,7 +1349,7 @@ const AIChat = () => {
           day={assessmentDay}
           onEnd={handleAssessmentEnd}
           onSubmit={handleAssessmentSubmit}
-          onStudyTopics={handleStudyWeakTopics}
+          onStudyConcepts={handleStudyWeakConcepts}
           questionMeta={assessmentQuestionMeta}
           studentId={user?.id || null}
           shortAnswerMeta={assessmentShortAnswerMeta}
@@ -1619,7 +1619,7 @@ const AIChat = () => {
                               if (s.action === "practice") {
                                 setShowPractice(true);
                               } else if (s.action === "populate") {
-                                const topic = currentWeekTopic ?? "X";
+                                const topic = currentWeekConcept ?? "X";
                                 setInput((s.promptTemplate ?? s.prompt).replace("{topic}", topic));
                                 setTimeout(() => inputRef.current?.focus(), 0);
                               } else {

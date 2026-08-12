@@ -149,13 +149,13 @@ export function useUnitProgress(
     /** Quiz attempt time for a unit, or 0 when the quiz has not been taken. */
     const quizTimeFor = (unit: number) => toTime(quizTakenAtByUnit?.[unit]);
 
-    const practiceTopics: { topic: string; at: number }[] = [];
+    const practiceConcepts: { topic: string; at: number }[] = [];
     practice.forEach((row) => {
       const at = toTime(row.created_at);
       const answers = Array.isArray(row.answers) ? (row.answers as Record<string, unknown>[]) : [];
       answers.forEach((a) => {
         const topic = typeof a?.topic === "string" ? a.topic : "";
-        if (topic) practiceTopics.push({ topic, at });
+        if (topic) practiceConcepts.push({ topic, at });
       });
     });
 
@@ -195,7 +195,7 @@ export function useUnitProgress(
       // Mastery has no timestamp and is written by the quiz itself, so it can only
       // stand in for studying before the quiz was taken.
       studiedByUnit[week.day] = quizAt === 0 && conceptNames.some((name) => attemptedConcepts.has(name));
-      practisedByUnit[week.day] = practiceTopics.some(
+      practisedByUnit[week.day] = practiceConcepts.some(
         (p) => p.at > quizAt && textMatchesUnit(p.topic, terms),
       );
     });

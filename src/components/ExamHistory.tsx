@@ -97,18 +97,18 @@ const ExamHistory = ({ courseId }: ExamHistoryProps) => {
   }, [user, courseId]);
 
   // Compute weak topics from all attempts
-  const weakTopics = (() => {
-    const topicStats: Record<string, { correct: number; total: number }> = {};
+  const weakConcepts = (() => {
+    const conceptStats: Record<string, { correct: number; total: number }> = {};
     for (const attempt of attempts) {
       if (!attempt.answers) continue;
       for (const a of attempt.answers as any[]) {
         const topic = a.topic || "General";
-        if (!topicStats[topic]) topicStats[topic] = { correct: 0, total: 0 };
-        topicStats[topic].total++;
-        if (a.is_correct) topicStats[topic].correct++;
+        if (!conceptStats[topic]) conceptStats[topic] = { correct: 0, total: 0 };
+        conceptStats[topic].total++;
+        if (a.is_correct) conceptStats[topic].correct++;
       }
     }
-    return Object.entries(topicStats)
+    return Object.entries(conceptStats)
       .map(([topic, stats]) => ({
         topic,
         accuracy: Math.round((stats.correct / stats.total) * 100),
@@ -230,14 +230,14 @@ const ExamHistory = ({ courseId }: ExamHistoryProps) => {
       </div>
 
       {/* Weak Topics - Suggested for Review */}
-      {weakTopics.length > 0 && (
+      {weakConcepts.length > 0 && (
         <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
           <div className="flex items-center gap-2">
             <Brain className="h-4 w-4 text-primary" />
             <p className="text-xs font-semibold">Concepts to Focus On</p>
           </div>
           <div className="space-y-1.5">
-            {weakTopics.slice(0, 4).map(t => (
+            {weakConcepts.slice(0, 4).map(t => (
               <div key={t.topic} className="flex items-center justify-between text-xs">
                 <span className="font-medium">{t.topic}</span>
                 <div className="flex items-center gap-2">
@@ -252,7 +252,7 @@ const ExamHistory = ({ courseId }: ExamHistoryProps) => {
             size="sm"
             className="w-full mt-1 h-8 text-xs gap-1.5"
             onClick={() => {
-              const topics = weakTopics.slice(0, 3).map(t => t.topic).join(", ");
+              const topics = weakConcepts.slice(0, 3).map(t => t.topic).join(", ");
               navigate(`/student/chat?newchat=true&topics=${encodeURIComponent(topics)}`);
             }}
           >
