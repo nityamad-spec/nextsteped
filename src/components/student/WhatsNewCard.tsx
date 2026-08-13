@@ -118,17 +118,32 @@ export function WhatsNewCard({ courseId, courseName }: WhatsNewCardProps) {
                 {courseName ? ` · ${courseName}` : ""}
               </CardDescription>
             </div>
-            {items && (
-              <Button variant="outline" size="sm" onClick={generate} disabled={loading}>
-                <RefreshCw className={`mr-2 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-                Refresh
+            <div className="flex items-center gap-2">
+              {items && !collapsed && (
+                <Button variant="outline" size="sm" onClick={generate} disabled={loading}>
+                  <RefreshCw className={`mr-2 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" onClick={toggleCollapsed} aria-label={collapsed ? "Expand" : "Collapse"}>
+                {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
               </Button>
-            )}
+            </div>
           </div>
         </CardHeader>
 
-        <CardContent>
-          {loading && (
+        <AnimatePresence initial={false}>
+          {!collapsed && (
+            <motion.div
+              key="content"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              style={{ overflow: "hidden" }}
+            >
+              <CardContent>
+                {loading && (
             <div className="space-y-3">
               {[0, 1, 2].map((i) => (
                 <div key={i} className="rounded-lg border p-3">
