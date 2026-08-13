@@ -19,6 +19,7 @@ import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 import ConceptMasteryDialog from "@/components/student/ConceptMasteryDialog";
 import AchievementsCard from "@/components/student/AchievementsCard";
+import WhatsNewCard from "@/components/student/WhatsNewCard";
 import { useAchievements } from "@/hooks/useAchievements";
 import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
 import { useUnitProgress } from "@/hooks/useUnitProgress";
