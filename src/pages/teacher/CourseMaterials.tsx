@@ -520,6 +520,12 @@ const CourseMaterials = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <Alert className="mb-4 border-primary/20 bg-primary/10 text-primary [&>svg]:text-primary">
+              <NotebookPen className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Handwritten notes are welcome.</strong> Upload scans or photos of your handwritten lecture notes, whiteboard captures, annotated problem sets, or paper handouts — the AI can read images and use them to understand how you teach.
+              </AlertDescription>
+            </Alert>
             <ul className="list-disc list-inside mb-3 space-y-1 text-xs text-muted-foreground">
               <li><strong className="text-foreground">Past assessments:</strong> previous exams, quizzes, assignments, projects, problem sets</li>
               <li><strong className="text-foreground">Lecture materials:</strong> slide decks, lecture notes, handouts</li>
