@@ -1,46 +1,47 @@
-# Concept-Level Quizzes (replacing weekly quizzes)
+# "What's new" box on Student Home
 
-## Goal
-Every concept gets its own quiz. Weeks become a grouping layer only: professors group concepts into weeks in the lesson plan, and students work through one Study → Practice → Quiz pathway per concept.
+Add a new section above "What to do today" on `/student/home` that lets a student generate today's news related to their course concepts, with real, linked articles.
 
-## Decisions locked in
-- Full replacement — weekly quizzes retire; concept quizzes are the only quiz track.
-- Week grouping reuses the existing lesson plan weeks (drag concepts between weeks there).
-- Learning Path unit = one concept.
-- Readiness is per concept, rolled up to week and course progress.
+## What the student sees
 
-## Phase 1 — Data model
-- `assessment_questions`: add `concept_quiz` as the quiz mode and rely on the existing `concept_id` column to identify which quiz an item belongs to. `quiz_day` stays populated (the concept's week) purely for grouping/analytics.
-- `assessment_results`: add a nullable `concept_id` column so an attempt is attributable to a concept, keeping `quiz_day` for the week roll-up.
-- `assessment_attempt_voids`: allow `assessment_type = 'concept_quiz'` with the concept id as `ref_key`.
-- Per-concept quiz config (question count, format mix, enabled/disabled) moves from `lesson_plan_weeks.quiz_type_counts` to a per-concept store; week-level values become the default that seeds each concept.
-- Existing weekly quiz questions and results are left in place as historical records under their old mode; nothing is deleted.
+- A card titled **What's new**, sitting directly above "What to do today".
+- Subtitle: today's date and the course name.
+- A **Generate today's news** button. Before clicking, an empty state explains what it does.
+- After clicking: a loading state, then 4-6 news cards, each with
+  - headline
+  - 2-line summary
+  - the course concept it relates to (badge)
+  - "Read more" link opening the source in a new tab
+  - source name and publish date when available
+- A **Refresh** button to regenerate; errors (rate limit, no credits, no results) show inline with a retry option.
+- No caching: each click generates fresh results for that student.
 
-## Phase 2 — Generation
-- Rework `generate-weekly-quiz` into a concept-scoped generator: input `{ courseId, conceptId }`, prompt limited to that one concept, tiers and format-mix quotas unchanged. Because a call covers one concept instead of a whole week, each run is smaller and faster.
-- Add a "generate all quizzes for this week" action that fans out over the week's concepts sequentially, streaming per-concept progress the way the current NDJSON stream does.
+## Scope of concepts
 
-## Phase 3 — Teacher UI
-- Lesson plan step: inside each week, every concept card gains its own quiz row — status (not generated / N questions), format mix control, and Generate/Regenerate. The week header keeps a summary ("4 of 5 concept quizzes ready") plus the fan-out button.
-- Concepts continue to be dragged between weeks; moving a concept moves its quiz with it, no regeneration required.
-- Assessments and Assessment Analytics pages switch their quiz grouping from week to concept, with week as a collapsible grouping header.
+The whole course: all concept names for the enrolled course (already loaded on Home) plus the course name are sent as context.
 
-## Phase 4 — Student UI
-- Learning Path: one `UnitPathwayCard` per concept, listed under a week heading. Each card keeps the three steps — Study (chat on the concept), Practice, Quiz (that concept's quiz).
-- `WeeklyQuizDialog` becomes a concept quiz dialog keyed by concept id; proctoring, reasoning capture and short-answer grading behave exactly as today.
-- Home "What to do today" focuses on the first non-ready concept and uses the same Study / Practice / Quiz tags.
+## How it works
 
-## Phase 5 — Readiness and progress
-- Concept readiness = that concept's mastery score (already produced by `update-mastery`), threshold unchanged at 75%.
-- Week readiness = weight-weighted average of its concepts; course progress = concepts at or above threshold out of total concepts.
-- `useUnitReadiness` and `useUnitProgress` are re-keyed from week number to concept id, with a week roll-up computed on top.
+1. New edge function `course-news`:
+   - Validates the caller's JWT and confirms they are enrolled in the requested course.
+   - Loads the course name and its concepts from the database (server-side, not trusted from the client).
+   - Runs a small number of web searches (built from the course name + a rotating subset of concepts, restricted to recent results).
+   - Passes the search results to the Lovable AI gateway model, which selects and summarises 4-6 items and tags each with the closest course concept, returning strict structured JSON (`headline`, `summary`, `concept`, `url`, `source`, `published_at`).
+   - Drops any item whose URL is not present in the search results, so links are real.
+   - Logs the gateway call through `_shared/ai-log.ts`, like other functions.
+2. New component `src/components/student/WhatsNewCard.tsx` handling button, loading, error, and result rendering.
+3. `StudentHome.tsx` renders it above the "What to do today" block, passing `enrolledCourseId`.
 
-## Phase 6 — Verification
-- Typecheck, run the existing quiz/proctoring/readiness tests, and update the ones keyed to `quiz_day`.
-- Manual pass: generate a concept quiz as a professor, take it as a student, confirm mastery, readiness and progress all update.
+No database tables or migrations are needed (results are not stored).
 
-## Risks and constraints
-- Volume: a 16-week course with 4 concepts a week means ~64 quizzes instead of 16. Generation cost and professor review effort rise sharply — the week-level fan-out button and per-concept format defaults exist to keep that manageable.
-- Many surfaces read `quiz_day` (achievements, three Excel exports, teaching insights, chat, admin dialogs). They keep working via the retained `quiz_day` value, but each needs a pass to relabel and to handle concept-level rows.
-- Historical weekly results and concept results coexist, so analytics must handle both shapes for the rest of the current term.
-- Concepts are matched by name between `lesson_plan_weeks.concepts` and the `concepts` table today; concept-keyed quizzes make that fragile, so this plan switches the join to concept ids and backfills the link where names currently match.
+## Technical notes
+
+- **Web search dependency**: real linked news requires a search provider. The plan uses the **Firecrawl** connector's search endpoint (time-filtered to the last day/week) as the source of URLs, then the existing AI gateway for summarisation. Firecrawl must be connected before this works; I will prompt to connect it during implementation.
+- Model: existing default gateway chat model with strict JSON output, same pattern as other generators.
+- Because there is no cache, every click costs a search + a model call. Client-side guard: disable the button while in flight.
+- Course news is unrelated to progress/readiness logic; nothing existing is modified beyond adding the section.
+
+## Verification
+
+- Typecheck.
+- Browser check on `/student/home`: card renders above "What to do today", generates items, links open externally, error path shows a retry.
