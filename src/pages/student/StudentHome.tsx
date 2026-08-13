@@ -19,6 +19,7 @@ import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 import ConceptMasteryDialog from "@/components/student/ConceptMasteryDialog";
 import AchievementsCard from "@/components/student/AchievementsCard";
+import WhatsNewCard from "@/components/student/WhatsNewCard";
 import { useAchievements } from "@/hooks/useAchievements";
 import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
 import { useUnitProgress } from "@/hooks/useUnitProgress";
@@ -572,6 +573,9 @@ const StudentHome = () => {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">{courseName}</p>
       </motion.div>
+
+      {/* What's new */}
+      <WhatsNewCard courseId={enrolledCourseId} courseName={courseName} />
 
       {/* What to do next */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="mb-6">
