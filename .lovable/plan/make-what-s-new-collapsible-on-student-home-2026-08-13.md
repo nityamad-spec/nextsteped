@@ -25,9 +25,9 @@ Make the `WhatsNewCard` on `/student/home` collapsible so students can hide the 
 
 ## Open questions
 
-1. Should the card default to expanded or collapsed?
-2. Should the collapsed preference be remembered across sessions (localStorage) or reset on every page load?
-3. Should the "Generate today's news" button remain accessible from the collapsed header, or only after expanding?
+1. card default to expanded 
+2. collapsed preference reset on every page load?
+3.  "Generate today's news" button remain accessible from the collapsed header
 
 ## Verification
 

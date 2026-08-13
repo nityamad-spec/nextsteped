@@ -1,12 +1,16 @@
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Newspaper, ExternalLink, RefreshCw, Sparkles, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Newspaper, ExternalLink, RefreshCw, Sparkles, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { extractFunctionError } from "@/lib/extractFunctionError";
+
+function storageKey(courseId: string | null) {
+  return courseId ? `whats-new-collapsed:${courseId}` : null;
+}
 
 interface NewsItem {
   headline: string;
@@ -39,6 +43,33 @@ export function WhatsNewCard({ courseId, courseName }: WhatsNewCardProps) {
   const [items, setItems] = useState<NewsItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const key = storageKey(courseId);
+    if (!key) return;
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored != null) {
+        setCollapsed(stored === "true");
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [courseId]);
+
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    const key = storageKey(courseId);
+    if (key) {
+      try {
+        localStorage.setItem(key, String(next));
+      } catch {
+        // ignore storage errors
+      }
+    }
+  };
 
   const generate = async () => {
     if (!courseId || loading) return;
@@ -87,17 +118,32 @@ export function WhatsNewCard({ courseId, courseName }: WhatsNewCardProps) {
                 {courseName ? ` · ${courseName}` : ""}
               </CardDescription>
             </div>
-            {items && (
-              <Button variant="outline" size="sm" onClick={generate} disabled={loading}>
-                <RefreshCw className={`mr-2 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-                Refresh
+            <div className="flex items-center gap-2">
+              {items && !collapsed && (
+                <Button variant="outline" size="sm" onClick={generate} disabled={loading}>
+                  <RefreshCw className={`mr-2 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" onClick={toggleCollapsed} aria-label={collapsed ? "Expand" : "Collapse"}>
+                {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
               </Button>
-            )}
+            </div>
           </div>
         </CardHeader>
 
-        <CardContent>
-          {loading && (
+        <AnimatePresence initial={false}>
+          {!collapsed && (
+            <motion.div
+              key="content"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              style={{ overflow: "hidden" }}
+            >
+              <CardContent>
+                {loading && (
             <div className="space-y-3">
               {[0, 1, 2].map((i) => (
                 <div key={i} className="rounded-lg border p-3">
@@ -163,7 +209,10 @@ export function WhatsNewCard({ courseId, courseName }: WhatsNewCardProps) {
               })}
             </div>
           )}
-        </CardContent>
+              </CardContent>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </Card>
     </motion.div>
   );
