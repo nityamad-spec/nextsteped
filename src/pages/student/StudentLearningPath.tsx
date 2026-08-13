@@ -354,7 +354,10 @@ const StudentLearningPath = () => {
                 onTakeQuiz={() => attemptOpenQuiz(unit.day)}
                 onGoToNextUnit={() => {
                   const next = unit.day + 1;
-                  setExpandedWeeks((prev) => (prev.includes(next) ? prev : [...prev, next]));
+                  setExpandedWeeks((prev) => {
+                    const withoutCurrent = prev.filter((w) => w !== unit.day);
+                    return withoutCurrent.includes(next) ? withoutCurrent : [...withoutCurrent, next];
+                  });
                 }}
               />
             );
