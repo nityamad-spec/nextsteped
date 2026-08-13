@@ -209,7 +209,10 @@ export function WhatsNewCard({ courseId, courseName }: WhatsNewCardProps) {
               })}
             </div>
           )}
-        </CardContent>
+              </CardContent>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </Card>
     </motion.div>
   );
