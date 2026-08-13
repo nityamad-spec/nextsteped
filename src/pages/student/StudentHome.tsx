@@ -574,6 +574,9 @@ const StudentHome = () => {
         <p className="mt-1 text-sm text-muted-foreground">{courseName}</p>
       </motion.div>
 
+      {/* What's new */}
+      <WhatsNewCard courseId={enrolledCourseId} courseName={courseName} />
+
       {/* What to do next */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="mb-6">
         <Card>
