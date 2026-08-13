@@ -43,6 +43,33 @@ export function WhatsNewCard({ courseId, courseName }: WhatsNewCardProps) {
   const [items, setItems] = useState<NewsItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const key = storageKey(courseId);
+    if (!key) return;
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored != null) {
+        setCollapsed(stored === "true");
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [courseId]);
+
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    const key = storageKey(courseId);
+    if (key) {
+      try {
+        localStorage.setItem(key, String(next));
+      } catch {
+        // ignore storage errors
+      }
+    }
+  };
 
   const generate = async () => {
     if (!courseId || loading) return;
