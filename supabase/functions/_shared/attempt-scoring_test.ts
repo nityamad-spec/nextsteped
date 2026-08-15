@@ -55,6 +55,16 @@ Deno.test("paceCurve boundaries", () => {
   assertEquals(paceCurve(2) < 1 && paceCurve(2) > 0, true);
 });
 
+Deno.test("paceCurve: idle-inflated outliers clamp at PACE_MAX_RATIO", () => {
+  const ceiling = paceCurve(PACE_MAX_RATIO);
+  assertAlmostEquals(paceCurve(50), ceiling, 1e-12);
+  assertAlmostEquals(paceCurve(10_000), ceiling, 1e-12);
+  // Still monotonically decreasing below the ceiling.
+  assertEquals(paceCurve(5) > ceiling, true);
+  assertEquals(ceiling > 0, true);
+});
+
+
 Deno.test("scoreAttempt: all correct at expected pace scores 100", () => {
   const items: ScoreItem[] = [
     { difficulty: 0.5, bloom: 2, is_correct: true, time_ms: expectedMs(2, 0.5) },
