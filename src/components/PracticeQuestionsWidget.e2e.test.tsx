@@ -13,8 +13,7 @@
  *     with identical (all-correct) answers
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, waitFor, cleanup, fireEvent, act } from "@testing-library/react";
 import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 
 // ---- Supabase mock ---------------------------------------------------------
@@ -87,6 +86,13 @@ async function persistPracticeResult(result: any) {
     .single();
 }
 
+/** Click + flush pending state updates/microtasks. */
+async function click(el: Element) {
+  await act(async () => {
+    fireEvent.click(el);
+  });
+}
+
 // ---- Controllable clock ----------------------------------------------------
 
 let clock = 0;
@@ -99,8 +105,6 @@ const advance = (ms: number) => {
  * each question. Returns the row persisted to `assessment_results`.
  */
 async function runPracticeSet(msPerQuestion: number) {
-  const user = userEvent.setup({ advanceTimers: () => {} });
-
   render(
     <PracticeQuestionsWidget
       onClose={() => {}}
@@ -110,13 +114,9 @@ async function runPracticeSet(msPerQuestion: number) {
     />,
   );
 
-  await user.type(
-    screen.getByPlaceholderText(/what you want to be tested on|e\.g\./i),
-    "loops",
-  );
-  await user.click(
-    screen.getByRole("button", { name: /generate practice questions/i }),
-  );
+  const promptBox = screen.getByPlaceholderText(/e\.g\./i);
+  fireEvent.change(promptBox, { target: { value: "loops" } });
+  await click(screen.getByRole("button", { name: /generate practice questions/i }));
 
   for (const q of QUESTIONS) {
     await screen.findByText(q.question);
@@ -125,14 +125,14 @@ async function runPracticeSet(msPerQuestion: number) {
     advance(msPerQuestion);
 
     if (q.type === "mcq") {
-      await user.click(screen.getByText(q.answer));
+      await click(screen.getByText(q.answer));
     } else {
-      await user.click(screen.getByRole("button", { name: /^True$/ }));
+      await click(screen.getByRole("button", { name: /^True$/ }));
     }
 
-    await user.click(screen.getByRole("button", { name: /check answer/i }));
-    await user.click(
-      screen.getByRole("button", { name: /next question|view results/i }),
+    await click(await screen.findByRole("button", { name: /check answer/i }));
+    await click(
+      await screen.findByRole("button", { name: /next question|view results/i }),
     );
   }
 
