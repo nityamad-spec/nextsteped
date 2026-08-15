@@ -228,10 +228,11 @@ describe("StudentHome — concept mastery heatmap", () => {
     // is labelled "Take quiz"; scope the query to the quiz card so a layout
     // change elsewhere can't match the wrong button.
     await screen.findByText(/what to do today/i);
-    const quizCard = (await screen.findByText(/take (the )?unit .*quiz/i)).closest("div")!;
-    const takeQuiz = within(quizCard).getByRole("button", { name: /take quiz/i });
+    const quizTitle = await screen.findByText(/take (the )?unit .*quiz/i);
+    const takeQuiz = buttonInCard(quizTitle, /take quiz/i);
     fireEvent.click(takeQuiz);
     expect(await screen.findByTestId("quiz-dialog")).toBeInTheDocument();
+
 
 
     // Close it — this flips `quizDialog.open` which is a dep of the mastery effect
