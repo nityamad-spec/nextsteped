@@ -93,10 +93,17 @@ const PerConceptSchema = z
     concept_code: z.string().optional(),
     attempted: z.number().int().nonnegative(),
     correct: z.number().int().nonnegative(),
+    /**
+     * Pre-computed concept-scoped 80/20 signal (0..1) from the shared scoring
+     * module — sent by score-diagnostic, which already has the per-question
+     * metadata. When present it replaces the flat correct/attempted fallback.
+     */
+    signal: z.number().min(0).max(1).optional(),
   })
   .refine((v) => v.concept_id || v.concept_code, {
     message: "concept_id or concept_code required",
   });
+
 
 const PerQuestionSchema = z
   .object({
