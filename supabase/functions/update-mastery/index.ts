@@ -274,9 +274,12 @@ Deno.serve(async (req) => {
 
   for (const [conceptId, info] of agg) {
     if (info.attempted <= 0) continue;
-    const rawSignal = info.weighted && info.max > 0
-      ? clamp01(info.earned / info.max)
+    // Concept-scoped attempt score: the shared 80% accuracy + 20% pace blend.
+    // Callers that only send aggregate counts keep the flat fallback.
+    const rawSignal = info.weighted && info.items.length > 0
+      ? scoreAttempt(info.items).signal
       : clamp01(info.correct / info.attempted);
+
     const prior = existingMap.get(conceptId);
     const attemptedAfter = (prior?.questions_attempted ?? 0) + info.attempted;
     const correctAfter = (prior?.questions_correct ?? 0) + info.correct;
