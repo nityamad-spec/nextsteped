@@ -48,6 +48,13 @@ export const EXPECTED_TIME_BASE_MS: Record<number, number> = {
 export const PACE_GUESS_FLOOR = 0.2;
 export const PACE_FAST_CUTOFF = 0.25;
 export const PACE_SLOW_DECAY = 2.0;
+/**
+ * Outlier guard: a single stale/idle-inflated `time_ms` (left the tab open over
+ * lunch, legacy rows) must not crush the pace term. Ratios above this ceiling
+ * are treated as the ceiling.
+ */
+export const PACE_MAX_RATIO = 10;
+
 
 export const WEIGHTS = { accuracy: 0.80, pace: 0.20 } as const;
 
