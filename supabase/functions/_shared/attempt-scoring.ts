@@ -150,8 +150,10 @@ export function paceCurve(r: number): number {
     const t = (r - PACE_FAST_CUTOFF) / (1.0 - PACE_FAST_CUTOFF);
     return PACE_GUESS_FLOOR + t * (1.0 - PACE_GUESS_FLOOR);
   }
-  return Math.exp(-(r - 1.0) / PACE_SLOW_DECAY);
+  const capped = Math.min(r, PACE_MAX_RATIO);
+  return Math.exp(-(capped - 1.0) / PACE_SLOW_DECAY);
 }
+
 
 /** Score a whole attempt (or any subset of its questions). */
 export function scoreAttempt(items: ScoreItem[]): ScoreResult {
