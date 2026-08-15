@@ -237,9 +237,11 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   };
 
   const handleNext = async () => {
+    commitQuestionTime(currentQuestion?.id);
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
     } else {
+
       setSubmitting(true);
       // Include the last question: its rationale may never have been revealed.
       await reasoning.flushAndWait(
