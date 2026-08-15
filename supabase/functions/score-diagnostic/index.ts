@@ -281,7 +281,9 @@ Deno.serve(async (req) => {
 
     score: correctCount,
     total_questions: answeredCount,
+    per_concept: perConcept,
     dropped_question_ids: droppedQuestionIds,
+
   });
 });
 
