@@ -145,5 +145,9 @@ export function useActiveQuestionTimer(
     };
   }, [enabled, idleMs, pause, resume]);
 
-  return { takeElapsed, commit, times, reset, restart };
+  return useMemo(
+    () => ({ takeElapsed, commit, times, reset, restart }),
+    [takeElapsed, commit, reset, restart],
+  );
 }
+
