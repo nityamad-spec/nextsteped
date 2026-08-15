@@ -172,13 +172,13 @@ Deno.serve(async (req) => {
 
   // Aggregate input by concept_id (defensive — caller may pass duplicates).
   // Track both raw counts (for questions_attempted/correct counters) and
-  // weighted earned/max (for the EMA signal when per_question is provided).
+  // the per-question rows (for the shared 80/20 signal when per_question is
+  // provided).
   type Agg = {
     concept_code: string;
     attempted: number;
     correct: number;
-    earned: number;
-    max: number;
+    items: ScoreItem[];
     weighted: boolean;
   };
   const agg = new Map<string, Agg>();
@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
   const ensure = (resolved: { id: string; concept_code: string }): Agg => {
     const cur = agg.get(resolved.id) ?? {
       concept_code: resolved.concept_code,
-      attempted: 0, correct: 0, earned: 0, max: 0, weighted: false,
+      attempted: 0, correct: 0, items: [] as ScoreItem[], weighted: false,
     };
     agg.set(resolved.id, cur);
     return cur;
@@ -208,24 +208,22 @@ Deno.serve(async (req) => {
       }
       const cur = ensure(resolved);
       const bloom = Math.min(6, Math.max(1, Math.round(item.bloom)));
-      const bloomWeight = MASTERY_CONFIG.BLOOM_WEIGHT[bloom] ?? 1.0;
-      const difficulty = clamp01(item.difficulty);
-      const maxPoints = difficulty * bloomWeight;
       const verdict = item.reasoning_verdict ?? null;
       if (requiresReasoning(bloom) && !verdict) unverifiedReasoning += 1;
       cur.attempted += 1;
       // attempted / correct stay primary-only so evidence gates are unaffected.
       if (item.is_correct) cur.correct += 1;
-      cur.earned += maxPoints * reasoningEarnedFactor({
+      cur.items.push({
+        difficulty: item.difficulty,
         bloom,
-        bloomWeight,
-        isCorrect: item.is_correct,
+        is_correct: item.is_correct,
+        // Missing/zero timing scores as on-pace, so older callers are unaffected.
+        time_ms: item.time_ms ?? 0,
         verdict,
       });
-      cur.max += maxPoints;
-
       cur.weighted = true;
     }
+
     if (unverifiedReasoning > 0) {
       console.warn("update-mastery: rationales without a verdict", {
         course_id: body.course_id,
