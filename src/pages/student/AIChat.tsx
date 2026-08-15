@@ -86,7 +86,10 @@ async function invokeUpdateMastery(args: {
   sourceId: string | null;
   answers: any[];
   questionMeta?: Map<string, { difficulty: number; bloom: number }>;
+  /** Per-question seconds on task, keyed by question id (pace half of the score). */
+  questionTimes?: Record<string, number>;
   evaluations?: Record<string, ReasoningEvaluation>;
+
 }) {
   try {
     // Weighted per-question payload when meta is available — matches WeeklyQuizDialog.
