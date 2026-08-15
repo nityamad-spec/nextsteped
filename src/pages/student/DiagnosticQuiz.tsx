@@ -656,6 +656,23 @@ const DiagnosticQuiz = () => {
       setStudentProfile({ ...studentProfile, learnerLevel: level });
     }
 
+    // The diagnostic spans many concepts; score-diagnostic returns each
+    // concept's 80/20 signal so mastery is updated concept by concept.
+    const perConcept = (scored as { per_concept?: Array<Record<string, unknown>> } | null)
+      ?.per_concept;
+    if (perConcept?.length) {
+      void supabase.functions
+        .invoke("update-mastery", {
+          body: {
+            course_id: courseIdForSave,
+            source: "diagnostic",
+            source_id: (scored as { id?: string } | null)?.id ?? null,
+            per_concept: perConcept,
+          },
+        })
+        .catch((e) => console.error("update-mastery invoke failed", e));
+    }
+
     void saveReasoningRows(
       buildReasoningRows({
         studentId: user.id,
@@ -669,6 +686,7 @@ const DiagnosticQuiz = () => {
         bloomFor: (qid) => bloomById.get(qid) ?? 1,
       }),
     );
+
 
 
     setSaving(false);
