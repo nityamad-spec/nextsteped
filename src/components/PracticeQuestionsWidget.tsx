@@ -27,6 +27,8 @@ interface PracticeResult {
 
 import ReasoningInput from "@/components/ReasoningInput";
 import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
+import { useActiveQuestionTimer } from "@/hooks/useActiveQuestionTimer";
+
 import ReasoningVerdict from "@/components/ReasoningVerdict";
 import {
   requiresReasoning,
