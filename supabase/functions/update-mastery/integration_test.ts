@@ -4,8 +4,13 @@
 // Requires env (auto-injected by `supabase functions test` / Lovable test runner):
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY
 // If any are missing the suite skips (so unit-only runs still pass).
+//
+// NOTE: we deliberately do NOT import std/dotenv/load.ts unconditionally — it
+// reads `.env` at import time and the test runner only grants --allow-net and
+// --allow-env, which made the whole module throw NotCapable before any test
+// could register. Injected env vars are the source of truth; `.env` is loaded
+// only as a local-dev convenience when read access happens to be granted.
 
-import "https://deno.land/std@0.224.0/dotenv/load.ts";
 import {
   assertEquals,
   assertAlmostEquals,
@@ -13,12 +18,26 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
+// Best-effort .env load. Never throws, never prompts: `Deno.permissions.query`
+// itself needs no permission, and we only import the loader when read access to
+// `.env` is already granted.
+try {
+  const status = await Deno.permissions.query({ path: ".env", name: "read" });
+  if (status.state === "granted") {
+    await import("https://deno.land/std@0.224.0/dotenv/load.ts");
+  }
+} catch {
+  // Ignore — injected environment variables win in every runner we care about.
+}
+
 const SUPABASE_URL =
   Deno.env.get("SUPABASE_URL") ?? Deno.env.get("VITE_SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const ANON_KEY =
   Deno.env.get("SUPABASE_ANON_KEY") ??
+  Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ??
   Deno.env.get("VITE_SUPABASE_PUBLISHABLE_KEY");
+
 
 const haveEnv = Boolean(SUPABASE_URL && SERVICE_KEY && ANON_KEY);
 const FN_URL = `${SUPABASE_URL}/functions/v1/update-mastery`;
