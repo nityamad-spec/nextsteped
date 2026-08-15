@@ -3,6 +3,7 @@ import {
   BLOOM_WEIGHT,
   EXPECTED_TIME_BASE_MS,
   PACE_GUESS_FLOOR,
+  PACE_MAX_RATIO,
   REASONING_PARTIAL_FACTOR,
   difficultyTimeFactor,
   paceCurve,
