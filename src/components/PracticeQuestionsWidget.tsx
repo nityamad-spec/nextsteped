@@ -163,8 +163,8 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
 
       setQuestions(sanitized);
       setCurrentIndex(0);
-      questionTimesRef.current = {};
-      questionEnteredAtRef.current = Date.now();
+      timer.reset();
+
 
       setAnswers({});
       setRevealed(new Set());
