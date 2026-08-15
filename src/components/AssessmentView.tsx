@@ -126,7 +126,10 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const [lockedIndices, setLockedIndices] = useState<Set<number>>(new Set());
   // confidence collection removed for quizzes/exams
   const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
-  const questionStartRef = useRef<number>(Date.now());
+  // Active-time clock: pauses on tab hide, window blur and idle so that
+  // walking away does not inflate the pace term of the score.
+  const timer = useActiveQuestionTimer({ enabled: phase === "active" });
+
   const reasoning = useReasoningAnswers();
   const shortAnswer = useShortAnswerGrading();
   const [submitting, setSubmitting] = useState(false);
