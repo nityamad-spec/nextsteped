@@ -299,7 +299,10 @@ Deno.serve(async (req) => {
     // Callers that only send aggregate counts keep the flat fallback.
     const rawSignal = info.weighted && info.items.length > 0
       ? scoreAttempt(info.items).signal
-      : clamp01(info.correct / info.attempted);
+      : info.signal != null
+        ? clamp01(info.signal)
+        : clamp01(info.correct / info.attempted);
+
 
     const prior = existingMap.get(conceptId);
     const attemptedAfter = (prior?.questions_attempted ?? 0) + info.attempted;
