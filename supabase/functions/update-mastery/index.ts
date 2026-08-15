@@ -261,7 +261,9 @@ Deno.serve(async (req) => {
       const cur = ensure(resolved);
       cur.attempted += item.attempted;
       cur.correct += item.correct;
+      if (typeof item.signal === "number") cur.signal = item.signal;
     }
+
   }
 
   // Load existing concept rows for this student+course
