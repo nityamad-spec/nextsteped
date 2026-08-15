@@ -196,6 +196,8 @@ Deno.serve(async (req) => {
     correct: number;
     items: ScoreItem[];
     weighted: boolean;
+    /** Pre-computed 80/20 signal supplied by the caller (diagnostic path). */
+    signal: number | null;
   };
   const agg = new Map<string, Agg>();
   const unresolved: Array<{ concept_id?: string; concept_code?: string }> = [];
@@ -208,8 +210,9 @@ Deno.serve(async (req) => {
   const ensure = (resolved: { id: string; concept_code: string }): Agg => {
     const cur = agg.get(resolved.id) ?? {
       concept_code: resolved.concept_code,
-      attempted: 0, correct: 0, items: [] as ScoreItem[], weighted: false,
+      attempted: 0, correct: 0, items: [] as ScoreItem[], weighted: false, signal: null,
     };
+
     agg.set(resolved.id, cur);
     return cur;
   };
