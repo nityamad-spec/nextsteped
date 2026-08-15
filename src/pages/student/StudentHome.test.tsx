@@ -168,6 +168,22 @@ const renderHome = () => {
 const masteryMap = () => within(screen.getByRole("dialog"));
 const getTile = (label: string) => masteryMap().getByText(label).closest("div")!;
 
+/**
+ * Action cards nest the title and the button in sibling subtrees, so climb from
+ * the title until an ancestor actually contains the matching button. Keeps the
+ * click scoped to one card without depending on the card's DOM depth.
+ */
+const buttonInCard = (title: HTMLElement, name: RegExp): HTMLElement => {
+  let node: HTMLElement | null = title;
+  while (node) {
+    const match = within(node).queryByRole("button", { name });
+    if (match) return match;
+    node = node.parentElement;
+  }
+  throw new Error(`No button matching ${name} found in the card for "${title.textContent}"`);
+};
+
+
 /** The full per-concept grid now lives behind "View full mastery map". */
 const openMasteryMap = async () => {
   const link = await screen.findByRole("button", { name: /view full mastery map/i });
@@ -224,10 +240,16 @@ describe("StudentHome — concept mastery heatmap", () => {
     ];
     courseMasteryStore[`${STUDENT_ID}|${COURSE_A}`] = { mastery_score: 0.65 };
 
-    // Open the quiz from the lesson plan
-    const takeQuiz = await screen.findByRole("button", { name: /start quiz/i });
+    // Open the quiz from the "What to do today" action cards. The card's button
+    // is labelled "Take quiz"; scope the query to the quiz card so a layout
+    // change elsewhere can't match the wrong button.
+    await screen.findByText(/what to do today/i);
+    const quizTitle = await screen.findByText(/take (the )?unit .*quiz/i);
+    const takeQuiz = buttonInCard(quizTitle, /take quiz/i);
     fireEvent.click(takeQuiz);
     expect(await screen.findByTestId("quiz-dialog")).toBeInTheDocument();
+
+
 
     // Close it — this flips `quizDialog.open` which is a dep of the mastery effect
     fireEvent.click(screen.getByRole("button", { name: /close quiz/i }));
