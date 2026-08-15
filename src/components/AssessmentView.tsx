@@ -272,8 +272,8 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   const handleFinish = useCallback(() => {
     // Flush time on the currently-shown question (quiz mode only meaningful, but harmless either way)
     const currentQid = questions[Math.min(currentIndex, questions.length - 1)]?.id;
-    const now = Date.now();
-    const elapsed = Math.max(0, Math.round((now - questionStartRef.current) / 1000));
+    const elapsed = Math.max(0, Math.round(timer.takeElapsed() / 1000));
+
     const finalTimes: Record<string, number> = { ...questionTimes };
     if (currentQid) {
       finalTimes[currentQid] = (finalTimes[currentQid] ?? 0) + elapsed;
