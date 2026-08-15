@@ -41,7 +41,13 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
-import { reasoningEarnedFactor, requiresReasoning } from "../_shared/reasoning-scoring.ts";
+import {
+  clamp01,
+  requiresReasoning,
+  scoreAttempt,
+  scoreAttemptByConcept,
+  type ScoreItem,
+} from "../_shared/attempt-scoring.ts";
 
 
 const corsHeaders: Record<string, string> = {
@@ -50,28 +56,6 @@ const corsHeaders: Record<string, string> = {
     "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-// ---------- Tuning block (single source of truth) ----------
-const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
-
-const CONFIG = {
-  // Cognitive depth weights (Bloom 1..6).
-  BLOOM_WEIGHT: { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 } as Record<number, number>,
-
-  // Expected solve time per bloom level (baseline at difficulty 0.5), in ms.
-  EXPECTED_TIME_BASE_MS: {
-    1: 20_000, 2: 30_000, 3: 45_000, 4: 60_000, 5: 80_000, 6: 110_000,
-  } as Record<number, number>,
-  DIFFICULTY_TIME_FACTOR: (d: number) => 0.6 + 1.0 * clamp01(d), // 0.6x..1.6x
-
-  // Pace curve constants
-  PACE_GUESS_FLOOR: 0.2,    // score when r < PACE_FAST_CUTOFF
-  PACE_FAST_CUTOFF: 0.25,   // r below this is treated as guessing
-  PACE_SLOW_DECAY: 2.0,     // exp decay scale for r > 1
-
-  // Final mastery combination weights (sum should be 1.0)
-  WEIGHTS: { accuracy: 0.80, pace: 0.20 },
-} as const;
 
 type LearnerLevel = "beginner" | "developing" | "proficient";
 
@@ -91,19 +75,6 @@ function levelFromBranch(
   return correct <= 10 ? "beginner" : "developing";
 }
 
-
-// Pace curve: r = actual / expected. Smooth, no hard cliff on slow side.
-function paceCurve(r: number): number {
-  if (!isFinite(r) || r <= 0) return CONFIG.PACE_GUESS_FLOOR;
-  if (r < CONFIG.PACE_FAST_CUTOFF) return CONFIG.PACE_GUESS_FLOOR;
-  if (r <= 1.0) {
-    // Linear ramp from (PACE_FAST_CUTOFF, PACE_GUESS_FLOOR) → (1.0, 1.0)
-    const t = (r - CONFIG.PACE_FAST_CUTOFF) / (1.0 - CONFIG.PACE_FAST_CUTOFF);
-    return CONFIG.PACE_GUESS_FLOOR + t * (1.0 - CONFIG.PACE_GUESS_FLOOR);
-  }
-  // Gentle exponential decay past expected time
-  return Math.exp(-(r - 1.0) / CONFIG.PACE_SLOW_DECAY);
-}
 
 // ---------- Request schema ----------
 const AnswerSchema = z.object({
@@ -205,12 +176,8 @@ Deno.serve(async (req) => {
   }
 
   // ---------- Score ----------
-  let earnedSum = 0;
-  let earnedNoVerdictSum = 0;
-  let maxSum = 0;
-  const paceScores: number[] = [];
-  let correctCount = 0;
-  let answeredCount = 0;
+  // One shared blend for every format: 80% weighted accuracy + 20% pace.
+  const items: ScoreItem[] = [];
   let unverifiedReasoning = 0;
   const droppedQuestionIds: string[] = [];
 
@@ -230,40 +197,41 @@ Deno.serve(async (req) => {
 
     const meta = qMap.get(a.question_id)!;
     const bloom = Math.min(6, Math.max(1, Math.round(meta.bloom)));
-    const bloomWeight = CONFIG.BLOOM_WEIGHT[bloom] ?? 1.0;
-    const difficulty = clamp01(meta.difficulty);
-
-    const maxPoints = difficulty * bloomWeight;
-    const isCorrect = !!a.is_correct;
     const verdict = a.reasoning_verdict ?? null;
     if (requiresReasoning(bloom) && !verdict) unverifiedReasoning += 1;
-    // The verdict scales points earned only; maxPoints is unchanged.
-    const earned = maxPoints * reasoningEarnedFactor({ bloom, bloomWeight, isCorrect, verdict });
 
-    earnedSum += earned;
-    earnedNoVerdictSum += isCorrect ? maxPoints : 0;
-    maxSum += maxPoints;
-    answeredCount += 1;
-    if (isCorrect) correctCount += 1;
-
-    // Pace
-    const expectedMs =
-      (CONFIG.EXPECTED_TIME_BASE_MS[bloom] ?? 30_000) *
-      CONFIG.DIFFICULTY_TIME_FACTOR(difficulty);
-    const actualMs = typeof a.time_ms === "number" && a.time_ms > 0 ? a.time_ms : expectedMs;
-    paceScores.push(paceCurve(actualMs / expectedMs));
+    items.push({
+      difficulty: clamp01(meta.difficulty),
+      bloom,
+      is_correct: !!a.is_correct,
+      time_ms: typeof a.time_ms === "number" ? a.time_ms : 0,
+      verdict,
+      concept_id: meta.concept_id,
+    });
   }
 
-  const accuracyScore = maxSum > 0 ? clamp01(earnedSum / maxSum) : 0;
-  const baseAccuracy = maxSum > 0 ? clamp01(earnedNoVerdictSum / maxSum) : 0;
-  const paceScore = paceScores.length
-    ? paceScores.reduce((s, x) => s + x, 0) / paceScores.length
-    : 0;
+  const scored = scoreAttempt(items);
+  const accuracyScore = scored.accuracy;
+  const paceScore = scored.pace;
+  const masteryScore = scored.signal;
+  const reasoningAdjustment = scored.reasoningAdjustment / 100;
+  const correctCount = scored.correctCount;
+  const answeredCount = scored.questionCount;
 
-  const W = CONFIG.WEIGHTS;
-  const masteryScore = clamp01(W.accuracy * accuracyScore + W.pace * paceScore);
-  const baseMastery = clamp01(W.accuracy * baseAccuracy + W.pace * paceScore);
-  const reasoningAdjustment = masteryScore - baseMastery;
+  // The diagnostic spans many concepts, so each concept is scored separately
+  // with the identical blend. The client forwards these to update-mastery.
+  const perConcept = Array.from(scoreAttemptByConcept(items).values())
+    .filter((c) => c.concept_id)
+    .map((c) => ({
+      concept_id: c.concept_id,
+      signal: Number(c.signal.toFixed(4)),
+      accuracy: Number(c.accuracy.toFixed(4)),
+      pace: Number(c.pace.toFixed(4)),
+      attempted: c.questionCount,
+      correct: c.correctCount,
+    }));
+
+
   if (unverifiedReasoning > 0) {
     console.warn("score-diagnostic: rationales without a verdict", {
       course_id: body.course_id,
@@ -313,7 +281,9 @@ Deno.serve(async (req) => {
 
     score: correctCount,
     total_questions: answeredCount,
+    per_concept: perConcept,
     dropped_question_ids: droppedQuestionIds,
+
   });
 });
 

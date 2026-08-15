@@ -86,7 +86,10 @@ async function invokeUpdateMastery(args: {
   sourceId: string | null;
   answers: any[];
   questionMeta?: Map<string, { difficulty: number; bloom: number }>;
+  /** Per-question seconds on task, keyed by question id (pace half of the score). */
+  questionTimes?: Record<string, number>;
   evaluations?: Record<string, ReasoningEvaluation>;
+
 }) {
   try {
     // Weighted per-question payload when meta is available — matches WeeklyQuizDialog.
@@ -96,6 +99,7 @@ async function invokeUpdateMastery(args: {
         difficulty: number;
         bloom: number;
         is_correct: boolean;
+        time_ms: number;
         reasoning_verdict: ReturnType<typeof verdictFor>;
       }[] = [];
       for (const a of args.answers ?? []) {
@@ -107,9 +111,19 @@ async function invokeUpdateMastery(args: {
           difficulty: Math.min(1, Math.max(0, meta.difficulty)),
           bloom: Math.min(6, Math.max(1, Math.round(meta.bloom))),
           is_correct: !!a?.is_correct,
+          // Pace now feeds mastery; 0 means "unknown" and scores as on-pace.
+          time_ms: Math.max(
+            0,
+            Math.round(
+              Number(a?.time_ms ?? 0) ||
+                Number(args.questionTimes?.[a?.question_id] ?? 0) * 1000,
+            ),
+          ),
+
           reasoning_verdict: verdictFor(args.evaluations, a?.question_id),
         });
       }
+
 
       if (perQuestion.length === 0) return;
       await supabase.functions.invoke("update-mastery", {
@@ -830,7 +844,9 @@ const AIChat = () => {
             sourceId: insertedAssessment?.id ?? null,
             answers: results.answers ?? [],
             questionMeta: assessmentQuestionMeta,
+            questionTimes: results.questionTimes,
             evaluations: results.evaluations,
+
 
           });
         }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,7 +35,7 @@ import {
   REASONING_EVAL_DEADLINE_MS,
   type ReasoningEvaluation,
 } from "@/lib/reasoning";
-import { BLOOM_WEIGHT, clampBloom } from "@/lib/masteryScoring";
+import { scoreAttempt, type ScoreItem } from "@/lib/masteryScoring";
 import {
   useShortAnswerGrading,
   isShortAnswerComplete,
@@ -103,6 +103,25 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Per-question time on task (ms), needed for the pace half of the score.
+  const questionTimesRef = useRef<Record<string, number>>({});
+  const questionEnteredAtRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    questionEnteredAtRef.current = Date.now();
+  }, [currentIndex, phase]);
+
+  /** Bank the time spent on the question the student is leaving. */
+  const commitQuestionTime = useCallback((questionId?: string) => {
+    const now = Date.now();
+    if (questionId) {
+      questionTimesRef.current[questionId] =
+        (questionTimesRef.current[questionId] ?? 0) + (now - questionEnteredAtRef.current);
+    }
+    questionEnteredAtRef.current = now;
+  }, []);
+
+
   useEffect(() => {
     if (!initialReviewSessionId) return;
     const session = practiceHistory.find((item) => item.id === initialReviewSessionId);
@@ -142,6 +161,9 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
 
       setQuestions(sanitized);
       setCurrentIndex(0);
+      questionTimesRef.current = {};
+      questionEnteredAtRef.current = Date.now();
+
       setAnswers({});
       setRevealed(new Set());
       setResults(null);
@@ -218,9 +240,11 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   };
 
   const handleNext = async () => {
+    commitQuestionTime(currentQuestion?.id);
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
     } else {
+
       setSubmitting(true);
       // Include the last question: its rationale may never have been revealed.
       await reasoning.flushAndWait(
@@ -247,9 +271,8 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
       const grades = shortAnswer.getGrades();
       const shortAnswers = shortAnswer.getAnswers();
       let correct = 0;
-      // Practice keeps its flat per-question model: each question is worth 1
-      // credit, and the reasoning verdict scales the credit earned.
-      let creditEarned = 0;
+      // Practice now uses the same weighted 80/20 blend as every other format.
+      const scoreItems: ScoreItem[] = [];
       const answerDetails = questions.map(q => {
         const short = q.type === "short_answer";
         const userAnswer = short ? (shortAnswers[q.id] ?? "") : (answers[q.id] || "");
@@ -260,15 +283,16 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
             : localExactMatch(userAnswer, [q.answer, q.model_answer])
           : userAnswer === q.answer;
         if (isCorrect) correct++;
-        const bloom = clampBloom(q.bloom_level ?? 1);
-        creditEarned += short
-          ? (isCorrect ? 1 : 0)
-          : reasoningEarnedFactor({
-              bloom,
-              bloomWeight: BLOOM_WEIGHT[bloom] ?? 1.0,
-              isCorrect,
-              verdict: verdictFor(evaluations, q.id),
-            });
+        const timeMs = questionTimesRef.current[q.id] ?? 0;
+        scoreItems.push({
+          difficulty: q.difficulty_estimate ?? 0.5,
+          bloom: q.bloom_level ?? 1,
+          is_correct: isCorrect,
+          time_ms: timeMs,
+          // Short answers are their own rationale — no separate verdict.
+          verdict: short ? null : verdictFor(evaluations, q.id),
+          concept_code: q.topic ?? null,
+        });
         return {
           question_id: q.id,
           question_text: q.question,
@@ -280,11 +304,13 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
           explanation: q.explanation,
           difficulty_estimate: q.difficulty_estimate,
           bloom_level: q.bloom_level,
+          time_ms: timeMs,
         };
       });
 
 
-      const score = Math.round((creditEarned / questions.length) * 100);
+      const score = scoreAttempt(scoreItems).displayScore;
+
       setResults({ score, correct, total: questions.length });
       setPhase("review");
 

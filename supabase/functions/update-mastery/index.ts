@@ -71,7 +71,13 @@ import {
   shrink,
   applyPracticeOnlyGate,
 } from "./mastery.ts";
-import { reasoningEarnedFactor, requiresReasoning } from "../_shared/reasoning-scoring.ts";
+import {
+  requiresReasoning,
+  scoreAttempt,
+  type ScoreItem,
+} from "../_shared/attempt-scoring.ts";
+
+
 
 
 const corsHeaders: Record<string, string> = {
@@ -87,10 +93,17 @@ const PerConceptSchema = z
     concept_code: z.string().optional(),
     attempted: z.number().int().nonnegative(),
     correct: z.number().int().nonnegative(),
+    /**
+     * Pre-computed concept-scoped 80/20 signal (0..1) from the shared scoring
+     * module — sent by score-diagnostic, which already has the per-question
+     * metadata. When present it replaces the flat correct/attempted fallback.
+     */
+    signal: z.number().min(0).max(1).optional(),
   })
   .refine((v) => v.concept_id || v.concept_code, {
     message: "concept_id or concept_code required",
   });
+
 
 const PerQuestionSchema = z
   .object({
@@ -99,9 +112,12 @@ const PerQuestionSchema = z
     difficulty: z.number().min(0).max(1),
     bloom: z.number().int().min(1).max(6),
     is_correct: z.boolean(),
+    /** Time on task in ms. Omitted/0 scores as on-pace (pace 1.0). */
+    time_ms: z.number().nonnegative().optional(),
     /** LLM verdict on the Bloom 3+ rationale; omitted/null = treated as accepted. */
     reasoning_verdict: z.enum(["accepted", "rejected"]).nullable().optional(),
   })
+
 
   .refine((v) => v.concept_id || v.concept_code, {
     message: "concept_id or concept_code required",
@@ -172,14 +188,16 @@ Deno.serve(async (req) => {
 
   // Aggregate input by concept_id (defensive — caller may pass duplicates).
   // Track both raw counts (for questions_attempted/correct counters) and
-  // weighted earned/max (for the EMA signal when per_question is provided).
+  // the per-question rows (for the shared 80/20 signal when per_question is
+  // provided).
   type Agg = {
     concept_code: string;
     attempted: number;
     correct: number;
-    earned: number;
-    max: number;
+    items: ScoreItem[];
     weighted: boolean;
+    /** Pre-computed 80/20 signal supplied by the caller (diagnostic path). */
+    signal: number | null;
   };
   const agg = new Map<string, Agg>();
   const unresolved: Array<{ concept_id?: string; concept_code?: string }> = [];
@@ -192,8 +210,9 @@ Deno.serve(async (req) => {
   const ensure = (resolved: { id: string; concept_code: string }): Agg => {
     const cur = agg.get(resolved.id) ?? {
       concept_code: resolved.concept_code,
-      attempted: 0, correct: 0, earned: 0, max: 0, weighted: false,
+      attempted: 0, correct: 0, items: [] as ScoreItem[], weighted: false, signal: null,
     };
+
     agg.set(resolved.id, cur);
     return cur;
   };
@@ -208,24 +227,22 @@ Deno.serve(async (req) => {
       }
       const cur = ensure(resolved);
       const bloom = Math.min(6, Math.max(1, Math.round(item.bloom)));
-      const bloomWeight = MASTERY_CONFIG.BLOOM_WEIGHT[bloom] ?? 1.0;
-      const difficulty = clamp01(item.difficulty);
-      const maxPoints = difficulty * bloomWeight;
       const verdict = item.reasoning_verdict ?? null;
       if (requiresReasoning(bloom) && !verdict) unverifiedReasoning += 1;
       cur.attempted += 1;
       // attempted / correct stay primary-only so evidence gates are unaffected.
       if (item.is_correct) cur.correct += 1;
-      cur.earned += maxPoints * reasoningEarnedFactor({
+      cur.items.push({
+        difficulty: item.difficulty,
         bloom,
-        bloomWeight,
-        isCorrect: item.is_correct,
+        is_correct: item.is_correct,
+        // Missing/zero timing scores as on-pace, so older callers are unaffected.
+        time_ms: item.time_ms ?? 0,
         verdict,
       });
-      cur.max += maxPoints;
-
       cur.weighted = true;
     }
+
     if (unverifiedReasoning > 0) {
       console.warn("update-mastery: rationales without a verdict", {
         course_id: body.course_id,
@@ -244,7 +261,9 @@ Deno.serve(async (req) => {
       const cur = ensure(resolved);
       cur.attempted += item.attempted;
       cur.correct += item.correct;
+      if (typeof item.signal === "number") cur.signal = item.signal;
     }
+
   }
 
   // Load existing concept rows for this student+course
@@ -276,9 +295,15 @@ Deno.serve(async (req) => {
 
   for (const [conceptId, info] of agg) {
     if (info.attempted <= 0) continue;
-    const rawSignal = info.weighted && info.max > 0
-      ? clamp01(info.earned / info.max)
-      : clamp01(info.correct / info.attempted);
+    // Concept-scoped attempt score: the shared 80% accuracy + 20% pace blend.
+    // Callers that only send aggregate counts keep the flat fallback.
+    const rawSignal = info.weighted && info.items.length > 0
+      ? scoreAttempt(info.items).signal
+      : info.signal != null
+        ? clamp01(info.signal)
+        : clamp01(info.correct / info.attempted);
+
+
     const prior = existingMap.get(conceptId);
     const attemptedAfter = (prior?.questions_attempted ?? 0) + info.attempted;
     const correctAfter = (prior?.questions_correct ?? 0) + info.correct;
