@@ -71,7 +71,13 @@ import {
   shrink,
   applyPracticeOnlyGate,
 } from "./mastery.ts";
-import { reasoningEarnedFactor, requiresReasoning } from "../_shared/reasoning-scoring.ts";
+import {
+  reasoningEarnedFactor,
+  requiresReasoning,
+  scoreAttempt,
+  type ScoreItem,
+} from "../_shared/attempt-scoring.ts";
+
 
 
 const corsHeaders: Record<string, string> = {
