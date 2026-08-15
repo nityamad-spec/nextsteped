@@ -176,12 +176,8 @@ Deno.serve(async (req) => {
   }
 
   // ---------- Score ----------
-  let earnedSum = 0;
-  let earnedNoVerdictSum = 0;
-  let maxSum = 0;
-  const paceScores: number[] = [];
-  let correctCount = 0;
-  let answeredCount = 0;
+  // One shared blend for every format: 80% weighted accuracy + 20% pace.
+  const items: ScoreItem[] = [];
   let unverifiedReasoning = 0;
   const droppedQuestionIds: string[] = [];
 
@@ -201,40 +197,41 @@ Deno.serve(async (req) => {
 
     const meta = qMap.get(a.question_id)!;
     const bloom = Math.min(6, Math.max(1, Math.round(meta.bloom)));
-    const bloomWeight = CONFIG.BLOOM_WEIGHT[bloom] ?? 1.0;
-    const difficulty = clamp01(meta.difficulty);
-
-    const maxPoints = difficulty * bloomWeight;
-    const isCorrect = !!a.is_correct;
     const verdict = a.reasoning_verdict ?? null;
     if (requiresReasoning(bloom) && !verdict) unverifiedReasoning += 1;
-    // The verdict scales points earned only; maxPoints is unchanged.
-    const earned = maxPoints * reasoningEarnedFactor({ bloom, bloomWeight, isCorrect, verdict });
 
-    earnedSum += earned;
-    earnedNoVerdictSum += isCorrect ? maxPoints : 0;
-    maxSum += maxPoints;
-    answeredCount += 1;
-    if (isCorrect) correctCount += 1;
-
-    // Pace
-    const expectedMs =
-      (CONFIG.EXPECTED_TIME_BASE_MS[bloom] ?? 30_000) *
-      CONFIG.DIFFICULTY_TIME_FACTOR(difficulty);
-    const actualMs = typeof a.time_ms === "number" && a.time_ms > 0 ? a.time_ms : expectedMs;
-    paceScores.push(paceCurve(actualMs / expectedMs));
+    items.push({
+      difficulty: clamp01(meta.difficulty),
+      bloom,
+      is_correct: !!a.is_correct,
+      time_ms: typeof a.time_ms === "number" ? a.time_ms : 0,
+      verdict,
+      concept_id: meta.concept_id,
+    });
   }
 
-  const accuracyScore = maxSum > 0 ? clamp01(earnedSum / maxSum) : 0;
-  const baseAccuracy = maxSum > 0 ? clamp01(earnedNoVerdictSum / maxSum) : 0;
-  const paceScore = paceScores.length
-    ? paceScores.reduce((s, x) => s + x, 0) / paceScores.length
-    : 0;
+  const scored = scoreAttempt(items);
+  const accuracyScore = scored.accuracy;
+  const paceScore = scored.pace;
+  const masteryScore = scored.signal;
+  const reasoningAdjustment = scored.reasoningAdjustment / 100;
+  const correctCount = scored.correctCount;
+  const answeredCount = scored.questionCount;
 
-  const W = CONFIG.WEIGHTS;
-  const masteryScore = clamp01(W.accuracy * accuracyScore + W.pace * paceScore);
-  const baseMastery = clamp01(W.accuracy * baseAccuracy + W.pace * paceScore);
-  const reasoningAdjustment = masteryScore - baseMastery;
+  // The diagnostic spans many concepts, so each concept is scored separately
+  // with the identical blend. The client forwards these to update-mastery.
+  const perConcept = Array.from(scoreAttemptByConcept(items).values())
+    .filter((c) => c.concept_id)
+    .map((c) => ({
+      concept_id: c.concept_id,
+      signal: Number(c.signal.toFixed(4)),
+      accuracy: Number(c.accuracy.toFixed(4)),
+      pace: Number(c.pace.toFixed(4)),
+      attempted: c.questionCount,
+      correct: c.correctCount,
+    }));
+
+
   if (unverifiedReasoning > 0) {
     console.warn("score-diagnostic: rationales without a verdict", {
       course_id: body.course_id,
