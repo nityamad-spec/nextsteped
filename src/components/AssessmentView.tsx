@@ -312,35 +312,14 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
     // on Bloom 3+ questions, never the max a question is worth.
     const evaluations = reasoning.getEvaluations();
 
-    // Weighted score (difficulty × Bloom) when meta is available. Retained for
-    // backward compatibility with existing review UI + analytics consumers.
-    // Exam mode displays this score, so the verdict applies here too.
+    // Every format now uses the identical 80% accuracy + 20% pace blend from
+    // the shared scoring module (quiz, exam and everything else).
     let weightedScore: number | undefined;
-    if (questionMeta && questionMeta.size > 0) {
-      let num = 0;
-      let den = 0;
-      for (const a of standardised) {
-        const meta = questionMeta.get(a.question_id) ?? { difficulty: 0.5, bloom: 1 };
-        const bloom = clampBloom(meta.bloom);
-        const bloomWeight = BLOOM_WEIGHT[bloom] ?? 1.0;
-        const maxPoints = clamp01(meta.difficulty) * bloomWeight;
-        den += maxPoints;
-        num += maxPoints * reasoningEarnedFactor({
-          bloom,
-          bloomWeight,
-          isCorrect: a.is_correct,
-          verdict: verdictFor(evaluations, a.question_id),
-        });
-      }
-      if (den > 0) weightedScore = Math.round((num / den) * 100);
-    }
-
-    // Phase 8: quiz mode uses the diagnostic 80% accuracy + 20% pace blend.
-    // Exam / other modes keep the legacy weighted-accuracy display.
     let accuracyScore: number | undefined;
     let paceScore: number | undefined;
-    let displayScore = weightedScore ?? flatScore;
-    if (type === "quiz" && questionMeta && questionMeta.size > 0) {
+    let displayScore = flatScore;
+
+    if (questionMeta && questionMeta.size > 0) {
       const items: ScoreItem[] = standardised.map(a => {
         const meta = questionMeta.get(a.question_id) ?? { difficulty: 0.5, bloom: 1 };
         // questionTimes is tracked in seconds; convert to ms for the pace formula.
@@ -353,11 +332,14 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
           verdict: verdictFor(evaluations, a.question_id),
         };
       });
-      const scored = computeWeeklyQuizScore(items);
-      accuracyScore = scored.accuracyScore;
-      paceScore = scored.paceScore;
+      const scored = scoreAttempt(items);
+      accuracyScore = scored.accuracy;
+      paceScore = scored.pace;
+      // Retained for backward compatibility with existing review UI + analytics.
+      weightedScore = Math.round(scored.accuracy * 100);
       displayScore = scored.displayScore;
     }
+
 
 
     const res: AssessmentResults = {
