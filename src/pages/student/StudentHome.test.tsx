@@ -224,10 +224,15 @@ describe("StudentHome — concept mastery heatmap", () => {
     ];
     courseMasteryStore[`${STUDENT_ID}|${COURSE_A}`] = { mastery_score: 0.65 };
 
-    // Open the quiz from the lesson plan
-    const takeQuiz = await screen.findByRole("button", { name: /start quiz/i });
+    // Open the quiz from the "What to do today" action cards. The card's button
+    // is labelled "Take quiz"; scope the query to the quiz card so a layout
+    // change elsewhere can't match the wrong button.
+    await screen.findByText(/what to do today/i);
+    const quizCard = (await screen.findByText(/take (the )?unit .*quiz/i)).closest("div")!;
+    const takeQuiz = within(quizCard).getByRole("button", { name: /take quiz/i });
     fireEvent.click(takeQuiz);
     expect(await screen.findByTestId("quiz-dialog")).toBeInTheDocument();
+
 
     // Close it — this flips `quizDialog.open` which is a dep of the mastery effect
     fireEvent.click(screen.getByRole("button", { name: /close quiz/i }));
