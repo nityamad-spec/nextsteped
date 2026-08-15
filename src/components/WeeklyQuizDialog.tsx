@@ -253,7 +253,9 @@ const WeeklyQuizDialog = ({
         sourceId: inserted?.id ?? null,
         answers: results.answers ?? [],
         questionMeta,
+        questionTimes: results.questionTimes,
         evaluations: results.evaluations,
+
       });
 
       void saveReasoningRows(
