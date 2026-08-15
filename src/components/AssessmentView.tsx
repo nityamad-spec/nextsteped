@@ -190,22 +190,21 @@ const AssessmentView = ({ type, questions, timeLimitMinutes, day, onEnd, onSubmi
   );
 
 
-  // Helper: flush elapsed time onto a question id
+  // Helper: flush elapsed active time onto a question id (tracked in seconds)
   const flushTimeFor = useCallback((qid: string | undefined) => {
+    const elapsed = Math.max(0, Math.round(timer.takeElapsed() / 1000));
     if (!qid) return;
-    const now = Date.now();
-    const elapsed = Math.max(0, Math.round((now - questionStartRef.current) / 1000));
-    questionStartRef.current = now;
     setQuestionTimes(prev => ({ ...prev, [qid]: (prev[qid] ?? 0) + elapsed }));
-  }, []);
+  }, [timer]);
 
   // Reset pagination when (re)entering active phase
   useEffect(() => {
     if (phase === "active") {
       setCurrentIndex(0);
-      questionStartRef.current = Date.now();
+      timer.restart();
     }
   }, [phase]);
+
 
 
   // Timer
