@@ -35,7 +35,7 @@ import {
   REASONING_EVAL_DEADLINE_MS,
   type ReasoningEvaluation,
 } from "@/lib/reasoning";
-import { BLOOM_WEIGHT, clampBloom } from "@/lib/masteryScoring";
+import { scoreAttempt, type ScoreItem } from "@/lib/masteryScoring";
 import {
   useShortAnswerGrading,
   isShortAnswerComplete,
