@@ -103,6 +103,25 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Per-question time on task (ms), needed for the pace half of the score.
+  const questionTimesRef = useRef<Record<string, number>>({});
+  const questionEnteredAtRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    questionEnteredAtRef.current = Date.now();
+  }, [currentIndex, phase]);
+
+  /** Bank the time spent on the question the student is leaving. */
+  const commitQuestionTime = useCallback((questionId?: string) => {
+    const now = Date.now();
+    if (questionId) {
+      questionTimesRef.current[questionId] =
+        (questionTimesRef.current[questionId] ?? 0) + (now - questionEnteredAtRef.current);
+    }
+    questionEnteredAtRef.current = now;
+  }, []);
+
+
   useEffect(() => {
     if (!initialReviewSessionId) return;
     const session = practiceHistory.find((item) => item.id === initialReviewSessionId);
