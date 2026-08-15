@@ -72,11 +72,11 @@ import {
   applyPracticeOnlyGate,
 } from "./mastery.ts";
 import {
-  reasoningEarnedFactor,
   requiresReasoning,
   scoreAttempt,
   type ScoreItem,
 } from "../_shared/attempt-scoring.ts";
+
 
 
 
