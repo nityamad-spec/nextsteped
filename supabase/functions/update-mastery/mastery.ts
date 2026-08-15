@@ -14,7 +14,8 @@ export const MASTERY_CONFIG = {
   CAP_DEVELOPING_BELOW_ATTEMPTED: 8,
   CAP_PROFICIENT_BELOW_ATTEMPTED: 15,
   CAP_PROFICIENT_MIN_SAMPLES: 2,
-  BLOOM_WEIGHT: { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 } as Record<number, number>,
+  // Bloom weights are NOT duplicated here — import BLOOM_WEIGHT from
+  // ../_shared/attempt-scoring.ts, the single source of truth.
   LEVEL_BANDS: [
     { max: 0.25, level: "beginner" },
     { max: 0.5, level: "developing" },

@@ -10,7 +10,13 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle, Clock, Trophy, ClipboardList, GraduationCap, ShieldCheck, Loader2, BookOpen, Lightbulb, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { scoreAttempt, type ScoreItem } from "@/lib/masteryScoring";
+import {
+  scoreAttempt,
+  BLOOM_WEIGHT,
+  clamp01,
+  clampBloom,
+  type ScoreItem,
+} from "@/lib/masteryScoring";
 import ReasoningInput from "@/components/ReasoningInput";
 import ReasoningVerdict from "@/components/ReasoningVerdict";
 import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
@@ -66,9 +72,8 @@ interface AssessmentViewProps {
 
 
 
-const BLOOM_WEIGHT: Record<number, number> = { 1: 1.0, 2: 1.2, 3: 1.5, 4: 1.8, 5: 2.1, 6: 2.5 };
-const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
-const clampBloom = (n: number) => Math.min(6, Math.max(1, Math.round(n)));
+// BLOOM_WEIGHT / clamp01 / clampBloom come from the shared scoring module
+// (supabase/functions/_shared/attempt-scoring.ts) — never redeclare them here.
 
 export interface StandardisedAnswer {
   question_id: string;

@@ -16,10 +16,12 @@
  * The mastery pipeline shrinks + EMA-blends `signal` (never the rounded
  * display value).
  *
- * NOTE: `src/lib/masteryScoring.ts` is a browser mirror of this file — edge
- * functions cannot import from `src/` and Vite cannot import Deno modules
- * cleanly. `src/lib/attemptScoring.parity.test.ts` fails the build if the two
- * ever disagree. Change both together.
+ * NOTE: this file is the ONLY home of the scoring constants — including
+ * `BLOOM_WEIGHT`. Never copy them elsewhere. `src/lib/masteryScoring.ts` is a
+ * thin re-export of this module (the file is plain, Deno-API-free TypeScript,
+ * so Vite bundles it directly); `src/lib/attemptScoring.test.ts` asserts the
+ * browser exports are the very same function objects, so a copy cannot creep
+ * back in.
  */
 
 export type ReasoningVerdict = "accepted" | "rejected";
