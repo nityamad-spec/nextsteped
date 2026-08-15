@@ -32,6 +32,8 @@ async function invokeUpdateMastery(args: {
   sourceId: string | null;
   answers: any[];
   questionMeta: Map<string, { difficulty: number; bloom: number }>;
+  /** Per-question seconds on task, keyed by question id (pace half of the score). */
+  questionTimes?: Record<string, number>;
   evaluations?: Record<string, ReasoningEvaluation>;
 }) {
   try {
@@ -40,6 +42,7 @@ async function invokeUpdateMastery(args: {
       difficulty: number;
       bloom: number;
       is_correct: boolean;
+      time_ms: number;
       reasoning_verdict: ReturnType<typeof verdictFor>;
     }> = [];
     for (const a of args.answers ?? []) {
@@ -51,9 +54,12 @@ async function invokeUpdateMastery(args: {
         difficulty: meta.difficulty,
         bloom: meta.bloom,
         is_correct: !!a.is_correct,
+        // Pace now feeds mastery; 0 means "unknown" and scores as on-pace.
+        time_ms: Math.max(0, Math.round(Number(args.questionTimes?.[a.question_id] ?? 0) * 1000)),
         reasoning_verdict: verdictFor(args.evaluations, a.question_id),
       });
     }
+
     if (per_question.length === 0) return;
 
     await supabase.functions.invoke("update-mastery", {
