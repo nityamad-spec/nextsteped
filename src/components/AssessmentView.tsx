@@ -20,6 +20,8 @@ import {
 import ReasoningInput from "@/components/ReasoningInput";
 import ReasoningVerdict from "@/components/ReasoningVerdict";
 import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
+import { useActiveQuestionTimer } from "@/hooks/useActiveQuestionTimer";
+
 import {
   useShortAnswerGrading,
   isShortAnswerComplete,
