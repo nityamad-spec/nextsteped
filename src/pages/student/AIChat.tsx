@@ -112,7 +112,14 @@ async function invokeUpdateMastery(args: {
           bloom: Math.min(6, Math.max(1, Math.round(meta.bloom))),
           is_correct: !!a?.is_correct,
           // Pace now feeds mastery; 0 means "unknown" and scores as on-pace.
-          time_ms: Math.max(0, Math.round(Number(a?.time_ms ?? 0))),
+          time_ms: Math.max(
+            0,
+            Math.round(
+              Number(a?.time_ms ?? 0) ||
+                Number(args.questionTimes?.[a?.question_id] ?? 0) * 1000,
+            ),
+          ),
+
           reasoning_verdict: verdictFor(args.evaluations, a?.question_id),
         });
       }
