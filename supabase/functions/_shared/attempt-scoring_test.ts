@@ -3,6 +3,7 @@ import {
   BLOOM_WEIGHT,
   EXPECTED_TIME_BASE_MS,
   PACE_GUESS_FLOOR,
+  PACE_MAX_RATIO,
   REASONING_PARTIAL_FACTOR,
   difficultyTimeFactor,
   paceCurve,
@@ -54,6 +55,16 @@ Deno.test("paceCurve boundaries", () => {
   assertAlmostEquals(paceCurve(1), 1, 1e-9);
   assertEquals(paceCurve(2) < 1 && paceCurve(2) > 0, true);
 });
+
+Deno.test("paceCurve: idle-inflated outliers clamp at PACE_MAX_RATIO", () => {
+  const ceiling = paceCurve(PACE_MAX_RATIO);
+  assertAlmostEquals(paceCurve(50), ceiling, 1e-12);
+  assertAlmostEquals(paceCurve(10_000), ceiling, 1e-12);
+  // Still monotonically decreasing below the ceiling.
+  assertEquals(paceCurve(5) > ceiling, true);
+  assertEquals(ceiling > 0, true);
+});
+
 
 Deno.test("scoreAttempt: all correct at expected pace scores 100", () => {
   const items: ScoreItem[] = [

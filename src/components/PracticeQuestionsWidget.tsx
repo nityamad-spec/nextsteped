@@ -27,6 +27,8 @@ interface PracticeResult {
 
 import ReasoningInput from "@/components/ReasoningInput";
 import { useReasoningAnswers } from "@/hooks/useReasoningAnswers";
+import { useActiveQuestionTimer } from "@/hooks/useActiveQuestionTimer";
+
 import ReasoningVerdict from "@/components/ReasoningVerdict";
 import {
   requiresReasoning,
@@ -104,22 +106,22 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   const [submitting, setSubmitting] = useState(false);
 
   // Per-question time on task (ms), needed for the pace half of the score.
-  const questionTimesRef = useRef<Record<string, number>>({});
-  const questionEnteredAtRef = useRef<number>(Date.now());
+  // Active-time only: pauses on tab hide, window blur and idle.
+  const timer = useActiveQuestionTimer({ enabled: phase === "active" });
+  const questionTimesRef = timer.times;
 
   useEffect(() => {
-    questionEnteredAtRef.current = Date.now();
+    timer.restart();
   }, [currentIndex, phase]);
 
   /** Bank the time spent on the question the student is leaving. */
-  const commitQuestionTime = useCallback((questionId?: string) => {
-    const now = Date.now();
-    if (questionId) {
-      questionTimesRef.current[questionId] =
-        (questionTimesRef.current[questionId] ?? 0) + (now - questionEnteredAtRef.current);
-    }
-    questionEnteredAtRef.current = now;
-  }, []);
+  const commitQuestionTime = useCallback(
+    (questionId?: string) => {
+      timer.commit(questionId);
+    },
+    [timer],
+  );
+
 
 
   useEffect(() => {
@@ -161,8 +163,8 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
 
       setQuestions(sanitized);
       setCurrentIndex(0);
-      questionTimesRef.current = {};
-      questionEnteredAtRef.current = Date.now();
+      timer.reset();
+
 
       setAnswers({});
       setRevealed(new Set());
