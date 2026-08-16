@@ -284,6 +284,47 @@ const UnitPathwayCard = ({
             )}
           </div>
 
+          {/* Concepts in this unit */}
+          {concepts.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Concepts in this unit
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {concepts.map((c) => {
+                  const level = getMasteryLevel(c.matched && c.mastery > 0 ? 1 : 0, c.mastery / 100);
+                  const isWeak = weakSet.has(c.name);
+                  return (
+                    <button
+                      key={c.name}
+                      type="button"
+                      onClick={() => onStudyConcept?.(c.name, isWeak)}
+                      disabled={!onStudyConcept}
+                      className="flex items-center gap-2.5 rounded-lg border bg-card p-2.5 text-left transition-colors hover:bg-muted/40 disabled:cursor-default disabled:hover:bg-card"
+                    >
+                      <span
+                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${MASTERY_SWATCH_CLASS[level]}`}
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.name}</span>
+                      {isWeak && quizTaken && (
+                        <Badge variant="outline" className="shrink-0 text-[10px]">
+                          Focus
+                        </Badge>
+                      )}
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {level === "not_explored" ? MASTERY_LABEL[level] : `${c.mastery}%`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                These are the same concepts shown in your concept mastery map.
+              </p>
+            </div>
+          )}
+
           {/* 3-step path */}
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
