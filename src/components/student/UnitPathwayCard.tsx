@@ -42,6 +42,8 @@ export interface UnitPathwayCardProps {
   quizFinalAttempt?: boolean;
   readiness: number;
   weakConcepts: string[];
+  concepts?: UnitConceptMastery[];
+  onStudyConcept?: (concept: string, isWeak: boolean) => void;
   resources: UnitResource[];
   activityDone: Record<string, boolean>;
   onToggleActivity: (id: string) => void;
