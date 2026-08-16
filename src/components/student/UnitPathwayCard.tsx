@@ -14,7 +14,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
+import type { UnitConceptMastery } from "@/hooks/useUnitReadiness";
 import { computeUnitStage } from "@/lib/unitStage";
+import {
+  getMasteryLevel,
+  MASTERY_LABEL,
+  MASTERY_SWATCH_CLASS,
+} from "@/lib/masteryLevels";
 
 import type { LearningPlanWeek } from "@/hooks/useLearningPlan";
 
