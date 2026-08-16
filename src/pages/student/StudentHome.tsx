@@ -23,7 +23,7 @@ import WhatsNewCard from "@/components/student/WhatsNewCard";
 import { useAchievements } from "@/hooks/useAchievements";
 import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
 import { useUnitProgress } from "@/hooks/useUnitProgress";
-import { computeUnitStage } from "@/lib/unitStage";
+import { computeUnitStage, normaliseConcept } from "@/lib/unitStage";
 
 
 /* Concepts are loaded from the DB for the student's enrolled course.
