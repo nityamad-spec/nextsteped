@@ -17,9 +17,11 @@ interface Props {
   concepts: { id: string; name: string }[];
   conceptMastery: Record<string, { score: number; attempted: number }>;
   courseMastery: number | null;
+  unitByConcept?: Record<string, { unit: number; topic: string }>;
+  onSelectConcept?: (conceptId: string) => void;
 }
 
-const ConceptMasteryDialog = ({ open, onOpenChange, concepts, conceptMastery, courseMastery }: Props) => {
+const ConceptMasteryDialog = ({ open, onOpenChange, concepts, conceptMastery, courseMastery, unitByConcept = {}, onSelectConcept }: Props) => {
   const overallPct = courseMastery !== null ? Math.round(courseMastery * 100) : 0;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -54,19 +56,39 @@ const ConceptMasteryDialog = ({ open, onOpenChange, concepts, conceptMastery, co
                 const score = m?.score ?? 0;
                 const level = getMasteryLevel(attempted, score);
                 const pct = attempted > 0 ? Math.floor(score * 100) : null;
+                const target = unitByConcept[concept.id];
+                const clickable = !!target && !!onSelectConcept;
+                const tile = (
+                  <p className="text-xs font-medium truncate">{concept.name}</p>
+                );
                 return (
                   <Tooltip key={concept.id}>
                     <TooltipTrigger asChild>
-                      <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${MASTERY_TILE_CLASS[level]}`}>
-                        <p className="text-xs font-medium truncate">{concept.name}</p>
-                        <p className="text-sm font-semibold mt-1">{MASTERY_LABEL[level]}</p>
-                        {pct !== null && <p className="text-[10px] opacity-80 mt-0.5">{pct}%</p>}
-                      </div>
+                      {clickable ? (
+                        <button
+                          type="button"
+                          onClick={() => onSelectConcept?.(concept.id)}
+                          className={`rounded-lg p-3 text-center transition-all hover:ring-2 hover:ring-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${MASTERY_TILE_CLASS[level]}`}
+                        >
+                          {tile}
+                          <p className="text-sm font-semibold mt-1">{MASTERY_LABEL[level]}</p>
+                          {pct !== null && <p className="text-[10px] opacity-80 mt-0.5">{pct}%</p>}
+                        </button>
+                      ) : (
+                        <div className={`rounded-lg p-3 text-center cursor-default transition-colors ${MASTERY_TILE_CLASS[level]}`}>
+                          {tile}
+                          <p className="text-sm font-semibold mt-1">{MASTERY_LABEL[level]}</p>
+                          {pct !== null && <p className="text-[10px] opacity-80 mt-0.5">{pct}%</p>}
+                        </div>
+                      )}
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>
                         {concept.name}: {MASTERY_LABEL[level]}
                         {pct !== null ? ` (${pct}% mastery)` : ""}
+                      </p>
+                      <p className="text-xs opacity-80">
+                        {target ? `Go to Unit ${target.unit} — ${target.topic}` : "Not in a unit yet"}
                       </p>
                     </TooltipContent>
                   </Tooltip>
