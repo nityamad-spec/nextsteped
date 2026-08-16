@@ -339,6 +339,8 @@ const StudentLearningPath = () => {
                 quizFinalAttempt={voids === 1}
                 readiness={readinessByUnit[unit.day] ?? 0}
                 weakConcepts={weak}
+                concepts={conceptsByUnit[unit.day] ?? []}
+                onStudyConcept={(concept, isWeak) => goToStudy(concept, isWeak && !!taken ? "weak" : "start")}
                 resources={Array.isArray(unit.resources) ? unit.resources : []}
                 activityDone={activityDone}
                 onToggleActivity={toggleActivityDone}
