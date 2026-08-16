@@ -148,6 +148,21 @@ const UnitPathwayCard = ({
             Unit {unitNumber}
           </p>
           <h2 className="truncate font-heading text-base font-bold md:text-lg">{topic}</h2>
+          {!expanded && concepts.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {chipConcepts.map((c) => (
+                <span
+                  key={c.name}
+                  className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                >
+                  {c.name}
+                </span>
+              ))}
+              {extraConceptCount > 0 && (
+                <span className="text-[11px] text-muted-foreground">+{extraConceptCount} more</span>
+              )}
+            </div>
+          )}
         </div>
         {quizTaken && (
           <span
