@@ -92,6 +92,7 @@ export function useUnitReadiness(
 
     const readinessByUnit: Record<number, number> = {};
     const weakConceptsByUnit: Record<number, string[]> = {};
+    const conceptsByUnit: Record<number, UnitConceptMastery[]> = {};
 
     lessonPlan.forEach((week) => {
       const names = (week.concepts || []).map((c) => c.name).filter(Boolean);
@@ -105,6 +106,13 @@ export function useUnitReadiness(
           score: masteryById.get(concept.id) ?? 0,
         });
       });
+
+      const scoreByName = new Map(scored.map((s) => [s.name, s.score]));
+      conceptsByUnit[week.day] = names.map((name) => ({
+        name,
+        mastery: Math.max(0, Math.min(100, Math.round(scoreByName.get(name) ?? 0))),
+        matched: scoreByName.has(name),
+      }));
 
       if (scored.length === 0) {
         readinessByUnit[week.day] = 0;
@@ -124,6 +132,7 @@ export function useUnitReadiness(
         .map((s) => s.name);
     });
 
-    return { readinessByUnit, weakConceptsByUnit, loading };
+    return { readinessByUnit, weakConceptsByUnit, conceptsByUnit, loading };
   }, [concepts, mastery, lessonPlan, loading]);
+
 }
