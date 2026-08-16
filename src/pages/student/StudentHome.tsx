@@ -769,6 +769,15 @@ const StudentHome = () => {
         concepts={concepts}
         conceptMastery={conceptMastery}
         courseMastery={courseMastery}
+        unitByConcept={unitByConcept}
+        onSelectConcept={(conceptId) => {
+          const target = unitByConcept[conceptId];
+          if (!target) return;
+          const name = concepts.find((c) => c.id === conceptId)?.name ?? "";
+          setMasteryDialogOpen(false);
+          markLearningPathOpened(enrolledCourseId);
+          navigate(`/student/learning-path?unit=${target.unit}&concept=${encodeURIComponent(name)}`);
+        }}
       />
 
 
