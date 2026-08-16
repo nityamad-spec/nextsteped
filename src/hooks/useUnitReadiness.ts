@@ -16,13 +16,24 @@ interface MasteryRow {
   mastery_score: number | string | null;
 }
 
+export interface UnitConceptMastery {
+  name: string;
+  /** 0..100 mastery for this concept, 0 when unmatched/unattempted. */
+  mastery: number;
+  /** True when the lesson-plan concept resolved to a row in the concepts table. */
+  matched: boolean;
+}
+
 export interface UnitReadinessResult {
   /** Unit (week) number → readiness percentage 0..100. */
   readinessByUnit: Record<number, number>;
   /** Unit number → up to 3 weakest concept names for that unit. */
   weakConceptsByUnit: Record<number, string[]>;
+  /** Unit number → every concept in that unit with its mastery. */
+  conceptsByUnit: Record<number, UnitConceptMastery[]>;
   loading: boolean;
 }
+
 
 /**
  * Unit readiness = weight-weighted average of the student's concept mastery
