@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -59,6 +59,30 @@ const StudentLearningPath = () => {
   );
 
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
+
+  // Deep link from the concept mastery map: ?unit=N expands + scrolls to that unit.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedUnit = Number(searchParams.get("unit")) || null;
+  const [highlightedUnit, setHighlightedUnit] = useState<number | null>(null);
+  useEffect(() => {
+    if (!requestedUnit || lessonPlan.length === 0) return;
+    if (!lessonPlan.some((w) => w.day === requestedUnit)) return;
+    setExpandedWeeks((prev) => (prev.includes(requestedUnit) ? prev : [...prev, requestedUnit]));
+    setHighlightedUnit(requestedUnit);
+    const next = new URLSearchParams(searchParams);
+    next.delete("unit");
+    next.delete("concept");
+    setSearchParams(next, { replace: true });
+    const scrollTimer = window.setTimeout(() => {
+      document.getElementById(`unit-card-${requestedUnit}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+    const clearTimer = window.setTimeout(() => setHighlightedUnit(null), 2500);
+    return () => {
+      window.clearTimeout(scrollTimer);
+      window.clearTimeout(clearTimer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedUnit, lessonPlan.length]);
 
   const activityDoneStorageKey = user?.id ? `student:activity-done:${user.id}` : null;
   const [activityDone, setActivityDone] = useState<Record<string, boolean>>(() => {
@@ -338,6 +362,7 @@ const StudentLearningPath = () => {
                 quizLocked={voids >= 2}
                 quizFinalAttempt={voids === 1}
                 readiness={readinessByUnit[unit.day] ?? 0}
+                highlighted={highlightedUnit === unit.day}
                 weakConcepts={weak}
                 concepts={conceptsByUnit[unit.day] ?? []}
                 onStudyConcept={(concept, isWeak) => goToStudy(concept, isWeak && !!taken ? "weak" : "start")}

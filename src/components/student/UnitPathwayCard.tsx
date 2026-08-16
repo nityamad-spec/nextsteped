@@ -42,6 +42,7 @@ export interface UnitPathwayCardProps {
   quizFinalAttempt?: boolean;
   readiness: number;
   weakConcepts: string[];
+  highlighted?: boolean;
   concepts?: UnitConceptMastery[];
   onStudyConcept?: (concept: string, isWeak: boolean) => void;
   resources: UnitResource[];
@@ -113,6 +114,7 @@ const UnitPathwayCard = ({
   quizFinalAttempt,
   readiness,
   weakConcepts,
+  highlighted = false,
   concepts = [],
   onStudyConcept,
   resources,
@@ -137,7 +139,12 @@ const UnitPathwayCard = ({
 
 
   return (
-    <Card className={expanded ? "overflow-hidden border-primary/20" : "overflow-hidden"}>
+    <Card
+      id={`unit-card-${unitNumber}`}
+      className={`overflow-hidden transition-shadow ${expanded ? "border-primary/20" : ""} ${
+        highlighted ? "ring-2 ring-primary" : ""
+      }`}
+    >
       <button
         type="button"
         onClick={onToggle}

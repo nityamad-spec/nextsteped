@@ -23,7 +23,7 @@ import WhatsNewCard from "@/components/student/WhatsNewCard";
 import { useAchievements } from "@/hooks/useAchievements";
 import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
 import { useUnitProgress } from "@/hooks/useUnitProgress";
-import { computeUnitStage } from "@/lib/unitStage";
+import { computeUnitStage, normaliseConcept } from "@/lib/unitStage";
 
 
 /* Concepts are loaded from the DB for the student's enrolled course.
@@ -307,6 +307,23 @@ const StudentHome = () => {
       if (wk.day === currentWeek && name) currentWeekConcepts.push({ id, name });
     });
   });
+
+  // Concept id → the lesson-plan unit it belongs to (for mastery-map deep links)
+  const unitByConcept: Record<string, { unit: number; topic: string }> = {};
+  {
+    const idByNormalised = new Map<string, string>();
+    concepts.forEach((c) => idByNormalised.set(normaliseConcept(c.name), c.id));
+    lessonPlan.forEach((wk: any) => {
+      (wk.concepts || []).forEach((c: any) => {
+        const name = typeof c?.name === "string" ? c.name : "";
+        if (!name) return;
+        const id = idByNormalised.get(normaliseConcept(name));
+        if (!id || unitByConcept[id]) return;
+        unitByConcept[id] = { unit: Number(wk.day), topic: String(wk.topic || `Unit ${wk.day}`) };
+      });
+    });
+  }
+
 
   const currentWeekRow = lessonPlan.find((wk: any) => wk.day === currentWeek);
 
@@ -752,6 +769,15 @@ const StudentHome = () => {
         concepts={concepts}
         conceptMastery={conceptMastery}
         courseMastery={courseMastery}
+        unitByConcept={unitByConcept}
+        onSelectConcept={(conceptId) => {
+          const target = unitByConcept[conceptId];
+          if (!target) return;
+          const name = concepts.find((c) => c.id === conceptId)?.name ?? "";
+          setMasteryDialogOpen(false);
+          markLearningPathOpened(enrolledCourseId);
+          navigate(`/student/learning-path?unit=${target.unit}&concept=${encodeURIComponent(name)}`);
+        }}
       />
 
 
