@@ -308,6 +308,23 @@ const StudentHome = () => {
     });
   });
 
+  // Concept id → the lesson-plan unit it belongs to (for mastery-map deep links)
+  const unitByConcept: Record<string, { unit: number; topic: string }> = {};
+  {
+    const idByNormalised = new Map<string, string>();
+    concepts.forEach((c) => idByNormalised.set(normaliseConcept(c.name), c.id));
+    lessonPlan.forEach((wk: any) => {
+      (wk.concepts || []).forEach((c: any) => {
+        const name = typeof c?.name === "string" ? c.name : "";
+        if (!name) return;
+        const id = idByNormalised.get(normaliseConcept(name));
+        if (!id || unitByConcept[id]) return;
+        unitByConcept[id] = { unit: Number(wk.day), topic: String(wk.topic || `Unit ${wk.day}`) };
+      });
+    });
+  }
+
+
   const currentWeekRow = lessonPlan.find((wk: any) => wk.day === currentWeek);
 
   const quizQuestionCount = taSettings?.quizNumQuestions || 5;
