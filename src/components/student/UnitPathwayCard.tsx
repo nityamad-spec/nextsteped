@@ -113,6 +113,8 @@ const UnitPathwayCard = ({
   quizFinalAttempt,
   readiness,
   weakConcepts,
+  concepts = [],
+  onStudyConcept,
   resources,
   activityDone,
   onToggleActivity,
@@ -128,6 +130,10 @@ const UnitPathwayCard = ({
   const isLastUnit = unitNumber >= totalUnits;
   const readingCount = resources.length;
   const readingsDone = resources.filter((r) => activityDone[r.id]).length;
+  const weakSet = new Set(weakConcepts);
+  const chipConcepts = concepts.slice(0, 3);
+  const extraConceptCount = Math.max(0, concepts.length - chipConcepts.length);
+
 
 
   return (
