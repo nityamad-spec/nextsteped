@@ -45,7 +45,7 @@ const StudentLearningPath = () => {
     lessonPlanError,
   } = useLearningPlan();
 
-  const { readinessByUnit, weakConceptsByUnit } = useUnitReadiness(enrolledCourseId, lessonPlan);
+  const { readinessByUnit, weakConceptsByUnit, conceptsByUnit } = useUnitReadiness(enrolledCourseId, lessonPlan);
   // Latest weekly-quiz attempt per unit — study/practice only count after this.
   const [quizTakenAtByUnit, setQuizTakenAtByUnit] = useState<Record<number, string | undefined>>({});
   // First unit not yet at the readiness threshold — unattributed chats credit this unit.
