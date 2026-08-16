@@ -14,7 +14,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
+import type { UnitConceptMastery } from "@/hooks/useUnitReadiness";
 import { computeUnitStage } from "@/lib/unitStage";
+import {
+  getMasteryLevel,
+  MASTERY_LABEL,
+  MASTERY_SWATCH_CLASS,
+} from "@/lib/masteryLevels";
 
 import type { LearningPlanWeek } from "@/hooks/useLearningPlan";
 
@@ -36,6 +42,8 @@ export interface UnitPathwayCardProps {
   quizFinalAttempt?: boolean;
   readiness: number;
   weakConcepts: string[];
+  concepts?: UnitConceptMastery[];
+  onStudyConcept?: (concept: string, isWeak: boolean) => void;
   resources: UnitResource[];
   activityDone: Record<string, boolean>;
   onToggleActivity: (id: string) => void;
@@ -105,6 +113,8 @@ const UnitPathwayCard = ({
   quizFinalAttempt,
   readiness,
   weakConcepts,
+  concepts = [],
+  onStudyConcept,
   resources,
   activityDone,
   onToggleActivity,
@@ -120,6 +130,10 @@ const UnitPathwayCard = ({
   const isLastUnit = unitNumber >= totalUnits;
   const readingCount = resources.length;
   const readingsDone = resources.filter((r) => activityDone[r.id]).length;
+  const weakSet = new Set(weakConcepts);
+  const chipConcepts = concepts.slice(0, 3);
+  const extraConceptCount = Math.max(0, concepts.length - chipConcepts.length);
+
 
 
   return (
@@ -134,6 +148,21 @@ const UnitPathwayCard = ({
             Unit {unitNumber}
           </p>
           <h2 className="truncate font-heading text-base font-bold md:text-lg">{topic}</h2>
+          {!expanded && concepts.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {chipConcepts.map((c) => (
+                <span
+                  key={c.name}
+                  className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                >
+                  {c.name}
+                </span>
+              ))}
+              {extraConceptCount > 0 && (
+                <span className="text-[11px] text-muted-foreground">+{extraConceptCount} more</span>
+              )}
+            </div>
+          )}
         </div>
         {quizTaken && (
           <span
@@ -254,6 +283,47 @@ const UnitPathwayCard = ({
               </>
             )}
           </div>
+
+          {/* Concepts in this unit */}
+          {concepts.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Concepts in this unit
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {concepts.map((c) => {
+                  const level = getMasteryLevel(c.matched && c.mastery > 0 ? 1 : 0, c.mastery / 100);
+                  const isWeak = weakSet.has(c.name);
+                  return (
+                    <button
+                      key={c.name}
+                      type="button"
+                      onClick={() => onStudyConcept?.(c.name, isWeak)}
+                      disabled={!onStudyConcept}
+                      className="flex items-center gap-2.5 rounded-lg border bg-card p-2.5 text-left transition-colors hover:bg-muted/40 disabled:cursor-default disabled:hover:bg-card"
+                    >
+                      <span
+                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${MASTERY_SWATCH_CLASS[level]}`}
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.name}</span>
+                      {isWeak && quizTaken && (
+                        <Badge variant="outline" className="shrink-0 text-[10px]">
+                          Focus
+                        </Badge>
+                      )}
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {level === "not_explored" ? MASTERY_LABEL[level] : `${c.mastery}%`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                These are the same concepts shown in your concept mastery map.
+              </p>
+            </div>
+          )}
 
           {/* 3-step path */}
           <div>
