@@ -314,7 +314,7 @@ const UnitPathwayCard = ({
                         aria-hidden
                       />
                       <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.name}</span>
-                      {isWeak && quizTaken && (
+                      {level !== "expert" && (
                         <Badge variant="outline" className="shrink-0 text-[10px]">
                           Focus
                         </Badge>
