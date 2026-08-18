@@ -92,6 +92,8 @@ export type Database = {
       assessment_attempt_voids: {
         Row: {
           assessment_type: string
+          cleared_at: string | null
+          cleared_by: string | null
           course_id: string
           created_at: string
           id: string
@@ -101,6 +103,8 @@ export type Database = {
         }
         Insert: {
           assessment_type: string
+          cleared_at?: string | null
+          cleared_by?: string | null
           course_id: string
           created_at?: string
           id?: string
@@ -110,6 +114,8 @@ export type Database = {
         }
         Update: {
           assessment_type?: string
+          cleared_at?: string | null
+          cleared_by?: string | null
           course_id?: string
           created_at?: string
           id?: string
