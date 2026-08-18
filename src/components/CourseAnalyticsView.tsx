@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { BookOpen, Users, Brain, GraduationCap, MessageSquare, ClipboardCheck, CheckCircle2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ProctoringLocksCard from "@/components/teacher/ProctoringLocksCard";
+
 
 type LoadStage = "idle" | "course-data" | "students" | "chat" | "computing" | "done";
 
