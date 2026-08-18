@@ -12,6 +12,8 @@ import {
   MessageSquare, Activity, ChevronDown, TrendingUp, TrendingDown, ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { clearVoids as clearVoidRows } from "@/lib/attemptVoids";
+
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
