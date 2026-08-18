@@ -774,7 +774,10 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
             </div>
           </div>
 
+          <ProctoringLocksCard courseId={course.id} />
+
           <div className="rounded-lg border bg-card p-4">
+
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <MessageSquare className="h-4 w-4" /> Chat engagement
