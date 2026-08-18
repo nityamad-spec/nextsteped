@@ -193,6 +193,16 @@ const openMasteryMap = async () => {
   await screen.findByRole("dialog");
 };
 
+/** Close the mastery dialog via its built-in close control (Escape is flaky in jsdom). */
+const closeMasteryMap = async () => {
+  const dialog = screen.getByRole("dialog");
+  const close = within(dialog).getByRole("button", { name: /close/i });
+  await act(async () => {
+    fireEvent.click(close);
+  });
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+};
+
 beforeEach(() => {
   enrolledCourseId = COURSE_A;
   for (const k of Object.keys(masteryStore)) delete masteryStore[k];
@@ -228,10 +238,7 @@ describe("StudentHome — concept mastery heatmap", () => {
     expect(getTile("Python Fundamentals").textContent).toContain("Not explored");
 
     // Close the map so the lesson-plan quiz button is reachable again
-    fireEvent.keyDown(document.activeElement || document.body, { key: "Escape" });
-    await waitFor(() =>
-      expect(screen.queryByText("Concept mastery map")).not.toBeInTheDocument(),
-    );
+    await closeMasteryMap();
 
     // Simulate the quiz writing rows to the DB (only for COURSE_A)
     masteryStore[`${STUDENT_ID}|${COURSE_A}`] = [
