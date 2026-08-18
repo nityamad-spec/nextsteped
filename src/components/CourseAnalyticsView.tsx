@@ -233,7 +233,13 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
   }, []);
 
   useEffect(() => {
-    if (!course) return;
+    if (!course) {
+      // Clear stale data so a closed/absent course can't render the loaded branch
+      setRaw(null);
+      setLoadingStage("idle");
+      setLoading(false);
+      return;
+    }
     const cid = course.id;
     setUniversityFilter(ALL);
     load(cid, true);
@@ -776,7 +782,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
             </div>
           </div>
 
-          <ProctoringLocksCard courseId={course.id} />
+          {course && <ProctoringLocksCard courseId={course.id} />}
 
           <div className="rounded-lg border bg-card p-4">
 
