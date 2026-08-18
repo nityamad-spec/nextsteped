@@ -132,13 +132,15 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
       .from("assessment_attempt_voids")
       .select("id, course_id, assessment_type, ref_key")
       .in("student_id", studentIds)
-      .in("course_id", courseIds);
+      .in("course_id", courseIds)
+      .is("cleared_at", null);
     setVoidRows((data as VoidRow[]) || []);
   }, []);
 
   const clearVoids = useCallback(async (courseId: string, ids: string[]) => {
     setClearingVoids(courseId);
-    const { error } = await supabase.from("assessment_attempt_voids").delete().in("id", ids);
+    const { data: auth } = await supabase.auth.getUser();
+    const { error } = await clearVoidRows({ courseId, ids, clearedBy: auth?.user?.id ?? null });
     setClearingVoids(null);
     if (error) {
       toast.error("Could not reset the proctoring lock");
@@ -147,6 +149,7 @@ const StudentProfileDialog = ({ student, open, onOpenChange }: Props) => {
     setVoidRows(prev => prev.filter(r => !ids.includes(r.id)));
     toast.success("Proctoring lock reset");
   }, []);
+
 
 
 
