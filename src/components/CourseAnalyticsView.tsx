@@ -782,7 +782,7 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
             </div>
           </div>
 
-          <ProctoringLocksCard courseId={course.id} />
+          {course && <ProctoringLocksCard courseId={course.id} />}
 
           <div className="rounded-lg border bg-card p-4">
 
