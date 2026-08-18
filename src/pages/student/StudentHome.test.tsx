@@ -193,6 +193,16 @@ const openMasteryMap = async () => {
   await screen.findByRole("dialog");
 };
 
+/** Close the mastery dialog via its built-in close control (Escape is flaky in jsdom). */
+const closeMasteryMap = async () => {
+  const dialog = screen.getByRole("dialog");
+  const close = within(dialog).getByRole("button", { name: /close/i });
+  await act(async () => {
+    fireEvent.click(close);
+  });
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+};
+
 beforeEach(() => {
   enrolledCourseId = COURSE_A;
   for (const k of Object.keys(masteryStore)) delete masteryStore[k];
