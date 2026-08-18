@@ -238,10 +238,7 @@ describe("StudentHome — concept mastery heatmap", () => {
     expect(getTile("Python Fundamentals").textContent).toContain("Not explored");
 
     // Close the map so the lesson-plan quiz button is reachable again
-    fireEvent.keyDown(document.activeElement || document.body, { key: "Escape" });
-    await waitFor(() =>
-      expect(screen.queryByText("Concept mastery map")).not.toBeInTheDocument(),
-    );
+    await closeMasteryMap();
 
     // Simulate the quiz writing rows to the DB (only for COURSE_A)
     masteryStore[`${STUDENT_ID}|${COURSE_A}`] = [
