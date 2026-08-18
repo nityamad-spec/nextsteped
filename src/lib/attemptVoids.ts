@@ -43,8 +43,10 @@ export async function countAttemptVoids(params: {
     .select("id", { count: "exact", head: true })
     .eq("student_id", studentId)
     .eq("course_id", courseId)
-    .eq("assessment_type", assessmentType);
+    .eq("assessment_type", assessmentType)
+    .is("cleared_at", null);
   query = refKey == null ? query.is("ref_key", null) : query.eq("ref_key", String(refKey));
+
   const { count, error } = await query;
   if (error) {
     console.error("Void attempts count error:", error);
