@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { BookOpen, Users, Brain, GraduationCap, MessageSquare, ClipboardCheck, CheckCircle2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ProctoringLocksCard from "@/components/teacher/ProctoringLocksCard";
+
 
 type LoadStage = "idle" | "course-data" | "students" | "chat" | "computing" | "done";
 
@@ -774,7 +776,10 @@ const CourseAnalyticsView = ({ course, showHeader = true }: Props) => {
             </div>
           </div>
 
+          <ProctoringLocksCard courseId={course.id} />
+
           <div className="rounded-lg border bg-card p-4">
+
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <MessageSquare className="h-4 w-4" /> Chat engagement

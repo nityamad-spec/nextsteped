@@ -43,8 +43,10 @@ export async function countAttemptVoids(params: {
     .select("id", { count: "exact", head: true })
     .eq("student_id", studentId)
     .eq("course_id", courseId)
-    .eq("assessment_type", assessmentType);
+    .eq("assessment_type", assessmentType)
+    .is("cleared_at", null);
   query = refKey == null ? query.is("ref_key", null) : query.eq("ref_key", String(refKey));
+
   const { count, error } = await query;
   if (error) {
     console.error("Void attempts count error:", error);
@@ -66,7 +68,8 @@ export async function fetchVoidCounts(params: {
     .select("ref_key")
     .eq("student_id", studentId)
     .eq("course_id", courseId)
-    .eq("assessment_type", assessmentType);
+    .eq("assessment_type", assessmentType)
+    .is("cleared_at", null);
   if (error) {
     console.error("Void attempts load error:", error);
     return {};
@@ -78,3 +81,35 @@ export async function fetchVoidCounts(params: {
   });
   return map;
 }
+
+/**
+ * Forgive locks: mark voids as cleared (keeping history) rather than deleting.
+ * Pass `ids` to clear specific rows, or `studentIds` to clear every uncleared
+ * void those students have in the course.
+ */
+export async function clearVoids(params: {
+  courseId: string;
+  studentIds?: string[];
+  ids?: string[];
+  clearedBy?: string | null;
+}): Promise<{ error: string | null }> {
+  const { courseId, studentIds, ids, clearedBy } = params;
+  if (!courseId) return { error: "Missing course" };
+  if ((!studentIds || studentIds.length === 0) && (!ids || ids.length === 0)) {
+    return { error: "Nothing to clear" };
+  }
+  let q = supabase
+    .from("assessment_attempt_voids")
+    .update({ cleared_at: new Date().toISOString(), cleared_by: clearedBy ?? null } as never)
+    .eq("course_id", courseId)
+    .is("cleared_at", null);
+  if (ids && ids.length > 0) q = q.in("id", ids);
+  if (studentIds && studentIds.length > 0) q = q.in("student_id", studentIds);
+  const { error } = await q;
+  if (error) {
+    console.error("Clear voids error:", error);
+    return { error: error.message };
+  }
+  return { error: null };
+}
+
