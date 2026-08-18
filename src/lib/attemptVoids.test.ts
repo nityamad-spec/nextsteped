@@ -1,21 +1,31 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const state: { insertError: unknown; count: number; rows: Array<{ ref_key: string | null }> } = {
+const state: {
+  insertError: unknown;
+  count: number;
+  rows: Array<{ ref_key: string | null }>;
+  calls: Array<{ method: string; args: unknown[] }>;
+  updateError: unknown;
+} = {
   insertError: null,
   count: 0,
   rows: [],
+  calls: [],
+  updateError: null,
 };
 
 vi.mock("@/integrations/supabase/client", () => {
-  const builder = () => {
+  const builder = (result: () => unknown) => {
     const chain: Record<string, unknown> = {};
     const self = new Proxy(chain, {
       get(_t, prop: string) {
         if (prop === "then") {
-          return (resolve: (v: unknown) => void) =>
-            resolve({ data: state.rows, count: state.count, error: null });
+          return (resolve: (v: unknown) => void) => resolve(result());
         }
-        return () => self;
+        return (...args: unknown[]) => {
+          state.calls.push({ method: prop, args });
+          return self;
+        };
       },
     });
     return self;
@@ -24,20 +34,27 @@ vi.mock("@/integrations/supabase/client", () => {
     supabase: {
       from: () => ({
         insert: () => Promise.resolve({ error: state.insertError }),
-        select: () => builder(),
+        select: () => builder(() => ({ data: state.rows, count: state.count, error: null })),
+        update: (...args: unknown[]) => {
+          state.calls.push({ method: "update", args });
+          return builder(() => ({ error: state.updateError }));
+        },
       }),
     },
   };
 });
 
-import { recordAttemptVoid, countAttemptVoids, fetchVoidCounts, VOID_LOCK_THRESHOLD } from "./attemptVoids";
+import { recordAttemptVoid, countAttemptVoids, fetchVoidCounts, clearVoids, VOID_LOCK_THRESHOLD } from "./attemptVoids";
 
 describe("attemptVoids", () => {
   beforeEach(() => {
     state.insertError = null;
     state.count = 0;
     state.rows = [];
+    state.calls = [];
+    state.updateError = null;
   });
+
 
   it("locks only on the second void", () => {
     expect(VOID_LOCK_THRESHOLD).toBe(2);
