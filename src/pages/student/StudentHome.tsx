@@ -376,12 +376,18 @@ const StudentHome = () => {
       .filter((d: number) => Number.isFinite(d))
       .sort((a: number, b: number) => a - b);
 
+    // Coding/lab units have no weekly quiz — readiness comes from practice.
+    const codingUnits = new Set(
+      lessonPlan.filter((wk: any) => !!wk?.is_coding_week).map((wk: any) => Number(wk.day)),
+    );
+
     const stageFor = (unit: number) =>
       computeUnitStage({
         studied: !!studiedByUnit[unit],
         practised: !!practisedByUnit[unit],
         quizTaken: !!takenQuizzes[unit],
         readiness: readinessByUnit[unit] ?? 0,
+        quizExempt: codingUnits.has(unit),
       });
 
     // Focus on the first unit that isn't ready yet.
@@ -392,9 +398,10 @@ const StudentHome = () => {
     if (focusUnit != null) {
       const focusRow = lessonPlan.find((wk: any) => Number(wk.day) === focusUnit);
       const focusConcept = focusRow?.topic || `Unit ${focusUnit}`;
+      const isCodingUnit = !!focusRow?.is_coding_week;
       const stage = stageFor(focusUnit);
       const readiness = readinessByUnit[focusUnit] ?? 0;
-      const quizOpen = availableQuizDays.has(focusUnit) && !takenQuizzes[focusUnit];
+      const quizOpen = !isCodingUnit && availableQuizDays.has(focusUnit) && !takenQuizzes[focusUnit];
       const weakList = (weakConceptsByUnit[focusUnit] || []).slice(0, 2).join(", ");
       const studyHref = `/student/chat?newchat=true&intent=start&concept=${encodeURIComponent(focusConcept)}`;
       const practiceHref = `/student/chat?newchat=true&intent=practice&concept=${encodeURIComponent(focusConcept)}`;
@@ -449,21 +456,37 @@ const StudentHome = () => {
           buttonVariant: "default",
         });
       } else if (stage === "practised") {
-        nextActions.push({
-          icon: ClipboardCheck,
-          title: `Take the Unit ${focusUnit} quiz`,
-          description: quizOpen
-            ? `One scored attempt sets your readiness for ${focusConcept}.`
-            : `This quiz isn't open yet — keep practising ${focusConcept}.`,
-          action: () => (quizOpen ? attemptOpenQuiz(focusUnit) : navigate(practiceHref)),
-          category: "WEEKLY QUIZ",
-          visualCategory: "quiz",
-          badgeLabel: "Weekly Quiz",
-          badgeTone: "neutral",
-          metadata: quizOpen ? quizMetadata : "Opens later",
-          buttonLabel: quizOpen ? "Take quiz" : "Keep practising",
-          buttonVariant: "default",
-        });
+        if (isCodingUnit) {
+          nextActions.push({
+            icon: Sparkles,
+            title: `Keep practising Unit ${focusUnit}`,
+            description: `This coding/lab unit has no quiz — scored practice raises your readiness for ${focusConcept}.`,
+            action: () => navigate(practiceHref),
+            category: "PRACTICE",
+            visualCategory: "practice",
+            badgeLabel: "Practice",
+            badgeTone: "green",
+            metadata: focusConcept,
+            buttonLabel: "Start practice",
+            buttonVariant: "default",
+          });
+        } else {
+          nextActions.push({
+            icon: ClipboardCheck,
+            title: `Take the Unit ${focusUnit} quiz`,
+            description: quizOpen
+              ? `One scored attempt sets your readiness for ${focusConcept}.`
+              : `This quiz isn't open yet — keep practising ${focusConcept}.`,
+            action: () => (quizOpen ? attemptOpenQuiz(focusUnit) : navigate(practiceHref)),
+            category: "WEEKLY QUIZ",
+            visualCategory: "quiz",
+            badgeLabel: "Weekly Quiz",
+            badgeTone: "neutral",
+            metadata: quizOpen ? quizMetadata : "Opens later",
+            buttonLabel: quizOpen ? "Take quiz" : "Keep practising",
+            buttonVariant: "default",
+          });
+        }
       } else if (stage === "needs_work") {
         nextActions.push({
           icon: MessageSquare,

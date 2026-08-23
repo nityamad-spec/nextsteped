@@ -1535,6 +1535,7 @@ export type Database = {
           created_at: string
           exam_type: string | null
           id: string
+          is_coding_week: boolean
           is_exam_week: boolean
           locked: boolean
           overview: string
@@ -1550,6 +1551,7 @@ export type Database = {
           created_at?: string
           exam_type?: string | null
           id?: string
+          is_coding_week?: boolean
           is_exam_week?: boolean
           locked?: boolean
           overview?: string
@@ -1565,6 +1567,7 @@ export type Database = {
           created_at?: string
           exam_type?: string | null
           id?: string
+          is_coding_week?: boolean
           is_exam_week?: boolean
           locked?: boolean
           overview?: string

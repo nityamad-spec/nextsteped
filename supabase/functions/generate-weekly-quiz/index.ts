@@ -734,12 +734,16 @@ async function run(
   // Load week + concept names for the week
   const { data: weekRow } = await admin
     .from("lesson_plan_weeks")
-    .select("week_name, concepts, quiz_type_counts")
+    .select("week_name, concepts, quiz_type_counts, is_coding_week")
     .eq("course_id", courseId)
     .eq("week_number", weekNumber)
     .maybeSingle();
   if (!weekRow) {
     return { status: 400, payload: { error: `No lesson-plan week ${weekNumber} for this course` } };
+  }
+  // Coding/lab weeks are assessed via the coding exercise — no weekly quiz.
+  if ((weekRow as any).is_coding_week) {
+    return { status: 400, payload: { error: "Coding/lab weeks don't have quizzes" } };
   }
   const weekMix: QuestionMix = normalizeMix((weekRow as any).quiz_type_counts);
   const weekConceptNames: string[] = Array.isArray(weekRow.concepts)

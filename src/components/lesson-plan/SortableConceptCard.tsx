@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowRight, GripVertical, Pencil, Sparkles, Trash2 } from "lucide-react";
+import { ArrowRight, Copy, GripVertical, Pencil, Sparkles, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 export type LessonConcept = {
@@ -26,6 +26,8 @@ export function ConceptCardBody({
   dragHandle,
   moveTargets,
   onMoveTo,
+  duplicateTargets = [],
+  onDuplicateTo,
   onEdit,
   onDelete,
 }: {
@@ -34,6 +36,8 @@ export function ConceptCardBody({
   dragHandle?: ReactNode;
   moveTargets: MoveTarget[];
   onMoveTo: (toWeekId: string) => void;
+  duplicateTargets?: MoveTarget[];
+  onDuplicateTo?: (toWeekId: string) => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -79,6 +83,26 @@ export function ConceptCardBody({
             </DropdownMenuContent>
           </DropdownMenu>
         )}
+        {duplicateTargets.length > 0 && onDuplicateTo && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-6 px-1.5" title="Duplicate to a coding/lab week">
+                <Copy className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
+              {duplicateTargets.map((other) => (
+                <DropdownMenuItem
+                  key={other.id}
+                  onClick={() => onDuplicateTo(other.id)}
+                  className="text-xs"
+                >
+                  Duplicate to Week {other.week} (coding/lab)
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <Button variant="ghost" size="sm" onClick={onEdit} className="h-6 w-6 p-0">
           <Pencil className="h-3 w-3" />
         </Button>
@@ -104,6 +128,8 @@ export function SortableConceptCard(props: {
   onDelete: () => void;
   moveTargets: MoveTarget[];
   onMoveTo: (toWeekId: string) => void;
+  duplicateTargets?: MoveTarget[];
+  onDuplicateTo?: (toWeekId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: props.concept.id,
@@ -150,6 +176,8 @@ export function SortableConceptCard(props: {
         index={props.index}
         moveTargets={props.moveTargets}
         onMoveTo={props.onMoveTo}
+        duplicateTargets={props.duplicateTargets}
+        onDuplicateTo={props.onDuplicateTo}
         onEdit={props.onStartEdit}
         onDelete={props.onDelete}
         dragHandle={
