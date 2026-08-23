@@ -1855,9 +1855,11 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => addResource(w.id, "coding-exercise")} className="text-xs">
-                                    <Code2 className="h-3 w-3 mr-2" /> Industry-Relevant Exercise
-                                  </DropdownMenuItem>
+                                  {codingApproved && (
+                                    <DropdownMenuItem onClick={() => addResource(w.id, "coding-exercise")} className="text-xs">
+                                      <Code2 className="h-3 w-3 mr-2" /> Industry-Relevant Exercise
+                                    </DropdownMenuItem>
+                                  )}
                                   <DropdownMenuItem onClick={() => addResource(w.id, "article")} className="text-xs">
                                     <FileText className="h-3 w-3 mr-2" /> Article / Resource
                                   </DropdownMenuItem>
