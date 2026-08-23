@@ -155,9 +155,16 @@ const UnitPathwayCard = ({
         className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/30"
       >
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Unit {unitNumber}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Unit {unitNumber}
+            </p>
+            {isCodingWeek && (
+              <Badge variant="outline" className="gap-1 border-emerald-500/40 bg-emerald-500/10 text-[10px] text-emerald-600 dark:text-emerald-400">
+                <Code2 className="h-2.5 w-2.5" /> Coding/lab
+              </Badge>
+            )}
+          </div>
           <h2 className="truncate font-heading text-base font-bold md:text-lg">{topic}</h2>
           {!expanded && concepts.length > 0 && (
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -202,21 +209,24 @@ const UnitPathwayCard = ({
               <>
                 <p className="mt-1 font-heading text-base font-bold">Start studying</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Work through this unit with your teaching assistant, practise a few questions, then
-                  take the weekly quiz.
+                  {isCodingWeek
+                    ? "Work through this unit with your teaching assistant, practise a few questions, then complete the coding exercise below."
+                    : "Work through this unit with your teaching assistant, practise a few questions, then take the weekly quiz."}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button size="sm" onClick={onStudy}>
                     Start studying
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={onTakeQuiz}
-                    disabled={!quizAvailable || quizLocked}
-                  >
-                    Take quiz now
-                  </Button>
+                  {!isCodingWeek && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={onTakeQuiz}
+                      disabled={!quizAvailable || quizLocked}
+                    >
+                      Take quiz now
+                    </Button>
+                  )}
                 </div>
               </>
             )}
@@ -238,18 +248,38 @@ const UnitPathwayCard = ({
             )}
             {stage === "practised" && (
               <>
-                <p className="mt-1 font-heading text-base font-bold">Take the Unit {unitNumber} quiz</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  You've studied and practised. One scored attempt sets your readiness for this unit.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button size="sm" onClick={onTakeQuiz} disabled={!quizAvailable || quizLocked}>
-                    Take quiz
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={onPractice}>
-                    More practice
-                  </Button>
-                </div>
+                {isCodingWeek ? (
+                  <>
+                    <p className="mt-1 font-heading text-base font-bold">Keep practising</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      This coding/lab unit has no quiz — scored practice raises your readiness until
+                      you're ready to move on.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button size="sm" onClick={onPractice}>
+                        Start practice
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={onStudy}>
+                        Keep studying
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-1 font-heading text-base font-bold">Take the Unit {unitNumber} quiz</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      You've studied and practised. One scored attempt sets your readiness for this unit.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button size="sm" onClick={onTakeQuiz} disabled={!quizAvailable || quizLocked}>
+                        Take quiz
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={onPractice}>
+                        More practice
+                      </Button>
+                    </div>
+                  </>
+                )}
               </>
             )}
             {stage === "needs_work" && (
@@ -364,32 +394,34 @@ const UnitPathwayCard = ({
                 onAction={onPractice}
                 done={practised}
               />
-              <StepCard
-                index={3}
-                icon={ClipboardCheck}
-                title="Weekly Quiz"
-                description={
-                  quizTaken
-                    ? `Completed${typeof quizScore === "number" ? ` — ${quizScore}%` : ""}. One attempt only.`
-                    : quizLocked
-                      ? "Locked — attempts voided for leaving the quiz. Contact your professor."
-                      : quizAvailable
-                        ? "One scored attempt that sets your starting readiness for this unit."
-                        : "Not published for this unit yet."
-                }
-                action={
-                  quizTaken
-                    ? "Quiz completed"
-                    : quizLocked
-                      ? "Locked"
-                      : quizFinalAttempt
-                        ? "Retake quiz (final attempt)"
-                        : "Take quiz"
-                }
-                onAction={onTakeQuiz}
-                done={quizTaken}
-                disabled={quizTaken || quizLocked || !quizAvailable}
-              />
+              {!isCodingWeek && (
+                <StepCard
+                  index={3}
+                  icon={ClipboardCheck}
+                  title="Weekly Quiz"
+                  description={
+                    quizTaken
+                      ? `Completed${typeof quizScore === "number" ? ` — ${quizScore}%` : ""}. One attempt only.`
+                      : quizLocked
+                        ? "Locked — attempts voided for leaving the quiz. Contact your professor."
+                        : quizAvailable
+                          ? "One scored attempt that sets your starting readiness for this unit."
+                          : "Not published for this unit yet."
+                  }
+                  action={
+                    quizTaken
+                      ? "Quiz completed"
+                      : quizLocked
+                        ? "Locked"
+                        : quizFinalAttempt
+                          ? "Retake quiz (final attempt)"
+                          : "Take quiz"
+                  }
+                  onAction={onTakeQuiz}
+                  done={quizTaken}
+                  disabled={quizTaken || quizLocked || !quizAvailable}
+                />
+              )}
             </div>
           </div>
 
