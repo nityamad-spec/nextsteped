@@ -1780,7 +1780,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                           <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                             <Select
                               value={w.is_coding_week ? "coding" : w.is_exam_week ? (w.exam_type ?? "other") : "teaching"}
-                              onValueChange={(v) => setWeekType(w.id, v as "teaching" | "midterm" | "final" | "other" | "coding")}
+                              onValueChange={(v) => setWeekType(w.id, v as "teaching" | "midterm" | "final" | "coding")}
                             >
                               <SelectTrigger className="h-7 w-[132px] text-xs" aria-label={`Week ${w.week} type`}>
                                 <SelectValue />
@@ -1789,7 +1789,11 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                 <SelectItem value="teaching">Teaching week</SelectItem>
                                 <SelectItem value="midterm">Midterm exam</SelectItem>
                                 <SelectItem value="final">Final exam</SelectItem>
-                                <SelectItem value="other">Exam week</SelectItem>
+                                {/* Grandfathered generic exam weeks: shown (disabled) so the
+                                    trigger can render the existing value, but not selectable. */}
+                                {w.exam_type === null && w.is_exam_week && (
+                                  <SelectItem value="other" disabled>Exam week</SelectItem>
+                                )}
                                 {/* Gated on admin-approved coding access; stays
                                     selectable for weeks already marked coding if
                                     access is later revoked, so the plan remains editable. */}
