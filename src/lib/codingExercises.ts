@@ -148,12 +148,17 @@ export async function updateExercise(id: string, draft: ExerciseDraft): Promise<
   const { reference_solution, hidden_test_cases, ...pub } = draft;
   const { error: pubErr } = await supabase
     .from("coding_exercises")
-    .update({ ...pub, constraints: pub.constraints?.trim() ? pub.constraints : null })
+    .update({
+      ...pub,
+      constraints: pub.constraints?.trim() ? pub.constraints : null,
+      examples: pub.examples as any,
+      standard_test_cases: pub.standard_test_cases as any,
+    })
     .eq("id", id);
   if (pubErr) throw pubErr;
   const { error: privErr } = await supabase
     .from("coding_exercise_private")
-    .update({ reference_solution, hidden_test_cases })
+    .update({ reference_solution, hidden_test_cases: hidden_test_cases as any })
     .eq("exercise_id", id);
   if (privErr) throw privErr;
 }

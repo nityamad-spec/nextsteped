@@ -46,8 +46,8 @@ export interface CodingSectionWeek {
   exam_type?: "midterm" | "final" | null;
   is_coding_week: boolean;
   locked: boolean;
-  concepts: unknown[];
-  resources: unknown[];
+  concepts: any[];
+  resources: any[];
 }
 
 interface CodingExercisesSectionProps {
