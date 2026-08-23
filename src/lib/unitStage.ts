@@ -8,6 +8,8 @@ export interface UnitStageInput {
   practised: boolean;
   quizTaken: boolean;
   readiness: number;
+  /** Coding/lab units have no weekly quiz — readiness comes from study + practice. */
+  quizExempt?: boolean;
 }
 
 /**
@@ -15,7 +17,16 @@ export interface UnitStageInput {
  * Home and the Learning Path both derive their copy from this, so the two
  * surfaces can never disagree on the next move.
  */
-export function computeUnitStage({ studied, practised, quizTaken, readiness }: UnitStageInput): UnitStage {
+export function computeUnitStage({ studied, practised, quizTaken, readiness, quizExempt }: UnitStageInput): UnitStage {
+  if (quizExempt) {
+    // No quiz gates these units: reaching the readiness threshold via
+    // practice marks the unit ready (requires some activity first so
+    // diagnostic-seeded mastery alone doesn't auto-complete a unit).
+    if ((studied || practised) && readiness >= READINESS_THRESHOLD) return "ready";
+    if (practised) return "practised";
+    if (studied) return "studied";
+    return "not_started";
+  }
   if (quizTaken) return readiness >= READINESS_THRESHOLD ? "ready" : "needs_work";
   if (practised) return "practised";
   if (studied) return "studied";

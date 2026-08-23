@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Code2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,8 @@ export interface UnitPathwayCardProps {
   studied: boolean;
   practised: boolean;
   quizTaken: boolean;
+  /** Coding/lab unit: no quiz step, readiness comes from study + practice. */
+  isCodingWeek?: boolean;
 
   quizScore?: number;
   quizAvailable: boolean;
@@ -107,6 +110,7 @@ const UnitPathwayCard = ({
   studied,
   practised,
   quizTaken,
+  isCodingWeek = false,
 
   quizScore,
   quizAvailable,
@@ -126,7 +130,7 @@ const UnitPathwayCard = ({
   onGoToNextUnit,
 }: UnitPathwayCardProps) => {
   const [showResources, setShowResources] = useState(false);
-  const stage = computeUnitStage({ studied, practised, quizTaken, readiness });
+  const stage = computeUnitStage({ studied, practised, quizTaken, readiness, quizExempt: isCodingWeek });
   const ready = stage === "ready";
   const weakList = weakConcepts.slice(0, 2).join(", ");
   const isLastUnit = unitNumber >= totalUnits;
