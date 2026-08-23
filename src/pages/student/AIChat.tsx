@@ -1553,7 +1553,7 @@ const AIChat = () => {
               </TabsList>
             </Tabs>
           </div>
-          {mode === "learning" && (
+          {mode === "learning" && codingApproved && (
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowTerminal(true)}>
                 <Terminal className="h-4 w-4" /> <span className="hidden sm:inline">Code</span>
