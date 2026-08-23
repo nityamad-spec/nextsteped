@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 // SetupProgressBar removed — using top-left "Back to Course Setup" button instead.
 import { useAuth } from "@/contexts/AuthContext";
+import { useCodingAccess } from "@/hooks/useCodingAccess";
 import { supabase } from "@/integrations/supabase/client";
 import {
   canonicalPublishedPath,
@@ -145,6 +146,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const { toast } = useToast();
   const initialCourseId = (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
   const [courseId, setCourseId] = useState<string | null>(initialCourseId);
+  // Coding-exercise resources are only offered once an admin approves coding access.
+  const { isApproved: codingApproved } = useCodingAccess(courseId);
   const [resolvingCourse, setResolvingCourse] = useState(!initialCourseId);
   const draftLocalKey = `lessonPlanDraftV2:${courseId || user?.id || "default"}`;
   const draftStoragePath = courseId ? canonicalDraftPath(courseId) : null;

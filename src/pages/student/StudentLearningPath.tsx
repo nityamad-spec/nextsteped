@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTASettings } from "@/hooks/useTASettings";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
+import { useCodingAccess } from "@/hooks/useCodingAccess";
 import { useLearningPlan } from "@/hooks/useLearningPlan";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -34,6 +35,8 @@ const StudentLearningPath = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const enrolledCourseId = useEnrolledCourseId();
+  // Coding-exercise resources stay hidden unless an admin approved coding access.
+  const { isApproved: codingApproved } = useCodingAccess(enrolledCourseId);
   const { taSettings } = useTASettings(enrolledCourseId);
   const {
     courseName,
