@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.courses_coding_access_guard() FROM PUBLIC, anon, authenticated;

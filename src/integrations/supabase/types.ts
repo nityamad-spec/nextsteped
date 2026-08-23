@@ -997,6 +997,10 @@ export type Database = {
       courses: {
         Row: {
           branch: string[] | null
+          coding_access_status: string
+          coding_requested_at: string | null
+          coding_reviewed_at: string | null
+          coding_reviewed_by: string | null
           course_code: string | null
           created_at: string
           end_date: string | null
@@ -1029,6 +1033,10 @@ export type Database = {
         }
         Insert: {
           branch?: string[] | null
+          coding_access_status?: string
+          coding_requested_at?: string | null
+          coding_reviewed_at?: string | null
+          coding_reviewed_by?: string | null
           course_code?: string | null
           created_at?: string
           end_date?: string | null
@@ -1061,6 +1069,10 @@ export type Database = {
         }
         Update: {
           branch?: string[] | null
+          coding_access_status?: string
+          coding_requested_at?: string | null
+          coding_reviewed_at?: string | null
+          coding_reviewed_by?: string | null
           course_code?: string | null
           created_at?: string
           end_date?: string | null
@@ -1092,6 +1104,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "courses_coding_reviewed_by_fkey"
+            columns: ["coding_reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "courses_teacher_id_fkey"
             columns: ["teacher_id"]

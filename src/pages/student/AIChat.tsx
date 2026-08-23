@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTASettings } from "@/hooks/useTASettings";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
+import { useCodingAccess } from "@/hooks/useCodingAccess";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { useDiagnosticStatus } from "@/hooks/useDiagnosticStatus";
 import { useLearningPlan } from "@/hooks/useLearningPlan";
@@ -184,6 +185,7 @@ const AIChat = () => {
   const location = useLocation();
   const { user } = useAuth();
   const enrolledCourseId = useEnrolledCourseId();
+  const { isApproved: codingApproved } = useCodingAccess(enrolledCourseId);
   const { taSettings } = useTASettings(enrolledCourseId);
   const { taken: diagnosticTaken } = useDiagnosticStatus(enrolledCourseId);
   const initialMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
@@ -1346,7 +1348,7 @@ const AIChat = () => {
     );
   }
 
-  if (showTerminal) {
+  if (showTerminal && codingApproved) {
     return <CodingTerminalWidget onClose={() => setShowTerminal(false)} />;
   }
 
@@ -1553,7 +1555,7 @@ const AIChat = () => {
               </TabsList>
             </Tabs>
           </div>
-          {mode === "learning" && (
+          {mode === "learning" && codingApproved && (
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowTerminal(true)}>
                 <Terminal className="h-4 w-4" /> <span className="hidden sm:inline">Code</span>
@@ -1674,8 +1676,8 @@ const AIChat = () => {
         {/* Spacer to push footer down in exam mode */}
         {mode === "exam" && !assessmentActive && <div className="flex-1" />}
 
-        {/* Code Terminal - only in study mode */}
-        {mode === "learning" && showCodeTerminal && (
+        {/* Code Terminal - only in study mode, and only for coding-approved courses */}
+        {mode === "learning" && showCodeTerminal && codingApproved && (
           <div className="border-t bg-muted/30 p-4">
             <div className="mb-2 flex items-center gap-2">
               <Terminal className="h-4 w-4 text-primary" />

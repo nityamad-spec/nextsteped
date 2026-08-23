@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 // SetupProgressBar removed — using top-left "Back to Course Setup" button instead.
 import { useAuth } from "@/contexts/AuthContext";
+import { useCodingAccess } from "@/hooks/useCodingAccess";
 import { supabase } from "@/integrations/supabase/client";
 import {
   canonicalPublishedPath,
@@ -145,6 +146,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const { toast } = useToast();
   const initialCourseId = (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
   const [courseId, setCourseId] = useState<string | null>(initialCourseId);
+  // Coding-exercise resources are only offered once an admin approves coding access.
+  const { isApproved: codingApproved } = useCodingAccess(courseId);
   const [resolvingCourse, setResolvingCourse] = useState(!initialCourseId);
   const draftLocalKey = `lessonPlanDraftV2:${courseId || user?.id || "default"}`;
   const draftStoragePath = courseId ? canonicalDraftPath(courseId) : null;
@@ -1852,9 +1855,11 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => addResource(w.id, "coding-exercise")} className="text-xs">
-                                    <Code2 className="h-3 w-3 mr-2" /> Industry-Relevant Exercise
-                                  </DropdownMenuItem>
+                                  {codingApproved && (
+                                    <DropdownMenuItem onClick={() => addResource(w.id, "coding-exercise")} className="text-xs">
+                                      <Code2 className="h-3 w-3 mr-2" /> Industry-Relevant Exercise
+                                    </DropdownMenuItem>
+                                  )}
                                   <DropdownMenuItem onClick={() => addResource(w.id, "article")} className="text-xs">
                                     <FileText className="h-3 w-3 mr-2" /> Article / Resource
                                   </DropdownMenuItem>
@@ -1881,7 +1886,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                             <Select value={editResourceType} onValueChange={(v) => setEditResourceType(v as Resource["type"])}>
                                               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                                               <SelectContent>
-                                                <SelectItem value="coding-exercise">Industry Exercise</SelectItem>
+                                                {/* Keep the option selectable for pre-existing coding resources even if access was revoked. */}
+                                                {(codingApproved || editResourceType === "coding-exercise") && (
+                                                  <SelectItem value="coding-exercise">Industry Exercise</SelectItem>
+                                                )}
                                                 <SelectItem value="article">Article</SelectItem>
                                               </SelectContent>
                                             </Select>
