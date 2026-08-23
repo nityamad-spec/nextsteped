@@ -563,6 +563,23 @@ const StudentHome = () => {
         }
       }
 
+      // Coding/lab units: link to the published exercises on the learning path.
+      if (isCodingUnit && stage !== "ready" && codingExerciseUnits.has(focusUnit)) {
+        nextActions.push({
+          icon: Code2,
+          title: `Unit ${focusUnit} coding exercises`,
+          description: `Work through the published coding exercises for ${focusConcept}.`,
+          action: () => navigate(`/student/learning-path?unit=${focusUnit}`),
+          category: "PRACTICE",
+          visualCategory: "practice",
+          badgeLabel: "Coding/lab",
+          badgeTone: "green",
+          metadata: focusConcept,
+          buttonLabel: "View exercises",
+          buttonVariant: "outline",
+        });
+      }
+
       // Secondary nudge: move on to the next unit once this one is ready.
       const nextUnit = unitNumbers.find((u: number) => u > focusUnit);
       if (stage === "ready" && nextUnit != null) {
