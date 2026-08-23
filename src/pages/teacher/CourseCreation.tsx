@@ -918,10 +918,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     }
   };
 
-  // Set the week type: teaching, exam (midterm / final / other), or coding/lab.
+  // Set the week type: teaching, exam (midterm / final), or coding/lab.
   // Week content is preserved — only the badge and type flags change. Exam and
   // coding/lab are mutually exclusive (also enforced by a DB CHECK constraint).
-  const setWeekType = (id: string, value: "teaching" | "midterm" | "final" | "other" | "coding") => {
+  const setWeekType = (id: string, value: "teaching" | "midterm" | "final" | "coding") => {
     setWeeks(prev => prev.map(x => x.id !== id ? x : ({
       ...x,
       is_coding_week: value === "coding",
