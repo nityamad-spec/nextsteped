@@ -24,6 +24,7 @@ import {
 } from "@/lib/masteryLevels";
 
 import type { LearningPlanWeek } from "@/hooks/useLearningPlan";
+import { languageLabel, type PublishedCodingExercise } from "@/lib/codingExercises";
 
 export type UnitResource = LearningPlanWeek["resources"][number];
 
@@ -38,6 +39,8 @@ export interface UnitPathwayCardProps {
   quizTaken: boolean;
   /** Coding/lab unit: no quiz step, readiness comes from study + practice. */
   isCodingWeek?: boolean;
+  /** Published coding exercises for this unit (read-only student view). */
+  exercises?: PublishedCodingExercise[];
 
   quizScore?: number;
   quizAvailable: boolean;
@@ -111,6 +114,7 @@ const UnitPathwayCard = ({
   practised,
   quizTaken,
   isCodingWeek = false,
+  exercises = [],
 
   quizScore,
   quizAvailable,
@@ -130,6 +134,9 @@ const UnitPathwayCard = ({
   onGoToNextUnit,
 }: UnitPathwayCardProps) => {
   const [showResources, setShowResources] = useState(false);
+  const [openExercises, setOpenExercises] = useState<string[]>([]);
+  const toggleExercise = (id: string) =>
+    setOpenExercises((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const stage = computeUnitStage({ studied, practised, quizTaken, readiness, quizExempt: isCodingWeek });
   const ready = stage === "ready";
   const weakList = weakConcepts.slice(0, 2).join(", ");
