@@ -17,6 +17,7 @@ import { fetchVoidCounts } from "@/lib/attemptVoids";
 import UnitPathwayCard from "@/components/student/UnitPathwayCard";
 import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
 import { useUnitProgress } from "@/hooks/useUnitProgress";
+import { fetchPublishedExercises, type PublishedCodingExercise } from "@/lib/codingExercises";
 
 interface QuizResultRow {
   quiz_day: number | string;
