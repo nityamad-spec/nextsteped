@@ -13,7 +13,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileText, ClipboardList, ArrowLeft, Loader2, BookOpen, Youtube, Trash2, ExternalLink, AlertTriangle, NotebookPen } from "lucide-react";
+import { FileText, ClipboardList, ArrowLeft, Loader2, BookOpen, Youtube, Trash2, ExternalLink, AlertTriangle, NotebookPen, Code2, Clock, Check, XCircle } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import FileUploadZone from "@/components/FileUploadZone";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import { useAuth } from "@/contexts/AuthContext";
@@ -70,6 +71,10 @@ const CourseMaterials = () => {
   }>>([]);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [duplicatesSkipped, setDuplicatesSkipped] = useState(0);
+  // Per-course coding access: Yes -> pending (admin approval), No -> none.
+  const [codingStatus, setCodingStatus] = useState<"none" | "pending" | "approved" | "rejected">("none");
+  const [codingRequestedAt, setCodingRequestedAt] = useState<string | null>(null);
+  const [codingSaving, setCodingSaving] = useState(false);
 
   // Storage paths are course-scoped, so we must have a course row before any
   // upload is allowed. Resolve (or eagerly create) one on mount.
@@ -139,6 +144,24 @@ const CourseMaterials = () => {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Load the per-course coding access state (request / approval workflow).
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("courses")
+        .select("coding_access_status, coding_requested_at")
+        .eq("id", courseId)
+        .maybeSingle();
+      if (cancelled || !data) return;
+      const s = data.coding_access_status;
+      setCodingStatus(s === "pending" || s === "approved" || s === "rejected" ? s : "none");
+      setCodingRequestedAt(data.coding_requested_at ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
 
   useEffect(() => {
     const fetchFiles = async () => {
@@ -417,6 +440,30 @@ const CourseMaterials = () => {
   const canContinue =
     hasSyllabus && (anyParsed || syllabusJsonInStorage) && !anyIngestInFlight;
 
+  // Coding access: Yes requests admin approval (status -> pending); No keeps
+  // coding features hidden. Approved courses can only be changed by an admin.
+  const handleCodingChoice = async (requires: boolean) => {
+    if (!courseId || codingSaving || codingStatus === "approved") return;
+    if ((requires && codingStatus === "pending") || (!requires && codingStatus === "none")) return;
+    setCodingSaving(true);
+    const payload = requires
+      ? { coding_access_status: "pending", coding_requested_at: new Date().toISOString(), coding_reviewed_at: null, coding_reviewed_by: null }
+      : { coding_access_status: "none", coding_requested_at: null, coding_reviewed_at: null, coding_reviewed_by: null };
+    const { error } = await supabase.from("courses").update(payload).eq("id", courseId);
+    setCodingSaving(false);
+    if (error) {
+      toast.error(`Couldn't update coding preference: ${error.message}`);
+      return;
+    }
+    setCodingStatus(requires ? "pending" : "none");
+    setCodingRequestedAt(requires ? payload.coding_requested_at : null);
+    toast.success(
+      requires
+        ? "Request sent — an admin will review coding access for this course."
+        : "Coding exercises disabled for this course.",
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background p-6 md:p-8">
       <div className="mx-auto max-w-3xl space-y-6">
@@ -429,6 +476,73 @@ const CourseMaterials = () => {
             Upload your syllabus and any supporting teaching materials.
           </p>
         </div>
+
+        {/* Coding Exercises — gated behind admin approval */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Code2 className="h-5 w-5 text-primary" /> Coding Exercises
+              </CardTitle>
+              {codingStatus === "approved" ? (
+                <Badge variant="outline" className="gap-1 border-primary/40 text-primary bg-primary/5">
+                  <Check className="h-3 w-3" /> Approved
+                </Badge>
+              ) : codingStatus === "pending" ? (
+                <Badge variant="outline" className="gap-1 border-warning/40 text-warning bg-warning/5">
+                  <Clock className="h-3 w-3" /> Awaiting admin approval
+                </Badge>
+              ) : codingStatus === "rejected" ? (
+                <Badge variant="outline" className="gap-1 border-destructive/40 text-destructive bg-destructive/5">
+                  <XCircle className="h-3 w-3" /> Denied
+                </Badge>
+              ) : (
+                <Badge variant="secondary">Optional</Badge>
+              )}
+            </div>
+            <CardDescription>
+              Coding courses unlock the student code terminal and coding-specific content. Requests are reviewed by an admin.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm font-medium text-foreground mb-3">Does this course require coding exercises?</p>
+            <RadioGroup
+              value={codingStatus === "pending" || codingStatus === "approved" ? "yes" : "no"}
+              onValueChange={(v) => handleCodingChoice(v === "yes")}
+              disabled={!courseId || codingSaving || codingStatus === "approved"}
+              className="flex gap-6"
+            >
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="yes" id="coding-yes" />
+                <label htmlFor="coding-yes" className="text-sm cursor-pointer">Yes</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="no" id="coding-no" />
+                <label htmlFor="coding-no" className="text-sm cursor-pointer">No</label>
+              </div>
+            </RadioGroup>
+            {codingSaving && (
+              <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+              </p>
+            )}
+            {codingStatus === "pending" && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Request sent{codingRequestedAt ? ` on ${new Date(codingRequestedAt).toLocaleDateString()}` : ""}. The code terminal and coding content unlock once an admin approves.
+              </p>
+            )}
+            {codingStatus === "rejected" && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                An admin denied coding access for this course. Select Yes to request again.
+              </p>
+            )}
+            {codingStatus === "approved" && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Coding access is enabled for this course. To disable it, ask an admin to revoke access.
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Syllabus — Required */}
         <Card>
