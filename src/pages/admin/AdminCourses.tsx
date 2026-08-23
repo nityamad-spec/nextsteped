@@ -48,6 +48,7 @@ interface CourseRow {
   enrollment_code: string;
   enrollment_open: boolean;
   published: boolean;
+  coding_access_status: string;
   created_at: string;
   teacher_id: string;
   teacher_name: string;
@@ -146,7 +147,7 @@ const AdminCourses = () => {
   const loadCourses = async () => {
     const { data: coursesData } = await supabase
       .from("courses")
-      .select("id, name, course_code, term, enrollment_code, enrollment_open, published, created_at, teacher_id");
+      .select("id, name, course_code, term, enrollment_code, enrollment_open, published, coding_access_status, created_at, teacher_id");
 
     if (!coursesData) {
       setLoading(false);
@@ -191,6 +192,7 @@ const AdminCourses = () => {
         enrollment_code: c.enrollment_code,
         enrollment_open: c.enrollment_open,
         published: c.published,
+        coding_access_status: c.coding_access_status ?? "none",
         created_at: c.created_at,
         teacher_id: c.teacher_id,
         teacher_name: profileMap[c.teacher_id]?.name || "Unknown",
@@ -456,13 +458,23 @@ const AdminCourses = () => {
                       <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{c.enrollment_code}</code>
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1.5">
+                      <div className="flex flex-wrap gap-1.5">
                         <Badge variant={c.published ? "default" : "secondary"} className="text-[10px]">
                           {c.published ? "Published" : "Draft"}
                         </Badge>
                         <Badge variant={c.enrollment_open ? "outline" : "secondary"} className="text-[10px]">
                           {c.enrollment_open ? "Open" : "Closed"}
                         </Badge>
+                        {c.coding_access_status === "pending" && (
+                          <Badge variant="outline" className="text-[10px] border-warning/40 text-warning bg-warning/5">
+                            Coding: pending
+                          </Badge>
+                        )}
+                        {c.coding_access_status === "approved" && (
+                          <Badge variant="outline" className="text-[10px] border-primary/40 text-primary bg-primary/5">
+                            Coding
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
@@ -689,6 +701,7 @@ const AdminCourses = () => {
         course={profileCourse}
         open={!!profileCourse}
         onOpenChange={(o) => { if (!o) setProfileCourse(null); }}
+        onChanged={loadCourses}
       />
     </div>
 

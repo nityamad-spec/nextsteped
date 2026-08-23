@@ -1884,7 +1884,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                             <Select value={editResourceType} onValueChange={(v) => setEditResourceType(v as Resource["type"])}>
                                               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                                               <SelectContent>
-                                                <SelectItem value="coding-exercise">Industry Exercise</SelectItem>
+                                                {/* Keep the option selectable for pre-existing coding resources even if access was revoked. */}
+                                                {(codingApproved || editResourceType === "coding-exercise") && (
+                                                  <SelectItem value="coding-exercise">Industry Exercise</SelectItem>
+                                                )}
                                                 <SelectItem value="article">Article</SelectItem>
                                               </SelectContent>
                                             </Select>
