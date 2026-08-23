@@ -482,6 +482,116 @@ export type Database = {
           },
         ]
       }
+      coding_exercise_private: {
+        Row: {
+          created_at: string
+          exercise_id: string
+          hidden_test_cases: Json
+          id: string
+          reference_solution: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          exercise_id: string
+          hidden_test_cases?: Json
+          id?: string
+          reference_solution?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          exercise_id?: string
+          hidden_test_cases?: Json
+          id?: string
+          reference_solution?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coding_exercise_private_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: true
+            referencedRelation: "coding_exercises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coding_exercises: {
+        Row: {
+          constraints: string | null
+          course_id: string
+          created_at: string
+          examples: Json
+          id: string
+          input_spec: string
+          language: string
+          output_spec: string
+          position: number
+          problem_statement: string
+          published: boolean
+          published_at: string | null
+          standard_test_cases: Json
+          teacher_id: string
+          title: string
+          updated_at: string
+          week_number: number
+        }
+        Insert: {
+          constraints?: string | null
+          course_id: string
+          created_at?: string
+          examples?: Json
+          id?: string
+          input_spec: string
+          language?: string
+          output_spec: string
+          position?: number
+          problem_statement: string
+          published?: boolean
+          published_at?: string | null
+          standard_test_cases?: Json
+          teacher_id: string
+          title: string
+          updated_at?: string
+          week_number: number
+        }
+        Update: {
+          constraints?: string | null
+          course_id?: string
+          created_at?: string
+          examples?: Json
+          id?: string
+          input_spec?: string
+          language?: string
+          output_spec?: string
+          position?: number
+          problem_statement?: string
+          published?: boolean
+          published_at?: string | null
+          standard_test_cases?: Json
+          teacher_id?: string
+          title?: string
+          updated_at?: string
+          week_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coding_exercises_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coding_exercises_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       concepts: {
         Row: {
           concept_code: string

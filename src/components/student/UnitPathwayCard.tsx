@@ -24,6 +24,7 @@ import {
 } from "@/lib/masteryLevels";
 
 import type { LearningPlanWeek } from "@/hooks/useLearningPlan";
+import { languageLabel, type PublishedCodingExercise } from "@/lib/codingExercises";
 
 export type UnitResource = LearningPlanWeek["resources"][number];
 
@@ -38,6 +39,8 @@ export interface UnitPathwayCardProps {
   quizTaken: boolean;
   /** Coding/lab unit: no quiz step, readiness comes from study + practice. */
   isCodingWeek?: boolean;
+  /** Published coding exercises for this unit (read-only student view). */
+  exercises?: PublishedCodingExercise[];
 
   quizScore?: number;
   quizAvailable: boolean;
@@ -111,6 +114,7 @@ const UnitPathwayCard = ({
   practised,
   quizTaken,
   isCodingWeek = false,
+  exercises = [],
 
   quizScore,
   quizAvailable,
@@ -130,6 +134,9 @@ const UnitPathwayCard = ({
   onGoToNextUnit,
 }: UnitPathwayCardProps) => {
   const [showResources, setShowResources] = useState(false);
+  const [openExercises, setOpenExercises] = useState<string[]>([]);
+  const toggleExercise = (id: string) =>
+    setOpenExercises((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const stage = computeUnitStage({ studied, practised, quizTaken, readiness, quizExempt: isCodingWeek });
   const ready = stage === "ready";
   const weakList = weakConcepts.slice(0, 2).join(", ");
@@ -512,6 +519,119 @@ const UnitPathwayCard = ({
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Coding exercises — read-only; solutions and hidden tests are never sent to students */}
+          {isCodingWeek && exercises.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Coding exercises
+                <span className="ml-2 font-normal normal-case text-muted-foreground">
+                  {exercises.length} published
+                </span>
+              </p>
+              {exercises.map((ex) => {
+                const open = openExercises.includes(ex.id);
+                return (
+                  <div key={ex.id} className="overflow-hidden rounded-xl border">
+                    <button
+                      type="button"
+                      onClick={() => toggleExercise(ex.id)}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/30"
+                    >
+                      <Code2 className="h-4 w-4 shrink-0 text-primary" />
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{ex.title}</span>
+                      <Badge variant="secondary" className="shrink-0 text-[10px]">
+                        {languageLabel(ex.language)}
+                      </Badge>
+                      {open ? (
+                        <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      )}
+                    </button>
+                    {open && (
+                      <div className="space-y-4 border-t px-4 py-3">
+                        <p className="whitespace-pre-wrap text-sm">{ex.problem_statement}</p>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <p className="mb-1 text-xs font-semibold text-muted-foreground">Input</p>
+                            <p className="whitespace-pre-wrap rounded-lg bg-muted/40 p-2.5 font-mono text-xs">
+                              {ex.input_spec}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="mb-1 text-xs font-semibold text-muted-foreground">Output</p>
+                            <p className="whitespace-pre-wrap rounded-lg bg-muted/40 p-2.5 font-mono text-xs">
+                              {ex.output_spec}
+                            </p>
+                          </div>
+                        </div>
+                        {ex.constraints && (
+                          <div>
+                            <p className="mb-1 text-xs font-semibold text-muted-foreground">Constraints</p>
+                            <p className="whitespace-pre-wrap rounded-lg bg-muted/40 p-2.5 font-mono text-xs">
+                              {ex.constraints}
+                            </p>
+                          </div>
+                        )}
+                        {ex.examples.length > 0 && (
+                          <div>
+                            <p className="mb-1 text-xs font-semibold text-muted-foreground">Examples</p>
+                            <div className="space-y-2">
+                              {ex.examples.map((example, i) => (
+                                <div key={i} className="rounded-lg bg-muted/40 p-2.5">
+                                  <div className="grid gap-2 sm:grid-cols-2">
+                                    <div>
+                                      <p className="text-[10px] font-medium text-muted-foreground">Input</p>
+                                      <p className="whitespace-pre-wrap font-mono text-xs">{example.input}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] font-medium text-muted-foreground">Output</p>
+                                      <p className="whitespace-pre-wrap font-mono text-xs">{example.output}</p>
+                                    </div>
+                                  </div>
+                                  {example.explanation && (
+                                    <p className="mt-1.5 text-xs text-muted-foreground">
+                                      {example.explanation}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {ex.standard_test_cases.length > 0 && (
+                          <div>
+                            <p className="mb-1 text-xs font-semibold text-muted-foreground">
+                              Test cases
+                            </p>
+                            <div className="space-y-2">
+                              {ex.standard_test_cases.map((t, i) => (
+                                <div key={i} className="grid gap-2 rounded-lg bg-muted/40 p-2.5 sm:grid-cols-2">
+                                  <div>
+                                    <p className="text-[10px] font-medium text-muted-foreground">Input</p>
+                                    <p className="whitespace-pre-wrap font-mono text-xs">{t.input}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] font-medium text-muted-foreground">
+                                      Expected output
+                                    </p>
+                                    <p className="whitespace-pre-wrap font-mono text-xs">
+                                      {t.expected_output}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>

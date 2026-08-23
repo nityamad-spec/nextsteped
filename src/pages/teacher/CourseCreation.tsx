@@ -25,6 +25,8 @@ import {
 // SetupProgressBar removed — using top-left "Back to Course Setup" button instead.
 import { useAuth } from "@/contexts/AuthContext";
 import { useCodingAccess } from "@/hooks/useCodingAccess";
+import CodingExercisesSection from "@/components/teacher/CodingExercisesSection";
+import { deleteWeekExercises, renumberExercises } from "@/lib/codingExercises";
 import { supabase } from "@/integrations/supabase/client";
 import {
   canonicalPublishedPath,
@@ -160,6 +162,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const [scheduleLoaded, setScheduleLoaded] = useState(false);
   const [scheduleExpanded, setScheduleExpanded] = useState(true);
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
+  // Coding weeks hold DB-backed exercises — deleting one needs a confirm + cleanup.
+  const [confirmDeleteCodingWeek, setConfirmDeleteCodingWeek] = useState<string | null>(null);
+  const [deletingCodingWeek, setDeletingCodingWeek] = useState(false);
   const [showRegenFromScratchConfirm, setShowRegenFromScratchConfirm] = useState(false);
   const [regeneratingWeekId, setRegeneratingWeekId] = useState<string | null>(null);
   const [confirmRegenWeekId, setConfirmRegenWeekId] = useState<string | null>(null);
@@ -933,7 +938,39 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
 
 
   const deleteWeek = (id: string) => {
+    const target = weeks.find(x => x.id === id);
+    if (target?.is_coding_week && courseId) {
+      // Coding weeks can have generated exercises in the DB — confirm + cascade.
+      setConfirmDeleteCodingWeek(id);
+      return;
+    }
     setWeeks(prev => prev.filter(x => x.id !== id));
+  };
+
+  const confirmDeleteWeekWithExercises = async () => {
+    const id = confirmDeleteCodingWeek;
+    if (!id) return;
+    const target = weeks.find(x => x.id === id);
+    setDeletingCodingWeek(true);
+    try {
+      if (target && courseId) {
+        await deleteWeekExercises(courseId, target.week);
+      }
+      setWeeks(prev => prev.filter(x => x.id !== id));
+      setConfirmDeleteCodingWeek(null);
+      toast({
+        title: "Week removed",
+        description: target ? `Week ${target.week} and its coding exercises were deleted.` : undefined,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Exercise cleanup failed",
+        description: err?.message || "The week was kept — try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingCodingWeek(false);
+    }
   };
 
   const addWeek = () => {
@@ -1710,7 +1747,28 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           values={weeks.map((w) => w.id)}
           onReorder={(newOrder) => {
             const byId = new Map(weeks.map((w) => [w.id, w]));
-            setWeeksRaw(renumberWeeksInCurrentOrder(newOrder.map((id) => byId.get(id)).filter(Boolean) as WeekPlan[]));
+            const renumbered = renumberWeeksInCurrentOrder(newOrder.map((id) => byId.get(id)).filter(Boolean) as WeekPlan[]);
+            // Keep DB-backed coding exercises attached to their week when the
+            // plan is renumbered by a drag-reorder.
+            if (courseId) {
+              const oldNumById = new Map(weeks.map((w) => [w.id, w.week]));
+              const mapping = new Map<number, number>();
+              for (const wk of renumbered) {
+                const oldNum = oldNumById.get(wk.id);
+                if (typeof oldNum === "number" && oldNum !== wk.week) mapping.set(oldNum, wk.week);
+              }
+              if (mapping.size > 0) {
+                renumberExercises(courseId, mapping).catch((err) => {
+                  console.error("Exercise renumber failed:", err);
+                  toast({
+                    title: "Exercise sync issue",
+                    description: "Coding exercises may not have followed the week reorder — check your coding weeks.",
+                    variant: "destructive",
+                  });
+                });
+              }
+            }
+            setWeeksRaw(renumbered);
             setPublished(false);
           }}
           className="space-y-3 list-none p-0 m-0"
@@ -2236,7 +2294,15 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                           </section>
                           )}
 
-
+                          {/* Coding exercises — coding/lab weeks are assessed via
+                              practical exercises instead of a weekly quiz */}
+                          {w.is_coding_week && courseId && (
+                            <CodingExercisesSection
+                              courseId={courseId}
+                              week={w}
+                              codingApproved={codingApproved}
+                            />
+                          )}
 
                           {/* Week actions */}
                           <div className="flex justify-end gap-2 pt-2 border-t">
@@ -2336,6 +2402,36 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowPublishModal(false)}>Cancel</Button>
             <Button onClick={handlePublish} disabled={!publishConfirmed}>Publish & Continue</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Coding-week removal confirm — exercises are deleted immediately */}
+      <Dialog open={!!confirmDeleteCodingWeek} onOpenChange={(o) => !o && setConfirmDeleteCodingWeek(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove coding/lab week?</DialogTitle>
+            <DialogDescription>
+              This week has (or may have) generated coding exercises. Removing the week permanently
+              deletes its exercises, reference solutions, and test cases. This can't be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmDeleteCodingWeek(null)}
+              disabled={deletingCodingWeek}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteWeekWithExercises}
+              disabled={deletingCodingWeek}
+            >
+              {deletingCodingWeek && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              Remove week
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
