@@ -176,6 +176,8 @@ export function SortableConceptCard(props: {
         index={props.index}
         moveTargets={props.moveTargets}
         onMoveTo={props.onMoveTo}
+        duplicateTargets={props.duplicateTargets}
+        onDuplicateTo={props.onDuplicateTo}
         onEdit={props.onStartEdit}
         onDelete={props.onDelete}
         dragHandle={
