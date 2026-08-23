@@ -185,6 +185,7 @@ const AIChat = () => {
   const location = useLocation();
   const { user } = useAuth();
   const enrolledCourseId = useEnrolledCourseId();
+  const { isApproved: codingApproved } = useCodingAccess(enrolledCourseId);
   const { taSettings } = useTASettings(enrolledCourseId);
   const { taken: diagnosticTaken } = useDiagnosticStatus(enrolledCourseId);
   const initialMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
