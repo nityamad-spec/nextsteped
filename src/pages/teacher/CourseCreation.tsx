@@ -2406,6 +2406,36 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         </DialogContent>
       </Dialog>
 
+      {/* Coding-week removal confirm — exercises are deleted immediately */}
+      <Dialog open={!!confirmDeleteCodingWeek} onOpenChange={(o) => !o && setConfirmDeleteCodingWeek(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove coding/lab week?</DialogTitle>
+            <DialogDescription>
+              This week has (or may have) generated coding exercises. Removing the week permanently
+              deletes its exercises, reference solutions, and test cases. This can't be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmDeleteCodingWeek(null)}
+              disabled={deletingCodingWeek}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteWeekWithExercises}
+              disabled={deletingCodingWeek}
+            >
+              {deletingCodingWeek && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              Remove week
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Update Plan confirm */}
       <Dialog open={showRegenerateConfirm} onOpenChange={setShowRegenerateConfirm}>
         <DialogContent>
