@@ -1348,7 +1348,7 @@ const AIChat = () => {
     );
   }
 
-  if (showTerminal) {
+  if (showTerminal && codingApproved) {
     return <CodingTerminalWidget onClose={() => setShowTerminal(false)} />;
   }
 
@@ -1676,8 +1676,8 @@ const AIChat = () => {
         {/* Spacer to push footer down in exam mode */}
         {mode === "exam" && !assessmentActive && <div className="flex-1" />}
 
-        {/* Code Terminal - only in study mode */}
-        {mode === "learning" && showCodeTerminal && (
+        {/* Code Terminal - only in study mode, and only for coding-approved courses */}
+        {mode === "learning" && showCodeTerminal && codingApproved && (
           <div className="border-t bg-muted/30 p-4">
             <div className="mb-2 flex items-center gap-2">
               <Terminal className="h-4 w-4 text-primary" />
