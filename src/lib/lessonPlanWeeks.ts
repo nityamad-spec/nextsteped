@@ -10,6 +10,7 @@ export type WeekUpsertInput = {
   overview: string;
   is_exam_week: boolean;
   exam_type?: "midterm" | "final" | null;
+  is_coding_week?: boolean;
   locked: boolean;
   concepts: any[];
   resources: any[];
@@ -24,14 +25,17 @@ export async function upsertPublishedWeeks(
   weeks: WeekUpsertInput[],
   overallOutcomes?: string,
 ): Promise<void> {
-  // Preserve the per-week question format mix across the clean-slate republish.
+  // Preserve per-week metadata across the clean-slate republish: the question
+  // format mix and the manual coding/lab week designation.
   const { data: existing } = await supabase
     .from("lesson_plan_weeks")
-    .select("week_number, quiz_type_counts")
+    .select("week_number, quiz_type_counts, is_coding_week")
     .eq("course_id", courseId);
   const mixByWeek = new Map<number, unknown>();
-  for (const row of (existing ?? []) as { week_number: number; quiz_type_counts: unknown }[]) {
+  const codingByWeek = new Map<number, boolean>();
+  for (const row of (existing ?? []) as { week_number: number; quiz_type_counts: unknown; is_coding_week: boolean }[]) {
     if (row.quiz_type_counts) mixByWeek.set(row.week_number, row.quiz_type_counts);
+    if (row.is_coding_week) codingByWeek.set(row.week_number, true);
   }
 
   // Delete existing rows for this course
@@ -49,6 +53,7 @@ export async function upsertPublishedWeeks(
       overview: w.overview || "",
       is_exam_week: !!w.is_exam_week,
       exam_type: w.is_exam_week ? (w.exam_type ?? null) : null,
+      is_coding_week: w.is_coding_week ?? (codingByWeek.get(w.week_number) ?? false),
       locked: !!w.locked,
       concepts: w.concepts || [],
       resources: w.resources || [],
@@ -92,7 +97,7 @@ export async function setWeekLocked(
 export async function fetchVisibleWeeks(courseId: string) {
   const { data, error } = await supabase
     .from("lesson_plan_weeks")
-    .select("week_number, week_name, overview, is_exam_week, exam_type, locked, concepts, resources")
+    .select("week_number, week_name, overview, is_exam_week, exam_type, is_coding_week, locked, concepts, resources")
     .eq("course_id", courseId)
     .order("week_number");
   if (error) throw error;

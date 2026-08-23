@@ -24,6 +24,7 @@ interface RawLessonPlanRow {
   week_name?: string;
   overview?: string;
   is_exam_week?: boolean;
+  is_coding_week?: boolean;
   concepts?: unknown;
   resources?: unknown;
 }
@@ -34,6 +35,7 @@ export interface LearningPlanWeek {
   topic: string;
   description: string;
   is_exam_week: boolean;
+  is_coding_week: boolean;
   locked: boolean;
   concepts: { id: string; name: string; brief_description?: string }[];
   resources: {
@@ -107,7 +109,7 @@ export function useLearningPlan(): UseLearningPlanResult {
 
         const { data: rows, error: rowsError } = await supabase
           .from("lesson_plan_weeks")
-          .select("week_number, week_name, overview, is_exam_week, concepts, resources")
+          .select("week_number, week_name, overview, is_exam_week, is_coding_week, concepts, resources")
           .eq("course_id", enrolledCourseId)
           .order("week_number");
 
@@ -148,6 +150,7 @@ export function useLearningPlan(): UseLearningPlanResult {
             topic: r.week_name || `Week ${r.week_number}`,
             description: r.overview || "",
             is_exam_week: !!r.is_exam_week,
+            is_coding_week: !!r.is_coding_week,
             locked: false,
             concepts: conceptList.map((c, i: number) => ({
               id: String(c?.id ?? `c_${r.week_number}_${i}`),

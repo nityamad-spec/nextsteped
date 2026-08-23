@@ -80,6 +80,7 @@ type WeekPlan = {
   overview: string;
   is_exam_week: boolean;
   exam_type: "midterm" | "final" | null;
+  is_coding_week: boolean;
   concepts: Concept[];
   resources: Resource[];
   locked: boolean;
@@ -274,6 +275,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             overview: week.overview || "",
             is_exam_week: !!week.is_exam_week,
             exam_type: week.is_exam_week ? (week.exam_type ?? null) : null,
+            is_coding_week: !!week.is_coding_week,
             locked: !!week.locked,
             concepts: week.concepts || [],
             resources: week.resources || [],
@@ -319,6 +321,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             overview: week.overview || "",
             is_exam_week: !!week.is_exam_week,
             exam_type: week.is_exam_week ? (week.exam_type ?? null) : null,
+            is_coding_week: !!week.is_coding_week,
             locked: !!week.locked,
             concepts: week.concepts || [],
             resources: week.resources || [],
@@ -585,7 +588,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           const [weeksRes, courseRes] = await Promise.all([
             supabase
               .from("lesson_plan_weeks")
-              .select("week_number, week_name, overview, is_exam_week, exam_type, locked, concepts, resources")
+              .select("week_number, week_name, overview, is_exam_week, exam_type, is_coding_week, locked, concepts, resources")
               .eq("course_id", courseId)
               .order("week_number", { ascending: true }),
             supabase
@@ -604,6 +607,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               overview: r.overview || "",
               is_exam_week: !!r.is_exam_week,
               exam_type: r.is_exam_week ? (r.exam_type ?? null) : null,
+              is_coding_week: !!r.is_coding_week,
               concepts: Array.isArray(r.concepts) ? r.concepts : [],
               resources: Array.isArray(r.resources) ? r.resources : [],
               locked: !!r.locked,
@@ -657,6 +661,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               overview: w.overview,
               is_exam_week: w.is_exam_week,
               exam_type: w.exam_type,
+              is_coding_week: w.is_coding_week,
               locked: w.locked,
               concepts: w.concepts,
               resources: w.resources,
@@ -800,6 +805,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         overview: w.overview || "",
         is_exam_week: !!w.is_exam_week,
         exam_type: w.exam_type ?? null,
+        is_coding_week: false,
         concepts: (w.concepts || []).map((c: any) => ({
           id: makeId(),
           name: c.name || "Untitled concept",
@@ -908,12 +914,14 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     }
   };
 
-  // Mark a week as a teaching week or an exam week (midterm / final / other).
-  // Week content is preserved — only the badge and exam flag change.
-  const setWeekExamMode = (id: string, value: "teaching" | "midterm" | "final" | "other") => {
+  // Set the week type: teaching, exam (midterm / final / other), or coding/lab.
+  // Week content is preserved — only the badge and type flags change. Exam and
+  // coding/lab are mutually exclusive (also enforced by a DB CHECK constraint).
+  const setWeekType = (id: string, value: "teaching" | "midterm" | "final" | "other" | "coding") => {
     setWeeks(prev => prev.map(x => x.id !== id ? x : ({
       ...x,
-      is_exam_week: value !== "teaching",
+      is_coding_week: value === "coding",
+      is_exam_week: value !== "teaching" && value !== "coding",
       exam_type: value === "midterm" ? "midterm" : value === "final" ? "final" : null,
     })));
     setPublished(false);
@@ -932,6 +940,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       overview: "",
       is_exam_week: false,
       exam_type: null,
+      is_coding_week: false,
       concepts: [],
       resources: [],
       locked: false,
@@ -1047,6 +1056,27 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   };
   const moveConceptToWeek = (fromWeekId: string, conceptId: string, toWeekId: string) =>
     moveConceptBetweenWeeks(fromWeekId, conceptId, toWeekId);
+
+  // Copy a concept into a coding/lab week WITHOUT removing it from the source
+  // week — the theory → implementation dual mapping. The copy gets a fresh
+  // local id (dnd-kit sortable ids must be unique); the underlying concept
+  // stays a single record since everything downstream keys off its name.
+  const duplicateConceptToWeek = (fromWeekId: string, conceptId: string, toWeekId: string) => {
+    const source = weeks.find(w => w.id === fromWeekId);
+    const concept = source?.concepts.find(c => c.id === conceptId);
+    const target = weeks.find(w => w.id === toWeekId);
+    if (!concept || !target) return;
+    if (target.concepts.some(c => c.name.trim().toLowerCase() === concept.name.trim().toLowerCase())) {
+      toast({ title: "Already there", description: `"${concept.name}" is already in Week ${target.week}.` });
+      return;
+    }
+    setWeeks(prev => prev.map(w => w.id !== toWeekId ? w : ({
+      ...w,
+      concepts: [...w.concepts, { ...concept, id: makeId() }],
+    })));
+    setPublished(false);
+    toast({ title: "Concept duplicated", description: `Copied "${concept.name}" to Week ${target.week} — the original stays in Week ${source!.week}.` });
+  };
 
   // ─── Concept drag & drop ───
   const dndSensors = useSensors(
@@ -1176,6 +1206,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             overview: w.overview,
             is_exam_week: w.is_exam_week,
             exam_type: w.exam_type,
+            is_coding_week: w.is_coding_week,
             locked: w.locked,
             concepts: w.concepts,
             resources: w.resources,
@@ -1731,6 +1762,12 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                   {w.exam_type === "midterm" ? "Midterm" : w.exam_type === "final" ? "Final" : "Exam"}
                                 </Badge>
                               )}
+                              {w.is_coding_week && (
+                                <Badge variant="outline" className="text-[10px] gap-1 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10">
+                                  <Code2 className="h-2.5 w-2.5" />
+                                  Coding/lab
+                                </Badge>
+                              )}
                             </div>
 
                           </div>
@@ -1738,8 +1775,8 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                         <div className="flex items-center gap-2 shrink-0">
                           <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                             <Select
-                              value={w.is_exam_week ? (w.exam_type ?? "other") : "teaching"}
-                              onValueChange={(v) => setWeekExamMode(w.id, v as "teaching" | "midterm" | "final" | "other")}
+                              value={w.is_coding_week ? "coding" : w.is_exam_week ? (w.exam_type ?? "other") : "teaching"}
+                              onValueChange={(v) => setWeekType(w.id, v as "teaching" | "midterm" | "final" | "other" | "coding")}
                             >
                               <SelectTrigger className="h-7 w-[132px] text-xs" aria-label={`Week ${w.week} type`}>
                                 <SelectValue />
@@ -1749,6 +1786,12 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                 <SelectItem value="midterm">Midterm exam</SelectItem>
                                 <SelectItem value="final">Final exam</SelectItem>
                                 <SelectItem value="other">Exam week</SelectItem>
+                                {/* Gated on admin-approved coding access; stays
+                                    selectable for weeks already marked coding if
+                                    access is later revoked, so the plan remains editable. */}
+                                {(codingApproved || w.is_coding_week) && (
+                                  <SelectItem value="coding">Coding/lab week</SelectItem>
+                                )}
                               </SelectContent>
                             </Select>
                           </div>
@@ -1832,6 +1875,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                                           id: other.id, week: other.week, week_name: other.week_name, is_exam_week: other.is_exam_week,
                                         }))}
                                         onMoveTo={(toWeekId) => moveConceptToWeek(w.id, c.id, toWeekId)}
+                                        duplicateTargets={weeks.filter(other => other.is_coding_week && other.id !== w.id).map(other => ({
+                                          id: other.id, week: other.week, week_name: other.week_name, is_exam_week: other.is_exam_week,
+                                        }))}
+                                        onDuplicateTo={(toWeekId) => duplicateConceptToWeek(w.id, c.id, toWeekId)}
                                       />
                                     ))}
                                   </div>
@@ -1975,7 +2022,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                             )}
                           </section>
 
-                          {/* Weekly Quiz */}
+                          {/* Weekly Quiz — coding/lab weeks are assessed via the
+                              coding exercise, so the whole quiz section is hidden */}
+                          {!w.is_coding_week && (
                           <section className="space-y-3">
                             <div className="flex items-center gap-2">
                               <div className="h-5 w-1 rounded-full bg-primary" />
@@ -2131,6 +2180,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                               </div>
                             )}
                           </section>
+                          )}
 
 
 
