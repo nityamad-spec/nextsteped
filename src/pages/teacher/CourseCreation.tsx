@@ -303,6 +303,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       toast({ title: "Course not ready", description: "Reload and try again.", variant: "destructive" });
       return;
     }
+    if (week.is_coding_week) {
+      toast({ title: "Coding/lab week", description: "Coding/lab weeks don't have quizzes — they're assessed via the coding exercise.", variant: "destructive" });
+      return;
+    }
     if (!week.concepts || week.concepts.length === 0) {
       toast({ title: "No concepts", description: "Add at least one concept to this week first.", variant: "destructive" });
       return;
