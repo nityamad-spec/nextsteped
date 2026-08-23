@@ -20,7 +20,7 @@ import {
   Check, X, ArrowRight, ArrowLeft, Sparkles, Loader2,
   ChevronDown, ChevronUp, Pencil, GripVertical,
   Plus, Minus, Trash2, FileText, BookOpen, Code2, ExternalLink,
-  GraduationCap, Eye, EyeOff, Info, Library, RefreshCw, Clock,
+  GraduationCap, Eye, EyeOff, Info, Library, RefreshCw, Clock, Copy,
 } from "lucide-react";
 // SetupProgressBar removed — using top-left "Back to Course Setup" button instead.
 import { useAuth } from "@/contexts/AuthContext";
@@ -953,6 +953,39 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
     setExpandedWeeks(prev => [...prev, newWeek.id]);
   };
 
+  // Duplicate a teaching week as a coding/lab week, inserted immediately after
+  // the source — the one-click version of "add week → set type → Copy each
+  // concept". Concepts are dual mappings (fresh local ids; the underlying
+  // concept stays a single shared record since everything keys off name).
+  // Resources are NOT copied: coding weeks use their own lab/exercise
+  // materials, not the teaching week's readings.
+  const duplicateWeekAsCoding = (weekId: string) => {
+    const source = weeks.find(w => w.id === weekId);
+    if (!source) return;
+    const newWeek: WeekPlan = {
+      id: `w_new_${Date.now()}`,
+      week: source.week + 1,
+      week_name: source.week_name,
+      overview: source.overview,
+      is_exam_week: false,
+      exam_type: null,
+      is_coding_week: true,
+      concepts: source.concepts.map(c => ({ ...c, id: makeId() })),
+      resources: [],
+      locked: false,
+    };
+    setWeeks(prev => {
+      const idx = prev.findIndex(w => w.id === weekId);
+      if (idx === -1) return prev;
+      const next = [...prev];
+      next.splice(idx + 1, 0, newWeek);
+      return renumberWeeksInCurrentOrder(next);
+    });
+    setExpandedWeeks(prev => [...prev, newWeek.id]);
+    setPublished(false);
+    toast({ title: "Coding/lab week added", description: `Week ${source.week} duplicated as a coding/lab week — later weeks renumbered.` });
+  };
+
   // ─── Overview ───
   const startEditOverview = (w: WeekPlan) => {
     setEditingOverviewId(w.id);
@@ -1803,6 +1836,19 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                               </SelectContent>
                             </Select>
                           </div>
+                          {codingApproved && !w.is_exam_week && !w.is_coding_week && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => { e.stopPropagation(); duplicateWeekAsCoding(w.id); }}
+                              className="h-7 px-2 text-xs gap-1"
+                              title="Duplicate as a coding/lab week, inserted right after this week"
+                              aria-label={`Duplicate week ${w.week} as coding/lab week`}
+                            >
+                              <Copy className="h-3 w-3" />
+                              <span className="hidden sm:inline">Duplicate as coding</span>
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
