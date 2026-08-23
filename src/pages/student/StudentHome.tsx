@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, Check, Sparkles, Compass } from "lucide-react";
+import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, Check, Sparkles, Compass, Code2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
@@ -98,6 +98,34 @@ const StudentHome = () => {
     Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }>
   >({});
   const [availableQuizDays, setAvailableQuizDays] = useState<Set<number>>(new Set());
+  // Units (week numbers) that have at least one published coding exercise.
+  const [codingExerciseUnits, setCodingExerciseUnits] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    const hasCoding = lessonPlan.some((wk: any) => !!wk?.is_coding_week);
+    if (!enrolledCourseId || !hasCoding) {
+      setCodingExerciseUnits(new Set());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("coding_exercises")
+        .select("week_number")
+        .eq("course_id", enrolledCourseId)
+        .eq("published", true);
+      if (cancelled) return;
+      if (error) {
+        console.error("Coding exercises load error:", error);
+        return;
+      }
+      setCodingExerciseUnits(new Set((data || []).map((r: any) => Number(r.week_number))));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [enrolledCourseId, lessonPlan]);
+
 
 
   useEffect(() => {

@@ -221,6 +221,33 @@ const StudentLearningPath = () => {
     };
   }, [enrolledCourseId]);
 
+  // Published coding exercises per unit (coding/lab units only).
+  const [exercisesByUnit, setExercisesByUnit] = useState<Record<number, PublishedCodingExercise[]>>({});
+  const hasCodingUnits = lessonPlan.some((w) => w.is_coding_week);
+  useEffect(() => {
+    if (!enrolledCourseId || !codingApproved || !hasCodingUnits) {
+      setExercisesByUnit({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await fetchPublishedExercises(enrolledCourseId);
+        if (cancelled) return;
+        const map: Record<number, PublishedCodingExercise[]> = {};
+        rows.forEach((r) => {
+          (map[r.week_number] ??= []).push(r);
+        });
+        setExercisesByUnit(map);
+      } catch (err) {
+        if (!cancelled) console.error("Coding exercises load error:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [enrolledCourseId, codingApproved, hasCodingUnits]);
+
   // Voided (browser-lock) attempts per week. One void is forgiven; a second
   // locks the week until the professor resets it.
   const [voidCounts, setVoidCounts] = useState<Record<number, number>>({});
@@ -362,6 +389,7 @@ const StudentLearningPath = () => {
                 practised={!!practisedByUnit[unit.day]}
                 quizTaken={!!taken}
                 isCodingWeek={!!unit.is_coding_week}
+                exercises={exercisesByUnit[unit.day] ?? []}
                 quizScore={taken?.score}
                 quizAvailable={availableQuizDays.has(unit.day)}
                 quizLocked={voids >= 2}
