@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTASettings } from "@/hooks/useTASettings";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
+import { useCodingAccess } from "@/hooks/useCodingAccess";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { useDiagnosticStatus } from "@/hooks/useDiagnosticStatus";
 import { useLearningPlan } from "@/hooks/useLearningPlan";
