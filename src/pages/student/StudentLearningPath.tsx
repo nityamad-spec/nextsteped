@@ -360,6 +360,7 @@ const StudentLearningPath = () => {
                 studied={!!studiedByUnit[unit.day]}
                 practised={!!practisedByUnit[unit.day]}
                 quizTaken={!!taken}
+                isCodingWeek={!!unit.is_coding_week}
                 quizScore={taken?.score}
                 quizAvailable={availableQuizDays.has(unit.day)}
                 quizLocked={voids >= 2}
