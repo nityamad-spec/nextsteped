@@ -258,6 +258,7 @@ const AUTHOR_TOOL = {
         "input_spec",
         "output_spec",
         "examples",
+        "starter_code",
         "reference_solution",
         "standard_test_cases",
         "hidden_test_cases",
