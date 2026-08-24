@@ -301,6 +301,10 @@ async function generateOne(
           },
           body: JSON.stringify({
             model: MODEL,
+            // gpt-5.6-sol rejects function tools on /v1/chat/completions unless
+            // reasoning is disabled (gateway 400: "use /v1/responses or set
+            // reasoning_effort to 'none'").
+            reasoning_effort: "none",
             messages: [
               { role: "system", content: prompts.system },
               { role: "user", content: user },
