@@ -832,6 +832,7 @@ You will be given EXACTLY ${totalWeeks} weeks with their assigned concepts alrea
 Tone: factual, pedagogical, realistic. Do not over-promise mastery. Avoid repetitive phrasing across weeks.
 
 For exam weeks: week_name="" and overview="Exam week — review prior content." and resources=[].
+For coding/lab weeks (if any are ever assigned): resources=[] — coding/lab weeks never carry article or exercise resources; hands-on work is managed separately.
 You CANNOT change which concepts go in which week. Output exactly ${totalWeeks} week entries with the same week numbers.
 Each concept name appears in exactly one week. Do not echo or rehash concept names from other weeks inside this week's overview text.
 
@@ -962,8 +963,11 @@ ${assignmentBlock}`;
         });
         continue;
       }
-      const capped = capResources(a.resources);
-      const enriched = await enrichAndVerifyResources(capped, wa.concept_names, FIRECRAWL_API_KEY);
+      // Coding/lab weeks never carry resources — defensive guard: generation is
+      // teaching/exam-only today, but enforce the invariant if that ever changes.
+      const isCoding = !!(wa as any).is_coding;
+      const capped = isCoding ? [] : capResources(a.resources);
+      const enriched = isCoding ? [] : await enrichAndVerifyResources(capped, wa.concept_names, FIRECRAWL_API_KEY);
       normalized.push({
         week: wa.week,
         week_name: typeof a.week_name === "string" && a.week_name.trim() ? a.week_name.trim() : `Week ${wa.week}`,

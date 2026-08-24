@@ -141,8 +141,11 @@ const UnitPathwayCard = ({
   const ready = stage === "ready";
   const weakList = weakConcepts.slice(0, 2).join(", ");
   const isLastUnit = unitNumber >= totalUnits;
-  const readingCount = resources.length;
-  const readingsDone = resources.filter((r) => activityDone[r.id]).length;
+  // Coding/lab units surface hands-on work via the dedicated coding-exercises
+  // section, so the generic "Readings & exercises" list is hidden for them.
+  const visibleResources = isCodingWeek ? [] : resources;
+  const readingCount = visibleResources.length;
+  const readingsDone = visibleResources.filter((r) => activityDone[r.id]).length;
   const weakSet = new Set(weakConcepts);
   const chipConcepts = concepts.slice(0, 3);
   const extraConceptCount = Math.max(0, concepts.length - chipConcepts.length);
@@ -454,7 +457,7 @@ const UnitPathwayCard = ({
               </button>
               {showResources && (
                 <div className="space-y-1.5 px-4 pb-4">
-                  {resources.map((r) => {
+                  {visibleResources.map((r) => {
                     const hasUrl = typeof r.url === "string" && r.url.length > 0;
                     const done = !!activityDone[r.id];
                     const inner = (

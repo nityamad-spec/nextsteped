@@ -859,6 +859,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           week: target.week,
           is_exam_week: target.is_exam_week,
           exam_type: target.exam_type,
+          is_coding_week: target.is_coding_week,
           concept_names: target.concepts.map(c => c.name),
           context_weeks: weeks.map(w => ({
             week: w.week,
@@ -873,14 +874,17 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         ...w,
         week_name: typeof data.week_name === "string" ? data.week_name : w.week_name,
         overview: typeof data.overview === "string" ? data.overview : w.overview,
-        resources: Array.isArray(data.resources) ? data.resources.map((r: any) => ({
-          id: makeId(),
-          type: r.type === "article" ? "article" : "coding-exercise",
-          title: r.title || "Untitled",
-          description: r.description || "",
-          url: r.url || undefined,
-          ai_suggested: true,
-        })) : w.resources,
+        // Coding/lab weeks don't surface resources — keep any existing (hidden) ones untouched.
+        resources: w.is_coding_week
+          ? w.resources
+          : Array.isArray(data.resources) ? data.resources.map((r: any) => ({
+            id: makeId(),
+            type: r.type === "article" ? "article" : "coding-exercise",
+            title: r.title || "Untitled",
+            description: r.description || "",
+            url: r.url || undefined,
+            ai_suggested: true,
+          })) : w.resources,
       })));
       toast({ title: "Week regenerated", description: `Week ${target.week} content refreshed.` });
     } catch (err: any) {
@@ -1999,7 +2003,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                             </ConceptDropZone>
                           </section>
 
-                          {/* Resources */}
+                          {/* Resources — hidden for coding/lab weeks: exercises live in the
+                              dedicated Coding exercises section instead. Existing resource data
+                              is kept in state/DB, just not shown. */}
+                          {!w.is_coding_week && (
                           <section className="space-y-3">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
@@ -2133,6 +2140,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                               </div>
                             )}
                           </section>
+                          )}
 
                           {/* Weekly Quiz — coding/lab weeks are assessed via the
                               coding exercise, so the whole quiz section is hidden */}
@@ -2492,7 +2500,11 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           <DialogHeader>
             <DialogTitle>Regenerate this week?</DialogTitle>
             <DialogDescription>
-              Only the week's <strong>title</strong>, <strong>overview</strong>, and <strong>resources</strong> will be replaced with a fresh AI draft. The assigned <strong>concepts stay locked</strong> and won't change. Any manual edits to title, overview, or resources for this week will be overwritten.
+              {weeks.find(w => w.id === confirmRegenWeekId)?.is_coding_week ? (
+                <>Only the week's <strong>title</strong> and <strong>overview</strong> will be replaced with a fresh AI draft. The assigned <strong>concepts stay locked</strong> and won't change. Any manual edits to title or overview for this week will be overwritten.</>
+              ) : (
+                <>Only the week's <strong>title</strong>, <strong>overview</strong>, and <strong>resources</strong> will be replaced with a fresh AI draft. The assigned <strong>concepts stay locked</strong> and won't change. Any manual edits to title, overview, or resources for this week will be overwritten.</>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
