@@ -43,6 +43,9 @@ export interface CodingExercise {
   output_spec: string;
   constraints: string | null;
   examples: CodingExample[];
+  /** Student-visible skeleton code the terminal pre-fills with (no solution logic). */
+  starter_code: string | null;
+  primary_language: string | null;
   standard_test_cases: CodingTestCase[];
   published: boolean;
   published_at: string | null;
@@ -63,6 +66,8 @@ export interface PublishedCodingExercise {
   output_spec: string;
   constraints: string | null;
   examples: CodingExample[];
+  starter_code: string | null;
+  primary_language: string | null;
   standard_test_cases: CodingTestCase[];
 }
 
@@ -103,7 +108,7 @@ export async function fetchPublishedExercises(
   const { data, error } = await supabase
     .from("coding_exercises")
     .select(
-      "id, week_number, position, title, problem_statement, language, input_spec, output_spec, constraints, examples, standard_test_cases",
+      "id, week_number, position, title, problem_statement, language, input_spec, output_spec, constraints, examples, starter_code, primary_language, standard_test_cases",
     )
     .eq("course_id", courseId)
     .eq("published", true)
@@ -139,6 +144,7 @@ export type ExerciseDraft = {
   output_spec: string;
   constraints: string | null;
   examples: CodingExample[];
+  starter_code: string;
   standard_test_cases: CodingTestCase[];
   reference_solution: string;
   hidden_test_cases: CodingTestCase[];
@@ -151,6 +157,7 @@ export async function updateExercise(id: string, draft: ExerciseDraft): Promise<
     .update({
       ...pub,
       constraints: pub.constraints?.trim() ? pub.constraints : null,
+      starter_code: pub.starter_code?.trim() ? pub.starter_code : null,
       examples: pub.examples as any,
       standard_test_cases: pub.standard_test_cases as any,
     })

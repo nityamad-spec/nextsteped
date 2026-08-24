@@ -24,6 +24,11 @@ interface PracticeResultRow {
   created_at: string | null;
 }
 
+interface TerminalSessionRow {
+  week_number: number;
+  created_at: string | null;
+}
+
 interface MasteryRow {
   concept_code: string | null;
   questions_attempted: number | string | null;
@@ -60,6 +65,7 @@ export function useUnitProgress(
   const [sessions, setSessions] = useState<ChatSessionRow[]>([]);
   const [messages, setMessages] = useState<ChatMessageRow[]>([]);
   const [practice, setPractice] = useState<PracticeResultRow[]>([]);
+  const [terminalSessions, setTerminalSessions] = useState<TerminalSessionRow[]>([]);
   const [mastery, setMastery] = useState<MasteryRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -68,6 +74,7 @@ export function useUnitProgress(
       setSessions([]);
       setMessages([]);
       setPractice([]);
+      setTerminalSessions([]);
       setMastery([]);
       setLoading(false);
       return;
@@ -75,7 +82,7 @@ export function useUnitProgress(
     let cancelled = false;
     setLoading(true);
     (async () => {
-      const [sessionRes, practiceRes, masteryRes] = await Promise.all([
+      const [sessionRes, practiceRes, terminalRes, masteryRes] = await Promise.all([
         supabase
           .from("chat_sessions")
           .select("id, title")
@@ -93,6 +100,13 @@ export function useUnitProgress(
           .order("created_at", { ascending: false })
           .limit(50),
         supabase
+          .from("coding_terminal_sessions")
+          .select("week_number, created_at")
+          .eq("student_id", user.id)
+          .eq("course_id", courseId)
+          .order("created_at", { ascending: false })
+          .limit(100),
+        supabase
           .from("student_concept_mastery")
           .select("concept_code, questions_attempted")
           .eq("student_id", user.id)
@@ -101,6 +115,7 @@ export function useUnitProgress(
       if (cancelled) return;
       if (sessionRes.error) console.error("[useUnitProgress] chat sessions load error", sessionRes.error);
       if (practiceRes.error) console.error("[useUnitProgress] practice load error", practiceRes.error);
+      if (terminalRes.error) console.error("[useUnitProgress] terminal sessions load error", terminalRes.error);
       if (masteryRes.error) console.error("[useUnitProgress] mastery load error", masteryRes.error);
 
       const sessionRows = (sessionRes.data as ChatSessionRow[]) || [];
@@ -125,6 +140,7 @@ export function useUnitProgress(
       setSessions(sessionRows);
       setMessages(messageRows);
       setPractice((practiceRes.data as PracticeResultRow[]) || []);
+      setTerminalSessions((terminalRes.data as TerminalSessionRow[]) || []);
       setMastery((masteryRes.data as MasteryRow[]) || []);
       setLoading(false);
     })();
@@ -195,9 +211,12 @@ export function useUnitProgress(
       // Mastery has no timestamp and is written by the quiz itself, so it can only
       // stand in for studying before the quiz was taken.
       studiedByUnit[week.day] = quizAt === 0 && conceptNames.some((name) => attemptedConcepts.has(name));
-      practisedByUnit[week.day] = practiceConcepts.some(
-        (p) => p.at > quizAt && textMatchesUnit(p.topic, terms),
-      );
+      // Practice counts via scored practice-question results OR a code-terminal
+      // session for this unit — either way, only activity after the latest quiz
+      // attempt counts.
+      practisedByUnit[week.day] =
+        practiceConcepts.some((p) => p.at > quizAt && textMatchesUnit(p.topic, terms)) ||
+        terminalSessions.some((s) => s.week_number === week.day && toTime(s.created_at) > quizAt);
     });
 
     // Attribute each qualifying session: deep-link title first, then message text.
@@ -217,5 +236,5 @@ export function useUnitProgress(
     });
 
     return { studiedByUnit, practisedByUnit, loading };
-  }, [sessions, messages, practice, mastery, lessonPlan, fallbackUnit, quizTakenAtByUnit, loading]);
+  }, [sessions, messages, practice, terminalSessions, mastery, lessonPlan, fallbackUnit, quizTakenAtByUnit, loading]);
 }

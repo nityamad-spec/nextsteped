@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronUp,
   Code2,
+  Terminal,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,8 @@ export interface UnitPathwayCardProps {
   onPractice: () => void;
   onTakeQuiz: () => void;
   onGoToNextUnit?: () => void;
+  /** Coding-approved course: the practice step opens the code terminal. */
+  practiceViaTerminal?: boolean;
 }
 
 const StepCard = ({
@@ -132,12 +135,17 @@ const UnitPathwayCard = ({
   onPractice,
   onTakeQuiz,
   onGoToNextUnit,
+  practiceViaTerminal = false,
 }: UnitPathwayCardProps) => {
   const [showResources, setShowResources] = useState(false);
   const [openExercises, setOpenExercises] = useState<string[]>([]);
   const toggleExercise = (id: string) =>
     setOpenExercises((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const stage = computeUnitStage({ studied, practised, quizTaken, readiness, quizExempt: isCodingWeek });
+  // Practice CTA copy: coding-approved courses open the code terminal.
+  const practiceCta = practiceViaTerminal ? "Open code terminal" : "Start practice";
+  const practiceCtaDone = practiceViaTerminal ? "Open code terminal" : "More practice";
+  const practiceCtaKeep = practiceViaTerminal ? "Open code terminal" : "Keep practising";
   const ready = stage === "ready";
   const weakList = weakConcepts.slice(0, 2).join(", ");
   const isLastUnit = unitNumber >= totalUnits;
@@ -242,13 +250,17 @@ const UnitPathwayCard = ({
             )}
             {stage === "studied" && (
               <>
-                <p className="mt-1 font-heading text-base font-bold">Do practice questions</p>
+                <p className="mt-1 font-heading text-base font-bold">
+                  {practiceViaTerminal ? "Practise in the code terminal" : "Do practice questions"}
+                </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  You've studied this unit — now check what stuck with scored practice questions.
+                  {practiceViaTerminal
+                    ? "You've studied this unit — now work on its coding exercise in the code terminal."
+                    : "You've studied this unit — now check what stuck with scored practice questions."}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button size="sm" onClick={onPractice}>
-                    Start practice
+                    {practiceCta}
                   </Button>
                   <Button size="sm" variant="outline" onClick={onStudy}>
                     Keep studying
@@ -267,7 +279,7 @@ const UnitPathwayCard = ({
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button size="sm" onClick={onPractice}>
-                        Start practice
+                        {practiceCta}
                       </Button>
                       <Button size="sm" variant="outline" onClick={onStudy}>
                         Keep studying
@@ -285,7 +297,7 @@ const UnitPathwayCard = ({
                         Take quiz
                       </Button>
                       <Button size="sm" variant="outline" onClick={onPractice}>
-                        More practice
+                        {practiceCtaDone}
                       </Button>
                     </div>
                   </>
@@ -305,7 +317,7 @@ const UnitPathwayCard = ({
                     Start studying
                   </Button>
                   <Button size="sm" variant="outline" onClick={onPractice}>
-                    Start practice
+                    {practiceCta}
                   </Button>
                 </div>
               </>
@@ -328,7 +340,7 @@ const UnitPathwayCard = ({
                     </Button>
                   )}
                   <Button size="sm" variant="outline" onClick={onPractice}>
-                    Keep practising
+                    {practiceCtaKeep}
                   </Button>
                 </div>
               </>
@@ -397,10 +409,14 @@ const UnitPathwayCard = ({
               />
               <StepCard
                 index={2}
-                icon={PenLine}
+                icon={practiceViaTerminal ? Terminal : PenLine}
                 title="Practice"
-                description={`${practised ? "Completed. " : ""}Answer AI-generated practice questions. These count towards your readiness.`}
-                action={practised ? "More practice" : "Start practice"}
+                description={
+                  practiceViaTerminal
+                    ? `${practised ? "Completed. " : ""}Work on this unit's coding exercise in the code terminal — it counts towards your readiness.`
+                    : `${practised ? "Completed. " : ""}Answer AI-generated practice questions. These count towards your readiness.`
+                }
+                action={practised ? practiceCtaDone : practiceCta}
                 onAction={onPractice}
                 done={practised}
               />

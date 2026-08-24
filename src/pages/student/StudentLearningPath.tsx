@@ -310,7 +310,13 @@ const StudentLearningPath = () => {
   const goToStudy = (concept: string, intent: "start" | "weak") => {
     navigate(`/student/chat?newchat=true&mode=learning&concept=${encodeURIComponent(concept)}&intent=${intent}`);
   };
-  const goToPractice = (topic: string) => {
+  const goToPractice = (unitDay: number, topic: string) => {
+    // Coding-approved courses practise in the code terminal; everyone else
+    // keeps the AI practice-questions flow.
+    if (codingApproved) {
+      navigate(`/student/chat?terminal=1&unit=${unitDay}`);
+      return;
+    }
     navigate(`/student/chat?practice=1&topic=${encodeURIComponent(topic)}`);
   };
 
@@ -409,8 +415,9 @@ const StudentLearningPath = () => {
                   )
                 }
                 onPractice={() =>
-                  goToPractice(taken && weak.length > 0 ? weak.join(", ") : unit.topic)
+                  goToPractice(unit.day, taken && weak.length > 0 ? weak.join(", ") : unit.topic)
                 }
+                practiceViaTerminal={codingApproved}
                 onTakeQuiz={() => attemptOpenQuiz(unit.day)}
                 onGoToNextUnit={() => {
                   const next = unit.day + 1;

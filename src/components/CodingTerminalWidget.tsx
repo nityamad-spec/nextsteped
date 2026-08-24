@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Terminal, Play, RotateCcw, X, Loader2 } from "lucide-react";
+import { Terminal, Play, RotateCcw, X, Loader2, ChevronDown, ChevronUp, FileCode2 } from "lucide-react";
 
 // TODO(judge0): This approved-languages list will later be sourced from a
 // professor-controlled setting (likely course_ta_settings) so each course
@@ -14,19 +14,47 @@ const APPROVED_LANGUAGES: { id: string; label: string; starter: string }[] = [
   { id: "javascript", label: "JavaScript (Node)", starter: `console.log("Hello, world!");\n` },
 ];
 
-interface CodingTerminalWidgetProps {
-  onClose: () => void;
+/** Map a course exercise language to a terminal-supported language id. */
+function toTerminalLanguage(lang?: string | null): string {
+  const normalized = (lang ?? "").toLowerCase();
+  if (APPROVED_LANGUAGES.some((l) => l.id === normalized)) return normalized;
+  if (normalized === "typescript") return "javascript";
+  return APPROVED_LANGUAGES[0].id;
 }
 
-export default function CodingTerminalWidget({ onClose }: CodingTerminalWidgetProps) {
-  const [languageId, setLanguageId] = useState<string>(APPROVED_LANGUAGES[0].id);
+interface CodingTerminalWidgetProps {
+  onClose: () => void;
+  /** Pre-filled skeleton code for the exercise (overrides the default starter). */
+  initialCode?: string | null;
+  /** Exercise language — mapped to the closest supported terminal language. */
+  initialLanguage?: string | null;
+  /** When set, a collapsible problem-statement panel is shown above the editor. */
+  exerciseTitle?: string | null;
+  exerciseStatement?: string | null;
+}
+
+export default function CodingTerminalWidget({
+  onClose,
+  initialCode,
+  initialLanguage,
+  exerciseTitle,
+  exerciseStatement,
+}: CodingTerminalWidgetProps) {
+  const initialLangId = toTerminalLanguage(initialLanguage);
+  const [languageId, setLanguageId] = useState<string>(initialLangId);
   const language = useMemo(
     () => APPROVED_LANGUAGES.find((l) => l.id === languageId) ?? APPROVED_LANGUAGES[0],
     [languageId],
   );
-  const [code, setCode] = useState<string>(APPROVED_LANGUAGES[0].starter);
+  const hasExercise = !!(exerciseTitle || exerciseStatement);
+  const initialStarter =
+    initialCode?.trim() && languageId === initialLangId
+      ? initialCode
+      : (APPROVED_LANGUAGES.find((l) => l.id === initialLangId)?.starter ?? APPROVED_LANGUAGES[0].starter);
+  const [code, setCode] = useState<string>(initialStarter);
   const [output, setOutput] = useState<string>("");
   const [isRunning, setIsRunning] = useState(false);
+  const [showStatement, setShowStatement] = useState(hasExercise);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleLanguageChange = (id: string) => {
@@ -42,7 +70,8 @@ export default function CodingTerminalWidget({ onClose }: CodingTerminalWidgetPr
   };
 
   const handleReset = () => {
-    setCode(language.starter);
+    // Reset to the exercise starter when we're on its language, else the default.
+    setCode(languageId === initialLangId && initialCode?.trim() ? initialCode : language.starter);
     setOutput("");
   };
 
@@ -116,6 +145,34 @@ export default function CodingTerminalWidget({ onClose }: CodingTerminalWidgetPr
 
       {/* Body: stacked editor + output */}
       <div className="flex-1 min-h-0 flex flex-col">
+        {/* Exercise problem statement (collapsible) */}
+        {hasExercise && (
+          <div className="border-b bg-muted/20">
+            <button
+              type="button"
+              onClick={() => setShowStatement((v) => !v)}
+              className="flex w-full items-center gap-2 px-4 sm:px-6 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground hover:bg-muted/40"
+            >
+              <FileCode2 className="h-3.5 w-3.5 text-primary" />
+              <span className="font-semibold normal-case tracking-normal text-sm text-foreground">
+                {exerciseTitle || "Coding exercise"}
+              </span>
+              {showStatement ? (
+                <ChevronUp className="ml-auto h-4 w-4" />
+              ) : (
+                <ChevronDown className="ml-auto h-4 w-4" />
+              )}
+            </button>
+            {showStatement && exerciseStatement && (
+              <div className="max-h-48 overflow-auto px-4 sm:px-6 pb-3">
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                  {exerciseStatement}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Editor pane */}
         <div className="flex-[3] min-h-0 flex flex-col border-b">
           <div className="px-4 sm:px-6 py-2 text-xs uppercase tracking-wide text-muted-foreground border-b bg-muted/40">

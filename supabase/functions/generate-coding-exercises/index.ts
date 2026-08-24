@@ -80,6 +80,7 @@ interface GeneratedExercise {
   output_spec: string;
   constraints: string | null;
   examples: Example[];
+  starter_code: string;
   reference_solution: string;
   standard_test_cases: TestCase[];
   hidden_test_cases: TestCase[];
@@ -120,6 +121,7 @@ function validateExercise(raw: any): { ok: boolean; issues: string[]; value?: Ge
   const input_spec = asStr(raw.input_spec);
   const output_spec = asStr(raw.output_spec);
   const constraints = asStr(raw.constraints) || null;
+  const starter_code = asStr(raw.starter_code);
   const reference_solution = asStr(raw.reference_solution);
   const examples = asExamples(raw.examples);
   const standard = asTestCases(raw.standard_test_cases);
@@ -128,6 +130,7 @@ function validateExercise(raw: any): { ok: boolean; issues: string[]; value?: Ge
   if (problem_statement.length < 40) issues.push("problem_statement missing or too short");
   if (!input_spec) issues.push("input_spec missing");
   if (!output_spec) issues.push("output_spec missing");
+  if (starter_code.length < 10) issues.push("starter_code missing or too short");
   if (reference_solution.length < 20) issues.push("reference_solution missing or too short");
   if (examples.length < 1) issues.push("need at least 1 worked example with input and output");
   if (standard.length < 1) issues.push("need at least 1 standard test case with expected_output");
@@ -144,6 +147,7 @@ function validateExercise(raw: any): { ok: boolean; issues: string[]; value?: Ge
       output_spec,
       constraints,
       examples,
+      starter_code,
       reference_solution,
       standard_test_cases: standard,
       hidden_test_cases: hidden,
@@ -173,6 +177,7 @@ Required content (all via the author_exercise tool):
 - output_spec: exact expected output format, including whitespace/newlines that matter.
 - constraints: value ranges, size limits, edge conditions. Empty string if none.
 - examples: 1–2 worked examples, each {input, output, explanation?}.
+- starter_code: a runnable ${opts.language} SKELETON the student starts from — the entry point (main/function signatures) that matches your input_spec/output_spec, with TODO comments marking where logic goes. It must compile/run as-is and must NOT contain any solution logic.
 - reference_solution: complete, idiomatic, runnable ${opts.language} solution. NO placeholder comments.
 - standard_test_cases: 2–4 cases covering the main paths, each {input, expected_output}.
 - hidden_test_cases: 2–4 EDGE cases (empty input, boundaries, large values, tricky formatting), each {input, expected_output}.
@@ -220,6 +225,7 @@ const AUTHOR_TOOL = {
             additionalProperties: false,
           },
         },
+        starter_code: { type: "string" },
         reference_solution: { type: "string" },
         standard_test_cases: {
           type: "array",
@@ -252,6 +258,7 @@ const AUTHOR_TOOL = {
         "input_spec",
         "output_spec",
         "examples",
+        "starter_code",
         "reference_solution",
         "standard_test_cases",
         "hidden_test_cases",
@@ -505,6 +512,8 @@ async function run(req: Request): Promise<{ status: number; payload: unknown }> 
     output_spec: ex.output_spec,
     constraints: ex.constraints,
     examples: ex.examples,
+    starter_code: ex.starter_code,
+    primary_language: language,
     standard_test_cases: ex.standard_test_cases,
     published: false,
     teacher_id: userId,

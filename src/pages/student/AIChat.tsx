@@ -38,6 +38,7 @@ import "katex/dist/katex.min.css";
 import PracticeQuestions, { PracticeQuestion } from "@/components/PracticeQuestions";
 import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 import CodingTerminalWidget from "@/components/CodingTerminalWidget";
+import { fetchPublishedExercises, type PublishedCodingExercise } from "@/lib/codingExercises";
 import MermaidDiagram from "@/components/MermaidDiagram";
 
 const markdownComponents = {
@@ -185,7 +186,7 @@ const AIChat = () => {
   const location = useLocation();
   const { user } = useAuth();
   const enrolledCourseId = useEnrolledCourseId();
-  const { isApproved: codingApproved } = useCodingAccess(enrolledCourseId);
+  const { isApproved: codingApproved, ready: codingReady } = useCodingAccess(enrolledCourseId);
   const { taSettings } = useTASettings(enrolledCourseId);
   const { taken: diagnosticTaken } = useDiagnosticStatus(enrolledCourseId);
   const initialMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
@@ -239,6 +240,13 @@ const AIChat = () => {
   const [practiceHistory, setPracticeHistory] = useState<any[]>([]);
   const [selectedPracticeHistoryId, setSelectedPracticeHistoryId] = useState<string | null>(null);
   const [showTerminal, setShowTerminal] = useState(false);
+  // Exercise context passed to the terminal when opened from the learning path.
+  const [terminalContext, setTerminalContext] = useState<{
+    initialCode?: string | null;
+    initialLanguage?: string | null;
+    exerciseTitle?: string | null;
+    exerciseStatement?: string | null;
+  } | null>(null);
 
   const {
     sessions: chats,
@@ -466,6 +474,63 @@ const AIChat = () => {
     setShowPractice(true);
     navigate("/student/chat", { replace: true });
   }, []);
+
+  // Handle ?terminal=1&unit=N deep link from the learning path. Opens the
+  // full-screen code terminal pre-filled with the unit's exercise starter and
+  // logs a terminal session (counts as practice). Falls back to practice
+  // questions when the course lacks coding approval.
+  const terminalLinkHandled = useRef(false);
+  useEffect(() => {
+    if (searchParams.get("terminal") !== "1") return;
+    if (terminalLinkHandled.current) return;
+    if (!codingReady) return; // wait for the coding-access gate to resolve
+    terminalLinkHandled.current = true;
+    const unit = parseInt(searchParams.get("unit") || "0", 10) || 0;
+
+    const fallbackToPractice = () => {
+      const topic = lessonPlan.find((w) => w.day === unit)?.topic;
+      setPracticeInitialPrompt(
+        topic ? `Generate 10 practice questions on ${topic}.` : "Generate 10 practice questions.",
+      );
+      setMode("learning");
+      setShowPractice(true);
+      navigate("/student/chat", { replace: true });
+    };
+
+    if (!codingApproved || !enrolledCourseId || !user) {
+      fallbackToPractice();
+      return;
+    }
+
+    (async () => {
+      let exercise: PublishedCodingExercise | null = null;
+      try {
+        const all = await fetchPublishedExercises(enrolledCourseId);
+        exercise = all.find((e) => e.week_number === unit) ?? null;
+      } catch (e) {
+        console.error("[AIChat] failed to load coding exercise for terminal", e);
+      }
+      setTerminalContext({
+        initialCode: exercise?.starter_code ?? null,
+        initialLanguage: exercise?.primary_language ?? exercise?.language ?? null,
+        exerciseTitle: exercise?.title ?? null,
+        exerciseStatement: exercise?.problem_statement ?? null,
+      });
+      setShowTerminal(true);
+      navigate("/student/chat", { replace: true });
+      // Log the terminal session — counts as practice activity for the unit.
+      if (unit > 0) {
+        const { error } = await supabase.from("coding_terminal_sessions").insert({
+          student_id: user.id,
+          course_id: enrolledCourseId,
+          week_number: unit,
+          exercise_id: exercise?.id ?? null,
+          language: exercise?.language ?? null,
+        });
+        if (error) console.error("[AIChat] terminal session log failed", error);
+      }
+    })();
+  }, [codingReady, codingApproved, enrolledCourseId, user, lessonPlan]);
 
   // Handle ?newchat=true param
   useEffect(() => {
@@ -1349,7 +1414,18 @@ const AIChat = () => {
   }
 
   if (showTerminal && codingApproved) {
-    return <CodingTerminalWidget onClose={() => setShowTerminal(false)} />;
+    return (
+      <CodingTerminalWidget
+        onClose={() => {
+          setShowTerminal(false);
+          setTerminalContext(null);
+        }}
+        initialCode={terminalContext?.initialCode}
+        initialLanguage={terminalContext?.initialLanguage}
+        exerciseTitle={terminalContext?.exerciseTitle}
+        exerciseStatement={terminalContext?.exerciseStatement}
+      />
+    );
   }
 
   // If assessment is active, show full-screen assessment view
