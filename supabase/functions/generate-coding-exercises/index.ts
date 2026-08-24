@@ -177,6 +177,7 @@ Required content (all via the author_exercise tool):
 - output_spec: exact expected output format, including whitespace/newlines that matter.
 - constraints: value ranges, size limits, edge conditions. Empty string if none.
 - examples: 1–2 worked examples, each {input, output, explanation?}.
+- starter_code: a runnable ${opts.language} SKELETON the student starts from — the entry point (main/function signatures) that matches your input_spec/output_spec, with TODO comments marking where logic goes. It must compile/run as-is and must NOT contain any solution logic.
 - reference_solution: complete, idiomatic, runnable ${opts.language} solution. NO placeholder comments.
 - standard_test_cases: 2–4 cases covering the main paths, each {input, expected_output}.
 - hidden_test_cases: 2–4 EDGE cases (empty input, boundaries, large values, tricky formatting), each {input, expected_output}.
