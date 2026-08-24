@@ -205,7 +205,51 @@ const CodingExerciseDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit coding exercise</DialogTitle>
+          <div className="flex items-center justify-between gap-3 pr-6">
+            <DialogTitle>
+              {inReview ? "Review coding exercise" : "Edit coding exercise"}
+            </DialogTitle>
+            {inReview && (
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">
+                  Exercise {reviewIndex + 1} of {reviewIds.length}
+                </Badge>
+                {exercise.reviewed_at ? (
+                  <Badge className="gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-700 text-xs dark:text-emerald-400">
+                    <CheckCircle2 className="h-3 w-3" /> Reviewed
+                  </Badge>
+                ) : (
+                  <Badge className="gap-1 border-amber-500/30 bg-amber-500/10 text-amber-700 text-xs dark:text-amber-400">
+                    Needs review
+                  </Badge>
+                )}
+                <div className="flex items-center">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    aria-label="Previous exercise"
+                    disabled={saving || reviewIndex === 0}
+                    onClick={() => onReviewNavigate(reviewIndex - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    aria-label="Next exercise"
+                    disabled={saving || isLastReview}
+                    onClick={() => onReviewNavigate(reviewIndex + 1)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </DialogHeader>
 
         <div className="space-y-5">
