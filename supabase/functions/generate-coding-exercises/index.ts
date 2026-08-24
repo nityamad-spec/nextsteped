@@ -317,7 +317,8 @@ async function generateOne(
 
       if (!resp.ok) {
         const status = resp.status;
-        console.error(`[gen-coding] gateway ${status} (attempt ${attempt})`);
+        const errText = await resp.text().catch(() => "");
+        console.error(`[gen-coding] gateway ${status} (attempt ${attempt}):`, errText.slice(0, 500));
         if (status === 429 || status === 402) {
           // Surface quota errors immediately rather than burning the retry.
           throw Object.assign(new Error(
@@ -325,6 +326,18 @@ async function generateOne(
               ? "Rate limit exceeded. Try again shortly."
               : "AI credits exhausted. Add funds in Settings > Workspace > Usage.",
           ), { httpStatus: status });
+        }
+        if (status === 400 || status === 401 || status === 403) {
+          // Terminal request/config error — retrying the same request can never
+          // succeed, so surface the gateway's message and stop.
+          let msg = `AI gateway rejected the request (HTTP ${status}).`;
+          try {
+            const parsed = JSON.parse(errText);
+            if (typeof parsed?.error?.message === "string" && parsed.error.message) {
+              msg = parsed.error.message;
+            }
+          } catch { /* keep generic message */ }
+          throw Object.assign(new Error(msg), { httpStatus: status });
         }
         lastIssues = `gateway error ${status}`;
         continue;
