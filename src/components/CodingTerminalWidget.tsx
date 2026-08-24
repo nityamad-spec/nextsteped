@@ -70,7 +70,8 @@ export default function CodingTerminalWidget({
   };
 
   const handleReset = () => {
-    setCode(language.starter);
+    // Reset to the exercise starter when we're on its language, else the default.
+    setCode(languageId === initialLangId && initialCode?.trim() ? initialCode : language.starter);
     setOutput("");
   };
 
@@ -144,6 +145,34 @@ export default function CodingTerminalWidget({
 
       {/* Body: stacked editor + output */}
       <div className="flex-1 min-h-0 flex flex-col">
+        {/* Exercise problem statement (collapsible) */}
+        {hasExercise && (
+          <div className="border-b bg-muted/20">
+            <button
+              type="button"
+              onClick={() => setShowStatement((v) => !v)}
+              className="flex w-full items-center gap-2 px-4 sm:px-6 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground hover:bg-muted/40"
+            >
+              <FileCode2 className="h-3.5 w-3.5 text-primary" />
+              <span className="font-semibold normal-case tracking-normal text-sm text-foreground">
+                {exerciseTitle || "Coding exercise"}
+              </span>
+              {showStatement ? (
+                <ChevronUp className="ml-auto h-4 w-4" />
+              ) : (
+                <ChevronDown className="ml-auto h-4 w-4" />
+              )}
+            </button>
+            {showStatement && exerciseStatement && (
+              <div className="max-h-48 overflow-auto px-4 sm:px-6 pb-3">
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                  {exerciseStatement}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Editor pane */}
         <div className="flex-[3] min-h-0 flex flex-col border-b">
           <div className="px-4 sm:px-6 py-2 text-xs uppercase tracking-wide text-muted-foreground border-b bg-muted/40">
