@@ -1999,7 +1999,10 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                             </ConceptDropZone>
                           </section>
 
-                          {/* Resources */}
+                          {/* Resources — hidden for coding/lab weeks: exercises live in the
+                              dedicated Coding exercises section instead. Existing resource data
+                              is kept in state/DB, just not shown. */}
+                          {!w.is_coding_week && (
                           <section className="space-y-3">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
@@ -2133,6 +2136,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
                               </div>
                             )}
                           </section>
+                          )}
 
                           {/* Weekly Quiz — coding/lab weeks are assessed via the
                               coding exercise, so the whole quiz section is hidden */}
