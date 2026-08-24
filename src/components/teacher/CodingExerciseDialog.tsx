@@ -420,15 +420,33 @@ const CodingExerciseDialog = ({
             )}
           </div>
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              Save exercise
-            </Button>
-          </div>
+          {inReview ? (
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                Close
+              </Button>
+              <Button variant="outline" onClick={() => void handleSave()} disabled={saving}>
+                Save
+              </Button>
+              <Button
+                onClick={() => void handleSave({ markReviewed: true, advance: true })}
+                disabled={saving}
+              >
+                {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                {isLastReview ? "Save & mark reviewed" : "Mark reviewed & next"}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={() => void handleSave()} disabled={saving}>
+                {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                Save exercise
+              </Button>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
