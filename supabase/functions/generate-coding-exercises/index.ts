@@ -80,6 +80,7 @@ interface GeneratedExercise {
   output_spec: string;
   constraints: string | null;
   examples: Example[];
+  starter_code: string;
   reference_solution: string;
   standard_test_cases: TestCase[];
   hidden_test_cases: TestCase[];
