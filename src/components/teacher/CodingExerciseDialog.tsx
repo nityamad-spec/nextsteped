@@ -3,8 +3,9 @@
 // and hidden test cases.
 
 import { useEffect, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Plus, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +31,14 @@ interface CodingExerciseDialogProps {
   onOpenChange: (open: boolean) => void;
   exercise: CodingExercise | null;
   onSaved: () => void;
+  /**
+   * Review mode: ordered ids being reviewed + current position. When provided,
+   * the dialog shows "Exercise i of N" chrome with Prev/Next navigation and
+   * mark-reviewed actions. Omit for standalone edit mode.
+   */
+  reviewIds?: string[];
+  reviewIndex?: number;
+  onReviewNavigate?: (index: number) => void;
 }
 
 const emptyDraft: ExerciseDraft = {
