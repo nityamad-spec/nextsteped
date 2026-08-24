@@ -512,6 +512,8 @@ async function run(req: Request): Promise<{ status: number; payload: unknown }> 
     output_spec: ex.output_spec,
     constraints: ex.constraints,
     examples: ex.examples,
+    starter_code: ex.starter_code,
+    primary_language: language,
     standard_test_cases: ex.standard_test_cases,
     published: false,
     teacher_id: userId,
