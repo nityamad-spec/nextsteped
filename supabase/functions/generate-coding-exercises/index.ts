@@ -121,6 +121,7 @@ function validateExercise(raw: any): { ok: boolean; issues: string[]; value?: Ge
   const input_spec = asStr(raw.input_spec);
   const output_spec = asStr(raw.output_spec);
   const constraints = asStr(raw.constraints) || null;
+  const starter_code = asStr(raw.starter_code);
   const reference_solution = asStr(raw.reference_solution);
   const examples = asExamples(raw.examples);
   const standard = asTestCases(raw.standard_test_cases);
@@ -129,6 +130,7 @@ function validateExercise(raw: any): { ok: boolean; issues: string[]; value?: Ge
   if (problem_statement.length < 40) issues.push("problem_statement missing or too short");
   if (!input_spec) issues.push("input_spec missing");
   if (!output_spec) issues.push("output_spec missing");
+  if (starter_code.length < 10) issues.push("starter_code missing or too short");
   if (reference_solution.length < 20) issues.push("reference_solution missing or too short");
   if (examples.length < 1) issues.push("need at least 1 worked example with input and output");
   if (standard.length < 1) issues.push("need at least 1 standard test case with expected_output");
