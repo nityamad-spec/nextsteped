@@ -147,6 +147,7 @@ function validateExercise(raw: any): { ok: boolean; issues: string[]; value?: Ge
       output_spec,
       constraints,
       examples,
+      starter_code,
       reference_solution,
       standard_test_cases: standard,
       hidden_test_cases: hidden,
