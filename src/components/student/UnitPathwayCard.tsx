@@ -297,7 +297,7 @@ const UnitPathwayCard = ({
                         Take quiz
                       </Button>
                       <Button size="sm" variant="outline" onClick={onPractice}>
-                        More practice
+                        {practiceCtaDone}
                       </Button>
                     </div>
                   </>
