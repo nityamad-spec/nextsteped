@@ -55,10 +55,22 @@ const emptyDraft: ExerciseDraft = {
   hidden_test_cases: [],
 };
 
-const CodingExerciseDialog = ({ open, onOpenChange, exercise, onSaved }: CodingExerciseDialogProps) => {
+const CodingExerciseDialog = ({
+  open,
+  onOpenChange,
+  exercise,
+  onSaved,
+  reviewIds,
+  reviewIndex,
+  onReviewNavigate,
+}: CodingExerciseDialogProps) => {
   const { toast } = useToast();
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft);
   const [saving, setSaving] = useState(false);
+
+  const inReview =
+    !!reviewIds && typeof reviewIndex === "number" && !!onReviewNavigate;
+  const isLastReview = inReview && reviewIndex === reviewIds.length - 1;
 
   useEffect(() => {
     if (open && exercise) {
