@@ -43,6 +43,9 @@ export interface CodingExercise {
   output_spec: string;
   constraints: string | null;
   examples: CodingExample[];
+  /** Student-visible skeleton code the terminal pre-fills with (no solution logic). */
+  starter_code: string | null;
+  primary_language: string | null;
   standard_test_cases: CodingTestCase[];
   published: boolean;
   published_at: string | null;
@@ -63,6 +66,8 @@ export interface PublishedCodingExercise {
   output_spec: string;
   constraints: string | null;
   examples: CodingExample[];
+  starter_code: string | null;
+  primary_language: string | null;
   standard_test_cases: CodingTestCase[];
 }
 
