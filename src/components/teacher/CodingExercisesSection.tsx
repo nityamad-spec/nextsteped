@@ -70,13 +70,19 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
   const [editing, setEditing] = useState<CodingExercise | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<CodingExercise | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Review session: ordered unreviewed exercise ids + current position. Ids are
+  // looked up against the live `exercises` list so navigation shows fresh data.
+  const [reviewIds, setReviewIds] = useState<string[] | null>(null);
+  const [reviewIndex, setReviewIndex] = useState(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<CodingExercise[]> => {
     try {
       const rows = await fetchWeekExercises(courseId, week.week);
       setExercises(rows);
+      return rows;
     } catch (err) {
       console.error("Coding exercises load error:", err);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -86,6 +92,25 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
     setLoading(true);
     void load();
   }, [load]);
+
+  /** Opens the review dialog over all unreviewed exercises. Returns false when none need review. */
+  const openReview = (rows: CodingExercise[], startId?: string): boolean => {
+    const unreviewed = rows.filter((e) => !e.reviewed_at);
+    if (unreviewed.length === 0) return false;
+    const ids = unreviewed.map((e) => e.id);
+    setReviewIds(ids);
+    setReviewIndex(startId ? Math.max(0, ids.indexOf(startId)) : 0);
+    return true;
+  };
+
+  const closeReview = () => {
+    setReviewIds(null);
+    setReviewIndex(0);
+  };
+
+  const reviewExercise = reviewIds
+    ? (exercises.find((e) => e.id === reviewIds[reviewIndex]) ?? null)
+    : null;
 
   const handleGenerate = async () => {
     const count = Math.max(1, Math.min(MAX_PER_RUN, Math.round(Number(quantity) || 1)));
