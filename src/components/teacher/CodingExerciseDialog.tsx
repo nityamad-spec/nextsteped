@@ -307,6 +307,22 @@ const CodingExerciseDialog = ({ open, onOpenChange, exercise, onSaved }: CodingE
             )}
           </div>
 
+          <div className="space-y-1.5">
+            <Label htmlFor="ce-starter">Starter code (visible to students)</Label>
+            <p className="text-xs text-muted-foreground">
+              Skeleton the student's code terminal pre-fills with — entry point and TODOs only, no
+              solution logic. Leave empty to use the terminal's default template.
+            </p>
+            <Textarea
+              id="ce-starter"
+              value={draft.starter_code}
+              onChange={(e) => set("starter_code", e.target.value)}
+              rows={6}
+              className="font-mono text-xs"
+              placeholder={"# TODO: implement …"}
+            />
+          </div>
+
           {renderTestCases(
             "standard_test_cases",
             "Standard test cases",
