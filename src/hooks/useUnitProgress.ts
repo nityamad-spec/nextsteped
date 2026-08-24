@@ -100,6 +100,13 @@ export function useUnitProgress(
           .order("created_at", { ascending: false })
           .limit(50),
         supabase
+          .from("coding_terminal_sessions")
+          .select("week_number, created_at")
+          .eq("student_id", user.id)
+          .eq("course_id", courseId)
+          .order("created_at", { ascending: false })
+          .limit(100),
+        supabase
           .from("student_concept_mastery")
           .select("concept_code, questions_attempted")
           .eq("student_id", user.id)
