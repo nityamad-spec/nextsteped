@@ -225,6 +225,7 @@ const AUTHOR_TOOL = {
             additionalProperties: false,
           },
         },
+        starter_code: { type: "string" },
         reference_solution: { type: "string" },
         standard_test_cases: {
           type: "array",
