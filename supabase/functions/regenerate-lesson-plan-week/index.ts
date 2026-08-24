@@ -93,6 +93,7 @@ serve(async (req) => {
     const weekNumber: number | undefined = Number(body?.week);
     const conceptNames: string[] = Array.isArray(body?.concept_names) ? body.concept_names : [];
     const isExamWeek: boolean = !!body?.is_exam_week;
+    const isCodingWeek: boolean = !!body?.is_coding_week;
     const examType: string | null = body?.exam_type ?? null;
     const contextWeeks: ContextWeek[] = Array.isArray(body?.context_weeks) ? body.context_weeks : [];
 
@@ -154,12 +155,18 @@ serve(async (req) => {
       .map((w) => `- Week ${w.week}${w.week_name ? ` (${w.week_name})` : ""}: ${(w.concept_names || []).join(", ") || "(none)"}`)
       .join("\n");
 
+    // Coding/lab weeks never carry resources — hands-on work is managed via
+    // the dedicated coding-exercises flow, so the model is told to return [].
+    const resourceInstruction = isCodingWeek
+      ? "- resources: return an EMPTY array. This is a coding/lab week; it does not carry article or exercise resources."
+      : "- 1 coding-exercise + 1–2 article resources tied to those concepts. Articles must be REAL, well-known, freely accessible resources with working https URLs. STRONGLY PREFER stable index/landing pages (e.g. https://docs.python.org/3/tutorial/, https://realpython.com/, https://developer.mozilla.org/en-US/docs/Web/JavaScript) over guessing deep article slugs. If you are not 100% certain a specific URL exists and is current, OMIT the url field entirely — a resource without a url is fine and preferred over a broken link.";
+
     const system = `You author readable week-level metadata for a SINGLE week of a fixed lesson-plan distribution.
 
 You will be given ONE week with its concepts already locked. Your job is ONLY to write:
 - week_name: 3–6 word title.
 - overview: 3–5 sentences, grounded strictly in the assigned concepts. Cover (1) what the average undergraduate will be able to do by end of week, (2) how it builds on prior weeks (if any), (3) the most common misconception or stumbling block.
-- 1 coding-exercise + 1–2 article resources tied to those concepts. Articles must be REAL, well-known, freely accessible resources with working https URLs. STRONGLY PREFER stable index/landing pages (e.g. https://docs.python.org/3/tutorial/, https://realpython.com/, https://developer.mozilla.org/en-US/docs/Web/JavaScript) over guessing deep article slugs. If you are not 100% certain a specific URL exists and is current, OMIT the url field entirely — a resource without a url is fine and preferred over a broken link.
+${resourceInstruction}
 
 Tone: factual, pedagogical, realistic. Do not over-promise mastery. Avoid generic filler.
 You CANNOT change the assigned concepts. Return ONLY via the provided tool.`;
@@ -249,7 +256,7 @@ ${next || "(none)"}`;
     if (!tc?.function?.arguments) throw new Error("AI did not return week authoring");
     const parsed = JSON.parse(tc.function.arguments);
 
-    const resources = Array.isArray(parsed.resources) ? parsed.resources : [];
+    const resources = isCodingWeek ? [] : (Array.isArray(parsed.resources) ? parsed.resources : []);
     const exercises = resources.filter((r: any) => r?.type === "coding-exercise").slice(0, 1);
     const articles = resources.filter((r: any) => r?.type === "article").slice(0, 2);
 
