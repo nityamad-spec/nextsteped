@@ -399,7 +399,7 @@ const StudentLearningPath = () => {
                 weakConcepts={weak}
                 concepts={conceptsByUnit[unit.day] ?? []}
                 onStudyConcept={(concept, isWeak) => goToStudy(concept, isWeak && !!taken ? "weak" : "start")}
-                resources={(Array.isArray(unit.resources) ? unit.resources : []).filter((r) => codingApproved || r?.type !== "coding-exercise")}
+                resources={unit.is_coding_week ? [] : (Array.isArray(unit.resources) ? unit.resources : []).filter((r) => codingApproved || r?.type !== "coding-exercise")}
                 activityDone={activityDone}
                 onToggleActivity={toggleActivityDone}
                 onStudy={() =>
