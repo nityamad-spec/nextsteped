@@ -3,8 +3,9 @@
 // and hidden test cases.
 
 import { useEffect, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Plus, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +31,14 @@ interface CodingExerciseDialogProps {
   onOpenChange: (open: boolean) => void;
   exercise: CodingExercise | null;
   onSaved: () => void;
+  /**
+   * Review mode: ordered ids being reviewed + current position. When provided,
+   * the dialog shows "Exercise i of N" chrome with Prev/Next navigation and
+   * mark-reviewed actions. Omit for standalone edit mode.
+   */
+  reviewIds?: string[];
+  reviewIndex?: number;
+  onReviewNavigate?: (index: number) => void;
 }
 
 const emptyDraft: ExerciseDraft = {
@@ -46,10 +55,22 @@ const emptyDraft: ExerciseDraft = {
   hidden_test_cases: [],
 };
 
-const CodingExerciseDialog = ({ open, onOpenChange, exercise, onSaved }: CodingExerciseDialogProps) => {
+const CodingExerciseDialog = ({
+  open,
+  onOpenChange,
+  exercise,
+  onSaved,
+  reviewIds,
+  reviewIndex,
+  onReviewNavigate,
+}: CodingExerciseDialogProps) => {
   const { toast } = useToast();
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft);
   const [saving, setSaving] = useState(false);
+
+  const inReview =
+    !!reviewIds && typeof reviewIndex === "number" && !!onReviewNavigate;
+  const isLastReview = inReview && reviewIndex === reviewIds.length - 1;
 
   useEffect(() => {
     if (open && exercise) {
@@ -91,20 +112,27 @@ const CodingExerciseDialog = ({ open, onOpenChange, exercise, onSaved }: CodingE
       [listKey]: prev[listKey].map((t, j) => (j === i ? { ...t, [key]: value } : t)),
     }));
 
-  const handleSave = async () => {
+  const handleSave = async (opts?: { markReviewed?: boolean; advance?: boolean }) => {
     setSaving(true);
     try {
-      await updateExercise(exercise.id, draft);
+      await updateExercise(exercise.id, draft, { markReviewed: opts?.markReviewed });
       const missing = exerciseMissingFields({ ...exercise, ...draft });
       toast({
-        title: "Exercise saved",
+        title: opts?.markReviewed ? "Exercise reviewed" : "Exercise saved",
         description:
           missing.length > 0
             ? `Still missing before publish: ${missing.join(", ")}.`
-            : "All required fields are filled — ready to publish.",
+            : opts?.markReviewed
+              ? "Marked as reviewed."
+              : "All required fields are filled — mark the exercise reviewed before publishing.",
       });
       onSaved();
-      onOpenChange(false);
+      if (opts?.advance && inReview) {
+        if (isLastReview) onOpenChange(false);
+        else onReviewNavigate(reviewIndex + 1);
+      } else if (!inReview) {
+        onOpenChange(false);
+      }
     } catch (err: any) {
       toast({
         title: "Failed to save exercise",
@@ -177,7 +205,51 @@ const CodingExerciseDialog = ({ open, onOpenChange, exercise, onSaved }: CodingE
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit coding exercise</DialogTitle>
+          <div className="flex items-center justify-between gap-3 pr-6">
+            <DialogTitle>
+              {inReview ? "Review coding exercise" : "Edit coding exercise"}
+            </DialogTitle>
+            {inReview && (
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">
+                  Exercise {reviewIndex + 1} of {reviewIds.length}
+                </Badge>
+                {exercise.reviewed_at ? (
+                  <Badge className="gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-700 text-xs dark:text-emerald-400">
+                    <CheckCircle2 className="h-3 w-3" /> Reviewed
+                  </Badge>
+                ) : (
+                  <Badge className="gap-1 border-amber-500/30 bg-amber-500/10 text-amber-700 text-xs dark:text-amber-400">
+                    Needs review
+                  </Badge>
+                )}
+                <div className="flex items-center">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    aria-label="Previous exercise"
+                    disabled={saving || reviewIndex === 0}
+                    onClick={() => onReviewNavigate(reviewIndex - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    aria-label="Next exercise"
+                    disabled={saving || isLastReview}
+                    onClick={() => onReviewNavigate(reviewIndex + 1)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </DialogHeader>
 
         <div className="space-y-5">
@@ -348,15 +420,33 @@ const CodingExerciseDialog = ({ open, onOpenChange, exercise, onSaved }: CodingE
             )}
           </div>
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              Save exercise
-            </Button>
-          </div>
+          {inReview ? (
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                Close
+              </Button>
+              <Button variant="outline" onClick={() => void handleSave()} disabled={saving}>
+                Save
+              </Button>
+              <Button
+                onClick={() => void handleSave({ markReviewed: true, advance: true })}
+                disabled={saving}
+              >
+                {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                {isLastReview ? "Save & mark reviewed" : "Mark reviewed & next"}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={() => void handleSave()} disabled={saving}>
+                {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                Save exercise
+              </Button>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

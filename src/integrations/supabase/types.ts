@@ -532,6 +532,7 @@ export type Database = {
           problem_statement: string
           published: boolean
           published_at: string | null
+          reviewed_at: string | null
           standard_test_cases: Json
           starter_code: string | null
           teacher_id: string
@@ -553,6 +554,7 @@ export type Database = {
           problem_statement: string
           published?: boolean
           published_at?: string | null
+          reviewed_at?: string | null
           standard_test_cases?: Json
           starter_code?: string | null
           teacher_id: string
@@ -574,6 +576,7 @@ export type Database = {
           problem_statement?: string
           published?: boolean
           published_at?: string | null
+          reviewed_at?: string | null
           standard_test_cases?: Json
           starter_code?: string | null
           teacher_id?: string

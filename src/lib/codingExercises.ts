@@ -49,6 +49,8 @@ export interface CodingExercise {
   standard_test_cases: CodingTestCase[];
   published: boolean;
   published_at: string | null;
+  /** Null until a teacher explicitly marks the exercise reviewed; required before publish. */
+  reviewed_at: string | null;
   // Joined from coding_exercise_private (teacher-only; absent for students)
   reference_solution: string;
   hidden_test_cases: CodingTestCase[];
@@ -150,7 +152,16 @@ export type ExerciseDraft = {
   hidden_test_cases: CodingTestCase[];
 };
 
-export async function updateExercise(id: string, draft: ExerciseDraft): Promise<void> {
+/**
+ * Saves an exercise draft. Edits invalidate any prior review: `reviewed_at` is
+ * reset to null unless `opts.markReviewed` is set (review-mode save), which
+ * marks the exercise reviewed in the same update.
+ */
+export async function updateExercise(
+  id: string,
+  draft: ExerciseDraft,
+  opts?: { markReviewed?: boolean },
+): Promise<void> {
   const { reference_solution, hidden_test_cases, ...pub } = draft;
   const { error: pubErr } = await supabase
     .from("coding_exercises")
@@ -160,6 +171,7 @@ export async function updateExercise(id: string, draft: ExerciseDraft): Promise<
       starter_code: pub.starter_code?.trim() ? pub.starter_code : null,
       examples: pub.examples as any,
       standard_test_cases: pub.standard_test_cases as any,
+      reviewed_at: opts?.markReviewed ? new Date().toISOString() : null,
     })
     .eq("id", id);
   if (pubErr) throw pubErr;
@@ -168,6 +180,15 @@ export async function updateExercise(id: string, draft: ExerciseDraft): Promise<
     .update({ reference_solution, hidden_test_cases: hidden_test_cases as any })
     .eq("exercise_id", id);
   if (privErr) throw privErr;
+}
+
+/** Marks an exercise reviewed without changing its content. */
+export async function markExerciseReviewed(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("coding_exercises")
+    .update({ reviewed_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
 }
 
 export async function deleteExercise(id: string): Promise<void> {

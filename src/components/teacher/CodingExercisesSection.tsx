@@ -70,13 +70,19 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
   const [editing, setEditing] = useState<CodingExercise | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<CodingExercise | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Review session: ordered unreviewed exercise ids + current position. Ids are
+  // looked up against the live `exercises` list so navigation shows fresh data.
+  const [reviewIds, setReviewIds] = useState<string[] | null>(null);
+  const [reviewIndex, setReviewIndex] = useState(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<CodingExercise[]> => {
     try {
       const rows = await fetchWeekExercises(courseId, week.week);
       setExercises(rows);
+      return rows;
     } catch (err) {
       console.error("Coding exercises load error:", err);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -86,6 +92,25 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
     setLoading(true);
     void load();
   }, [load]);
+
+  /** Opens the review dialog over all unreviewed exercises. Returns false when none need review. */
+  const openReview = (rows: CodingExercise[], startId?: string): boolean => {
+    const unreviewed = rows.filter((e) => !e.reviewed_at);
+    if (unreviewed.length === 0) return false;
+    const ids = unreviewed.map((e) => e.id);
+    setReviewIds(ids);
+    setReviewIndex(startId ? Math.max(0, ids.indexOf(startId)) : 0);
+    return true;
+  };
+
+  const closeReview = () => {
+    setReviewIds(null);
+    setReviewIndex(0);
+  };
+
+  const reviewExercise = reviewIds
+    ? (exercises.find((e) => e.id === reviewIds[reviewIndex]) ?? null)
+    : null;
 
   const handleGenerate = async () => {
     const count = Math.max(1, Math.min(MAX_PER_RUN, Math.round(Number(quantity) || 1)));
@@ -173,10 +198,15 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
       if (payload?.error) throw new Error(payload.error);
 
       const generated = Number(payload?.generated ?? 0);
-      await load();
+      const rows = await load();
+      // Auto-open the review flow over the unreviewed exercises (the newly
+      // generated ones are unreviewed by construction).
+      const needsReview = openReview(rows);
       toast({
         title: "Coding exercises generated",
-        description: `${generated} new draft exercise${generated === 1 ? "" : "s"} added to Week ${week.week}. Review and publish when ready.`,
+        description: needsReview
+          ? `${generated} new draft exercise${generated === 1 ? "" : "s"} added to Week ${week.week} — review each one, then publish.`
+          : `${generated} new draft exercise${generated === 1 ? "" : "s"} added to Week ${week.week}.`,
       });
     } catch (err: any) {
       toast({
@@ -213,6 +243,15 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
   const handlePublishToggle = async () => {
     const target = !allPublished;
     if (target) {
+      const unreviewed = exercises.filter((e) => !e.reviewed_at);
+      if (unreviewed.length > 0) {
+        toast({
+          title: "Review required",
+          description: `${unreviewed.length} exercise${unreviewed.length === 1 ? "" : "s"} still need${unreviewed.length === 1 ? "s" : ""} review. Review each exercise before publishing.`,
+          variant: "destructive",
+        });
+        return;
+      }
       const incomplete = exercises
         .map((e) => ({ e, missing: exerciseMissingFields(e) }))
         .filter((x) => x.missing.length > 0);
@@ -354,6 +393,15 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
                         Draft
                       </Badge>
                     )}
+                    {ex.reviewed_at ? (
+                      <Badge className="border-emerald-500/30 bg-emerald-500/10 text-[10px] text-emerald-700 dark:text-emerald-400">
+                        Reviewed
+                      </Badge>
+                    ) : (
+                      <Badge className="border-amber-500/30 bg-amber-500/10 text-[10px] text-amber-700 dark:text-amber-400">
+                        Needs review
+                      </Badge>
+                    )}
                   </div>
                   {missing.length > 0 && (
                     <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
@@ -361,6 +409,17 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
                     </p>
                   )}
                 </div>
+                {!ex.reviewed_at && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 shrink-0"
+                    aria-label={`Review ${ex.title || "exercise"}`}
+                    onClick={() => openReview(exercises, ex.id)}
+                  >
+                    Review
+                  </Button>
+                )}
                 <Button
                   size="icon"
                   variant="ghost"
@@ -402,6 +461,16 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
         onOpenChange={(o) => !o && setEditing(null)}
         exercise={editing}
         onSaved={() => void load()}
+      />
+
+      <CodingExerciseDialog
+        open={!!reviewIds}
+        onOpenChange={(o) => !o && closeReview()}
+        exercise={reviewExercise}
+        onSaved={() => void load()}
+        reviewIds={reviewIds ?? undefined}
+        reviewIndex={reviewIndex}
+        onReviewNavigate={setReviewIndex}
       />
 
       <Dialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
