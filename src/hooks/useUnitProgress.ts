@@ -211,9 +211,12 @@ export function useUnitProgress(
       // Mastery has no timestamp and is written by the quiz itself, so it can only
       // stand in for studying before the quiz was taken.
       studiedByUnit[week.day] = quizAt === 0 && conceptNames.some((name) => attemptedConcepts.has(name));
-      practisedByUnit[week.day] = practiceConcepts.some(
-        (p) => p.at > quizAt && textMatchesUnit(p.topic, terms),
-      );
+      // Practice counts via scored practice-question results OR a code-terminal
+      // session for this unit — either way, only activity after the latest quiz
+      // attempt counts.
+      practisedByUnit[week.day] =
+        practiceConcepts.some((p) => p.at > quizAt && textMatchesUnit(p.topic, terms)) ||
+        terminalSessions.some((s) => s.week_number === week.day && toTime(s.created_at) > quizAt);
     });
 
     // Attribute each qualifying session: deep-link title first, then message text.
@@ -233,5 +236,5 @@ export function useUnitProgress(
     });
 
     return { studiedByUnit, practisedByUnit, loading };
-  }, [sessions, messages, practice, mastery, lessonPlan, fallbackUnit, quizTakenAtByUnit, loading]);
+  }, [sessions, messages, practice, terminalSessions, mastery, lessonPlan, fallbackUnit, quizTakenAtByUnit, loading]);
 }
