@@ -112,20 +112,27 @@ const CodingExerciseDialog = ({
       [listKey]: prev[listKey].map((t, j) => (j === i ? { ...t, [key]: value } : t)),
     }));
 
-  const handleSave = async () => {
+  const handleSave = async (opts?: { markReviewed?: boolean; advance?: boolean }) => {
     setSaving(true);
     try {
-      await updateExercise(exercise.id, draft);
+      await updateExercise(exercise.id, draft, { markReviewed: opts?.markReviewed });
       const missing = exerciseMissingFields({ ...exercise, ...draft });
       toast({
-        title: "Exercise saved",
+        title: opts?.markReviewed ? "Exercise reviewed" : "Exercise saved",
         description:
           missing.length > 0
             ? `Still missing before publish: ${missing.join(", ")}.`
-            : "All required fields are filled — ready to publish.",
+            : opts?.markReviewed
+              ? "Marked as reviewed."
+              : "All required fields are filled — mark the exercise reviewed before publishing.",
       });
       onSaved();
-      onOpenChange(false);
+      if (opts?.advance && inReview) {
+        if (isLastReview) onOpenChange(false);
+        else onReviewNavigate(reviewIndex + 1);
+      } else if (!inReview) {
+        onOpenChange(false);
+      }
     } catch (err: any) {
       toast({
         title: "Failed to save exercise",
