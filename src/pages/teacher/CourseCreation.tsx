@@ -2500,7 +2500,11 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           <DialogHeader>
             <DialogTitle>Regenerate this week?</DialogTitle>
             <DialogDescription>
-              Only the week's <strong>title</strong>, <strong>overview</strong>, and <strong>resources</strong> will be replaced with a fresh AI draft. The assigned <strong>concepts stay locked</strong> and won't change. Any manual edits to title, overview, or resources for this week will be overwritten.
+              {weeks.find(w => w.id === confirmRegenWeekId)?.is_coding_week ? (
+                <>Only the week's <strong>title</strong> and <strong>overview</strong> will be replaced with a fresh AI draft. The assigned <strong>concepts stay locked</strong> and won't change. Any manual edits to title or overview for this week will be overwritten.</>
+              ) : (
+                <>Only the week's <strong>title</strong>, <strong>overview</strong>, and <strong>resources</strong> will be replaced with a fresh AI draft. The assigned <strong>concepts stay locked</strong> and won't change. Any manual edits to title, overview, or resources for this week will be overwritten.</>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
