@@ -108,7 +108,7 @@ export async function fetchPublishedExercises(
   const { data, error } = await supabase
     .from("coding_exercises")
     .select(
-      "id, week_number, position, title, problem_statement, language, input_spec, output_spec, constraints, examples, standard_test_cases",
+      "id, week_number, position, title, problem_statement, language, input_spec, output_spec, constraints, examples, starter_code, primary_language, standard_test_cases",
     )
     .eq("course_id", courseId)
     .eq("published", true)
@@ -144,6 +144,7 @@ export type ExerciseDraft = {
   output_spec: string;
   constraints: string | null;
   examples: CodingExample[];
+  starter_code: string;
   standard_test_cases: CodingTestCase[];
   reference_solution: string;
   hidden_test_cases: CodingTestCase[];
