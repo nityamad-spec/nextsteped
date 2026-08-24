@@ -528,10 +528,12 @@ export type Database = {
           language: string
           output_spec: string
           position: number
+          primary_language: string | null
           problem_statement: string
           published: boolean
           published_at: string | null
           standard_test_cases: Json
+          starter_code: string | null
           teacher_id: string
           title: string
           updated_at: string
@@ -547,10 +549,12 @@ export type Database = {
           language?: string
           output_spec: string
           position?: number
+          primary_language?: string | null
           problem_statement: string
           published?: boolean
           published_at?: string | null
           standard_test_cases?: Json
+          starter_code?: string | null
           teacher_id: string
           title: string
           updated_at?: string
@@ -566,10 +570,12 @@ export type Database = {
           language?: string
           output_spec?: string
           position?: number
+          primary_language?: string | null
           problem_statement?: string
           published?: boolean
           published_at?: string | null
           standard_test_cases?: Json
+          starter_code?: string | null
           teacher_id?: string
           title?: string
           updated_at?: string
@@ -586,6 +592,58 @@ export type Database = {
           {
             foreignKeyName: "coding_exercises_teacher_id_fkey"
             columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coding_terminal_sessions: {
+        Row: {
+          course_id: string
+          created_at: string
+          exercise_id: string | null
+          id: string
+          language: string | null
+          student_id: string
+          week_number: number
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          exercise_id?: string | null
+          id?: string
+          language?: string | null
+          student_id: string
+          week_number: number
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          exercise_id?: string | null
+          id?: string
+          language?: string | null
+          student_id?: string
+          week_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coding_terminal_sessions_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coding_terminal_sessions_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "coding_exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coding_terminal_sessions_student_id_fkey"
+            columns: ["student_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
