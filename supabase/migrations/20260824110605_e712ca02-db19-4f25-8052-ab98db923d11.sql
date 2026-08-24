@@ -1,0 +1,1 @@
+ALTER TABLE public.coding_exercises ADD COLUMN reviewed_at timestamptz;
