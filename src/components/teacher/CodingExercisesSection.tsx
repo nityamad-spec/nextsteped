@@ -198,10 +198,15 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
       if (payload?.error) throw new Error(payload.error);
 
       const generated = Number(payload?.generated ?? 0);
-      await load();
+      const rows = await load();
+      // Auto-open the review flow over the unreviewed exercises (the newly
+      // generated ones are unreviewed by construction).
+      const needsReview = openReview(rows);
       toast({
         title: "Coding exercises generated",
-        description: `${generated} new draft exercise${generated === 1 ? "" : "s"} added to Week ${week.week}. Review and publish when ready.`,
+        description: needsReview
+          ? `${generated} new draft exercise${generated === 1 ? "" : "s"} added to Week ${week.week} — review each one, then publish.`
+          : `${generated} new draft exercise${generated === 1 ? "" : "s"} added to Week ${week.week}.`,
       });
     } catch (err: any) {
       toast({
@@ -238,6 +243,15 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
   const handlePublishToggle = async () => {
     const target = !allPublished;
     if (target) {
+      const unreviewed = exercises.filter((e) => !e.reviewed_at);
+      if (unreviewed.length > 0) {
+        toast({
+          title: "Review required",
+          description: `${unreviewed.length} exercise${unreviewed.length === 1 ? "" : "s"} still need${unreviewed.length === 1 ? "s" : ""} review. Review each exercise before publishing.`,
+          variant: "destructive",
+        });
+        return;
+      }
       const incomplete = exercises
         .map((e) => ({ e, missing: exerciseMissingFields(e) }))
         .filter((x) => x.missing.length > 0);
