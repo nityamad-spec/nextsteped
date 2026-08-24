@@ -157,6 +157,7 @@ export async function updateExercise(id: string, draft: ExerciseDraft): Promise<
     .update({
       ...pub,
       constraints: pub.constraints?.trim() ? pub.constraints : null,
+      starter_code: pub.starter_code?.trim() ? pub.starter_code : null,
       examples: pub.examples as any,
       standard_test_cases: pub.standard_test_cases as any,
     })
