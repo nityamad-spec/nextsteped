@@ -185,7 +185,7 @@ const AIChat = () => {
   const location = useLocation();
   const { user } = useAuth();
   const enrolledCourseId = useEnrolledCourseId();
-  const { isApproved: codingApproved } = useCodingAccess(enrolledCourseId);
+  const { isApproved: codingApproved, ready: codingReady } = useCodingAccess(enrolledCourseId);
   const { taSettings } = useTASettings(enrolledCourseId);
   const { taken: diagnosticTaken } = useDiagnosticStatus(enrolledCourseId);
   const initialMode = searchParams.get("mode") === "exam" ? "exam" : "learning";
@@ -239,6 +239,13 @@ const AIChat = () => {
   const [practiceHistory, setPracticeHistory] = useState<any[]>([]);
   const [selectedPracticeHistoryId, setSelectedPracticeHistoryId] = useState<string | null>(null);
   const [showTerminal, setShowTerminal] = useState(false);
+  // Exercise context passed to the terminal when opened from the learning path.
+  const [terminalContext, setTerminalContext] = useState<{
+    initialCode?: string | null;
+    initialLanguage?: string | null;
+    exerciseTitle?: string | null;
+    exerciseStatement?: string | null;
+  } | null>(null);
 
   const {
     sessions: chats,
