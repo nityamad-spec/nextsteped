@@ -182,6 +182,15 @@ export async function updateExercise(
   if (privErr) throw privErr;
 }
 
+/** Marks an exercise reviewed without changing its content. */
+export async function markExerciseReviewed(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("coding_exercises")
+    .update({ reviewed_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
 export async function deleteExercise(id: string): Promise<void> {
   const { error } = await supabase.from("coding_exercises").delete().eq("id", id);
   if (error) throw error;
