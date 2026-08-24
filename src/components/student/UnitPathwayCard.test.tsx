@@ -84,3 +84,20 @@ describe("UnitPathwayCard concept Focus badge", () => {
     expect(screen.getByText("Focus")).toBeInTheDocument();
   });
 });
+
+describe("UnitPathwayCard readings visibility", () => {
+  const sampleResources = [
+    { id: "r1", type: "article" as const, title: "Intro Article", description: "Read me", url: "https://example.com" },
+    { id: "r2", type: "coding-exercise" as const, title: "Try It", description: "Do it" },
+  ];
+
+  it("shows Readings & exercises for teaching units with resources", () => {
+    render(<UnitPathwayCard {...baseProps} resources={sampleResources} />);
+    expect(screen.getByText(/Readings & exercises/i)).toBeInTheDocument();
+  });
+
+  it("hides Readings & exercises for coding/lab units even when resources exist", () => {
+    render(<UnitPathwayCard {...baseProps} isCodingWeek resources={sampleResources} />);
+    expect(screen.queryByText(/Readings & exercises/i)).not.toBeInTheDocument();
+  });
+});
