@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Terminal, Play, RotateCcw, X, Loader2 } from "lucide-react";
+import { Terminal, Play, RotateCcw, X, Loader2, ChevronDown, ChevronUp, FileCode2 } from "lucide-react";
 
 // TODO(judge0): This approved-languages list will later be sourced from a
 // professor-controlled setting (likely course_ta_settings) so each course
@@ -14,19 +14,47 @@ const APPROVED_LANGUAGES: { id: string; label: string; starter: string }[] = [
   { id: "javascript", label: "JavaScript (Node)", starter: `console.log("Hello, world!");\n` },
 ];
 
-interface CodingTerminalWidgetProps {
-  onClose: () => void;
+/** Map a course exercise language to a terminal-supported language id. */
+function toTerminalLanguage(lang?: string | null): string {
+  const normalized = (lang ?? "").toLowerCase();
+  if (APPROVED_LANGUAGES.some((l) => l.id === normalized)) return normalized;
+  if (normalized === "typescript") return "javascript";
+  return APPROVED_LANGUAGES[0].id;
 }
 
-export default function CodingTerminalWidget({ onClose }: CodingTerminalWidgetProps) {
-  const [languageId, setLanguageId] = useState<string>(APPROVED_LANGUAGES[0].id);
+interface CodingTerminalWidgetProps {
+  onClose: () => void;
+  /** Pre-filled skeleton code for the exercise (overrides the default starter). */
+  initialCode?: string | null;
+  /** Exercise language — mapped to the closest supported terminal language. */
+  initialLanguage?: string | null;
+  /** When set, a collapsible problem-statement panel is shown above the editor. */
+  exerciseTitle?: string | null;
+  exerciseStatement?: string | null;
+}
+
+export default function CodingTerminalWidget({
+  onClose,
+  initialCode,
+  initialLanguage,
+  exerciseTitle,
+  exerciseStatement,
+}: CodingTerminalWidgetProps) {
+  const initialLangId = toTerminalLanguage(initialLanguage);
+  const [languageId, setLanguageId] = useState<string>(initialLangId);
   const language = useMemo(
     () => APPROVED_LANGUAGES.find((l) => l.id === languageId) ?? APPROVED_LANGUAGES[0],
     [languageId],
   );
-  const [code, setCode] = useState<string>(APPROVED_LANGUAGES[0].starter);
+  const hasExercise = !!(exerciseTitle || exerciseStatement);
+  const initialStarter =
+    initialCode?.trim() && languageId === initialLangId
+      ? initialCode
+      : (APPROVED_LANGUAGES.find((l) => l.id === initialLangId)?.starter ?? APPROVED_LANGUAGES[0].starter);
+  const [code, setCode] = useState<string>(initialStarter);
   const [output, setOutput] = useState<string>("");
   const [isRunning, setIsRunning] = useState(false);
+  const [showStatement, setShowStatement] = useState(hasExercise);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleLanguageChange = (id: string) => {
