@@ -859,6 +859,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           week: target.week,
           is_exam_week: target.is_exam_week,
           exam_type: target.exam_type,
+          is_coding_week: target.is_coding_week,
           concept_names: target.concepts.map(c => c.name),
           context_weeks: weeks.map(w => ({
             week: w.week,
@@ -873,14 +874,17 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         ...w,
         week_name: typeof data.week_name === "string" ? data.week_name : w.week_name,
         overview: typeof data.overview === "string" ? data.overview : w.overview,
-        resources: Array.isArray(data.resources) ? data.resources.map((r: any) => ({
-          id: makeId(),
-          type: r.type === "article" ? "article" : "coding-exercise",
-          title: r.title || "Untitled",
-          description: r.description || "",
-          url: r.url || undefined,
-          ai_suggested: true,
-        })) : w.resources,
+        // Coding/lab weeks don't surface resources — keep any existing (hidden) ones untouched.
+        resources: w.is_coding_week
+          ? w.resources
+          : Array.isArray(data.resources) ? data.resources.map((r: any) => ({
+            id: makeId(),
+            type: r.type === "article" ? "article" : "coding-exercise",
+            title: r.title || "Untitled",
+            description: r.description || "",
+            url: r.url || undefined,
+            ai_suggested: true,
+          })) : w.resources,
       })));
       toast({ title: "Week regenerated", description: `Week ${target.week} content refreshed.` });
     } catch (err: any) {
