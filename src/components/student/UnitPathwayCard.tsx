@@ -58,6 +58,8 @@ export interface UnitPathwayCardProps {
   onPractice: () => void;
   onTakeQuiz: () => void;
   onGoToNextUnit?: () => void;
+  /** Coding-approved course: the practice step opens the code terminal. */
+  practiceViaTerminal?: boolean;
 }
 
 const StepCard = ({
@@ -132,12 +134,17 @@ const UnitPathwayCard = ({
   onPractice,
   onTakeQuiz,
   onGoToNextUnit,
+  practiceViaTerminal = false,
 }: UnitPathwayCardProps) => {
   const [showResources, setShowResources] = useState(false);
   const [openExercises, setOpenExercises] = useState<string[]>([]);
   const toggleExercise = (id: string) =>
     setOpenExercises((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const stage = computeUnitStage({ studied, practised, quizTaken, readiness, quizExempt: isCodingWeek });
+  // Practice CTA copy: coding-approved courses open the code terminal.
+  const practiceCta = practiceViaTerminal ? "Open code terminal" : "Start practice";
+  const practiceCtaDone = practiceViaTerminal ? "Open code terminal" : "More practice";
+  const practiceCtaKeep = practiceViaTerminal ? "Open code terminal" : "Keep practising";
   const ready = stage === "ready";
   const weakList = weakConcepts.slice(0, 2).join(", ");
   const isLastUnit = unitNumber >= totalUnits;

@@ -65,6 +65,7 @@ export function useUnitProgress(
   const [sessions, setSessions] = useState<ChatSessionRow[]>([]);
   const [messages, setMessages] = useState<ChatMessageRow[]>([]);
   const [practice, setPractice] = useState<PracticeResultRow[]>([]);
+  const [terminalSessions, setTerminalSessions] = useState<TerminalSessionRow[]>([]);
   const [mastery, setMastery] = useState<MasteryRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -73,6 +74,7 @@ export function useUnitProgress(
       setSessions([]);
       setMessages([]);
       setPractice([]);
+      setTerminalSessions([]);
       setMastery([]);
       setLoading(false);
       return;
@@ -80,7 +82,7 @@ export function useUnitProgress(
     let cancelled = false;
     setLoading(true);
     (async () => {
-      const [sessionRes, practiceRes, masteryRes] = await Promise.all([
+      const [sessionRes, practiceRes, terminalRes, masteryRes] = await Promise.all([
         supabase
           .from("chat_sessions")
           .select("id, title")
