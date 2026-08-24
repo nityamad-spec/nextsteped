@@ -115,6 +115,7 @@ export function useUnitProgress(
       if (cancelled) return;
       if (sessionRes.error) console.error("[useUnitProgress] chat sessions load error", sessionRes.error);
       if (practiceRes.error) console.error("[useUnitProgress] practice load error", practiceRes.error);
+      if (terminalRes.error) console.error("[useUnitProgress] terminal sessions load error", terminalRes.error);
       if (masteryRes.error) console.error("[useUnitProgress] mastery load error", masteryRes.error);
 
       const sessionRows = (sessionRes.data as ChatSessionRow[]) || [];
@@ -139,6 +140,7 @@ export function useUnitProgress(
       setSessions(sessionRows);
       setMessages(messageRows);
       setPractice((practiceRes.data as PracticeResultRow[]) || []);
+      setTerminalSessions((terminalRes.data as TerminalSessionRow[]) || []);
       setMastery((masteryRes.data as MasteryRow[]) || []);
       setLoading(false);
     })();
