@@ -393,6 +393,15 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
                         Draft
                       </Badge>
                     )}
+                    {ex.reviewed_at ? (
+                      <Badge className="border-emerald-500/30 bg-emerald-500/10 text-[10px] text-emerald-700 dark:text-emerald-400">
+                        Reviewed
+                      </Badge>
+                    ) : (
+                      <Badge className="border-amber-500/30 bg-amber-500/10 text-[10px] text-amber-700 dark:text-amber-400">
+                        Needs review
+                      </Badge>
+                    )}
                   </div>
                   {missing.length > 0 && (
                     <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
@@ -400,6 +409,17 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
                     </p>
                   )}
                 </div>
+                {!ex.reviewed_at && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 shrink-0"
+                    aria-label={`Review ${ex.title || "exercise"}`}
+                    onClick={() => openReview(exercises, ex.id)}
+                  >
+                    Review
+                  </Button>
+                )}
                 <Button
                   size="icon"
                   variant="ghost"
@@ -441,6 +461,16 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
         onOpenChange={(o) => !o && setEditing(null)}
         exercise={editing}
         onSaved={() => void load()}
+      />
+
+      <CodingExerciseDialog
+        open={!!reviewIds}
+        onOpenChange={(o) => !o && closeReview()}
+        exercise={reviewExercise}
+        onSaved={() => void load()}
+        reviewIds={reviewIds ?? undefined}
+        reviewIndex={reviewIndex}
+        onReviewNavigate={setReviewIndex}
       />
 
       <Dialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
