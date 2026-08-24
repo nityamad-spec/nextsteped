@@ -24,6 +24,11 @@ interface PracticeResultRow {
   created_at: string | null;
 }
 
+interface TerminalSessionRow {
+  week_number: number;
+  created_at: string | null;
+}
+
 interface MasteryRow {
   concept_code: string | null;
   questions_attempted: number | string | null;
