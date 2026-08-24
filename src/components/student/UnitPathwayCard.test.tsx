@@ -87,8 +87,8 @@ describe("UnitPathwayCard concept Focus badge", () => {
 
 describe("UnitPathwayCard readings visibility", () => {
   const sampleResources = [
-    { id: "r1", type: "article" as const, title: "Intro Article", description: "Read me", url: "https://example.com" },
-    { id: "r2", type: "coding-exercise" as const, title: "Try It", description: "Do it" },
+    { id: "r1", type: "article" as const, title: "Intro Article", description: "Read me", url: "https://example.com", concept: "Intro Concept" },
+    { id: "r2", type: "coding-exercise" as const, title: "Try It", description: "Do it", concept: "Intro Concept" },
   ];
 
   it("shows Readings & exercises for teaching units with resources", () => {
