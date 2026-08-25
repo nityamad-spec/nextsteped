@@ -40,8 +40,12 @@ export interface UnitPathwayCardProps {
   quizTaken: boolean;
   /** Coding/lab unit: no quiz step, readiness comes from study + practice. */
   isCodingWeek?: boolean;
-  /** Published coding exercises for this unit (read-only student view). */
+  /** Published coding exercises for this unit — one step card each. */
   exercises?: PublishedCodingExercise[];
+  /** Per-exercise completion (terminal opened for that exercise). */
+  completedExerciseIds?: ReadonlySet<string>;
+  /** Opens the code terminal pre-filled with this exercise. */
+  onOpenExercise?: (exercise: PublishedCodingExercise) => void;
 
   quizScore?: number;
   quizAvailable: boolean;
