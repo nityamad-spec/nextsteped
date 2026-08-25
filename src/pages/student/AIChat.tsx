@@ -509,11 +509,13 @@ const AIChat = () => {
 
     (async () => {
       let exercise: PublishedCodingExercise | null = null;
-      try {
-        const all = await fetchPublishedExercises(enrolledCourseId);
-        exercise = selectTerminalExercise(all, unit, exerciseParam);
-      } catch (e) {
-        console.error("[AIChat] failed to load coding exercise for terminal", e);
+      if (autoSelectExercise) {
+        try {
+          const all = await fetchPublishedExercises(enrolledCourseId);
+          exercise = selectTerminalExercise(all, unit, exerciseParam);
+        } catch (e) {
+          console.error("[AIChat] failed to load coding exercise for terminal", e);
+        }
       }
       setTerminalContext({
         initialCode: exercise?.starter_code ?? null,
