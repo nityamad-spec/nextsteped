@@ -38,7 +38,7 @@ import "katex/dist/katex.min.css";
 import PracticeQuestions, { PracticeQuestion } from "@/components/PracticeQuestions";
 import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 import CodingTerminalWidget from "@/components/CodingTerminalWidget";
-import { fetchPublishedExercises, type PublishedCodingExercise } from "@/lib/codingExercises";
+import { fetchPublishedExercises, selectTerminalExercise, type PublishedCodingExercise } from "@/lib/codingExercises";
 import MermaidDiagram from "@/components/MermaidDiagram";
 
 const markdownComponents = {
@@ -475,10 +475,11 @@ const AIChat = () => {
     navigate("/student/chat", { replace: true });
   }, []);
 
-  // Handle ?terminal=1&unit=N deep link from the learning path. Opens the
-  // full-screen code terminal pre-filled with the unit's exercise starter and
-  // logs a terminal session (counts as practice). Falls back to practice
-  // questions when the course lacks coding approval.
+  // Handle ?terminal=1&unit=N[&exercise=<id>] deep link from the learning path.
+  // Opens the full-screen code terminal pre-filled with the exercise starter and
+  // its problem statement, logs a terminal session (counts as practice), and
+  // marks per-exercise progress. Falls back to practice questions when the
+  // course lacks coding approval.
   const terminalLinkHandled = useRef(false);
   useEffect(() => {
     if (searchParams.get("terminal") !== "1") return;
@@ -486,6 +487,7 @@ const AIChat = () => {
     if (!codingReady) return; // wait for the coding-access gate to resolve
     terminalLinkHandled.current = true;
     const unit = parseInt(searchParams.get("unit") || "0", 10) || 0;
+    const exerciseParam = searchParams.get("exercise");
 
     const fallbackToPractice = () => {
       const topic = lessonPlan.find((w) => w.day === unit)?.topic;
@@ -506,7 +508,7 @@ const AIChat = () => {
       let exercise: PublishedCodingExercise | null = null;
       try {
         const all = await fetchPublishedExercises(enrolledCourseId);
-        exercise = all.find((e) => e.week_number === unit) ?? null;
+        exercise = selectTerminalExercise(all, unit, exerciseParam);
       } catch (e) {
         console.error("[AIChat] failed to load coding exercise for terminal", e);
       }
@@ -528,6 +530,18 @@ const AIChat = () => {
           language: exercise?.language ?? null,
         });
         if (error) console.error("[AIChat] terminal session log failed", error);
+      }
+      // Per-exercise completion signal: opening the terminal for a specific
+      // exercise marks it done. `source` leaves room for run-based completion
+      // once code execution lands.
+      if (exercise) {
+        const { error: progressError } = await supabase
+          .from("coding_exercise_progress")
+          .upsert(
+            { student_id: user.id, exercise_id: exercise.id, course_id: enrolledCourseId },
+            { onConflict: "student_id,exercise_id", ignoreDuplicates: true },
+          );
+        if (progressError) console.error("[AIChat] exercise progress log failed", progressError);
       }
     })();
   }, [codingReady, codingApproved, enrolledCourseId, user, lessonPlan]);
