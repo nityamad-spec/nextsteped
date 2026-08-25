@@ -327,7 +327,10 @@ const StudentLearningPath = () => {
     // Coding-approved courses practise in the code terminal; everyone else
     // keeps the AI practice-questions flow.
     if (codingApproved) {
-      navigate(`/student/chat?terminal=1&unit=${unitDay}`);
+      // Coding/lab weeks practise freeform (blank terminal) — exercises get
+      // their own step cards. Teaching weeks keep the unit deep link.
+      const isCodingWeek = !!lessonPlan.find((w) => w.day === unitDay)?.is_coding_week;
+      navigate(`/student/chat?terminal=1&unit=${unitDay}${isCodingWeek ? "&freeform=1" : ""}`);
       return;
     }
     navigate(`/student/chat?practice=1&topic=${encodeURIComponent(topic)}`);

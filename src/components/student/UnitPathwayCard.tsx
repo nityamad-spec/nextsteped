@@ -418,7 +418,9 @@ const UnitPathwayCard = ({
                 title="Practice"
                 description={
                   practiceViaTerminal
-                    ? `${practised ? "Completed. " : ""}Work on this unit's coding exercise in the code terminal — it counts towards your readiness.`
+                    ? isCodingWeek
+                      ? `${practised ? "Completed. " : ""}Open the code terminal and practise this unit's concepts hands-on — it counts towards your readiness.`
+                      : `${practised ? "Completed. " : ""}Work on this unit's coding exercise in the code terminal — it counts towards your readiness.`
                     : `${practised ? "Completed. " : ""}Answer AI-generated practice questions. These count towards your readiness.`
                 }
                 action={practised ? practiceCtaDone : practiceCta}
