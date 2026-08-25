@@ -122,6 +122,8 @@ const UnitPathwayCard = ({
   quizTaken,
   isCodingWeek = false,
   exercises = [],
+  completedExerciseIds,
+  onOpenExercise,
 
   quizScore,
   quizAvailable,
@@ -142,9 +144,6 @@ const UnitPathwayCard = ({
   practiceViaTerminal = false,
 }: UnitPathwayCardProps) => {
   const [showResources, setShowResources] = useState(false);
-  const [openExercises, setOpenExercises] = useState<string[]>([]);
-  const toggleExercise = (id: string) =>
-    setOpenExercises((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const stage = computeUnitStage({ studied, practised, quizTaken, readiness, quizExempt: isCodingWeek });
   // Practice CTA copy: coding-approved courses open the code terminal.
   const practiceCta = practiceViaTerminal ? "Open code terminal" : "Start practice";
