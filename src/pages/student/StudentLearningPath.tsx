@@ -221,24 +221,37 @@ const StudentLearningPath = () => {
     };
   }, [enrolledCourseId]);
 
-  // Published coding exercises per unit (coding/lab units only).
+  // Published coding exercises per unit (coding/lab units only), plus the
+  // student's per-exercise completion (terminal opened for that exercise).
   const [exercisesByUnit, setExercisesByUnit] = useState<Record<number, PublishedCodingExercise[]>>({});
+  const [completedExerciseIds, setCompletedExerciseIds] = useState<Set<string>>(new Set());
   const hasCodingUnits = lessonPlan.some((w) => w.is_coding_week);
   useEffect(() => {
-    if (!enrolledCourseId || !codingApproved || !hasCodingUnits) {
+    if (!enrolledCourseId || !codingApproved || !hasCodingUnits || !user?.id) {
       setExercisesByUnit({});
+      setCompletedExerciseIds(new Set());
       return;
     }
     let cancelled = false;
     (async () => {
       try {
-        const rows = await fetchPublishedExercises(enrolledCourseId);
+        const [rows, progress] = await Promise.all([
+          fetchPublishedExercises(enrolledCourseId),
+          supabase
+            .from("coding_exercise_progress")
+            .select("exercise_id")
+            .eq("student_id", user.id)
+            .eq("course_id", enrolledCourseId),
+        ]);
         if (cancelled) return;
         const map: Record<number, PublishedCodingExercise[]> = {};
         rows.forEach((r) => {
           (map[r.week_number] ??= []).push(r);
         });
         setExercisesByUnit(map);
+        if (!progress.error) {
+          setCompletedExerciseIds(new Set((progress.data ?? []).map((r) => r.exercise_id)));
+        }
       } catch (err) {
         if (!cancelled) console.error("Coding exercises load error:", err);
       }
@@ -246,7 +259,7 @@ const StudentLearningPath = () => {
     return () => {
       cancelled = true;
     };
-  }, [enrolledCourseId, codingApproved, hasCodingUnits]);
+  }, [enrolledCourseId, codingApproved, hasCodingUnits, user?.id]);
 
   // Voided (browser-lock) attempts per week. One void is forgiven; a second
   // locks the week until the professor resets it.
@@ -396,6 +409,10 @@ const StudentLearningPath = () => {
                 quizTaken={!!taken}
                 isCodingWeek={!!unit.is_coding_week}
                 exercises={exercisesByUnit[unit.day] ?? []}
+                completedExerciseIds={completedExerciseIds}
+                onOpenExercise={(ex) =>
+                  navigate(`/student/chat?terminal=1&unit=${unit.day}&exercise=${ex.id}`)
+                }
                 quizScore={taken?.score}
                 quizAvailable={availableQuizDays.has(unit.day)}
                 quizLocked={voids >= 2}
