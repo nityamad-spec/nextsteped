@@ -423,6 +423,22 @@ const UnitPathwayCard = ({
                 onAction={onPractice}
                 done={practised}
               />
+              {isCodingWeek &&
+                exercises.map((ex, i) => {
+                  const exerciseDone = completedExerciseIds?.has(ex.id) ?? false;
+                  return (
+                    <StepCard
+                      key={ex.id}
+                      index={3 + i}
+                      icon={Code2}
+                      title={ex.title}
+                      description={`${exerciseDone ? "Completed. " : ""}Complete this ${languageLabel(ex.language)} exercise in the code terminal — the problem statement opens with it.`}
+                      action={exerciseDone ? "Reopen in terminal" : "Open in terminal"}
+                      onAction={() => onOpenExercise?.(ex)}
+                      done={exerciseDone}
+                    />
+                  );
+                })}
               {!isCodingWeek && (
                 <StepCard
                   index={3}
