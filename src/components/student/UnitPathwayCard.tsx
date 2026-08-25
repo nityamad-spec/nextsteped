@@ -258,7 +258,9 @@ const UnitPathwayCard = ({
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {practiceViaTerminal
-                    ? "You've studied this unit — now work on its coding exercise in the code terminal."
+                    ? isCodingWeek
+                      ? "You've studied this unit — now open the code terminal and practise its concepts hands-on."
+                      : "You've studied this unit — now work on its coding exercise in the code terminal."
                     : "You've studied this unit — now check what stuck with scored practice questions."}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
