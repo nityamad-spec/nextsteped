@@ -475,11 +475,13 @@ const AIChat = () => {
     navigate("/student/chat", { replace: true });
   }, []);
 
-  // Handle ?terminal=1&unit=N[&exercise=<id>] deep link from the learning path.
-  // Opens the full-screen code terminal pre-filled with the exercise starter and
-  // its problem statement, logs a terminal session (counts as practice), and
-  // marks per-exercise progress. Falls back to practice questions when the
-  // course lacks coding approval.
+  // Handle ?terminal=1&unit=N[&exercise=<id>][&freeform=1] deep link from the
+  // learning path. Opens the full-screen code terminal pre-filled with the
+  // exercise starter and its problem statement, logs a terminal session
+  // (counts as practice), and marks per-exercise progress. `freeform=1`
+  // (Practice step on coding/lab weeks) opens a blank terminal instead — no
+  // exercise is auto-selected and no exercise progress is recorded. Falls back
+  // to practice questions when the course lacks coding approval.
   const terminalLinkHandled = useRef(false);
   useEffect(() => {
     if (searchParams.get("terminal") !== "1") return;
@@ -488,6 +490,7 @@ const AIChat = () => {
     terminalLinkHandled.current = true;
     const unit = parseInt(searchParams.get("unit") || "0", 10) || 0;
     const exerciseParam = searchParams.get("exercise");
+    const autoSelectExercise = shouldAutoSelectExercise(searchParams.get("freeform"));
 
     const fallbackToPractice = () => {
       const topic = lessonPlan.find((w) => w.day === unit)?.topic;

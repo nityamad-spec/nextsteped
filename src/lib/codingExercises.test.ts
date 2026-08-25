@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { selectTerminalExercise, type PublishedCodingExercise } from "./codingExercises";
+import {
+  selectTerminalExercise,
+  shouldAutoSelectExercise,
+  type PublishedCodingExercise,
+} from "./codingExercises";
 
 const makeExercise = (
   id: string,
@@ -43,5 +47,16 @@ describe("selectTerminalExercise", () => {
   it("returns null when nothing matches", () => {
     expect(selectTerminalExercise(exercises, 9)).toBeNull();
     expect(selectTerminalExercise([], 1, "ex-a")).toBeNull();
+  });
+});
+
+describe("shouldAutoSelectExercise", () => {
+  it("skips exercise selection for freeform (Practice step) deep links", () => {
+    expect(shouldAutoSelectExercise("1")).toBe(false);
+  });
+
+  it("auto-selects an exercise for exercise step-card deep links", () => {
+    expect(shouldAutoSelectExercise(null)).toBe(true);
+    expect(shouldAutoSelectExercise("0")).toBe(true);
   });
 });

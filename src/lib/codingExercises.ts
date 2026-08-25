@@ -140,6 +140,15 @@ export function selectTerminalExercise(
   );
 }
 
+/**
+ * Terminal deep links carry `freeform=1` when they come from the Practice step
+ * of a coding/lab week — those open a blank terminal, so no exercise should be
+ * auto-selected. Exercise step cards omit the flag and keep the auto-select.
+ */
+export function shouldAutoSelectExercise(freeformParam: string | null): boolean {
+  return freeformParam !== "1";
+}
+
 /** Everything that must be filled before an exercise can be published. */
 export function exerciseMissingFields(ex: CodingExercise): string[] {
   const missing: string[] = [];
