@@ -187,3 +187,18 @@ describe("UnitPathwayCard coding exercise steps", () => {
     expect(screen.getByText("Weekly Quiz")).toBeInTheDocument();
   });
 });
+
+describe("UnitPathwayCard freeform practice copy (coding/lab weeks)", () => {
+  it("describes Practice as freeform terminal practice on coding/lab units", () => {
+    render(<UnitPathwayCard {...baseProps} isCodingWeek practiceViaTerminal />);
+    expect(
+      screen.getByText(/Open the code terminal and practise this unit's concepts hands-on/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Work on this unit's coding exercise/)).not.toBeInTheDocument();
+  });
+
+  it("keeps exercise-oriented practice copy on teaching units in coding courses", () => {
+    render(<UnitPathwayCard {...baseProps} practiceViaTerminal />);
+    expect(screen.getByText(/Work on this unit's coding exercise/)).toBeInTheDocument();
+  });
+});

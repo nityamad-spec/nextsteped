@@ -258,7 +258,9 @@ const UnitPathwayCard = ({
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {practiceViaTerminal
-                    ? "You've studied this unit — now work on its coding exercise in the code terminal."
+                    ? isCodingWeek
+                      ? "You've studied this unit — now open the code terminal and practise its concepts hands-on."
+                      : "You've studied this unit — now work on its coding exercise in the code terminal."
                     : "You've studied this unit — now check what stuck with scored practice questions."}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -416,7 +418,9 @@ const UnitPathwayCard = ({
                 title="Practice"
                 description={
                   practiceViaTerminal
-                    ? `${practised ? "Completed. " : ""}Work on this unit's coding exercise in the code terminal — it counts towards your readiness.`
+                    ? isCodingWeek
+                      ? `${practised ? "Completed. " : ""}Open the code terminal and practise this unit's concepts hands-on — it counts towards your readiness.`
+                      : `${practised ? "Completed. " : ""}Work on this unit's coding exercise in the code terminal — it counts towards your readiness.`
                     : `${practised ? "Completed. " : ""}Answer AI-generated practice questions. These count towards your readiness.`
                 }
                 action={practised ? practiceCtaDone : practiceCta}

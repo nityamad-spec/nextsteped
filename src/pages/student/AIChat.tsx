@@ -38,7 +38,7 @@ import "katex/dist/katex.min.css";
 import PracticeQuestions, { PracticeQuestion } from "@/components/PracticeQuestions";
 import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 import CodingTerminalWidget from "@/components/CodingTerminalWidget";
-import { fetchPublishedExercises, selectTerminalExercise, type PublishedCodingExercise } from "@/lib/codingExercises";
+import { fetchPublishedExercises, selectTerminalExercise, shouldAutoSelectExercise, type PublishedCodingExercise } from "@/lib/codingExercises";
 import MermaidDiagram from "@/components/MermaidDiagram";
 
 const markdownComponents = {
@@ -475,11 +475,13 @@ const AIChat = () => {
     navigate("/student/chat", { replace: true });
   }, []);
 
-  // Handle ?terminal=1&unit=N[&exercise=<id>] deep link from the learning path.
-  // Opens the full-screen code terminal pre-filled with the exercise starter and
-  // its problem statement, logs a terminal session (counts as practice), and
-  // marks per-exercise progress. Falls back to practice questions when the
-  // course lacks coding approval.
+  // Handle ?terminal=1&unit=N[&exercise=<id>][&freeform=1] deep link from the
+  // learning path. Opens the full-screen code terminal pre-filled with the
+  // exercise starter and its problem statement, logs a terminal session
+  // (counts as practice), and marks per-exercise progress. `freeform=1`
+  // (Practice step on coding/lab weeks) opens a blank terminal instead — no
+  // exercise is auto-selected and no exercise progress is recorded. Falls back
+  // to practice questions when the course lacks coding approval.
   const terminalLinkHandled = useRef(false);
   useEffect(() => {
     if (searchParams.get("terminal") !== "1") return;
@@ -488,6 +490,7 @@ const AIChat = () => {
     terminalLinkHandled.current = true;
     const unit = parseInt(searchParams.get("unit") || "0", 10) || 0;
     const exerciseParam = searchParams.get("exercise");
+    const autoSelectExercise = shouldAutoSelectExercise(searchParams.get("freeform"));
 
     const fallbackToPractice = () => {
       const topic = lessonPlan.find((w) => w.day === unit)?.topic;
@@ -506,11 +509,13 @@ const AIChat = () => {
 
     (async () => {
       let exercise: PublishedCodingExercise | null = null;
-      try {
-        const all = await fetchPublishedExercises(enrolledCourseId);
-        exercise = selectTerminalExercise(all, unit, exerciseParam);
-      } catch (e) {
-        console.error("[AIChat] failed to load coding exercise for terminal", e);
+      if (autoSelectExercise) {
+        try {
+          const all = await fetchPublishedExercises(enrolledCourseId);
+          exercise = selectTerminalExercise(all, unit, exerciseParam);
+        } catch (e) {
+          console.error("[AIChat] failed to load coding exercise for terminal", e);
+        }
       }
       setTerminalContext({
         initialCode: exercise?.starter_code ?? null,
