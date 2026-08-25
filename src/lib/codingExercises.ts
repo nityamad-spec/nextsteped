@@ -124,6 +124,22 @@ export async function fetchPublishedExercises(
   }));
 }
 
+/**
+ * Pick the exercise a terminal deep link should open: the `exerciseId` match
+ * when provided, else the unit's first published exercise, else null.
+ */
+export function selectTerminalExercise(
+  exercises: PublishedCodingExercise[],
+  unit: number,
+  exerciseId?: string | null,
+): PublishedCodingExercise | null {
+  return (
+    (exerciseId ? exercises.find((e) => e.id === exerciseId) : undefined) ??
+    exercises.find((e) => e.week_number === unit) ??
+    null
+  );
+}
+
 /** Everything that must be filled before an exercise can be published. */
 export function exerciseMissingFields(ex: CodingExercise): string[] {
   const missing: string[] = [];

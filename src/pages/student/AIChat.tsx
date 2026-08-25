@@ -38,7 +38,7 @@ import "katex/dist/katex.min.css";
 import PracticeQuestions, { PracticeQuestion } from "@/components/PracticeQuestions";
 import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 import CodingTerminalWidget from "@/components/CodingTerminalWidget";
-import { fetchPublishedExercises, type PublishedCodingExercise } from "@/lib/codingExercises";
+import { fetchPublishedExercises, selectTerminalExercise, type PublishedCodingExercise } from "@/lib/codingExercises";
 import MermaidDiagram from "@/components/MermaidDiagram";
 
 const markdownComponents = {
