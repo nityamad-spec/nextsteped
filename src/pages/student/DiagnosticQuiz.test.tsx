@@ -66,12 +66,17 @@ vi.mock("framer-motion", () => {
 
 // ---- Supabase mock ---------------------------------------------------------
 
-/** Bloom level for the standard-tier questions; 3+ makes reasoning mandatory. */
-let standardBloom = 1;
-/** When true, the Phase A → Phase B fetch never resolves (simulated hang). */
-let branchFetchHangs = false;
+/** Hoisted so the vi.mock factory (which runs first) can read them. */
+const state = vi.hoisted(() => ({
+  /** Bloom level for the standard-tier questions; 3+ makes reasoning mandatory. */
+  standardBloom: 1,
+  /** When true, the Phase A → Phase B fetch never resolves (simulated hang). */
+  branchFetchHangs: false,
+  standardFetched: false,
+  invoke: null as any,
+}));
 
-const makeRows = (tier: string, bloom: number) =>
+const makeRowsLocal = (tier: string, bloom: number) =>
   Array.from({ length: 10 }, (_, i) => ({
     id: `${tier}-q${i}`,
     content_text: `Question ${tier} ${i}`,
@@ -87,7 +92,7 @@ const makeRows = (tier: string, bloom: number) =>
     in_test: true,
   }));
 
-const invoke = vi.fn(async () => ({ data: { learner_level: "developing" }, error: null }));
+const invoke = vi.hoisted(() => vi.fn(async () => ({ data: { learner_level: "developing" }, error: null })));
 
 const chain = (result: () => Promise<any>) => {
   const c: any = new Proxy(
@@ -110,9 +115,9 @@ vi.mock("@/integrations/supabase/client", () => ({
       if (table === "diagnostic_questions") {
         return chain(async () => {
           // The standard batch is fetched at mount; anything later is the branch.
-          if (branchFetchHangs && standardFetched) return new Promise(() => {});
-          standardFetched = true;
-          return { data: makeRows("standard", standardBloom), error: null };
+          if (state.branchFetchHangs && state.standardFetched) return new Promise(() => {});
+          state.standardFetched = true;
+          return { data: makeRowsLocal("standard", state.standardBloom), error: null };
         });
       }
       return chain(async () => ({ data: null, error: null }));
@@ -120,8 +125,6 @@ vi.mock("@/integrations/supabase/client", () => ({
     functions: { invoke },
   },
 }));
-
-let standardFetched = false;
 
 const renderQuiz = () =>
   render(
@@ -142,9 +145,9 @@ const startQuiz = async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   proctorOpts = null;
-  standardBloom = 1;
-  branchFetchHangs = false;
-  standardFetched = false;
+  state.standardBloom = 1;
+  state.branchFetchHangs = false;
+  state.standardFetched = false;
   localStorage.clear();
 });
 
@@ -164,7 +167,7 @@ describe("DiagnosticQuiz — no invisible blockers in fullscreen", () => {
   });
 
   it("shows a visible inline error instead of a toast when reasoning is missing", async () => {
-    standardBloom = 4;
+    state.standardBloom = 4;
     renderQuiz();
     await startQuiz();
     await screen.findByText(/Question standard 0/);
@@ -182,7 +185,7 @@ describe("DiagnosticQuiz — no invisible blockers in fullscreen", () => {
 
   it("does not leave the student stuck when the adaptive fetch hangs", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    branchFetchHangs = true;
+    state.branchFetchHangs = true;
     renderQuiz();
     await startQuiz();
     await screen.findByText(/Question standard 0/);
