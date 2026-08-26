@@ -996,10 +996,23 @@ const DiagnosticQuiz = () => {
               )}
             </motion.div>
             {inlineError && (
-              <p role="alert" className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {inlineError}
-              </p>
+              <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <span>{inlineError}</span>
+                {lastSubmitRef.current && !saving && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      setInlineError(null);
+                      await lastSubmitRef.current?.();
+                    }}
+                  >
+                    Retry
+                  </Button>
+                )}
+              </div>
             )}
+
             <div className="mt-4 flex justify-between">
               <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); setInlineError(null); } else { setExitConfirmOpen(true); } }}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
