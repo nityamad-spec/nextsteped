@@ -128,7 +128,10 @@ const DiagnosticQuiz = () => {
   const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
   const [branchTier, setBranchTier] = useState<BranchTier | null>(null);
   const [loadingBranch, setLoadingBranch] = useState(false);
+  /** Blocking feedback shown in-page — toasts are portalled and invisible in fullscreen. */
+  const [inlineError, setInlineError] = useState<string | null>(null);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+
 
   // ---- Proctoring (browser lock) -------------------------------------------
   const quizContainerRef = useRef<HTMLDivElement>(null);
