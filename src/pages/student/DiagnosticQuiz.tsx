@@ -59,6 +59,12 @@ interface QuizQuestion {
 
 const answerLetters = ["A", "B", "C", "D", "E", "F"];
 
+/** Hard ceiling on the Phase A → Phase B question fetch. */
+const BRANCH_FETCH_TIMEOUT_MS = 10000;
+/** Safety valve: never leave the Next button disabled longer than this. */
+const STALL_TIMEOUT_MS = 15000;
+
+
 function mapRow(row: any): QuizQuestion {
   let options = (row.options as string[]) || [];
   let questionText = row.content_text;
