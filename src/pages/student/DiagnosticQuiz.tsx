@@ -675,8 +675,10 @@ const DiagnosticQuiz = () => {
         return;
       }
       console.error("Failed to score diagnostic:", fnErr ?? scored);
-      toast.error("Couldn't save your diagnostic. Please try again.");
+      // Inline, not a toast — toasts are portalled and invisible in fullscreen.
+      setInlineError("Couldn't save your diagnostic. Tap Finish Quiz again to retry.");
       return;
+
     }
 
     const level = (scored as { learner_level?: string })?.learner_level as
