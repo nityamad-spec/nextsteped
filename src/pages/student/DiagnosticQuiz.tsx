@@ -938,7 +938,7 @@ const DiagnosticQuiz = () => {
   const formatLabel = question.format === "short_answer" ? "Short Answer" : question.format === "true_false" ? "True / False" : "Multiple Choice";
 
   return (
-    <div ref={quizContainerRef} className="relative flex min-h-screen items-center justify-center bg-background px-4">
+    <div ref={quizContainerRef} data-testid="diagnostic-quiz-container" className="relative flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-lg">
 
         <div className="mb-6 text-center">
