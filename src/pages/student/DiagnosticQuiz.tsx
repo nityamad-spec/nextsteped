@@ -443,11 +443,11 @@ const DiagnosticQuiz = () => {
     // reasoning box is neither shown nor required for them.
     if (!isShortAnswer && reasoning.isQuestionBlocked({ id: question.id, bloom: question.bloomLevel })) {
       reasoning.setShowErrors(true);
-      toast.error("Reasoning required", {
-        description: "Explain your reasoning for this question before moving on.",
-      });
+      setInlineError("Explain your reasoning for this question before moving on.");
       return;
     }
+    setInlineError(null);
+
     reasoning.setShowErrors(false);
     if (isShortAnswer) {
       // Background AI grading of the written answer — never blocks the student.
