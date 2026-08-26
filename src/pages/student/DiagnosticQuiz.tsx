@@ -952,8 +952,13 @@ const DiagnosticQuiz = () => {
                 </div>
               )}
             </motion.div>
+            {inlineError && (
+              <p role="alert" className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {inlineError}
+              </p>
+            )}
             <div className="mt-4 flex justify-between">
-              <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { setExitConfirmOpen(true); } }}>
+              <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); setInlineError(null); } else { setExitConfirmOpen(true); } }}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
               <Button onClick={handleAnswer} disabled={!canProceed || loadingBranch}>
@@ -963,56 +968,64 @@ const DiagnosticQuiz = () => {
           </CardContent>
         </Card>
       </div>
-      <AlertDialog open={exitConfirmOpen} onOpenChange={setExitConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Leave the diagnostic?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Your progress on this attempt will be cleared, and you'll be asked to complete
-              the diagnostic again before you can access weekly quizzes, practice, or exam prep.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep going</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (user && activeCourseId) {
-                  try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {}
-                }
-                navigate("/student/onboarding");
-              }}
-            >
-              Leave anyway
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
-      <AlertDialog open={warningOpen} onOpenChange={() => { /* must be dismissed via the button */ }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              Stay on the quiz
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Switching tabs, windows or apps isn't allowed during a proctored quiz.
-              This is your only warning — the next time, your attempt will be voided.
-              The timer kept running.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction
-              onClick={async () => {
-                setWarningOpen(false);
-                await proctor.enterFullscreen();
-              }}
-            >
-              Resume quiz
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Leave confirmation — rendered inline (not portalled) so it stays
+          visible while the quiz is in fullscreen. */}
+      {exitConfirmOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/95 p-6">
+          <Card className="w-full max-w-md">
+            <CardContent className="space-y-4 p-6">
+              <h2 className="font-heading text-lg font-bold">Leave the diagnostic?</h2>
+              <p className="text-sm text-muted-foreground">
+                Your progress on this attempt will be cleared, and you'll be asked to complete
+                the diagnostic again before you can access weekly quizzes, practice, or exam prep.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setExitConfirmOpen(false)}>Keep going</Button>
+                <Button
+                  onClick={() => {
+                    if (user && activeCourseId) {
+                      try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {}
+                    }
+                    navigate("/student/onboarding");
+                  }}
+                >
+                  Leave anyway
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Proctoring warning — inline for the same reason. */}
+      {warningOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/95 p-6">
+          <Card className="w-full max-w-md border-destructive/40">
+            <CardContent className="space-y-4 p-6 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+                <AlertTriangle className="h-7 w-7 text-destructive" />
+              </div>
+              <h2 className="font-heading text-lg font-bold">Stay on the quiz</h2>
+              <p className="text-sm text-muted-foreground">
+                Switching tabs, windows or apps isn't allowed during a proctored quiz.
+                <strong className="text-foreground"> This is your only warning — the next time, your attempt will be voided.</strong>
+              </p>
+              <p className="text-xs text-muted-foreground">The timer kept running.</p>
+              <Button
+                className="w-full"
+                onClick={async () => {
+                  setWarningOpen(false);
+                  await proctor.enterFullscreen();
+                }}
+              >
+                Resume quiz
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
     </div>
 
   );
