@@ -563,6 +563,9 @@ const DiagnosticQuiz = () => {
     await submitFinal(newAnswers, newTextAnswers, newConfidences, newQuestionTimes, newQuestionIds, questions, branchTier);
   };
 
+  /** Last submit payload, kept so a failed submit can be retried in place. */
+  const lastSubmitRef = useRef<null | (() => Promise<void>)>(null);
+
   const submitFinal = async (
     newAnswers: number[],
     newTextAnswers: string[],
@@ -572,10 +575,13 @@ const DiagnosticQuiz = () => {
     finalQuestions: QuizQuestion[],
     branch: BranchTier | null,
   ) => {
+    lastSubmitRef.current = () =>
+      submitFinal(newAnswers, newTextAnswers, newConfidences, newQuestionTimes, newQuestionIds, finalQuestions, branch);
     if (!user) {
       setPhase("result");
       return;
     }
+
 
     setSaving(true);
     const courseIdForSave = finalQuestions[0]?.courseId || activeCourseId || null;
