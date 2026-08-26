@@ -12,16 +12,11 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, ArrowLeft, Brain, Zap, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+// NOTE: no portal-based dialogs on this page — the quiz runs fullscreen on
+// `quizContainerRef`, and anything portalled to document.body is invisible
+// (but still click-blocking) while fullscreen is active. All blocking UI is
+// rendered inline inside the fullscreen container instead.
+
 import { cn } from "@/lib/utils";
 import { seededShuffle } from "@/lib/seededShuffle";
 import {
