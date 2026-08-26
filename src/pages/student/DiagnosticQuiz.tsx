@@ -12,16 +12,11 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, ArrowLeft, Brain, Zap, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+// NOTE: no portal-based dialogs on this page — the quiz runs fullscreen on
+// `quizContainerRef`, and anything portalled to document.body is invisible
+// (but still click-blocking) while fullscreen is active. All blocking UI is
+// rendered inline inside the fullscreen container instead.
+
 import { cn } from "@/lib/utils";
 import { seededShuffle } from "@/lib/seededShuffle";
 import {
@@ -63,6 +58,12 @@ interface QuizQuestion {
 
 
 const answerLetters = ["A", "B", "C", "D", "E", "F"];
+
+/** Hard ceiling on the Phase A → Phase B question fetch. */
+const BRANCH_FETCH_TIMEOUT_MS = 10000;
+/** Safety valve: never leave the Next button disabled longer than this. */
+const STALL_TIMEOUT_MS = 15000;
+
 
 function mapRow(row: any): QuizQuestion {
   let options = (row.options as string[]) || [];
@@ -133,7 +134,22 @@ const DiagnosticQuiz = () => {
   const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
   const [branchTier, setBranchTier] = useState<BranchTier | null>(null);
   const [loadingBranch, setLoadingBranch] = useState(false);
+  /** Blocking feedback shown in-page — toasts are portalled and invisible in fullscreen. */
+  const [inlineError, setInlineError] = useState<string | null>(null);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+
+  // Safety valve — no async path may trap a student behind a disabled button.
+  useEffect(() => {
+    if (!loadingBranch) return;
+    const t = setTimeout(() => {
+      setLoadingBranch(false);
+      setInlineError("That took too long. Tap the button again to continue.");
+    }, STALL_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [loadingBranch]);
+
+
+
 
   // ---- Proctoring (browser lock) -------------------------------------------
   const quizContainerRef = useRef<HTMLDivElement>(null);
@@ -445,11 +461,11 @@ const DiagnosticQuiz = () => {
     // reasoning box is neither shown nor required for them.
     if (!isShortAnswer && reasoning.isQuestionBlocked({ id: question.id, bloom: question.bloomLevel })) {
       reasoning.setShowErrors(true);
-      toast.error("Reasoning required", {
-        description: "Explain your reasoning for this question before moving on.",
-      });
+      setInlineError("Explain your reasoning for this question before moving on.");
       return;
     }
+    setInlineError(null);
+
     reasoning.setShowErrors(false);
     if (isShortAnswer) {
       // Background AI grading of the written answer — never blocks the student.
@@ -486,28 +502,41 @@ const DiagnosticQuiz = () => {
 
     if (justFinishedStandard) {
       // Let short-answer verdicts land before branching — they change the
-      // Phase A score that picks the adaptive tier.
-      const standardQuestions = questions.slice(0, STANDARD_COUNT);
-      if (standardQuestions.some((q) => q.format === "short_answer")) {
-        setLoadingBranch(true);
-        await shortAnswers.waitForPending(REASONING_EVAL_DEADLINE_MS);
-      }
-      const standardCorrect = standardQuestions.reduce(
-        (n, q, i) => n + (isCorrectFor(q, newAnswers[i], newTextAnswers[i] ?? "") ? 1 : 0),
-        0,
-      );
-      const branch = pickBranchTier(standardCorrect);
-
-
+      // Phase A score that picks the adaptive tier. Nothing here may throw
+      // without clearing `loadingBranch`, or the Next button stays disabled
+      // and the student is stuck on question 10.
+      let branch: BranchTier = "medium";
+      let branchRows: any[] | null = null;
       setLoadingBranch(true);
-      const { data: branchRows } = await supabase
-        .from("diagnostic_questions")
-        .select("*")
-        .eq("in_test", true)
-        .eq("course_id", activeCourseId)
-        .eq("tier", branch)
-        .order("difficulty_estimate", { ascending: true });
-      setLoadingBranch(false);
+      try {
+        const standardQuestions = questions.slice(0, STANDARD_COUNT);
+        if (standardQuestions.some((q) => q.format === "short_answer")) {
+          await shortAnswers.waitForPending(REASONING_EVAL_DEADLINE_MS);
+        }
+        const standardCorrect = standardQuestions.reduce(
+          (n, q, i) => n + (isCorrectFor(q, newAnswers[i], newTextAnswers[i] ?? "") ? 1 : 0),
+          0,
+        );
+        branch = pickBranchTier(standardCorrect);
+
+        const fetchBranch = supabase
+          .from("diagnostic_questions")
+          .select("*")
+          .eq("in_test", true)
+          .eq("course_id", activeCourseId)
+          .eq("tier", branch)
+          .order("difficulty_estimate", { ascending: true });
+        const result = await Promise.race([
+          fetchBranch,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), BRANCH_FETCH_TIMEOUT_MS)),
+        ]);
+        branchRows = (result as { data?: any[] } | null)?.data ?? null;
+      } catch (e) {
+        console.error("[DiagnosticQuiz] adaptive branch fetch failed", e);
+        branchRows = null;
+      } finally {
+        setLoadingBranch(false);
+      }
 
       if (!branchRows || branchRows.length < ADAPTIVE_COUNT) {
         // Fallback — just submit with what we have
@@ -524,6 +553,7 @@ const DiagnosticQuiz = () => {
       return;
     }
 
+
     if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
       setQuestionStartTime(Date.now());
@@ -532,6 +562,9 @@ const DiagnosticQuiz = () => {
 
     await submitFinal(newAnswers, newTextAnswers, newConfidences, newQuestionTimes, newQuestionIds, questions, branchTier);
   };
+
+  /** Last submit payload, kept so a failed submit can be retried in place. */
+  const lastSubmitRef = useRef<null | (() => Promise<void>)>(null);
 
   const submitFinal = async (
     newAnswers: number[],
@@ -542,16 +575,19 @@ const DiagnosticQuiz = () => {
     finalQuestions: QuizQuestion[],
     branch: BranchTier | null,
   ) => {
+    lastSubmitRef.current = () =>
+      submitFinal(newAnswers, newTextAnswers, newConfidences, newQuestionTimes, newQuestionIds, finalQuestions, branch);
     if (!user) {
       setPhase("result");
       return;
     }
 
+
     setSaving(true);
     const courseIdForSave = finalQuestions[0]?.courseId || activeCourseId || null;
     if (!courseIdForSave) {
       setSaving(false);
-      toast.error("Missing course context. Please try again.");
+      setInlineError("Missing course context. Please try again.");
       return;
     }
 
@@ -645,8 +681,10 @@ const DiagnosticQuiz = () => {
         return;
       }
       console.error("Failed to score diagnostic:", fnErr ?? scored);
-      toast.error("Couldn't save your diagnostic. Please try again.");
+      // Inline, not a toast — toasts are portalled and invisible in fullscreen.
+      setInlineError("Couldn't save your diagnostic. Tap Finish Quiz again to retry.");
       return;
+
     }
 
     const level = (scored as { learner_level?: string })?.learner_level as
@@ -900,7 +938,7 @@ const DiagnosticQuiz = () => {
   const formatLabel = question.format === "short_answer" ? "Short Answer" : question.format === "true_false" ? "True / False" : "Multiple Choice";
 
   return (
-    <div ref={quizContainerRef} className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div ref={quizContainerRef} data-testid="diagnostic-quiz-container" className="relative flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-lg">
 
         <div className="mb-6 text-center">
@@ -957,8 +995,26 @@ const DiagnosticQuiz = () => {
                 </div>
               )}
             </motion.div>
+            {inlineError && (
+              <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <span>{inlineError}</span>
+                {lastSubmitRef.current && !saving && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      setInlineError(null);
+                      await lastSubmitRef.current?.();
+                    }}
+                  >
+                    Retry
+                  </Button>
+                )}
+              </div>
+            )}
+
             <div className="mt-4 flex justify-between">
-              <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); } else { setExitConfirmOpen(true); } }}>
+              <Button variant="ghost" onClick={() => { if (currentQ > 0) { const prevQ = currentQ - 1; const prevAnswer = answers[prevQ]; const prevText = textAnswers[prevQ]; setCurrentQ(prevQ); setSelected(prevAnswer === -1 ? null : prevAnswer); setTextAnswer(prevText || ""); setAnswers(answers.slice(0, -1)); setTextAnswers(textAnswers.slice(0, -1)); setQuestionTimes(questionTimes.slice(0, -1)); setQuestionIds(questionIds.slice(0, -1)); setQuestionStartTime(Date.now()); setInlineError(null); } else { setExitConfirmOpen(true); } }}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
               <Button onClick={handleAnswer} disabled={!canProceed || loadingBranch}>
@@ -968,56 +1024,64 @@ const DiagnosticQuiz = () => {
           </CardContent>
         </Card>
       </div>
-      <AlertDialog open={exitConfirmOpen} onOpenChange={setExitConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Leave the diagnostic?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Your progress on this attempt will be cleared, and you'll be asked to complete
-              the diagnostic again before you can access weekly quizzes, practice, or exam prep.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep going</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (user && activeCourseId) {
-                  try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {}
-                }
-                navigate("/student/onboarding");
-              }}
-            >
-              Leave anyway
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
-      <AlertDialog open={warningOpen} onOpenChange={() => { /* must be dismissed via the button */ }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              Stay on the quiz
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Switching tabs, windows or apps isn't allowed during a proctored quiz.
-              This is your only warning — the next time, your attempt will be voided.
-              The timer kept running.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction
-              onClick={async () => {
-                setWarningOpen(false);
-                await proctor.enterFullscreen();
-              }}
-            >
-              Resume quiz
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Leave confirmation — rendered inline (not portalled) so it stays
+          visible while the quiz is in fullscreen. */}
+      {exitConfirmOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/95 p-6">
+          <Card className="w-full max-w-md">
+            <CardContent className="space-y-4 p-6">
+              <h2 className="font-heading text-lg font-bold">Leave the diagnostic?</h2>
+              <p className="text-sm text-muted-foreground">
+                Your progress on this attempt will be cleared, and you'll be asked to complete
+                the diagnostic again before you can access weekly quizzes, practice, or exam prep.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setExitConfirmOpen(false)}>Keep going</Button>
+                <Button
+                  onClick={() => {
+                    if (user && activeCourseId) {
+                      try { localStorage.removeItem(`diagnosticProgress:${user.id}:${activeCourseId}`); } catch {}
+                    }
+                    navigate("/student/onboarding");
+                  }}
+                >
+                  Leave anyway
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Proctoring warning — inline for the same reason. */}
+      {warningOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/95 p-6">
+          <Card className="w-full max-w-md border-destructive/40">
+            <CardContent className="space-y-4 p-6 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+                <AlertTriangle className="h-7 w-7 text-destructive" />
+              </div>
+              <h2 className="font-heading text-lg font-bold">Stay on the quiz</h2>
+              <p className="text-sm text-muted-foreground">
+                Switching tabs, windows or apps isn't allowed during a proctored quiz.
+                <strong className="text-foreground"> This is your only warning — the next time, your attempt will be voided.</strong>
+              </p>
+              <p className="text-xs text-muted-foreground">The timer kept running.</p>
+              <Button
+                className="w-full"
+                onClick={async () => {
+                  setWarningOpen(false);
+                  await proctor.enterFullscreen();
+                }}
+              >
+                Resume quiz
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
     </div>
 
   );
