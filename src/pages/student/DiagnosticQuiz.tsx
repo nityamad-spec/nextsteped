@@ -484,28 +484,41 @@ const DiagnosticQuiz = () => {
 
     if (justFinishedStandard) {
       // Let short-answer verdicts land before branching — they change the
-      // Phase A score that picks the adaptive tier.
-      const standardQuestions = questions.slice(0, STANDARD_COUNT);
-      if (standardQuestions.some((q) => q.format === "short_answer")) {
-        setLoadingBranch(true);
-        await shortAnswers.waitForPending(REASONING_EVAL_DEADLINE_MS);
-      }
-      const standardCorrect = standardQuestions.reduce(
-        (n, q, i) => n + (isCorrectFor(q, newAnswers[i], newTextAnswers[i] ?? "") ? 1 : 0),
-        0,
-      );
-      const branch = pickBranchTier(standardCorrect);
-
-
+      // Phase A score that picks the adaptive tier. Nothing here may throw
+      // without clearing `loadingBranch`, or the Next button stays disabled
+      // and the student is stuck on question 10.
+      let branch: BranchTier = "medium";
+      let branchRows: any[] | null = null;
       setLoadingBranch(true);
-      const { data: branchRows } = await supabase
-        .from("diagnostic_questions")
-        .select("*")
-        .eq("in_test", true)
-        .eq("course_id", activeCourseId)
-        .eq("tier", branch)
-        .order("difficulty_estimate", { ascending: true });
-      setLoadingBranch(false);
+      try {
+        const standardQuestions = questions.slice(0, STANDARD_COUNT);
+        if (standardQuestions.some((q) => q.format === "short_answer")) {
+          await shortAnswers.waitForPending(REASONING_EVAL_DEADLINE_MS);
+        }
+        const standardCorrect = standardQuestions.reduce(
+          (n, q, i) => n + (isCorrectFor(q, newAnswers[i], newTextAnswers[i] ?? "") ? 1 : 0),
+          0,
+        );
+        branch = pickBranchTier(standardCorrect);
+
+        const fetchBranch = supabase
+          .from("diagnostic_questions")
+          .select("*")
+          .eq("in_test", true)
+          .eq("course_id", activeCourseId)
+          .eq("tier", branch)
+          .order("difficulty_estimate", { ascending: true });
+        const result = await Promise.race([
+          fetchBranch,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), BRANCH_FETCH_TIMEOUT_MS)),
+        ]);
+        branchRows = (result as { data?: any[] } | null)?.data ?? null;
+      } catch (e) {
+        console.error("[DiagnosticQuiz] adaptive branch fetch failed", e);
+        branchRows = null;
+      } finally {
+        setLoadingBranch(false);
+      }
 
       if (!branchRows || branchRows.length < ADAPTIVE_COUNT) {
         // Fallback — just submit with what we have
@@ -521,6 +534,7 @@ const DiagnosticQuiz = () => {
       setQuestionStartTime(Date.now());
       return;
     }
+
 
     if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
