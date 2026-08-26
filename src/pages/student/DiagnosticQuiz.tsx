@@ -569,7 +569,7 @@ const DiagnosticQuiz = () => {
     const courseIdForSave = finalQuestions[0]?.courseId || activeCourseId || null;
     if (!courseIdForSave) {
       setSaving(false);
-      toast.error("Missing course context. Please try again.");
+      setInlineError("Missing course context. Please try again.");
       return;
     }
 
