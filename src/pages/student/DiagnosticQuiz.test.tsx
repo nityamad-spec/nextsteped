@@ -158,7 +158,7 @@ describe("DiagnosticQuiz — no invisible blockers in fullscreen", () => {
       proctorOpts.onWarn?.("window_blur", 1);
     });
 
-    const warning = await screen.findByText(/you left the quiz/i);
+    const warning = await screen.findByText(/Stay on the quiz/i);
     // Must live inside the quiz container (the fullscreen element), never on body.
     expect(warning.closest("[data-testid='diagnostic-quiz-container']")).not.toBeNull();
   });
@@ -171,7 +171,7 @@ describe("DiagnosticQuiz — no invisible blockers in fullscreen", () => {
 
     fireEvent.click(screen.getByText("Alpha"));
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /next/i }));
+      fireEvent.click(screen.getByRole("button", { name: /next question/i }));
     });
 
     const alert = await screen.findByRole("alert");
@@ -191,7 +191,7 @@ describe("DiagnosticQuiz — no invisible blockers in fullscreen", () => {
       await screen.findByText(new RegExp(`Question standard ${i}`));
       fireEvent.click(screen.getByText("Alpha"));
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /next|finish/i }));
+        fireEvent.click(screen.getByRole("button", { name: /next question|finish quiz/i }));
         await vi.advanceTimersByTimeAsync(200);
       });
     }
