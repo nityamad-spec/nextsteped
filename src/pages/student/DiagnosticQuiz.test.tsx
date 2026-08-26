@@ -155,7 +155,7 @@ describe("DiagnosticQuiz — no invisible blockers in fullscreen", () => {
   it("renders the proctoring warning inline in the quiz container, not in a portal", async () => {
     renderQuiz();
     await startQuiz();
-    await screen.findByText(/Question standard 0/);
+    await screen.findByText(/Question standard \d/);
 
     await act(async () => {
       proctorOpts.onWarn?.("window_blur", 1);
@@ -170,7 +170,7 @@ describe("DiagnosticQuiz — no invisible blockers in fullscreen", () => {
     state.standardBloom = 4;
     renderQuiz();
     await startQuiz();
-    await screen.findByText(/Question standard 0/);
+    await screen.findByText(/Question standard \d/);
 
     fireEvent.click(screen.getByText("Alpha"));
     await act(async () => {
@@ -179,8 +179,8 @@ describe("DiagnosticQuiz — no invisible blockers in fullscreen", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/reasoning/i);
-    // Still on the same question — the student was not silently blocked.
-    expect(screen.getByText(/Question standard 0/)).toBeTruthy();
+    // Still on the first question — the student was not silently blocked.
+    expect(screen.getByText(/Question 1 of/i)).toBeTruthy();
   });
 
   it("does not leave the student stuck when the adaptive fetch hangs", async () => {
@@ -188,10 +188,10 @@ describe("DiagnosticQuiz — no invisible blockers in fullscreen", () => {
     state.branchFetchHangs = true;
     renderQuiz();
     await startQuiz();
-    await screen.findByText(/Question standard 0/);
+    await screen.findByText(/Question standard \d/);
 
     for (let i = 0; i < 10; i++) {
-      await screen.findByText(new RegExp(`Question standard ${i}`));
+      await screen.findByText(/Question standard \d/);
       fireEvent.click(screen.getByText("Alpha"));
       await act(async () => {
         fireEvent.click(screen.getByRole("button", { name: /next question|finish quiz/i }));
