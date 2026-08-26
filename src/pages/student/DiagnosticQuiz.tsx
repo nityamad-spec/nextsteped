@@ -138,6 +138,18 @@ const DiagnosticQuiz = () => {
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
 
+  // Safety valve — no async path may trap a student behind a disabled button.
+  useEffect(() => {
+    if (!loadingBranch) return;
+    const t = setTimeout(() => {
+      setLoadingBranch(false);
+      setInlineError("That took too long. Tap the button again to continue.");
+    }, STALL_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [loadingBranch]);
+
+
+
 
   // ---- Proctoring (browser lock) -------------------------------------------
   const quizContainerRef = useRef<HTMLDivElement>(null);
