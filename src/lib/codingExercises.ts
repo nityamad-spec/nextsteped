@@ -251,11 +251,89 @@ export async function updateExercise(
     })
     .eq("id", id);
   if (pubErr) throw pubErr;
+  // Any content edit invalidates the AI validation report — it no longer
+  // describes what's stored.
   const { error: privErr } = await supabase
     .from("coding_exercise_private")
-    .update({ reference_solution, hidden_test_cases: hidden_test_cases as any })
+    .update({
+      reference_solution,
+      hidden_test_cases: hidden_test_cases as any,
+      validation_report: null,
+      validated_at: null,
+    })
     .eq("exercise_id", id);
   if (privErr) throw privErr;
+}
+
+export interface ValidationProgress {
+  step: number;
+  total: number;
+  check: string;
+  label: string;
+  status?: ValidationStatus;
+  note?: string;
+}
+
+/**
+ * Runs the AI quality review for one exercise. Streams NDJSON progress frames
+ * (one per finished check) into `onProgress`, resolves with the final report.
+ */
+export async function runExerciseValidation(
+  exerciseId: string,
+  onProgress: (p: ValidationProgress) => void,
+): Promise<ValidationReport> {
+  const { data: sess } = await supabase.auth.getSession();
+  const accessToken = sess.session?.access_token;
+  if (!accessToken) throw new Error("Not authenticated");
+
+  const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-coding-exercise`;
+  const resp = await fetch(fnUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+    },
+    body: JSON.stringify({ exercise_id: exerciseId }),
+  });
+  if (!resp.ok || !resp.body) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(text || `HTTP ${resp.status}`);
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let finalFrame: { type: string; payload?: any; message?: string } | null = null;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line) continue;
+      let frame: any;
+      try {
+        frame = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (frame?.type === "progress") {
+        onProgress(frame as ValidationProgress);
+      } else if (frame?.type === "result" || frame?.type === "error") {
+        finalFrame = frame;
+      }
+    }
+  }
+  if (!finalFrame) throw new Error("Validation was interrupted");
+  if (finalFrame.type === "error") throw new Error(finalFrame.message || "Validation failed");
+  const payload = finalFrame.payload ?? {};
+  if (payload?.error) throw new Error(payload.error);
+  const report = payload?.report as ValidationReport | undefined;
+  if (!report?.checks?.length) throw new Error("Validation returned no results");
+  return report;
 }
 
 /** Marks an exercise reviewed without changing its content. */
