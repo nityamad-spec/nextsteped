@@ -31,6 +31,32 @@ export interface CodingTestCase {
   expected_output: string;
 }
 
+/** Ordered AI quality checks — keep in sync with CHECKS in the
+ * `validate-coding-exercise` edge function. */
+export const CODING_VALIDATION_CHECKS = [
+  { id: "problem_statement", label: "Problem statement" },
+  { id: "input_spec", label: "Input specification" },
+  { id: "output_spec", label: "Output specification" },
+  { id: "constraints", label: "Constraints" },
+  { id: "examples", label: "Examples" },
+  { id: "test_cases", label: "Test cases" },
+] as const;
+
+export type ValidationStatus = "pass" | "warning" | "fail";
+
+export interface ValidationCheck {
+  id: string;
+  label: string;
+  status: ValidationStatus;
+  note: string;
+}
+
+export interface ValidationReport {
+  checks: ValidationCheck[];
+  model?: string;
+  validated_at?: string;
+}
+
 export interface CodingExercise {
   id: string;
   course_id: string;
@@ -54,7 +80,28 @@ export interface CodingExercise {
   // Joined from coding_exercise_private (teacher-only; absent for students)
   reference_solution: string;
   hidden_test_cases: CodingTestCase[];
+  /** Advisory AI quality review; cleared whenever the exercise is edited. */
+  validation_report: ValidationReport | null;
+  validated_at: string | null;
 }
+
+/**
+ * Overall state of a validation report: "fail" when any check failed,
+ * "warning" when any warned, "pass" when all passed, null when there is no
+ * usable report.
+ */
+export function summariseValidation(
+  report: ValidationReport | null | undefined,
+): { overall: ValidationStatus; failed: number; warnings: number; passed: number } | null {
+  const checks = report?.checks;
+  if (!Array.isArray(checks) || checks.length === 0) return null;
+  const failed = checks.filter((c) => c.status === "fail").length;
+  const warnings = checks.filter((c) => c.status === "warning").length;
+  const passed = checks.filter((c) => c.status === "pass").length;
+  const overall: ValidationStatus = failed > 0 ? "fail" : warnings > 0 ? "warning" : "pass";
+  return { overall, failed, warnings, passed };
+}
+
 
 /** Student-safe shape — no solutions, no hidden tests. */
 export interface PublishedCodingExercise {
