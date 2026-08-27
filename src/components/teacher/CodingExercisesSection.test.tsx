@@ -73,6 +73,8 @@ const makeExercise = (overrides: Partial<CodingExercise> = {}): CodingExercise =
   reviewed_at: null,
   reference_solution: "print(2)",
   hidden_test_cases: [{ input: "9", expected_output: "10" }],
+  validation_report: null,
+  validated_at: null,
   ...overrides,
 });
 
