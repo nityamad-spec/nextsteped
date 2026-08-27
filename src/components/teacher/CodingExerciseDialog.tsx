@@ -468,7 +468,68 @@ const CodingExerciseDialog = ({
             )}
           </div>
 
-          {inReview ? (
+          <div className="space-y-2 rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">AI quality review</p>
+                <p className="text-xs text-muted-foreground">
+                  Checks the statement, specs, constraints, examples and test cases. Advisory
+                  only — saving an edit clears the report.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleValidate()}
+                disabled={validating || saving}
+              >
+                {validating ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <ShieldCheck className="mr-1.5 h-4 w-4" />
+                )}
+                {validating ? "Validating…" : "Validate"}
+              </Button>
+            </div>
+
+            {validating && validationProgress && (
+              <div className="space-y-1">
+                <Progress
+                  value={Math.round(
+                    (validationProgress.step / validationProgress.total) * 100,
+                  )}
+                  className="h-1.5"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Checking {validationProgress.label.toLowerCase()}… (
+                  {Math.min(validationProgress.step + 1, validationProgress.total)} of{" "}
+                  {validationProgress.total})
+                </p>
+              </div>
+            )}
+
+            {!validating && report?.checks?.length ? (
+              <div className="space-y-1">
+                {report.checks.map((c) => (
+                  <div key={c.id} className="flex items-start gap-2 text-xs">
+                    {c.status === "pass" ? (
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                    ) : c.status === "warning" ? (
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                    ) : (
+                      <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+                    )}
+                    <span className="min-w-0">
+                      <span className="font-medium">{c.label}:</span>{" "}
+                      <span className="text-muted-foreground">{c.note}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 Close
