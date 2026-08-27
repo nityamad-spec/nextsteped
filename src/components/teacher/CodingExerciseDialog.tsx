@@ -82,6 +82,9 @@ const CodingExerciseDialog = ({
   const { toast } = useToast();
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft);
   const [saving, setSaving] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validationProgress, setValidationProgress] = useState<ValidationProgress | null>(null);
+  const [report, setReport] = useState<ValidationReport | null>(null);
 
   const inReview =
     !!reviewIds && typeof reviewIndex === "number" && !!onReviewNavigate;
