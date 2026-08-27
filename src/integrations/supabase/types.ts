@@ -490,6 +490,8 @@ export type Database = {
           id: string
           reference_solution: string
           updated_at: string
+          validated_at: string | null
+          validation_report: Json | null
         }
         Insert: {
           created_at?: string
@@ -498,6 +500,8 @@ export type Database = {
           id?: string
           reference_solution?: string
           updated_at?: string
+          validated_at?: string | null
+          validation_report?: Json | null
         }
         Update: {
           created_at?: string
@@ -506,6 +510,8 @@ export type Database = {
           id?: string
           reference_solution?: string
           updated_at?: string
+          validated_at?: string | null
+          validation_report?: Json | null
         }
         Relationships: [
           {

@@ -3,12 +3,23 @@
 // and hidden test cases.
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -20,10 +31,14 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   CODING_LANGUAGES,
+  CODING_VALIDATION_CHECKS,
   exerciseMissingFields,
+  runExerciseValidation,
   updateExercise,
   type CodingExercise,
   type ExerciseDraft,
+  type ValidationProgress,
+  type ValidationReport,
 } from "@/lib/codingExercises";
 
 interface CodingExerciseDialogProps {
@@ -67,6 +82,9 @@ const CodingExerciseDialog = ({
   const { toast } = useToast();
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft);
   const [saving, setSaving] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validationProgress, setValidationProgress] = useState<ValidationProgress | null>(null);
+  const [report, setReport] = useState<ValidationReport | null>(null);
 
   const inReview =
     !!reviewIds && typeof reviewIndex === "number" && !!onReviewNavigate;
@@ -87,10 +105,40 @@ const CodingExerciseDialog = ({
         reference_solution: exercise.reference_solution,
         hidden_test_cases: exercise.hidden_test_cases.map((t) => ({ ...t })),
       });
+      setReport(exercise.validation_report ?? null);
     }
   }, [open, exercise]);
 
   if (!exercise) return null;
+
+  const handleValidate = async () => {
+    setValidating(true);
+    setValidationProgress({
+      step: 0,
+      total: CODING_VALIDATION_CHECKS.length,
+      check: CODING_VALIDATION_CHECKS[0].id,
+      label: CODING_VALIDATION_CHECKS[0].label,
+    });
+    try {
+      const next = await runExerciseValidation(exercise.id, (p) => setValidationProgress(p));
+      setReport(next);
+      onSaved();
+      toast({
+        title: "Validation complete",
+        description: "AI notes are advisory — they don't block publishing.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Validation failed",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setValidating(false);
+      setValidationProgress(null);
+    }
+  };
+
 
   const set = <K extends keyof ExerciseDraft>(key: K, value: ExerciseDraft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -418,6 +466,67 @@ const CodingExerciseDialog = ({
               "Hidden / edge test cases",
               "Teachers only — never shown to students.",
             )}
+          </div>
+
+          <div className="space-y-2 rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">AI quality review</p>
+                <p className="text-xs text-muted-foreground">
+                  Checks the statement, specs, constraints, examples and test cases. Advisory
+                  only — saving an edit clears the report.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleValidate()}
+                disabled={validating || saving}
+              >
+                {validating ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <ShieldCheck className="mr-1.5 h-4 w-4" />
+                )}
+                {validating ? "Validating…" : "Validate"}
+              </Button>
+            </div>
+
+            {validating && validationProgress && (
+              <div className="space-y-1">
+                <Progress
+                  value={Math.round(
+                    (validationProgress.step / validationProgress.total) * 100,
+                  )}
+                  className="h-1.5"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Checking {validationProgress.label.toLowerCase()}… (
+                  {Math.min(validationProgress.step + 1, validationProgress.total)} of{" "}
+                  {validationProgress.total})
+                </p>
+              </div>
+            )}
+
+            {!validating && report?.checks?.length ? (
+              <div className="space-y-1">
+                {report.checks.map((c) => (
+                  <div key={c.id} className="flex items-start gap-2 text-xs">
+                    {c.status === "pass" ? (
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                    ) : c.status === "warning" ? (
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                    ) : (
+                      <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+                    )}
+                    <span className="min-w-0">
+                      <span className="font-medium">{c.label}:</span>{" "}
+                      <span className="text-muted-foreground">{c.note}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           {inReview ? (

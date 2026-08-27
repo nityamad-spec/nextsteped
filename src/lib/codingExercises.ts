@@ -31,6 +31,32 @@ export interface CodingTestCase {
   expected_output: string;
 }
 
+/** Ordered AI quality checks — keep in sync with CHECKS in the
+ * `validate-coding-exercise` edge function. */
+export const CODING_VALIDATION_CHECKS = [
+  { id: "problem_statement", label: "Problem statement" },
+  { id: "input_spec", label: "Input specification" },
+  { id: "output_spec", label: "Output specification" },
+  { id: "constraints", label: "Constraints" },
+  { id: "examples", label: "Examples" },
+  { id: "test_cases", label: "Test cases" },
+] as const;
+
+export type ValidationStatus = "pass" | "warning" | "fail";
+
+export interface ValidationCheck {
+  id: string;
+  label: string;
+  status: ValidationStatus;
+  note: string;
+}
+
+export interface ValidationReport {
+  checks: ValidationCheck[];
+  model?: string;
+  validated_at?: string;
+}
+
 export interface CodingExercise {
   id: string;
   course_id: string;
@@ -54,7 +80,28 @@ export interface CodingExercise {
   // Joined from coding_exercise_private (teacher-only; absent for students)
   reference_solution: string;
   hidden_test_cases: CodingTestCase[];
+  /** Advisory AI quality review; cleared whenever the exercise is edited. */
+  validation_report: ValidationReport | null;
+  validated_at: string | null;
 }
+
+/**
+ * Overall state of a validation report: "fail" when any check failed,
+ * "warning" when any warned, "pass" when all passed, null when there is no
+ * usable report.
+ */
+export function summariseValidation(
+  report: ValidationReport | null | undefined,
+): { overall: ValidationStatus; failed: number; warnings: number; passed: number } | null {
+  const checks = report?.checks;
+  if (!Array.isArray(checks) || checks.length === 0) return null;
+  const failed = checks.filter((c) => c.status === "fail").length;
+  const warnings = checks.filter((c) => c.status === "warning").length;
+  const passed = checks.filter((c) => c.status === "pass").length;
+  const overall: ValidationStatus = failed > 0 ? "fail" : warnings > 0 ? "warning" : "pass";
+  return { overall, failed, warnings, passed };
+}
+
 
 /** Student-safe shape — no solutions, no hidden tests. */
 export interface PublishedCodingExercise {
@@ -84,7 +131,9 @@ export async function fetchWeekExercises(
 ): Promise<CodingExercise[]> {
   const { data, error } = await supabase
     .from("coding_exercises")
-    .select("*, coding_exercise_private(reference_solution, hidden_test_cases)")
+    .select(
+      "*, coding_exercise_private(reference_solution, hidden_test_cases, validation_report, validated_at)",
+    )
     .eq("course_id", courseId)
     .eq("week_number", weekNumber)
     .order("position");
@@ -99,6 +148,8 @@ export async function fetchWeekExercises(
       standard_test_cases: asArray<CodingTestCase>(row.standard_test_cases),
       reference_solution: priv?.reference_solution ?? "",
       hidden_test_cases: asArray<CodingTestCase>(priv?.hidden_test_cases),
+      validation_report: (priv?.validation_report as ValidationReport | null) ?? null,
+      validated_at: priv?.validated_at ?? null,
     } as CodingExercise;
   });
 }
@@ -200,11 +251,89 @@ export async function updateExercise(
     })
     .eq("id", id);
   if (pubErr) throw pubErr;
+  // Any content edit invalidates the AI validation report — it no longer
+  // describes what's stored.
   const { error: privErr } = await supabase
     .from("coding_exercise_private")
-    .update({ reference_solution, hidden_test_cases: hidden_test_cases as any })
+    .update({
+      reference_solution,
+      hidden_test_cases: hidden_test_cases as any,
+      validation_report: null,
+      validated_at: null,
+    })
     .eq("exercise_id", id);
   if (privErr) throw privErr;
+}
+
+export interface ValidationProgress {
+  step: number;
+  total: number;
+  check: string;
+  label: string;
+  status?: ValidationStatus;
+  note?: string;
+}
+
+/**
+ * Runs the AI quality review for one exercise. Streams NDJSON progress frames
+ * (one per finished check) into `onProgress`, resolves with the final report.
+ */
+export async function runExerciseValidation(
+  exerciseId: string,
+  onProgress: (p: ValidationProgress) => void,
+): Promise<ValidationReport> {
+  const { data: sess } = await supabase.auth.getSession();
+  const accessToken = sess.session?.access_token;
+  if (!accessToken) throw new Error("Not authenticated");
+
+  const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-coding-exercise`;
+  const resp = await fetch(fnUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+    },
+    body: JSON.stringify({ exercise_id: exerciseId }),
+  });
+  if (!resp.ok || !resp.body) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(text || `HTTP ${resp.status}`);
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let finalFrame: { type: string; payload?: any; message?: string } | null = null;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line) continue;
+      let frame: any;
+      try {
+        frame = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (frame?.type === "progress") {
+        onProgress(frame as ValidationProgress);
+      } else if (frame?.type === "result" || frame?.type === "error") {
+        finalFrame = frame;
+      }
+    }
+  }
+  if (!finalFrame) throw new Error("Validation was interrupted");
+  if (finalFrame.type === "error") throw new Error(finalFrame.message || "Validation failed");
+  const payload = finalFrame.payload ?? {};
+  if (payload?.error) throw new Error(payload.error);
+  const report = payload?.report as ValidationReport | undefined;
+  if (!report?.checks?.length) throw new Error("Validation returned no results");
+  return report;
 }
 
 /** Marks an exercise reviewed without changing its content. */
