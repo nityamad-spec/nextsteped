@@ -88,6 +88,37 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
   // looked up against the live `exercises` list so navigation shows fresh data.
   const [reviewIds, setReviewIds] = useState<string[] | null>(null);
   const [reviewIndex, setReviewIndex] = useState(0);
+  // AI validation: which exercise is being validated + its live progress.
+  const [validatingId, setValidatingId] = useState<string | null>(null);
+  const [validationProgress, setValidationProgress] = useState<ValidationProgress | null>(null);
+
+  const handleValidate = async (ex: CodingExercise) => {
+    setValidatingId(ex.id);
+    setValidationProgress({
+      step: 0,
+      total: CODING_VALIDATION_CHECKS.length,
+      check: CODING_VALIDATION_CHECKS[0].id,
+      label: CODING_VALIDATION_CHECKS[0].label,
+    });
+    try {
+      await runExerciseValidation(ex.id, (p) => setValidationProgress(p));
+      await load();
+      toast({
+        title: "Validation complete",
+        description: "Review the AI notes below the exercise. This is guidance, not a pass/fail gate.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Validation failed",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setValidatingId(null);
+      setValidationProgress(null);
+    }
+  };
+
 
   const load = useCallback(async (): Promise<CodingExercise[]> => {
     try {
