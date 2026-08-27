@@ -3,12 +3,23 @@
 // and hidden test cases.
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -20,10 +31,14 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   CODING_LANGUAGES,
+  CODING_VALIDATION_CHECKS,
   exerciseMissingFields,
+  runExerciseValidation,
   updateExercise,
   type CodingExercise,
   type ExerciseDraft,
+  type ValidationProgress,
+  type ValidationReport,
 } from "@/lib/codingExercises";
 
 interface CodingExerciseDialogProps {
