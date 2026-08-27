@@ -4,13 +4,23 @@
 // frames, and generated exercises land as unpublished drafts for review.
 
 import { useCallback, useEffect, useState } from "react";
-import { Code2, Loader2, Pencil, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Code2,
+  Loader2,
+  Pencil,
+  ShieldCheck,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -29,12 +39,16 @@ import {
 import CodingExerciseDialog from "@/components/teacher/CodingExerciseDialog";
 import {
   CODING_LANGUAGES,
+  CODING_VALIDATION_CHECKS,
   deleteExercise,
   exerciseMissingFields,
   fetchWeekExercises,
   languageLabel,
+  runExerciseValidation,
   setWeekExercisesPublished,
+  summariseValidation,
   type CodingExercise,
+  type ValidationProgress,
 } from "@/lib/codingExercises";
 
 /** Minimal shape of the lesson-plan week this section belongs to. */
