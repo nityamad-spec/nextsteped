@@ -131,7 +131,9 @@ export async function fetchWeekExercises(
 ): Promise<CodingExercise[]> {
   const { data, error } = await supabase
     .from("coding_exercises")
-    .select("*, coding_exercise_private(reference_solution, hidden_test_cases)")
+    .select(
+      "*, coding_exercise_private(reference_solution, hidden_test_cases, validation_report, validated_at)",
+    )
     .eq("course_id", courseId)
     .eq("week_number", weekNumber)
     .order("position");
@@ -146,6 +148,8 @@ export async function fetchWeekExercises(
       standard_test_cases: asArray<CodingTestCase>(row.standard_test_cases),
       reference_solution: priv?.reference_solution ?? "",
       hidden_test_cases: asArray<CodingTestCase>(priv?.hidden_test_cases),
+      validation_report: (priv?.validation_report as ValidationReport | null) ?? null,
+      validated_at: priv?.validated_at ?? null,
     } as CodingExercise;
   });
 }
