@@ -420,69 +420,143 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
         <div className="space-y-2">
           {exercises.map((ex) => {
             const missing = exerciseMissingFields(ex);
+            const summary = summariseValidation(ex.validation_report);
+            const isValidating = validatingId === ex.id;
+            const pct = isValidating && validationProgress
+              ? Math.round((validationProgress.step / validationProgress.total) * 100)
+              : 0;
             return (
-              <div
-                key={ex.id}
-                className="flex items-center gap-3 rounded-lg border bg-card p-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate text-sm font-medium">
-                      {ex.title || "Untitled exercise"}
-                    </p>
-                    <Badge variant="secondary" className="text-[10px]">
-                      {languageLabel(ex.language)}
-                    </Badge>
-                    {!ex.published && (
-                      <Badge variant="outline" className="text-[10px]">
-                        Draft
+              <div key={ex.id} className="space-y-2 rounded-lg border bg-card p-3">
+                <div className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-sm font-medium">
+                        {ex.title || "Untitled exercise"}
+                      </p>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {languageLabel(ex.language)}
                       </Badge>
-                    )}
-                    {ex.reviewed_at ? (
-                      <Badge className="border-emerald-500/30 bg-emerald-500/10 text-[10px] text-emerald-700 dark:text-emerald-400">
-                        Reviewed
-                      </Badge>
-                    ) : (
-                      <Badge className="border-amber-500/30 bg-amber-500/10 text-[10px] text-amber-700 dark:text-amber-400">
-                        Needs review
-                      </Badge>
+                      {!ex.published && (
+                        <Badge variant="outline" className="text-[10px]">
+                          Draft
+                        </Badge>
+                      )}
+                      {ex.reviewed_at ? (
+                        <Badge className="border-emerald-500/30 bg-emerald-500/10 text-[10px] text-emerald-700 dark:text-emerald-400">
+                          Reviewed
+                        </Badge>
+                      ) : (
+                        <Badge className="border-amber-500/30 bg-amber-500/10 text-[10px] text-amber-700 dark:text-amber-400">
+                          Needs review
+                        </Badge>
+                      )}
+                      {summary && !isValidating && (
+                        <Badge
+                          variant="outline"
+                          className={
+                            summary.overall === "fail"
+                              ? "border-destructive/40 text-[10px] text-destructive"
+                              : summary.overall === "warning"
+                                ? "border-amber-500/30 text-[10px] text-amber-700 dark:text-amber-400"
+                                : "border-emerald-500/30 text-[10px] text-emerald-700 dark:text-emerald-400"
+                          }
+                        >
+                          {summary.overall === "fail"
+                            ? `${summary.failed} issue${summary.failed === 1 ? "" : "s"}`
+                            : summary.overall === "warning"
+                              ? `${summary.warnings} warning${summary.warnings === 1 ? "" : "s"}`
+                              : "Validated"}
+                        </Badge>
+                      )}
+                    </div>
+                    {missing.length > 0 && (
+                      <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
+                        Missing: {missing.join(", ")}
+                      </p>
                     )}
                   </div>
-                  {missing.length > 0 && (
-                    <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
-                      Missing: {missing.join(", ")}
-                    </p>
-                  )}
-                </div>
-                {!ex.reviewed_at && (
                   <Button
                     size="sm"
                     variant="outline"
                     className="h-8 shrink-0"
-                    aria-label={`Review ${ex.title || "exercise"}`}
-                    onClick={() => openReview(exercises, ex.id)}
+                    aria-label={`Validate ${ex.title || "exercise"}`}
+                    onClick={() => void handleValidate(ex)}
+                    disabled={!!validatingId}
                   >
-                    Review
+                    {isValidating ? (
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    ) : (
+                      <ShieldCheck className="mr-1.5 h-4 w-4" />
+                    )}
+                    {isValidating ? "Validating…" : "Validate"}
                   </Button>
+                  {!ex.reviewed_at && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 shrink-0"
+                      aria-label={`Review ${ex.title || "exercise"}`}
+                      onClick={() => openReview(exercises, ex.id)}
+                    >
+                      Review
+                    </Button>
+                  )}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 shrink-0"
+                    aria-label={`Edit ${ex.title || "exercise"}`}
+                    onClick={() => setEditing(ex)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 shrink-0 text-destructive"
+                    aria-label={`Delete ${ex.title || "exercise"}`}
+                    onClick={() => setConfirmDelete(ex)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {isValidating && validationProgress && (
+                  <div className="space-y-1" data-testid={`validation-progress-${ex.id}`}>
+                    <Progress value={pct} className="h-1.5" />
+                    <p className="text-xs text-muted-foreground">
+                      Checking {validationProgress.label.toLowerCase()}… (
+                      {Math.min(validationProgress.step + 1, validationProgress.total)} of{" "}
+                      {validationProgress.total})
+                    </p>
+                  </div>
                 )}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 shrink-0"
-                  aria-label={`Edit ${ex.title || "exercise"}`}
-                  onClick={() => setEditing(ex)}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 shrink-0 text-destructive"
-                  aria-label={`Delete ${ex.title || "exercise"}`}
-                  onClick={() => setConfirmDelete(ex)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+
+                {!isValidating && ex.validation_report?.checks?.length ? (
+                  <div className="space-y-1 rounded-md border border-dashed p-2">
+                    {ex.validation_report.checks.map((c) => (
+                      <div key={c.id} className="flex items-start gap-2 text-xs">
+                        {c.status === "pass" ? (
+                          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                        ) : c.status === "warning" ? (
+                          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                        ) : (
+                          <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+                        )}
+                        <span className="min-w-0">
+                          <span className="font-medium">{c.label}:</span>{" "}
+                          <span className="text-muted-foreground">{c.note}</span>
+                        </span>
+                      </div>
+                    ))}
+                    <p className="pt-1 text-[10px] text-muted-foreground">
+                      AI review — advisory only, and cleared when you edit the exercise.
+                      {ex.validated_at
+                        ? ` Validated ${new Date(ex.validated_at).toLocaleString()}.`
+                        : ""}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             );
           })}
