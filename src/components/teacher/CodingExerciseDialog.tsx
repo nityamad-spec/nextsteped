@@ -105,10 +105,40 @@ const CodingExerciseDialog = ({
         reference_solution: exercise.reference_solution,
         hidden_test_cases: exercise.hidden_test_cases.map((t) => ({ ...t })),
       });
+      setReport(exercise.validation_report ?? null);
     }
   }, [open, exercise]);
 
   if (!exercise) return null;
+
+  const handleValidate = async () => {
+    setValidating(true);
+    setValidationProgress({
+      step: 0,
+      total: CODING_VALIDATION_CHECKS.length,
+      check: CODING_VALIDATION_CHECKS[0].id,
+      label: CODING_VALIDATION_CHECKS[0].label,
+    });
+    try {
+      const next = await runExerciseValidation(exercise.id, (p) => setValidationProgress(p));
+      setReport(next);
+      onSaved();
+      toast({
+        title: "Validation complete",
+        description: "AI notes are advisory — they don't block publishing.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Validation failed",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setValidating(false);
+      setValidationProgress(null);
+    }
+  };
+
 
   const set = <K extends keyof ExerciseDraft>(key: K, value: ExerciseDraft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
