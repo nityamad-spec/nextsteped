@@ -74,8 +74,8 @@ export interface CodingExercise {
   primary_language: string | null;
   standard_test_cases: CodingTestCase[];
   /** Bloom's taxonomy level (1-6) of the task, set at generation time. */
-  bloom_level: number | null;
-  bloom_justification: string | null;
+  bloom_level?: number | null;
+  bloom_justification?: string | null;
   published: boolean;
   published_at: string | null;
   /** Null until a teacher explicitly marks the exercise reviewed; required before publish. */
