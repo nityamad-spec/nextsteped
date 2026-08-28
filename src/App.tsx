@@ -24,6 +24,7 @@ import TeacherOnboarding from "./pages/teacher/TeacherOnboarding";
 import CourseCreation from "./pages/teacher/CourseCreation";
 import CourseSetup from "./pages/teacher/CourseSetup";
 import ProjectLabSetup from "./pages/teacher/ProjectLabSetup";
+import SoftSkillsSetup from "./pages/teacher/SoftSkillsSetup";
 import CourseMaterials from "./pages/teacher/CourseMaterials";
 import ExamMode from "./pages/teacher/ExamMode";
 import EnrollmentSettings from "./pages/teacher/EnrollmentSettings";
@@ -363,6 +364,7 @@ const App = () => (
                 <Route path="/teacher/setup/diagnostic" element={<RequireTeacherPath><DiagnosticQuestionsSetup /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/exam-mode" element={<RequireTeacherPath><ExamMode /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/project-lab" element={<RequireTeacherPath><ProjectLabSetup /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/soft-skills" element={<RequireTeacherPath><SoftSkillsSetup /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/enrollment" element={<RequireTeacherPath><EnrollmentSettings /></RequireTeacherPath>} />
                 <Route path="/teacher/assessments" element={<Navigate to="/teacher/setup/exam-mode" replace />} />
                 <Route path="/teacher/teaching-plan" element={<RequireTeacherPath><TeachingPlan /></RequireTeacherPath>} />
