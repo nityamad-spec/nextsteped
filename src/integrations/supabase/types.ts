@@ -574,6 +574,8 @@ export type Database = {
       }
       coding_exercises: {
         Row: {
+          bloom_justification: string | null
+          bloom_level: number | null
           constraints: string | null
           course_id: string
           created_at: string
@@ -596,6 +598,8 @@ export type Database = {
           week_number: number
         }
         Insert: {
+          bloom_justification?: string | null
+          bloom_level?: number | null
           constraints?: string | null
           course_id: string
           created_at?: string
@@ -618,6 +622,8 @@ export type Database = {
           week_number: number
         }
         Update: {
+          bloom_justification?: string | null
+          bloom_level?: number | null
           constraints?: string | null
           course_id?: string
           created_at?: string
@@ -1000,6 +1006,53 @@ export type Database = {
           },
         ]
       }
+      course_soft_skills: {
+        Row: {
+          activities: Json
+          course_id: string
+          created_at: string
+          id: string
+          outcomes: string[]
+          position: number
+          published: boolean
+          summary: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          activities?: Json
+          course_id: string
+          created_at?: string
+          id?: string
+          outcomes?: string[]
+          position?: number
+          published?: boolean
+          summary?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          activities?: Json
+          course_id?: string
+          created_at?: string
+          id?: string
+          outcomes?: string[]
+          position?: number
+          published?: boolean
+          summary?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_soft_skills_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_ta_settings: {
         Row: {
           course_id: string
@@ -1228,6 +1281,7 @@ export type Database = {
           coding_reviewed_at: string | null
           coding_reviewed_by: string | null
           course_code: string | null
+          course_type: string
           created_at: string
           end_date: string | null
           enrollment_code: string
@@ -1264,6 +1318,7 @@ export type Database = {
           coding_reviewed_at?: string | null
           coding_reviewed_by?: string | null
           course_code?: string | null
+          course_type?: string
           created_at?: string
           end_date?: string | null
           enrollment_code?: string
@@ -1300,6 +1355,7 @@ export type Database = {
           coding_reviewed_at?: string | null
           coding_reviewed_by?: string | null
           course_code?: string | null
+          course_type?: string
           created_at?: string
           end_date?: string | null
           enrollment_code?: string
