@@ -3,11 +3,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { BookOpen, Code2, Loader2 } from "lucide-react";
+import { BookOpen, Code2, Loader2, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 import CourseAnalyticsView, { type CourseLite } from "@/components/CourseAnalyticsView";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export type { CourseLite };
 
@@ -27,6 +28,8 @@ const CourseProfileDialog = ({ course, open, onOpenChange, onChanged }: Props) =
   const [codingRequestedAt, setCodingRequestedAt] = useState<string | null>(null);
   const [codingReviewedAt, setCodingReviewedAt] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState(false);
+  const [courseType, setCourseType] = useState<"academic" | "employment">("academic");
+  const [savingType, setSavingType] = useState(false);
 
   // Fetch the latest coding-access state each time the dialog opens (the list
   // row may be stale after a prior review).
@@ -36,7 +39,7 @@ const CourseProfileDialog = ({ course, open, onOpenChange, onChanged }: Props) =
     (async () => {
       const { data } = await supabase
         .from("courses")
-        .select("coding_access_status, coding_requested_at, coding_reviewed_at")
+        .select("coding_access_status, coding_requested_at, coding_reviewed_at, course_type")
         .eq("id", course.id)
         .maybeSingle();
       if (cancelled || !data) return;
@@ -44,11 +47,27 @@ const CourseProfileDialog = ({ course, open, onOpenChange, onChanged }: Props) =
       setCodingStatus(s === "pending" || s === "approved" || s === "rejected" ? s : "none");
       setCodingRequestedAt(data.coding_requested_at);
       setCodingReviewedAt(data.coding_reviewed_at);
+      setCourseType(data.course_type === "employment" ? "employment" : "academic");
     })();
     return () => {
       cancelled = true;
     };
   }, [open, course?.id]);
+
+  // Course type is locked for professors; admins may still correct it here.
+  const changeCourseType = async (next: "academic" | "employment") => {
+    if (!course?.id || next === courseType || savingType) return;
+    setSavingType(true);
+    const { error } = await supabase.from("courses").update({ course_type: next }).eq("id", course.id);
+    setSavingType(false);
+    if (error) {
+      toast.error(`Failed to update course type: ${error.message}`);
+      return;
+    }
+    setCourseType(next);
+    toast.success(next === "employment" ? "Switched to employment pathway" : "Switched to academic course");
+    onChanged?.();
+  };
 
   const reviewCoding = async (decision: CodingStatus) => {
     if (!course?.id || !user || reviewing) return;
@@ -93,6 +112,33 @@ const CourseProfileDialog = ({ course, open, onOpenChange, onChanged }: Props) =
           </div>
         </DialogHeader>
         <ScrollArea className="max-h-[calc(85vh-88px)] px-6 pb-6">
+          {/* Course type — admin-only override (professors cannot change it) */}
+          <div className="mb-4 rounded-lg border p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Briefcase className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">Course type</h3>
+              <Badge variant="outline" className="text-[10px]">
+                {courseType === "employment" ? "Employment pathway" : "Academic course"}
+              </Badge>
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Employment pathway courses use a workplace-readiness diagnostic and expose the Soft
+              Skills module to professors and students.
+            </p>
+            <div className="mt-3 flex items-center gap-2">
+              <Select value={courseType} onValueChange={(v) => changeCourseType(v as any)} disabled={savingType}>
+                <SelectTrigger className="h-8 w-56 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="academic">Academic course</SelectItem>
+                  <SelectItem value="employment">Employment pathway</SelectItem>
+                </SelectContent>
+              </Select>
+              {savingType && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+            </div>
+          </div>
+
           {/* Coding access review — approve/deny professor requests */}
           <div className="mb-4 rounded-lg border p-4">
             <div className="flex items-center gap-2 flex-wrap">
