@@ -74,6 +74,7 @@ const NewCoursePage = () => {
           name: courseName.trim(),
           course_code: courseCode.trim(),
           term,
+          course_type: courseType || "academic",
           graduation_year: [graduationYear],
           objectives: learningObjective.split("\n").filter(Boolean),
         })
