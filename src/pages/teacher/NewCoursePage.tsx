@@ -41,6 +41,7 @@ const NewCoursePage = () => {
   const [courseName, setCourseName] = useState("");
   const [courseCode, setCourseCode] = useState("");
   const [term, setTerm] = useState("");
+  const [courseType, setCourseType] = useState<"academic" | "employment" | "">("");
   const [graduationYear, setGraduationYear] = useState("");
   const [learningObjective, setLearningObjective] = useState("");
   const [saving, setSaving] = useState(false);
